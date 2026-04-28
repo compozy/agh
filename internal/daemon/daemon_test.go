@@ -1579,6 +1579,107 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	}
 }
 
+func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldRollBackManagedInstallWhenReloadFails", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		db := openDaemonTestGlobalDB(t)
+		registry := extensionpkg.NewRegistry(db.DB())
+		manager := extensionpkg.NewManager(registry, extensionpkg.WithLogger(discardLogger()))
+		if err := manager.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t)); err != nil {
+				t.Fatalf("manager.Stop() error = %v", err)
+			}
+		})
+
+		service := newDaemonExtensionService(
+			registry,
+			manager,
+			fakeHookBindingPublisher(func(context.Context) error {
+				return nil
+			}),
+			nil,
+			nil,
+			nil,
+			homePaths,
+			discardLogger(),
+			time.Now,
+		)
+
+		fixtureDir := filepath.Join(t.TempDir(), "rollback-ext")
+		agentDir := filepath.Join(fixtureDir, "agents", "broken")
+		if err := os.MkdirAll(agentDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", agentDir, err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(fixtureDir, "extension.toml"),
+			[]byte(`[extension]
+name = "rollback-ext"
+version = "0.1.0"
+description = "Invalid extension used to verify daemon install rollback."
+min_agh_version = "0.0.1"
+
+[resources]
+agents = ["agents"]
+`),
+			0o644,
+		); err != nil {
+			t.Fatalf("os.WriteFile(extension.toml) error = %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(agentDir, "AGENT.md"),
+			[]byte(`---
+provider: codex
+---
+
+Broken agent missing required name.
+`),
+			0o644,
+		); err != nil {
+			t.Fatalf("os.WriteFile(AGENT.md) error = %v", err)
+		}
+
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(fixtureDir)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+		}
+
+		_, err = service.Install(testutil.Context(t), contract.InstallExtensionRequest{
+			Path:     fixtureDir,
+			Checksum: checksum,
+		})
+		if err == nil {
+			t.Fatal("service.Install(invalid extension) error = nil, want reload failure")
+		}
+		if !strings.Contains(err.Error(), "agent name is required") {
+			t.Fatalf("service.Install(invalid extension) error = %v, want agent parse failure", err)
+		}
+
+		if _, err := registry.Get("rollback-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("registry.Get(rollback-ext) error = %v, want ErrExtensionNotFound", err)
+		}
+		managedPath := extensionpkg.ManagedInstallPath(homePaths, "rollback-ext")
+		if _, err := os.Stat(managedPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want not exists", managedPath, err)
+		}
+		if _, err := manager.Get("rollback-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("manager.Get(rollback-ext) error = %v, want ErrExtensionNotFound", err)
+		}
+		if listed := manager.List(); len(listed) != 0 {
+			t.Fatalf("manager.List() = %#v, want no extensions after rollback", listed)
+		}
+		if _, err := os.Stat(filepath.Join(fixtureDir, "extension.toml")); err != nil {
+			t.Fatalf("source fixture manifest stat error = %v", err)
+		}
+	})
+}
+
 func TestDaemonExtensionServiceCheckReadyErrors(t *testing.T) {
 	t.Parallel()
 
@@ -2616,11 +2717,11 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	if capturedDeps.WorkspaceResolver == nil {
 		t.Fatal("boot() did not inject the session manager workspace resolver")
 	}
-	if capturedDeps.EnvironmentRegistry == nil {
-		t.Fatal("boot() did not inject the session manager environment registry")
+	if capturedDeps.SandboxRegistry == nil {
+		t.Fatal("boot() did not inject the session manager sandbox registry")
 	}
-	if d.environmentRegistry == nil {
-		t.Fatal("boot() did not retain the daemon environment registry")
+	if d.sandboxRegistry == nil {
+		t.Fatal("boot() did not retain the daemon sandbox registry")
 	}
 	if capturedUDSDeps.WorkspaceService == nil {
 		t.Fatal("boot() did not inject the uds workspace service")
@@ -2634,6 +2735,79 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	if got, want := resolved.RootDir, canonicalDaemonRoot(t, workspaceRoot); got != want {
 		t.Fatalf("resolved workspace root = %q, want %q", got, want)
 	}
+}
+
+func TestWorkspaceRegistrationRefreshesHookBindings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refresh config hooks after a workspace is registered", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Memory.Enabled = false
+		cfg.Skills.Enabled = false
+		cfg.Automation.Enabled = false
+
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		hooksRuntime, ok := d.hooks.(*hookspkg.Hooks)
+		if !ok {
+			t.Fatalf("daemon hooks runtime = %T, want *hooks.Hooks", d.hooks)
+		}
+
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		writeDaemonFile(t, filepath.Join(workspaceRoot, ".agh", "config.toml"), `
+[[hooks.declarations]]
+name = "workspace-register-hook"
+event = "session.post_create"
+mode = "sync"
+command = "/bin/sh"
+args = ["-c", "printf '{}'"]
+`)
+
+		resolved, err := d.workspaceResolver.ResolveOrRegister(testutil.Context(t), workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister() error = %v", err)
+		}
+
+		waitForCondition(t, "workspace hook binding refresh", func() bool {
+			entries, catalogErr := hooksRuntime.Catalog(hookspkg.CatalogFilter{
+				WorkspaceID: resolved.ID,
+				Event:       hookspkg.HookSessionPostCreate,
+			})
+			if catalogErr != nil {
+				t.Fatalf("Catalog() error = %v", catalogErr)
+			}
+			for _, entry := range entries {
+				if entry.Name == "workspace-register-hook" && entry.Source == hookspkg.HookSourceConfig {
+					return true
+				}
+			}
+			return false
+		})
+	})
 }
 
 func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.T) {
@@ -5880,38 +6054,38 @@ func (f *fakeHookRuntime) DispatchContextPostCompact(
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentPrepare(
+func (f *fakeHookRuntime) DispatchSandboxPrepare(
 	_ context.Context,
-	payload hookspkg.EnvironmentPreparePayload,
-) (hookspkg.EnvironmentPreparePayload, error) {
+	payload hookspkg.SandboxPreparePayload,
+) (hookspkg.SandboxPreparePayload, error) {
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentReady(
+func (f *fakeHookRuntime) DispatchSandboxReady(
 	_ context.Context,
-	payload hookspkg.EnvironmentReadyPayload,
-) (hookspkg.EnvironmentReadyPayload, error) {
+	payload hookspkg.SandboxReadyPayload,
+) (hookspkg.SandboxReadyPayload, error) {
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentSyncBefore(
+func (f *fakeHookRuntime) DispatchSandboxSyncBefore(
 	_ context.Context,
-	payload hookspkg.EnvironmentSyncBeforePayload,
-) (hookspkg.EnvironmentSyncBeforePayload, error) {
+	payload hookspkg.SandboxSyncBeforePayload,
+) (hookspkg.SandboxSyncBeforePayload, error) {
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentSyncAfter(
+func (f *fakeHookRuntime) DispatchSandboxSyncAfter(
 	_ context.Context,
-	payload hookspkg.EnvironmentSyncAfterPayload,
-) (hookspkg.EnvironmentSyncAfterPayload, error) {
+	payload hookspkg.SandboxSyncAfterPayload,
+) (hookspkg.SandboxSyncAfterPayload, error) {
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentStop(
+func (f *fakeHookRuntime) DispatchSandboxStop(
 	_ context.Context,
-	payload hookspkg.EnvironmentStopPayload,
-) (hookspkg.EnvironmentStopPayload, error) {
+	payload hookspkg.SandboxStopPayload,
+) (hookspkg.SandboxStopPayload, error) {
 	return payload, nil
 }
 

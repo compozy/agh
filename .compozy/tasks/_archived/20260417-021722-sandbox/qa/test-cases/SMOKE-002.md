@@ -24,9 +24,9 @@ Verify a local session can be created, used (prompt), and stopped without error 
 
 ### Test Steps
 
-1. **Create a session with local environment**
-   - Input: Workspace with no `environment_ref` set (defaults to local)
-   - **Expected:** Session created, `SessionInfo.Environment.Backend` == `"local"`, environment state transitions through `creating` -> `prepared` -> `running`
+1. **Create a session with local sandbox**
+   - Input: Workspace with no `sandbox_ref` set (defaults to local)
+   - **Expected:** Session created, `SessionInfo.Sandbox.Backend` == `"local"`, sandbox state transitions through `creating` -> `prepared` -> `running`
 
 2. **Send a prompt to the session**
    - Input: Simple ACP prompt via driver
@@ -41,5 +41,5 @@ Verify a local session can be created, used (prompt), and stopped without error 
 
 | Variation | Input | Expected Result |
 |-----------|-------|-----------------|
-| Explicit `environment_ref: ""` | Empty string | Resolves to local |
-| Explicit `environment_ref: local` | Profile name pointing to local backend | Same behavior |
+| Explicit `sandbox_ref: ""` | Empty string | Resolves to local |
+| Explicit `sandbox_ref: local` | Profile name pointing to local backend | Same behavior |

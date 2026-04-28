@@ -11,8 +11,8 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/filesnap"
+	"github.com/pedronauck/agh/internal/sandbox"
 )
 
 // RegisterOptions describes a workspace registration request.
@@ -21,7 +21,7 @@ type RegisterOptions struct {
 	Name           string
 	AdditionalDirs []string
 	DefaultAgent   string
-	EnvironmentRef string
+	SandboxRef     string
 }
 
 // UpdateOptions describes mutable workspace registration fields.
@@ -29,7 +29,7 @@ type UpdateOptions struct {
 	Name           *string
 	AdditionalDirs *[]string
 	DefaultAgent   *string
-	EnvironmentRef *string
+	SandboxRef     *string
 }
 
 // Resolver resolves persisted workspaces into runtime workspace snapshots.
@@ -41,6 +41,7 @@ type Resolver struct {
 	now         func() time.Time
 	cacheTTL    time.Duration
 	idGenerator func(prefix string) string
+	changeHook  ChangeHook
 
 	mu    sync.RWMutex
 	cache map[string]*cachedEntry
@@ -76,6 +77,7 @@ func NewResolver(store Store, opts ...Option) (*Resolver, error) {
 		now:         resolvedOpts.now,
 		cacheTTL:    resolvedOpts.cacheTTL,
 		idGenerator: resolvedOpts.idGenerator,
+		changeHook:  resolvedOpts.changeHook,
 		cache:       make(map[string]*cachedEntry),
 	}, nil
 }
@@ -177,6 +179,13 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 	if !errors.Is(err, ErrWorkspaceNotFound) {
 		return ResolvedWorkspace{}, fmt.Errorf("workspace: lookup workspace by path %q: %w", canonicalRoot, err)
 	}
+	ws, err = r.lookupWorkspaceBySameRoot(ctx, canonicalRoot)
+	if err == nil {
+		return r.Resolve(ctx, ws.ID)
+	}
+	if !errors.Is(err, ErrWorkspaceNotFound) {
+		return ResolvedWorkspace{}, err
+	}
 
 	ws, err = r.createWorkspaceRegistration(ctx, RegisterOptions{RootDir: canonicalRoot})
 	if err != nil {
@@ -196,6 +205,16 @@ func (r *Resolver) ResolveOrRegister(ctx context.Context, path string) (Resolved
 
 	resolved, err := r.Resolve(ctx, ws.ID)
 	if err != nil {
+		deleteErr := r.rollbackDeleteWorkspace(ctx, ws.ID)
+		if deleteErr != nil && !errors.Is(deleteErr, ErrWorkspaceNotFound) {
+			return ResolvedWorkspace{}, errors.Join(
+				err,
+				fmt.Errorf("workspace: rollback auto-registered workspace %q: %w", ws.ID, deleteErr),
+			)
+		}
+		return ResolvedWorkspace{}, err
+	}
+	if err := r.notifyChangeHook(ctx, "auto-register", ws.ID); err != nil {
 		deleteErr := r.rollbackDeleteWorkspace(ctx, ws.ID)
 		if deleteErr != nil && !errors.Is(deleteErr, ErrWorkspaceNotFound) {
 			return ResolvedWorkspace{}, errors.Join(
@@ -234,6 +253,16 @@ func (r *Resolver) Invalidate(workspaceID string) {
 	r.mu.Unlock()
 }
 
+func (r *Resolver) notifyChangeHook(ctx context.Context, operation string, workspaceID string) error {
+	if r == nil || r.changeHook == nil {
+		return nil
+	}
+	if err := r.changeHook(ctx); err != nil {
+		return fmt.Errorf("workspace: %s workspace %q change hook: %w", operation, workspaceID, err)
+	}
+	return nil
+}
+
 func (r *Resolver) buildResolvedWorkspace(
 	ctx context.Context,
 	ws Workspace,
@@ -248,9 +277,9 @@ func (r *Resolver) buildResolvedWorkspace(
 		return ResolvedWorkspace{}, fmt.Errorf("workspace: load config for %q: %w", ws.RootDir, err)
 	}
 	applyDefaultAgentOverride(&cfg, ws.DefaultAgent)
-	resolvedEnvironment, err := resolveWorkspaceEnvironment(ws, &cfg)
+	resolvedSandbox, err := resolveWorkspaceSandbox(ws, &cfg)
 	if err != nil {
-		return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve environment for %q: %w", ws.ID, err)
+		return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve sandbox for %q: %w", ws.ID, err)
 	}
 
 	agents, err := loadAgents(ctx, scan.agents)
@@ -261,21 +290,21 @@ func (r *Resolver) buildResolvedWorkspace(
 	skills := mergeSkillPaths(scan.skills)
 
 	return ResolvedWorkspace{
-		Workspace:   cloneWorkspace(ws),
-		Config:      cloneConfig(&cfg),
-		Agents:      cloneAgentDefs(agents),
-		Skills:      cloneSkillPaths(skills),
-		Environment: cloneEnvironmentResolved(resolvedEnvironment),
-		ResolvedAt:  r.now(),
+		Workspace:  cloneWorkspace(ws),
+		Config:     cloneConfig(&cfg),
+		Agents:     cloneAgentDefs(agents),
+		Skills:     cloneSkillPaths(skills),
+		Sandbox:    cloneSandboxResolved(resolvedSandbox),
+		ResolvedAt: r.now(),
 	}, nil
 }
 
-func resolveWorkspaceEnvironment(ws Workspace, cfg *aghconfig.Config) (environment.Resolved, error) {
-	ref := strings.TrimSpace(ws.EnvironmentRef)
+func resolveWorkspaceSandbox(ws Workspace, cfg *aghconfig.Config) (sandbox.Resolved, error) {
+	ref := strings.TrimSpace(ws.SandboxRef)
 	if ref == "" {
-		ref = strings.TrimSpace(cfg.Defaults.Environment)
+		ref = strings.TrimSpace(cfg.Defaults.Sandbox)
 	}
-	return cfg.ResolveEnvironment(ref)
+	return cfg.ResolveSandbox(ref)
 }
 
 func (c *cachedEntry) canReuse(ws Workspace, snapshots map[string]filesnap.Snapshot) bool {
@@ -288,7 +317,7 @@ func (c *cachedEntry) canReuse(ws Workspace, snapshots map[string]filesnap.Snaps
 	if strings.TrimSpace(c.workspace.DefaultAgent) != strings.TrimSpace(ws.DefaultAgent) {
 		return false
 	}
-	if strings.TrimSpace(c.workspace.EnvironmentRef) != strings.TrimSpace(ws.EnvironmentRef) {
+	if strings.TrimSpace(c.workspace.SandboxRef) != strings.TrimSpace(ws.SandboxRef) {
 		return false
 	}
 	if strings.TrimSpace(c.workspace.RootDir) != strings.TrimSpace(ws.RootDir) {

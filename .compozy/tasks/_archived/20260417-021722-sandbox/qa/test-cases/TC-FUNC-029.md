@@ -1,4 +1,4 @@
-## TC-FUNC-029: Host API environment/list returns instances
+## TC-FUNC-029: Host API sandbox/list returns instances
 
 **Priority:** P2 (Medium)
 **Type:** Functional
@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that the `environment/list` Host API method returns active environment instances visible to the caller.
+Verify that the `sandbox/list` Host API method returns active sandbox instances visible to the caller.
 
 ---
 
@@ -24,11 +24,11 @@ Verify that the `environment/list` Host API method returns active environment in
 
 ### Test Steps
 
-1. **Call environment/list**
+1. **Call sandbox/list**
    - Input: `{}`
    - **Expected:** Response includes array of environments with `session_id`, `backend`, `profile`, `instance_id`, `state`
 
-2. **Verify only active environments returned**
+2. **Verify only active sandboxs returned**
    - **Expected:** Stopped/destroyed sessions not included in list
 
 3. **Verify visibility filtering**

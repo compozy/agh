@@ -45,7 +45,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/bridges/:id/secret-bindings/:binding_name",
 		"DELETE /api/bundles/activations/:id",
 		"DELETE /api/memory/:filename",
-		"DELETE /api/settings/environments/:name",
+		"DELETE /api/settings/sandboxes/:name",
 		"DELETE /api/settings/hooks/:name",
 		"DELETE /api/settings/mcp-servers/:name",
 		"DELETE /api/settings/providers/:name",
@@ -105,8 +105,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/sessions/:id/stream",
 		"GET /api/settings/actions/restart/:operation_id",
 		"GET /api/settings/automation",
-		"GET /api/settings/environments",
-		"GET /api/settings/environments/:name",
+		"GET /api/settings/sandboxes",
+		"GET /api/settings/sandboxes/:name",
 		"GET /api/settings/general",
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
@@ -194,7 +194,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/workspaces/resolve",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
 		"PUT /api/memory/:filename",
-		"PUT /api/settings/environments/:name",
+		"PUT /api/settings/sandboxes/:name",
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
 		"PUT /api/settings/providers/:name",
@@ -307,8 +307,8 @@ func TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost(t *testi
 		"/api/settings/providers",
 		"/api/settings/providers/demo",
 		"/api/settings/mcp-servers",
-		"/api/settings/environments",
-		"/api/settings/environments/demo",
+		"/api/settings/sandboxes",
+		"/api/settings/sandboxes/demo",
 		"/api/settings/hooks",
 		"/api/settings/actions/restart/op-123",
 		"/api/extensions",
@@ -404,8 +404,8 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		{method: http.MethodDelete, path: "/api/settings/providers/demo"},
 		{method: http.MethodPut, path: "/api/settings/mcp-servers/server-a", body: []byte(`{}`)},
 		{method: http.MethodDelete, path: "/api/settings/mcp-servers/server-a"},
-		{method: http.MethodPut, path: "/api/settings/environments/demo", body: []byte(`{}`)},
-		{method: http.MethodDelete, path: "/api/settings/environments/demo"},
+		{method: http.MethodPut, path: "/api/settings/sandboxes/demo", body: []byte(`{}`)},
+		{method: http.MethodDelete, path: "/api/settings/sandboxes/demo"},
 		{method: http.MethodPut, path: "/api/settings/hooks/capture", body: []byte(`{}`)},
 		{method: http.MethodDelete, path: "/api/settings/hooks/capture"},
 		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
@@ -761,7 +761,7 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 			if opts.RootDir != rootDir || opts.Name != "alpha" || len(opts.AdditionalDirs) != 1 ||
 				opts.AdditionalDirs[0] != addDir ||
 				opts.DefaultAgent != "coder" ||
-				opts.EnvironmentRef != "daytona-dev" {
+				opts.SandboxRef != "daytona-dev" {
 				t.Fatalf("Register() opts = %#v", opts)
 			}
 			return workspacepkg.Workspace{
@@ -770,7 +770,7 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 				AdditionalDirs: []string{addDir},
 				Name:           "alpha",
 				DefaultAgent:   "coder",
-				EnvironmentRef: "daytona-dev",
+				SandboxRef:     "daytona-dev",
 				CreatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 				UpdatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			}, nil
@@ -782,11 +782,11 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 	)
 
 	body, err := json.Marshal(map[string]any{
-		"root_dir":        rootDir,
-		"name":            "alpha",
-		"add_dirs":        []string{addDir},
-		"default_agent":   "coder",
-		"environment_ref": "daytona-dev",
+		"root_dir":      rootDir,
+		"name":          "alpha",
+		"add_dirs":      []string{addDir},
+		"default_agent": "coder",
+		"sandbox_ref":   "daytona-dev",
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(create workspace request) error = %v", err)
@@ -973,7 +973,7 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 				Name:           "beta",
 				AdditionalDirs: []string{addDir},
 				DefaultAgent:   "reviewer",
-				EnvironmentRef: "local-dev",
+				SandboxRef:     "local-dev",
 			}, nil
 		},
 		UpdateFn: func(_ context.Context, id string, opts workspacepkg.UpdateOptions) error {
@@ -982,8 +982,8 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 				(*opts.AdditionalDirs)[0] != addDir ||
 				opts.DefaultAgent == nil ||
 				*opts.DefaultAgent != "reviewer" ||
-				opts.EnvironmentRef == nil ||
-				*opts.EnvironmentRef != "local-dev" {
+				opts.SandboxRef == nil ||
+				*opts.SandboxRef != "local-dev" {
 				t.Fatalf("Update() id=%q opts=%#v", id, opts)
 			}
 			updated = true
@@ -996,10 +996,10 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 	)
 
 	body, err := json.Marshal(map[string]any{
-		"name":            "beta",
-		"add_dirs":        []string{addDir},
-		"default_agent":   "reviewer",
-		"environment_ref": "local-dev",
+		"name":          "beta",
+		"add_dirs":      []string{addDir},
+		"default_agent": "reviewer",
+		"sandbox_ref":   "local-dev",
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(update workspace request) error = %v", err)

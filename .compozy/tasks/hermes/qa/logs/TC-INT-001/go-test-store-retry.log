@@ -414,8 +414,8 @@ ok  	github.com/pedronauck/agh/internal/store	0.262s
     --- PASS: TestCopyMigratedSessionsPreservesProvider/Should_preserve_provider_when_copying_migrated_sessions (0.00s)
 === RUN   TestMigrateBridgeInstanceColumnsNoopAndIdempotent
 === PAUSE TestMigrateBridgeInstanceColumnsNoopAndIdempotent
-=== RUN   TestMigrateWorkspaceColumnsAddsEnvironmentRef
-=== PAUSE TestMigrateWorkspaceColumnsAddsEnvironmentRef
+=== RUN   TestMigrateWorkspaceColumnsAddsSandboxRef
+=== PAUSE TestMigrateWorkspaceColumnsAddsSandboxRef
 === RUN   TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables
 === PAUSE TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables
 === RUN   TestGlobalDBLegacySessionMetaHelpers
@@ -843,7 +843,7 @@ ok  	github.com/pedronauck/agh/internal/store	0.262s
 --- PASS: TestOpenGlobalDBCreatesNetworkTimelineLogSchema (0.17s)
 === CONT  TestGlobalDBMigrationHelpers
 --- PASS: TestGlobalDBWriteNetworkMessageRejectsNonCanonicalDirection (0.18s)
-=== CONT  TestMigrateWorkspaceColumnsAddsEnvironmentRef
+=== CONT  TestMigrateWorkspaceColumnsAddsSandboxRef
 --- PASS: TestGlobalDBListNetworkMessagesWrapsTimestampParseFailures (0.18s)
 === CONT  TestMigrateBridgeInstanceColumnsNoopAndIdempotent
 --- PASS: TestGlobalDBLegacySessionMetaHelpers (0.01s)
@@ -852,7 +852,7 @@ ok  	github.com/pedronauck/agh/internal/store	0.262s
 === CONT  TestGlobalDBTaskRunIdempotencyErrorPaths
 --- PASS: TestGlobalDBListNetworkMessagesSupportsMessageIDCursors (0.18s)
 === CONT  TestGlobalDBListTasksSearchAndActivityOrdering
---- PASS: TestMigrateWorkspaceColumnsAddsEnvironmentRef (0.01s)
+--- PASS: TestMigrateWorkspaceColumnsAddsSandboxRef (0.01s)
 === CONT  TestGlobalDBListTasksFilters
 --- PASS: TestGlobalDBWriteNetworkAuditRejectsWhitechannelPaddedDirection (0.17s)
 === CONT  TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings

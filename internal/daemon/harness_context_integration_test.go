@@ -388,7 +388,7 @@ func newHarnessIntegrationManager(
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		}),
 		session.WithLogger(discardLogger()),
-		session.WithEnvironmentRegistry(deps.EnvironmentRegistry),
+		session.WithSandboxRegistry(deps.SandboxRegistry),
 		session.WithPromptAssembler(deps.PromptAssembler),
 		session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
 		session.WithSkillRegistry(deps.SkillRegistry),
@@ -420,9 +420,9 @@ func newHarnessIntegrationWorkspace(
 		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
 	}
 
-	resolvedEnvironment, err := cfg.ResolveEnvironment(cfg.Defaults.Environment)
+	resolvedSandbox, err := cfg.ResolveSandbox(cfg.Defaults.Sandbox)
 	if err != nil {
-		t.Fatalf("ResolveEnvironment() error = %v", err)
+		t.Fatalf("ResolveSandbox() error = %v", err)
 	}
 
 	return workspacepkg.ResolvedWorkspace{
@@ -439,7 +439,7 @@ func newHarnessIntegrationWorkspace(
 				Prompt:   "You are a coding assistant.",
 			},
 		},
-		Environment: resolvedEnvironment,
+		Sandbox: resolvedSandbox,
 	}
 }
 

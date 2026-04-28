@@ -16,7 +16,7 @@ One task per package under `internal/*`. Each task runs the five-skill pipeline 
 | 08  | Improvements pass — internal/codegen                 | completed | medium     | —            |
 | 09  | Improvements pass — internal/config                  | completed | medium     | —            |
 | 10  | Improvements pass — internal/daemon                  | completed | high       | —            |
-| 11  | Improvements pass — internal/environment             | completed | medium     | —            |
+| 11  | Improvements pass — internal/sandbox             | completed | medium     | —            |
 | 12  | Improvements pass — internal/extension               | completed | medium     | —            |
 | 13  | Improvements pass — internal/extensiontest           | completed | low        | —            |
 | 14  | Improvements pass — internal/filesnap                | completed | low        | —            |

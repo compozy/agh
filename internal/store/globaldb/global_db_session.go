@@ -82,9 +82,9 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		failure_kind, failure_summary, crash_bundle_path,
 		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 		activity_json,
-		environment_id, environment_backend, environment_profile, environment_instance_id,
-		environment_state, environment_provider_state_json,
-		environment_last_sync_at, environment_last_sync_error,
+		sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
+		sandbox_state, sandbox_provider_state_json,
+		sandbox_last_sync_at, sandbox_last_sync_error,
 		created_at, updated_at
 	FROM sessions`
 	where, args := store.BuildClauses(
@@ -210,9 +210,9 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			auto_stop_on_parent, spawn_budget_json, permission_policy_json,
 			acp_session_id, stop_reason, stop_detail, failure_kind, failure_summary, crash_bundle_path,
 			subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
-				environment_id, environment_backend, environment_profile, environment_instance_id,
-				environment_state, environment_provider_state_json,
-				environment_last_sync_at, environment_last_sync_error, created_at, updated_at
+				sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
+				sandbox_state, sandbox_provider_state_json,
+				sandbox_last_sync_at, sandbox_last_sync_error, created_at, updated_at
 			) VALUES (
 				?, ?, ?, ?, ?, ?, ?, ?,
 				?, ?, ?, ?, ?, ?, ?, ?,
@@ -247,14 +247,14 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			stall_state = excluded.stall_state,
 			stall_reason = excluded.stall_reason,
 			activity_json = excluded.activity_json,
-			environment_id = excluded.environment_id,
-			environment_backend = excluded.environment_backend,
-			environment_profile = excluded.environment_profile,
-			environment_instance_id = excluded.environment_instance_id,
-			environment_state = excluded.environment_state,
-			environment_provider_state_json = excluded.environment_provider_state_json,
-				environment_last_sync_at = excluded.environment_last_sync_at,
-				environment_last_sync_error = excluded.environment_last_sync_error,
+			sandbox_id = excluded.sandbox_id,
+			sandbox_backend = excluded.sandbox_backend,
+			sandbox_profile = excluded.sandbox_profile,
+			sandbox_instance_id = excluded.sandbox_instance_id,
+			sandbox_state = excluded.sandbox_state,
+			sandbox_provider_state_json = excluded.sandbox_provider_state_json,
+				sandbox_last_sync_at = excluded.sandbox_last_sync_at,
+				sandbox_last_sync_error = excluded.sandbox_last_sync_error,
 				updated_at = excluded.updated_at`,
 		record.args()...,
 	)
@@ -327,14 +327,14 @@ func (record sessionCatalogRecord) args() []any {
 		sessionLivenessStallState(session.Liveness),
 		sessionLivenessStallReason(session.Liveness),
 		record.activityJSON,
-		sessionEnvironmentID(session.Environment),
-		sessionEnvironmentBackend(session.Environment),
-		sessionEnvironmentProfile(session.Environment),
-		sessionEnvironmentInstanceID(session.Environment),
-		sessionEnvironmentState(session.Environment),
-		sessionEnvironmentProviderStateJSON(session.Environment),
-		sessionEnvironmentLastSyncAt(session.Environment),
-		sessionEnvironmentLastSyncError(session.Environment),
+		sessionSandboxID(session.Sandbox),
+		sessionSandboxBackend(session.Sandbox),
+		sessionSandboxProfile(session.Sandbox),
+		sessionSandboxInstanceID(session.Sandbox),
+		sessionSandboxState(session.Sandbox),
+		sessionSandboxProviderStateJSON(session.Sandbox),
+		sessionSandboxLastSyncAt(session.Sandbox),
+		sessionSandboxLastSyncError(session.Sandbox),
 		store.FormatTimestamp(session.CreatedAt),
 		store.FormatTimestamp(session.UpdatedAt),
 	}
@@ -442,28 +442,28 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 			activityJSON,
 		)
 	}
-	if update.Environment != nil {
+	if update.Sandbox != nil {
 		assignments = append(
 			assignments,
-			"environment_id = ?",
-			"environment_backend = ?",
-			"environment_profile = ?",
-			"environment_instance_id = ?",
-			"environment_state = ?",
-			"environment_provider_state_json = ?",
-			"environment_last_sync_at = ?",
-			"environment_last_sync_error = ?",
+			"sandbox_id = ?",
+			"sandbox_backend = ?",
+			"sandbox_profile = ?",
+			"sandbox_instance_id = ?",
+			"sandbox_state = ?",
+			"sandbox_provider_state_json = ?",
+			"sandbox_last_sync_at = ?",
+			"sandbox_last_sync_error = ?",
 		)
 		args = append(
 			args,
-			sessionEnvironmentID(update.Environment),
-			sessionEnvironmentBackend(update.Environment),
-			sessionEnvironmentProfile(update.Environment),
-			sessionEnvironmentInstanceID(update.Environment),
-			sessionEnvironmentState(update.Environment),
-			sessionEnvironmentProviderStateJSON(update.Environment),
-			sessionEnvironmentLastSyncAt(update.Environment),
-			sessionEnvironmentLastSyncError(update.Environment),
+			sessionSandboxID(update.Sandbox),
+			sessionSandboxBackend(update.Sandbox),
+			sessionSandboxProfile(update.Sandbox),
+			sessionSandboxInstanceID(update.Sandbox),
+			sessionSandboxState(update.Sandbox),
+			sessionSandboxProviderStateJSON(update.Sandbox),
+			sessionSandboxLastSyncAt(update.Sandbox),
+			sessionSandboxLastSyncError(update.Sandbox),
 		)
 	}
 
@@ -576,7 +576,7 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		return err
 	}
 	session.Liveness = liveness
-	environment, err := scanSessionEnvironment(
+	sandbox, err := scanSessionSandbox(
 		row.envID,
 		row.envBackend,
 		row.envProfile,
@@ -589,7 +589,7 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 	if err != nil {
 		return err
 	}
-	session.Environment = environment
+	session.Sandbox = sandbox
 
 	createdAt, updatedAt, err := parseSessionInfoTimestamps(row.createdAtRaw, row.updatedAtRaw)
 	if err != nil {
@@ -647,8 +647,8 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 	return row, nil
 }
 
-func scanSessionEnvironment(
-	environmentID string,
+func scanSessionSandbox(
+	sandboxID string,
 	backend string,
 	profile string,
 	instanceID string,
@@ -656,14 +656,14 @@ func scanSessionEnvironment(
 	providerStateJSON string,
 	lastSyncAt sql.NullString,
 	lastSyncError string,
-) (*store.SessionEnvironmentMeta, error) {
-	environmentID = strings.TrimSpace(environmentID)
+) (*store.SessionSandboxMeta, error) {
+	sandboxID = strings.TrimSpace(sandboxID)
 	backend = strings.TrimSpace(backend)
 	profile = strings.TrimSpace(profile)
 	instanceID = strings.TrimSpace(instanceID)
 	state = strings.TrimSpace(state)
 	providerStateJSON = strings.TrimSpace(providerStateJSON)
-	if environmentID == "" &&
+	if sandboxID == "" &&
 		backend == "" &&
 		profile == "" &&
 		instanceID == "" &&
@@ -672,12 +672,12 @@ func scanSessionEnvironment(
 		return nil, nil
 	}
 
-	meta := &store.SessionEnvironmentMeta{
-		EnvironmentID: environmentID,
-		Backend:       backend,
-		Profile:       profile,
-		InstanceID:    instanceID,
-		State:         state,
+	meta := &store.SessionSandboxMeta{
+		SandboxID:  sandboxID,
+		Backend:    backend,
+		Profile:    profile,
+		InstanceID: instanceID,
+		State:      state,
 	}
 	if providerStateJSON != "" {
 		meta.ProviderState = []byte(providerStateJSON)
@@ -685,7 +685,7 @@ func scanSessionEnvironment(
 	if lastSyncAt.Valid && strings.TrimSpace(lastSyncAt.String) != "" {
 		parsed, err := store.ParseTimestamp(lastSyncAt.String)
 		if err != nil {
-			return nil, fmt.Errorf("store: parse session environment last sync at: %w", err)
+			return nil, fmt.Errorf("store: parse session sandbox last sync at: %w", err)
 		}
 		meta.LastSyncAt = &parsed
 	}
@@ -818,11 +818,11 @@ func parseSessionActivityJSON(raw string) (*store.SessionActivityMeta, error) {
 	return store.CloneSessionActivityMeta(&activity), nil
 }
 
-func sessionEnvironmentID(meta *store.SessionEnvironmentMeta) string {
+func sessionSandboxID(meta *store.SessionSandboxMeta) string {
 	if meta == nil {
 		return ""
 	}
-	return strings.TrimSpace(meta.EnvironmentID)
+	return strings.TrimSpace(meta.SandboxID)
 }
 
 func sessionLivenessPID(meta *store.SessionLivenessMeta) int {
@@ -875,7 +875,7 @@ func sessionLivenessActivityJSON(meta *store.SessionLivenessMeta) (string, error
 	return string(data), nil
 }
 
-func sessionEnvironmentBackend(meta *store.SessionEnvironmentMeta) string {
+func sessionSandboxBackend(meta *store.SessionSandboxMeta) string {
 	if meta == nil {
 		return "local"
 	}
@@ -886,42 +886,42 @@ func sessionEnvironmentBackend(meta *store.SessionEnvironmentMeta) string {
 	return backend
 }
 
-func sessionEnvironmentProfile(meta *store.SessionEnvironmentMeta) string {
+func sessionSandboxProfile(meta *store.SessionSandboxMeta) string {
 	if meta == nil {
 		return ""
 	}
 	return strings.TrimSpace(meta.Profile)
 }
 
-func sessionEnvironmentInstanceID(meta *store.SessionEnvironmentMeta) string {
+func sessionSandboxInstanceID(meta *store.SessionSandboxMeta) string {
 	if meta == nil {
 		return ""
 	}
 	return strings.TrimSpace(meta.InstanceID)
 }
 
-func sessionEnvironmentState(meta *store.SessionEnvironmentMeta) string {
+func sessionSandboxState(meta *store.SessionSandboxMeta) string {
 	if meta == nil {
 		return ""
 	}
 	return strings.TrimSpace(meta.State)
 }
 
-func sessionEnvironmentProviderStateJSON(meta *store.SessionEnvironmentMeta) string {
+func sessionSandboxProviderStateJSON(meta *store.SessionSandboxMeta) string {
 	if meta == nil || len(meta.ProviderState) == 0 {
 		return ""
 	}
 	return strings.TrimSpace(string(meta.ProviderState))
 }
 
-func sessionEnvironmentLastSyncAt(meta *store.SessionEnvironmentMeta) any {
+func sessionSandboxLastSyncAt(meta *store.SessionSandboxMeta) any {
 	if meta == nil || meta.LastSyncAt == nil || meta.LastSyncAt.IsZero() {
 		return nil
 	}
 	return store.FormatTimestamp(*meta.LastSyncAt)
 }
 
-func sessionEnvironmentLastSyncError(meta *store.SessionEnvironmentMeta) string {
+func sessionSandboxLastSyncError(meta *store.SessionSandboxMeta) string {
 	if meta == nil {
 		return ""
 	}

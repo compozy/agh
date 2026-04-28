@@ -427,14 +427,14 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 			})
 
 			blocks := []string{base}
-			if info.Environment != nil {
-				blocks = append(blocks, renderHumanSection("Environment", []keyValue{
-					{Label: "Backend", Value: stringOrDash(info.Environment.Backend)},
-					{Label: "Profile", Value: stringOrDash(info.Environment.Profile)},
-					{Label: "Environment ID", Value: stringOrDash(info.Environment.EnvironmentID)},
-					{Label: "Instance ID", Value: stringOrDash(info.Environment.InstanceID)},
-					{Label: "State", Value: stringOrDash(info.Environment.State)},
-					{Label: "Last Sync Error", Value: stringOrDash(info.Environment.LastSyncError)},
+			if info.Sandbox != nil {
+				blocks = append(blocks, renderHumanSection("Sandbox", []keyValue{
+					{Label: "Backend", Value: stringOrDash(info.Sandbox.Backend)},
+					{Label: "Profile", Value: stringOrDash(info.Sandbox.Profile)},
+					{Label: "Sandbox ID", Value: stringOrDash(info.Sandbox.SandboxID)},
+					{Label: "Instance ID", Value: stringOrDash(info.Sandbox.InstanceID)},
+					{Label: "State", Value: stringOrDash(info.Sandbox.State)},
+					{Label: "Last Sync Error", Value: stringOrDash(info.Sandbox.LastSyncError)},
 				}))
 			}
 			if info.ACPCaps == nil {
@@ -454,7 +454,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				"name",
 				"agent_name",
 				"provider",
-				"environment_backend",
+				"sandbox_backend",
 				"workspace",
 				"channel",
 				"state",
@@ -470,7 +470,7 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 				info.Name,
 				info.AgentName,
 				info.Provider,
-				sessionEnvironmentBackend(info),
+				sessionSandboxBackend(info),
 				displaySessionWorkspace(info),
 				info.Channel,
 				string(info.State),
@@ -509,7 +509,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 			"name",
 			"agent_name",
 			"provider",
-			"environment_backend",
+			"sandbox_backend",
 			"state",
 			"failure_kind",
 			"workspace",
@@ -522,7 +522,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				stringOrDash(item.Name),
 				stringOrDash(item.AgentName),
 				stringOrDash(item.Provider),
-				stringOrDash(sessionEnvironmentBackend(item)),
+				stringOrDash(sessionSandboxBackend(item)),
 				stringOrDash(string(item.State)),
 				stringOrDash(sessionFailureKind(item)),
 				stringOrDash(displaySessionWorkspace(item)),
@@ -536,7 +536,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 				item.Name,
 				item.AgentName,
 				item.Provider,
-				sessionEnvironmentBackend(item),
+				sessionSandboxBackend(item),
 				string(item.State),
 				sessionFailureKind(item),
 				displaySessionWorkspace(item),
@@ -547,11 +547,11 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 	)
 }
 
-func sessionEnvironmentBackend(info SessionRecord) string {
-	if info.Environment == nil {
+func sessionSandboxBackend(info SessionRecord) string {
+	if info.Sandbox == nil {
 		return ""
 	}
-	return strings.TrimSpace(info.Environment.Backend)
+	return strings.TrimSpace(info.Sandbox.Backend)
 }
 
 func sessionFailureKind(info SessionRecord) string {

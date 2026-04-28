@@ -12,7 +12,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -70,36 +70,36 @@ type Manager struct {
 	syntheticQueues      map[string][]queuedSyntheticPrompt
 	syntheticDispatching map[string]bool
 
-	logger           *slog.Logger
-	driver           AgentDriver
-	notifier         Notifier
-	networkPeers     NetworkPeerLifecycle
-	turnEndNotifier  TurnEndNotifier
-	inputAugmenter   PromptInputAugmenter
-	startupOverlay   StartupPromptOverlay
-	hooks            HookSet
-	environment      *environment.Registry
-	agentResolver    AgentResolver
-	skillRegistry    SkillRegistry
-	mcpResolver      MCPResolver
-	homePaths        aghconfig.HomePaths
-	workspace        workspacepkg.RuntimeResolver
-	openStore        StoreOpener
-	assembler        PromptAssembler
-	supervision      aghconfig.SessionSupervisionConfig
-	lifecycleCtx     context.Context
-	now              func() time.Time
-	newSessionID     IDGenerator
-	newEnvironmentID IDGenerator
-	newTurnID        IDGenerator
-	maxSessions      int
-	promptBufSize    int
+	logger          *slog.Logger
+	driver          AgentDriver
+	notifier        Notifier
+	networkPeers    NetworkPeerLifecycle
+	turnEndNotifier TurnEndNotifier
+	inputAugmenter  PromptInputAugmenter
+	startupOverlay  StartupPromptOverlay
+	hooks           HookSet
+	sandbox         *sandbox.Registry
+	agentResolver   AgentResolver
+	skillRegistry   SkillRegistry
+	mcpResolver     MCPResolver
+	homePaths       aghconfig.HomePaths
+	workspace       workspacepkg.RuntimeResolver
+	openStore       StoreOpener
+	assembler       PromptAssembler
+	supervision     aghconfig.SessionSupervisionConfig
+	lifecycleCtx    context.Context
+	now             func() time.Time
+	newSessionID    IDGenerator
+	newSandboxID    IDGenerator
+	newTurnID       IDGenerator
+	maxSessions     int
+	promptBufSize   int
 }
 
-// WithEnvironmentRegistry injects the runtime environment provider registry.
-func WithEnvironmentRegistry(registry *environment.Registry) Option {
+// WithSandboxRegistry injects the runtime sandbox provider registry.
+func WithSandboxRegistry(registry *sandbox.Registry) Option {
 	return func(manager *Manager) {
-		manager.environment = registry
+		manager.sandbox = registry
 	}
 }
 
@@ -216,10 +216,10 @@ func WithSessionIDGenerator(generator IDGenerator) Option {
 	}
 }
 
-// WithEnvironmentIDGenerator overrides environment id allocation.
-func WithEnvironmentIDGenerator(generator IDGenerator) Option {
+// WithSandboxIDGenerator overrides sandbox id allocation.
+func WithSandboxIDGenerator(generator IDGenerator) Option {
 	return func(manager *Manager) {
-		manager.newEnvironmentID = generator
+		manager.newSandboxID = generator
 	}
 }
 
@@ -278,7 +278,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		newSessionID: func() string {
 			return newID("sess")
 		},
-		newEnvironmentID: func() string {
+		newSandboxID: func() string {
 			return newID("env")
 		},
 		newTurnID: func() string {
@@ -326,8 +326,8 @@ func (m *Manager) applyRuntimeDefaults() error {
 			return newID("sess")
 		}
 	}
-	if m.newEnvironmentID == nil {
-		m.newEnvironmentID = func() string {
+	if m.newSandboxID == nil {
+		m.newSandboxID = func() string {
 			return newID("env")
 		}
 	}

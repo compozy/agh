@@ -24,7 +24,7 @@ Verify that on graceful session stop, `finalizeStopped` calls `Provider.SyncFrom
 ### Test Steps
 
 1. **Create session, then stop it**
-   - **Expected:** `SyncFromRuntime` called with `SyncReasonStop`, `SessionState` includes current environment metadata
+   - **Expected:** `SyncFromRuntime` called with `SyncReasonStop`, `SessionState` includes current sandbox metadata
 
 2. **Verify call order**
    - **Expected:** `SyncFromRuntime` -> store close -> `Destroy` (if applicable)

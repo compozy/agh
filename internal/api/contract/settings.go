@@ -30,10 +30,10 @@ const (
 type SettingsCollectionName string
 
 const (
-	SettingsCollectionProviders    SettingsCollectionName = "providers"
-	SettingsCollectionMCPServers   SettingsCollectionName = "mcp-servers"
-	SettingsCollectionEnvironments SettingsCollectionName = "environments"
-	SettingsCollectionHooks        SettingsCollectionName = "hooks"
+	SettingsCollectionProviders  SettingsCollectionName = "providers"
+	SettingsCollectionMCPServers SettingsCollectionName = "mcp-servers"
+	SettingsCollectionSandboxes  SettingsCollectionName = "sandboxes"
+	SettingsCollectionHooks      SettingsCollectionName = "hooks"
 )
 
 type SettingsWriteTargetKind string
@@ -120,9 +120,9 @@ type SettingsGeneralConfigPayload struct {
 }
 
 type SettingsDefaultsPayload struct {
-	Agent       string `json:"agent"`
-	Provider    string `json:"provider,omitempty"`
-	Environment string `json:"environment,omitempty"`
+	Agent    string `json:"agent"`
+	Provider string `json:"provider,omitempty"`
+	Sandbox  string `json:"sandbox,omitempty"`
 }
 
 type SettingsLimitsPayload struct {
@@ -416,17 +416,17 @@ type SettingsMCPServerItemPayload struct {
 	SourceMetadata SettingsSourceMetadataPayload `json:"source_metadata"`
 }
 
-type SettingsEnvironmentProfilePayload struct {
-	Backend     string                             `json:"backend"`
-	SyncMode    string                             `json:"sync_mode,omitempty"`
-	Persistence string                             `json:"persistence,omitempty"`
-	RuntimeRoot string                             `json:"runtime_root,omitempty"`
-	Env         map[string]string                  `json:"env,omitempty"`
-	Network     *SettingsEnvironmentNetworkPayload `json:"network,omitempty"`
-	Daytona     *SettingsEnvironmentDaytonaPayload `json:"daytona,omitempty"`
+type SettingsSandboxProfilePayload struct {
+	Backend     string                         `json:"backend"`
+	SyncMode    string                         `json:"sync_mode,omitempty"`
+	Persistence string                         `json:"persistence,omitempty"`
+	RuntimeRoot string                         `json:"runtime_root,omitempty"`
+	Env         map[string]string              `json:"env,omitempty"`
+	Network     *SettingsSandboxNetworkPayload `json:"network,omitempty"`
+	Daytona     *SettingsSandboxDaytonaPayload `json:"daytona,omitempty"`
 }
 
-type SettingsEnvironmentNetworkPayload struct {
+type SettingsSandboxNetworkPayload struct {
 	AllowPublicIngress bool     `json:"allow_public_ingress,omitempty"`
 	AllowOutbound      bool     `json:"allow_outbound,omitempty"`
 	AllowList          []string `json:"allow_list,omitempty"`
@@ -434,7 +434,7 @@ type SettingsEnvironmentNetworkPayload struct {
 	Required           bool     `json:"required,omitempty"`
 }
 
-type SettingsEnvironmentDaytonaPayload struct {
+type SettingsSandboxDaytonaPayload struct {
 	APIURL      string `json:"api_url,omitempty"`
 	Target      string `json:"target,omitempty"`
 	Image       string `json:"image,omitempty"`
@@ -444,11 +444,11 @@ type SettingsEnvironmentDaytonaPayload struct {
 	AutoArchive string `json:"auto_archive,omitempty"`
 }
 
-type SettingsEnvironmentItemPayload struct {
-	Name                string                            `json:"name"`
-	Profile             SettingsEnvironmentProfilePayload `json:"profile"`
-	WorkspaceUsageCount int                               `json:"workspace_usage_count"`
-	SourceMetadata      SettingsSourceMetadataPayload     `json:"source_metadata"`
+type SettingsSandboxItemPayload struct {
+	Name                string                        `json:"name"`
+	Profile             SettingsSandboxProfilePayload `json:"profile"`
+	WorkspaceUsageCount int                           `json:"workspace_usage_count"`
+	SourceMetadata      SettingsSourceMetadataPayload `json:"source_metadata"`
 }
 
 type SettingsHookDeclarationPayload struct {
@@ -508,8 +508,8 @@ type PutSettingsMCPServerRequest struct {
 	Server SettingsMCPServerPayload `json:"server"`
 }
 
-type PutSettingsEnvironmentRequest struct {
-	Profile SettingsEnvironmentProfilePayload `json:"profile"`
+type PutSettingsSandboxRequest struct {
+	Profile SettingsSandboxProfilePayload `json:"profile"`
 }
 
 type PutSettingsHookRequest struct {
@@ -583,13 +583,13 @@ type SettingsMCPServersResponse struct {
 	MCPServers []SettingsMCPServerItemPayload `json:"mcp_servers"`
 }
 
-type SettingsEnvironmentsResponse struct {
+type SettingsSandboxesResponse struct {
 	SettingsCollectionResponseMetaPayload
-	Environments []SettingsEnvironmentItemPayload `json:"environments"`
+	Sandboxes []SettingsSandboxItemPayload `json:"sandboxes"`
 }
 
-type SettingsEnvironmentResponse struct {
-	Environment SettingsEnvironmentItemPayload `json:"environment"`
+type SettingsSandboxResponse struct {
+	Sandbox SettingsSandboxItemPayload `json:"sandbox"`
 }
 
 type SettingsHooksResponse struct {

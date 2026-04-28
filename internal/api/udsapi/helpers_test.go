@@ -468,10 +468,10 @@ func settingsTestCollectionEnvelope(
 			Command: "mcpd",
 			Scope:   scope,
 		}}
-	case settingspkg.CollectionEnvironments:
-		envelope.Environments = []settingspkg.EnvironmentItem{{
+	case settingspkg.CollectionSandboxes:
+		envelope.Sandboxes = []settingspkg.SandboxItem{{
 			Name:    "demo",
-			Profile: aghconfig.EnvironmentProfile{Backend: "local"},
+			Profile: aghconfig.SandboxProfile{Backend: "local"},
 		}}
 	case settingspkg.CollectionHooks:
 		envelope.Hooks = []settingspkg.HookItem{}

@@ -13,8 +13,8 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
@@ -92,9 +92,9 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 	lifecycle := newFakeNetworkPeerLifecycle()
 	h.manager.SetNetworkPeerLifecycle(lifecycle)
 
-	resolvedEnvironment, err := h.cfg.ResolveEnvironment(h.cfg.Defaults.Environment)
+	resolvedSandbox, err := h.cfg.ResolveSandbox(h.cfg.Defaults.Sandbox)
 	if err != nil {
-		t.Fatalf("ResolveEnvironment() error = %v", err)
+		t.Fatalf("ResolveSandbox() error = %v", err)
 	}
 	capabilityAgent := aghconfig.AgentDef{
 		Name:     "coder",
@@ -138,7 +138,7 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 			},
 			capabilityAgent,
 		},
-		Environment: resolvedEnvironment,
+		Sandbox: resolvedSandbox,
 	})
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
@@ -264,9 +264,9 @@ func TestManagerIntegrationCapabilityAwareJoinKeepsMissingCatalogProjectionEmpty
 func TestManagerIntegrationCapabilityProjectionDoesNotAliasSourceCatalog(t *testing.T) {
 	h := newHarness(t)
 
-	resolvedEnvironment, err := h.cfg.ResolveEnvironment(h.cfg.Defaults.Environment)
+	resolvedSandbox, err := h.cfg.ResolveSandbox(h.cfg.Defaults.Sandbox)
 	if err != nil {
-		t.Fatalf("ResolveEnvironment() error = %v", err)
+		t.Fatalf("ResolveSandbox() error = %v", err)
 	}
 	capabilityAgent := aghconfig.AgentDef{
 		Name:     "coder",
@@ -305,7 +305,7 @@ func TestManagerIntegrationCapabilityProjectionDoesNotAliasSourceCatalog(t *test
 			},
 			capabilityAgent,
 		},
-		Environment: resolvedEnvironment,
+		Sandbox: resolvedSandbox,
 	})
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
@@ -910,7 +910,7 @@ func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
 	}
 }
 
-func TestManagerIntegrationEnvironmentNativeHooksLifecycleOrder(t *testing.T) {
+func TestManagerIntegrationSandboxNativeHooksLifecycleOrder(t *testing.T) {
 	var (
 		mu        sync.Mutex
 		order     []string
@@ -938,112 +938,112 @@ func TestManagerIntegrationEnvironmentNativeHooksLifecycleOrder(t *testing.T) {
 		[]hookspkg.HookDecl{
 			{
 				Name:         "env-prepare",
-				Event:        hookspkg.HookEnvironmentPrepare,
+				Event:        hookspkg.HookSandboxPrepare,
 				Mode:         hookspkg.HookModeSync,
 				ExecutorKind: hookspkg.HookExecutorNative,
 			},
 			{
 				Name:         "env-sync-before",
-				Event:        hookspkg.HookEnvironmentSyncBefore,
+				Event:        hookspkg.HookSandboxSyncBefore,
 				Mode:         hookspkg.HookModeSync,
 				ExecutorKind: hookspkg.HookExecutorNative,
 			},
 			{
 				Name:         "env-sync-after",
-				Event:        hookspkg.HookEnvironmentSyncAfter,
+				Event:        hookspkg.HookSandboxSyncAfter,
 				Mode:         hookspkg.HookModeAsync,
 				ExecutorKind: hookspkg.HookExecutorNative,
 			},
 			{
 				Name:         "env-ready",
-				Event:        hookspkg.HookEnvironmentReady,
+				Event:        hookspkg.HookSandboxReady,
 				Mode:         hookspkg.HookModeAsync,
 				ExecutorKind: hookspkg.HookExecutorNative,
 			},
 			{
 				Name:         "env-stop",
-				Event:        hookspkg.HookEnvironmentStop,
+				Event:        hookspkg.HookSandboxStop,
 				Mode:         hookspkg.HookModeSync,
 				ExecutorKind: hookspkg.HookExecutorNative,
 			},
 		},
 		map[string]hookspkg.Executor{
-			"env-prepare": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentPreparePayload) (hookspkg.EnvironmentPreparePatch, error) {
-				if payload.EnvironmentID == "" || payload.WorkspaceID == "" {
-					return hookspkg.EnvironmentPreparePatch{}, errors.New("environment.prepare missing identity fields")
+			"env-prepare": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxPreparePayload) (hookspkg.SandboxPreparePatch, error) {
+				if payload.SandboxID == "" || payload.WorkspaceID == "" {
+					return hookspkg.SandboxPreparePatch{}, errors.New("sandbox.prepare missing identity fields")
 				}
-				record("environment.prepare")
-				return hookspkg.EnvironmentPreparePatch{}, nil
+				record("sandbox.prepare")
+				return hookspkg.SandboxPreparePatch{}, nil
 			}),
-			"env-sync-before": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentSyncBeforePayload) (hookspkg.EnvironmentSyncBeforePatch, error) {
-				if payload.EnvironmentID == "" || payload.Direction == "" || payload.Reason == "" {
-					return hookspkg.EnvironmentSyncBeforePatch{}, errors.New("environment.sync.before missing lifecycle fields")
+			"env-sync-before": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxSyncBeforePayload) (hookspkg.SandboxSyncBeforePatch, error) {
+				if payload.SandboxID == "" || payload.Direction == "" || payload.Reason == "" {
+					return hookspkg.SandboxSyncBeforePatch{}, errors.New("sandbox.sync.before missing lifecycle fields")
 				}
-				record("environment.sync.before:" + payload.Direction)
-				return hookspkg.EnvironmentSyncBeforePatch{}, nil
+				record("sandbox.sync.before:" + payload.Direction)
+				return hookspkg.SandboxSyncBeforePatch{}, nil
 			}),
-			"env-sync-after": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentSyncAfterPayload) (hookspkg.EnvironmentSyncAfterPatch, error) {
-				if payload.EnvironmentID == "" || payload.Direction == "" || payload.DurationMS < 0 {
-					return hookspkg.EnvironmentSyncAfterPatch{}, errors.New("environment.sync.after missing lifecycle fields")
+			"env-sync-after": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxSyncAfterPayload) (hookspkg.SandboxSyncAfterPatch, error) {
+				if payload.SandboxID == "" || payload.Direction == "" || payload.DurationMS < 0 {
+					return hookspkg.SandboxSyncAfterPatch{}, errors.New("sandbox.sync.after missing lifecycle fields")
 				}
-				record("environment.sync.after:" + payload.Direction)
+				record("sandbox.sync.after:" + payload.Direction)
 				switch payload.Direction {
-				case string(environment.SyncDirectionToRuntime):
+				case string(sandbox.SyncDirectionToRuntime):
 					close(afterTo)
-				case string(environment.SyncDirectionFromRuntime):
+				case string(sandbox.SyncDirectionFromRuntime):
 					close(afterFrom)
 				default:
-					return hookspkg.EnvironmentSyncAfterPatch{}, errors.New("unexpected sync direction " + payload.Direction)
+					return hookspkg.SandboxSyncAfterPatch{}, errors.New("unexpected sync direction " + payload.Direction)
 				}
-				return hookspkg.EnvironmentSyncAfterPatch{}, nil
+				return hookspkg.SandboxSyncAfterPatch{}, nil
 			}),
-			"env-ready": hookspkg.NewTypedNativeExecutor(func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentReadyPayload) (hookspkg.EnvironmentReadyPatch, error) {
-				if err := waitFor(ctx, afterTo, "environment.sync.after:to_runtime"); err != nil {
-					return hookspkg.EnvironmentReadyPatch{}, err
+			"env-ready": hookspkg.NewTypedNativeExecutor(func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxReadyPayload) (hookspkg.SandboxReadyPatch, error) {
+				if err := waitFor(ctx, afterTo, "sandbox.sync.after:to_runtime"); err != nil {
+					return hookspkg.SandboxReadyPatch{}, err
 				}
-				if payload.EnvironmentID == "" || payload.RuntimeRootDir == "" {
-					return hookspkg.EnvironmentReadyPatch{}, errors.New("environment.ready missing runtime fields")
+				if payload.SandboxID == "" || payload.RuntimeRootDir == "" {
+					return hookspkg.SandboxReadyPatch{}, errors.New("sandbox.ready missing runtime fields")
 				}
-				record("environment.ready")
+				record("sandbox.ready")
 				close(ready)
-				return hookspkg.EnvironmentReadyPatch{}, nil
+				return hookspkg.SandboxReadyPatch{}, nil
 			}),
-			"env-stop": hookspkg.NewTypedNativeExecutor(func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.EnvironmentStopPayload) (hookspkg.EnvironmentStopPatch, error) {
-				if err := waitFor(ctx, afterFrom, "environment.sync.after:from_runtime"); err != nil {
-					return hookspkg.EnvironmentStopPatch{}, err
+			"env-stop": hookspkg.NewTypedNativeExecutor(func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxStopPayload) (hookspkg.SandboxStopPatch, error) {
+				if err := waitFor(ctx, afterFrom, "sandbox.sync.after:from_runtime"); err != nil {
+					return hookspkg.SandboxStopPatch{}, err
 				}
-				if payload.EnvironmentID == "" || payload.StopReason == "" {
-					return hookspkg.EnvironmentStopPatch{}, errors.New("environment.stop missing stop fields")
+				if payload.SandboxID == "" || payload.StopReason == "" {
+					return hookspkg.SandboxStopPatch{}, errors.New("sandbox.stop missing stop fields")
 				}
-				record("environment.stop")
-				return hookspkg.EnvironmentStopPatch{}, nil
+				record("sandbox.stop")
+				return hookspkg.SandboxStopPatch{}, nil
 			}),
 		},
 	)
 
-	h := newHarness(t, WithHookSet(HookSet{Environment: hooks}))
+	h := newHarness(t, WithHookSet(HookSet{Sandbox: hooks}))
 	session := createSession(t, h)
-	if err := waitFor(testutil.Context(t), ready, "environment.ready"); err != nil {
-		t.Fatalf("waiting for environment.ready: %v", err)
+	if err := waitFor(testutil.Context(t), ready, "sandbox.ready"); err != nil {
+		t.Fatalf("waiting for sandbox.ready: %v", err)
 	}
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
 	want := []string{
-		"environment.prepare",
-		"environment.sync.before:to_runtime",
-		"environment.sync.after:to_runtime",
-		"environment.ready",
-		"environment.sync.before:from_runtime",
-		"environment.sync.after:from_runtime",
-		"environment.stop",
+		"sandbox.prepare",
+		"sandbox.sync.before:to_runtime",
+		"sandbox.sync.after:to_runtime",
+		"sandbox.ready",
+		"sandbox.sync.before:from_runtime",
+		"sandbox.sync.after:from_runtime",
+		"sandbox.stop",
 	}
 	mu.Lock()
 	got := append([]string(nil), order...)
 	mu.Unlock()
 	if !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("environment hook order = %#v, want %#v", got, want)
+		t.Fatalf("sandbox hook order = %#v, want %#v", got, want)
 	}
 }
 

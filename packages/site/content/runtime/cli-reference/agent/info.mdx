@@ -17,6 +17,9 @@ agh agent info <name> [flags]
   # Inspect the default bootstrap agent
   agh agent info general
 
+  # Inspect a workspace-local agent
+  agh agent info reviewer --workspace ~/dev/ai/acme-startup
+
   # Inspect an agent definition as JSON
   agh agent info reviewer -o json
 ```
@@ -24,7 +27,8 @@ agh agent info <name> [flags]
 ### Options
 
 ```
-  -h, --help   help for info
+  -h, --help               help for info
+      --workspace string   Resolve the agent from a workspace id, name, or path
 ```
 
 ### Options inherited from parent commands

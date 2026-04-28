@@ -47,7 +47,7 @@ afterEach(() => {
 });
 
 describe("useSettingsPage", () => {
-  it("exposes the ten Paper-mapped sections and root path", () => {
+  it("exposes the Paper-mapped Settings sections and root path", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsPage(), { wrapper });
 
@@ -55,7 +55,6 @@ describe("useSettingsPage", () => {
       "general",
       "providers",
       "mcp-servers",
-      "environments",
       "memory",
       "skills",
       "automation",

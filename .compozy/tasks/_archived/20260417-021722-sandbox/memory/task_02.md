@@ -3,22 +3,22 @@
 Keep only task-local execution context here. Do not duplicate facts that are obvious from the repository, task file, PRD documents, or git history.
 
 ## Objective Snapshot
-- Extract ACP local subprocess launch and local file/terminal/permission side effects behind Task 01 `internal/environment` Launcher/ToolHost interfaces while preserving local ACP behavior.
+- Extract ACP local subprocess launch and local file/terminal/permission side effects behind Task 01 `internal/sandbox` Launcher/ToolHost interfaces while preserving local ACP behavior.
 - Completion needs existing ACP tests unchanged, new local launcher/toolhost behavior tests, coverage evidence, `make verify`, tracking updates, and one local commit.
 
 ## Important Decisions
-- Use Task 01 `internal/environment` interfaces from ACP rather than redefining duplicate ACP-local contracts.
+- Use Task 01 `internal/sandbox` interfaces from ACP rather than redefining duplicate ACP-local contracts.
 - Keep ACP protocol request/response shaping in `AgentProcess`; move file IO, permission policy evaluation/path resolution, and terminal process side effects into `localToolHost`.
 - Keep task scope to driver-level `WithLauncher()` and `WithToolHost()` injection; `StartOpts` stays protocol/session input only.
-- Add `Launcher` to `environment.Prepared` so Task 03 can return the local launcher alongside `Launch` and `ToolHost`.
+- Add `Launcher` to `sandbox.Prepared` so Task 03 can return the local launcher alongside `Launch` and `ToolHost`.
 
 ## Learnings
 - Pre-change ACP still hardcodes local launch in `Driver.spawnProcess` and direct OS/terminal behavior in `AgentProcess` handlers.
-- Task 01 already added `internal/environment.Launcher`, `Handle`, `LaunchSpec`, `ToolHost`, permission operation, and permission decision types.
+- Task 01 already added `internal/sandbox.Launcher`, `Handle`, `LaunchSpec`, `ToolHost`, permission operation, and permission decision types.
 - Final ACP coverage is 81.0% with the new local launcher/toolhost tests.
 
 ## Files / Surfaces
-- Source surfaces touched: `internal/acp/client.go`, `internal/acp/types.go`, `internal/acp/permission.go`, `internal/acp/handlers.go`, `internal/acp/launcher.go`, `internal/acp/tool_host.go`, `internal/acp/launcher_tool_host_test.go`, `internal/acp/client_test.go`, `internal/acp/client_integration_test.go`, and `internal/environment/types.go`.
+- Source surfaces touched: `internal/acp/client.go`, `internal/acp/types.go`, `internal/acp/permission.go`, `internal/acp/handlers.go`, `internal/acp/launcher.go`, `internal/acp/tool_host.go`, `internal/acp/launcher_tool_host_test.go`, `internal/acp/client_test.go`, `internal/acp/client_integration_test.go`, and `internal/sandbox/types.go`.
 
 ## Errors / Corrections
 - Initial `make verify` found a staticcheck context issue and `Driver.Stop` gocyclo >20; fixed by using a real test context and extracting stop helpers.

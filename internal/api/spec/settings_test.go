@@ -81,19 +81,19 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				method:     "DELETE",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
-			{path: "/api/settings/environments", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/sandboxes", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{
-				path:       "/api/settings/environments/{name}",
+				path:       "/api/settings/sandboxes/{name}",
 				method:     "GET",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
 			{
-				path:       "/api/settings/environments/{name}",
+				path:       "/api/settings/sandboxes/{name}",
 				method:     "PUT",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
 			{
-				path:       "/api/settings/environments/{name}",
+				path:       "/api/settings/sandboxes/{name}",
 				method:     "DELETE",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},

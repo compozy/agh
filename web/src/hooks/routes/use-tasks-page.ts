@@ -55,7 +55,7 @@ export type CreateTaskDraftInput = TaskEditorDraft;
 function useTasksPage(options: UseTasksPageOptions = {}) {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
 
-  const [mode, setMode] = useState<TaskViewMode>(options.initialMode ?? "list");
+  const [mode, setMode] = useState<TaskViewMode>(options.initialMode ?? "kanban");
   const [scopeFilter, setScopeFilter] = useState<TaskScopeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
@@ -275,11 +275,11 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
 
   const handleDeleteTask = useCallback(
     async (taskId: string) => {
+      if (effectiveSelectedTaskId === taskId) {
+        setSelectedTaskId(null);
+      }
       try {
         await deleteMutation.mutateAsync({ id: taskId });
-        if (effectiveSelectedTaskId === taskId) {
-          setSelectedTaskId(null);
-        }
         toast.success("Task deleted.");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to delete task");

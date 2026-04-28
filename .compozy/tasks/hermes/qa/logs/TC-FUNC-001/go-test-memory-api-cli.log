@@ -2820,8 +2820,8 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.888s
 === RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/providers
 === RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/providers/demo
 === RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/mcp-servers
-=== RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/environments
-=== RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/environments/demo
+=== RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/sandboxes
+=== RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/sandboxes/demo
 === RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/hooks
 === RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/actions/restart/op-123
 === RUN   TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/extensions
@@ -2871,8 +2871,8 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.888s
     --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/providers (0.00s)
     --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/providers/demo (0.00s)
     --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/mcp-servers (0.00s)
-    --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/environments (0.00s)
-    --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/environments/demo (0.00s)
+    --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/sandboxes (0.00s)
+    --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/sandboxes/demo (0.00s)
     --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/hooks (0.00s)
     --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/settings/actions/restart/op-123 (0.00s)
     --- PASS: TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost//api/extensions (0.00s)
@@ -2968,8 +2968,8 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.888s
 === RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/providers/demo
 === RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/PUT_/api/settings/mcp-servers/server-a
 === RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/mcp-servers/server-a
-=== RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/PUT_/api/settings/environments/demo
-=== RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/environments/demo
+=== RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/PUT_/api/settings/sandboxes/demo
+=== RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/sandboxes/demo
 === RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/PUT_/api/settings/hooks/capture
 === RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/hooks/capture
 === RUN   TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/POST_/api/settings/actions/restart
@@ -3006,8 +3006,8 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.888s
     --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/providers/demo (0.00s)
     --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/PUT_/api/settings/mcp-servers/server-a (0.00s)
     --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/mcp-servers/server-a (0.00s)
-    --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/PUT_/api/settings/environments/demo (0.00s)
-    --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/environments/demo (0.00s)
+    --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/PUT_/api/settings/sandboxes/demo (0.00s)
+    --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/sandboxes/demo (0.00s)
     --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/PUT_/api/settings/hooks/capture (0.00s)
     --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/DELETE_/api/settings/hooks/capture (0.00s)
     --- PASS: TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost/POST_/api/settings/actions/restart (0.00s)

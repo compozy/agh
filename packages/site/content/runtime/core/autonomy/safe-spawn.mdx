@@ -9,17 +9,17 @@ caps, workspace inheritance, permission narrowing, and cleanup.
 
 ## Required constraints
 
-| Constraint | Behavior |
-| ---------- | -------- |
-| Valid parent identity | The caller must be an AGH-managed session resolved from daemon-issued identity. |
-| TTL | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded. |
-| Depth cap | The MVP default max spawn depth is `1`. |
-| Child cap | The MVP default max children per parent is `5`. |
-| Workspace inheritance | Children inherit the parent workspace. Cross-workspace spawn is rejected in the MVP. |
-| Coordinator role denial | `--role coordinator` is rejected. Coordinators are daemon-managed root sessions, not child sessions. |
-| Permission subset | Child tools, skills, MCP servers, workspace paths, network channels, and environment profiles must be a subset of the parent set. |
-| Unknown atoms | Unknown child permission atoms count as widening and reject the spawn. |
-| Parent stop | Children auto-stop when the parent stops unless configured otherwise within hard caps. |
+| Constraint              | Behavior                                                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Valid parent identity   | The caller must be an AGH-managed session resolved from daemon-issued identity.                                               |
+| TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                                       |
+| Depth cap               | The MVP default max spawn depth is `1`.                                                                                       |
+| Child cap               | The MVP default max children per parent is `5`.                                                                               |
+| Workspace inheritance   | Children inherit the parent workspace. Cross-workspace spawn is rejected in the MVP.                                          |
+| Coordinator role denial | `--role coordinator` is rejected. Coordinators are daemon-managed root sessions, not child sessions.                          |
+| Permission subset       | Child tools, skills, MCP servers, workspace paths, network channels, and sandbox profiles must be a subset of the parent set. |
+| Unknown atoms           | Unknown child permission atoms count as widening and reject the spawn.                                                        |
+| Parent stop             | Children auto-stop when the parent stops unless configured otherwise within hard caps.                                        |
 
 The daemon rejects invalid spawn requests. It does not silently narrow a child request and continue.
 
@@ -49,7 +49,7 @@ Permission flags are repeatable:
 - `--mcp-server`
 - `--workspace-path`
 - `--channel`
-- `--environment-profile`
+- `--sandbox-profile`
 
 The response includes the child session, lineage, and safe permission projection. It does not create
 or claim task work by itself.

@@ -20,8 +20,8 @@ import (
 
 type sessionStartSpec struct {
 	sessionID              string
-	environmentID          string
-	environment            *store.SessionEnvironmentMeta
+	sandboxID              string
+	sandbox                *store.SessionSandboxMeta
 	sessionName            string
 	agentName              string
 	provider               string
@@ -75,9 +75,9 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if sessionID == "" {
 		return sessionStartSpec{}, errors.New("session: session id generator returned empty id")
 	}
-	environmentID := strings.TrimSpace(m.newEnvironmentID())
-	if environmentID == "" {
-		return sessionStartSpec{}, errors.New("session: environment id generator returned empty id")
+	sandboxID := strings.TrimSpace(m.newSandboxID())
+	if sandboxID == "" {
+		return sessionStartSpec{}, errors.New("session: sandbox id generator returned empty id")
 	}
 	lineage, err := m.normalizeCreateLineage(ctx, sessionID, opts.Type, opts.Lineage)
 	if err != nil {
@@ -86,7 +86,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 
 	return sessionStartSpec{
 		sessionID:         sessionID,
-		environmentID:     environmentID,
+		sandboxID:         sandboxID,
 		sessionName:       strings.TrimSpace(opts.Name),
 		agentName:         strings.TrimSpace(agentName),
 		provider:          strings.TrimSpace(opts.Provider),
@@ -114,8 +114,8 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 
 	return sessionStartSpec{
 		sessionID:              meta.ID,
-		environmentID:          sessionEnvironmentID(meta.Environment),
-		environment:            cloneSessionEnvironmentMeta(meta.Environment),
+		sandboxID:              sessionSandboxID(meta.Sandbox),
+		sandbox:                cloneSessionSandboxMeta(meta.Sandbox),
 		sessionName:            meta.Name,
 		agentName:              meta.AgentName,
 		provider:               strings.TrimSpace(meta.Provider),
@@ -174,9 +174,9 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	session := spec.newStartingSession(runtime.agent, storage, now)
 
 	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
-	startOpts, err = m.prepareEnvironmentForStart(ctx, spec, session, startOpts)
+	startOpts, err = m.prepareSandboxForStart(ctx, spec, session, startOpts)
 	if err != nil {
-		return nil, m.failSessionStart(ctx, spec, session, "session environment startup failed", err)
+		return nil, m.failSessionStart(ctx, spec, session, "session sandbox startup failed", err)
 	}
 	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
@@ -230,7 +230,7 @@ func (m *Manager) startAgentProcess(
 	proc, err := m.driver.Start(ctx, startOpts)
 	if err != nil {
 		m.sessionLogger(session).Warn("session.start.driver_start_failed", "phase", spec.startAction, "error", err)
-		m.logEnvironmentTransport(session, environmentEventTransportError, err, time.Since(transportStarted))
+		m.logSandboxTransport(session, sandboxEventTransportError, err, time.Since(transportStarted))
 		return proc, m.failSessionStart(
 			ctx,
 			spec,
@@ -239,7 +239,7 @@ func (m *Manager) startAgentProcess(
 			fmt.Errorf("session: %s agent for %q: %w", spec.startAction, spec.sessionID, err),
 		)
 	}
-	m.logEnvironmentTransport(session, environmentEventTransportConnect, nil, time.Since(transportStarted))
+	m.logSandboxTransport(session, sandboxEventTransportConnect, nil, time.Since(transportStarted))
 	proc.configureRuntime(session.CurrentTurnSource)
 	return proc, nil
 }
@@ -368,29 +368,29 @@ func (s *sessionStartSpec) newStartingSession(
 	}
 
 	return &Session{
-		ID:                       s.sessionID,
-		Name:                     s.sessionName,
-		AgentName:                resolved.Name,
-		Provider:                 strings.TrimSpace(resolved.Provider),
-		Model:                    strings.TrimSpace(resolved.Model),
-		WorkspaceID:              s.workspace.ID,
-		Workspace:                s.workspace.RootDir,
-		Channel:                  s.channel,
-		Type:                     normalizeSessionType(s.sessionType),
-		Lineage:                  store.CloneSessionLineage(s.lineage),
-		State:                    StateStarting,
-		stopReason:               s.stopReason,
-		stopDetail:               s.stopDetail,
-		failure:                  store.CloneSessionFailure(s.failure),
-		ACPSessionID:             s.acpSessionID,
-		Environment:              cloneSessionEnvironmentMeta(s.environment),
-		CreatedAt:                createdAt,
-		UpdatedAt:                now,
-		sessionDir:               storage.sessionDir,
-		metaPath:                 storage.metaPath,
-		dbPath:                   storage.dbPath,
-		recorder:                 storage.recorder,
-		environmentDestroyOnStop: s.workspace.Environment.DestroyOnStop,
+		ID:                   s.sessionID,
+		Name:                 s.sessionName,
+		AgentName:            resolved.Name,
+		Provider:             strings.TrimSpace(resolved.Provider),
+		Model:                strings.TrimSpace(resolved.Model),
+		WorkspaceID:          s.workspace.ID,
+		Workspace:            s.workspace.RootDir,
+		Channel:              s.channel,
+		Type:                 normalizeSessionType(s.sessionType),
+		Lineage:              store.CloneSessionLineage(s.lineage),
+		State:                StateStarting,
+		stopReason:           s.stopReason,
+		stopDetail:           s.stopDetail,
+		failure:              store.CloneSessionFailure(s.failure),
+		ACPSessionID:         s.acpSessionID,
+		Sandbox:              cloneSessionSandboxMeta(s.sandbox),
+		CreatedAt:            createdAt,
+		UpdatedAt:            now,
+		sessionDir:           storage.sessionDir,
+		metaPath:             storage.metaPath,
+		dbPath:               storage.dbPath,
+		recorder:             storage.recorder,
+		sandboxDestroyOnStop: s.workspace.Sandbox.DestroyOnStop,
 	}
 }
 

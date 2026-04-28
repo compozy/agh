@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -601,39 +602,45 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		CompleteRunFn: func(_ context.Context, _ string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			completedRun = result
 			return &taskpkg.Run{
-				ID:       "run-1",
-				TaskID:   "task-1",
-				Status:   taskpkg.TaskRunStatusCompleted,
-				Attempt:  1,
-				Origin:   actor.Origin,
-				QueuedAt: now,
-				EndedAt:  now,
-				Result:   result.Value,
+				ID:                    "run-1",
+				TaskID:                "task-1",
+				Status:                taskpkg.TaskRunStatusCompleted,
+				Attempt:               1,
+				Origin:                actor.Origin,
+				QueuedAt:              now,
+				EndedAt:               now,
+				Result:                result.Value,
+				NetworkChannel:        "builders",
+				CoordinationChannelID: "builders",
 			}, nil
 		},
 		FailRunFn: func(_ context.Context, _ string, failure taskpkg.RunFailure, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			failedRun = failure
 			return &taskpkg.Run{
-				ID:       "run-2",
-				TaskID:   "task-1",
-				Status:   taskpkg.TaskRunStatusFailed,
-				Attempt:  2,
-				Origin:   actor.Origin,
-				QueuedAt: now,
-				EndedAt:  now,
-				Error:    failure.Error,
+				ID:                    "run-2",
+				TaskID:                "task-1",
+				Status:                taskpkg.TaskRunStatusFailed,
+				Attempt:               2,
+				Origin:                actor.Origin,
+				QueuedAt:              now,
+				EndedAt:               now,
+				Error:                 failure.Error,
+				NetworkChannel:        "builders",
+				CoordinationChannelID: "builders",
 			}, nil
 		},
 		CancelRunFn: func(_ context.Context, _ string, req taskpkg.CancelRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			cancelledRun = req
 			return &taskpkg.Run{
-				ID:       "run-2",
-				TaskID:   "task-1",
-				Status:   taskpkg.TaskRunStatusCanceled,
-				Attempt:  2,
-				Origin:   actor.Origin,
-				QueuedAt: now,
-				EndedAt:  now,
+				ID:                    "run-2",
+				TaskID:                "task-1",
+				Status:                taskpkg.TaskRunStatusCanceled,
+				Attempt:               2,
+				Origin:                actor.Origin,
+				QueuedAt:              now,
+				EndedAt:               now,
+				NetworkChannel:        "builders",
+				CoordinationChannelID: "builders",
 			}, nil
 		},
 	}
@@ -804,6 +811,11 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("complete status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
+	var completedResp contract.TaskRunResponse
+	testutil.DecodeJSONResponse(t, resp, &completedResp)
+	if completedResp.Run.NetworkChannel != "builders" || completedResp.Run.CoordinationChannelID != "builders" {
+		t.Fatalf("completed response = %#v, want preserved network/coordination channel", completedResp.Run)
+	}
 
 	resp = performRequest(
 		t,
@@ -815,6 +827,11 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("fail status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
+	var failedResp contract.TaskRunResponse
+	testutil.DecodeJSONResponse(t, resp, &failedResp)
+	if failedResp.Run.NetworkChannel != "builders" || failedResp.Run.CoordinationChannelID != "builders" {
+		t.Fatalf("failed response = %#v, want preserved network/coordination channel", failedResp.Run)
+	}
 
 	resp = performRequest(
 		t,
@@ -825,6 +842,11 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("cancel run status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	var cancelledResp contract.TaskRunResponse
+	testutil.DecodeJSONResponse(t, resp, &cancelledResp)
+	if cancelledResp.Run.NetworkChannel != "builders" || cancelledResp.Run.CoordinationChannelID != "builders" {
+		t.Fatalf("canceled response = %#v, want preserved network/coordination channel", cancelledResp.Run)
 	}
 
 	if listedQuery.WorkspaceID != "ws-alpha" || listedQuery.Scope != taskpkg.ScopeWorkspace ||

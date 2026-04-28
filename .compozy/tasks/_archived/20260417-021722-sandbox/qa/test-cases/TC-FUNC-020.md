@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that daemon restart environment reconciliation is a no-op when there are no sessions with remote backends.
+Verify that daemon restart sandbox reconciliation is a no-op when there are no sessions with remote backends.
 
 ---
 

@@ -4,6 +4,10 @@ export default defineConfig({
   test: {
     name: "extension-sdk",
     environment: "node",
+    pool: "forks",
+    sequence: {
+      groupOrder: 1,
+    },
     include: ["src/**/*.test.ts"],
     exclude: ["dist/**", "**/node_modules/**"],
     coverage: {

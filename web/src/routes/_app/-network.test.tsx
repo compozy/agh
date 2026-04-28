@@ -669,6 +669,40 @@ describe("network route", () => {
     );
   });
 
+  it("keeps peer rooms classified as presence when shown history contains only greet rows", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-04-13T10:45:00Z"));
+      routerState.searchParams = { peer: "peer_remote", presence: "shown" };
+      mockPeerMessages = [
+        makeChannelMessage({
+          body: { text: "Remote Reviewer ready for review handoffs." },
+          direction: "received",
+          display_name: "Remote Reviewer",
+          kind: "greet",
+          local: false,
+          message_id: "msg_peer_presence_only",
+          peer_from: "peer_remote",
+          presence_count: 2,
+          preview_text: "Remote Reviewer ready for review handoffs.",
+          text: "Remote Reviewer ready for review handoffs.",
+          timestamp: "2026-04-13T10:40:00Z",
+        }),
+      ];
+
+      render(<NetworkPage />);
+
+      expect(
+        within(screen.getByTestId("network-room-header")).getByText("Remote Reviewer")
+      ).toBeInTheDocument();
+      expect(screen.getByText("presence 5m ago")).toBeInTheDocument();
+      expect(screen.getByText(/Room presence last changed /i)).toBeInTheDocument();
+      expect(screen.getByText(/Last room presence /i)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("prefers a valid channel target when stale peer and channel params are both present", () => {
     routerState.searchParams = { channel: "coord.core", peer: "peer_missing" };
 
@@ -694,6 +728,558 @@ describe("network route", () => {
     expect(
       within(screen.getByTestId("network-room-header")).getByText("#ops.alerts")
     ).toBeInTheDocument();
+  });
+
+  it("marks presence-only rooms unread from last presence and clears them after opening", async () => {
+    const user = userEvent.setup();
+    routerState.searchParams = { channel: "coord.core" };
+    mockChannelDetail = undefined;
+    mockChannelMessages = [];
+    mockNetworkChannels = {
+      channels: [
+        makeChannelSummary(),
+        makeChannelSummary({
+          channel: "zulu.presence",
+          historical_participant_count: 2,
+          last_activity_at: undefined,
+          last_message_preview: undefined,
+          last_presence_at: "2026-04-13T11:00:00Z",
+          local_peer_count: 0,
+          message_count: undefined,
+          peer_count: 0,
+          presence_count: 2,
+          purpose: "Presence-only coordination room",
+          remote_peer_count: 0,
+          session_count: 0,
+        }),
+      ],
+    };
+
+    window.localStorage.setItem(
+      "network:room-read-at",
+      JSON.stringify({
+        "channel:zulu.presence": "2026-04-13T10:00:00Z",
+      })
+    );
+
+    const view = render(<NetworkPage />);
+
+    const presenceRow = screen.getByTestId("network-room-channel-zulu.presence");
+    expect(within(presenceRow).getByText("1")).toBeInTheDocument();
+
+    await user.click(within(presenceRow).getByRole("button", { name: /zulu\.presence/i }));
+    view.rerender(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-header")).getByText("#zulu.presence")
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("network:room-read-at") ?? "{}")).toMatchObject(
+        {
+          "channel:zulu.presence": "2026-04-13T11:00:00Z",
+        }
+      );
+    });
+
+    await user.click(
+      within(screen.getByTestId("network-room-channel-coord.core")).getByRole("button", {
+        name: /coord\.core/i,
+      })
+    );
+    view.rerender(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-channel-zulu.presence")).queryByText("1")
+    ).toBeNull();
+  });
+
+  it("sorts reactivated rooms by fresher presence and clears unread from that effective recency", async () => {
+    const user = userEvent.setup();
+    routerState.searchParams = { channel: "coord.core" };
+    mockChannelDetail = undefined;
+    mockChannelMessages = [];
+    mockNetworkChannels = {
+      channels: [
+        makeChannelSummary(),
+        makeChannelSummary({
+          channel: "launch-room",
+          historical_participant_count: 7,
+          last_activity_at: "2026-04-13T09:00:00Z",
+          last_message_preview: "Previous launch review complete.",
+          last_presence_at: "2026-04-13T11:00:00Z",
+          local_peer_count: 2,
+          message_count: 4,
+          peer_count: 2,
+          presence_count: 8,
+          purpose: "Reactivated historical launch room",
+          remote_peer_count: 0,
+          session_count: 2,
+        }),
+      ],
+    };
+
+    window.localStorage.setItem(
+      "network:room-read-at",
+      JSON.stringify({
+        "channel:launch-room": "2026-04-13T10:00:00Z",
+      })
+    );
+
+    const view = render(<NetworkPage />);
+
+    expect(
+      screen.getAllByTestId(/^network-room-channel-/).map(row => row.getAttribute("data-testid"))
+    ).toEqual(["network-room-channel-launch-room", "network-room-channel-coord.core"]);
+    expect(
+      within(screen.getByTestId("network-room-channel-launch-room")).getByText("1")
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(screen.getByTestId("network-room-channel-launch-room")).getByRole("button", {
+        name: /launch-room/i,
+      })
+    );
+    view.rerender(<NetworkPage />);
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("network:room-read-at") ?? "{}")).toMatchObject(
+        {
+          "channel:launch-room": "2026-04-13T11:00:00Z",
+        }
+      );
+    });
+
+    await user.click(
+      within(screen.getByTestId("network-room-channel-coord.core")).getByRole("button", {
+        name: /coord\.core/i,
+      })
+    );
+    view.rerender(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-channel-launch-room")).queryByText("1")
+    ).toBeNull();
+  });
+
+  it("marks greet-only peer rooms unread from last seen and clears them after opening", async () => {
+    const user = userEvent.setup();
+    routerState.searchParams = { channel: "coord.core" };
+    mockNetworkPeers = [
+      makePeerSummary({
+        channel: "zulu.presence",
+        display_name: "Remote Presence",
+        last_seen: "2026-04-13T11:00:00Z",
+        peer_card: {
+          artifacts_supported: ["capability"],
+          capabilities: [],
+          display_name: "Remote Presence",
+          peer_id: "peer_presence",
+          profiles_supported: ["default"],
+          trust_modes_supported: ["relay"],
+        },
+        peer_id: "peer_presence",
+        session_id: "sess_presence",
+      }),
+      makePeerSummary(),
+    ];
+    mockPeerDetail = makePeerDetail({
+      channel: "zulu.presence",
+      display_name: "Remote Presence",
+      last_seen: "2026-04-13T11:00:00Z",
+      peer_card: {
+        artifacts_supported: ["capability"],
+        capabilities: [],
+        display_name: "Remote Presence",
+        peer_id: "peer_presence",
+        profiles_supported: ["default"],
+        trust_modes_supported: ["relay"],
+      },
+      peer_id: "peer_presence",
+      session_id: "sess_presence",
+    });
+    mockPeerMessages = [
+      makeChannelMessage({
+        body: { text: "Remote Presence online" },
+        channel: "zulu.presence",
+        direction: "received",
+        display_name: "Remote Presence",
+        kind: "greet",
+        local: false,
+        message_id: "msg_peer_presence",
+        peer_from: "peer_presence",
+        preview_text: "Remote Presence online",
+        session_id: "sess_presence",
+        text: "Remote Presence online",
+        timestamp: "2026-04-13T11:00:00Z",
+      }),
+    ];
+
+    window.localStorage.setItem(
+      "network:room-read-at",
+      JSON.stringify({
+        "peer:peer_presence": "2026-04-13T10:00:00Z",
+      })
+    );
+
+    const view = render(<NetworkPage />);
+
+    const presenceRow = screen.getByTestId("network-room-peer-peer_presence");
+    expect(within(presenceRow).getByText("1")).toBeInTheDocument();
+
+    await user.click(within(presenceRow).getByRole("button", { name: /remote presence/i }));
+    view.rerender(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-header")).getByText("Remote Presence")
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("network:room-read-at") ?? "{}")).toMatchObject(
+        {
+          "peer:peer_presence": "2026-04-13T11:00:00Z",
+        }
+      );
+    });
+
+    await user.click(
+      within(screen.getByTestId("network-room-channel-coord.core")).getByRole("button", {
+        name: /coord\.core/i,
+      })
+    );
+    view.rerender(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-peer-peer_presence")).queryByText("1")
+    ).toBeNull();
+  });
+
+  it("marks local peer rooms unread from joined_at and sorts newer locals first", async () => {
+    const user = userEvent.setup();
+    routerState.searchParams = { channel: "coord.core" };
+    mockNetworkPeers = [
+      makePeerSummary({
+        display_name: "Reviewer",
+        joined_at: "2026-04-13T10:59:00Z",
+        last_seen: undefined,
+        local: true,
+        peer_card: {
+          artifacts_supported: ["capability"],
+          capabilities: [],
+          display_name: "Reviewer",
+          peer_id: "peer_reviewer_local",
+          profiles_supported: ["default"],
+          trust_modes_supported: ["local-first"],
+        },
+        peer_id: "peer_reviewer_local",
+        session_id: "sess_reviewer_local",
+      }),
+      makePeerSummary({
+        display_name: "Coder",
+        joined_at: "2026-04-13T11:00:00Z",
+        last_seen: undefined,
+        local: true,
+        peer_card: {
+          artifacts_supported: ["capability"],
+          capabilities: [],
+          display_name: "Coder",
+          peer_id: "peer_coder_local",
+          profiles_supported: ["default"],
+          trust_modes_supported: ["local-first"],
+        },
+        peer_id: "peer_coder_local",
+        session_id: "sess_coder_local",
+      }),
+    ];
+    mockPeerDetail = makePeerDetail({
+      display_name: "Coder",
+      joined_at: "2026-04-13T11:00:00Z",
+      last_seen: undefined,
+      local: true,
+      peer_card: {
+        artifacts_supported: ["capability"],
+        capabilities: [],
+        display_name: "Coder",
+        peer_id: "peer_coder_local",
+        profiles_supported: ["default"],
+        trust_modes_supported: ["local-first"],
+      },
+      peer_id: "peer_coder_local",
+      session_id: "sess_coder_local",
+    });
+    mockPeerMessages = [
+      makeChannelMessage({
+        body: { text: "Coder online" },
+        channel: "coord.core",
+        direction: "sent",
+        display_name: "Coder",
+        kind: "greet",
+        local: true,
+        message_id: "msg_coder_presence",
+        peer_from: "peer_coder_local",
+        preview_text: "Coder online",
+        session_id: "sess_coder_local",
+        text: "Coder online",
+        timestamp: "2026-04-13T11:00:00Z",
+      }),
+    ];
+
+    window.localStorage.setItem(
+      "network:room-read-at",
+      JSON.stringify({
+        "peer:peer_coder_local": "2026-04-13T10:30:00Z",
+        "peer:peer_reviewer_local": "2026-04-13T10:30:00Z",
+      })
+    );
+
+    const view = render(<NetworkPage />);
+
+    expect(
+      screen.getAllByTestId(/^network-room-peer-/).map(row => row.getAttribute("data-testid"))
+    ).toEqual(["network-room-peer-peer_coder_local", "network-room-peer-peer_reviewer_local"]);
+    expect(
+      within(screen.getByTestId("network-room-peer-peer_coder_local")).getByText("1")
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(screen.getByTestId("network-room-peer-peer_coder_local")).getByRole("button", {
+        name: /coder/i,
+      })
+    );
+    view.rerender(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-header")).getByText("Coder")
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("network:room-read-at") ?? "{}")).toMatchObject(
+        {
+          "peer:peer_coder_local": "2026-04-13T11:00:00Z",
+        }
+      );
+    });
+
+    await user.click(
+      within(screen.getByTestId("network-room-channel-coord.core")).getByRole("button", {
+        name: /coord\.core/i,
+      })
+    );
+    view.rerender(<NetworkPage />);
+
+    expect(
+      within(screen.getByTestId("network-room-peer-peer_coder_local")).queryByText("1")
+    ).toBeNull();
+  });
+
+  it("keeps presence-only active rooms classified as presence when history is shown", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-04-13T11:05:00Z"));
+      routerState.searchParams = { channel: "zulu.presence", presence: "shown" };
+      mockChannelDetail = makeChannelDetail({
+        channel: "zulu.presence",
+        historical_participant_count: 2,
+        kind_counts: [{ kind: "greet", count: 2 }],
+        last_activity_at: undefined,
+        last_message_preview: undefined,
+        last_presence_at: "2026-04-13T11:00:00Z",
+        local_peer_count: 0,
+        message_count: undefined,
+        peer_count: 0,
+        peers: [],
+        presence_count: 2,
+        purpose: "Presence-only coordination room",
+        remote_peer_count: 0,
+        session_count: 0,
+        sessions: [],
+      });
+      mockChannelMessages = [
+        makeChannelMessage({
+          channel: "zulu.presence",
+          direction: "received",
+          display_name: "Zulu Presence",
+          kind: "greet",
+          local: false,
+          message_id: "msg_presence_1",
+          peer_from: "peer_zulu_remote",
+          presence_count: 2,
+          preview_text: "Zulu Presence online",
+          text: "Zulu Presence online",
+          timestamp: "2026-04-13T11:00:00Z",
+        }),
+      ];
+      mockNetworkChannels = {
+        channels: [
+          makeChannelSummary(),
+          makeChannelSummary({
+            channel: "zulu.presence",
+            historical_participant_count: 2,
+            last_activity_at: undefined,
+            last_message_preview: undefined,
+            last_presence_at: "2026-04-13T11:00:00Z",
+            local_peer_count: 0,
+            message_count: undefined,
+            peer_count: 0,
+            presence_count: 2,
+            purpose: "Presence-only coordination room",
+            remote_peer_count: 0,
+            session_count: 0,
+          }),
+        ],
+      };
+
+      render(<NetworkPage />);
+
+      expect(
+        within(screen.getByTestId("network-room-header")).getByText("#zulu.presence")
+      ).toBeInTheDocument();
+      expect(screen.getByText("presence 5m ago")).toBeInTheDocument();
+      expect(screen.getByText(/Room presence last changed /i)).toBeInTheDocument();
+      expect(screen.getByText(/Last room presence /i)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows fresher presence for reactivated active rooms even when conversation history exists", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-04-13T10:45:00Z"));
+      routerState.searchParams = { channel: "launch-room" };
+      mockChannelDetail = makeChannelDetail({
+        channel: "launch-room",
+        historical_participant_count: 7,
+        kind_counts: [
+          { kind: "say", count: 4 },
+          { kind: "greet", count: 8 },
+        ],
+        last_activity_at: "2026-04-13T10:00:00Z",
+        last_message_preview: "Previous launch review complete.",
+        last_presence_at: "2026-04-13T10:40:00Z",
+        local_peer_count: 2,
+        message_count: 4,
+        peer_count: 2,
+        presence_count: 8,
+        purpose: "Reactivated launch coordination room",
+        remote_peer_count: 0,
+        session_count: 2,
+      });
+      mockChannelMessages = [
+        makeChannelMessage({
+          body: { text: "Previous launch review complete." },
+          channel: "launch-room",
+          direction: "sent",
+          display_name: "Founder",
+          kind: "say",
+          local: true,
+          message_id: "msg_launch_history",
+          peer_from: "peer_founder_local",
+          preview_text: "Previous launch review complete.",
+          session_id: "sess_founder_local",
+          text: "Previous launch review complete.",
+          timestamp: "2026-04-13T10:00:00Z",
+        }),
+      ];
+      mockNetworkChannels = {
+        channels: [
+          makeChannelSummary({
+            channel: "launch-room",
+            historical_participant_count: 7,
+            last_activity_at: "2026-04-13T10:00:00Z",
+            last_message_preview: "Previous launch review complete.",
+            last_presence_at: "2026-04-13T10:40:00Z",
+            local_peer_count: 2,
+            message_count: 4,
+            peer_count: 2,
+            presence_count: 8,
+            purpose: "Reactivated launch coordination room",
+            remote_peer_count: 0,
+            session_count: 2,
+          }),
+          makeChannelSummary(),
+        ],
+      };
+
+      render(<NetworkPage />);
+
+      expect(
+        within(screen.getByTestId("network-room-header")).getByText("#launch-room")
+      ).toBeInTheDocument();
+      expect(screen.getByText("presence 5m ago")).toBeInTheDocument();
+      expect(screen.getByText(/Room presence last changed /i)).toBeInTheDocument();
+      expect(screen.getByText(/Last room presence /i)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows fresher presence for peer active rooms even when direct history exists", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-04-13T10:45:00Z"));
+      routerState.searchParams = { peer: "peer_remote" };
+      mockPeerDetail = makePeerDetail({
+        channel: "launch-room",
+        display_name: "Remote Reviewer",
+        last_seen: "2026-04-13T10:40:00Z",
+        peer_card: {
+          artifacts_supported: ["capability"],
+          capabilities: [],
+          display_name: "Remote Reviewer",
+          peer_id: "peer_remote",
+          profiles_supported: ["default"],
+          trust_modes_supported: ["relay"],
+        },
+        peer_id: "peer_remote",
+        session_id: "sess_remote",
+      });
+      mockPeerMessages = [
+        makeChannelMessage({
+          body: { text: "Previous review queued." },
+          channel: "launch-room",
+          direction: "received",
+          display_name: "Remote Reviewer",
+          kind: "direct",
+          local: false,
+          message_id: "msg_peer_direct_history",
+          peer_from: "peer_remote",
+          preview_text: "Previous review queued.",
+          session_id: "sess_remote",
+          text: "Previous review queued.",
+          timestamp: "2026-04-13T10:00:00Z",
+        }),
+      ];
+      mockNetworkPeers = [
+        makePeerSummary({
+          channel: "launch-room",
+          display_name: "Remote Reviewer",
+          last_seen: "2026-04-13T10:40:00Z",
+          peer_card: {
+            artifacts_supported: ["capability"],
+            capabilities: [],
+            display_name: "Remote Reviewer",
+            peer_id: "peer_remote",
+            profiles_supported: ["default"],
+            trust_modes_supported: ["relay"],
+          },
+          peer_id: "peer_remote",
+          session_id: "sess_remote",
+        }),
+        makePeerSummary(),
+      ];
+
+      render(<NetworkPage />);
+
+      expect(
+        within(screen.getByTestId("network-room-header")).getByText("Remote Reviewer")
+      ).toBeInTheDocument();
+      expect(screen.getByText("presence 5m ago")).toBeInTheDocument();
+      expect(screen.getByText(/Room presence last changed /i)).toBeInTheDocument();
+      expect(screen.getByText(/Last room presence /i)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("renders duplicate execution outline steps without duplicate key warnings", () => {

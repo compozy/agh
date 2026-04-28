@@ -232,7 +232,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List all readable agent definitions */
+    /** List all readable agent definitions, optionally resolved for a workspace */
     get: operations["listAgents"];
     put?: never;
     post?: never;
@@ -249,7 +249,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get one agent definition by name */
+    /** Get one agent definition by name, optionally resolved for a workspace */
     get: operations["getAgent"];
     put?: never;
     post?: never;
@@ -1280,42 +1280,6 @@ export interface paths {
     patch: operations["updateSettingsAutomation"];
     trace?: never;
   };
-  "/api/settings/environments": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List settings-backed execution environments */
-    get: operations["listSettingsEnvironments"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/settings/environments/{name}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Read one settings-backed execution environment */
-    get: operations["getSettingsEnvironment"];
-    /** Create or replace one settings-backed execution environment */
-    put: operations["putSettingsEnvironment"];
-    post?: never;
-    /** Delete one settings-backed execution environment overlay */
-    delete: operations["deleteSettingsEnvironment"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/settings/general": {
     parameters: {
       query?: never;
@@ -1524,6 +1488,42 @@ export interface paths {
     post?: never;
     /** Delete one settings-backed provider overlay */
     delete: operations["deleteSettingsProvider"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/sandboxes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List settings-backed execution sandboxes */
+    get: operations["listSettingsSandboxes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/sandboxes/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one settings-backed execution sandbox */
+    get: operations["getSettingsSandbox"];
+    /** Create or replace one settings-backed execution sandbox */
+    put: operations["putSettingsSandbox"];
+    post?: never;
+    /** Delete one settings-backed execution sandbox overlay */
+    delete: operations["deleteSettingsSandbox"];
     options?: never;
     head?: never;
     patch?: never;
@@ -2812,9 +2812,9 @@ export interface operations {
                   auto_stop_on_parent: boolean;
                   parent_session_id?: string;
                   permission_policy: {
-                    environment_profiles: string[];
                     mcp_servers: string[];
                     network_channels: string[];
+                    sandbox_profiles: string[];
                     skills: string[];
                     tools: string[];
                     workspace_paths: string[];
@@ -3224,9 +3224,9 @@ export interface operations {
                   auto_stop_on_parent: boolean;
                   parent_session_id?: string;
                   permission_policy: {
-                    environment_profiles: string[];
                     mcp_servers: string[];
                     network_channels: string[];
+                    sandbox_profiles: string[];
                     skills: string[];
                     tools: string[];
                     workspace_paths: string[];
@@ -3340,9 +3340,9 @@ export interface operations {
           model?: string;
           name?: string;
           permissions: {
-            environment_profiles: string[];
             mcp_servers: string[];
             network_channels: string[];
+            sandbox_profiles: string[];
             skills: string[];
             tools: string[];
             workspace_paths: string[];
@@ -3368,9 +3368,9 @@ export interface operations {
                 auto_stop_on_parent: boolean;
                 parent_session_id?: string;
                 permission_policy: {
-                  environment_profiles: string[];
                   mcp_servers: string[];
                   network_channels: string[];
+                  sandbox_profiles: string[];
                   skills: string[];
                   tools: string[];
                   workspace_paths: string[];
@@ -3389,9 +3389,9 @@ export interface operations {
                 ttl_expires_at?: string | null;
               };
               permissions: {
-                environment_profiles: string[];
                 mcp_servers: string[];
                 network_channels: string[];
+                sandbox_profiles: string[];
                 skills: string[];
                 tools: string[];
                 workspace_paths: string[];
@@ -3427,15 +3427,6 @@ export interface operations {
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
-                environment?: {
-                  backend?: string;
-                  environment_id?: string;
-                  instance_id?: string;
-                  last_sync_error?: string;
-                  profile?: string;
-                  provider_state_json?: unknown;
-                  state?: string;
-                } | null;
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
@@ -3446,9 +3437,9 @@ export interface operations {
                   auto_stop_on_parent: boolean;
                   parent_session_id?: string;
                   permission_policy: {
-                    environment_profiles: string[];
                     mcp_servers: string[];
                     network_channels: string[];
+                    sandbox_profiles: string[];
                     skills: string[];
                     tools: string[];
                     workspace_paths: string[];
@@ -3468,6 +3459,15 @@ export interface operations {
                 } | null;
                 name?: string;
                 provider: string;
+                sandbox?: {
+                  backend?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  sandbox_id?: string;
+                  state?: string;
+                } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 stop_detail?: string;
@@ -4539,7 +4539,10 @@ export interface operations {
   };
   listAgents: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Workspace id, name, or path used to resolve workspace-local agents */
+        workspace?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -4607,7 +4610,10 @@ export interface operations {
   };
   getAgent: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Workspace id, name, or path used to resolve a workspace-local agent */
+        workspace?: string;
+      };
       header?: never;
       path: {
         /** @description Agent name */
@@ -8591,11 +8597,11 @@ export interface operations {
           | "session.post_resume"
           | "session.pre_stop"
           | "session.post_stop"
-          | "environment.prepare"
-          | "environment.ready"
-          | "environment.sync.before"
-          | "environment.sync.after"
-          | "environment.stop"
+          | "sandbox.prepare"
+          | "sandbox.ready"
+          | "sandbox.sync.before"
+          | "sandbox.sync.after"
+          | "sandbox.stop"
           | "input.pre_submit"
           | "prompt.post_assemble"
           | "event.pre_record"
@@ -8682,12 +8688,12 @@ export interface operations {
                 compaction_reason?: string;
                 compaction_strategy?: string;
                 decision_class?: string;
-                environment_backend?: string;
-                environment_id?: string;
-                environment_profile?: string;
                 input_class?: string;
                 message_delta_type?: string;
                 message_role?: string;
+                sandbox_backend?: string;
+                sandbox_id?: string;
+                sandbox_profile?: string;
                 session_type?: string;
                 sync_direction?: string;
                 tool_name?: string;
@@ -8838,11 +8844,11 @@ export interface operations {
           | "session.post_resume"
           | "session.pre_stop"
           | "session.post_stop"
-          | "environment.prepare"
-          | "environment.ready"
-          | "environment.sync.before"
-          | "environment.sync.after"
-          | "environment.stop"
+          | "sandbox.prepare"
+          | "sandbox.ready"
+          | "sandbox.sync.before"
+          | "sandbox.sync.after"
+          | "sandbox.stop"
           | "input.pre_submit"
           | "prompt.post_assemble"
           | "event.pre_record"
@@ -9642,15 +9648,6 @@ export interface operations {
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
-                environment?: {
-                  backend?: string;
-                  environment_id?: string;
-                  instance_id?: string;
-                  last_sync_error?: string;
-                  profile?: string;
-                  provider_state_json?: unknown;
-                  state?: string;
-                } | null;
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
@@ -9661,9 +9658,9 @@ export interface operations {
                   auto_stop_on_parent: boolean;
                   parent_session_id?: string;
                   permission_policy: {
-                    environment_profiles: string[];
                     mcp_servers: string[];
                     network_channels: string[];
+                    sandbox_profiles: string[];
                     skills: string[];
                     tools: string[];
                     workspace_paths: string[];
@@ -9683,6 +9680,15 @@ export interface operations {
                 } | null;
                 name?: string;
                 provider: string;
+                sandbox?: {
+                  backend?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  sandbox_id?: string;
+                  state?: string;
+                } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 stop_detail?: string;
@@ -9860,15 +9866,6 @@ export interface operations {
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
-                environment?: {
-                  backend?: string;
-                  environment_id?: string;
-                  instance_id?: string;
-                  last_sync_error?: string;
-                  profile?: string;
-                  provider_state_json?: unknown;
-                  state?: string;
-                } | null;
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
@@ -9879,9 +9876,9 @@ export interface operations {
                   auto_stop_on_parent: boolean;
                   parent_session_id?: string;
                   permission_policy: {
-                    environment_profiles: string[];
                     mcp_servers: string[];
                     network_channels: string[];
+                    sandbox_profiles: string[];
                     skills: string[];
                     tools: string[];
                     workspace_paths: string[];
@@ -9901,6 +9898,15 @@ export interface operations {
                 } | null;
                 name?: string;
                 provider: string;
+                sandbox?: {
+                  backend?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  sandbox_id?: string;
+                  state?: string;
+                } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 stop_detail?: string;
@@ -12097,15 +12103,6 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
-              environment?: {
-                backend?: string;
-                environment_id?: string;
-                instance_id?: string;
-                last_sync_error?: string;
-                profile?: string;
-                provider_state_json?: unknown;
-                state?: string;
-              } | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -12116,9 +12113,9 @@ export interface operations {
                 auto_stop_on_parent: boolean;
                 parent_session_id?: string;
                 permission_policy: {
-                  environment_profiles: string[];
                   mcp_servers: string[];
                   network_channels: string[];
+                  sandbox_profiles: string[];
                   skills: string[];
                   tools: string[];
                   workspace_paths: string[];
@@ -12138,6 +12135,15 @@ export interface operations {
               } | null;
               name?: string;
               provider: string;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -12251,15 +12257,6 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
-              environment?: {
-                backend?: string;
-                environment_id?: string;
-                instance_id?: string;
-                last_sync_error?: string;
-                profile?: string;
-                provider_state_json?: unknown;
-                state?: string;
-              } | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -12270,9 +12267,9 @@ export interface operations {
                 auto_stop_on_parent: boolean;
                 parent_session_id?: string;
                 permission_policy: {
-                  environment_profiles: string[];
                   mcp_servers: string[];
                   network_channels: string[];
+                  sandbox_profiles: string[];
                   skills: string[];
                   tools: string[];
                   workspace_paths: string[];
@@ -12292,6 +12289,15 @@ export interface operations {
               } | null;
               name?: string;
               provider: string;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -12418,15 +12424,6 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
-              environment?: {
-                backend?: string;
-                environment_id?: string;
-                instance_id?: string;
-                last_sync_error?: string;
-                profile?: string;
-                provider_state_json?: unknown;
-                state?: string;
-              } | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -12437,9 +12434,9 @@ export interface operations {
                 auto_stop_on_parent: boolean;
                 parent_session_id?: string;
                 permission_policy: {
-                  environment_profiles: string[];
                   mcp_servers: string[];
                   network_channels: string[];
+                  sandbox_profiles: string[];
                   skills: string[];
                   tools: string[];
                   workspace_paths: string[];
@@ -12459,6 +12456,15 @@ export interface operations {
               } | null;
               name?: string;
               provider: string;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -12904,15 +12910,6 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
-              environment?: {
-                backend?: string;
-                environment_id?: string;
-                instance_id?: string;
-                last_sync_error?: string;
-                profile?: string;
-                provider_state_json?: unknown;
-                state?: string;
-              } | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -12923,9 +12920,9 @@ export interface operations {
                 auto_stop_on_parent: boolean;
                 parent_session_id?: string;
                 permission_policy: {
-                  environment_profiles: string[];
                   mcp_servers: string[];
                   network_channels: string[];
+                  sandbox_profiles: string[];
                   skills: string[];
                   tools: string[];
                   workspace_paths: string[];
@@ -12945,6 +12942,15 @@ export interface operations {
               } | null;
               name?: string;
               provider: string;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -13429,440 +13435,6 @@ export interface operations {
       };
     };
   };
-  listSettingsEnvironments: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            available_scopes: ("global" | "workspace")[];
-            /** @enum {string} */
-            collection: "providers" | "mcp-servers" | "environments" | "hooks";
-            environments: {
-              name: string;
-              profile: {
-                backend: string;
-                daytona?: {
-                  api_url?: string;
-                  auto_archive?: string;
-                  auto_stop?: string;
-                  class?: string;
-                  image?: string;
-                  snapshot?: string;
-                  target?: string;
-                } | null;
-                env?: {
-                  [key: string]: string;
-                };
-                network?: {
-                  allow_list?: string[];
-                  allow_outbound?: boolean;
-                  allow_public_ingress?: boolean;
-                  deny_list?: string[];
-                  required?: boolean;
-                } | null;
-                persistence?: string;
-                runtime_root?: string;
-                sync_mode?: string;
-              };
-              source_metadata: {
-                available_targets: (
-                  | "global-config"
-                  | "workspace-config"
-                  | "global-mcp-sidecar"
-                  | "workspace-mcp-sidecar"
-                )[];
-                effective_source: {
-                  /** @enum {string} */
-                  kind:
-                    | "builtin-provider"
-                    | "global-config"
-                    | "workspace-config"
-                    | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
-                  /** @enum {string} */
-                  scope: "global" | "workspace";
-                  workspace_id?: string;
-                };
-                shadowed_sources?: {
-                  /** @enum {string} */
-                  kind:
-                    | "builtin-provider"
-                    | "global-config"
-                    | "workspace-config"
-                    | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
-                  /** @enum {string} */
-                  scope: "global" | "workspace";
-                  workspace_id?: string;
-                }[];
-              };
-              workspace_usage_count: number;
-            }[];
-            /** @enum {string} */
-            scope: "global" | "workspace";
-            workspace_id?: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getSettingsEnvironment: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Environment name */
-        name: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            environment: {
-              name: string;
-              profile: {
-                backend: string;
-                daytona?: {
-                  api_url?: string;
-                  auto_archive?: string;
-                  auto_stop?: string;
-                  class?: string;
-                  image?: string;
-                  snapshot?: string;
-                  target?: string;
-                } | null;
-                env?: {
-                  [key: string]: string;
-                };
-                network?: {
-                  allow_list?: string[];
-                  allow_outbound?: boolean;
-                  allow_public_ingress?: boolean;
-                  deny_list?: string[];
-                  required?: boolean;
-                } | null;
-                persistence?: string;
-                runtime_root?: string;
-                sync_mode?: string;
-              };
-              source_metadata: {
-                available_targets: (
-                  | "global-config"
-                  | "workspace-config"
-                  | "global-mcp-sidecar"
-                  | "workspace-mcp-sidecar"
-                )[];
-                effective_source: {
-                  /** @enum {string} */
-                  kind:
-                    | "builtin-provider"
-                    | "global-config"
-                    | "workspace-config"
-                    | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
-                  /** @enum {string} */
-                  scope: "global" | "workspace";
-                  workspace_id?: string;
-                };
-                shadowed_sources?: {
-                  /** @enum {string} */
-                  kind:
-                    | "builtin-provider"
-                    | "global-config"
-                    | "workspace-config"
-                    | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
-                  /** @enum {string} */
-                  scope: "global" | "workspace";
-                  workspace_id?: string;
-                }[];
-              };
-              workspace_usage_count: number;
-            };
-          };
-        };
-      };
-      /** @description Environment not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  putSettingsEnvironment: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Environment name */
-        name: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          profile: {
-            backend: string;
-            daytona?: {
-              api_url?: string;
-              auto_archive?: string;
-              auto_stop?: string;
-              class?: string;
-              image?: string;
-              snapshot?: string;
-              target?: string;
-            } | null;
-            env?: {
-              [key: string]: string;
-            };
-            network?: {
-              allow_list?: string[];
-              allow_outbound?: boolean;
-              allow_public_ingress?: boolean;
-              deny_list?: string[];
-              required?: boolean;
-            } | null;
-            persistence?: string;
-            runtime_root?: string;
-            sync_mode?: string;
-          };
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            applied: boolean;
-            /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
-            restart_scope?: string;
-            /** @enum {string} */
-            scope: "global" | "workspace";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
-            warnings?: string[];
-            workspace_id?: string;
-            /** @enum {string} */
-            write_target?:
-              | "global-config"
-              | "workspace-config"
-              | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
-          };
-        };
-      };
-      /** @description Invalid environment payload */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Conflicting environment change */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  deleteSettingsEnvironment: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Environment name */
-        name: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            applied: boolean;
-            /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
-            restart_scope?: string;
-            /** @enum {string} */
-            scope: "global" | "workspace";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
-            warnings?: string[];
-            workspace_id?: string;
-            /** @enum {string} */
-            write_target?:
-              | "global-config"
-              | "workspace-config"
-              | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Environment not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
   getSettingsGeneral: {
     parameters: {
       query?: never;
@@ -13894,8 +13466,8 @@ export interface operations {
               };
               defaults: {
                 agent: string;
-                environment?: string;
                 provider?: string;
+                sandbox?: string;
               };
               http: {
                 host: string;
@@ -13985,8 +13557,8 @@ export interface operations {
             };
             defaults: {
               agent: string;
-              environment?: string;
               provider?: string;
+              sandbox?: string;
             };
             http: {
               host: string;
@@ -14110,7 +13682,7 @@ export interface operations {
           "application/json": {
             available_scopes: ("global" | "workspace")[];
             /** @enum {string} */
-            collection: "providers" | "mcp-servers" | "environments" | "hooks";
+            collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             hooks: {
               declaration: {
                 args?: string[];
@@ -14126,11 +13698,11 @@ export interface operations {
                   | "session.post_resume"
                   | "session.pre_stop"
                   | "session.post_stop"
-                  | "environment.prepare"
-                  | "environment.ready"
-                  | "environment.sync.before"
-                  | "environment.sync.after"
-                  | "environment.stop"
+                  | "sandbox.prepare"
+                  | "sandbox.ready"
+                  | "sandbox.sync.before"
+                  | "sandbox.sync.after"
+                  | "sandbox.stop"
                   | "input.pre_submit"
                   | "prompt.post_assemble"
                   | "event.pre_record"
@@ -14198,12 +13770,12 @@ export interface operations {
                   compaction_reason?: string;
                   compaction_strategy?: string;
                   decision_class?: string;
-                  environment_backend?: string;
-                  environment_id?: string;
-                  environment_profile?: string;
                   input_class?: string;
                   message_delta_type?: string;
                   message_role?: string;
+                  sandbox_backend?: string;
+                  sandbox_id?: string;
+                  sandbox_profile?: string;
                   session_type?: string;
                   sync_direction?: string;
                   tool_name?: string;
@@ -14335,11 +13907,11 @@ export interface operations {
                   | "session.post_resume"
                   | "session.pre_stop"
                   | "session.post_stop"
-                  | "environment.prepare"
-                  | "environment.ready"
-                  | "environment.sync.before"
-                  | "environment.sync.after"
-                  | "environment.stop"
+                  | "sandbox.prepare"
+                  | "sandbox.ready"
+                  | "sandbox.sync.before"
+                  | "sandbox.sync.after"
+                  | "sandbox.stop"
                   | "input.pre_submit"
                   | "prompt.post_assemble"
                   | "event.pre_record"
@@ -14407,12 +13979,12 @@ export interface operations {
                   compaction_reason?: string;
                   compaction_strategy?: string;
                   decision_class?: string;
-                  environment_backend?: string;
-                  environment_id?: string;
-                  environment_profile?: string;
                   input_class?: string;
                   message_delta_type?: string;
                   message_role?: string;
+                  sandbox_backend?: string;
+                  sandbox_id?: string;
+                  sandbox_profile?: string;
                   session_type?: string;
                   sync_direction?: string;
                   tool_name?: string;
@@ -14668,11 +14240,11 @@ export interface operations {
               | "session.post_resume"
               | "session.pre_stop"
               | "session.post_stop"
-              | "environment.prepare"
-              | "environment.ready"
-              | "environment.sync.before"
-              | "environment.sync.after"
-              | "environment.stop"
+              | "sandbox.prepare"
+              | "sandbox.ready"
+              | "sandbox.sync.before"
+              | "sandbox.sync.after"
+              | "sandbox.stop"
               | "input.pre_submit"
               | "prompt.post_assemble"
               | "event.pre_record"
@@ -14740,12 +14312,12 @@ export interface operations {
               compaction_reason?: string;
               compaction_strategy?: string;
               decision_class?: string;
-              environment_backend?: string;
-              environment_id?: string;
-              environment_profile?: string;
               input_class?: string;
               message_delta_type?: string;
               message_role?: string;
+              sandbox_backend?: string;
+              sandbox_id?: string;
+              sandbox_profile?: string;
               session_type?: string;
               sync_direction?: string;
               tool_name?: string;
@@ -14965,7 +14537,7 @@ export interface operations {
           "application/json": {
             available_scopes: ("global" | "workspace")[];
             /** @enum {string} */
-            collection: "providers" | "mcp-servers" | "environments" | "hooks";
+            collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             mcp_servers: {
               args?: string[];
               auth?: {
@@ -15971,7 +15543,7 @@ export interface operations {
           "application/json": {
             available_scopes: ("global" | "workspace")[];
             /** @enum {string} */
-            collection: "providers" | "mcp-servers" | "environments" | "hooks";
+            collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             providers: {
               api_key_env_present: boolean;
               command_available: boolean;
@@ -16340,6 +15912,440 @@ export interface operations {
         };
       };
       /** @description Provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listSettingsSandboxes: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            /** @enum {string} */
+            collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
+            sandboxes: {
+              name: string;
+              profile: {
+                backend: string;
+                daytona?: {
+                  api_url?: string;
+                  auto_archive?: string;
+                  auto_stop?: string;
+                  class?: string;
+                  image?: string;
+                  snapshot?: string;
+                  target?: string;
+                } | null;
+                env?: {
+                  [key: string]: string;
+                };
+                network?: {
+                  allow_list?: string[];
+                  allow_outbound?: boolean;
+                  allow_public_ingress?: boolean;
+                  deny_list?: string[];
+                  required?: boolean;
+                } | null;
+                persistence?: string;
+                runtime_root?: string;
+                sync_mode?: string;
+              };
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                )[];
+                effective_source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                }[];
+              };
+              workspace_usage_count: number;
+            }[];
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsSandbox: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Sandbox name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            sandbox: {
+              name: string;
+              profile: {
+                backend: string;
+                daytona?: {
+                  api_url?: string;
+                  auto_archive?: string;
+                  auto_stop?: string;
+                  class?: string;
+                  image?: string;
+                  snapshot?: string;
+                  target?: string;
+                } | null;
+                env?: {
+                  [key: string]: string;
+                };
+                network?: {
+                  allow_list?: string[];
+                  allow_outbound?: boolean;
+                  allow_public_ingress?: boolean;
+                  deny_list?: string[];
+                  required?: boolean;
+                } | null;
+                persistence?: string;
+                runtime_root?: string;
+                sync_mode?: string;
+              };
+              source_metadata: {
+                available_targets: (
+                  | "global-config"
+                  | "workspace-config"
+                  | "global-mcp-sidecar"
+                  | "workspace-mcp-sidecar"
+                )[];
+                effective_source: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                };
+                shadowed_sources?: {
+                  /** @enum {string} */
+                  kind:
+                    | "builtin-provider"
+                    | "global-config"
+                    | "workspace-config"
+                    | "global-mcp-sidecar"
+                    | "workspace-mcp-sidecar";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  workspace_id?: string;
+                }[];
+              };
+              workspace_usage_count: number;
+            };
+          };
+        };
+      };
+      /** @description Sandbox not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putSettingsSandbox: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Sandbox name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          profile: {
+            backend: string;
+            daytona?: {
+              api_url?: string;
+              auto_archive?: string;
+              auto_stop?: string;
+              class?: string;
+              image?: string;
+              snapshot?: string;
+              target?: string;
+            } | null;
+            env?: {
+              [key: string]: string;
+            };
+            network?: {
+              allow_list?: string[];
+              allow_outbound?: boolean;
+              allow_public_ingress?: boolean;
+              deny_list?: string[];
+              required?: boolean;
+            } | null;
+            persistence?: string;
+            runtime_root?: string;
+            sync_mode?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Invalid sandbox payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting sandbox change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteSettingsSandbox: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Sandbox name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            applied: boolean;
+            /** @enum {string} */
+            behavior: "applied_now" | "restart_required" | "action_trigger";
+            restart_required: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "skills"
+              | "automation"
+              | "network"
+              | "observability"
+              | "hooks-extensions";
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar";
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Sandbox not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -23794,10 +23800,10 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
-              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
+              sandbox_ref?: string;
               /** Format: date-time */
               updated_at: string;
             }[];
@@ -23836,9 +23842,9 @@ export interface operations {
         "application/json": {
           add_dirs?: string[];
           default_agent?: string;
-          environment_ref?: string;
           name?: string;
           root_dir: string;
+          sandbox_ref?: string;
         };
       };
     };
@@ -23855,10 +23861,10 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
-              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
+              sandbox_ref?: string;
               /** Format: date-time */
               updated_at: string;
             };
@@ -23934,10 +23940,10 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
-              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
+              sandbox_ref?: string;
               /** Format: date-time */
               updated_at: string;
             };
@@ -24068,15 +24074,6 @@ export interface operations {
               channel?: string;
               /** Format: date-time */
               created_at: string;
-              environment?: {
-                backend?: string;
-                environment_id?: string;
-                instance_id?: string;
-                last_sync_error?: string;
-                profile?: string;
-                provider_state_json?: unknown;
-                state?: string;
-              } | null;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
@@ -24087,9 +24084,9 @@ export interface operations {
                 auto_stop_on_parent: boolean;
                 parent_session_id?: string;
                 permission_policy: {
-                  environment_profiles: string[];
                   mcp_servers: string[];
                   network_channels: string[];
+                  sandbox_profiles: string[];
                   skills: string[];
                   tools: string[];
                   workspace_paths: string[];
@@ -24109,6 +24106,15 @@ export interface operations {
               } | null;
               name?: string;
               provider: string;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
               /** @enum {string} */
               state: "starting" | "active" | "stopping" | "stopped";
               stop_detail?: string;
@@ -24140,10 +24146,10 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
-              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
+              sandbox_ref?: string;
               /** Format: date-time */
               updated_at: string;
             };
@@ -24245,8 +24251,8 @@ export interface operations {
         "application/json": {
           add_dirs: string[] | null;
           default_agent: string | null;
-          environment_ref: string | null;
           name: string | null;
+          sandbox_ref: string | null;
         };
       };
     };
@@ -24263,10 +24269,10 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               default_agent?: string;
-              environment_ref?: string;
               id: string;
               name: string;
               root_dir: string;
+              sandbox_ref?: string;
               /** Format: date-time */
               updated_at: string;
             };

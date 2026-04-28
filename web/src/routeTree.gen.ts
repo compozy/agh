@@ -16,6 +16,7 @@ import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppSkillsRouteImport } from './routes/_app/skills'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSandboxRouteImport } from './routes/_app/sandbox'
 import { Route as AppNetworkRouteImport } from './routes/_app/network'
 import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
 import { Route as AppJobsRouteImport } from './routes/_app/jobs'
@@ -31,7 +32,6 @@ import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/me
 import { Route as AppSettingsMcpServersRouteImport } from './routes/_app/settings/mcp-servers'
 import { Route as AppSettingsHooksExtensionsRouteImport } from './routes/_app/settings/hooks-extensions'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
-import { Route as AppSettingsEnvironmentsRouteImport } from './routes/_app/settings/environments'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
@@ -71,6 +71,11 @@ const AppSkillsRoute = AppSkillsRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSandboxRoute = AppSandboxRouteImport.update({
+  id: '/sandbox',
+  path: '/sandbox',
   getParentRoute: () => AppRoute,
 } as any)
 const AppNetworkRoute = AppNetworkRouteImport.update({
@@ -150,11 +155,6 @@ const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
   path: '/general',
   getParentRoute: () => AppSettingsRoute,
 } as any)
-const AppSettingsEnvironmentsRoute = AppSettingsEnvironmentsRouteImport.update({
-  id: '/environments',
-  path: '/environments',
-  getParentRoute: () => AppSettingsRoute,
-} as any)
 const AppSettingsAutomationRoute = AppSettingsAutomationRouteImport.update({
   id: '/automation',
   path: '/automation',
@@ -193,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/network': typeof AppNetworkRoute
+  '/sandbox': typeof AppSandboxRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/skills': typeof AppSkillsRoute
   '/tasks': typeof AppTasksRouteWithChildren
@@ -200,7 +201,6 @@ export interface FileRoutesByFullPath {
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
-  '/settings/environments': typeof AppSettingsEnvironmentsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
   '/settings/mcp-servers': typeof AppSettingsMcpServersRoute
@@ -222,6 +222,7 @@ export interface FileRoutesByTo {
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/network': typeof AppNetworkRoute
+  '/sandbox': typeof AppSandboxRoute
   '/skills': typeof AppSkillsRoute
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRoute
@@ -229,7 +230,6 @@ export interface FileRoutesByTo {
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
-  '/settings/environments': typeof AppSettingsEnvironmentsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
   '/settings/mcp-servers': typeof AppSettingsMcpServersRoute
@@ -253,6 +253,7 @@ export interface FileRoutesById {
   '/_app/jobs': typeof AppJobsRoute
   '/_app/knowledge': typeof AppKnowledgeRoute
   '/_app/network': typeof AppNetworkRoute
+  '/_app/sandbox': typeof AppSandboxRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/skills': typeof AppSkillsRoute
   '/_app/tasks': typeof AppTasksRouteWithChildren
@@ -261,7 +262,6 @@ export interface FileRoutesById {
   '/_app/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/_app/session/$id': typeof AppSessionIdRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
-  '/_app/settings/environments': typeof AppSettingsEnvironmentsRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
   '/_app/settings/mcp-servers': typeof AppSettingsMcpServersRoute
@@ -286,6 +286,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/knowledge'
     | '/network'
+    | '/sandbox'
     | '/settings'
     | '/skills'
     | '/tasks'
@@ -293,7 +294,6 @@ export interface FileRouteTypes {
     | '/agents/$name'
     | '/session/$id'
     | '/settings/automation'
-    | '/settings/environments'
     | '/settings/general'
     | '/settings/hooks-extensions'
     | '/settings/mcp-servers'
@@ -315,6 +315,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/knowledge'
     | '/network'
+    | '/sandbox'
     | '/skills'
     | '/tasks'
     | '/triggers'
@@ -322,7 +323,6 @@ export interface FileRouteTypes {
     | '/agents/$name'
     | '/session/$id'
     | '/settings/automation'
-    | '/settings/environments'
     | '/settings/general'
     | '/settings/hooks-extensions'
     | '/settings/mcp-servers'
@@ -345,6 +345,7 @@ export interface FileRouteTypes {
     | '/_app/jobs'
     | '/_app/knowledge'
     | '/_app/network'
+    | '/_app/sandbox'
     | '/_app/settings'
     | '/_app/skills'
     | '/_app/tasks'
@@ -353,7 +354,6 @@ export interface FileRouteTypes {
     | '/_app/agents/$name'
     | '/_app/session/$id'
     | '/_app/settings/automation'
-    | '/_app/settings/environments'
     | '/_app/settings/general'
     | '/_app/settings/hooks-extensions'
     | '/_app/settings/mcp-servers'
@@ -424,6 +424,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/sandbox': {
+      id: '/_app/sandbox'
+      path: '/sandbox'
+      fullPath: '/sandbox'
+      preLoaderRoute: typeof AppSandboxRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/network': {
@@ -531,13 +538,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsGeneralRouteImport
       parentRoute: typeof AppSettingsRoute
     }
-    '/_app/settings/environments': {
-      id: '/_app/settings/environments'
-      path: '/environments'
-      fullPath: '/settings/environments'
-      preLoaderRoute: typeof AppSettingsEnvironmentsRouteImport
-      parentRoute: typeof AppSettingsRoute
-    }
     '/_app/settings/automation': {
       id: '/_app/settings/automation'
       path: '/automation'
@@ -585,7 +585,6 @@ declare module '@tanstack/react-router' {
 
 interface AppSettingsRouteChildren {
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
-  AppSettingsEnvironmentsRoute: typeof AppSettingsEnvironmentsRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsHooksExtensionsRoute: typeof AppSettingsHooksExtensionsRoute
   AppSettingsMcpServersRoute: typeof AppSettingsMcpServersRoute
@@ -599,7 +598,6 @@ interface AppSettingsRouteChildren {
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsAutomationRoute: AppSettingsAutomationRoute,
-  AppSettingsEnvironmentsRoute: AppSettingsEnvironmentsRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsHooksExtensionsRoute: AppSettingsHooksExtensionsRoute,
   AppSettingsMcpServersRoute: AppSettingsMcpServersRoute,
@@ -660,6 +658,7 @@ interface AppRouteChildren {
   AppJobsRoute: typeof AppJobsRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppNetworkRoute: typeof AppNetworkRoute
+  AppSandboxRoute: typeof AppSandboxRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppSkillsRoute: typeof AppSkillsRoute
   AppTasksRoute: typeof AppTasksRouteWithChildren
@@ -674,6 +673,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppJobsRoute: AppJobsRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppNetworkRoute: AppNetworkRoute,
+  AppSandboxRoute: AppSandboxRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppSkillsRoute: AppSkillsRoute,
   AppTasksRoute: AppTasksRouteWithChildren,

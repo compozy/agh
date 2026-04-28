@@ -4,6 +4,105 @@ Standard templates for creating consistent, comprehensive test cases.
 
 ---
 
+## Real Scenario Test Case Template
+
+For release-grade AGH QA, use this template before lower-level functional or integration cases. It validates a real operator journey, live agent behavior, produced artifacts, and cross-surface product truth.
+
+```markdown
+## TC-SCEN-[ID]: [Operator Journey] - [Business Outcome]
+
+**Priority:** P0 | P1
+**Type:** Real Scenario
+**Status:** Not Run | Pass | Fail | Blocked | Skipped
+**Estimated Time:** X minutes
+**Created:** YYYY-MM-DD
+**Last Updated:** YYYY-MM-DD
+
+---
+
+### Behavioral Scenario Charter
+
+- Startup situation:
+- Operator intent:
+- Expected business outcome:
+- AGH surfaces used:
+- Real provider/LLM expectation:
+- Blocked live-provider boundary, if any:
+
+---
+
+### Actors and Agent Roles
+
+| Actor/Agent | Role | Expected Behavior | Evidence Source |
+|-------------|------|-------------------|-----------------|
+| Operator | | | |
+| Agent | | | |
+
+---
+
+### Preconditions
+
+- [ ] Bootstrap manifest exists and isolated runtime/provider env is available.
+- [ ] Daemon/API/Web readiness is confirmed.
+- [ ] Provider-backed agent sessions are reachable, or the exact credential/tool boundary is documented.
+- [ ] Scenario workspace has real startup directories and AGH configuration.
+
+---
+
+### Journey Steps
+
+1. **Operator starts the scenario through a public surface**
+   - Surface: CLI | API | Web
+   - Input:
+   - **Expected:** Persisted state is created and visible through supported surfaces.
+
+2. **Agent performs meaningful work**
+   - Surface: provider-backed AGH session when reachable
+   - Input:
+   - **Expected:** Agent creates or revises a coherent artifact, makes a decision, sends a relevant message, or advances a task.
+
+3. **Operator verifies the outcome**
+   - Surface: CLI/API/Web parity
+   - Input:
+   - **Expected:** The same task/channel/run/knowledge entry/hook result/extension state/artifact is correct and understandable across exposed surfaces.
+
+4. **Disruption probe**
+   - Probe:
+   - **Expected:** Product behavior remains correct or fails with actionable, operator-readable state.
+
+---
+
+### Required Evidence
+
+- CLI command and output:
+- API request/response:
+- Browser URL and screenshot/DOM snapshot:
+- Live agent/LLM transcript or persisted session/event evidence:
+- Produced artifact path and content summary:
+- Persistence/health/log evidence:
+
+---
+
+### Pass Criteria
+
+- The operator goal is achieved or a product bug is filed.
+- Agent behavior matches role, channel, task, and workspace constraints.
+- Produced artifacts are coherent and used later in the scenario.
+- Cross-surface state agrees for at least one persisted object or artifact.
+- Smoke checks are listed only as readiness evidence.
+
+---
+
+### Failure Criteria
+
+- The test relies only on smoke, CRUD, unit/integration, mock, fake provider, or page-render evidence.
+- Agent output is only a token echo, canned reply, incoherent artifact, or wrong-role/wrong-channel action.
+- The operator cannot understand or act on real state in the Web UI when the Web surface exists.
+- A live provider boundary is missing but not documented.
+```
+
+---
+
 ## Standard Test Case Template
 
 ```markdown
@@ -419,6 +518,7 @@ Verify [feature] meets performance requirements
 | Performance | TC-PERF- | TC-PERF-023 |
 | API | TC-API- | TC-API-067 |
 | Smoke | SMOKE- | SMOKE-001 |
+| Real Scenario | TC-SCEN- | TC-SCEN-001 |
 
 ---
 
@@ -426,7 +526,7 @@ Verify [feature] meets performance requirements
 
 | Priority | Description | When to Run |
 |----------|-------------|-------------|
-| P0 | Critical path, blocks release | Every build |
+| P0 | Critical behavior, operator/agent journey, blocks release | Every build/release QA |
 | P1 | Major features, high impact | Daily/Weekly |
 | P2 | Standard features, moderate impact | Weekly/Release |
 | P3 | Minor features, low impact | Release only |

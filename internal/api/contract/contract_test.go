@@ -36,12 +36,12 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 				SpawnBudget:      store.SessionSpawnBudget{TTLSeconds: 3600},
 				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"read"}},
 			},
-			Environment: &store.SessionEnvironmentMeta{
-				EnvironmentID: "env-json",
-				Backend:       "local",
-				Profile:       "local",
-				State:         "prepared",
-				InstanceID:    "instance-json",
+			Sandbox: &store.SessionSandboxMeta{
+				SandboxID:  "env-json",
+				Backend:    "local",
+				Profile:    "local",
+				State:      "prepared",
+				InstanceID: "instance-json",
 			},
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -87,14 +87,14 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		if acpCaps["supports_load_session"] != true {
 			t.Fatalf("acp_caps JSON = %#v", acpCaps)
 		}
-		environmentPayload, ok := got["environment"].(map[string]any)
+		sandboxPayload, ok := got["sandbox"].(map[string]any)
 		if !ok {
-			t.Fatalf("environment type = %T, want object", got["environment"])
+			t.Fatalf("sandbox type = %T, want object", got["sandbox"])
 		}
-		if environmentPayload["environment_id"] != "env-json" ||
-			environmentPayload["backend"] != "local" ||
-			environmentPayload["instance_id"] != "instance-json" {
-			t.Fatalf("environment JSON = %#v", environmentPayload)
+		if sandboxPayload["sandbox_id"] != "env-json" ||
+			sandboxPayload["backend"] != "local" ||
+			sandboxPayload["instance_id"] != "instance-json" {
+			t.Fatalf("sandbox JSON = %#v", sandboxPayload)
 		}
 	})
 }
@@ -235,43 +235,43 @@ func TestWorkspacePayloadPreservesOmitEmptyBehavior(t *testing.T) {
 	})
 }
 
-func TestWorkspaceEnvironmentRefJSONFields(t *testing.T) {
+func TestWorkspaceSandboxRefJSONFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should serialize create workspace environment_ref", func(t *testing.T) {
+	t.Run("Should serialize create workspace sandbox_ref", func(t *testing.T) {
 		t.Parallel()
 
 		payload := contract.CreateWorkspaceRequest{
-			RootDir:        "/workspace",
-			EnvironmentRef: "daytona-dev",
+			RootDir:    "/workspace",
+			SandboxRef: "daytona-dev",
 		}
 
 		var got map[string]any
 		marshalJSON(t, payload, &got)
 
-		if got["environment_ref"] != "daytona-dev" {
-			t.Fatalf("environment_ref = %#v, want daytona-dev", got["environment_ref"])
+		if got["sandbox_ref"] != "daytona-dev" {
+			t.Fatalf("sandbox_ref = %#v, want daytona-dev", got["sandbox_ref"])
 		}
 	})
 
-	t.Run("Should include workspace payload environment_ref", func(t *testing.T) {
+	t.Run("Should include workspace payload sandbox_ref", func(t *testing.T) {
 		t.Parallel()
 
 		payload := contract.WorkspacePayload{
-			ID:             "ws_alpha",
-			RootDir:        "/workspace",
-			AddDirs:        []string{},
-			Name:           "alpha",
-			EnvironmentRef: "daytona-dev",
-			CreatedAt:      time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
-			UpdatedAt:      time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC),
+			ID:         "ws_alpha",
+			RootDir:    "/workspace",
+			AddDirs:    []string{},
+			Name:       "alpha",
+			SandboxRef: "daytona-dev",
+			CreatedAt:  time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
+			UpdatedAt:  time.Date(2026, 4, 7, 11, 30, 0, 0, time.UTC),
 		}
 
 		var got map[string]any
 		marshalJSON(t, payload, &got)
 
-		if got["environment_ref"] != "daytona-dev" {
-			t.Fatalf("environment_ref = %#v, want daytona-dev", got["environment_ref"])
+		if got["sandbox_ref"] != "daytona-dev" {
+			t.Fatalf("sandbox_ref = %#v, want daytona-dev", got["sandbox_ref"])
 		}
 	})
 }

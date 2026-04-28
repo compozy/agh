@@ -16,12 +16,12 @@ func TestValidatePermissionSubset(t *testing.T) {
 	t.Parallel()
 
 	parent := store.SessionPermissionPolicy{
-		Tools:               []string{"edit", "read"},
-		Skills:              []string{"go", "tests"},
-		MCPServers:          []string{"filesystem"},
-		WorkspacePaths:      []string{"/repo"},
-		NetworkChannels:     []string{"builders"},
-		EnvironmentProfiles: []string{"default"},
+		Tools:           []string{"edit", "read"},
+		Skills:          []string{"go", "tests"},
+		MCPServers:      []string{"filesystem"},
+		WorkspacePaths:  []string{"/repo"},
+		NetworkChannels: []string{"builders"},
+		SandboxProfiles: []string{"default"},
 	}
 
 	tests := []struct {
@@ -36,12 +36,12 @@ func TestValidatePermissionSubset(t *testing.T) {
 		{
 			name: "subset",
 			child: store.SessionPermissionPolicy{
-				Tools:               []string{"read"},
-				Skills:              []string{"go"},
-				MCPServers:          []string{"filesystem"},
-				WorkspacePaths:      []string{"/repo"},
-				NetworkChannels:     []string{"builders"},
-				EnvironmentProfiles: []string{"default"},
+				Tools:           []string{"read"},
+				Skills:          []string{"go"},
+				MCPServers:      []string{"filesystem"},
+				WorkspacePaths:  []string{"/repo"},
+				NetworkChannels: []string{"builders"},
+				SandboxProfiles: []string{"default"},
 			},
 		},
 		{
@@ -91,12 +91,12 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	h := newHarness(t, WithNow(func() time.Time { return now }))
 	parentPolicy := store.SessionPermissionPolicy{
-		Tools:               []string{"edit", "read"},
-		Skills:              []string{"go", "tests"},
-		MCPServers:          []string{"filesystem"},
-		WorkspacePaths:      []string{h.workspace},
-		NetworkChannels:     []string{"builders"},
-		EnvironmentProfiles: []string{"default"},
+		Tools:           []string{"edit", "read"},
+		Skills:          []string{"go", "tests"},
+		MCPServers:      []string{"filesystem"},
+		WorkspacePaths:  []string{h.workspace},
+		NetworkChannels: []string{"builders"},
+		SandboxProfiles: []string{"default"},
 	}
 	parent := createSpawnParent(t, h, parentPolicy, store.SessionSpawnBudget{
 		MaxChildren:           2,
@@ -115,12 +115,12 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		TTL:              30 * time.Minute,
 		AutoStopOnParent: true,
 		PermissionPolicy: store.SessionPermissionPolicy{
-			Tools:               []string{"read"},
-			Skills:              []string{"go"},
-			MCPServers:          []string{"filesystem"},
-			WorkspacePaths:      []string{h.workspace},
-			NetworkChannels:     []string{"builders"},
-			EnvironmentProfiles: []string{"default"},
+			Tools:           []string{"read"},
+			Skills:          []string{"go"},
+			MCPServers:      []string{"filesystem"},
+			WorkspacePaths:  []string{h.workspace},
+			NetworkChannels: []string{"builders"},
+			SandboxProfiles: []string{"default"},
 		},
 	})
 	if err != nil {

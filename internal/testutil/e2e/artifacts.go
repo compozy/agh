@@ -35,7 +35,7 @@ const (
 	ArtifactKindProviderCalls        ArtifactKind = "provider_calls"
 	ArtifactKindToolHostDiagnostics  ArtifactKind = "tool_host_diagnostics"
 	ArtifactKindCombinedFlow         ArtifactKind = "combined_flow"
-	ArtifactKindSessionEnvironment   ArtifactKind = "session_environment"
+	ArtifactKindSessionSandbox       ArtifactKind = "session_sandbox"
 	ArtifactKindBrowserTrace         ArtifactKind = "browser_trace"
 	ArtifactKindBrowserScreenshots   ArtifactKind = "browser_screenshots"
 	ArtifactKindBrowserConsole       ArtifactKind = "browser_console"
@@ -65,7 +65,7 @@ var artifactSpecs = map[ArtifactKind]artifactSpec{
 	ArtifactKindProviderCalls:        {relativePath: "provider_calls.json"},
 	ArtifactKindToolHostDiagnostics:  {relativePath: "tool_host_diagnostics.json"},
 	ArtifactKindCombinedFlow:         {relativePath: "combined_flow.json"},
-	ArtifactKindSessionEnvironment:   {relativePath: "session_environment.json"},
+	ArtifactKindSessionSandbox:       {relativePath: "session_sandbox.json"},
 	ArtifactKindBrowserTrace:         {relativePath: "browser_trace.zip"},
 	ArtifactKindBrowserScreenshots:   {relativePath: "browser_screenshots", isDir: true},
 	ArtifactKindBrowserConsole:       {relativePath: "browser_console.json"},
@@ -147,15 +147,15 @@ type TransportOutputArtifact struct {
 	Payload    any      `json:"payload,omitempty"`
 }
 
-// SessionEnvironmentArtifact captures both the public session environment
+// SessionSandboxArtifact captures both the public session sandbox
 // projection and the fuller persisted metadata stored on disk for one session.
-type SessionEnvironmentArtifact struct {
-	SessionID    string                                 `json:"session_id"`
-	SessionState string                                 `json:"session_state,omitempty"`
-	StopReason   store.StopReason                       `json:"stop_reason,omitempty"`
-	StopDetail   string                                 `json:"stop_detail,omitempty"`
-	API          *aghcontract.SessionEnvironmentPayload `json:"api,omitempty"`
-	Persisted    *store.SessionEnvironmentMeta          `json:"persisted,omitempty"`
+type SessionSandboxArtifact struct {
+	SessionID    string                             `json:"session_id"`
+	SessionState string                             `json:"session_state,omitempty"`
+	StopReason   store.StopReason                   `json:"stop_reason,omitempty"`
+	StopDetail   string                             `json:"stop_detail,omitempty"`
+	API          *aghcontract.SessionSandboxPayload `json:"api,omitempty"`
+	Persisted    *store.SessionSandboxMeta          `json:"persisted,omitempty"`
 }
 
 // ToolHostOperationOutcome classifies one tool-host operation result.

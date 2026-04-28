@@ -5,8 +5,12 @@ import viteReact from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 
+import { resolveApiProxyTarget } from "./src/lib/vite-api-proxy-target";
+
 const reactRuntimePattern =
   /[\\/]node_modules[\\/](?:\.bun[\\/][^\\/]+[\\/]node_modules[\\/])?(?:react|react-dom|scheduler|use-sync-external-store)[\\/]/;
+
+const apiProxyTarget = resolveApiProxyTarget(process.env);
 
 export default defineConfig({
   plugins: [
@@ -26,7 +30,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:2123",
+        target: apiProxyTarget,
         changeOrigin: true,
       },
     },

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 )
 
 func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {
@@ -119,13 +119,13 @@ func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {
 	})
 }
 
-func TestSeedConfigPersistsEnvironmentProfilesAndDefault(t *testing.T) {
+func TestSeedConfigPersistsSandboxProfilesAndDefault(t *testing.T) {
 	t.Parallel()
 
 	homePaths := NewHomePaths(t)
 	SeedConfig(t, homePaths, ConfigSeedOptions{
-		DefaultEnvironment: "local-sandbox",
-		Environments: map[string]aghconfig.EnvironmentProfile{
+		DefaultSandbox: "local-sandbox",
+		Sandboxes: map[string]aghconfig.SandboxProfile{
 			"local-sandbox": {
 				Backend:     "local",
 				Persistence: "reuse",
@@ -141,15 +141,15 @@ func TestSeedConfigPersistsEnvironmentProfilesAndDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadForHome() error = %v", err)
 	}
-	if got, want := loaded.Defaults.Environment, "local-sandbox"; got != want {
-		t.Fatalf("loaded.Defaults.Environment = %q, want %q", got, want)
+	if got, want := loaded.Defaults.Sandbox, "local-sandbox"; got != want {
+		t.Fatalf("loaded.Defaults.Sandbox = %q, want %q", got, want)
 	}
 
-	resolved, err := loaded.ResolveEnvironment("local-sandbox")
+	resolved, err := loaded.ResolveSandbox("local-sandbox")
 	if err != nil {
-		t.Fatalf("ResolveEnvironment(local-sandbox) error = %v", err)
+		t.Fatalf("ResolveSandbox(local-sandbox) error = %v", err)
 	}
-	if got, want := resolved.Backend, environment.BackendLocal; got != want {
+	if got, want := resolved.Backend, sandbox.BackendLocal; got != want {
 		t.Fatalf("resolved.Backend = %q, want %q", got, want)
 	}
 	if got, want := resolved.Profile, "local-sandbox"; got != want {
@@ -207,13 +207,13 @@ func TestWriteSeedConfigFileRewritesOverlayWithPermissions(t *testing.T) {
 	}
 }
 
-func TestPrepareRuntimeLayoutEnvironmentSeedDoesNotLeakBetweenRuns(t *testing.T) {
+func TestPrepareRuntimeLayoutSandboxSeedDoesNotLeakBetweenRuns(t *testing.T) {
 	t.Parallel()
 
 	first := prepareRuntimeLayout(t, RuntimeHarnessOptions{
 		ConfigSeed: ConfigSeedOptions{
-			DefaultEnvironment: "local-sandbox",
-			Environments: map[string]aghconfig.EnvironmentProfile{
+			DefaultSandbox: "local-sandbox",
+			Sandboxes: map[string]aghconfig.SandboxProfile{
 				"local-sandbox": {
 					Backend:     "local",
 					Persistence: "reuse",
@@ -232,18 +232,18 @@ func TestPrepareRuntimeLayoutEnvironmentSeedDoesNotLeakBetweenRuns(t *testing.T)
 		t.Fatalf("LoadForHome(second) error = %v", err)
 	}
 
-	if got, want := firstLoaded.Defaults.Environment, "local-sandbox"; got != want {
-		t.Fatalf("firstLoaded.Defaults.Environment = %q, want %q", got, want)
+	if got, want := firstLoaded.Defaults.Sandbox, "local-sandbox"; got != want {
+		t.Fatalf("firstLoaded.Defaults.Sandbox = %q, want %q", got, want)
 	}
-	if _, err := firstLoaded.ResolveEnvironment("local-sandbox"); err != nil {
-		t.Fatalf("firstLoaded.ResolveEnvironment(local-sandbox) error = %v", err)
+	if _, err := firstLoaded.ResolveSandbox("local-sandbox"); err != nil {
+		t.Fatalf("firstLoaded.ResolveSandbox(local-sandbox) error = %v", err)
 	}
 
-	if got := secondLoaded.Defaults.Environment; got != "" {
-		t.Fatalf("secondLoaded.Defaults.Environment = %q, want empty default environment", got)
+	if got := secondLoaded.Defaults.Sandbox; got != "" {
+		t.Fatalf("secondLoaded.Defaults.Sandbox = %q, want empty default sandbox", got)
 	}
-	if _, err := secondLoaded.ResolveEnvironment("local-sandbox"); err == nil {
-		t.Fatal("secondLoaded.ResolveEnvironment(local-sandbox) error = nil, want profile isolation")
+	if _, err := secondLoaded.ResolveSandbox("local-sandbox"); err == nil {
+		t.Fatal("secondLoaded.ResolveSandbox(local-sandbox) error = nil, want profile isolation")
 	}
 }
 

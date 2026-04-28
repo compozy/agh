@@ -9,7 +9,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/toolruntime"
@@ -100,8 +100,8 @@ type AgentProcess struct {
 	stderrFn            func() string
 	approvePermissionFn func(context.Context, acp.ApproveRequest) error
 	configureRuntimeFn  func(func() TurnSource)
-	toolHostFn          func() environment.ToolHost
-	toolHost            environment.ToolHost
+	toolHostFn          func() sandbox.ToolHost
+	toolHost            sandbox.ToolHost
 	native              any
 }
 
@@ -120,7 +120,7 @@ type AgentProcessOptions struct {
 	Stderr            func() string
 	ApprovePermission func(context.Context, acp.ApproveRequest) error
 	ConfigureRuntime  func(func() TurnSource)
-	ToolHost          environment.ToolHost
+	ToolHost          sandbox.ToolHost
 }
 
 // NewAgentProcess constructs an AgentProcess for custom AgentDriver implementations.
@@ -179,8 +179,8 @@ func (p *AgentProcess) Stderr() string {
 	return p.stderrFn()
 }
 
-// ToolHost returns the environment-owned tool host when the process exposes one.
-func (p *AgentProcess) ToolHost() environment.ToolHost {
+// ToolHost returns the sandbox-owned tool host when the process exposes one.
+func (p *AgentProcess) ToolHost() sandbox.ToolHost {
 	if p == nil {
 		return nil
 	}

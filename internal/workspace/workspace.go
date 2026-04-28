@@ -8,7 +8,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 )
 
 var (
@@ -18,6 +18,8 @@ var (
 	ErrWorkspaceRootMissing = errors.New("workspace root directory no longer exists")
 	// ErrAgentNotAvailable reports that the requested agent cannot be resolved in the workspace.
 	ErrAgentNotAvailable = errors.New("agent not available in workspace")
+	// ErrWorkspaceResolverUnavailable reports that workspace resolution cannot run because its dependency is absent.
+	ErrWorkspaceResolverUnavailable = errors.New("workspace resolver unavailable")
 	// ErrWorkspaceNameTaken reports that a workspace name is already registered.
 	ErrWorkspaceNameTaken = errors.New("workspace name already in use")
 	// ErrWorkspacePathTaken reports that a workspace root path is already registered.
@@ -33,7 +35,7 @@ type Workspace struct {
 	AdditionalDirs []string
 	Name           string
 	DefaultAgent   string
-	EnvironmentRef string
+	SandboxRef     string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -41,11 +43,11 @@ type Workspace struct {
 // ResolvedWorkspace is the computed workspace snapshot returned by a resolver.
 type ResolvedWorkspace struct {
 	Workspace
-	Config      aghconfig.Config
-	Agents      []aghconfig.AgentDef
-	Skills      []SkillPath
-	Environment environment.Resolved
-	ResolvedAt  time.Time
+	Config     aghconfig.Config
+	Agents     []aghconfig.AgentDef
+	Skills     []SkillPath
+	Sandbox    sandbox.Resolved
+	ResolvedAt time.Time
 }
 
 // SkillPath identifies a discovered skill directory and its origin.

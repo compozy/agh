@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that reconciliation skips sessions with `backend = local` since local environments have no remote resources to reconcile.
+Verify that reconciliation skips sessions with `backend = local` since local sandboxes have no remote resources to reconcile.
 
 ---
 

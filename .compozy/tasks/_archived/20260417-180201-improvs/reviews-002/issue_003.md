@@ -105,4 +105,4 @@ listBundleResourcesHook, newMarketingService, ListActivations.
 - Root cause: `ShouldWrapBundleResourceListError` only checks the rendered message, so it would still pass if the implementation stopped wrapping the underlying cause with `%w`.
 - Fix plan: keep the injected resource error in a variable and assert `errors.Is(err, resourceErr)` alongside the existing context check.
 - Resolution: the subtest now seeds a non-empty activation list, preserves the injected `resourceErr`, and asserts `errors.Is` so `%w` wrapping is enforced.
-- Verification: `go test ./internal/bundles ./internal/environment/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.
+- Verification: `go test ./internal/bundles ./internal/sandbox/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.

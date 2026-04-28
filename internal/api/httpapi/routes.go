@@ -275,10 +275,10 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.PUT("/mcp-servers/:name", privileged, handlers.PutSettingsMCPServer)
 	settings.DELETE("/mcp-servers/:name", privileged, handlers.DeleteSettingsMCPServer)
 
-	settings.GET("/environments", handlers.ListSettingsEnvironments)
-	settings.GET("/environments/:name", handlers.GetSettingsEnvironment)
-	settings.PUT("/environments/:name", privileged, handlers.PutSettingsEnvironment)
-	settings.DELETE("/environments/:name", privileged, handlers.DeleteSettingsEnvironment)
+	settings.GET("/sandboxes", handlers.ListSettingsSandboxes)
+	settings.GET("/sandboxes/:name", handlers.GetSettingsSandbox)
+	settings.PUT("/sandboxes/:name", privileged, handlers.PutSettingsSandbox)
+	settings.DELETE("/sandboxes/:name", privileged, handlers.DeleteSettingsSandbox)
 
 	settings.GET("/hooks", handlers.ListSettingsHooks)
 	settings.PUT("/hooks/:name", privileged, handlers.PutSettingsHook)

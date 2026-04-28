@@ -53,7 +53,7 @@ See TechSpec sections "Data Models", "Collection mutation semantics", and "Web r
 ### Relevant Files
 
 - `web/src/routes/_app/settings/providers.tsx` — new providers collection route
-- `web/src/routes/_app/settings/environments.tsx` — new environments collection route
+- `web/src/routes/_app/sandbox.tsx` — new environments collection route
 - `web/src/systems/settings/hooks/` — collection query and mutation hooks these pages must use
 - `web/src/systems/settings/components/` — natural place for shared collection list/detail components
 - `web/src/components/design-system/` — existing primitives for lists, panels, and editors

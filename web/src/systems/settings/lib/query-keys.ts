@@ -27,10 +27,9 @@ export const settingsKeys = {
   providersList: () => [...settingsKeys.providersRoot(), "list"] as const,
   providerDetail: (name: string) => [...settingsKeys.providersRoot(), "detail", name] as const,
 
-  environmentsRoot: () => [...settingsKeys.collections(), "environments"] as const,
-  environmentsList: () => [...settingsKeys.environmentsRoot(), "list"] as const,
-  environmentDetail: (name: string) =>
-    [...settingsKeys.environmentsRoot(), "detail", name] as const,
+  sandboxesRoot: () => [...settingsKeys.collections(), "sandboxes"] as const,
+  sandboxesList: () => [...settingsKeys.sandboxesRoot(), "list"] as const,
+  sandboxDetail: (name: string) => [...settingsKeys.sandboxesRoot(), "detail", name] as const,
 
   hooksRoot: () => [...settingsKeys.collections(), "hooks"] as const,
   hooksList: () => [...settingsKeys.hooksRoot(), "list"] as const,

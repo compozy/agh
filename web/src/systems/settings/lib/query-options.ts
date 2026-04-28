@@ -2,7 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   getSettingsAutomation,
-  getSettingsEnvironment,
+  getSettingsSandbox,
   getSettingsGeneral,
   getSettingsHooksExtensions,
   getSettingsMemory,
@@ -11,7 +11,7 @@ import {
   getSettingsProvider,
   getSettingsRestartStatus,
   getSettingsSkills,
-  listSettingsEnvironments,
+  listSettingsSandboxes,
   listSettingsExtensions,
   listSettingsHooks,
   listSettingsMCPServers,
@@ -109,19 +109,19 @@ export function settingsProviderDetailOptions(name: string, enabled = true) {
   });
 }
 
-export function settingsEnvironmentsListOptions() {
+export function settingsSandboxesListOptions() {
   return queryOptions({
-    queryKey: settingsKeys.environmentsList(),
-    queryFn: ({ signal }) => listSettingsEnvironments(signal),
+    queryKey: settingsKeys.sandboxesList(),
+    queryFn: ({ signal }) => listSettingsSandboxes(signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
   });
 }
 
-export function settingsEnvironmentDetailOptions(name: string, enabled = true) {
+export function settingsSandboxDetailOptions(name: string, enabled = true) {
   return queryOptions({
-    queryKey: settingsKeys.environmentDetail(name),
-    queryFn: ({ signal }) => getSettingsEnvironment(name, signal),
+    queryKey: settingsKeys.sandboxDetail(name),
+    queryFn: ({ signal }) => getSettingsSandbox(name, signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
     enabled: Boolean(name) && enabled,

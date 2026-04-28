@@ -20,7 +20,6 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
@@ -28,6 +27,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/situation"
 	"github.com/pedronauck/agh/internal/skills"
@@ -54,31 +54,31 @@ type ConfigLoader func() (aghconfig.Config, error)
 // SessionManager is the shared transport-facing session surface consumed by daemon/.
 type SessionManager = core.SessionManager
 
-type environmentExecSessionManager interface {
-	ExecEnvironment(context.Context, session.EnvironmentExecRequest) (session.EnvironmentExecResult, error)
+type sandboxExecSessionManager interface {
+	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
 }
 
 type hostAPISessionManagerAdapter struct {
 	core.SessionManager
-	exec environmentExecSessionManager
+	exec sandboxExecSessionManager
 }
 
 func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPISessionManagerAdapter {
 	adapter := hostAPISessionManagerAdapter{SessionManager: sessions}
-	if exec, ok := sessions.(environmentExecSessionManager); ok {
+	if exec, ok := sessions.(sandboxExecSessionManager); ok {
 		adapter.exec = exec
 	}
 	return adapter
 }
 
-func (a hostAPISessionManagerAdapter) ExecEnvironment(
+func (a hostAPISessionManagerAdapter) ExecSandbox(
 	ctx context.Context,
-	req session.EnvironmentExecRequest,
-) (session.EnvironmentExecResult, error) {
+	req session.SandboxExecRequest,
+) (session.SandboxExecResult, error) {
 	if a.exec == nil {
-		return session.EnvironmentExecResult{}, session.ErrSessionNotActive
+		return session.SandboxExecResult{}, session.ErrSessionNotActive
 	}
-	return a.exec.ExecEnvironment(ctx, req)
+	return a.exec.ExecSandbox(ctx, req)
 }
 
 // Observer is the daemon observer surface used for transport wiring and reconciliation.
@@ -281,7 +281,7 @@ type SessionManagerDeps struct {
 	SkillRegistry        session.SkillRegistry
 	MCPResolver          session.MCPResolver
 	WorkspaceResolver    workspacepkg.RuntimeResolver
-	EnvironmentRegistry  *environment.Registry
+	SandboxRegistry      *sandbox.Registry
 	SessionSupervision   aghconfig.SessionSupervisionConfig
 	ProcessRegistry      *toolruntime.Registry
 }
@@ -347,7 +347,7 @@ type Daemon struct {
 	udsServer            Server
 	dreamRuntime         *consolidation.Runtime
 	workspaceResolver    workspacepkg.RuntimeResolver
-	environmentRegistry  *environment.Registry
+	sandboxRegistry      *sandbox.Registry
 	skillsRegistry       *skills.Registry
 	skillsCancel         context.CancelFunc
 	skillsDone           chan struct{}
@@ -536,7 +536,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSkillRegistry(deps.SkillRegistry),
 			session.WithMCPResolver(deps.MCPResolver),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
-			session.WithEnvironmentRegistry(deps.EnvironmentRegistry),
+			session.WithSandboxRegistry(deps.SandboxRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),
 			session.WithDriver(session.NewACPDriverAdapter(acp.New(
 				acp.WithLogger(deps.Logger),
@@ -1075,7 +1075,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.closeLogger = func() error { return nil }
 	d.dreamRuntime = nil
 	d.workspaceResolver = nil
-	d.environmentRegistry = nil
+	d.sandboxRegistry = nil
 	d.skillsCancel = nil
 	d.skillsDone = nil
 	d.bridges = nil

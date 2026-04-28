@@ -30,6 +30,28 @@ const remotePeerCard = {
   trust_modes_supported: ["relay"],
 };
 
+const remoteCapabilityCatalog: NetworkCapabilityCatalog = {
+  capabilities: [
+    {
+      id: "chat",
+      summary: "Participates in channel discussion.",
+      outcome: "Remote peers can acknowledge and continue directed coordination.",
+      version: "1.0.0",
+      digest: "sha256:remote-chat",
+      context_needed: ["channel-history"],
+      artifacts_expected: ["message.text"],
+      execution_outline: [
+        "Read the direct request.",
+        "Acknowledge the lane ownership.",
+        "Respond with the next coordination step.",
+      ],
+      constraints: ["Network-visible only"],
+      examples: ["Review handoff", "Escalation follow-up"],
+      requirements: [],
+    },
+  ],
+};
+
 const primaryCapabilityCatalog: NetworkCapabilityCatalog = {
   capabilities: [
     {
@@ -131,7 +153,6 @@ export const networkChannelFixture: NetworkChannel = {
       channel: "storybook",
       display_name: "Storyboard",
       joined_at: "2026-04-17T17:40:00Z",
-      last_seen: "2026-04-17T18:10:00Z",
       local: true,
       peer_card: primaryPeerCard,
       peer_id: primaryPeerCard.peer_id,
@@ -279,7 +300,6 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     channel: "storybook",
     display_name: "Storyboard",
     joined_at: "2026-04-17T17:40:00Z",
-    last_seen: "2026-04-17T18:10:00Z",
     local: true,
     peer_card: primaryPeerCard,
     peer_id: primaryPeerCard.peer_id,
@@ -301,7 +321,6 @@ export const networkPeerFixture: NetworkPeerDetail = {
   channel: "storybook",
   display_name: "Storyboard",
   joined_at: "2026-04-17T17:40:00Z",
-  last_seen: "2026-04-17T18:10:00Z",
   local: true,
   metrics: {
     sent: 12,
@@ -313,6 +332,24 @@ export const networkPeerFixture: NetworkPeerDetail = {
   capability_catalog: primaryCapabilityCatalog,
   peer_id: primaryPeerCard.peer_id,
   session_id: "sess-storybook",
+};
+
+export const networkRemotePeerFixture: NetworkPeerDetail = {
+  channel: "storybook",
+  display_name: "Remote Reviewer",
+  joined_at: "2026-04-17T17:42:00Z",
+  last_seen: "2026-04-17T18:09:00Z",
+  local: false,
+  metrics: {
+    sent: 4,
+    received: 6,
+    delivered: 5,
+    rejected: 0,
+  },
+  peer_card: remotePeerCard,
+  capability_catalog: remoteCapabilityCatalog,
+  peer_id: remotePeerCard.peer_id,
+  session_id: "sess-reviewer",
 };
 
 export const createNetworkChannelFixture: CreateNetworkChannelResponse = {

@@ -1,0 +1,70 @@
+---
+title: Daytona Sandbox Provider
+description: Configure and operate the implemented Daytona sandbox backend.
+---
+
+The Daytona backend prepares a remote sandbox, syncs workspace files, opens the provider tool host,
+and starts the ACP agent through AGH's sandbox launcher.
+
+## Required credential
+
+Set `DAYTONA_API_KEY` in the daemon environment before starting AGH:
+
+```bash
+export DAYTONA_API_KEY="..."
+agh daemon start
+```
+
+The key is used by the Daytona SDK and SSH access flow. Do not put the raw token in session prompts,
+channel messages, logs, or extension payloads.
+
+## Profile example
+
+```toml
+[sandboxes.daytona-dev]
+backend = "daytona"
+sync_mode = "session-bidirectional"
+persistence = "reuse"
+runtime_root = "/home/daytona/workspace"
+
+[sandboxes.daytona-dev.daytona]
+api_url = "https://app.daytona.io/api"
+target = "team-default"
+snapshot = "snap-agent-base"
+image = "ubuntu:24.04"
+class = "cpu-2"
+auto_stop = "30m"
+auto_archive = "24h"
+```
+
+| Field          | Purpose                                                         |
+| -------------- | --------------------------------------------------------------- |
+| `api_url`      | Daytona API base URL. Defaults to `https://app.daytona.io/api`. |
+| `target`       | Daytona target or organization routing value.                   |
+| `snapshot`     | Preferred startup source when present.                          |
+| `image`        | Image startup source when `snapshot` is empty.                  |
+| `class`        | Provider class metadata passed with the profile.                |
+| `auto_stop`    | Daytona auto-stop interval.                                     |
+| `auto_archive` | Daytona auto-archive interval.                                  |
+
+## Run a workspace in Daytona
+
+```bash
+agh workspace add /Users/you/project --name project --sandbox daytona-dev
+agh session new --workspace project --agent general
+agh session get <session-id> -o json
+```
+
+The session payload includes a `sandbox` object with backend, profile, provider instance, state, and
+sync details.
+
+## Persistence
+
+| Value       | Behavior                                               |
+| ----------- | ------------------------------------------------------ |
+| `transient` | Delete the Daytona sandbox when AGH stops the session. |
+| `archive`   | Archive the sandbox on stop.                           |
+| `reuse`     | Leave the sandbox available for reattachment.          |
+
+Daemon restart reconciliation uses `sandbox_id`, provider state, and Daytona labels to reattach or
+clean up recoverable remote sandboxes.

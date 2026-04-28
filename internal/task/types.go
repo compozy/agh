@@ -171,6 +171,10 @@ const (
 type StopReason string
 
 const (
+	// StopReasonCompleted identifies successful task-run completion.
+	StopReasonCompleted StopReason = "completed"
+	// StopReasonFailed identifies failed task-run termination.
+	StopReasonFailed StopReason = "failed"
 	// StopReasonCancellation identifies explicit task or run cancellation.
 	StopReasonCancellation StopReason = "cancellation"
 	// StopReasonShutdown identifies daemon shutdown or boot recovery stop requests.

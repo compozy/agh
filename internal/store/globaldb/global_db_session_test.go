@@ -91,8 +91,8 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	if info.ACPSessionID == nil || *info.ACPSessionID != "acp-123" {
 		t.Fatalf("info.ACPSessionID = %#v, want acp-123", info.ACPSessionID)
 	}
-	if info.Environment == nil {
-		t.Fatal("info.Environment = nil, want environment metadata")
+	if info.Sandbox == nil {
+		t.Fatal("info.Sandbox = nil, want sandbox metadata")
 	}
 	if info.Liveness == nil {
 		t.Fatal("info.Liveness = nil, want liveness metadata")
@@ -116,11 +116,11 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 	if got, want := info.Liveness.StallReason, "activity_timeout"; got != want {
 		t.Fatalf("info.Liveness.StallReason = %q, want %q", got, want)
 	}
-	if got, want := info.Environment.EnvironmentID, "env-scan"; got != want {
-		t.Fatalf("info.Environment.EnvironmentID = %q, want %q", got, want)
+	if got, want := info.Sandbox.SandboxID, "env-scan"; got != want {
+		t.Fatalf("info.Sandbox.SandboxID = %q, want %q", got, want)
 	}
-	if got, want := info.Environment.LastSyncError, "sync failed"; got != want {
-		t.Fatalf("info.Environment.LastSyncError = %q, want %q", got, want)
+	if got, want := info.Sandbox.LastSyncError, "sync failed"; got != want {
+		t.Fatalf("info.Sandbox.LastSyncError = %q, want %q", got, want)
 	}
 }
 
@@ -193,7 +193,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 	}
 }
 
-func TestScanSessionInfoRejectsInvalidEnvironmentLastSyncAt(t *testing.T) {
+func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 	t.Parallel()
 
 	db := openScanSessionInfoDB(t)
@@ -243,7 +243,7 @@ func TestScanSessionInfoRejectsInvalidEnvironmentLastSyncAt(t *testing.T) {
 
 	_, err := scanSessionInfo(row)
 	if err == nil {
-		t.Fatal("scanSessionInfo() error = nil, want invalid environment_last_sync_at failure")
+		t.Fatal("scanSessionInfo() error = nil, want invalid sandbox_last_sync_at failure")
 	}
 	if got, want := err.Error(), `store: parse timestamp "not-a-timestamp"`; !strings.Contains(got, want) {
 		t.Fatalf("scanSessionInfo() error = %v, want substring %q", err, want)

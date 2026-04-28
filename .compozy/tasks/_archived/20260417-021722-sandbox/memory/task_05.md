@@ -14,28 +14,28 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 ## Learnings
 - Context7/Daytona docs confirm `POST /api/sandbox/{sandboxId}/ssh-access?expiresInMinutes=60` returns a JSON object containing `token`.
 - The current environment has no `DAYTONA_API_KEY`; credentialed pass/fail and latency evidence remain pending.
-- The pre-change signal was missing `internal/environment/daytona/ssh_validation_test.go`; `go test -tags integration ./internal/environment/daytona` failed because the package directory did not exist.
+- The pre-change signal was missing `internal/sandbox/daytona/ssh_validation_test.go`; `go test -tags integration ./internal/sandbox/daytona` failed because the package directory did not exist.
 - `make verify` passed after the validation harness/report were added. This proves repo-wide build/lint/unit checks are clean, but it does not prove Daytona SSH itself because the live integration test skipped without `DAYTONA_API_KEY`.
 
 ## Files / Surfaces
-- `internal/environment/daytona/doc.go`: minimal package file so normal `go test ./internal/environment/daytona` works without integration tags.
-- `internal/environment/daytona/ssh_validation_test.go`: credential-gated integration validation harness.
-- `internal/environment/daytona/VALIDATION.md`: gate report currently marked blocked pending credentialed validation.
+- `internal/sandbox/daytona/doc.go`: minimal package file so normal `go test ./internal/sandbox/daytona` works without integration tags.
+- `internal/sandbox/daytona/ssh_validation_test.go`: credential-gated integration validation harness.
+- `internal/sandbox/daytona/VALIDATION.md`: gate report currently marked blocked pending credentialed validation.
 
 ## Errors / Corrections
-- Direct `go test ./internal/environment/daytona` failed when the package only had an integration-tagged test file; added `doc.go` to keep the package buildable without tags.
+- Direct `go test ./internal/sandbox/daytona` failed when the package only had an integration-tagged test file; added `doc.go` to keep the package buildable without tags.
 - Targeted checks passed after the correction:
-  - `go test ./internal/environment/daytona`
-  - `go test -tags integration ./internal/environment/daytona -run TestDaytonaSSHNonPTYValidation -count=1 -v` (skipped because `DAYTONA_API_KEY` is missing)
-  - `go test -tags integration ./internal/environment/...`
+  - `go test ./internal/sandbox/daytona`
+  - `go test -tags integration ./internal/sandbox/daytona -run TestDaytonaSSHNonPTYValidation -count=1 -v` (skipped because `DAYTONA_API_KEY` is missing)
+  - `go test -tags integration ./internal/sandbox/...`
 - Additional verification passed:
-  - `go test -race -tags integration ./internal/environment/daytona -run TestDaytonaSSHNonPTYValidation -count=1 -v` (skipped because `DAYTONA_API_KEY` is missing)
+  - `go test -race -tags integration ./internal/sandbox/daytona -run TestDaytonaSSHNonPTYValidation -count=1 -v` (skipped because `DAYTONA_API_KEY` is missing)
   - `make verify`
-- Tag-aware lint initially reported one `golines` issue and two context-argument-order issues in the integration test; fixed them and `golangci-lint run --build-tags integration ./internal/environment/daytona` now reports `0 issues`.
+- Tag-aware lint initially reported one `golines` issue and two context-argument-order issues in the integration test; fixed them and `golangci-lint run --build-tags integration ./internal/sandbox/daytona` now reports `0 issues`.
 - Fresh pre-commit `make verify` passed after the tag-aware lint fix: web tests `82 passed`, Go lint `0 issues`, Go tests `DONE 4209 tests`, package boundaries OK.
-- Created local commit `82e786a6` (`test: add daytona ssh validation harness`) containing only `internal/environment/daytona/*`.
+- Created local commit `82e786a6` (`test: add daytona ssh validation harness`) containing only `internal/sandbox/daytona/*`.
 - Post-commit `make verify` passed: web tests `82 passed`, Go lint `0 issues`, Go tests `DONE 4209 tests`, package boundaries OK.
 
 ## Ready for Next Run
-- If interrupted before live validation, run `DAYTONA_API_KEY=... go test -tags integration ./internal/environment/daytona -run TestDaytonaSSHNonPTYValidation -count=1 -v` to exercise the real Daytona gate.
+- If interrupted before live validation, run `DAYTONA_API_KEY=... go test -tags integration ./internal/sandbox/daytona -run TestDaytonaSSHNonPTYValidation -count=1 -v` to exercise the real Daytona gate.
 - Keep task status pending until the credentialed run produces pass/fail evidence and the report is updated.

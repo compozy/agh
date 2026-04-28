@@ -404,7 +404,7 @@ func TestRequestRestartWritesOperationBeforeShutdownSignal(t *testing.T) {
 		}
 
 		store := newRestartStore(homePaths, d.now)
-		operationID := envValue(helperRequest.environment, RestartOperationEnvKey)
+		operationID := envValue(helperRequest.sandbox, RestartOperationEnvKey)
 		if strings.TrimSpace(operationID) == "" {
 			t.Fatal("helper launch env did not include restart operation id")
 		}
@@ -1201,9 +1201,9 @@ func (p restartProcessStub) Wait() error {
 	return nil
 }
 
-func envValue(environment []string, key string) string {
+func envValue(sandbox []string, key string) string {
 	prefix := key + "="
-	for _, entry := range environment {
+	for _, entry := range sandbox {
 		if after, ok := strings.CutPrefix(entry, prefix); ok {
 			return after
 		}
@@ -1388,7 +1388,7 @@ func TestRunRelaunchHelperWrapperUsesDefaultLauncherAndPersistsFailure(t *testin
 		HomePaths:      homePaths,
 		OperationID:    operation.OperationID,
 		Executable:     func() (string, error) { return scriptPath, nil },
-		Environment:    []string{"PATH=" + os.Getenv("PATH")},
+		Sandbox:        []string{"PATH=" + os.Getenv("PATH")},
 		PollInterval:   10 * time.Millisecond,
 		ReleaseTimeout: 200 * time.Millisecond,
 		ReadyTimeout:   200 * time.Millisecond,

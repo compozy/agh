@@ -30,6 +30,7 @@ import { BentoSection } from "../bento-section";
 import { SupportedAgents } from "../supported-agents";
 import { RuntimeMicroDiagram } from "../runtime-micro-diagram";
 import { RuntimeSection } from "../runtime-section";
+import { SandboxSection } from "../sandbox-section";
 import { BridgesSection } from "../bridges-section";
 import { ExtensibilitySection } from "../extensibility-section";
 import { NetworkSection } from "../network-section";
@@ -178,6 +179,27 @@ describe("RuntimeSection", () => {
 
     expect(stickyRail).toBeTruthy();
     expect(stickyRail?.getAttribute("class")).toContain("lg:top-24");
+  });
+});
+
+describe("SandboxSection", () => {
+  it("renders sandbox positioning and implemented provider copy", () => {
+    render(<SandboxSection />);
+
+    expect(screen.getByText("Sandbox")).toBeDefined();
+    expect(screen.getByText("Run agents away from the host filesystem.")).toBeDefined();
+    expect(screen.getByText("Run on the host when isolation is not needed")).toBeDefined();
+    expect(screen.getByText("Move a workspace into a remote sandbox")).toBeDefined();
+    expect(screen.getByText("Control how files move")).toBeDefined();
+  });
+
+  it("renders the sandbox lifecycle diagram labels", () => {
+    render(<SandboxSection />);
+
+    expect(screen.getByLabelText("AGH sandbox lifecycle diagram")).toBeDefined();
+    expect(screen.getByText("sandbox_id")).toBeDefined();
+    expect(screen.getByText("sandbox_ref")).toBeDefined();
+    expect(screen.getByText("sandbox.exec")).toBeDefined();
   });
 });
 

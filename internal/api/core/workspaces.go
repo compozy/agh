@@ -2,12 +2,16 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"sort"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -41,7 +45,7 @@ func (h *BaseHandlers) CreateWorkspace(c *gin.Context) {
 		Name:           strings.TrimSpace(req.Name),
 		AdditionalDirs: addDirs,
 		DefaultAgent:   strings.TrimSpace(req.DefaultAgent),
-		EnvironmentRef: strings.TrimSpace(req.EnvironmentRef),
+		SandboxRef:     strings.TrimSpace(req.SandboxRef),
 	})
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
@@ -83,13 +87,68 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 		return
 	}
 
+	agents, err := h.workspaceDetailAgents(c.Request.Context(), &resolved)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
 	c.JSON(http.StatusOK, contract.WorkspaceDetailPayload{
 		Workspace: WorkspacePayloadFromWorkspace(resolved.Workspace),
 		Sessions:  SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(sessions, resolved.ID)),
-		Agents:    AgentPayloadsFromDefs(resolved.Agents),
+		Agents:    AgentPayloadsFromDefs(agents),
 		Skills:    WorkspaceSkillPayloads(resolved.Skills),
 		Providers: SessionProviderOptionPayloadsFromConfig(&resolved.Config),
 	})
+}
+
+func (h *BaseHandlers) workspaceDetailAgents(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+) ([]aghconfig.AgentDef, error) {
+	if resolved == nil {
+		return nil, errors.New("api: resolved workspace is required")
+	}
+
+	merged := make(map[string]aghconfig.AgentDef, len(resolved.Agents))
+	for _, agent := range resolved.Agents {
+		name := strings.TrimSpace(agent.Name)
+		if name == "" {
+			continue
+		}
+		merged[name] = agent
+	}
+
+	if h.AgentCatalog != nil {
+		catalogAgents, err := h.AgentCatalog.ListAgents(ctx)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return nil, err
+			}
+		}
+		for _, agent := range catalogAgents {
+			name := strings.TrimSpace(agent.Name)
+			if name == "" {
+				continue
+			}
+			if _, exists := merged[name]; exists {
+				continue
+			}
+			merged[name] = agent
+		}
+	}
+
+	names := make([]string, 0, len(merged))
+	for name := range merged {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	agents := make([]aghconfig.AgentDef, 0, len(names))
+	for _, name := range names {
+		agents = append(agents, merged[name])
+	}
+	return agents, nil
 }
 
 // UpdateWorkspace updates a registered workspace.
@@ -131,9 +190,9 @@ func (h *BaseHandlers) UpdateWorkspace(c *gin.Context) {
 		defaultAgent := strings.TrimSpace(*req.DefaultAgent)
 		opts.DefaultAgent = &defaultAgent
 	}
-	if req.EnvironmentRef != nil {
-		environmentRef := strings.TrimSpace(*req.EnvironmentRef)
-		opts.EnvironmentRef = &environmentRef
+	if req.SandboxRef != nil {
+		sandboxRef := strings.TrimSpace(*req.SandboxRef)
+		opts.SandboxRef = &sandboxRef
 	}
 
 	if err := h.Workspaces.Update(c.Request.Context(), workspace.ID, opts); err != nil {

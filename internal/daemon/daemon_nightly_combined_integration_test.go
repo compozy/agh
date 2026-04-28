@@ -19,9 +19,9 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensiontest "github.com/pedronauck/agh/internal/extensiontest"
+	"github.com/pedronauck/agh/internal/sandbox"
 	sessionpkg "github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
@@ -31,9 +31,9 @@ const (
 	nightlyCombinedHelperEnvKey     = "AGH_TEST_NIGHTLY_COMBINED_HELPER"
 	nightlyCombinedScenarioEnvKey   = "AGH_TEST_NIGHTLY_COMBINED_SCENARIO"
 	nightlyCombinedTaskScenario     = "task-resume-network"
-	nightlyCombinedBridgeScenario   = "bridge-environment-delivery"
+	nightlyCombinedBridgeScenario   = "bridge-sandbox-delivery"
 	nightlyCombinedTaskAgentName    = "nightly-task-network-runner"
-	nightlyCombinedBridgeAgentName  = "nightly-bridge-environment-runner"
+	nightlyCombinedBridgeAgentName  = "nightly-bridge-sandbox-runner"
 	nightlyCombinedEnvProfileName   = "nightly-local-sandbox"
 	nightlyTaskResumePrompt         = "Resume the delegated task and post a nightly network reply."
 	nightlyTaskResumeAssistant      = "Nightly delegated task resumed and replied over the network."
@@ -175,11 +175,11 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	if got, want := resumed.Channel, "ops-nightly"; got != want {
 		t.Fatalf("resumed.Channel = %q, want %q", got, want)
 	}
-	if resumed.Environment == nil {
-		t.Fatal("resumed.Environment = nil, want environment metadata after resume")
+	if resumed.Sandbox == nil {
+		t.Fatal("resumed.Sandbox = nil, want sandbox metadata after resume")
 	}
-	if got, want := resumed.Environment.Profile, nightlyCombinedEnvProfileName; got != want {
-		t.Fatalf("resumed.Environment.Profile = %q, want %q", got, want)
+	if got, want := resumed.Sandbox.Profile, nightlyCombinedEnvProfileName; got != want {
+		t.Fatalf("resumed.Sandbox.Profile = %q, want %q", got, want)
 	}
 
 	stream, err := harness.PromptSession(ctx, sessionID, nightlyTaskResumePrompt)
@@ -271,15 +271,15 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	if got, want := meta.Channel, "ops-nightly"; got != want {
 		t.Fatalf("session meta channel = %q, want %q", got, want)
 	}
-	if meta.Environment == nil {
-		t.Fatal("session meta environment = nil, want persisted environment metadata")
+	if meta.Sandbox == nil {
+		t.Fatal("session meta sandbox = nil, want persisted sandbox metadata")
 	}
-	if got, want := meta.Environment.Profile, nightlyCombinedEnvProfileName; got != want {
-		t.Fatalf("session meta environment profile = %q, want %q", got, want)
+	if got, want := meta.Sandbox.Profile, nightlyCombinedEnvProfileName; got != want {
+		t.Fatalf("session meta sandbox profile = %q, want %q", got, want)
 	}
 }
 
-func TestDaemonNightlyE2EBridgeIngressUsesEnvironmentToolBeforeDelivery(t *testing.T) {
+func TestDaemonNightlyE2EBridgeIngressUsesSandboxToolBeforeDelivery(t *testing.T) {
 	repoRoot := daemonBridgeRuntimeRepoRoot(t)
 	extensionDir := prepareDaemonTelegramReferenceExtension(t, repoRoot)
 
@@ -508,7 +508,7 @@ func (a *daemonNightlyCombinedACPAgent) Prompt(
 	case nightlyCombinedTaskScenario:
 		return a.promptTaskResumeNetwork(ctx, params)
 	case nightlyCombinedBridgeScenario:
-		return a.promptBridgeEnvironmentDelivery(ctx, params)
+		return a.promptBridgeSandboxDelivery(ctx, params)
 	default:
 		return acpsdk.PromptResponse{}, fmt.Errorf("unknown nightly combined scenario %q", a.scenario)
 	}
@@ -541,7 +541,7 @@ func (a *daemonNightlyCombinedACPAgent) promptTaskResumeNetwork(
 	return a.sendMessageAndEndTurn(ctx, params.SessionId, nightlyTaskResumeAssistant)
 }
 
-func (a *daemonNightlyCombinedACPAgent) promptBridgeEnvironmentDelivery(
+func (a *daemonNightlyCombinedACPAgent) promptBridgeSandboxDelivery(
 	ctx context.Context,
 	params acpsdk.PromptRequest,
 ) (acpsdk.PromptResponse, error) {
@@ -625,13 +625,13 @@ func nightlyCombinedConfigSeed(
 	t.Helper()
 
 	return e2etest.ConfigSeedOptions{
-		DefaultAgent:       agentName,
-		DefaultEnvironment: nightlyCombinedEnvProfileName,
-		PermissionMode:     aghconfig.PermissionModeApproveAll,
-		Environments: map[string]aghconfig.EnvironmentProfile{
+		DefaultAgent:   agentName,
+		DefaultSandbox: nightlyCombinedEnvProfileName,
+		PermissionMode: aghconfig.PermissionModeApproveAll,
+		Sandboxes: map[string]aghconfig.SandboxProfile{
 			nightlyCombinedEnvProfileName: {
-				Backend:     string(environment.BackendLocal),
-				Persistence: string(environment.PersistenceReuse),
+				Backend:     string(sandbox.BackendLocal),
+				Persistence: string(sandbox.PersistenceReuse),
 			},
 		},
 		AgentDefs: []e2etest.AgentSeed{{
@@ -697,8 +697,8 @@ func registerNightlyAutomationCombinedArtifacts(
 			if err := harness.CaptureSessionEvents(ctx, trimmedSessionID); err != nil {
 				t.Logf("CaptureSessionEvents(%q) error = %v", trimmedSessionID, err)
 			}
-			if err := harness.CaptureSessionEnvironment(ctx, trimmedSessionID); err != nil {
-				t.Logf("CaptureSessionEnvironment(%q) error = %v", trimmedSessionID, err)
+			if err := harness.CaptureSessionSandbox(ctx, trimmedSessionID); err != nil {
+				t.Logf("CaptureSessionSandbox(%q) error = %v", trimmedSessionID, err)
 			}
 		}
 		if err := harness.CaptureNetworkArtifacts(ctx, strings.TrimSpace(channel)); err != nil {
@@ -753,8 +753,8 @@ func registerNightlyBridgeCombinedArtifacts(
 			if err := harness.CaptureSessionEvents(ctx, trimmedSessionID); err != nil {
 				t.Logf("CaptureSessionEvents(%q) error = %v", trimmedSessionID, err)
 			}
-			if err := harness.CaptureSessionEnvironment(ctx, trimmedSessionID); err != nil {
-				t.Logf("CaptureSessionEnvironment(%q) error = %v", trimmedSessionID, err)
+			if err := harness.CaptureSessionSandbox(ctx, trimmedSessionID); err != nil {
+				t.Logf("CaptureSessionSandbox(%q) error = %v", trimmedSessionID, err)
 			}
 		}
 		payload := map[string]any{

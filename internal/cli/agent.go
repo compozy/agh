@@ -19,11 +19,14 @@ func newAgentCommand(deps commandDeps) *cobra.Command {
 }
 
 func newAgentListCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List installed agent definitions",
 		Example: `  # Show every agent definition available to the daemon
   agh agent list
+
+  # Show agents resolved for a workspace
+  agh agent list --workspace ~/dev/ai/acme-startup
 
   # Emit the same list as JSON
   agh agent list -o json`,
@@ -33,21 +36,30 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			agents, err := client.ListAgents(cmd.Context())
+			query, err := agentQueryFromCommand(cmd)
+			if err != nil {
+				return err
+			}
+			agents, err := client.ListAgents(cmd.Context(), query)
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, agentListBundle(agents))
 		},
 	}
+	cmd.Flags().String("workspace", "", "Resolve agents from a workspace id, name, or path")
+	return cmd
 }
 
 func newAgentInfoCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "info <name>",
 		Short: "Show one agent definition",
 		Example: `  # Inspect the default bootstrap agent
   agh agent info general
+
+  # Inspect a workspace-local agent
+  agh agent info reviewer --workspace ~/dev/ai/acme-startup
 
   # Inspect an agent definition as JSON
   agh agent info reviewer -o json`,
@@ -58,13 +70,27 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			agent, err := client.GetAgent(cmd.Context(), args[0])
+			query, err := agentQueryFromCommand(cmd)
+			if err != nil {
+				return err
+			}
+			agent, err := client.GetAgent(cmd.Context(), args[0], query)
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, agentBundle(agent))
 		},
 	}
+	cmd.Flags().String("workspace", "", "Resolve the agent from a workspace id, name, or path")
+	return cmd
+}
+
+func agentQueryFromCommand(cmd *cobra.Command) (AgentQuery, error) {
+	workspace, err := commandWorkspaceFlag(cmd)
+	if err != nil {
+		return AgentQuery{}, err
+	}
+	return AgentQuery{Workspace: workspace}, nil
 }
 
 func agentListBundle(items []AgentRecord) outputBundle {

@@ -287,7 +287,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		Failure:      store.CloneSessionFailure(meta.Failure),
 		ACPSessionID: stringValue(meta.ACPSessionID),
 		Liveness:     store.CloneSessionLivenessMeta(meta.Liveness),
-		Environment:  cloneSessionEnvironmentMeta(meta.Environment),
+		Sandbox:      cloneSessionSandboxMeta(meta.Sandbox),
 		CreatedAt:    meta.CreatedAt,
 		UpdatedAt:    meta.UpdatedAt,
 	}

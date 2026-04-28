@@ -15,7 +15,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/toolruntime"
 )
@@ -54,8 +54,8 @@ type Driver struct {
 	promptDrainWait      time.Duration
 	permissionWait       time.Duration
 	processRecordTimeout time.Duration
-	launcher             environment.Launcher
-	toolHost             environment.ToolHost
+	launcher             sandbox.Launcher
+	toolHost             sandbox.ToolHost
 	processRegistry      *toolruntime.Registry
 }
 
@@ -94,15 +94,15 @@ func WithPermissionTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithLauncher overrides the environment launcher used by default for new ACP sessions.
-func WithLauncher(launcher environment.Launcher) Option {
+// WithLauncher overrides the sandbox launcher used by default for new ACP sessions.
+func WithLauncher(launcher sandbox.Launcher) Option {
 	return func(driver *Driver) {
 		driver.launcher = launcher
 	}
 }
 
-// WithToolHost overrides the environment tool host used by default for new ACP sessions.
-func WithToolHost(toolHost environment.ToolHost) Option {
+// WithToolHost overrides the sandbox tool host used by default for new ACP sessions.
+func WithToolHost(toolHost sandbox.ToolHost) Option {
 	return func(driver *Driver) {
 		driver.toolHost = toolHost
 	}
@@ -205,7 +205,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		launcher = newLocalLauncher(d.logger, d.stopTimeout)
 	}
 
-	handle, err := launcher.Launch(ctx, environment.LaunchSpec{
+	handle, err := launcher.Launch(ctx, sandbox.LaunchSpec{
 		Command:        normalized.Command,
 		Cwd:            normalized.Cwd,
 		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
@@ -270,7 +270,7 @@ func (d *Driver) newAgentProcess(
 	normalized StartOpts,
 	command string,
 	args []string,
-	handle environment.Handle,
+	handle sandbox.Handle,
 	toolHost ToolHost,
 	policy permissionPolicy,
 ) *AgentProcess {

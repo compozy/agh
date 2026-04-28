@@ -29,7 +29,7 @@ This regression suite gives task 08 a fixed execution order for smoke, targeted,
 - Any P0 case fails.
 - A Critical or High-severity bug is discovered with no immediate fix.
 - Repository verification gates fail after a code fix.
-- The execution environment cannot provide one of the required surfaces or fixtures.
+- The execution sandbox cannot provide one of the required surfaces or fixtures.
 
 ## Pass / Fail Rules
 

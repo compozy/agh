@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  settingsEnvironmentDetailOptions,
-  settingsEnvironmentsListOptions,
+  settingsSandboxDetailOptions,
+  settingsSandboxesListOptions,
   settingsExtensionsListOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
@@ -23,12 +23,12 @@ export function useSettingsProvider(name: string, options: QueryEnabledOptions =
   return useQuery(settingsProviderDetailOptions(name, options.enabled ?? true));
 }
 
-export function useSettingsEnvironments() {
-  return useQuery(settingsEnvironmentsListOptions());
+export function useSettingsSandboxes() {
+  return useQuery(settingsSandboxesListOptions());
 }
 
-export function useSettingsEnvironment(name: string, options: QueryEnabledOptions = {}) {
-  return useQuery(settingsEnvironmentDetailOptions(name, options.enabled ?? true));
+export function useSettingsSandbox(name: string, options: QueryEnabledOptions = {}) {
+  return useQuery(settingsSandboxDetailOptions(name, options.enabled ?? true));
 }
 
 export function useSettingsHooks() {

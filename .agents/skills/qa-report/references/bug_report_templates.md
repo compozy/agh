@@ -21,9 +21,16 @@ The canonical format — used for all bug types. See `assets/issue-template.md` 
 - **OS:** <operating system if relevant>
 - **Browser:** <browser and version if Web UI>
 - **URL:** <page or endpoint where bug occurs>
+- **Live provider/LLM:** <provider-backed evidence, exact blocked boundary, or "not in scope">
 
 ## Summary
 <One paragraph describing the observable failure.>
+
+## Behavioral Impact
+- **Operator/User Goal:** <goal blocked or degraded>
+- **Agent Behavior:** <expected vs actual agent behavior, if applicable>
+- **Business Outcome:** <outcome blocked, degraded, or at risk>
+- **Cross-Surface State:** <CLI/API/Web/runtime mismatch, or "none">
 
 ## Reproduction
 ```bash
@@ -43,6 +50,8 @@ Observed before the fix:
 
 ## Verification
 - <narrow reproduction rerun>
+- <behavioral journey replay, when applicable>
+- <live agent/provider replay or documented provider boundary, when applicable>
 - <broader regression or full gate rerun>
 
 ## Impact

@@ -7,7 +7,7 @@ type HookEventFamily string
 
 const (
 	HookEventFamilySession     HookEventFamily = "session"
-	HookEventFamilyEnvironment HookEventFamily = "environment"
+	HookEventFamilySandbox     HookEventFamily = "sandbox"
 	HookEventFamilyInput       HookEventFamily = "input"
 	HookEventFamilyPrompt      HookEventFamily = "prompt"
 	HookEventFamilyEvent       HookEventFamily = "event"
@@ -27,7 +27,7 @@ const (
 func (f HookEventFamily) Validate() error {
 	switch f {
 	case HookEventFamilySession,
-		HookEventFamilyEnvironment,
+		HookEventFamilySandbox,
 		HookEventFamilyInput,
 		HookEventFamilyPrompt,
 		HookEventFamilyEvent,
@@ -58,11 +58,11 @@ const (
 	HookSessionPreStop    HookEvent = "session.pre_stop"
 	HookSessionPostStop   HookEvent = "session.post_stop"
 
-	HookEnvironmentPrepare    HookEvent = "environment.prepare"
-	HookEnvironmentReady      HookEvent = "environment.ready"
-	HookEnvironmentSyncBefore HookEvent = "environment.sync.before"
-	HookEnvironmentSyncAfter  HookEvent = "environment.sync.after"
-	HookEnvironmentStop       HookEvent = "environment.stop"
+	HookSandboxPrepare    HookEvent = "sandbox.prepare"
+	HookSandboxReady      HookEvent = "sandbox.ready"
+	HookSandboxSyncBefore HookEvent = "sandbox.sync.before"
+	HookSandboxSyncAfter  HookEvent = "sandbox.sync.after"
+	HookSandboxStop       HookEvent = "sandbox.stop"
 
 	HookInputPreSubmit HookEvent = "input.pre_submit"
 
@@ -136,24 +136,24 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 	HookSessionPostResume: {family: HookEventFamilySession, syncEligible: true},
 	HookSessionPreStop:    {family: HookEventFamilySession, syncEligible: true},
 	HookSessionPostStop:   {family: HookEventFamilySession, syncEligible: true},
-	HookEnvironmentPrepare: {
-		family:       HookEventFamilyEnvironment,
+	HookSandboxPrepare: {
+		family:       HookEventFamilySandbox,
 		syncEligible: true,
 	},
-	HookEnvironmentReady: {
-		family:       HookEventFamilyEnvironment,
+	HookSandboxReady: {
+		family:       HookEventFamilySandbox,
 		syncEligible: false,
 	},
-	HookEnvironmentSyncBefore: {
-		family:       HookEventFamilyEnvironment,
+	HookSandboxSyncBefore: {
+		family:       HookEventFamilySandbox,
 		syncEligible: true,
 	},
-	HookEnvironmentSyncAfter: {
-		family:       HookEventFamilyEnvironment,
+	HookSandboxSyncAfter: {
+		family:       HookEventFamilySandbox,
 		syncEligible: false,
 	},
-	HookEnvironmentStop: {
-		family:       HookEventFamilyEnvironment,
+	HookSandboxStop: {
+		family:       HookEventFamilySandbox,
 		syncEligible: true,
 	},
 	HookInputPreSubmit: {family: HookEventFamilyInput, syncEligible: true},
@@ -298,11 +298,11 @@ var allHookEvents = []HookEvent{
 	HookSessionPostResume,
 	HookSessionPreStop,
 	HookSessionPostStop,
-	HookEnvironmentPrepare,
-	HookEnvironmentReady,
-	HookEnvironmentSyncBefore,
-	HookEnvironmentSyncAfter,
-	HookEnvironmentStop,
+	HookSandboxPrepare,
+	HookSandboxReady,
+	HookSandboxSyncBefore,
+	HookSandboxSyncAfter,
+	HookSandboxStop,
 	HookInputPreSubmit,
 	HookPromptPostAssemble,
 	HookEventPreRecord,

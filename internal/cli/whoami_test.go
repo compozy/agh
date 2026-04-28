@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestWhoamiReadsEnvironment(t *testing.T) {
+func TestWhoamiReadsSandbox(t *testing.T) {
 	t.Parallel()
 
 	values := map[string]string{

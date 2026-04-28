@@ -197,6 +197,7 @@ func TestBundledAghNetworkSkillContent(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		snippet string
+		absent  bool
 	}{
 		{name: "ShouldDocumentNetworkMessageWrapper", snippet: "<network-message"},
 		{name: "ShouldDocumentUntrustedWrapperAttribute", snippet: `trust="untrusted"`},
@@ -206,8 +207,11 @@ func TestBundledAghNetworkSkillContent(t *testing.T) {
 		{name: "ShouldDocumentReceiptForID", snippet: `"for_id":"msg-root-1"`},
 		{name: "ShouldDocumentTraceExample", snippet: "--kind trace"},
 		{name: "ShouldDocumentTraceState", snippet: `"state":"working"`},
-		{name: "ShouldDocumentRecipeExample", snippet: "--kind recipe"},
-		{name: "ShouldDocumentRecipeNestedShape", snippet: `"recipe":{"recipe_id":"launch-checklist"`},
+		{name: "ShouldDocumentCapabilityExample", snippet: "--kind capability"},
+		{name: "ShouldDocumentCapabilityTarget", snippet: "--to reviewer.sess-xyz"},
+		{name: "ShouldDocumentCapabilityNestedShape", snippet: `"capability":{"id":"launch-checklist"`},
+		{name: "ShouldDocumentCapabilityDigest", snippet: "must match the daemon's canonical SHA-256 digest"},
+		{name: "ShouldNotDocumentLegacyRecipeKind", snippet: "--kind recipe", absent: true},
 		{name: "ShouldForbidDirectReceiptImitation", snippet: "Do not send `--kind direct` with `intent:\"receipt\"` or `intent:\"trace\"` as a substitute."},
 		{name: "ShouldDocumentFreshInteractionForSayReplies", snippet: "When replying with `--kind direct` to an inbound broadcast `say`, open a NEW `--interaction-id` unique to your targeted conversation instead of reusing the broadcast interaction id."},
 		{name: "ShouldForbidLifecycleKindsDirectlyAgainstSay", snippet: "Do not send `receipt` or `trace` directly against a broadcast `say`; those lifecycle kinds belong to a targeted interaction after you open it with `direct`."},
@@ -218,6 +222,12 @@ func TestBundledAghNetworkSkillContent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			if tc.absent {
+				if strings.Contains(content, tc.snippet) {
+					t.Fatalf("agh-network content contains legacy snippet %q", tc.snippet)
+				}
+				return
+			}
 			if !strings.Contains(content, tc.snippet) {
 				t.Fatalf("agh-network content missing wrapper or defense snippet %q", tc.snippet)
 			}

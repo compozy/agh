@@ -169,7 +169,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(first) error = %v", err)
 	}
-	if got, want := len(firstRecords), 8; got != want {
+	if got, want := len(firstRecords), 9; got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
 	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
@@ -196,6 +196,9 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if firstRecords[7].Version != 8 || firstRecords[7].Name != "add_session_lineage_metadata" {
 		t.Fatalf("firstRecords[7] = %#v, want add_session_lineage_metadata v8", firstRecords[7])
 	}
+	if firstRecords[8].Version != 9 || firstRecords[8].Name != "rename_environment_columns_to_sandbox" {
+		t.Fatalf("firstRecords[8] = %#v, want rename_environment_columns_to_sandbox v9", firstRecords[8])
+	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
 	}
@@ -213,7 +216,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(second) error = %v", err)
 	}
-	if got, want := len(secondRecords), 8; got != want {
+	if got, want := len(secondRecords), 9; got != want {
 		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 	}
 	for i := range firstRecords {
@@ -800,7 +803,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		AdditionalDirs: []string{filepath.Join(rootDir, "a"), "", filepath.Join(rootDir, "b")},
 		Name:           "alpha",
 		DefaultAgent:   "coder",
-		EnvironmentRef: "daytona-dev",
+		SandboxRef:     "daytona-dev",
 		CreatedAt:      createdAt,
 		UpdatedAt:      createdAt,
 	}
@@ -818,7 +821,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		AdditionalDirs: []string{filepath.Join(rootDir, "a"), filepath.Join(rootDir, "b")},
 		Name:           "alpha",
 		DefaultAgent:   "coder",
-		EnvironmentRef: "daytona-dev",
+		SandboxRef:     "daytona-dev",
 		CreatedAt:      createdAt,
 		UpdatedAt:      createdAt,
 	})
@@ -838,7 +841,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 	updated := byID
 	updated.Name = "beta"
 	updated.DefaultAgent = "reviewer"
-	updated.EnvironmentRef = "local-dev"
+	updated.SandboxRef = "local-dev"
 	updated.AdditionalDirs = []string{filepath.Join(rootDir, "tools")}
 	updated.UpdatedAt = createdAt.Add(5 * time.Minute)
 	if err := globalDB.UpdateWorkspace(testutil.Context(t), updated); err != nil {
@@ -1237,8 +1240,8 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			StallState:    store.SessionStallStateDetected,
 			StallReason:   store.SessionStallReasonActivityTimeout,
 		},
-		Environment: &store.SessionEnvironmentMeta{
-			EnvironmentID: "env-workspace-id",
+		Sandbox: &store.SessionSandboxMeta{
+			SandboxID:     "env-workspace-id",
 			Backend:       "local",
 			Profile:       "local",
 			State:         "prepared",
@@ -1266,17 +1269,17 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	if got, want := sessions[0].Channel, "builders"; got != want {
 		t.Fatalf("sessions[0].Channel = %q, want %q", got, want)
 	}
-	if sessions[0].Environment == nil {
-		t.Fatal("sessions[0].Environment = nil, want environment metadata")
+	if sessions[0].Sandbox == nil {
+		t.Fatal("sessions[0].Sandbox = nil, want sandbox metadata")
 	}
-	if got, want := sessions[0].Environment.EnvironmentID, "env-workspace-id"; got != want {
-		t.Fatalf("sessions[0].Environment.EnvironmentID = %q, want %q", got, want)
+	if got, want := sessions[0].Sandbox.SandboxID, "env-workspace-id"; got != want {
+		t.Fatalf("sessions[0].Sandbox.SandboxID = %q, want %q", got, want)
 	}
-	if got, want := sessions[0].Environment.InstanceID, "instance-workspace-id"; got != want {
-		t.Fatalf("sessions[0].Environment.InstanceID = %q, want %q", got, want)
+	if got, want := sessions[0].Sandbox.InstanceID, "instance-workspace-id"; got != want {
+		t.Fatalf("sessions[0].Sandbox.InstanceID = %q, want %q", got, want)
 	}
-	if got, want := sessions[0].Environment.LastSyncError, "last sync failed"; got != want {
-		t.Fatalf("sessions[0].Environment.LastSyncError = %q, want %q", got, want)
+	if got, want := sessions[0].Sandbox.LastSyncError, "last sync failed"; got != want {
+		t.Fatalf("sessions[0].Sandbox.LastSyncError = %q, want %q", got, want)
 	}
 	if sessions[0].Liveness == nil {
 		t.Fatal("sessions[0].Liveness = nil, want liveness metadata")
@@ -1321,14 +1324,14 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"stall_state",
 			"stall_reason",
 			"activity_json",
-			"environment_id",
-			"environment_backend",
-			"environment_profile",
-			"environment_instance_id",
-			"environment_state",
-			"environment_provider_state_json",
-			"environment_last_sync_at",
-			"environment_last_sync_error",
+			"sandbox_id",
+			"sandbox_backend",
+			"sandbox_profile",
+			"sandbox_instance_id",
+			"sandbox_state",
+			"sandbox_provider_state_json",
+			"sandbox_last_sync_at",
+			"sandbox_last_sync_error",
 			"created_at",
 			"updated_at",
 			"failure_kind",
@@ -1561,14 +1564,14 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"failure_kind",
 			"failure_summary",
 			"crash_bundle_path",
-			"environment_id",
-			"environment_backend",
-			"environment_profile",
-			"environment_instance_id",
-			"environment_state",
-			"environment_provider_state_json",
-			"environment_last_sync_at",
-			"environment_last_sync_error",
+			"sandbox_id",
+			"sandbox_backend",
+			"sandbox_profile",
+			"sandbox_instance_id",
+			"sandbox_state",
+			"sandbox_provider_state_json",
+			"sandbox_last_sync_at",
+			"sandbox_last_sync_error",
 			"created_at",
 			"updated_at",
 			"subprocess_pid",
@@ -1591,7 +1594,7 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 		t,
 		globalDB.db,
 		"workspaces",
-		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "environment_ref", "created_at", "updated_at"},
+		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "sandbox_ref", "created_at", "updated_at"},
 	)
 
 	workspaces, err := globalDB.ListWorkspaces(ctx)
@@ -2429,14 +2432,14 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"stall_state",
 			"stall_reason",
 			"activity_json",
-			"environment_id",
-			"environment_backend",
-			"environment_profile",
-			"environment_instance_id",
-			"environment_state",
-			"environment_provider_state_json",
-			"environment_last_sync_at",
-			"environment_last_sync_error",
+			"sandbox_id",
+			"sandbox_backend",
+			"sandbox_profile",
+			"sandbox_instance_id",
+			"sandbox_state",
+			"sandbox_provider_state_json",
+			"sandbox_last_sync_at",
+			"sandbox_last_sync_error",
 			"parent_session_id",
 			"root_session_id",
 			"spawn_depth",
@@ -2451,7 +2454,7 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 		t,
 		globalDB.db,
 		"workspaces",
-		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "created_at", "updated_at", "environment_ref"},
+		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "created_at", "updated_at", "sandbox_ref"},
 	)
 
 	sessions, err := globalDB.ListSessions(ctx, SessionListQuery{})
@@ -2641,7 +2644,7 @@ func assertWorkspaceEqual(t *testing.T, got aghworkspace.Workspace, want aghwork
 		got.RootDir != want.RootDir ||
 		got.Name != want.Name ||
 		got.DefaultAgent != want.DefaultAgent ||
-		got.EnvironmentRef != want.EnvironmentRef ||
+		got.SandboxRef != want.SandboxRef ||
 		!got.CreatedAt.Equal(want.CreatedAt) ||
 		!got.UpdatedAt.Equal(want.UpdatedAt) ||
 		!testutil.EqualStringSlices(got.AdditionalDirs, want.AdditionalDirs) {

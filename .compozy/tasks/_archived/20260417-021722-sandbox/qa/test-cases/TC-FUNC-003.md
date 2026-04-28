@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that an environment profile with an invalid backend value is rejected during config validation.
+Verify that a sandbox profile with an invalid backend value is rejected during config validation.
 
 ---
 

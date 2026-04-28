@@ -1,7 +1,12 @@
 import { getResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { networkChannelMessagesFixture, networkPeerMessagesFixture } from "./fixtures";
+import {
+  networkChannelMessagesFixture,
+  networkPeerMessagesFixture,
+  networkPeerFixture,
+  networkRemotePeerFixture,
+} from "./fixtures";
 import { handlers } from "./handlers";
 
 describe("network mock contracts", () => {
@@ -43,6 +48,39 @@ describe("network mock contracts", () => {
     const payload = (await response?.json()) as { messages: typeof networkPeerMessagesFixture };
 
     expect(payload.messages).toEqual(networkPeerMessagesFixture);
+  });
+
+  it("keeps peer detail mocks aligned with the truthful local-vs-remote payload shape", async () => {
+    const localResponse = await getResponse(
+      handlers,
+      new Request("http://localhost/api/network/peers/peer_storybook_local"),
+      { baseUrl: "http://localhost" }
+    );
+    const remoteResponse = await getResponse(
+      handlers,
+      new Request("http://localhost/api/network/peers/peer_storybook_remote"),
+      { baseUrl: "http://localhost" }
+    );
+
+    expect(localResponse).not.toBeUndefined();
+    expect(remoteResponse).not.toBeUndefined();
+    expect(localResponse?.ok).toBe(true);
+    expect(remoteResponse?.ok).toBe(true);
+
+    const localPayload = (await localResponse?.json()) as { peer: typeof networkPeerFixture };
+    const remotePayload = (await remoteResponse?.json()) as {
+      peer: typeof networkRemotePeerFixture;
+    };
+
+    expect(localPayload.peer.local).toBe(true);
+    expect(localPayload.peer.joined_at).toBe("2026-04-17T17:40:00Z");
+    expect(localPayload.peer.last_seen).toBeUndefined();
+    expect(localPayload.peer.peer_card.peer_id).toBe("peer_storybook_local");
+
+    expect(remotePayload.peer.local).toBe(false);
+    expect(remotePayload.peer.joined_at).toBe("2026-04-17T17:42:00Z");
+    expect(remotePayload.peer.last_seen).toBe("2026-04-17T18:09:00Z");
+    expect(remotePayload.peer.peer_card.peer_id).toBe("peer_storybook_remote");
   });
 
   it("handles Storybook send requests without falling through to the real daemon", async () => {

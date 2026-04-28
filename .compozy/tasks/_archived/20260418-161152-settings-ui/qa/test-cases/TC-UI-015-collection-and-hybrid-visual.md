@@ -6,7 +6,7 @@
 **Estimated Time:** 25 minutes
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-17
-**Route:** `/settings/providers`, `/settings/environments`, `/settings/mcp-servers`, `/settings/hooks-extensions`
+**Route:** `/settings/providers`, `/sandbox`, `/settings/mcp-servers`, `/settings/hooks-extensions`
 **Traceability:** TechSpec > Design References, `task_12`, `task_13`, `task_14`
 
 ---
@@ -27,7 +27,7 @@ Verify that the collection-oriented and hybrid settings routes match the local P
 
 ### Test Steps
 
-1. Compare `/settings/providers` and `/settings/environments` with their Paper exports.
+1. Compare `/settings/providers` and `/sandbox` with their Paper exports.
    - **Expected:** List/detail layout, section framing, metadata placement, and dialog affordances align with the design references.
 
 2. Open one create/edit dialog on a collection page.

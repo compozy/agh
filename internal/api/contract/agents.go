@@ -100,12 +100,12 @@ type SpawnBudgetPayload struct {
 
 // SpawnPermissionPolicyPayload captures concrete permission atoms available to a spawned session.
 type SpawnPermissionPolicyPayload struct {
-	Tools               []string `json:"tools"`
-	Skills              []string `json:"skills"`
-	MCPServers          []string `json:"mcp_servers"`
-	WorkspacePaths      []string `json:"workspace_paths"`
-	NetworkChannels     []string `json:"network_channels"`
-	EnvironmentProfiles []string `json:"environment_profiles"`
+	Tools           []string `json:"tools"`
+	Skills          []string `json:"skills"`
+	MCPServers      []string `json:"mcp_servers"`
+	WorkspacePaths  []string `json:"workspace_paths"`
+	NetworkChannels []string `json:"network_channels"`
+	SandboxProfiles []string `json:"sandbox_profiles"`
 }
 
 // AgentCapabilityPayload describes one caller capability atom.
@@ -419,7 +419,7 @@ func NormalizeSpawnPermissionPolicyPayload(payload SpawnPermissionPolicyPayload)
 	payload.MCPServers = normalizeStrings(payload.MCPServers)
 	payload.WorkspacePaths = normalizeStrings(payload.WorkspacePaths)
 	payload.NetworkChannels = normalizeStrings(payload.NetworkChannels)
-	payload.EnvironmentProfiles = normalizeStrings(payload.EnvironmentProfiles)
+	payload.SandboxProfiles = normalizeStrings(payload.SandboxProfiles)
 	return payload
 }
 

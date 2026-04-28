@@ -28,6 +28,16 @@ A **bundled procedural instruction** that an AGH session can activate before doi
 
 ---
 
+### Sandbox
+
+The AGH execution boundary selected for a workspace or session. A sandbox profile is configured under `[sandboxes.<name>]`, selected by `sandbox_ref` or runtime flags, and carried through the session lifecycle as sandbox metadata.
+
+Implemented providers are `local` and `daytona`. Provider lifecycle surfaces use `sandbox.prepare`, `sandbox.ready`, `sandbox.sync.before`, `sandbox.sync.after`, and `sandbox.stop` hooks, plus the extension Host API methods `sandbox/list`, `sandbox/info`, and `sandbox/exec`.
+
+Do not call this product feature an `environment`. Reserve `environment`, `env`, and `environment variable` for process-level variables and operating-system context.
+
+---
+
 ### AGENT.md (frontmatter format)
 
 Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The agent directory `.agents/<name>/` is the unit of portability — it includes agent-scoped `skills/` and `memory/`.

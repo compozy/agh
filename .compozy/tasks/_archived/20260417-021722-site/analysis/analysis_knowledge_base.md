@@ -77,7 +77,7 @@ All located under `/Users/pedronauck/Dev/compozy/agh/`:
 
 ### 1.5 Compozy Task Artifacts
 
-- **Sandbox task** (`_idea.md`, `_techspec.md`, `adrs/`): Execution environment abstraction for local/Daytona/E2B providers
+- **Sandbox task** (`_idea.md`, `_techspec.md`, `adrs/`): Execution sandbox abstraction for local/Daytona/E2B providers
 - **Site task** (`analysis/`): 8 analysis files plus main synthesis document
 - **Archived tasks**: 27 prior task specs covering every major AGH subsystem
 
@@ -172,14 +172,14 @@ Located at `/Users/pedronauck/Dev/compozy/agh/.resources/`:
 
 ### 2.4 From Sandbox Task
 
-**\_idea.md** (execution environment research):
+**\_idea.md** (execution sandbox research):
 
 - AGH's execution model is currently hardcoded to local subprocess + local filesystem + daemon-owned PTYs
-- The correct abstraction is "execution environment" with local as first-class provider, Daytona/E2B as optional
+- The correct abstraction is "execution sandbox" with local as first-class provider, Daytona/E2B as optional
 - Recommendation: Daytona first (official Go SDK, workspace-like lifecycle), E2B second (transient automation)
 - Critical insight: remote execution changes launch, filesystem, terminal execution, permissions, sync, and resume -- not just the subprocess command
 
-**\_techspec.md** (execution environment implementation):
+**\_techspec.md** (execution sandbox implementation):
 
 - Three interfaces: Provider, Launcher, ToolHost
 - SSH as primary transport for Daytona (clean stdio for ACP)
@@ -354,7 +354,7 @@ Located at `/Users/pedronauck/Dev/compozy/agh/.resources/`:
 
 | Concept                                 | Why It Can Wait                                                                        |
 | --------------------------------------- | -------------------------------------------------------------------------------------- |
-| Execution environments (Daytona/E2B)    | Not yet shipped; explain when Phase 2 launches                                         |
+| Execution sandboxes (Daytona/E2B)    | Not yet shipped; explain when Phase 2 launches                                         |
 | Extension Host API                      | Developer-facing, not operator-facing                                                  |
 | Dream consolidation internals           | The user-facing story is "memory improves over time"                                   |
 | Network runtime vs protocol distinction | Important for the site, but internal to AGH's architecture -- users just see "network" |

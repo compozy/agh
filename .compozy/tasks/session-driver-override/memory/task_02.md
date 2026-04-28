@@ -23,7 +23,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 - `internal/session/{session_test.go,query_test.go,log_capture_test.go,provider_lifecycle_test.go,provider_lifecycle_integration_test.go}`
 - `internal/store/{types.go,session_liveness_test.go}`
 - `internal/observe/{observer.go,reconcile.go}`
-- `internal/daemon/environment_reconcile.go`
+- `internal/daemon/sandbox_reconcile.go`
 
 ## Errors / Corrections
 - Initial `make verify` failed on `unparam` because `resolveWorkspaceSessionAgent` returned an unused `AgentDef`; fixed by narrowing the helper to return only `ResolvedAgent` and updating its callers.

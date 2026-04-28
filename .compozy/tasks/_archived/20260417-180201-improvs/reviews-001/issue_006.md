@@ -1,6 +1,6 @@
 ---
 status: resolved
-file: internal/environment/daytona/perf_bench_test.go
+file: internal/sandbox/daytona/perf_bench_test.go
 line: 67
 severity: major
 author: coderabbitai[bot]

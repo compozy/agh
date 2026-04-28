@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that the environment abstraction layer adds negligible overhead to local session start time compared to pre-extraction baseline.
+Verify that the sandbox abstraction layer adds negligible overhead to local session start time compared to pre-extraction baseline.
 
 ---
 
@@ -21,7 +21,7 @@ Verify that the environment abstraction layer adds negligible overhead to local 
 |--------|--------|------------|--------|--------|
 | Local Prepare overhead | < 1ms | < 5ms | | [ ] |
 | Local SyncToRuntime overhead | < 1ms | < 5ms | | [ ] |
-| Total environment lifecycle overhead | < 5ms | < 10ms | | [ ] |
+| Total sandbox lifecycle overhead | < 5ms | < 10ms | | [ ] |
 
 ---
 
@@ -31,7 +31,7 @@ Verify that the environment abstraction layer adds negligible overhead to local 
    - **Expected:** Essentially zero overhead (returns immediately)
 
 2. **Measure total session start time**
-   - **Expected:** Environment lifecycle adds < 5ms to session start
+   - **Expected:** Sandbox lifecycle adds < 5ms to session start
 
 3. **Compare with pre-extraction baseline if available**
    - **Expected:** No measurable regression

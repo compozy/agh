@@ -681,7 +681,7 @@ func TestBuildAGHBinaryProducesReusableExecutable(t *testing.T) {
 	}
 }
 
-func TestBuildAGHBinaryHonorsEnvironmentOverride(t *testing.T) {
+func TestBuildAGHBinaryHonorsSandboxOverride(t *testing.T) {
 	override := filepath.Join(t.TempDir(), "agh-custom")
 	if err := os.WriteFile(override, []byte("fake"), 0o755); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", override, err)

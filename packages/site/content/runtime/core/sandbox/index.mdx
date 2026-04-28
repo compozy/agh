@@ -1,0 +1,47 @@
+---
+title: Sandbox
+description: How AGH runs sessions on the host or inside provider-backed sandboxes.
+---
+
+Sandbox is the execution boundary AGH uses for agent sessions. A workspace can keep the default
+local sandbox, or it can point at a named sandbox profile that prepares a provider-backed runtime
+before the ACP agent starts.
+
+The implemented providers are:
+
+| Backend   | Use when                                                                  | Status      |
+| --------- | ------------------------------------------------------------------------- | ----------- |
+| `local`   | The session should run on the host with AGH's normal local tool host.     | Implemented |
+| `daytona` | The session should run in a Daytona cloud sandbox with file sync enabled. | Implemented |
+
+Sandbox state is recorded on each session as `sandbox_id`, `backend`, `profile`, `instance_id`,
+`state`, sync timestamps, and provider state. Operators can inspect that state through session
+payloads, while extensions can use the sandbox lifecycle hooks and Host API methods.
+
+## Lifecycle
+
+| Phase     | What AGH does                                                                             |
+| --------- | ----------------------------------------------------------------------------------------- |
+| Prepare   | Resolves the workspace sandbox profile, allocates `sandbox_id`, and prepares the backend. |
+| Sync      | Moves files between host and runtime according to the profile's sync mode.                |
+| Launch    | Starts the ACP agent through the sandbox launcher and provider tool host.                 |
+| Stop      | Syncs back when configured, then destroys, archives, or reuses the runtime.               |
+| Reconcile | On daemon boot, reattaches or cleans up recoverable remote sandbox state.                 |
+
+## Agent-manageable surfaces
+
+| Surface                                        | Purpose                                                    |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| `agh workspace add --sandbox <name>`           | Attach a workspace to a sandbox profile.                   |
+| `agh workspace edit --sandbox <name>`          | Change a workspace's sandbox profile.                      |
+| `agh spawn --sandbox-profile <name>`           | Grant a child session permission to use a sandbox profile. |
+| `/api/settings/sandboxes`                      | Manage config-backed sandbox profiles through HTTP/UDS.    |
+| `sandbox/list`, `sandbox/info`, `sandbox/exec` | Extension Host API methods for operational sandbox access. |
+
+Lifecycle hooks use the `sandbox.*` taxonomy: `sandbox.prepare`, `sandbox.ready`,
+`sandbox.sync.before`, `sandbox.sync.after`, and `sandbox.stop`.
+
+## Next
+
+- [Profiles](/runtime/core/sandbox/profiles) documents the `config.toml` shape and workspace flags.
+- [Daytona](/runtime/core/sandbox/daytona) documents the implemented remote provider.

@@ -1,28 +1,26 @@
 ---
 status: resolved
-file: web/src/routes/_app/stories/-agents.$name.stories.tsx
-line: 87
+file: internal/api/core/workspaces.go
+line: 105
 severity: nitpick
 author: coderabbitai[bot]
-provider_ref: review:4177569108,nitpick_hash:3187700db5e5
-review_hash: 3187700db5e5
-source_review_id: "4177569108"
-source_review_submitted_at: "2026-04-26T22:35:58Z"
+provider_ref: review:4188693296,nitpick_hash:8434b2db588a
+review_hash: 8434b2db588a
+source_review_id: "4188693296"
+source_review_submitted_at: "2026-04-28T12:24:35Z"
 ---
 
-# Issue 006: Consider adding a play function to verify agent loading state.
+# Issue 006: Consider a defensive nil guard in workspaceDetailAgents.
 ## Review Comment
 
-Similar to `SessionsLoading`, the `AgentLoading` story would benefit from a `play` function to verify the loading UI is rendered.
-
----
+This helper currently assumes `resolved` is always non-nil; adding a guard would make future reuse safer.
 
 ## Triage
 
 - Decision: `VALID`
-- Notes:
-  - The `AgentLoading` route story pins `/api/agents/:name` with an infinite MSW delay but does not assert that the agent detail loading branch renders.
-  - The story should fail if the loading UI regresses instead of remaining a passive visual fixture.
-  - Fix by adding a play function that waits for the agent detail loading test id.
-  - Resolution: added a `play` function that asserts `agent-detail-loading` renders.
-  - Verification: targeted Vitest passed; `make verify` passed.
+- Notes: `workspaceDetailAgents` dereferences `resolved.Agents` without a nil guard. Current callers pass a non-nil value, but the helper has no local contract enforcement and future reuse would panic instead of returning an API error. Fix by returning an explicit error when `resolved` is nil.
+
+## Resolution
+
+- Added an explicit nil guard in `workspaceDetailAgents` that returns a normal error instead of panicking.
+- Verified through targeted Go tests and `make verify`.

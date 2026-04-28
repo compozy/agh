@@ -107,7 +107,7 @@ func classifyField(section SectionName, field string) (MutationClassification, e
 		return restartRequiredClassification(), nil
 	case strings.HasPrefix(trimmed, "mcp-servers."):
 		return restartRequiredClassification(), nil
-	case strings.HasPrefix(trimmed, "environments."):
+	case strings.HasPrefix(trimmed, "sandboxes."):
 		return restartRequiredClassification(), nil
 	case strings.HasPrefix(trimmed, "hooks."):
 		return restartRequiredClassification(), nil

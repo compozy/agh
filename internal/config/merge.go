@@ -14,24 +14,24 @@ import (
 )
 
 type configOverlay struct {
-	Daemon        daemonOverlay                 `toml:"daemon"`
-	HTTP          httpOverlay                   `toml:"http"`
-	Defaults      defaultsOverlay               `toml:"defaults"`
-	Limits        limitsOverlay                 `toml:"limits"`
-	Session       sessionOverlay                `toml:"session"`
-	Permissions   permissionsOverlay            `toml:"permissions"`
-	MCPServers    []mcpServerOverlay            `toml:"mcp_servers"`
-	Providers     map[string]providerOverlay    `toml:"providers"`
-	Environments  map[string]environmentOverlay `toml:"environments"`
-	Observability observabilityOverlay          `toml:"observability"`
-	Log           logOverlay                    `toml:"log"`
-	Memory        memoryOverlay                 `toml:"memory"`
-	Skills        skillsOverlay                 `toml:"skills"`
-	Extensions    extensionsOverlay             `toml:"extensions"`
-	Automation    automationOverlay             `toml:"automation"`
-	Hooks         hooksOverlay                  `toml:"hooks"`
-	Network       networkOverlay                `toml:"network"`
-	Autonomy      autonomyOverlay               `toml:"autonomy"`
+	Daemon        daemonOverlay              `toml:"daemon"`
+	HTTP          httpOverlay                `toml:"http"`
+	Defaults      defaultsOverlay            `toml:"defaults"`
+	Limits        limitsOverlay              `toml:"limits"`
+	Session       sessionOverlay             `toml:"session"`
+	Permissions   permissionsOverlay         `toml:"permissions"`
+	MCPServers    []mcpServerOverlay         `toml:"mcp_servers"`
+	Providers     map[string]providerOverlay `toml:"providers"`
+	Sandboxes     map[string]sandboxOverlay  `toml:"sandboxes"`
+	Observability observabilityOverlay       `toml:"observability"`
+	Log           logOverlay                 `toml:"log"`
+	Memory        memoryOverlay              `toml:"memory"`
+	Skills        skillsOverlay              `toml:"skills"`
+	Extensions    extensionsOverlay          `toml:"extensions"`
+	Automation    automationOverlay          `toml:"automation"`
+	Hooks         hooksOverlay               `toml:"hooks"`
+	Network       networkOverlay             `toml:"network"`
+	Autonomy      autonomyOverlay            `toml:"autonomy"`
 }
 
 type daemonOverlay struct {
@@ -44,9 +44,9 @@ type httpOverlay struct {
 }
 
 type defaultsOverlay struct {
-	Agent       *string `toml:"agent"`
-	Provider    *string `toml:"provider"`
-	Environment *string `toml:"environment"`
+	Agent    *string `toml:"agent"`
+	Provider *string `toml:"provider"`
+	Sandbox  *string `toml:"sandbox"`
 }
 
 type limitsOverlay struct {
@@ -82,7 +82,7 @@ type providerOverlay struct {
 	MCPServers   []mcpServerOverlay `toml:"mcp_servers"`
 }
 
-type environmentOverlay struct {
+type sandboxOverlay struct {
 	Backend     *string               `toml:"backend"`
 	SyncMode    *string               `toml:"sync_mode"`
 	Persistence *string               `toml:"persistence"`
@@ -281,10 +281,11 @@ func (o *configOverlay) Apply(dst *Config) error {
 		dst.MCPServers = applyMCPServerOverlays(dst.MCPServers, o.MCPServers)
 	}
 	applyProviderOverlays(dst, o.Providers)
-	applyEnvironmentOverlays(dst, o.Environments)
+	applySandboxOverlays(dst, o.Sandboxes)
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
 	o.Memory.Apply(&dst.Memory)
+	inheritDreamAgentFromDefaultAgent(dst, o)
 	o.Skills.Apply(&dst.Skills)
 	o.Extensions.Apply(&dst.Extensions)
 	if err := o.Automation.Apply(&dst.Automation); err != nil {
@@ -293,6 +294,20 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Network.Apply(&dst.Network)
 	o.Autonomy.Apply(&dst.Autonomy)
 	return o.Hooks.Apply(&dst.Hooks)
+}
+
+func inheritDreamAgentFromDefaultAgent(dst *Config, overlay *configOverlay) {
+	if dst == nil || overlay == nil || overlay.Defaults.Agent == nil || overlay.Memory.Dream.Agent != nil {
+		return
+	}
+	defaultAgent := strings.TrimSpace(dst.Defaults.Agent)
+	if defaultAgent == "" || defaultAgent == DefaultAgentName {
+		return
+	}
+	currentDreamAgent := strings.TrimSpace(dst.Memory.Dream.Agent)
+	if currentDreamAgent == "" || currentDreamAgent == DefaultAgentName {
+		dst.Memory.Dream.Agent = defaultAgent
+	}
 }
 
 func (o daemonOverlay) Apply(dst *DaemonConfig) {
@@ -317,8 +332,8 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 	if o.Provider != nil {
 		dst.Provider = *o.Provider
 	}
-	if o.Environment != nil {
-		dst.Environment = *o.Environment
+	if o.Sandbox != nil {
+		dst.Sandbox = *o.Sandbox
 	}
 }
 
@@ -381,7 +396,7 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	}
 }
 
-func (o environmentOverlay) Apply(dst *EnvironmentProfile) {
+func (o sandboxOverlay) Apply(dst *SandboxProfile) {
 	if o.Backend != nil {
 		dst.Backend = *o.Backend
 	}
@@ -724,18 +739,18 @@ func applyProviderOverlays(dst *Config, overlays map[string]providerOverlay) {
 	}
 }
 
-func applyEnvironmentOverlays(dst *Config, overlays map[string]environmentOverlay) {
+func applySandboxOverlays(dst *Config, overlays map[string]sandboxOverlay) {
 	if len(overlays) == 0 {
 		return
 	}
-	if dst.Environments == nil {
-		dst.Environments = make(map[string]EnvironmentProfile, len(overlays))
+	if dst.Sandboxes == nil {
+		dst.Sandboxes = make(map[string]SandboxProfile, len(overlays))
 	}
 
 	for name, overlay := range overlays {
-		profile := dst.Environments[name]
+		profile := dst.Sandboxes[name]
 		overlay.Apply(&profile)
-		dst.Environments[name] = profile
+		dst.Sandboxes[name] = profile
 	}
 }
 

@@ -888,6 +888,12 @@ func TestTaskRuntimeHelpers(t *testing.T) {
 	if got, want := taskStopCause(taskpkg.StopReasonCancellation), session.CauseUserRequested; got != want {
 		t.Fatalf("taskStopCause(cancellation) = %v, want %v", got, want)
 	}
+	if got, want := taskStopCause(taskpkg.StopReasonCompleted), session.CauseCompleted; got != want {
+		t.Fatalf("taskStopCause(completed) = %v, want %v", got, want)
+	}
+	if got, want := taskStopCause(taskpkg.StopReasonFailed), session.CauseFailed; got != want {
+		t.Fatalf("taskStopCause(failed) = %v, want %v", got, want)
+	}
 	if got, want := taskStopDetail(taskpkg.StopReasonShutdown), "task shutdown"; got != want {
 		t.Fatalf("taskStopDetail(shutdown) = %q, want %q", got, want)
 	}
@@ -896,6 +902,12 @@ func TestTaskRuntimeHelpers(t *testing.T) {
 	}
 	if got, want := taskStopDetail(taskpkg.StopReasonCancellation), "task cancellation"; got != want {
 		t.Fatalf("taskStopDetail(cancellation) = %q, want %q", got, want)
+	}
+	if got, want := taskStopDetail(taskpkg.StopReasonCompleted), "task completed"; got != want {
+		t.Fatalf("taskStopDetail(completed) = %q, want %q", got, want)
+	}
+	if got, want := taskStopDetail(taskpkg.StopReasonFailed), "task failed"; got != want {
+		t.Fatalf("taskStopDetail(failed) = %q, want %q", got, want)
 	}
 
 	live, state, err := taskSessionRuntimeState(context.Background(), &taskBridgeStopOnlySessionManager{}, "")
@@ -1445,6 +1457,12 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := requeuedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
 		t.Fatalf("requeued run status = %q, want %q", got, want)
 	}
+	if got, want := requeuedRun.NetworkChannel, "builders"; got != want {
+		t.Fatalf("requeued run network channel = %q, want %q", got, want)
+	}
+	if got, want := requeuedRun.CoordinationChannelID, "builders"; got != want {
+		t.Fatalf("requeued run coordination channel = %q, want %q", got, want)
+	}
 
 	markedRun, err := runtime.store.GetTaskRun(context.Background(), markSubmission.Run.ID)
 	if err != nil {
@@ -1453,6 +1471,12 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := markedRun.Status, taskpkg.TaskRunStatusRunning; got != want {
 		t.Fatalf("marked run status = %q, want %q", got, want)
 	}
+	if got, want := markedRun.NetworkChannel, "builders"; got != want {
+		t.Fatalf("marked run network channel = %q, want %q", got, want)
+	}
+	if got, want := markedRun.CoordinationChannelID, "builders"; got != want {
+		t.Fatalf("marked run coordination channel = %q, want %q", got, want)
+	}
 
 	failedRun, err := runtime.store.GetTaskRun(context.Background(), failSubmission.Run.ID)
 	if err != nil {
@@ -1460,6 +1484,12 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	}
 	if got, want := failedRun.Status, taskpkg.TaskRunStatusFailed; got != want {
 		t.Fatalf("failed run status = %q, want %q", got, want)
+	}
+	if got, want := failedRun.NetworkChannel, "builders"; got != want {
+		t.Fatalf("failed run network channel = %q, want %q", got, want)
+	}
+	if got, want := failedRun.CoordinationChannelID, "builders"; got != want {
+		t.Fatalf("failed run coordination channel = %q, want %q", got, want)
 	}
 }
 

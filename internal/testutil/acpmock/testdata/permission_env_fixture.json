@@ -35,14 +35,14 @@
             "prompt": "You are runner.",
             "turns": [
                 {
-                    "name": "environment-turn",
+                    "name": "sandbox-turn",
                     "match": {
                         "turn_source": "network",
-                        "user_text": "run environment"
+                        "user_text": "run sandbox"
                     },
                     "steps": [
                         {
-                            "kind": "environment_exec",
+                            "kind": "sandbox_exec",
                             "tool_call_id": "cmd-1",
                             "title": "Run fake network status",
                             "command": "agh",

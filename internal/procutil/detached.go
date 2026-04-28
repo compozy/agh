@@ -11,10 +11,10 @@ import (
 
 // DetachedLaunchRequest describes one detached process launch with log capture.
 type DetachedLaunchRequest struct {
-	Binary      string
-	Args        []string
-	Environment []string
-	LogPath     string
+	Binary  string
+	Args    []string
+	Sandbox []string
+	LogPath string
 }
 
 // DetachedProcess wraps a detached child process whose stderr/stdout were appended to a log file.
@@ -81,9 +81,9 @@ func resolveLaunchBinary(binary string) (string, error) {
 	return resolved, nil
 }
 
-func launchEnvironment(environment []string) []string {
-	if len(environment) > 0 {
-		return append([]string(nil), environment...)
+func launchSandbox(sandbox []string) []string {
+	if len(sandbox) > 0 {
+		return append([]string(nil), sandbox...)
 	}
 	return os.Environ()
 }

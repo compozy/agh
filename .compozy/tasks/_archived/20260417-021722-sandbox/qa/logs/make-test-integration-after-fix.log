@@ -18,11 +18,11 @@
 ✓  internal/bundles (1.153s)
 ✓  internal/bridgesdk (1.569s)
 ✓  extensions/bridges/gchat (3.963s)
-✓  internal/environment (1.033s)
-✓  internal/environment/local (1.071s)
+✓  internal/sandbox (1.033s)
+✓  internal/sandbox/local (1.071s)
 ✓  internal/config (1.458s)
-✓  internal/environment/providertest (1.033s)
-✓  internal/environment/daytona (1.365s)
+✓  internal/sandbox/providertest (1.033s)
+✓  internal/sandbox/daytona (1.365s)
 ✓  internal/extension/protocol (1.065s)
 ✓  internal/extension/surfaces (1.072s)
 ✓  internal/frontmatter (1.071s)
@@ -69,10 +69,10 @@
 ✓  internal/extension (1m0.997s)
 
 === Skipped
-=== SKIP: internal/environment/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
     provider_integration_test.go:20: DAYTONA_API_KEY is required for Daytona provider integration tests
 
-=== SKIP: internal/environment/daytona TestDaytonaSSHNonPTYValidation (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaSSHNonPTYValidation (0.00s)
     ssh_validation_test.go:42: DAYTONA_API_KEY is required for Daytona SSH validation
 
 === Failed

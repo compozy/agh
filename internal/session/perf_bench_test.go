@@ -11,13 +11,13 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	envpkg "github.com/pedronauck/agh/internal/environment"
+	envpkg "github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/store"
 )
 
 var benchmarkSessionTime = time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
 
-func BenchmarkDispatchEnvironmentSyncBeforeNoHooks(b *testing.B) {
+func BenchmarkDispatchSandboxSyncBeforeNoHooks(b *testing.B) {
 	root := benchmarkSessionWorkspace(b, 128)
 	manager := &Manager{
 		now: func() time.Time {
@@ -36,13 +36,13 @@ func BenchmarkDispatchEnvironmentSyncBeforeNoHooks(b *testing.B) {
 		UpdatedAt:   benchmarkSessionTime,
 	}
 	state := envpkg.SessionState{
-		EnvironmentID:  "env-bench",
+		SandboxID:      "env-bench",
 		Backend:        envpkg.BackendLocal,
 		Profile:        "local",
 		RuntimeRootDir: root,
 	}
-	meta := &store.SessionEnvironmentMeta{
-		EnvironmentID:  "env-bench",
+	meta := &store.SessionSandboxMeta{
+		SandboxID:      "env-bench",
 		Backend:        string(envpkg.BackendLocal),
 		Profile:        "local",
 		RuntimeRootDir: root,
@@ -53,7 +53,7 @@ func BenchmarkDispatchEnvironmentSyncBeforeNoHooks(b *testing.B) {
 
 	var fileCount int
 	for b.Loop() {
-		payload, err := manager.dispatchEnvironmentSyncBefore(
+		payload, err := manager.dispatchSandboxSyncBefore(
 			ctx,
 			session,
 			state,
@@ -62,13 +62,13 @@ func BenchmarkDispatchEnvironmentSyncBeforeNoHooks(b *testing.B) {
 			envpkg.SyncReasonStart,
 		)
 		if err != nil {
-			b.Fatalf("dispatchEnvironmentSyncBefore() error = %v", err)
+			b.Fatalf("dispatchSandboxSyncBefore() error = %v", err)
 		}
 		fileCount = payload.FileCount
 	}
 
 	if fileCount < 0 {
-		b.Fatalf("dispatchEnvironmentSyncBefore() file_count = %d, want non-negative", fileCount)
+		b.Fatalf("dispatchSandboxSyncBefore() file_count = %d, want non-negative", fileCount)
 	}
 }
 
@@ -133,8 +133,8 @@ func BenchmarkSessionInfo(b *testing.B) {
 			SupportedModes:      []string{"chat", "agentic"},
 			SupportedModels:     []string{"gpt-5.4"},
 		},
-		Environment: &store.SessionEnvironmentMeta{
-			EnvironmentID:         "env-bench",
+		Sandbox: &store.SessionSandboxMeta{
+			SandboxID:             "env-bench",
 			Backend:               string(envpkg.BackendLocal),
 			Profile:               "local",
 			State:                 "prepared",

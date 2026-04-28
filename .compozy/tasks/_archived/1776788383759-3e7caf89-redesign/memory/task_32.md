@@ -9,7 +9,7 @@ Phase 6 batch 2 — rewrite 5 settings sub-routes (`/settings/mcp-servers`, `/ho
 ## Important Decisions
 
 - Kept the existing hook contracts unchanged in all 5 routes. Skipped any task-plan test items that reference fields not present in the current hooks (log-level, OTLP endpoint, TLS, allowed-origins, bind-port). Task's MUST requirement ("preserve every existing hook call unchanged") and precedent from task 31 both override the speculative test-plan items.
-- `/settings/environments` switched from a card-grid to a `@agh/ui` `Table` per the task spec, but preserved the `settings-page-environments-card-<name>-*` testid prefix. Reasoning: the Dirty + DeleteProfile stories + the 11 existing unit tests all index on "card-" and changing the prefix provides zero test value for a purely presentational rewrite.
+- `/sandbox` switched from a card-grid to a `@agh/ui` `Table` per the task spec, but preserved the `settings-page-environments-card-<name>-*` testid prefix. Reasoning: the Dirty + DeleteProfile stories + the 11 existing unit tests all index on "card-" and changing the prefix provides zero test value for a purely presentational rewrite.
 - For multi-select chips (hooks-extensions allowed kinds), reused `pillToggleVariants` from `@agh/ui` directly as the className on raw `<button>` elements. Pills primitive is scalar-valued; ToggleGroup's styling doesn't match DESIGN.md §5 chip vocabulary. Keeping raw buttons + the canonical toggle style is the cleanest path.
 - MCP servers row status is rendered via `StatusDot` with `data-tone="configured"` as a visual indicator — MCP entries don't carry a reachability/health signal in the data model, so "configured = present in catalog" is the only honest semantic. Row still exposes env + args counts as before.
 - Observability overview metrics use `SettingsStatGrid` + `SettingsStatItem` (which compose `@agh/ui` `Metric`). Metric cards: Active sessions / Active agents / Storage used / Capacity %. Capacity detail = `"of soft cap"`; storage detail = `"of <cap>"`. Task spec's "sessions, events, rate" metric vocabulary doesn't match the current observability runtime (no events rate counter), so I used the real signals.
@@ -29,7 +29,7 @@ Phase 6 batch 2 — rewrite 5 settings sub-routes (`/settings/mcp-servers`, `/ho
 - `web/src/routes/_app/settings/mcp-servers.tsx` — Pills scope, Table list, Empty + Alert primitives; editor dialog swapped `<input>`/`<select>` for `Input`/`NativeSelect`.
 - `web/src/routes/_app/settings/hooks-extensions.tsx` — Table for hooks, Empty for both hooks + extensions, Alert banners, Input/NativeSelect in policy section, MonoBadge chips for hook events.
 - `web/src/routes/_app/settings/observability.tsx` — `SettingsStatGrid` + `Metric` overview row, Input for number fields, MonoBadge cap indicator.
-- `web/src/routes/_app/settings/environments.tsx` — card grid → Table, Empty primitive, Alert action banner, Input/NativeSelect in editor dialog.
+- `web/src/routes/_app/sandbox.tsx` — card grid → Table, Empty primitive, Alert action banner, Input/NativeSelect in editor dialog.
 - `web/src/routes/_app/settings/network.tsx` — Input for numeric + text fields (no legacy `<input type="number">`).
 
 **Tests**

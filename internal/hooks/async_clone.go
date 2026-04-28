@@ -30,20 +30,20 @@ func (payload EventRecordPayload) cloneForAsync() EventRecordPayload {
 	return cloneEventRecordPayload(payload)
 }
 
-func (payload EnvironmentPreparePayload) cloneForAsync() EnvironmentPreparePayload {
-	return cloneEnvironmentPreparePayload(payload)
+func (payload SandboxPreparePayload) cloneForAsync() SandboxPreparePayload {
+	return cloneSandboxPreparePayload(payload)
 }
 
-func (payload EnvironmentReadyPayload) cloneForAsync() EnvironmentReadyPayload {
-	return cloneEnvironmentReadyPayload(payload)
+func (payload SandboxReadyPayload) cloneForAsync() SandboxReadyPayload {
+	return cloneSandboxReadyPayload(payload)
 }
 
-func (payload EnvironmentSyncBeforePayload) cloneForAsync() EnvironmentSyncBeforePayload {
-	return cloneEnvironmentSyncBeforePayload(payload)
+func (payload SandboxSyncBeforePayload) cloneForAsync() SandboxSyncBeforePayload {
+	return cloneSandboxSyncBeforePayload(payload)
 }
 
-func (payload EnvironmentSyncAfterPayload) cloneForAsync() EnvironmentSyncAfterPayload {
-	return cloneEnvironmentSyncAfterPayload(payload)
+func (payload SandboxSyncAfterPayload) cloneForAsync() SandboxSyncAfterPayload {
+	return cloneSandboxSyncAfterPayload(payload)
 }
 
 func (payload AgentPreStartPayload) cloneForAsync() AgentPreStartPayload {
@@ -122,25 +122,25 @@ func (payload SpawnLifecyclePayload) cloneForAsync() SpawnLifecyclePayload {
 	return cloneSpawnLifecyclePayload(payload)
 }
 
-func cloneEnvironmentPreparePayload(payload EnvironmentPreparePayload) EnvironmentPreparePayload {
-	payload.Profile = cloneEnvironmentProfilePayload(payload.Profile)
+func cloneSandboxPreparePayload(payload SandboxPreparePayload) SandboxPreparePayload {
+	payload.Profile = cloneSandboxProfilePayload(payload.Profile)
 	payload.LocalAdditionalDirs = cloneStringSlice(payload.LocalAdditionalDirs)
 	payload.AgentEnv = cloneStringSlice(payload.AgentEnv)
 	payload.EnvOverrides = cloneStringMap(payload.EnvOverrides)
 	return payload
 }
 
-func cloneEnvironmentReadyPayload(payload EnvironmentReadyPayload) EnvironmentReadyPayload {
+func cloneSandboxReadyPayload(payload SandboxReadyPayload) SandboxReadyPayload {
 	payload.RuntimeAdditionalDirs = cloneStringSlice(payload.RuntimeAdditionalDirs)
 	return payload
 }
 
-func cloneEnvironmentSyncBeforePayload(payload EnvironmentSyncBeforePayload) EnvironmentSyncBeforePayload {
+func cloneSandboxSyncBeforePayload(payload SandboxSyncBeforePayload) SandboxSyncBeforePayload {
 	payload.ExcludePatterns = cloneStringSlice(payload.ExcludePatterns)
 	return payload
 }
 
-func cloneEnvironmentSyncAfterPayload(payload EnvironmentSyncAfterPayload) EnvironmentSyncAfterPayload {
+func cloneSandboxSyncAfterPayload(payload SandboxSyncAfterPayload) SandboxSyncAfterPayload {
 	payload.Errors = cloneStringSlice(payload.Errors)
 	return payload
 }
@@ -196,12 +196,12 @@ func clonePermissionSet(src *PermissionSet) *PermissionSet {
 		return nil
 	}
 	return &PermissionSet{
-		Tools:               cloneStringSlice(src.Tools),
-		Skills:              cloneStringSlice(src.Skills),
-		MCPServers:          cloneStringSlice(src.MCPServers),
-		WorkspacePaths:      cloneStringSlice(src.WorkspacePaths),
-		NetworkChannels:     cloneStringSlice(src.NetworkChannels),
-		EnvironmentProfiles: cloneStringSlice(src.EnvironmentProfiles),
+		Tools:           cloneStringSlice(src.Tools),
+		Skills:          cloneStringSlice(src.Skills),
+		MCPServers:      cloneStringSlice(src.MCPServers),
+		WorkspacePaths:  cloneStringSlice(src.WorkspacePaths),
+		NetworkChannels: cloneStringSlice(src.NetworkChannels),
+		SandboxProfiles: cloneStringSlice(src.SandboxProfiles),
 	}
 }
 
@@ -254,7 +254,7 @@ func cloneContextCompactPayload(payload ContextCompactPayload) ContextCompactPay
 	return payload
 }
 
-func cloneEnvironmentProfilePayload(payload EnvironmentProfilePayload) EnvironmentProfilePayload {
+func cloneSandboxProfilePayload(payload SandboxProfilePayload) SandboxProfilePayload {
 	payload.Env = cloneStringMap(payload.Env)
 	return payload
 }

@@ -25,7 +25,7 @@ Executed: 2026-04-17 23:51:22 UTC
 Exit code: 0
 Output summary: `DONE 5074 tests, 3 skipped in 82.270s`; `internal/daemon` passed in `1m14.709s`, and the new memory scenarios ran in the integration lane.
 Warnings:
-  - `internal/environment/daytona` skipped 3 tests because `DAYTONA_API_KEY` was not set.
+  - `internal/sandbox/daytona` skipped 3 tests because `DAYTONA_API_KEY` was not set.
 Errors: none
 Verdict: PASS
 

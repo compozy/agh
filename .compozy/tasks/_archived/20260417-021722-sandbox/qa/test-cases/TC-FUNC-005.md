@@ -1,4 +1,4 @@
-## TC-FUNC-005: Environment overlay merge preserves provider fields
+## TC-FUNC-005: Sandbox overlay merge preserves provider fields
 
 **Priority:** P1 (High)
 **Type:** Functional
@@ -11,14 +11,14 @@
 
 ### Objective
 
-Verify that workspace-scoped environment profile overlays merge correctly with global config, preserving provider-specific fields (Daytona, Network) across merge boundaries.
+Verify that workspace-scoped sandbox profile overlays merge correctly with global config, preserving provider-specific fields (Daytona, Network) across merge boundaries.
 
 ---
 
 ### Preconditions
 
-- [x] Config merge system supports `[environments.*]` overlay
-- [x] `environmentOverlay.Apply()` implemented
+- [x] Config merge system supports `[sandboxes.*]` overlay
+- [x] `sandboxOverlay.Apply()` implemented
 
 ---
 

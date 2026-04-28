@@ -41,8 +41,8 @@ Add the later-tier E2E scenarios that combine multiple runtime domains and intro
 See TechSpec sections "Nightly Or Credentialed E2E", "Combined-Flow Follow-Up", and "Known Risks". This task is explicitly later-tier work; do not let it leak back into the default runtime or browser lane.
 
 ### Relevant Files
-- `internal/environment/daytona/provider_integration_test.go` — credentialed environment path that belongs to the nightly or opt-in lane.
-- `internal/environment/daytona/ssh_validation_test.go` — validation reference for Daytona transport behavior in external-provider coverage.
+- `internal/sandbox/daytona/provider_integration_test.go` — credentialed environment path that belongs to the nightly or opt-in lane.
+- `internal/sandbox/daytona/ssh_validation_test.go` — validation reference for Daytona transport behavior in external-provider coverage.
 - `internal/daemon/daemon_integration_test.go` — base location for combined runtime flows that cross automation, network, task, bridge, and environment boundaries.
 - `web/e2e/` — browser-visible combined flows should extend the existing Playwright harness rather than introducing a second browser stack.
 - `Makefile` — nightly lane wiring introduced in `task_13` must pick up these scenarios without polluting default targets.
@@ -52,7 +52,7 @@ See TechSpec sections "Nightly Or Credentialed E2E", "Combined-Flow Follow-Up", 
 - `internal/testutil/e2e/artifacts.go` — may need richer multi-domain artifact capture for combined-flow failures.
 - `internal/testutil/e2e/runtime_harness.go` — may need opt-in credential and environment switches for nightly scenarios.
 - `web/e2e/fixtures/runtime.ts` — may need combined browser/runtime fixture support for nightly browser-observed flows.
-- `internal/environment/daytona/VALIDATION.md` — likely reference or update point when live credentialed scenarios are operationalized.
+- `internal/sandbox/daytona/VALIDATION.md` — likely reference or update point when live credentialed scenarios are operationalized.
 - `package.json` — root script wrappers may need an explicit nightly or opt-in command surface.
 
 ### Related ADRs

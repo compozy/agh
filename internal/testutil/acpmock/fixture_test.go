@@ -49,7 +49,7 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		}
 	})
 
-	t.Run("maps permission and environment primitives", func(t *testing.T) {
+	t.Run("maps permission and sandbox primitives", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, err := LoadFixture(filepath.Join("testdata", "permission_env_fixture.json"))
@@ -80,19 +80,19 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fixture.Agent(runner) error = %v", err)
 		}
-		environmentTurn, err := runner.SelectTurn(
-			"run environment",
+		sandboxTurn, err := runner.SelectTurn(
+			"run sandbox",
 			1,
 			acp.PromptMeta{TurnSource: acp.PromptTurnSourceNetwork},
 		)
 		if err != nil {
 			t.Fatalf("runner.SelectTurn() error = %v", err)
 		}
-		if got, want := environmentTurn.Steps[0].Kind, StepKindEnvironment; got != want {
-			t.Fatalf("environment step kind = %q, want %q", got, want)
+		if got, want := sandboxTurn.Steps[0].Kind, StepKindSandbox; got != want {
+			t.Fatalf("sandbox step kind = %q, want %q", got, want)
 		}
-		if got, want := environmentTurn.Steps[0].Command, "agh"; got != want {
-			t.Fatalf("environment step command = %q, want %q", got, want)
+		if got, want := sandboxTurn.Steps[0].Command, "agh"; got != want {
+			t.Fatalf("sandbox step command = %q, want %q", got, want)
 		}
 	})
 }
@@ -263,8 +263,8 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			want: "expect_decision",
 		},
 		{
-			name: "environment cwd must be absolute",
-			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"environment_exec","command":"agh","cwd":"relative"}]}]}]}`,
+			name: "sandbox cwd must be absolute",
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"sandbox_exec","command":"agh","cwd":"relative"}]}]}]}`,
 			want: "cwd must be absolute",
 		},
 		{
@@ -358,7 +358,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fixture.Agent(ops-coordinator) error = %v", err)
 	}
-	turn, err = ops.SelectTurn("", 2, acp.PromptMeta{
+	turn, err = ops.SelectTurn("", 1, acp.PromptMeta{
 		TurnSource: acp.PromptTurnSourceNetwork,
 		Network: &acp.PromptNetworkMeta{
 			MessageID:   "msg_direct_01",
@@ -376,6 +376,27 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	}
 	if got, want := turn.Name, "accept-direct-request"; got != want {
 		t.Fatalf("network turn.Name = %q, want %q", got, want)
+	}
+
+	capabilityCurator, err := networkFixture.Agent("capability-curator")
+	if err != nil {
+		t.Fatalf("fixture.Agent(capability-curator) error = %v", err)
+	}
+	turn, err = capabilityCurator.SelectTurn("", 1, acp.PromptMeta{
+		TurnSource: acp.PromptTurnSourceNetwork,
+		Network: &acp.PromptNetworkMeta{
+			MessageID: "msg_capability_say_01",
+			Kind:      "say",
+			Channel:   "capabilities",
+			From:      "release-bot.sess",
+			To:        "capability-curator.sess",
+		},
+	})
+	if err != nil {
+		t.Fatalf("capabilityCurator.SelectTurn(network) error = %v", err)
+	}
+	if got, want := turn.Name, "observe-capability-request"; got != want {
+		t.Fatalf("capability curator turn.Name = %q, want %q", got, want)
 	}
 }
 

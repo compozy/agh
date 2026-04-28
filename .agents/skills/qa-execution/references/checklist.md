@@ -22,7 +22,18 @@ Mark every item as complete before claiming the QA pass is done.
 - [ ] Changed workflows were exercised through public interfaces
 - [ ] At least one unchanged regression-critical workflow was exercised
 - [ ] Runtime readiness was confirmed with observable signals
-- [ ] Fixtures or fake projects were realistic and minimal
+- [ ] Scenario fixtures or disposable projects were realistic and minimal
+
+## Behavioral Real Scenario Validation
+
+- [ ] 2-4 high-risk operator/agent journeys were identified before low-level checks
+- [ ] Each journey names operator intent, expected business outcome, AGH surfaces, expected agent behavior, expected artifacts, and realistic disruption probes
+- [ ] At least one provider-backed agent session was exercised when credentials and local prerequisites were available
+- [ ] Blocked live provider/LLM validation names the exact credential, provider, or tool boundary
+- [ ] Agent behavior was verified through AGH state, not only through terminal text
+- [ ] Produced artifacts were inspected, coherent, connected to their producing session/task/channel, and used later in the scenario
+- [ ] At least one realistic disruption probe was executed and recorded
+- [ ] Smoke, CRUD, page-render, unit, integration, mock, and fake-provider checks were not counted as final behavioral proof
 
 ## Web UI Validation
 
@@ -31,6 +42,7 @@ Skip this section if the project has no Web UI surface.
 - [ ] Critical user flows were identified (3-5 flows covering changed and business-critical surfaces)
 - [ ] Each flow followed the open/snapshot/interact/re-snapshot/verify loop
 - [ ] Screenshots were captured at each verification checkpoint
+- [ ] Browser flows used real scenario state and proved the operator can understand and act on it
 - [ ] Form flows were tested with both valid and invalid data
 - [ ] Navigation flows were verified (page transitions, deep links, 404 handling)
 - [ ] Error and loading states were triggered and verified
@@ -49,6 +61,7 @@ Skip this section if the project has no Web UI surface.
 ## Final Verification
 
 - [ ] The full verification gate was rerun after the last code change
+- [ ] The highest-risk behavioral journey was rerun after the final gate
 - [ ] The most important CLI and API flows were rerun after the final gate
 - [ ] The most important Web UI flows were rerun after the final gate (when applicable)
 - [ ] A verification report was produced from fresh evidence

@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/transcript"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestBaseHandlersSessionEndpoints(t *testing.T) {
@@ -403,6 +404,94 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 	if errorResp.Code != http.StatusInternalServerError {
 		t.Fatalf("list catalog error status = %d, want %d", errorResp.Code, http.StatusInternalServerError)
 	}
+}
+
+func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should list and inspect workspace resolved agents", func(t *testing.T) {
+		t.Parallel()
+
+		const workspaceRef = "alpha"
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if ref != workspaceRef {
+						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						Agents: []aghconfig.AgentDef{
+							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
+							{Name: "qa", Provider: "codex", Prompt: "Stress test the release."},
+						},
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			agents: []aghconfig.AgentDef{
+				{Name: "extension-agent", Provider: "codex", Prompt: "Projected by extension."},
+			},
+		}
+
+		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents?workspace="+workspaceRef, nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf(
+				"list workspace agents status = %d, want %d; body = %s",
+				listResp.Code,
+				http.StatusOK,
+				listResp.Body.String(),
+			)
+		}
+		var listed contract.AgentsResponse
+		if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
+			t.Fatalf("json.Unmarshal(list workspace agents) error = %v", err)
+		}
+		if got, want := len(listed.Agents), 3; got != want {
+			t.Fatalf("len(workspace agents) = %d, want %d: %#v", got, want, listed.Agents)
+		}
+		if listed.Agents[0].Name != "extension-agent" ||
+			listed.Agents[1].Name != "founder" ||
+			listed.Agents[2].Name != "qa" {
+			t.Fatalf("workspace agent order = %#v, want extension-agent, founder, qa", listed.Agents)
+		}
+
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/founder?workspace="+workspaceRef, nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf(
+				"get workspace agent status = %d, want %d; body = %s",
+				getResp.Code,
+				http.StatusOK,
+				getResp.Body.String(),
+			)
+		}
+		var got contract.AgentResponse
+		if err := json.Unmarshal(getResp.Body.Bytes(), &got); err != nil {
+			t.Fatalf("json.Unmarshal(get workspace agent) error = %v", err)
+		}
+		if got.Agent.Name != "founder" || got.Agent.Provider != "codex" {
+			t.Fatalf("get workspace agent = %#v, want founder/codex", got.Agent)
+		}
+
+		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing?workspace="+workspaceRef, nil)
+		if missingResp.Code != http.StatusNotFound {
+			t.Fatalf(
+				"get missing workspace agent status = %d, want %d; body = %s",
+				missingResp.Code,
+				http.StatusNotFound,
+				missingResp.Body.String(),
+			)
+		}
+		if !strings.Contains(missingResp.Body.String(), "not available in workspace") {
+			t.Fatalf("get missing workspace agent body = %s, want not available message", missingResp.Body.String())
+		}
+	})
 }
 
 type stubAgentCatalog struct {

@@ -177,6 +177,21 @@ func CodegenCheck() error {
 	return nil
 }
 
+// BunLint runs the monorepo-wide lint script (oxfmt + oxlint over every workspace).
+func BunLint() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", "lint")
+}
+
+// BunTypecheck runs the monorepo-wide typecheck pipeline (turbo run typecheck across every workspace).
+func BunTypecheck() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", "typecheck")
+}
+
+// BunTest runs the monorepo-wide vitest projects suite from the repo root.
+func BunTest() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", "tests")
+}
+
 func WebLint() error {
 	return runCommandInDir(context.Background(), "web", "bun", "run", "lint")
 }
@@ -279,9 +294,9 @@ func Boundaries() error {
 func Verify() error {
 	steps := []func() error{
 		CodegenCheck,
-		WebLint,
-		WebTypecheck,
-		WebTest,
+		BunLint,
+		BunTypecheck,
+		BunTest,
 		WebBuild,
 		Fmt,
 		Lint,

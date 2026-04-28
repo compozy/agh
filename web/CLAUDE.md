@@ -24,6 +24,7 @@ No production users exist. Never sacrifice code quality for backward compatibili
 - **Follow shadcn kebab-case naming** for all files in `web/`
 - **Never add JS dependencies by hand in `package.json`** — always use `bun add`
 - **Check dependent package APIs** before writing integration code or tests
+- **Local QA against an isolated daemon MUST read `AGH_WEB_API_PROXY_TARGET` from the active bootstrap manifest/env** — never hardcode `http://localhost:2123` when `agh-qa-bootstrap` or another isolated QA envelope is in use.
 
 ## Skill Dispatch
 
@@ -54,7 +55,7 @@ Activate skills **before** writing code. Match task domain → activate all requ
 ## Build Commands
 
 ```bash
-make web-dev             # Start Vite dev server on :3000 (proxies /api to :2123)
+make web-dev             # Start Vite dev server on :3000 (proxies /api to :2123 by default; for isolated QA export AGH_WEB_API_PROXY_TARGET from bootstrap.env first)
 make web-build           # Production build (vite build + tsc --noEmit)
 make web-lint            # Format (oxfmt) + lint (oxlint)
 make web-fmt             # Format with oxfmt
@@ -127,4 +128,4 @@ Domain features are organized as **systems** under `src/systems/<domain>/`. Each
 - **Commits**: Conventional Commits + commitlint + husky + lint-staged
 - **Icons**: lucide-react
 - **Notifications**: sonner
-- **Vite proxy**: `/api` → `localhost:2123` (AGH daemon)
+- **Vite proxy**: `/api` → `localhost:2123` by default; for isolated daemon QA, read `AGH_WEB_API_PROXY_TARGET` from `<qa-output-path>/qa/bootstrap-manifest.json` or `bootstrap.env` instead of hardcoding the port

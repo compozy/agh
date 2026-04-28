@@ -1,4 +1,4 @@
-## TC-FUNC-023: Reconciliation finds sandbox by agh_environment_id
+## TC-FUNC-023: Reconciliation finds sandbox by agh_sandbox_id
 
 **Priority:** P1 (High)
 **Type:** Functional
@@ -11,13 +11,13 @@
 
 ### Objective
 
-Verify that when local metadata has `EnvironmentID` but no `InstanceID` (partial create), reconciliation uses the `Finder` interface to discover remote sandboxes by `agh_environment_id` label.
+Verify that when local metadata has `SandboxID` but no `InstanceID` (partial create), reconciliation uses the `Finder` interface to discover remote sandboxes by `agh_sandbox_id` label.
 
 ---
 
 ### Preconditions
 
-- [x] Session with `EnvironmentID` persisted but `InstanceID` empty (simulating timeout after remote create)
+- [x] Session with `SandboxID` persisted but `InstanceID` empty (simulating timeout after remote create)
 - [x] Mock provider implements `Finder` interface
 
 ---
@@ -25,8 +25,8 @@ Verify that when local metadata has `EnvironmentID` but no `InstanceID` (partial
 ### Test Steps
 
 1. **Boot with partial-create metadata**
-   - Input: `EnvironmentID = "env-123"`, `InstanceID = ""`, remote sandbox exists with `agh_environment_id = "env-123"` label
-   - **Expected:** Provider.FindEnvironment called with `EnvironmentID`, returns sandbox info
+   - Input: `SandboxID = "env-123"`, `InstanceID = ""`, remote sandbox exists with `agh_sandbox_id = "env-123"` label
+   - **Expected:** Provider.FindSandbox called with `SandboxID`, returns sandbox info
 
 2. **Verify reattach for recoverable case**
    - Input: Session is recoverable

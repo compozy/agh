@@ -172,8 +172,8 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 	if err := harness.CaptureSessionEvents(ctx, session.ID); err != nil {
 		t.Fatalf("CaptureSessionEvents() error = %v", err)
 	}
-	if err := harness.CaptureSessionEnvironment(ctx, session.ID); err != nil {
-		t.Fatalf("CaptureSessionEnvironment() error = %v", err)
+	if err := harness.CaptureSessionSandbox(ctx, session.ID); err != nil {
+		t.Fatalf("CaptureSessionSandbox() error = %v", err)
 	}
 }
 
@@ -272,13 +272,13 @@ func assertFaultPromptProjection(
 	if err := harness.CaptureSessionEvents(ctx, sessionID); err != nil {
 		t.Fatalf("CaptureSessionEvents() error = %v", err)
 	}
-	if err := harness.CaptureSessionEnvironment(ctx, sessionID); err != nil {
-		t.Fatalf("CaptureSessionEnvironment() error = %v", err)
+	if err := harness.CaptureSessionSandbox(ctx, sessionID); err != nil {
+		t.Fatalf("CaptureSessionSandbox() error = %v", err)
 	}
 
 	assertArtifactExists(t, harness, e2etest.ArtifactKindTranscript)
 	assertArtifactExists(t, harness, e2etest.ArtifactKindEvents)
-	assertArtifactExists(t, harness, e2etest.ArtifactKindSessionEnvironment)
+	assertArtifactExists(t, harness, e2etest.ArtifactKindSessionSandbox)
 }
 
 func mustHTTPSession(

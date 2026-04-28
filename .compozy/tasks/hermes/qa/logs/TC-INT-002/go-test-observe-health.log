@@ -2327,8 +2327,8 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.739s
 === CONT  TestWorkspacePayloadPreservesOmitEmptyBehavior/Should_preserve_workspace_omit-empty_behavior
 --- PASS: TestWorkspacePayloadPreservesOmitEmptyBehavior (0.00s)
     --- PASS: TestWorkspacePayloadPreservesOmitEmptyBehavior/Should_preserve_workspace_omit-empty_behavior (0.00s)
-=== RUN   TestWorkspaceEnvironmentRefJSONFields
-=== PAUSE TestWorkspaceEnvironmentRefJSONFields
+=== RUN   TestWorkspaceSandboxRefJSONFields
+=== PAUSE TestWorkspaceSandboxRefJSONFields
 === RUN   TestAgentEventPayloadRoundTripsThroughJSON
 === PAUSE TestAgentEventPayloadRoundTripsThroughJSON
 === RUN   TestAutomationJobPayloadJSONShape
@@ -2382,7 +2382,7 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.739s
 === RUN   TestUpdateTaskRequestHasChanges/Should_return_true_when_clear_owner_is_set
 === PAUSE TestUpdateTaskRequestHasChanges/Should_return_true_when_clear_owner_is_set
 === CONT  TestUpdateTaskRequestHasChanges/Should_return_false_when_no_task_changes_are_set
-=== CONT  TestWorkspaceEnvironmentRefJSONFields
+=== CONT  TestWorkspaceSandboxRefJSONFields
 === CONT  TestUpdateTaskRequestHasChanges/Should_return_true_when_title_is_set
 === CONT  TestCreateSessionRequestJSONShape
 === CONT  TestUpdateTaskRequestHasChanges/Should_return_true_when_clear_owner_is_set
@@ -2418,7 +2418,7 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.739s
 === PAUSE TestBridgeJSONPayloadsRejectInvalidShapes/delivery_defaults_rejects_unsupported_field
 === RUN   TestCreateSessionRequestJSONShape/Should_omit_provider_cleanly_when_absent
 === RUN   TestBridgeJSONPayloadsRejectInvalidShapes/delivery_defaults_rejects_thread_without_peer_or_group
-=== RUN   TestWorkspaceEnvironmentRefJSONFields/Should_serialize_create_workspace_environment_ref
+=== RUN   TestWorkspaceSandboxRefJSONFields/Should_serialize_create_workspace_sandbox_ref
 === CONT  TestAutomationUpdateRequestsHasChanges/Should_report_changes_for_automation_job_update_requests
 === RUN   TestAutomationUpdateRequestsHasChanges/Should_report_changes_for_automation_job_update_requests/Should_return_false_for_an_empty_job_update
 === PAUSE TestBridgeJSONPayloadsRejectInvalidShapes/delivery_defaults_rejects_thread_without_peer_or_group
@@ -2568,14 +2568,14 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.739s
 === CONT  TestAutomationUpdateRequestsHasChanges/Should_report_changes_for_automation_job_update_requests/Should_return_true_when_the_job_prompt_is_set
 === CONT  TestUpdateTaskRequestHasChangesIncludesExpandedFields/Should_report_no_changes_for_an_empty_request
 === CONT  TestAutomationUpdateRequestsHasChanges/Should_report_changes_for_automation_job_update_requests/Should_return_true_when_the_job_fire_limit_is_set
-=== PAUSE TestWorkspaceEnvironmentRefJSONFields/Should_serialize_create_workspace_environment_ref
+=== PAUSE TestWorkspaceSandboxRefJSONFields/Should_serialize_create_workspace_sandbox_ref
 --- PASS: TestTaskRunPayloadJSONShape (0.00s)
     --- PASS: TestTaskRunPayloadJSONShape/Should_marshal_task_run_payload_JSON_shape (0.00s)
     --- PASS: TestTaskRunPayloadJSONShape/Should_omit_zero-valued_optional_run_timestamps (0.00s)
 --- PASS: TestBridgeTestDeliveryRequestAcceptsExplicitMatchingInstanceID (0.00s)
-=== RUN   TestWorkspaceEnvironmentRefJSONFields/Should_include_workspace_payload_environment_ref
+=== RUN   TestWorkspaceSandboxRefJSONFields/Should_include_workspace_payload_sandbox_ref
 === CONT  TestTaskContractsMarshalLiveDashboardAndInboxPayloads
-=== PAUSE TestWorkspaceEnvironmentRefJSONFields/Should_include_workspace_payload_environment_ref
+=== PAUSE TestWorkspaceSandboxRefJSONFields/Should_include_workspace_payload_sandbox_ref
 === CONT  TestAutomationUpdateRequestsHasChanges/Should_report_changes_for_automation_job_update_requests/Should_return_true_when_the_job_retry_policy_is_set
 --- PASS: TestBridgeRoutesResponseJSONShape (0.00s)
 --- PASS: TestBridgeJSONPayloadsMarshalAndUnmarshal (0.00s)
@@ -2584,7 +2584,7 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.739s
     --- PASS: TestBridgeJSONPayloadsMarshalAndUnmarshal/delivery_defaults_null_stays_null (0.00s)
     --- PASS: TestBridgeJSONPayloadsMarshalAndUnmarshal/provider_config_blank_marshals_to_null (0.00s)
 === CONT  TestAutomationUpdateRequestsHasChanges/Should_report_changes_for_automation_job_update_requests/Should_return_true_when_the_job_enabled_flag_is_set
-=== CONT  TestWorkspaceEnvironmentRefJSONFields/Should_serialize_create_workspace_environment_ref
+=== CONT  TestWorkspaceSandboxRefJSONFields/Should_serialize_create_workspace_sandbox_ref
 === CONT  TestBridgeJSONPayloadsRejectInvalidShapes/delivery_defaults_rejects_thread_without_peer_or_group
 === CONT  TestBridgeJSONPayloadsRejectInvalidShapes/delivery_defaults_rejects_unsupported_field
 === CONT  TestAutomationUpdateRequestsHasChanges/Should_report_changes_for_automation_job_update_requests/Should_return_true_when_the_job_workspace_id_is_set
@@ -2663,14 +2663,14 @@ ok  	github.com/pedronauck/agh/internal/api/core	0.739s
 === CONT  TestTaskContractsMarshalExpandedTaskReadModels/Should_marshal_summary_dependency_reference_keys
 === CONT  TestCreateBridgeRequestValidation/routing_policy_rejects_thread_without_peer_or_group
 === CONT  TestCreateBridgeRequestValidation/workspace_scope_requires_workspace_id
-=== CONT  TestWorkspaceEnvironmentRefJSONFields/Should_include_workspace_payload_environment_ref
+=== CONT  TestWorkspaceSandboxRefJSONFields/Should_include_workspace_payload_sandbox_ref
 === CONT  TestCreateBridgeRequestValidation/global_scope_rejects_workspace_id
 --- PASS: TestTaskContractsMarshalExpandedTaskReadModels (0.00s)
     --- PASS: TestTaskContractsMarshalExpandedTaskReadModels/Should_marshal_task_detail_payload_keys (0.00s)
     --- PASS: TestTaskContractsMarshalExpandedTaskReadModels/Should_marshal_summary_dependency_reference_keys (0.00s)
---- PASS: TestWorkspaceEnvironmentRefJSONFields (0.00s)
-    --- PASS: TestWorkspaceEnvironmentRefJSONFields/Should_serialize_create_workspace_environment_ref (0.00s)
-    --- PASS: TestWorkspaceEnvironmentRefJSONFields/Should_include_workspace_payload_environment_ref (0.00s)
+--- PASS: TestWorkspaceSandboxRefJSONFields (0.00s)
+    --- PASS: TestWorkspaceSandboxRefJSONFields/Should_serialize_create_workspace_sandbox_ref (0.00s)
+    --- PASS: TestWorkspaceSandboxRefJSONFields/Should_include_workspace_payload_sandbox_ref (0.00s)
 --- PASS: TestCreateBridgeRequestValidation (0.00s)
     --- PASS: TestCreateBridgeRequestValidation/routing_policy_rejects_thread_without_peer_or_group (0.00s)
     --- PASS: TestCreateBridgeRequestValidation/workspace_scope_requires_workspace_id (0.00s)

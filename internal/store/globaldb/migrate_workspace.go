@@ -115,15 +115,15 @@ func migrateWorkspaceColumns(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := columns["environment_ref"]; ok {
+	if _, ok := columns["sandbox_ref"]; ok {
 		return nil
 	}
 
 	if _, err := db.ExecContext(
 		ctx,
-		`ALTER TABLE workspaces ADD COLUMN environment_ref TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE workspaces ADD COLUMN sandbox_ref TEXT NOT NULL DEFAULT ''`,
 	); err != nil {
-		return fmt.Errorf("store: add workspaces.environment_ref column: %w", err)
+		return fmt.Errorf("store: add workspaces.sandbox_ref column: %w", err)
 	}
 	return nil
 }
@@ -603,28 +603,28 @@ func sessionColumnSpecs() []migrationColumnSpec {
 		{name: "stall_state", sql: `ALTER TABLE sessions ADD COLUMN stall_state TEXT NOT NULL DEFAULT ''`},
 		{name: "stall_reason", sql: `ALTER TABLE sessions ADD COLUMN stall_reason TEXT NOT NULL DEFAULT ''`},
 		{name: "activity_json", sql: `ALTER TABLE sessions ADD COLUMN activity_json TEXT NOT NULL DEFAULT ''`},
-		{name: "environment_id", sql: `ALTER TABLE sessions ADD COLUMN environment_id TEXT NOT NULL DEFAULT ''`},
+		{name: "sandbox_id", sql: `ALTER TABLE sessions ADD COLUMN sandbox_id TEXT NOT NULL DEFAULT ''`},
 		{
-			name: "environment_backend",
-			sql:  `ALTER TABLE sessions ADD COLUMN environment_backend TEXT NOT NULL DEFAULT 'local'`,
+			name: "sandbox_backend",
+			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_backend TEXT NOT NULL DEFAULT 'local'`,
 		},
 		{
-			name: "environment_profile",
-			sql:  `ALTER TABLE sessions ADD COLUMN environment_profile TEXT NOT NULL DEFAULT ''`,
+			name: "sandbox_profile",
+			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_profile TEXT NOT NULL DEFAULT ''`,
 		},
 		{
-			name: "environment_instance_id",
-			sql:  `ALTER TABLE sessions ADD COLUMN environment_instance_id TEXT NOT NULL DEFAULT ''`,
+			name: "sandbox_instance_id",
+			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_instance_id TEXT NOT NULL DEFAULT ''`,
 		},
-		{name: "environment_state", sql: `ALTER TABLE sessions ADD COLUMN environment_state TEXT NOT NULL DEFAULT ''`},
+		{name: "sandbox_state", sql: `ALTER TABLE sessions ADD COLUMN sandbox_state TEXT NOT NULL DEFAULT ''`},
 		{
-			name: "environment_provider_state_json",
-			sql:  `ALTER TABLE sessions ADD COLUMN environment_provider_state_json TEXT NOT NULL DEFAULT ''`,
+			name: "sandbox_provider_state_json",
+			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_provider_state_json TEXT NOT NULL DEFAULT ''`,
 		},
-		{name: "environment_last_sync_at", sql: `ALTER TABLE sessions ADD COLUMN environment_last_sync_at TEXT`},
+		{name: "sandbox_last_sync_at", sql: `ALTER TABLE sessions ADD COLUMN sandbox_last_sync_at TEXT`},
 		{
-			name: "environment_last_sync_error",
-			sql:  `ALTER TABLE sessions ADD COLUMN environment_last_sync_error TEXT NOT NULL DEFAULT ''`,
+			name: "sandbox_last_sync_error",
+			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_last_sync_error TEXT NOT NULL DEFAULT ''`,
 		},
 		{name: "parent_session_id", sql: `ALTER TABLE sessions ADD COLUMN parent_session_id TEXT`},
 		{name: "root_session_id", sql: `ALTER TABLE sessions ADD COLUMN root_session_id TEXT`},
@@ -664,6 +664,61 @@ func migrateSessionFailureColumns(ctx context.Context, tx *sql.Tx) error {
 		}
 		if _, err := tx.ExecContext(ctx, column.sql); err != nil {
 			return fmt.Errorf("store: add sessions.%s column: %w", column.name, err)
+		}
+	}
+	return nil
+}
+
+func migrateSandboxColumnNames(ctx context.Context, tx *sql.Tx) error {
+	renames := map[string][]struct {
+		oldName string
+		newName string
+	}{
+		"workspaces": {
+			{oldName: "environment_ref", newName: "sandbox_ref"},
+		},
+		"sessions": {
+			{oldName: "environment_id", newName: "sandbox_id"},
+			{oldName: "environment_backend", newName: "sandbox_backend"},
+			{oldName: "environment_profile", newName: "sandbox_profile"},
+			{oldName: "environment_instance_id", newName: "sandbox_instance_id"},
+			{oldName: "environment_state", newName: "sandbox_state"},
+			{oldName: "environment_provider_state_json", newName: "sandbox_provider_state_json"},
+			{oldName: "environment_last_sync_at", newName: "sandbox_last_sync_at"},
+			{oldName: "environment_last_sync_error", newName: "sandbox_last_sync_error"},
+		},
+		"tool_processes": {
+			{oldName: "environment_id", newName: "sandbox_id"},
+		},
+	}
+	for table, specs := range renames {
+		exists, err := tableExists(ctx, tx, table)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			continue
+		}
+		columns, err := tableColumns(ctx, tx, table)
+		if err != nil {
+			return err
+		}
+		for _, spec := range specs {
+			if _, ok := columns[spec.newName]; ok {
+				continue
+			}
+			if _, ok := columns[spec.oldName]; !ok {
+				continue
+			}
+			stmt := fmt.Sprintf(
+				`ALTER TABLE %s RENAME COLUMN %s TO %s`,
+				table,
+				spec.oldName,
+				spec.newName,
+			)
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("store: rename %s.%s to %s: %w", table, spec.oldName, spec.newName, err)
+			}
 		}
 	}
 	return nil
@@ -963,7 +1018,7 @@ func ensureMigratedWorkspaces(
 		workspaceID := store.NewID("ws")
 		if _, err := tx.ExecContext(
 			ctx,
-			`INSERT INTO workspaces (id, root_dir, add_dirs, name, default_agent, environment_ref, created_at, updated_at)
+			`INSERT INTO workspaces (id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at)
 			 VALUES (?, ?, '[]', ?, '', '', ?, ?)`,
 			workspaceID,
 			rootDir,
@@ -998,14 +1053,14 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 			failure_kind   TEXT,
 			failure_summary TEXT NOT NULL DEFAULT '',
 			crash_bundle_path TEXT NOT NULL DEFAULT '',
-			environment_id TEXT NOT NULL DEFAULT '',
-			environment_backend TEXT NOT NULL DEFAULT 'local',
-			environment_profile TEXT NOT NULL DEFAULT '',
-			environment_instance_id TEXT NOT NULL DEFAULT '',
-			environment_state TEXT NOT NULL DEFAULT '',
-			environment_provider_state_json TEXT NOT NULL DEFAULT '',
-			environment_last_sync_at TEXT,
-			environment_last_sync_error TEXT NOT NULL DEFAULT '',
+			sandbox_id TEXT NOT NULL DEFAULT '',
+			sandbox_backend TEXT NOT NULL DEFAULT 'local',
+			sandbox_profile TEXT NOT NULL DEFAULT '',
+			sandbox_instance_id TEXT NOT NULL DEFAULT '',
+			sandbox_state TEXT NOT NULL DEFAULT '',
+			sandbox_provider_state_json TEXT NOT NULL DEFAULT '',
+			sandbox_last_sync_at TEXT,
+			sandbox_last_sync_error TEXT NOT NULL DEFAULT '',
 			created_at     TEXT NOT NULL,
 			updated_at     TEXT NOT NULL
 		);`,
@@ -1066,7 +1121,7 @@ func copyMigratedSessions(
 			ctx,
 			`INSERT INTO sessions_new (
 				id, name, agent_name, provider, workspace_id, session_type, channel, state, acp_session_id,
-				environment_backend, environment_profile, created_at, updated_at
+				sandbox_backend, sandbox_profile, created_at, updated_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			row.ID,
 			nullStringValue(row.Name),

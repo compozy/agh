@@ -1,6 +1,6 @@
 ---
 status: resolved
-file: internal/environment/daytona/provider.go
+file: internal/sandbox/daytona/provider.go
 line: 38
 severity: major
 author: coderabbitai[bot]

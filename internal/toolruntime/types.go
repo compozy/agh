@@ -39,12 +39,12 @@ const (
 type ProcessSource string
 
 const (
-	ProcessSourceACPAgent            ProcessSource = "acp_agent"
-	ProcessSourceACPTerminal         ProcessSource = "acp_terminal"
-	ProcessSourceEnvironmentTerminal ProcessSource = "environment_terminal"
-	ProcessSourceHook                ProcessSource = "hook"
-	ProcessSourceExtension           ProcessSource = "extension"
-	ProcessSourceSubprocess          ProcessSource = "subprocess"
+	ProcessSourceACPAgent        ProcessSource = "acp_agent"
+	ProcessSourceACPTerminal     ProcessSource = "acp_terminal"
+	ProcessSourceSandboxTerminal ProcessSource = "sandbox_terminal"
+	ProcessSourceHook            ProcessSource = "hook"
+	ProcessSourceExtension       ProcessSource = "extension"
+	ProcessSourceSubprocess      ProcessSource = "subprocess"
 )
 
 // ProcessOwner captures stable owner IDs used for scoped interrupts.
@@ -55,7 +55,7 @@ type ProcessOwner struct {
 	TerminalID    string
 	ExtensionName string
 	HookName      string
-	EnvironmentID string
+	SandboxID     string
 }
 
 // ProcessRecord is the checkpointed process ownership record.
@@ -202,7 +202,7 @@ func normalizeOwner(owner ProcessOwner) ProcessOwner {
 		TerminalID:    strings.TrimSpace(owner.TerminalID),
 		ExtensionName: strings.TrimSpace(owner.ExtensionName),
 		HookName:      strings.TrimSpace(owner.HookName),
-		EnvironmentID: strings.TrimSpace(owner.EnvironmentID),
+		SandboxID:     strings.TrimSpace(owner.SandboxID),
 	}
 }
 
@@ -224,7 +224,7 @@ func (s ProcessSource) Validate() error {
 	switch s {
 	case ProcessSourceACPAgent,
 		ProcessSourceACPTerminal,
-		ProcessSourceEnvironmentTerminal,
+		ProcessSourceSandboxTerminal,
 		ProcessSourceHook,
 		ProcessSourceExtension,
 		ProcessSourceSubprocess:

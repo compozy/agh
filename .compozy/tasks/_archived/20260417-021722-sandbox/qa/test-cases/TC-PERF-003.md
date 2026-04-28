@@ -1,4 +1,4 @@
-## TC-PERF-003: Environment reconciliation boot time
+## TC-PERF-003: Sandbox reconciliation boot time
 
 **Priority:** P2 (Medium)
 **Type:** Performance
@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that environment reconciliation during daemon boot does not add significant latency, especially when there are no remote sessions to reconcile.
+Verify that sandbox reconciliation during daemon boot does not add significant latency, especially when there are no remote sessions to reconcile.
 
 ---
 

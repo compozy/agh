@@ -650,6 +650,10 @@ func taskSessionName(spec *taskpkg.StartTaskSession) string {
 
 func taskStopCause(reason taskpkg.StopReason) session.StopCause {
 	switch reason.Normalize() {
+	case taskpkg.StopReasonCompleted:
+		return session.CauseCompleted
+	case taskpkg.StopReasonFailed:
+		return session.CauseFailed
 	case taskpkg.StopReasonShutdown:
 		return session.CauseShutdown
 	case taskpkg.StopReasonOrphanedRun:
@@ -661,6 +665,10 @@ func taskStopCause(reason taskpkg.StopReason) session.StopCause {
 
 func taskStopDetail(reason taskpkg.StopReason) string {
 	switch reason.Normalize() {
+	case taskpkg.StopReasonCompleted:
+		return "task completed"
+	case taskpkg.StopReasonFailed:
+		return "task failed"
 	case taskpkg.StopReasonShutdown:
 		return taskStopDetailShutdown
 	case taskpkg.StopReasonOrphanedRun:

@@ -141,7 +141,7 @@ All production `select` sites are cancellation-aware or use the writer-owned shu
 
 | ID | Skill | Severity | File:Line | Summary | Decision |
 | -- | ----- | -------- | --------- | ------- | -------- |
-| 01 | refactoring-analysis | medium | `internal/store/globaldb/global_db_session.go:392` | `scanSessionEnvironment` silently discarded malformed persisted `environment_last_sync_at` values instead of surfacing store corruption. | fixed |
+| 01 | refactoring-analysis | medium | `internal/store/globaldb/global_db_session.go:392` | `scanSessionSandbox` silently discarded malformed persisted `sandbox_last_sync_at` values instead of surfacing store corruption. | fixed |
 | 02 | extreme-software-optimization | low | `internal/store/globaldb/global_db_bridge.go:231` | `ReplaceBridgeInstances` normalized and JSON-prepared every bridge instance twice per batch swap. | fixed |
 | 03 | refactoring-analysis | medium | `internal/store/globaldb/global_db_automation.go:1` | Job/trigger CRUD and query logic remain duplicated inside a 1627-LOC file. | deferred — needs a broader package-local extraction pass than this focused improvements task. |
 | 04 | refactoring-analysis | medium | `internal/store/globaldb/migrate_workspace.go:1` | The migration orchestrator still combines many schema-rewrite flows in a 1008-LOC file. | deferred — splitting migration epochs/tables is structural work that would widen this pass substantially. |
@@ -150,7 +150,7 @@ All production `select` sites are cancellation-aware or use the writer-owned shu
 
 ### refactoring-analysis
 
-- Fixed the inconsistent timestamp-parse behavior in `scanSessionEnvironment` so corrupted persisted `environment_last_sync_at` values now fail the scan instead of being silently dropped.
+- Fixed the inconsistent timestamp-parse behavior in `scanSessionSandbox` so corrupted persisted `sandbox_last_sync_at` values now fail the scan instead of being silently dropped.
 - Large-file and duplication pressure remains concentrated in `globaldb`, especially the paired job/trigger helpers in `global_db_automation.go` and the schema migration aggregator in `migrate_workspace.go`; both are deferred because they require broader structural extraction than this focused pass.
 
 ### extreme-software-optimization

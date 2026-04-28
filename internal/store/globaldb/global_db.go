@@ -41,7 +41,7 @@ var globalSchemaStatements = append([]string{
 		add_dirs      TEXT NOT NULL DEFAULT '[]',
 		name          TEXT NOT NULL UNIQUE,
 		default_agent TEXT DEFAULT '',
-		environment_ref TEXT NOT NULL DEFAULT '',
+		sandbox_ref TEXT NOT NULL DEFAULT '',
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL
 	);`,
@@ -64,14 +64,14 @@ var globalSchemaStatements = append([]string{
 		stall_state    TEXT NOT NULL DEFAULT '',
 		stall_reason   TEXT NOT NULL DEFAULT '',
 		activity_json  TEXT NOT NULL DEFAULT '',
-		environment_id TEXT NOT NULL DEFAULT '',
-		environment_backend TEXT NOT NULL DEFAULT 'local',
-		environment_profile TEXT NOT NULL DEFAULT '',
-		environment_instance_id TEXT NOT NULL DEFAULT '',
-		environment_state TEXT NOT NULL DEFAULT '',
-		environment_provider_state_json TEXT NOT NULL DEFAULT '',
-		environment_last_sync_at TEXT,
-		environment_last_sync_error TEXT NOT NULL DEFAULT '',
+		sandbox_id TEXT NOT NULL DEFAULT '',
+		sandbox_backend TEXT NOT NULL DEFAULT 'local',
+		sandbox_profile TEXT NOT NULL DEFAULT '',
+		sandbox_instance_id TEXT NOT NULL DEFAULT '',
+		sandbox_state TEXT NOT NULL DEFAULT '',
+		sandbox_provider_state_json TEXT NOT NULL DEFAULT '',
+		sandbox_last_sync_at TEXT,
+		sandbox_last_sync_error TEXT NOT NULL DEFAULT '',
 		created_at     TEXT NOT NULL,
 		updated_at     TEXT NOT NULL
 	);`,
@@ -500,6 +500,7 @@ var globalSchemaMigrations = []store.Migration{
 		Version:    1,
 		Name:       "create_global_schema",
 		Statements: globalSchemaStatements,
+		Checksum:   "70e2c16c9d32e692891ab71d075ca823782626e7c9f6ffbbc88c5d662704e089",
 	},
 	{
 		Version:  2,
@@ -569,6 +570,12 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "add_session_lineage_metadata",
 		Up:       migrateSessionLineageColumns,
 		Checksum: "2026-04-26-add-session-lineage-metadata",
+	},
+	{
+		Version:  9,
+		Name:     "rename_environment_columns_to_sandbox",
+		Up:       migrateSandboxColumnNames,
+		Checksum: "2026-04-28-rename-environment-columns-to-sandbox",
 	},
 }
 

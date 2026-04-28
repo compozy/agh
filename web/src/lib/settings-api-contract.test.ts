@@ -92,7 +92,7 @@ describe("settings openapi contract", () => {
     >();
 
     expectTypeOf<ListSettingsMCPServersResponse["collection"]>().toEqualTypeOf<
-      "providers" | "mcp-servers" | "environments" | "hooks"
+      "providers" | "mcp-servers" | "sandboxes" | "hooks"
     >();
     expectTypeOf<ListSettingsMCPServersResponse["scope"]>().toEqualTypeOf<"global" | "workspace">();
     expectTypeOf<ListSettingsMCPServersResponse["workspace_id"]>().toEqualTypeOf<

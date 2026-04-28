@@ -18,7 +18,7 @@ Verify that tar extraction rejects archives containing absolute paths, `..` trav
 
 ### Preconditions
 
-- [x] `extractTar()` function available in `internal/environment/daytona/tar.go`
+- [x] `extractTar()` function available in `internal/sandbox/daytona/tar.go`
 
 ---
 

@@ -84,7 +84,7 @@ func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
 				HomePaths:   homePaths,
 				OperationID: strings.TrimSpace(os.Getenv(aghdaemon.RestartOperationEnvKey)),
 				Executable:  deps.executable,
-				Environment: os.Environ(),
+				Sandbox:     os.Environ(),
 			})
 		},
 	}
@@ -493,10 +493,10 @@ func spawnDetachedDaemonProcess(
 	}
 
 	child, err := procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
-		Binary:      binary,
-		Args:        []string{"daemon", "start", "--foreground", "--" + internalChildFlagName},
-		Environment: os.Environ(),
-		LogPath:     homePaths.LogFile,
+		Binary:  binary,
+		Args:    []string{"daemon", "start", "--foreground", "--" + internalChildFlagName},
+		Sandbox: os.Environ(),
+		LogPath: homePaths.LogFile,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cli: spawn detached daemon: %w", err)

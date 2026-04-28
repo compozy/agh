@@ -39,7 +39,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	getCalls := 0
 	networkChannelsCalled := false
 	client := &stubClient{
-		getAgentFn: func(context.Context, string) (AgentRecord, error) {
+		getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
 			return AgentRecord{Name: "coder", Provider: "fake", Prompt: "hi"}, nil
 		},
 		networkStatusFn: func(context.Context) (NetworkStatusRecord, error) {

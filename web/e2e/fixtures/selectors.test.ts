@@ -199,18 +199,18 @@ describe("settings operator selectors", () => {
 
     expect(selectors.providers.page).toBe(`locator:${settingsProvidersTestIds.page}`);
     expect(selectors.providers.create).toBe(`locator:${settingsProvidersTestIds.create}`);
-    expect(selectors.providers.row("codex")).toBe("locator:settings-page-providers-row-codex");
-    expect(selectors.providers.rowCommand("codex")).toBe(
-      "locator:settings-page-providers-row-codex-command"
+    expect(selectors.providers.card("codex")).toBe("locator:settings-page-providers-card-codex");
+    expect(selectors.providers.cardCommand("codex")).toBe(
+      "locator:settings-page-providers-card-codex-command"
     );
-    expect(selectors.providers.rowSource("codex")).toBe(
-      "locator:settings-page-providers-row-codex-source"
+    expect(selectors.providers.cardSource("codex")).toBe(
+      "locator:settings-page-providers-card-codex-source"
     );
-    expect(selectors.providers.editRow("codex")).toBe(
-      "locator:settings-page-providers-row-codex-edit"
+    expect(selectors.providers.editCard("codex")).toBe(
+      "locator:settings-page-providers-card-codex-edit"
     );
-    expect(selectors.providers.deleteRow("codex")).toBe(
-      "locator:settings-page-providers-row-codex-delete"
+    expect(selectors.providers.deleteCard("codex")).toBe(
+      "locator:settings-page-providers-card-codex-delete"
     );
 
     expect(selectors.mcpServers.page).toBe(`locator:${settingsMCPServersTestIds.page}`);

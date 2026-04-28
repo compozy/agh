@@ -1,4 +1,4 @@
-## TC-INT-007: Workspace CRUD exposes environment_ref via API
+## TC-INT-007: Workspace CRUD exposes sandbox_ref via API
 
 **Priority:** P2 (Medium)
 **Type:** Integration
@@ -11,23 +11,23 @@
 
 ### Objective
 
-Verify that workspace create/read/update API contracts correctly include `environment_ref`, and the field persists through the full CRUD cycle.
+Verify that workspace create/read/update API contracts correctly include `sandbox_ref`, and the field persists through the full CRUD cycle.
 
 ---
 
 ### Test Steps
 
-1. **Create workspace via API with environment_ref**
-   - Input: `CreateWorkspaceRequest` with `environment_ref: "daytona-dev"`
-   - **Expected:** Response `WorkspacePayload` includes `environment_ref: "daytona-dev"`
+1. **Create workspace via API with sandbox_ref**
+   - Input: `CreateWorkspaceRequest` with `sandbox_ref: "daytona-dev"`
+   - **Expected:** Response `WorkspacePayload` includes `sandbox_ref: "daytona-dev"`
 
 2. **Read workspace**
-   - **Expected:** `environment_ref` field present in response
+   - **Expected:** `sandbox_ref` field present in response
 
-3. **Update workspace environment_ref**
-   - Input: `UpdateWorkspaceRequest` with `environment_ref: "local-dev"`
-   - **Expected:** Updated workspace shows `environment_ref: "local-dev"`
+3. **Update workspace sandbox_ref**
+   - Input: `UpdateWorkspaceRequest` with `sandbox_ref: "local-dev"`
+   - **Expected:** Updated workspace shows `sandbox_ref: "local-dev"`
 
-4. **Clear environment_ref**
-   - Input: `UpdateWorkspaceRequest` with `environment_ref: ""`
+4. **Clear sandbox_ref**
+   - Input: `UpdateWorkspaceRequest` with `sandbox_ref: ""`
    - **Expected:** Workspace reverts to empty (will resolve to default)

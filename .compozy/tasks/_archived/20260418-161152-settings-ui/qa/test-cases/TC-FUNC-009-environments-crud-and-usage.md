@@ -6,7 +6,7 @@
 **Estimated Time:** 15 minutes
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-17
-**Route:** `/settings/environments`
+**Route:** `/sandbox`
 **Traceability:** `task_12`, ADR-002, TechSpec > Data Models, Collection mutation semantics
 
 ---
@@ -27,7 +27,7 @@ Verify that the Environments route supports list/detail/create/edit/delete flows
 
 ### Test Steps
 
-1. Open `/settings/environments`.
+1. Open `/sandbox`.
    - **Expected:** The route shows the environment list, detail state, usage counts, and create/edit/delete controls.
 
 2. Create a new environment such as `qa-env-temp`.
@@ -51,7 +51,7 @@ Verify that the Environments route supports list/detail/create/edit/delete flows
 
 | Field | Value | Notes |
 |-------|-------|-------|
-| Route | `/settings/environments` | Environments collection route |
+| Route | `/sandbox` | Environments collection route |
 | Temporary environment | `qa-env-temp` | Disposable test record |
 
 ---

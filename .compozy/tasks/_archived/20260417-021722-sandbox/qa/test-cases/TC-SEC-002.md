@@ -12,7 +12,7 @@
 
 ### Objective
 
-Verify that the environment variable allowlist in `internal/environment/daytona/env.go` prevents `DAYTONA_API_KEY`, `DAYTONA_JWT_TOKEN`, and other daemon-internal secrets from being propagated to remote sandboxes.
+Verify that the environment variable allowlist in `internal/sandbox/daytona/env.go` prevents `DAYTONA_API_KEY`, `DAYTONA_JWT_TOKEN`, and other daemon-internal secrets from being propagated to remote sandboxes.
 
 ---
 

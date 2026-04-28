@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that all pre-existing session manager tests pass after the environment lifecycle integration, confirming no regression in session create/stop/resume flows.
+Verify that all pre-existing session manager tests pass after the sandbox lifecycle integration, confirming no regression in session create/stop/resume flows.
 
 ---
 

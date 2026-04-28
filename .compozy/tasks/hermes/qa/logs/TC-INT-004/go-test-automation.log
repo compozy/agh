@@ -1046,8 +1046,8 @@ ok  	github.com/pedronauck/agh/internal/automation	0.631s
     --- PASS: TestCopyMigratedSessionsPreservesProvider/Should_preserve_provider_when_copying_migrated_sessions (0.00s)
 === RUN   TestMigrateBridgeInstanceColumnsNoopAndIdempotent
 === PAUSE TestMigrateBridgeInstanceColumnsNoopAndIdempotent
-=== RUN   TestMigrateWorkspaceColumnsAddsEnvironmentRef
-=== PAUSE TestMigrateWorkspaceColumnsAddsEnvironmentRef
+=== RUN   TestMigrateWorkspaceColumnsAddsSandboxRef
+=== PAUSE TestMigrateWorkspaceColumnsAddsSandboxRef
 === RUN   TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables
 === PAUSE TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables
 === RUN   TestGlobalDBLegacySessionMetaHelpers
@@ -1535,7 +1535,7 @@ ok  	github.com/pedronauck/agh/internal/automation	0.631s
 --- PASS: TestGlobalDBWorkspaceHelperUtilities (0.00s)
 === CONT  TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables
 --- PASS: TestGlobalDBWriteAndListNetworkMessages (0.52s)
-=== CONT  TestMigrateWorkspaceColumnsAddsEnvironmentRef
+=== CONT  TestMigrateWorkspaceColumnsAddsSandboxRef
 --- PASS: TestOpenGlobalDBCreatesNetworkTimelineLogSchema (0.52s)
 === CONT  TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings/create_rejects_global_task_with_workspace
 === CONT  TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings/update_rejects_global_task_with_workspace
@@ -1571,7 +1571,7 @@ ok  	github.com/pedronauck/agh/internal/automation	0.631s
 === CONT  TestGlobalDBRegisterSessionPersistsStopFields/empty_stop_reason_stores_nulls
 --- PASS: TestGlobalDBWriteNetworkAuditRejectsWhitechannelPaddedDirection (0.51s)
 === CONT  TestGlobalDBRegisterSessionPersistsStopFields/valid_stop_reason_stores_values
---- PASS: TestMigrateWorkspaceColumnsAddsEnvironmentRef (0.07s)
+--- PASS: TestMigrateWorkspaceColumnsAddsSandboxRef (0.07s)
 === CONT  TestGlobalDBCreateDependencyRejectsInvalidEdges/self_dependency
 === CONT  TestGlobalDBCreateDependencyRejectsInvalidEdges/dependency_limit
 --- PASS: TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings (0.29s)

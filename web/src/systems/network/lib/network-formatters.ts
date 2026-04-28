@@ -76,6 +76,22 @@ function parseTimestampOrZero(value?: string | null): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+export function getMostRecentTimestamp(
+  primaryValue?: string | null,
+  secondaryValue?: string | null
+): string | null {
+  if (!primaryValue) {
+    return secondaryValue ?? null;
+  }
+  if (!secondaryValue) {
+    return primaryValue;
+  }
+
+  return parseTimestampOrZero(secondaryValue) > parseTimestampOrZero(primaryValue)
+    ? secondaryValue
+    : primaryValue;
+}
+
 export function createNetworkChannelDraft(): NetworkCreateChannelDraft {
   return {
     channelName: "",
@@ -205,6 +221,12 @@ export function getPeerDisplayName(
   return peer.display_name ?? peer.peer_card.display_name ?? peer.peer_id;
 }
 
+export function getPeerRecencyAt(
+  peer: Pick<NetworkPeerSummary, "joined_at" | "last_seen"> | null | undefined
+): string | null {
+  return getMostRecentTimestamp(peer?.last_seen, peer?.joined_at);
+}
+
 export function getPeerTypeLabel(peer: Pick<NetworkPeerSummary, "local">): string {
   return peer.local ? "LOCAL" : "REMOTE";
 }
@@ -288,8 +310,8 @@ export function getNetworkRoomKey(roomType: NetworkRoomType, id: string): string
 
 export function sortNetworkChannels(channels: NetworkChannelSummary[]) {
   return [...channels].sort((left, right) => {
-    const leftActivity = parseTimestampOrZero(left.last_activity_at);
-    const rightActivity = parseTimestampOrZero(right.last_activity_at);
+    const leftActivity = parseTimestampOrZero(getChannelRecencyAt(left));
+    const rightActivity = parseTimestampOrZero(getChannelRecencyAt(right));
 
     if (leftActivity !== rightActivity) {
       return rightActivity - leftActivity;
@@ -301,6 +323,12 @@ export function sortNetworkChannels(channels: NetworkChannelSummary[]) {
 
     return left.channel.localeCompare(right.channel);
   });
+}
+
+export function getChannelRecencyAt(
+  channel: Pick<NetworkChannelSummary, "last_activity_at" | "last_presence_at">
+): string | null {
+  return getMostRecentTimestamp(channel.last_activity_at, channel.last_presence_at);
 }
 
 export function matchesChannelSearch(channel: NetworkChannelSummary, query: string) {
@@ -322,8 +350,8 @@ export function sortNetworkPeers(peers: NetworkPeerSummary[]) {
       return left.local ? -1 : 1;
     }
 
-    const leftSeen = parseTimestampOrZero(left.last_seen);
-    const rightSeen = parseTimestampOrZero(right.last_seen);
+    const leftSeen = parseTimestampOrZero(getPeerRecencyAt(left));
+    const rightSeen = parseTimestampOrZero(getPeerRecencyAt(right));
 
     if (leftSeen !== rightSeen) {
       return rightSeen - leftSeen;
@@ -410,11 +438,11 @@ export function summarizeChannelMeta(
     "last_activity_at" | "last_presence_at" | "message_count" | "presence_count"
   >
 ): string {
-  if (channel.last_activity_at) {
-    return formatNetworkRelativeTime(channel.last_activity_at);
-  }
-  if (channel.last_presence_at) {
-    return `presence ${formatNetworkRelativeTime(channel.last_presence_at)}`;
+  const effectiveRecencyAt = getChannelRecencyAt(channel);
+  if (effectiveRecencyAt) {
+    return effectiveRecencyAt === channel.last_presence_at
+      ? `presence ${formatNetworkRelativeTime(effectiveRecencyAt)}`
+      : formatNetworkRelativeTime(effectiveRecencyAt);
   }
   return (channel.message_count ?? 0) > 0 || (channel.presence_count ?? 0) > 0
     ? "materialized"

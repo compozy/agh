@@ -8,21 +8,21 @@ import (
 )
 
 type spawnCommandFlags struct {
-	agentName           string
-	provider            string
-	model               string
-	name                string
-	promptOverlay       string
-	spawnRole           string
-	ttlSeconds          int64
-	autoStopOnParent    bool
-	tools               []string
-	skills              []string
-	mcpServers          []string
-	workspacePaths      []string
-	networkChannels     []string
-	environmentProfiles []string
-	idempotencyKey      string
+	agentName        string
+	provider         string
+	model            string
+	name             string
+	promptOverlay    string
+	spawnRole        string
+	ttlSeconds       int64
+	autoStopOnParent bool
+	tools            []string
+	skills           []string
+	mcpServers       []string
+	workspacePaths   []string
+	networkChannels  []string
+	sandboxProfiles  []string
+	idempotencyKey   string
 }
 
 func newSpawnCommand(deps commandDeps) *cobra.Command {
@@ -65,10 +65,10 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 		StringArrayVar(&flags.workspacePaths, "workspace-path", nil, "Allowed workspace path grant (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.networkChannels, "channel", nil, "Allowed network channel grant (repeatable)")
 	cmd.Flags().StringArrayVar(
-		&flags.environmentProfiles,
-		"environment-profile",
+		&flags.sandboxProfiles,
+		"sandbox-profile",
 		nil,
-		"Allowed environment profile grant (repeatable)",
+		"Allowed sandbox profile grant (repeatable)",
 	)
 	cmd.Flags().StringVar(&flags.idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	mustMarkFlagRequired(cmd, "agent")
@@ -117,12 +117,12 @@ func (flags *spawnCommandFlags) request() (AgentSpawnRequest, error) {
 		TTLSeconds:       flags.ttlSeconds,
 		AutoStopOnParent: flags.autoStopOnParent,
 		Permissions: SpawnPermissionPolicyRecord{
-			Tools:               trimSpawnAtoms(flags.tools),
-			Skills:              trimSpawnAtoms(flags.skills),
-			MCPServers:          trimSpawnAtoms(flags.mcpServers),
-			WorkspacePaths:      trimSpawnAtoms(flags.workspacePaths),
-			NetworkChannels:     trimSpawnAtoms(flags.networkChannels),
-			EnvironmentProfiles: trimSpawnAtoms(flags.environmentProfiles),
+			Tools:           trimSpawnAtoms(flags.tools),
+			Skills:          trimSpawnAtoms(flags.skills),
+			MCPServers:      trimSpawnAtoms(flags.mcpServers),
+			WorkspacePaths:  trimSpawnAtoms(flags.workspacePaths),
+			NetworkChannels: trimSpawnAtoms(flags.networkChannels),
+			SandboxProfiles: trimSpawnAtoms(flags.sandboxProfiles),
 		},
 		IdempotencyKey: strings.TrimSpace(flags.idempotencyKey),
 	}, nil

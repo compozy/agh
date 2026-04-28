@@ -8,7 +8,7 @@ type: project
 
 ## Objective Snapshot
 
-- Build `/_app/settings/providers` and `/_app/settings/environments` pages with list/detail/edit/delete flows.
+- Build `/_app/settings/providers` and `/_app/sandbox` pages with list/detail/edit/delete flows.
 - Factor shared collection-editor and delete-dialog primitives so task_13 (mcp-servers) and task_14 (hooks) can reuse them.
 - Make PUT=full-replacement, DELETE overlay-reveals-builtin, and source precedence visible in the UI.
 
@@ -39,7 +39,7 @@ type: project
 - `web/src/hooks/routes/use-settings-providers-page.ts` (new)
 - `web/src/hooks/routes/use-settings-environments-page.ts` (new)
 - `web/src/routes/_app/settings/providers.tsx` (new)
-- `web/src/routes/_app/settings/environments.tsx` (new)
+- `web/src/routes/_app/sandbox.tsx` (new)
 - `web/src/routeTree.gen.ts` (manual edit) — added providers + environments routes to every map/union (vite plugin regenerates only during dev/build)
 - Tests: `-providers.test.tsx`, `-environments.test.tsx`, `use-settings-providers-page.test.tsx`, `use-settings-environments-page.test.tsx`, plus unit tests for the three new shared primitives
 

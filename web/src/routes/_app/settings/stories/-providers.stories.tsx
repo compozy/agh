@@ -94,7 +94,7 @@ export const DeleteOverlay: Story = {
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("settings-page-providers-row-claude-delete"));
+    await userEvent.click(await canvas.findByTestId("settings-page-providers-card-claude-delete"));
     await expect(canvas.findByTestId("settings-providers-delete-fallback")).resolves.toBeDefined();
   },
 };

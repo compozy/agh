@@ -18,7 +18,7 @@ _⚠️ Potential issue_ | _🔴 Critical_
 
 ```shell
 #!/bin/bash
-rg -n -C3 'ProviderStateJSON|provider_state_json|SessionEnvironmentPayload|ProviderState' --type go
+rg -n -C3 'ProviderStateJSON|provider_state_json|SessionSandboxPayload|ProviderState' --type go
 ```
 
 Repository: compozy/agh
@@ -42,7 +42,7 @@ Length of output: 4082
 🏁 Script executed:
 
 ```shell
-rg -n "SessionEnvironmentPayload" --type go -A 15
+rg -n "SessionSandboxPayload" --type go -A 15
 ```
 
 Repository: compozy/agh
@@ -69,7 +69,7 @@ Length of output: 37
 
 **Remove or redact `ProviderStateJSON` before serialization in the session API.**
 
-The conversion function `SessionEnvironmentPayloadFromMeta()` in `internal/api/core/conversions.go` (line 66) copies provider state verbatim to the API response without filtering. This exposes sandbox identifiers and internal backend state (e.g., `{"sandbox_id":"..."}`) to all session API clients. Either remove the field entirely from `SessionEnvironmentPayload` or redact sensitive keys before serialization.
+The conversion function `SessionSandboxPayloadFromMeta()` in `internal/api/core/conversions.go` (line 66) copies provider state verbatim to the API response without filtering. This exposes sandbox identifiers and internal backend state (e.g., `{"sandbox_id":"..."}`) to all session API clients. Either remove the field entirely from `SessionSandboxPayload` or redact sensitive keys before serialization.
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -78,16 +78,16 @@ The conversion function `SessionEnvironmentPayloadFromMeta()` in `internal/api/c
 Verify each finding against the current code and only fix it if needed.
 
 In `@internal/api/contract/contract.go` around lines 49 - 58,
-SessionEnvironmentPayload currently exposes ProviderStateJSON; update the
-conversion in SessionEnvironmentPayloadFromMeta() to avoid returning raw
+SessionSandboxPayload currently exposes ProviderStateJSON; update the
+conversion in SessionSandboxPayloadFromMeta() to avoid returning raw
 provider state by either removing ProviderStateJSON from the
-SessionEnvironmentPayload struct or sanitizing it before assignment —
+SessionSandboxPayload struct or sanitizing it before assignment —
 specifically parse the provider state JSON in
-SessionEnvironmentPayloadFromMeta(), remove sensitive keys such as "sandbox_id"
+SessionSandboxPayloadFromMeta(), remove sensitive keys such as "sandbox_id"
 (and any other internal backend identifiers), and only set ProviderStateJSON to
 the redacted JSON (or leave it nil/omitted) so internal identifiers are not sent
 to session API clients; ensure the change references the
-SessionEnvironmentPayload type and the SessionEnvironmentPayloadFromMeta()
+SessionSandboxPayload type and the SessionSandboxPayloadFromMeta()
 function so all callers remain consistent.
 ```
 
@@ -100,4 +100,4 @@ function so all callers remain consistent.
 ## Triage
 
 - Decision: `VALID`
-- Notes: The API conversion path currently copies `store.SessionEnvironmentMeta.ProviderState` verbatim into `SessionEnvironmentPayload.ProviderStateJSON` in `internal/api/core/conversions.go`. That exposes provider-private runtime state to clients. Fix requires a minimal out-of-scope production change in `internal/api/core/conversions.go` plus coverage updates in the scoped API tests.
+- Notes: The API conversion path currently copies `store.SessionSandboxMeta.ProviderState` verbatim into `SessionSandboxPayload.ProviderStateJSON` in `internal/api/core/conversions.go`. That exposes provider-private runtime state to clients. Fix requires a minimal out-of-scope production change in `internal/api/core/conversions.go` plus coverage updates in the scoped API tests.

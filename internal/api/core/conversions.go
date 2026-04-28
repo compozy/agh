@@ -63,8 +63,8 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, time.Now().UTC()); activity != nil {
 		payload.Activity = activity
 	}
-	if environment := SessionEnvironmentPayloadFromMeta(info.Environment); environment != nil {
-		payload.Environment = environment
+	if sandbox := SessionSandboxPayloadFromMeta(info.Sandbox); sandbox != nil {
+		payload.Sandbox = sandbox
 	}
 	return payload
 }
@@ -89,12 +89,12 @@ func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *contract.Ses
 			MaxActivePerWorkspace: normalized.SpawnBudget.MaxActivePerWorkspace,
 		},
 		PermissionPolicy: contract.SpawnPermissionPolicyPayload{
-			Tools:               append([]string(nil), normalized.PermissionPolicy.Tools...),
-			Skills:              append([]string(nil), normalized.PermissionPolicy.Skills...),
-			MCPServers:          append([]string(nil), normalized.PermissionPolicy.MCPServers...),
-			WorkspacePaths:      append([]string(nil), normalized.PermissionPolicy.WorkspacePaths...),
-			NetworkChannels:     append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
-			EnvironmentProfiles: append([]string(nil), normalized.PermissionPolicy.EnvironmentProfiles...),
+			Tools:           append([]string(nil), normalized.PermissionPolicy.Tools...),
+			Skills:          append([]string(nil), normalized.PermissionPolicy.Skills...),
+			MCPServers:      append([]string(nil), normalized.PermissionPolicy.MCPServers...),
+			WorkspacePaths:  append([]string(nil), normalized.PermissionPolicy.WorkspacePaths...),
+			NetworkChannels: append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
+			SandboxProfiles: append([]string(nil), normalized.PermissionPolicy.SandboxProfiles...),
 		},
 	}
 	return contract.NormalizeSessionLineagePayload(payload)
@@ -153,13 +153,13 @@ func runtimeActivityPayloadFromEvent(activity *acp.RuntimeActivity) *contract.Ru
 	}
 }
 
-// SessionEnvironmentPayloadFromMeta converts session environment metadata into the shared payload.
-func SessionEnvironmentPayloadFromMeta(meta *store.SessionEnvironmentMeta) *contract.SessionEnvironmentPayload {
+// SessionSandboxPayloadFromMeta converts session sandbox metadata into the shared payload.
+func SessionSandboxPayloadFromMeta(meta *store.SessionSandboxMeta) *contract.SessionSandboxPayload {
 	if meta == nil {
 		return nil
 	}
-	return &contract.SessionEnvironmentPayload{
-		EnvironmentID: strings.TrimSpace(meta.EnvironmentID),
+	return &contract.SessionSandboxPayload{
+		SandboxID:     strings.TrimSpace(meta.SandboxID),
 		Backend:       strings.TrimSpace(meta.Backend),
 		Profile:       strings.TrimSpace(meta.Profile),
 		State:         strings.TrimSpace(meta.State),
@@ -769,14 +769,14 @@ func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.Wo
 	addDirs = append(addDirs, workspace.AdditionalDirs...)
 
 	return contract.WorkspacePayload{
-		ID:             workspace.ID,
-		RootDir:        workspace.RootDir,
-		AddDirs:        addDirs,
-		Name:           workspace.Name,
-		DefaultAgent:   workspace.DefaultAgent,
-		EnvironmentRef: workspace.EnvironmentRef,
-		CreatedAt:      workspace.CreatedAt,
-		UpdatedAt:      workspace.UpdatedAt,
+		ID:           workspace.ID,
+		RootDir:      workspace.RootDir,
+		AddDirs:      addDirs,
+		Name:         workspace.Name,
+		DefaultAgent: workspace.DefaultAgent,
+		SandboxRef:   workspace.SandboxRef,
+		CreatedAt:    workspace.CreatedAt,
+		UpdatedAt:    workspace.UpdatedAt,
 	}
 }
 
@@ -1076,10 +1076,10 @@ func SettingsCollectionResponseFromEnvelope(envelope settingspkg.CollectionEnvel
 			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
 			MCPServers:                            settingsMCPServerItemPayloads(envelope.MCPServers),
 		}, nil
-	case settingspkg.CollectionEnvironments:
-		return contract.SettingsEnvironmentsResponse{
+	case settingspkg.CollectionSandboxes:
+		return contract.SettingsSandboxesResponse{
 			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
-			Environments:                          settingsEnvironmentItemPayloads(envelope.Environments),
+			Sandboxes:                             settingsSandboxItemPayloads(envelope.Sandboxes),
 		}, nil
 	case settingspkg.CollectionHooks:
 		return contract.SettingsHooksResponse{
@@ -1177,9 +1177,9 @@ func settingsConfigPathsPayload(paths settingspkg.ConfigPaths) contract.Settings
 func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.SettingsGeneralConfigPayload {
 	return contract.SettingsGeneralConfigPayload{
 		Defaults: contract.SettingsDefaultsPayload{
-			Agent:       strings.TrimSpace(value.Defaults.Agent),
-			Provider:    strings.TrimSpace(value.Defaults.Provider),
-			Environment: strings.TrimSpace(value.Defaults.Environment),
+			Agent:    strings.TrimSpace(value.Defaults.Agent),
+			Provider: strings.TrimSpace(value.Defaults.Provider),
+			Sandbox:  strings.TrimSpace(value.Defaults.Sandbox),
 		},
 		Limits: contract.SettingsLimitsPayload{
 			MaxSessions:         value.Limits.MaxSessions,
@@ -1526,15 +1526,15 @@ func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.Se
 	}
 }
 
-func settingsEnvironmentItemPayloads(values []settingspkg.EnvironmentItem) []contract.SettingsEnvironmentItemPayload {
+func settingsSandboxItemPayloads(values []settingspkg.SandboxItem) []contract.SettingsSandboxItemPayload {
 	if len(values) == 0 {
 		return nil
 	}
-	payloads := make([]contract.SettingsEnvironmentItemPayload, 0, len(values))
+	payloads := make([]contract.SettingsSandboxItemPayload, 0, len(values))
 	for _, value := range values {
-		payloads = append(payloads, contract.SettingsEnvironmentItemPayload{
+		payloads = append(payloads, contract.SettingsSandboxItemPayload{
 			Name:                strings.TrimSpace(value.Name),
-			Profile:             settingsEnvironmentProfilePayload(value.Profile),
+			Profile:             settingsSandboxProfilePayload(value.Profile),
 			WorkspaceUsageCount: value.WorkspaceUsageCount,
 			SourceMetadata:      settingsSourceMetadataPayload(value.SourceMetadata),
 		})
@@ -1542,26 +1542,26 @@ func settingsEnvironmentItemPayloads(values []settingspkg.EnvironmentItem) []con
 	return payloads
 }
 
-func settingsEnvironmentProfilePayload(value aghconfig.EnvironmentProfile) contract.SettingsEnvironmentProfilePayload {
-	payload := contract.SettingsEnvironmentProfilePayload{
+func settingsSandboxProfilePayload(value aghconfig.SandboxProfile) contract.SettingsSandboxProfilePayload {
+	payload := contract.SettingsSandboxProfilePayload{
 		Backend:     strings.TrimSpace(value.Backend),
 		SyncMode:    strings.TrimSpace(value.SyncMode),
 		Persistence: strings.TrimSpace(value.Persistence),
 		RuntimeRoot: strings.TrimSpace(value.RuntimeRoot),
 		Env:         cloneStringMap(value.Env),
 	}
-	if network := settingsEnvironmentNetworkPayload(value.Network); network != nil {
+	if network := settingsSandboxNetworkPayload(value.Network); network != nil {
 		payload.Network = network
 	}
-	if daytona := settingsEnvironmentDaytonaPayload(value.Daytona); daytona != nil {
+	if daytona := settingsSandboxDaytonaPayload(value.Daytona); daytona != nil {
 		payload.Daytona = daytona
 	}
 	return payload
 }
 
-func settingsEnvironmentNetworkPayload(
+func settingsSandboxNetworkPayload(
 	value aghconfig.NetworkProfile,
-) *contract.SettingsEnvironmentNetworkPayload {
+) *contract.SettingsSandboxNetworkPayload {
 	if !value.AllowPublicIngress &&
 		!value.AllowOutbound &&
 		!value.Required &&
@@ -1569,7 +1569,7 @@ func settingsEnvironmentNetworkPayload(
 		len(value.DenyList) == 0 {
 		return nil
 	}
-	return &contract.SettingsEnvironmentNetworkPayload{
+	return &contract.SettingsSandboxNetworkPayload{
 		AllowPublicIngress: value.AllowPublicIngress,
 		AllowOutbound:      value.AllowOutbound,
 		AllowList:          cloneStrings(value.AllowList),
@@ -1578,9 +1578,9 @@ func settingsEnvironmentNetworkPayload(
 	}
 }
 
-func settingsEnvironmentDaytonaPayload(
+func settingsSandboxDaytonaPayload(
 	value aghconfig.DaytonaProfile,
-) *contract.SettingsEnvironmentDaytonaPayload {
+) *contract.SettingsSandboxDaytonaPayload {
 	if strings.TrimSpace(value.APIURL) == "" &&
 		strings.TrimSpace(value.Target) == "" &&
 		strings.TrimSpace(value.Image) == "" &&
@@ -1590,7 +1590,7 @@ func settingsEnvironmentDaytonaPayload(
 		strings.TrimSpace(value.AutoArchive) == "" {
 		return nil
 	}
-	return &contract.SettingsEnvironmentDaytonaPayload{
+	return &contract.SettingsSandboxDaytonaPayload{
 		APIURL:      strings.TrimSpace(value.APIURL),
 		Target:      strings.TrimSpace(value.Target),
 		Image:       strings.TrimSpace(value.Image),

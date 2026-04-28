@@ -46,7 +46,7 @@ type mockAgent struct {
 	asyncWG     sync.WaitGroup
 }
 
-type environmentRunResult struct {
+type sandboxRunResult struct {
 	Output        string
 	ExitCode      *int
 	ObservedError string
@@ -251,8 +251,8 @@ func (a *mockAgent) executeStep(
 		return a.emitToolCall(ctx, sessionID, step)
 	case acpmock.StepKindPermission:
 		return a.requestPermission(ctx, sessionID, step)
-	case acpmock.StepKindEnvironment:
-		return a.executeEnvironmentCommand(ctx, sessionID, step)
+	case acpmock.StepKindSandbox:
+		return a.executeSandboxCommand(ctx, sessionID, step)
 	case acpmock.StepKindDriverControl:
 		return a.executeDriverControl(ctx, step)
 	default:
@@ -412,29 +412,29 @@ func (a *mockAgent) requestPermission(
 	}, nil
 }
 
-func (a *mockAgent) executeEnvironmentCommand(
+func (a *mockAgent) executeSandboxCommand(
 	ctx context.Context,
 	sessionID acpsdk.SessionId,
 	step acpmock.Step,
 ) (acpmock.DiagnosticsStep, error) {
-	toolCallID, title := environmentDescriptor(step)
-	if err := a.startEnvironmentToolCall(ctx, sessionID, step, toolCallID, title); err != nil {
+	toolCallID, title := sandboxDescriptor(step)
+	if err := a.startSandboxToolCall(ctx, sessionID, step, toolCallID, title); err != nil {
 		return acpmock.DiagnosticsStep{}, err
 	}
 
-	result := a.runEnvironmentCommand(ctx, sessionID, step)
+	result := a.runSandboxCommand(ctx, sessionID, step)
 	if expected := strings.TrimSpace(step.ExpectErrorContains); expected != "" {
-		return a.finishEnvironmentFailure(ctx, sessionID, step, toolCallID, title, result, expected)
+		return a.finishSandboxFailure(ctx, sessionID, step, toolCallID, title, result, expected)
 	}
-	if err := validateEnvironmentResult(step, result); err != nil {
+	if err := validateSandboxResult(step, result); err != nil {
 		return acpmock.DiagnosticsStep{}, err
 	}
-	if err := a.finishEnvironmentSuccess(ctx, sessionID, step, toolCallID, title, result); err != nil {
+	if err := a.finishSandboxSuccess(ctx, sessionID, step, toolCallID, title, result); err != nil {
 		return acpmock.DiagnosticsStep{}, err
 	}
 
 	return acpmock.DiagnosticsStep{
-		Kind:       acpmock.StepKindEnvironment,
+		Kind:       acpmock.StepKindSandbox,
 		ToolCallID: toolCallID,
 		Command:    strings.TrimSpace(step.Command),
 		Args:       append([]string(nil), step.Args...),
@@ -541,19 +541,19 @@ func (a *mockAgent) writeDiagnostics(record acpmock.DiagnosticsRecord) error {
 	return nil
 }
 
-func environmentDescriptor(step acpmock.Step) (string, string) {
+func sandboxDescriptor(step acpmock.Step) (string, string) {
 	toolCallID := strings.TrimSpace(step.ToolCallID)
 	title := strings.TrimSpace(step.Title)
 	if title == "" {
 		title = strings.TrimSpace(step.Command)
 	}
 	if title == "" {
-		title = "environment command"
+		title = "sandbox command"
 	}
 	return toolCallID, title
 }
 
-func (a *mockAgent) startEnvironmentToolCall(
+func (a *mockAgent) startSandboxToolCall(
 	ctx context.Context,
 	sessionID acpsdk.SessionId,
 	step acpmock.Step,
@@ -582,11 +582,11 @@ func (a *mockAgent) startEnvironmentToolCall(
 	return pauseForDelivery(ctx)
 }
 
-func (a *mockAgent) runEnvironmentCommand(
+func (a *mockAgent) runSandboxCommand(
 	ctx context.Context,
 	sessionID acpsdk.SessionId,
 	step acpmock.Step,
-) environmentRunResult {
+) sandboxRunResult {
 	req := acpsdk.CreateTerminalRequest{
 		SessionId: sessionID,
 		Command:   strings.TrimSpace(step.Command),
@@ -598,10 +598,10 @@ func (a *mockAgent) runEnvironmentCommand(
 
 	createResp, err := a.conn.CreateTerminal(ctx, req)
 	if err != nil {
-		return environmentRunResult{ObservedError: err.Error()}
+		return sandboxRunResult{ObservedError: err.Error()}
 	}
 
-	result := environmentRunResult{}
+	result := sandboxRunResult{}
 	waitResp, waitErr := a.conn.WaitForTerminalExit(ctx, acpsdk.WaitForTerminalExitRequest{
 		SessionId:  sessionID,
 		TerminalId: createResp.TerminalId,
@@ -631,27 +631,27 @@ func (a *mockAgent) runEnvironmentCommand(
 	return result
 }
 
-func (a *mockAgent) finishEnvironmentFailure(
+func (a *mockAgent) finishSandboxFailure(
 	ctx context.Context,
 	sessionID acpsdk.SessionId,
 	step acpmock.Step,
 	toolCallID string,
 	title string,
-	result environmentRunResult,
+	result sandboxRunResult,
 	expected string,
 ) (acpmock.DiagnosticsStep, error) {
 	if result.ObservedError == "" || !strings.Contains(result.ObservedError, expected) {
 		return acpmock.DiagnosticsStep{}, fmt.Errorf(
-			"environment command error %s did not include %s",
+			"sandbox command error %s did not include %s",
 			result.ObservedError,
 			expected,
 		)
 	}
-	if err := a.emitEnvironmentFailure(ctx, sessionID, step, toolCallID, title, result.ObservedError); err != nil {
+	if err := a.emitSandboxFailure(ctx, sessionID, step, toolCallID, title, result.ObservedError); err != nil {
 		return acpmock.DiagnosticsStep{}, err
 	}
 	return acpmock.DiagnosticsStep{
-		Kind:       acpmock.StepKindEnvironment,
+		Kind:       acpmock.StepKindSandbox,
 		ToolCallID: toolCallID,
 		Command:    strings.TrimSpace(step.Command),
 		Args:       append([]string(nil), step.Args...),
@@ -659,7 +659,7 @@ func (a *mockAgent) finishEnvironmentFailure(
 	}, nil
 }
 
-func validateEnvironmentResult(step acpmock.Step, result environmentRunResult) error {
+func validateSandboxResult(step acpmock.Step, result sandboxRunResult) error {
 	if result.ObservedError != "" {
 		return errors.New(result.ObservedError)
 	}
@@ -670,7 +670,7 @@ func validateEnvironmentResult(step acpmock.Step, result environmentRunResult) e
 				got = fmt.Sprintf("%d", *result.ExitCode)
 			}
 			return fmt.Errorf(
-				"environment exit code %s did not match expected %d",
+				"sandbox exit code %s did not match expected %d",
 				got,
 				*step.ExpectExitCode,
 			)
@@ -678,18 +678,18 @@ func validateEnvironmentResult(step acpmock.Step, result environmentRunResult) e
 	}
 	if expected := strings.TrimSpace(step.ExpectOutputContains); expected != "" &&
 		!strings.Contains(result.Output, expected) {
-		return fmt.Errorf("environment output %q did not include %s", result.Output, expected)
+		return fmt.Errorf("sandbox output %q did not include %s", result.Output, expected)
 	}
 	return nil
 }
 
-func (a *mockAgent) finishEnvironmentSuccess(
+func (a *mockAgent) finishSandboxSuccess(
 	ctx context.Context,
 	sessionID acpsdk.SessionId,
 	step acpmock.Step,
 	toolCallID string,
 	title string,
-	result environmentRunResult,
+	result sandboxRunResult,
 ) error {
 	if toolCallID != "" {
 		updateOpts := []acpsdk.ToolCallUpdateOpt{
@@ -732,7 +732,7 @@ func (a *mockAgent) finishEnvironmentSuccess(
 	}
 }
 
-func (a *mockAgent) emitEnvironmentFailure(
+func (a *mockAgent) emitSandboxFailure(
 	ctx context.Context,
 	sessionID acpsdk.SessionId,
 	step acpmock.Step,

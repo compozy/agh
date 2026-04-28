@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
@@ -188,6 +189,172 @@ func TestNetworkChannelAggregateKeepsConversationActivitySeparateFromMetadata(t 
 	if got, want := aggregate.lastMessagePreview, "hello from text"; got != want {
 		t.Fatalf("aggregate.lastMessagePreview = %q, want %q", got, want)
 	}
+}
+
+func TestSortedNetworkChannelPayloads(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should sort channels by effective recency when activity is missing", func(t *testing.T) {
+		t.Parallel()
+
+		olderPresence := time.Date(2026, 4, 28, 6, 34, 55, 0, time.UTC)
+		newerPresence := olderPresence.Add(2 * time.Minute)
+		channels := sortedNetworkChannelPayloads(map[string]*networkChannelAggregate{
+			"scope-older": {
+				channel:                    "scope-older",
+				lastPresenceAt:             &olderPresence,
+				presenceCount:              2,
+				historicalParticipantCount: 2,
+			},
+			"scope-newer": {
+				channel:                    "scope-newer",
+				lastPresenceAt:             &newerPresence,
+				presenceCount:              2,
+				historicalParticipantCount: 2,
+			},
+		})
+
+		if got, want := len(channels), 2; got != want {
+			t.Fatalf("len(channels) = %d, want %d", got, want)
+		}
+		if got, want := channels[0].Channel, "scope-newer"; got != want {
+			t.Fatalf("channels[0].Channel = %q, want %q", got, want)
+		}
+		if got, want := channels[1].Channel, "scope-older"; got != want {
+			t.Fatalf("channels[1].Channel = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should prefer fresher presence over stale activity when channels are reactivated", func(t *testing.T) {
+		t.Parallel()
+
+		staleActivity := time.Date(2026, 4, 28, 7, 30, 0, 0, time.UTC)
+		freshPresence := staleActivity.Add(20 * time.Minute)
+		recentActivity := staleActivity.Add(10 * time.Minute)
+		channels := sortedNetworkChannelPayloads(map[string]*networkChannelAggregate{
+			"launch-room": {
+				channel:                    "launch-room",
+				lastActivityAt:             &staleActivity,
+				lastPresenceAt:             &freshPresence,
+				messageCount:               4,
+				presenceCount:              8,
+				historicalParticipantCount: 7,
+			},
+			"coord-core": {
+				channel:                    "coord-core",
+				lastActivityAt:             &recentActivity,
+				messageCount:               6,
+				presenceCount:              2,
+				historicalParticipantCount: 2,
+			},
+		})
+
+		if got, want := len(channels), 2; got != want {
+			t.Fatalf("len(channels) = %d, want %d", got, want)
+		}
+		if got, want := channels[0].Channel, "launch-room"; got != want {
+			t.Fatalf("channels[0].Channel = %q, want %q", got, want)
+		}
+		if got, want := channels[1].Channel, "coord-core"; got != want {
+			t.Fatalf("channels[1].Channel = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should prefer higher message counts when effective recency ties", func(t *testing.T) {
+		t.Parallel()
+
+		recency := time.Date(2026, 4, 28, 6, 40, 0, 0, time.UTC)
+		channels := sortedNetworkChannelPayloads(map[string]*networkChannelAggregate{
+			"scope-low": {
+				channel:        "scope-low",
+				lastPresenceAt: &recency,
+				messageCount:   1,
+			},
+			"scope-high": {
+				channel:        "scope-high",
+				lastPresenceAt: &recency,
+				messageCount:   3,
+			},
+		})
+
+		if got, want := len(channels), 2; got != want {
+			t.Fatalf("len(channels) = %d, want %d", got, want)
+		}
+		if got, want := channels[0].Channel, "scope-high"; got != want {
+			t.Fatalf("channels[0].Channel = %q, want %q", got, want)
+		}
+		if got, want := channels[1].Channel, "scope-low"; got != want {
+			t.Fatalf("channels[1].Channel = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestSortedNetworkPeerPayloads(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should sort local peers by joined-at recency when last-seen is missing", func(t *testing.T) {
+		t.Parallel()
+
+		olderJoinedAt := time.Date(2026, 4, 28, 7, 17, 11, 0, time.UTC)
+		newerJoinedAt := olderJoinedAt.Add(3 * time.Second)
+		peers := []contract.NetworkPeerPayload{
+			{
+				PeerID:      "backend.sess-older",
+				DisplayName: "Backend",
+				Channel:     "builders",
+				Local:       true,
+				JoinedAt:    &olderJoinedAt,
+			},
+			{
+				PeerID:      "coder.sess-newer",
+				DisplayName: "Coder",
+				Channel:     "builders",
+				Local:       true,
+				JoinedAt:    &newerJoinedAt,
+			},
+		}
+
+		sortNetworkPeerPayloads(peers)
+
+		if got, want := peers[0].PeerID, "coder.sess-newer"; got != want {
+			t.Fatalf("peers[0].peer_id = %q, want %q", got, want)
+		}
+		if got, want := peers[1].PeerID, "backend.sess-older"; got != want {
+			t.Fatalf("peers[1].peer_id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should keep local peers ahead of newer remotes", func(t *testing.T) {
+		t.Parallel()
+
+		localJoinedAt := time.Date(2026, 4, 28, 7, 17, 11, 0, time.UTC)
+		remoteLastSeen := localJoinedAt.Add(2 * time.Minute)
+		peers := []contract.NetworkPeerPayload{
+			{
+				PeerID:      "remote.sess-newer",
+				DisplayName: "Remote",
+				Channel:     "builders",
+				Local:       false,
+				LastSeen:    &remoteLastSeen,
+			},
+			{
+				PeerID:      "local.sess-older",
+				DisplayName: "Local",
+				Channel:     "builders",
+				Local:       true,
+				JoinedAt:    &localJoinedAt,
+			},
+		}
+
+		sortNetworkPeerPayloads(peers)
+
+		if got, want := peers[0].PeerID, "local.sess-older"; got != want {
+			t.Fatalf("peers[0].peer_id = %q, want %q", got, want)
+		}
+		if got, want := peers[1].PeerID, "remote.sess-newer"; got != want {
+			t.Fatalf("peers[1].peer_id = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestNetworkPayloadHelpersCloneAndNormalize(t *testing.T) {

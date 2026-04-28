@@ -881,20 +881,20 @@ ld: warning: -bind_at_load is deprecated on macOS
 ✓  internal/cli (cached)
 ✓  internal/config (cached)
 ∅  internal/diagnostics
-∅  internal/environment/daytona/cmd/agh-daytona-sidecar
+∅  internal/sandbox/daytona/cmd/agh-daytona-sidecar
 ✓  internal/extension/contract (cached)
 ✓  internal/filesnap (cached)
 ✓  internal/extension/protocol (cached)
-✓  internal/environment/providertest (cached)
+✓  internal/sandbox/providertest (cached)
 ✓  internal/extension/surfaces (cached)
-✓  internal/environment/local (cached)
+✓  internal/sandbox/local (cached)
 ✓  internal/fileutil (cached)
 ✓  internal/logger (cached)
 ✓  internal/mcp/auth (cached)
 ✓  internal/frontmatter (cached)
 ✓  internal/extensiontest (cached)
-✓  internal/environment/daytona (cached)
-✓  internal/environment (cached)
+✓  internal/sandbox/daytona (cached)
+✓  internal/sandbox (cached)
 ∅  internal/network/rules
 ✓  internal/memory/consolidation (cached)
 ✓  internal/retry (cached)

@@ -1,88 +1,33 @@
 ---
 status: resolved
-file: web/src/routes/_app/agents.$name.sessions.$id.tsx
-line: 103
+file: internal/api/core/network_details.go
+line: 217
 author: coderabbitai[bot]
-provider_ref: thread:PRRT_kwDOR5y4QM59tCVf,comment:PRRC_kwDOR5y4QM67bPPN
+provider_ref: thread:PRRT_kwDOR5y4QM5-JRP8,comment:PRRC_kwDOR5y4QM68BYWu
 ---
 
-# Issue 002: _⚠️ Potential issue_ | _🟡 Minor_
+# Issue 002: _⚠️ Potential issue_ | _🟠 Major_
 ## Review Comment
 
-_⚠️ Potential issue_ | _🟡 Minor_
+_⚠️ Potential issue_ | _🟠 Major_
 
-<details>
-<summary>🧩 Analysis chain</summary>
+**Cursor pages can incorrectly 404 history-only channels.**
 
-🌐 Web query:
-
-`For `@tanstack/react-router` v1, is `navigate({ replace: true })` the recommended approach for redirects from invalid/deleted resource pages to avoid back-button loops?`
-
-💡 Result:
-
-No, navigate({ replace: true }) is not the recommended approach for redirects from invalid/deleted resource pages in `@tanstack/react-router` v1. The recommended method is to throw redirect({ to: '/somewhere' }) from the route's loader or beforeLoad when the resource is invalid or deleted (e.g., after checking the database). This handles the redirect at the router level before the component mounts, replacing the history entry and preventing back-button loops to the invalid page. For path-mismatched 404s, configure notFoundComponent on routes or the root route, and from there use useNavigate({ to: '...', replace: true }) if programmatic redirect is needed instead of static content. navigate({ replace: true }) with replace?: boolean uses history.replaceState instead of pushState, avoiding extra history entries, but throwing redirect is preferred for server-like redirects in loaders.
-
-Citations:
-
-- 1: https://tanstack.com/router/latest/docs/guide/navigation
-- 2: https://tanstack.com/router/v1/docs/api/router/redirectFunction
-- 3: https://tanstack.com/router/v1/docs/framework/react/api/router/redirectFunction
-- 4: https://tanstack.com/router/v1/docs/api/router/NavigateOptionsType
-- 5: https://tanstack.com/router/v1/docs/framework/react/guide/not-found-errors
-- 6: https://tanstack.com/router/v1/docs/api/router/RedirectType
-
----
-
-🏁 Script executed:
-
-```shell
-cat -n web/src/routes/_app/agents.$name.sessions.$id.tsx
-```
-
-Repository: compozy/agh
-
-Length of output: 129
-
----
-
-🏁 Script executed:
-
-```shell
-find web/src/routes -name "*session*" -type f
-```
-
-Repository: compozy/agh
-
-Length of output: 264
-
----
-
-🏁 Script executed:
-
-```shell
-cat -n "web/src/routes/_app/agents.\$name.sessions.\$id.tsx"
-```
-
-Repository: compozy/agh
-
-Length of output: 5317
-
----
-
-
-
-</details>
-
-**Use history replacement for the not-found redirect.**
-
-On Line 102, add `replace: true` to prevent users from hitting Back into the broken session URL and getting bounced again. This uses `history.replaceState` instead of `pushState`, avoiding extra history entries.
+An empty `rawMessages` slice does not mean the channel is missing once `before`/`after` is in play. For history-only rooms with no live sessions/peers/metadata, paging past the last visible item will hit this branch and return 404 instead of `200` with an empty page.
 
 <details>
 <summary>Suggested fix</summary>
 
 ```diff
--      void navigate({ to: "/agents/$name", params: { name } });
-+      void navigate({ to: "/agents/$name", params: { name }, replace: true });
+-	if len(rawMessages) == 0 && !networkChannelExists(sessions, peers, metadata, channel) {
++	if len(rawMessages) == 0 &&
++		strings.TrimSpace(query.BeforeMessageID) == "" &&
++		strings.TrimSpace(query.AfterMessageID) == "" &&
++		!networkChannelExists(sessions, peers, metadata, channel) {
+ 		notFoundErr := fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
+ 		h.respondError(c, http.StatusNotFound, notFoundErr)
+ 		return
+ 	}
 ```
 </details>
 
@@ -95,11 +40,14 @@ On Line 102, add `replace: true` to prevent users from hitting Back into the bro
 > Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
 
 ```suggestion
-  useEffect(() => {
-    if (error?.message?.includes("not found")) {
-      toast.error("Session not found");
-      void navigate({ to: "/agents/$name", params: { name }, replace: true });
-    }
+	if len(rawMessages) == 0 &&
+		strings.TrimSpace(query.BeforeMessageID) == "" &&
+		strings.TrimSpace(query.AfterMessageID) == "" &&
+		!networkChannelExists(sessions, peers, metadata, channel) {
+		notFoundErr := fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
+		h.respondError(c, http.StatusNotFound, notFoundErr)
+		return
+	}
 ```
 
 </details>
@@ -112,33 +60,35 @@ On Line 102, add `replace: true` to prevent users from hitting Back into the bro
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@web/src/routes/_app/agents`.$name.sessions.$id.tsx around lines 99 - 103, The
-redirect for a "Session not found" error inside the useEffect should replace the
-history entry instead of pushing a new one; update the navigate call in the
-useEffect (the branch that calls toast.error("Session not found")) to include
-replace: true (i.e., navigate({ to: "/agents/$name", params: { name }, replace:
-true })) so users can't hit Back into the broken session URL—locate the
-useEffect handling error?.message.includes("not found") and modify that navigate
-invocation.
+In `@internal/api/core/network_details.go` around lines 213 - 217, The current
+check treats an empty rawMessages slice as "not found" and calls h.respondError,
+which incorrectly 404s history-only channels when paging (using before/after);
+instead, first call networkChannelExists(sessions, peers, metadata, channel) and
+only return the 404 via h.respondError if the channel truly does not exist; if
+the channel exists but rawMessages is empty (especially when before/after is
+set), return a 200 empty page response (use the same success response path that
+would return an empty list) so paging past the end yields a 200 with no messages
+rather than a 404.
 ```
 
 </details>
 
-<!-- fingerprinting:phantom:poseidon:hawk -->
+<!-- fingerprinting:phantom:medusa:grasshopper -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Triage
 
-- Decision: `valid`
+- Decision: `VALID`
 - Notes:
-  - The not-found branch currently calls `navigate({ to: "/agents/$name", params: { name } })`, which pushes a new history entry from the broken session URL.
-  - In this route the missing-session condition is surfaced by the client query after mount, so the scoped fix is to preserve the current effect flow and add `replace: true`.
-  - A loader redirect would require a broader data-loading refactor outside this batch; the requested replacement fixes the back-button loop without changing the route architecture.
-  - Regression coverage requires a minimal out-of-scope edit to `web/src/routes/_app/-agents.$name.sessions.$id.test.tsx`, the existing test file for this route.
+  - `NetworkChannelMessages` currently treats `len(rawMessages) == 0` plus no live session/peer/metadata as a missing channel.
+  - With cursor pagination, the store can legitimately return an empty slice for a history-only channel after the caller pages past the last visible item; in that case the handler should return `200` with an empty `messages` array, not `404`.
+  - Fix approach: only run the missing-channel 404 check for non-cursor requests. Cursor requests with an empty page will continue through the normal success response path.
+  - Additional regression coverage in `internal/api/core/network_test.go` is required to prove the behavior because the scoped production file has no local test cases.
 
 ## Resolution
 
-- Added `replace: true` to the not-found redirect in `web/src/routes/_app/agents.$name.sessions.$id.tsx`.
-- Added regression coverage in `web/src/routes/_app/-agents.$name.sessions.$id.test.tsx` proving the route replaces history when redirecting from a missing session.
-- Verified with targeted Vitest and full `make verify`.
+- Updated `NetworkChannelMessages` so the missing-channel 404 branch applies only to non-cursor requests.
+- Added regression coverage that proves an empty cursor page on a history-only channel returns `200` with no messages.
+- Verified with targeted `go test -race ./internal/api/core -run 'TestListAgentsWorkspaceResolverUnavailable|TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors' -count=1`.
+- Verified the repository gate with `make verify` after code changes.

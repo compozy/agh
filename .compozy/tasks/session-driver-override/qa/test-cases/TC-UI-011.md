@@ -20,7 +20,7 @@ Verify that when a persisted provider becomes unavailable, the web session route
 ### Preconditions
 
 - [ ] The backend scenario from `TC-INT-005` is prepared with a persisted session whose provider is no longer available.
-- [ ] Browser execution environment is available.
+- [ ] Browser execution sandbox is available.
 - [ ] Network and screenshot capture are available.
 
 ---

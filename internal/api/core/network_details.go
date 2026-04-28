@@ -199,13 +199,9 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 	}
 
 	query.Channel = channel
-	messages, err := networkStore.ListNetworkMessages(c.Request.Context(), query)
+	rawMessages, messages, err := h.loadPublicChannelTimeline(c.Request.Context(), networkStore, query)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("message cursor not found")))
-			return
-		}
-		h.respondError(c, http.StatusInternalServerError, err)
+		h.respondNetworkMessageError(c, err)
 		return
 	}
 
@@ -214,7 +210,7 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	if len(messages) == 0 && !networkChannelExists(sessions, peers, metadata, channel) {
+	if len(rawMessages) == 0 && !networkChannelExists(sessions, peers, metadata, channel) {
 		notFoundErr := fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
 		h.respondError(c, http.StatusNotFound, notFoundErr)
 		return
@@ -222,15 +218,16 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 
 	sessionByID := sessionInfoMapByID(sessions)
 	peerByID := peerInfoMapByID(peers)
-	history := summarizeNetworkMessageHistory(messages, h.networkPresenceWindow())
-	views := history.timelineViews(query.IncludePresence)
-	payload := make([]contract.NetworkChannelMessagePayload, 0, len(views))
-	for _, view := range views {
-		payload = append(payload, NetworkChannelMessagePayloadFromView(
-			view,
-			sessionByID,
-			peerByID,
-		))
+	payload, err := networkTimelinePayloads(
+		messages,
+		sessionByID,
+		peerByID,
+		query,
+		h.networkPresenceWindow(),
+	)
+	if err != nil {
+		h.respondNetworkMessageError(c, err)
+		return
 	}
 
 	c.JSON(http.StatusOK, contract.NetworkChannelMessagesResponse{Messages: payload})
@@ -279,27 +276,24 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 
 	query.PeerID = peerID
 	query.DirectedOnly = !query.IncludePresence
-	messages, err := networkStore.ListNetworkMessages(c.Request.Context(), query)
+	messages, err := h.loadVisiblePeerMessages(c.Request.Context(), networkStore, query)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("message cursor not found")))
-			return
-		}
-		h.respondError(c, http.StatusInternalServerError, err)
+		h.respondNetworkMessageError(c, err)
 		return
 	}
 
 	sessionByID := sessionInfoMapByID(sessions)
 	peerByID := peerInfoMapByID(peers)
-	history := summarizeNetworkMessageHistory(filterPeerTimelineMessages(messages), h.networkPresenceWindow())
-	views := history.timelineViews(query.IncludePresence)
-	payload := make([]contract.NetworkChannelMessagePayload, 0, len(views))
-	for _, view := range views {
-		payload = append(payload, NetworkChannelMessagePayloadFromView(
-			view,
-			sessionByID,
-			peerByID,
-		))
+	payload, err := networkTimelinePayloads(
+		messages,
+		sessionByID,
+		peerByID,
+		query,
+		h.networkPresenceWindow(),
+	)
+	if err != nil {
+		h.respondNetworkMessageError(c, err)
+		return
 	}
 
 	c.JSON(http.StatusOK, contract.NetworkPeerMessagesResponse{Messages: payload})
@@ -516,20 +510,35 @@ func sortedNetworkChannelPayloads(
 		channels = append(channels, networkChannelPayloadFromAggregate(aggregate))
 	}
 	sort.Slice(channels, func(i int, j int) bool {
-		left := channels[i].LastActivityAt
-		right := channels[j].LastActivityAt
+		left := networkChannelSortTimestamp(channels[i])
+		right := networkChannelSortTimestamp(channels[j])
 		switch {
 		case left != nil && right != nil && !left.Equal(*right):
 			return left.After(*right)
-		case left != nil:
+		case left != nil && right == nil:
 			return true
-		case right != nil:
+		case left == nil && right != nil:
 			return false
+		case channels[i].MessageCount != channels[j].MessageCount:
+			return channels[i].MessageCount > channels[j].MessageCount
 		default:
 			return channels[i].Channel < channels[j].Channel
 		}
 	})
 	return channels
+}
+
+func networkChannelSortTimestamp(channel contract.NetworkChannelPayload) *time.Time {
+	switch {
+	case channel.LastActivityAt == nil:
+		return channel.LastPresenceAt
+	case channel.LastPresenceAt == nil:
+		return channel.LastActivityAt
+	case channel.LastPresenceAt.After(*channel.LastActivityAt):
+		return channel.LastPresenceAt
+	default:
+		return channel.LastActivityAt
+	}
 }
 
 func applyNetworkChannelMetadata(
@@ -579,6 +588,9 @@ func applyNetworkChannelMessages(
 		aggregate := ensureNetworkChannelAggregate(aggregates, message.Channel)
 		aggregate.recordHistoricalParticipant(message.PeerFrom)
 		aggregate.recordHistoricalParticipant(message.PeerTo)
+		if !isPublicChannelTimelineMessage(message) {
+			continue
+		}
 		if isPresenceMessage(message) {
 			aggregate.presenceCount++
 			aggregate.lastPresenceAt = laterTimePtr(aggregate.lastPresenceAt, message.Timestamp)
@@ -743,7 +755,7 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 	if err != nil {
 		return contract.NetworkChannelDetailPayload{}, err
 	}
-	history := summarizeNetworkMessageHistory(messages, h.networkPresenceWindow())
+	history := summarizeNetworkMessageHistory(filterPublicChannelTimelineMessages(messages), h.networkPresenceWindow())
 	messageCount := len(history.conversation)
 	if len(filteredSessions) == 0 && len(peers) == 0 && len(messages) == 0 && metadata == nil {
 		return contract.NetworkChannelDetailPayload{}, fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
@@ -758,6 +770,7 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 		}
 		payloadPeers = append(payloadPeers, networkPeerPayloadFromInfoWithSessions(peer, sessionByID))
 	}
+	sortNetworkPeerPayloads(payloadPeers)
 
 	metadataFields := networkChannelMetadataPayloadFields(metadata)
 	var (
@@ -784,7 +797,7 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 		SessionCount:               len(filteredSessions),
 		MessageCount:               messageCount,
 		PresenceCount:              history.presenceCount,
-		HistoricalParticipantCount: history.historicalParticipantCount,
+		HistoricalParticipantCount: summarizeHistoricalParticipantCount(messages),
 		LastActivityAt:             cloneTimePtr(lastActivityAt),
 		LastPresenceAt:             lastPresenceAt,
 		LastMessagePreview:         lastMessagePreview,
@@ -1184,6 +1197,78 @@ func summarizeNetworkMessageHistory(
 	return summary
 }
 
+func summarizeHistoricalParticipantCount(messages []store.NetworkMessageEntry) int {
+	participants := make(map[string]struct{})
+	for _, message := range messages {
+		recordHistoricalParticipant(participants, message.PeerFrom)
+		recordHistoricalParticipant(participants, message.PeerTo)
+	}
+	return len(participants)
+}
+
+func (h *BaseHandlers) loadPublicChannelTimeline(
+	ctx context.Context,
+	networkStore NetworkStore,
+	query store.NetworkMessageQuery,
+) ([]store.NetworkMessageEntry, []store.NetworkMessageEntry, error) {
+	rawMessages, err := listTimelineRawMessages(ctx, networkStore, query)
+	if err != nil {
+		return nil, nil, err
+	}
+	return rawMessages, filterVisiblePublicChannelMessages(rawMessages, query.IncludePresence), nil
+}
+
+func (h *BaseHandlers) loadVisiblePeerMessages(
+	ctx context.Context,
+	networkStore NetworkStore,
+	query store.NetworkMessageQuery,
+) ([]store.NetworkMessageEntry, error) {
+	rawMessages, err := listTimelineRawMessages(ctx, networkStore, query)
+	if err != nil {
+		return nil, err
+	}
+	return filterVisiblePeerMessages(rawMessages, query.IncludePresence), nil
+}
+
+func listTimelineRawMessages(
+	ctx context.Context,
+	networkStore NetworkStore,
+	query store.NetworkMessageQuery,
+) ([]store.NetworkMessageEntry, error) {
+	rawQuery := query
+	rawQuery.Limit = 0
+	rawQuery.BeforeMessageID = ""
+	rawQuery.AfterMessageID = ""
+	return networkStore.ListNetworkMessages(ctx, rawQuery)
+}
+
+func (h *BaseHandlers) respondNetworkMessageError(c *gin.Context, err error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("message cursor not found")))
+		return
+	}
+	h.respondError(c, http.StatusInternalServerError, err)
+}
+
+func networkTimelinePayloads(
+	messages []store.NetworkMessageEntry,
+	sessionByID map[string]*session.Info,
+	peerByID map[string]network.PeerInfo,
+	query store.NetworkMessageQuery,
+	presenceWindow time.Duration,
+) ([]contract.NetworkChannelMessagePayload, error) {
+	history := summarizeNetworkMessageHistory(messages, presenceWindow)
+	views, err := paginateNetworkTimelineViews(history.timelineViews(query.IncludePresence), query)
+	if err != nil {
+		return nil, err
+	}
+	payload := make([]contract.NetworkChannelMessagePayload, 0, len(views))
+	for _, view := range views {
+		payload = append(payload, NetworkChannelMessagePayloadFromView(view, sessionByID, peerByID))
+	}
+	return payload, nil
+}
+
 func (s networkMessageHistorySummary) timelineViews(includePresence bool) []networkTimelineMessageView {
 	if !includePresence {
 		views := make([]networkTimelineMessageView, 0, len(s.conversation))
@@ -1292,11 +1377,102 @@ func recordHistoricalParticipant(target map[string]struct{}, peerID string) {
 func filterPeerTimelineMessages(messages []store.NetworkMessageEntry) []store.NetworkMessageEntry {
 	filtered := make([]store.NetworkMessageEntry, 0, len(messages))
 	for _, message := range messages {
-		if isPresenceMessage(message) || strings.TrimSpace(message.PeerTo) != "" {
+		if isPresenceMessage(message) || isDirectedChannelMessage(message) {
 			filtered = append(filtered, message)
 		}
 	}
 	return filtered
+}
+
+func filterVisiblePublicChannelMessages(
+	messages []store.NetworkMessageEntry,
+	includePresence bool,
+) []store.NetworkMessageEntry {
+	if includePresence {
+		return filterPublicChannelTimelineMessages(messages)
+	}
+
+	filtered := make([]store.NetworkMessageEntry, 0, len(messages))
+	for _, message := range messages {
+		if isPublicConversationMessage(message) {
+			filtered = append(filtered, message)
+		}
+	}
+	return filtered
+}
+
+func filterPublicChannelTimelineMessages(messages []store.NetworkMessageEntry) []store.NetworkMessageEntry {
+	filtered := make([]store.NetworkMessageEntry, 0, len(messages))
+	for _, message := range messages {
+		if isPublicChannelTimelineMessage(message) {
+			filtered = append(filtered, message)
+		}
+	}
+	return filtered
+}
+
+func isPublicChannelTimelineMessage(message store.NetworkMessageEntry) bool {
+	return isPresenceMessage(message) || !isDirectedChannelMessage(message)
+}
+
+func isPublicConversationMessage(message store.NetworkMessageEntry) bool {
+	return !isPresenceMessage(message) && !isDirectedChannelMessage(message)
+}
+
+func isDirectedChannelMessage(message store.NetworkMessageEntry) bool {
+	return strings.TrimSpace(message.PeerTo) != ""
+}
+
+func filterVisiblePeerMessages(messages []store.NetworkMessageEntry, includePresence bool) []store.NetworkMessageEntry {
+	if includePresence {
+		return filterPeerTimelineMessages(messages)
+	}
+
+	filtered := make([]store.NetworkMessageEntry, 0, len(messages))
+	for _, message := range messages {
+		if isDirectedChannelMessage(message) {
+			filtered = append(filtered, message)
+		}
+	}
+	return filtered
+}
+
+func paginateNetworkTimelineViews(
+	views []networkTimelineMessageView,
+	query store.NetworkMessageQuery,
+) ([]networkTimelineMessageView, error) {
+	paginated := views
+	if before := strings.TrimSpace(query.BeforeMessageID); before != "" {
+		index := indexNetworkTimelineViewByMessageID(paginated, before)
+		if index < 0 {
+			return nil, fmt.Errorf("network timeline before cursor: %w", sql.ErrNoRows)
+		}
+		paginated = paginated[:index]
+	}
+	if after := strings.TrimSpace(query.AfterMessageID); after != "" {
+		index := indexNetworkTimelineViewByMessageID(paginated, after)
+		if index < 0 {
+			return nil, fmt.Errorf("network timeline after cursor: %w", sql.ErrNoRows)
+		}
+		paginated = paginated[index+1:]
+	}
+	if query.Limit <= 0 || len(paginated) <= query.Limit {
+		return paginated, nil
+	}
+	if strings.TrimSpace(query.BeforeMessageID) != "" {
+		return paginated[len(paginated)-query.Limit:], nil
+	}
+	return paginated[:query.Limit], nil
+}
+
+func indexNetworkTimelineViewByMessageID(views []networkTimelineMessageView, messageID string) int {
+	target := strings.TrimSpace(messageID)
+	for index, view := range views {
+		if strings.TrimSpace(view.entry.MessageID) == target {
+			return index
+		}
+	}
+	return -1
 }
 
 func (h *BaseHandlers) loadPeerAuditEntries(

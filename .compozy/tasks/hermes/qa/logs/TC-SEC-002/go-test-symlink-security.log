@@ -1249,10 +1249,10 @@ ok  	github.com/pedronauck/agh/internal/skills	0.221s
 === PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_list_with_action_grant_only
 === RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_info_with_action_grant_only
 === PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_info_with_action_grant_only
-=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_exec_with_action_and_exec_capability
-=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_exec_with_action_and_exec_capability
-=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_environment_exec_without_exec_capability
-=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_environment_exec_without_exec_capability
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_sandbox_exec_with_action_and_exec_capability
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_sandbox_exec_with_action_and_exec_capability
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_sandbox_exec_without_exec_capability
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_sandbox_exec_without_exec_capability
 === RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant
 === PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant
 === RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutActionGrant
@@ -1708,8 +1708,8 @@ ok  	github.com/pedronauck/agh/internal/skills	0.221s
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutWriteGrant
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_info_with_action_grant_only
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant
-=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_environment_exec_without_exec_capability
-=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_exec_with_action_and_exec_capability
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_sandbox_exec_without_exec_capability
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_sandbox_exec_with_action_and_exec_capability
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_read_method_with_matching_grant
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_list_with_action_grant_only
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_list_method_with_matching_grant
@@ -1724,8 +1724,8 @@ ok  	github.com/pedronauck/agh/internal/skills	0.221s
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutWriteGrant (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_info_with_action_grant_only (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant (0.00s)
-    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_environment_exec_without_exec_capability (0.00s)
-    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_exec_with_action_and_exec_capability (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_sandbox_exec_without_exec_capability (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_sandbox_exec_with_action_and_exec_capability (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_read_method_with_matching_grant (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_list_with_action_grant_only (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_list_method_with_matching_grant (0.00s)

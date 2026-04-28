@@ -78,7 +78,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 | `internal/daemon`               | Composition root, lock, boot, shutdown                                        |
 | `internal/diagnostics`          | Diagnostics + health probes                                                   |
 | `internal/e2elane`              | E2E lane harness wiring                                                       |
-| `internal/environment`          | Env-profile resolution                                                        |
+| `internal/sandbox`              | Sandbox profile resolution and provider runtime                               |
 | `internal/extension`            | Extension manifest, registry, host API, install runtime                       |
 | `internal/extensiontest`        | Extension test harness                                                        |
 | `internal/filesnap`             | File snapshot utilities                                                       |

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import {
-  deleteSettingsEnvironment,
+  deleteSettingsSandbox,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
   disableSettingsExtension,
@@ -10,12 +10,12 @@ import {
   getSettingsGeneral,
   getSettingsObservability,
   getSettingsRestartStatus,
-  listSettingsEnvironments,
+  listSettingsSandboxes,
   listSettingsExtensions,
   listSettingsHooks,
   listSettingsMCPServers,
   listSettingsProviders,
-  putSettingsEnvironment,
+  putSettingsSandbox,
   putSettingsMCPServer,
   putSettingsProvider,
   SettingsApiError,
@@ -242,12 +242,12 @@ describe("collection endpoints", () => {
     await expect(deleteSettingsProvider("missing")).rejects.toThrow("Provider not found: missing");
   });
 
-  it("lists environments", async () => {
-    const environments = {
-      collection: "environments" as const,
+  it("lists sandboxes", async () => {
+    const sandboxes = {
+      collection: "sandboxes" as const,
       scope: "global" as const,
       available_scopes: ["global" as const],
-      environments: [
+      sandboxes: [
         {
           name: "local",
           profile: { backend: "host" },
@@ -260,35 +260,35 @@ describe("collection endpoints", () => {
       ],
     };
 
-    mockJsonResponse(environments);
-    const result = await listSettingsEnvironments();
+    mockJsonResponse(sandboxes);
+    const result = await listSettingsSandboxes();
 
-    expect(result.environments[0]?.workspace_usage_count).toBe(2);
-    await expectFetchRequest({ path: "/api/settings/environments" });
+    expect(result.sandboxes[0]?.workspace_usage_count).toBe(2);
+    await expectFetchRequest({ path: "/api/settings/sandboxes" });
   });
 
-  it("deletes environments and propagates mutation responses", async () => {
+  it("deletes sandboxes and propagates mutation responses", async () => {
     mockJsonResponse({ ...mutationFixture, section: "general" as const });
 
-    const result = await deleteSettingsEnvironment("local");
+    const result = await deleteSettingsSandbox("local");
 
     expect(result.applied).toBe(true);
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/settings/environments/local",
+      path: "/api/settings/sandboxes/local",
     });
   });
 
-  it("puts environments", async () => {
+  it("puts sandboxes", async () => {
     mockJsonResponse({ ...mutationFixture, section: "general" as const });
 
     const body = { profile: { backend: "daytona" } };
-    await putSettingsEnvironment("cloud", body);
+    await putSettingsSandbox("cloud", body);
 
     await expectFetchRequest({
       body,
       method: "PUT",
-      path: "/api/settings/environments/cloud",
+      path: "/api/settings/sandboxes/cloud",
     });
   });
 

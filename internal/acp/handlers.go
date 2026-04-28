@@ -449,7 +449,7 @@ func (p *AgentProcess) registerExternalTerminalProcess(
 	}
 	var handle *toolruntime.Handle
 	handle, err = p.processRegistry.Register(registerCtx, toolruntime.RegisterConfig{
-		Source: toolruntime.ProcessSourceEnvironmentTerminal,
+		Source: toolruntime.ProcessSourceSandboxTerminal,
 		Owner: toolruntime.ProcessOwner{
 			SessionID:  ownership.ownerSessionID,
 			TurnID:     ownership.ownerTurnID,

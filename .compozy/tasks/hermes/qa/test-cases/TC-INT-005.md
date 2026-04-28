@@ -21,7 +21,7 @@ Verify that the shared process registry records subprocess ownership durably, re
 ### Preconditions
 
 - Isolated global DB for `tool_processes`.
-- Test owners for ACP agent process, ACP terminal, local environment terminal, remote environment terminal without PID evidence, hook subprocess, extension process, and shared subprocess helper.
+- Test owners for ACP agent process, ACP terminal, local sandbox terminal, remote sandbox terminal without PID evidence, hook subprocess, extension process, and shared subprocess helper.
 - Controlled process fixtures expose PID and start-time evidence.
 
 ### Test Steps

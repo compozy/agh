@@ -9,6 +9,22 @@ Warnings: <none or list>
 Errors: <none or list>
 Verdict: PASS or FAIL
 
+BEHAVIORAL EVIDENCE (when behavior-first QA was executed)
+---------------------------------------------------------
+Operator journey: <what real operator goal was tested>
+Business outcome: <achieved, failed, or blocked>
+Live provider/LLM: <provider-backed evidence or exact blocked boundary>
+Agent behavior:
+  - <agent role>: <decision, artifact, message, handoff, or task/channel behavior>
+Artifacts produced and used:
+  - <artifact path/name>: <producer and downstream use>
+Cross-surface truth checks:
+  - <object/artifact>: <CLI/API/Web/runtime agreement>
+Disruption probes:
+  - <probe>: <expected vs actual>
+Smoke/readiness checks only:
+  - <check>: <result and why it is not final behavioral proof>
+
 BROWSER EVIDENCE (when Web UI flows were tested)
 -------------------------------------------------
 Dev server: <start command and confirmed URL>
@@ -27,6 +43,7 @@ TEST CASE COVERAGE (when qa-report artifacts exist)
 Test cases found: <number of TC-*.md files in qa-output-path/test-cases/>
 Executed: <number exercised during this QA run>
 Results:
+  - <TC-SCEN-ID>: PASS or FAIL | Behavioral journey: <summary> | Bug: <BUG-ID or "none">
   - <TC-ID>: PASS or FAIL | Bug: <BUG-ID or "none">
   - <TC-ID>: PASS or FAIL | Bug: <BUG-ID or "none">
   - <TC-ID>: BLOCKED | Reason: <why>

@@ -436,7 +436,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			AdditionalDirs: []string{addDir},
 			Name:           "alpha",
 			DefaultAgent:   "coder",
-			EnvironmentRef: "daytona-dev",
+			SandboxRef:     "daytona-dev",
 			CreatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			UpdatedAt:      time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
 		}
@@ -464,7 +464,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			RegisterFn: func(_ context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 				if opts.RootDir != rootDir || len(opts.AdditionalDirs) != 1 ||
 					opts.DefaultAgent != "coder" ||
-					opts.EnvironmentRef != "daytona-dev" {
+					opts.SandboxRef != "daytona-dev" {
 					t.Fatalf("Register opts = %#v", opts)
 				}
 				return workspace, nil
@@ -483,8 +483,8 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 				if id != workspace.ID || opts.Name == nil || *opts.Name != "beta" {
 					t.Fatalf("Update call = %q %#v", id, opts)
 				}
-				if opts.EnvironmentRef != nil && *opts.EnvironmentRef != "local-dev" {
-					t.Fatalf("Update environment ref = %#v, want local-dev", opts.EnvironmentRef)
+				if opts.SandboxRef != nil && *opts.SandboxRef != "local-dev" {
+					t.Fatalf("Update sandbox ref = %#v, want local-dev", opts.SandboxRef)
 				}
 				return nil
 			},
@@ -526,11 +526,11 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 
 		fixture, _, _, _, _, _, rootDir, addDir := setup(t)
 		createBody, err := json.Marshal(contract.CreateWorkspaceRequest{
-			RootDir:        rootDir,
-			AddDirs:        []string{addDir},
-			Name:           "alpha",
-			DefaultAgent:   "coder",
-			EnvironmentRef: "daytona-dev",
+			RootDir:      rootDir,
+			AddDirs:      []string{addDir},
+			Name:         "alpha",
+			DefaultAgent: "coder",
+			SandboxRef:   "daytona-dev",
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(create workspace request) error = %v", err)
@@ -590,6 +590,46 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			if got := getPayload.Providers[i]; got != want {
 				t.Fatalf("providers[%d] = %#v, want %#v", i, got, want)
 			}
+		}
+	})
+
+	t.Run("Should merge projected catalog agents into workspace detail", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, workspace, _, _, _, _, _, _ := setup(t)
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			agents: []aghconfig.AgentDef{
+				{
+					Name:     "coder",
+					Provider: "catalog-should-not-win",
+					Prompt:   "global duplicate",
+				},
+				{
+					Name:     "qa-extension-agent",
+					Provider: "codex",
+					Prompt:   "extension agent",
+				},
+			},
+		}
+
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/"+workspace.ID, nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf("get workspace status = %d, want %d", getResp.Code, http.StatusOK)
+		}
+
+		var getPayload contract.WorkspaceDetailPayload
+		testutil.DecodeJSONResponse(t, getResp, &getPayload)
+		if got, want := len(getPayload.Agents), 2; got != want {
+			t.Fatalf("len(agents) = %d, want %d: %#v", got, want, getPayload.Agents)
+		}
+		if got, want := getPayload.Agents[0].Name, "coder"; got != want {
+			t.Fatalf("agents[0].name = %q, want %q", got, want)
+		}
+		if got, want := getPayload.Agents[0].Provider, "fake"; got != want {
+			t.Fatalf("agents[0].provider = %q, want workspace-scoped provider %q", got, want)
+		}
+		if got, want := getPayload.Agents[1].Name, "qa-extension-agent"; got != want {
+			t.Fatalf("agents[1].name = %q, want %q", got, want)
 		}
 	})
 
@@ -676,7 +716,7 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 			fixture.Engine,
 			http.MethodPatch,
 			"/workspaces/ws_alpha",
-			[]byte(`{"add_dirs":["`+addDir+`"],"default_agent":"coder","environment_ref":"local-dev"}`),
+			[]byte(`{"add_dirs":["`+addDir+`"],"default_agent":"coder","sandbox_ref":"local-dev"}`),
 		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("update add_dirs/default_agent status = %d, want %d", resp.Code, http.StatusOK)
@@ -688,8 +728,8 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 		if captured.DefaultAgent == nil || *captured.DefaultAgent != "coder" {
 			t.Fatalf("captured default agent = %#v", captured.DefaultAgent)
 		}
-		if captured.EnvironmentRef == nil || *captured.EnvironmentRef != "local-dev" {
-			t.Fatalf("captured environment ref = %#v", captured.EnvironmentRef)
+		if captured.SandboxRef == nil || *captured.SandboxRef != "local-dev" {
+			t.Fatalf("captured sandbox ref = %#v", captured.SandboxRef)
 		}
 	})
 }

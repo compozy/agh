@@ -106,7 +106,7 @@ handles the full reclaim arc:
    `recordProcessExitEvent` → `recordSessionStoppedEvent`.
 3. `dispatchAgentStopped` hook fan-out.
 4. `finalizeEnvironment` — environment teardown
-   (`environment.SyncReasonStop` / `SyncReasonCrash`).
+   (`sandbox.SyncReasonStop` / `SyncReasonCrash`).
 5. `closeSessionRecorder` → `markSessionStopped` → `leaveSessionNetwork`.
 6. `removeActive` and `notifier.OnSessionStopped`.
 

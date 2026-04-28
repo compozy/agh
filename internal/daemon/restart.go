@@ -190,10 +190,10 @@ type restartProcess interface {
 }
 
 type detachedStartRequest struct {
-	binary      string
-	args        []string
-	environment []string
-	logPath     string
+	binary  string
+	args    []string
+	sandbox []string
+	logPath string
 }
 
 type detachedStartFunc func(context.Context, detachedStartRequest) (restartProcess, error)
@@ -211,10 +211,10 @@ type restartRequestRuntime struct {
 
 func defaultDetachedStart(ctx context.Context, req detachedStartRequest) (restartProcess, error) {
 	return procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
-		Binary:      req.binary,
-		Args:        append([]string(nil), req.args...),
-		Environment: append([]string(nil), req.environment...),
-		LogPath:     req.logPath,
+		Binary:  req.binary,
+		Args:    append([]string(nil), req.args...),
+		Sandbox: append([]string(nil), req.sandbox...),
+		LogPath: req.logPath,
 	})
 }
 
@@ -512,10 +512,10 @@ func (r restartRequestRuntime) launchRelaunchHelper(
 	}
 
 	_, err = r.startDetached(ctx, detachedStartRequest{
-		binary:      binary,
-		args:        []string{"daemon", "relaunch"},
-		environment: withRestartOperationEnv(os.Environ(), operationID),
-		logPath:     homePaths.LogFile,
+		binary:  binary,
+		args:    []string{"daemon", "relaunch"},
+		sandbox: withRestartOperationEnv(os.Environ(), operationID),
+		logPath: homePaths.LogFile,
 	})
 	if err != nil {
 		return fmt.Errorf("spawn relaunch helper: %w", err)
@@ -557,7 +557,7 @@ type RelaunchHelperConfig struct {
 	HomePaths      aghconfig.HomePaths
 	OperationID    string
 	Executable     func() (string, error)
-	Environment    []string
+	Sandbox        []string
 	PollInterval   time.Duration
 	ReleaseTimeout time.Duration
 	ReadyTimeout   time.Duration
@@ -583,8 +583,8 @@ func newRelaunchHelper(cfg RelaunchHelperConfig) *relaunchHelper {
 	if cfg.Executable == nil {
 		cfg.Executable = os.Executable
 	}
-	if len(cfg.Environment) == 0 {
-		cfg.Environment = os.Environ()
+	if len(cfg.Sandbox) == 0 {
+		cfg.Sandbox = os.Environ()
 	}
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = defaultRestartPollInterval
@@ -659,10 +659,10 @@ func (h *relaunchHelper) run(ctx context.Context) error {
 	}
 
 	replacement, err := h.startDetached(ctx, detachedStartRequest{
-		binary:      binary,
-		args:        []string{"daemon", "start", "--foreground"},
-		environment: withRestartOperationEnv(h.cfg.Environment, operation.OperationID),
-		logPath:     h.cfg.HomePaths.LogFile,
+		binary:  binary,
+		args:    []string{"daemon", "start", "--foreground"},
+		sandbox: withRestartOperationEnv(h.cfg.Sandbox, operation.OperationID),
+		logPath: h.cfg.HomePaths.LogFile,
 	})
 	if err != nil {
 		return h.fail(
@@ -911,15 +911,15 @@ func (h *relaunchHelper) fail(store *restartStore, operationID string, err error
 	return err
 }
 
-func withRestartOperationEnv(environment []string, operationID string) []string {
-	if len(environment) == 0 {
-		environment = os.Environ()
+func withRestartOperationEnv(sandbox []string, operationID string) []string {
+	if len(sandbox) == 0 {
+		sandbox = os.Environ()
 	}
 
 	prefix := RestartOperationEnvKey + "="
-	result := make([]string, 0, len(environment)+1)
+	result := make([]string, 0, len(sandbox)+1)
 	replaced := false
-	for _, entry := range environment {
+	for _, entry := range sandbox {
 		if strings.HasPrefix(entry, prefix) {
 			result = append(result, prefix+operationID)
 			replaced = true

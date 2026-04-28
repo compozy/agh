@@ -21,4 +21,4 @@ source_review_submitted_at: "2026-04-17T17:23:10Z"
 - Root cause: `newBundleRecordKey` trims keys but preserves case, so the indexed lookup misses mixed-case activation inputs and falls back to a linear scan even though the non-indexed matcher is case-insensitive.
 - Fix plan: normalize key construction to the same trimmed, case-insensitive policy used by `findBundleResourceRecord` and add a focused lookup test that proves the normalized map path works without the fallback scan.
 - Resolution: `newBundleRecordKey` now lowercases trimmed extension and bundle names, and `TestFindBundleResourceRecordIndexedNormalizesLookupKeys` proves the indexed lookup succeeds without the scan fallback.
-- Verification: `go test ./internal/bundles ./internal/environment/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.
+- Verification: `go test ./internal/bundles ./internal/sandbox/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.

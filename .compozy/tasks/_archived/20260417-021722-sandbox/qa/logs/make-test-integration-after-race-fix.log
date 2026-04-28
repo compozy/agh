@@ -14,12 +14,12 @@
 ∅  internal/codegen/sdkts
 ✓  internal/acp (cached)
 ✓  internal/api/udsapi (cached)
-✓  internal/environment (cached)
-✓  internal/environment/local (cached)
+✓  internal/sandbox (cached)
+✓  internal/sandbox/local (cached)
 ✓  internal/config (cached)
-✓  internal/environment/providertest (cached)
+✓  internal/sandbox/providertest (cached)
 ✓  internal/bundles (cached)
-✓  internal/environment/daytona (cached)
+✓  internal/sandbox/daytona (cached)
 ✓  internal/bridges (cached)
 ✓  internal/automation (cached)
 ✓  internal/api/core (cached)
@@ -69,10 +69,10 @@
 ✓  internal/extension (40.912s)
 
 === Skipped
-=== SKIP: internal/environment/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
     provider_integration_test.go:20: DAYTONA_API_KEY is required for Daytona provider integration tests
 
-=== SKIP: internal/environment/daytona TestDaytonaSSHNonPTYValidation (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaSSHNonPTYValidation (0.00s)
     ssh_validation_test.go:42: DAYTONA_API_KEY is required for Daytona SSH validation
 
 DONE 4664 tests, 2 skipped in 42.346s

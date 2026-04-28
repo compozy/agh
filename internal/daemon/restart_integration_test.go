@@ -42,7 +42,7 @@ func TestRequestRestartPersistsPreRestartContextBeforeShutdownSignal(t *testing.
 		}
 
 		store := newRestartStore(homePaths, d.now)
-		operationID := envValue(helperRequest.environment, RestartOperationEnvKey)
+		operationID := envValue(helperRequest.sandbox, RestartOperationEnvKey)
 		persisted, err := store.Get(operationID)
 		if err != nil {
 			t.Fatalf("store.Get(%q) error = %v", operationID, err)

@@ -10,25 +10,25 @@
 
 ### Objective
 
-Verify session list/get/status API responses include the `environment` field with backend, state, and environment ID.
+Verify session list/get/status API responses include the `environment` field with backend, state, and sandbox ID.
 
 ---
 
 ### Preconditions
 
 - [x] At least one session created with environment integration
-- [x] `SessionEnvironmentPayload` added to contract types
-- [x] Conversion function maps environment fields
+- [x] `SessionSandboxPayload` added to contract types
+- [x] Conversion function maps sandbox fields
 
 ---
 
 ### Test Steps
 
 1. **Create a session and list sessions**
-   - **Expected:** Session payload includes `environment` object with `backend: "local"`, `environment_id` non-empty, `state` reflecting current lifecycle phase
+   - **Expected:** Session payload includes `environment` object with `backend: "local"`, `sandbox_id` non-empty, `state` reflecting current lifecycle phase
 
 2. **Get session info**
-   - **Expected:** `SessionPayload.Environment` populated with `environment_id`, `backend`, `profile`, `state`
+   - **Expected:** `SessionPayload.Environment` populated with `sandbox_id`, `backend`, `profile`, `state`
 
 ---
 

@@ -19,7 +19,7 @@ Verify that every web session-create entrypoint opens the dialog, prepopulates a
 
 ### Preconditions
 
-- [ ] Browser execution environment is available at desktop, tablet, and mobile viewports.
+- [ ] Browser execution sandbox is available at desktop, tablet, and mobile viewports.
 - [ ] Workspace fixture `WS-PROVIDER-MATRIX` is available to the web app.
 - [ ] The chosen agent has a known default provider and at least one alternate provider.
 - [ ] Network inspection or request capture is available in the browser.

@@ -18,8 +18,8 @@ AGH is an Agent Operating System — a Go single-binary daemon that manages AI a
 
 ## Critical Rules
 
-- **`make verify` MUST pass** before completing ANY task (runs `fmt → lint → test → build`). Zero warnings, zero errors. No exceptions.
-- **`make lint` has zero tolerance** — any golangci-lint issue is a blocking failure.
+- **`make verify` MUST pass** before completing ANY task (runs `codegen-check → bun-lint → bun-typecheck → bun-test → web-build → fmt → lint → test → build → boundaries` across the entire monorepo, not just `web/`). Zero warnings, zero errors. No exceptions.
+- **`make lint` (Go golangci-lint) and `make bun-lint` (oxfmt + oxlint over every workspace) both have zero tolerance** — any warning or lint issue is a blocking failure.
 - **Check dependent package APIs** before writing integration code or tests.
 - **Never add dependencies by hand in `go.mod`** — always use `go get`.
 - **Never use web search tools for local project code** — use Grep/Glob instead. Web search is only for external docs.
@@ -41,6 +41,11 @@ These govern how features move from idea to ship. Internalize them before openin
 - **Every spec/feature carries an extensibility + agent-manageability + config lifecycle analysis.** Creating, updating, or removing a feature MUST state how it integrates with AGH extensibility surfaces (extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and whether `config.toml` keys/defaults/docs are added, changed, or removed. "No impact" is acceptable only with explicit evidence.
 - **Reference competitors by file path in tasks.** When a TechSpec relies on `.resources/<repo>/` references, generated tasks must include explicit competitor file paths so implementing agents read them too. Reference-bearing analysis files belong under `.compozy/tasks/<slug>/analysis/`.
 - **Worktree isolation is mandatory for parallel QA.** Concurrent runs use unique `AGH_HOME`, unique daemon ports, and unique `tmux-bridge` socket paths. Default home/port use is forbidden when concurrency is signaled.
+- **Deterministic QA bootstrap is mandatory for local release/scenario QA.** Start with `agh-qa-bootstrap`, create a fresh lab for each new QA pass by default, and reuse a `bootstrap-manifest.json` only when continuing the same active QA session/loop.
+- **Provider-home isolation is mandatory for local QA.** Never point provider-backed QA at the raw global `~/.codex`; use `PROVIDER_HOME` and `PROVIDER_CODEX_HOME` from the bootstrap manifest.
+- **Isolated Web QA must export `AGH_WEB_API_PROXY_TARGET`.** When the daemon is not on the default `:2123`, derive the proxy target from the bootstrap manifest/env instead of hardcoding localhost defaults.
+- **Never parallelize config writes against one isolated QA home.** `agh config set` and similar config mutations must run sequentially when they target the same provider or runtime home.
+- **Skill helpers must use explicit repo-root paths.** Do not write or execute ambiguous `scripts/...` helper paths when the helper actually lives under `.agents/skills/<skill>/scripts/`.
 - **Two-touch rule.** If the same package or behavior has been patched twice in the same workstream, the third change MUST be a structural redesign, not a third patch. Open a new TechSpec.
 - **Conversation in Brazilian Portuguese; artifacts in English.** Spoken/typed exchanges may use BR-PT. TechSpecs, ADRs, code, commit messages, docs are always English.
 - **Pushback markers are escalation signals.** When the user uses "fraco", "leviano", "ruim", "está totalmente errado", "meia boca", "esquecendo coisas", slow down and re-clarify before acting.
@@ -84,7 +89,7 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Competitor research                   | `cy-research-competitors`                                                                | `context7` + `find-docs`               |
 | Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                   |
 | Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     | `fix-coderabbit-review`                |
-| Release / scenario QA                 | `real-scenario-qa` (delegates to `qa-execution` + `qa-report`)                           | `agh-worktree-isolation`               |
+| Release / scenario QA                 | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`               |
 | Git rebase / conflicts                | `git-rebase`                                                                             |                                        |
 | External docs lookup                  | `context7` + `find-docs`                                                                 | `exa-web-search-free`                  |
 | Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                     |
@@ -98,10 +103,27 @@ Every domain change requires its skill — no skipping "because it's a small cha
 
 ## Build Commands
 
+### Monorepo gate
+
+```bash
+make verify              # BLOCKING GATE — full monorepo: codegen-check → bun-lint → bun-typecheck → bun-test → web-build → fmt → lint → test → build → boundaries
+```
+
+`make verify` is the only gate that exercises the entire monorepo (Go + every Bun workspace). The targets below let you run individual stages in isolation.
+
+### Bun workspaces (monorepo-wide)
+
+```bash
+make bun-lint            # bun run lint at repo root → oxfmt + oxlint over every workspace (zero tolerance)
+make bun-typecheck       # bun run typecheck at repo root → turbo run typecheck across @agh/create-extension, @agh/extension-sdk, @agh/site, @agh/ui, agh-web
+make bun-test            # bun run tests at repo root → bunx vitest run over the projects in vitest.config.ts (web, packages/ui, packages/site, sdk/typescript, sdk/create-extension)
+```
+
+These three are the bun-side commands the `Verify` gate runs. Never substitute the per-package `make web-*` / `cd packages/site && bun run …` commands when you need a guardrail-quality check — they only cover their own workspace and miss every other Bun package.
+
 ### Go (backend)
 
 ```bash
-make verify              # BLOCKING GATE: fmt → lint → test → boundaries → build
 make fmt                 # Format with gofmt
 make lint                # Strict golangci-lint (zero issues)
 make test                # Run unit tests with -race flag
@@ -120,15 +142,15 @@ make deps                # Tidy and verify modules
 
 ```bash
 cd packages/site && bun run source:generate
-cd packages/site && bun run typecheck
-cd packages/site && bun run test
+cd packages/site && bun run typecheck   # workspace-only; for the gate use make bun-typecheck
+cd packages/site && bun run test         # workspace-only; for the gate use make bun-test
 cd packages/site && bun run build
 make site-dev            # Dev server
 make site-build          # Production build
 make cli-docs            # Regenerate CLI reference from cobra JSON export
 ```
 
-Web (`web/`) commands are documented in `web/CLAUDE.md`.
+Web (`web/`) workspace-only commands (`make web-lint`, `make web-typecheck`, `make web-test`, `make web-build`, `make web-dev`, `make web-fmt`) are documented in `web/CLAUDE.md`. They are scoped to `web/` only — for the full guardrail use the `make bun-*` targets above.
 
 ## Commit style
 

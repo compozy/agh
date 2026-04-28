@@ -30,6 +30,17 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	if setRecord.Path != "defaults.provider" || setRecord.Value != "claude" {
 		t.Fatalf("config set record = %#v, want defaults.provider=claude", setRecord)
 	}
+	sandboxOut, _, err := executeRootCommand(t, deps, "config", "set", "defaults.sandbox", "local", "-o", "json")
+	if err != nil {
+		t.Fatalf("config set defaults.sandbox error = %v", err)
+	}
+	var sandboxSetRecord configSetRecord
+	if err := json.Unmarshal([]byte(sandboxOut), &sandboxSetRecord); err != nil {
+		t.Fatalf("json.Unmarshal(config set defaults.sandbox) error = %v", err)
+	}
+	if sandboxSetRecord.Path != "defaults.sandbox" || sandboxSetRecord.Value != "local" {
+		t.Fatalf("config set sandbox record = %#v, want defaults.sandbox=local", sandboxSetRecord)
+	}
 
 	cfg, err := aghconfig.LoadGlobalConfig(homePaths)
 	if err != nil {
@@ -37,6 +48,9 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	}
 	if cfg.Defaults.Provider != "claude" {
 		t.Fatalf("Defaults.Provider = %q, want claude", cfg.Defaults.Provider)
+	}
+	if cfg.Defaults.Sandbox != "local" {
+		t.Fatalf("Defaults.Sandbox = %q, want local", cfg.Defaults.Sandbox)
 	}
 
 	getOut, _, err := executeRootCommand(t, deps, "config", "get", "defaults.provider", "-o", "json")
@@ -74,6 +88,33 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	if pathRecord.GlobalConfig != homePaths.ConfigFile ||
 		pathRecord.GlobalMCPJSON != filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName) {
 		t.Fatalf("config path record = %#v, want resolved home paths", pathRecord)
+	}
+}
+
+func TestConfigSetRejectsLegacyEnvironmentMutationPaths(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "Should reject legacy defaults environment", path: "defaults.environment"},
+		{name: "Should reject legacy environment profile", path: "environments.dev.backend"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t, &stubClient{})
+			_, _, err := executeRootCommand(t, deps, "config", "set", tt.path, "local")
+			if err == nil {
+				t.Fatalf("config set %s error = nil, want unsupported path", tt.path)
+			}
+			if !strings.Contains(err.Error(), "is not supported by config set") {
+				t.Fatalf("config set %s error = %v, want unsupported path", tt.path, err)
+			}
+		})
 	}
 }
 
@@ -190,7 +231,7 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestConfigOutputRedactsMCPAndEnvironmentSecrets(t *testing.T) {
+func TestConfigOutputRedactsMCPAndSandboxSecrets(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{})
@@ -204,10 +245,10 @@ name = "remote"
 command = "remote-mcp"
 env = { MCP_TOKEN = "raw-mcp-secret" }
 
-[environments.dev]
+[sandboxes.dev]
 backend = "local"
 
-[environments.dev.env]
+[sandboxes.dev.env]
 API_TOKEN = "raw-env-secret"
 `)
 
@@ -239,21 +280,21 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{})
-	if _, _, err := executeRootCommand(t, deps, "config", "set", "environments.dev.backend", "local"); err != nil {
-		t.Fatalf("config set environment backend error = %v", err)
+	if _, _, err := executeRootCommand(t, deps, "config", "set", "sandboxes.dev.backend", "local"); err != nil {
+		t.Fatalf("config set sandbox backend error = %v", err)
 	}
 	out, _, err := executeRootCommand(
 		t,
 		deps,
 		"config",
 		"set",
-		"environments.dev.env.API_TOKEN",
+		"sandboxes.dev.env.API_TOKEN",
 		"raw-secret",
 		"-o",
 		"json",
 	)
 	if err != nil {
-		t.Fatalf("config set environment env error = %v", err)
+		t.Fatalf("config set sandbox env error = %v", err)
 	}
 	if strings.Contains(out, "raw-secret") {
 		t.Fatalf("config set leaked secret value:\n%s", out)

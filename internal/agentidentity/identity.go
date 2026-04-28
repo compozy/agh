@@ -45,7 +45,7 @@ const (
 )
 
 var (
-	// ErrIdentityRequired reports missing required agent caller environment.
+	// ErrIdentityRequired reports missing required agent caller sandbox.
 	ErrIdentityRequired = errors.New("agent identity required")
 	// ErrIdentityStale reports a missing, unknown, stopped, or otherwise inactive session identity.
 	ErrIdentityStale = errors.New("agent identity stale")

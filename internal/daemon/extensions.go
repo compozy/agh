@@ -3,7 +3,9 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -100,9 +102,39 @@ func (s *daemonExtensionService) Install(
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.reload(ctx); err != nil {
-		return contract.ExtensionPayload{}, err
+		return contract.ExtensionPayload{}, s.rollbackFailedInstall(ctx, manifest.Name, err)
 	}
 	return s.Status(ctx, manifest.Name)
+}
+
+func (s *daemonExtensionService) rollbackFailedInstall(
+	ctx context.Context,
+	name string,
+	installErr error,
+) error {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
+		return installErr
+	}
+
+	var rollbackErr error
+	if err := s.registry.Uninstall(trimmedName); err != nil && !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		rollbackErr = errors.Join(
+			rollbackErr,
+			fmt.Errorf("daemon: rollback extension registry row %q: %w", trimmedName, err),
+		)
+	}
+
+	managedPath := extensionpkg.ManagedInstallPath(s.homePaths, trimmedName)
+	if err := os.RemoveAll(managedPath); err != nil {
+		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: rollback extension files %q: %w", managedPath, err))
+	}
+
+	if err := s.reload(ctx); err != nil {
+		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: reload after extension install rollback: %w", err))
+	}
+
+	return errors.Join(installErr, rollbackErr)
 }
 
 func (s *daemonExtensionService) Enable(ctx context.Context, name string) (contract.ExtensionPayload, error) {

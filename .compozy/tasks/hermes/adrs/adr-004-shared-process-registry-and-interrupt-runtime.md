@@ -12,7 +12,7 @@ Accepted
 
 AGH currently manages terminal subprocesses inside ACP/local tool host internals, hooks in hook-specific executors, and runtime subprocesses in separate packages. Selected Hermes issues require a process registry with checkpoint-on-write semantics, PID/start-time verification on boot, and per-thread or per-turn tool interrupts.
 
-Placing this behavior only in `session.Manager` would miss hooks, extensions, and non-session-owned processes. Placing it inside `environment.ToolHost` would mix file/permission/terminal APIs with durable runtime ownership.
+Placing this behavior only in `session.Manager` would miss hooks, extensions, and non-session-owned processes. Placing it inside `sandbox.ToolHost` would mix file/permission/terminal APIs with durable runtime ownership.
 
 ## Decision
 
@@ -26,16 +26,16 @@ The package will own:
 - Process ownership metadata: session ID, turn ID, tool call ID, terminal ID, source, command, cwd, start time, and state.
 - `InterruptController` scoped to session, turn/thread, and tool process ownership.
 
-ACP terminal management, local and remote environment tool hosts, hooks, extension host APIs, and future tool runtimes will integrate with this shared package.
+ACP terminal management, local and remote sandbox tool hosts, hooks, extension host APIs, and future tool runtimes will integrate with this shared package.
 
 ## Alternatives Considered
 
-- Extend `environment.ToolHost` as the owner. This avoids a new package but overloads the interface and leaves hooks/extensions awkward.
+- Extend `sandbox.ToolHost` as the owner. This avoids a new package but overloads the interface and leaves hooks/extensions awkward.
 - Put ownership in `session.Manager`. This works for session tools but does not cover other process-producing surfaces cleanly.
 
 ## Consequences
 
-- The shared package becomes a cross-cutting dependency consumed by ACP, environment providers, hooks, and extension runtime.
+- The shared package becomes a cross-cutting dependency consumed by ACP, sandbox providers, hooks, and extension runtime.
 - Tests must cover checkpoint durability, PID reuse detection, boot reconciliation, interrupt scoping, and cleanup behavior.
 - The TechSpec must define package-boundary rules so lower-level packages do not import `daemon`.
 

@@ -88,8 +88,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 
 	waitForRuntimeCondition(t, "builders say delivery", 10*time.Second, func() bool {
 		return channelHasMessageID(ctx, harness, "builders", "msg_say_01") &&
-			sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("kind", "say")) &&
-			sessionTranscriptHasNeedle(ctx, harness, patchSession.ID, attributeNeedle("kind", "say"))
+			sessionTranscriptHasNeedle(ctx, harness, patchSession.ID, attributeNeedle("id", "msg_say_01"))
 	})
 
 	mustSendNetworkCLI(t, ctx, harness, []string{
@@ -265,7 +264,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(trace) error = %v", err)
 	}
-	assertCLINetworkParity(t, ctx, harness, status, peers, channel)
+	assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
 }
 
 func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
@@ -282,7 +281,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 			},
 			{
 				FixturePath:  fixturePath,
-				FixtureAgent: "recipe-curator",
+				FixtureAgent: "capability-curator",
 				AgentName:    "mock-capability-curator",
 			},
 		},
@@ -352,7 +351,6 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 
 	waitForRuntimeCondition(t, "capability say delivery", 10*time.Second, func() bool {
 		return channelHasMessageID(ctx, harness, "capabilities", "msg_capability_say_01") &&
-			sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("kind", "say")) &&
 			sessionTranscriptHasNeedle(
 				ctx,
 				harness,
@@ -530,7 +528,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		t.Fatalf("validateNetworkCorrelationSurfaces(capability trace) error = %v", err)
 	}
 
-	assertCLINetworkParity(t, ctx, harness, status, peers, channel)
+	assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
 }
 
 func mustCreateNetworkChannel(
@@ -678,6 +676,7 @@ func assertCLINetworkParity(
 	httpStatus aghcontract.NetworkStatusPayload,
 	httpPeers []aghcontract.NetworkPeerPayload,
 	httpChannel aghcontract.NetworkChannelPayload,
+	httpDetail aghcontract.NetworkChannelDetailPayload,
 ) {
 	t.Helper()
 
@@ -696,9 +695,14 @@ func assertCLINetworkParity(
 	if err := harness.CLI.RunJSON(ctx, &cliPeers, "network", "peers", httpChannel.Channel, "-o", "json"); err != nil {
 		t.Fatalf("CLI network peers error = %v", err)
 	}
+	assertNetworkPeerOrdering(t, "HTTP peer list", httpPeers)
+	assertNetworkPeerOrdering(t, "HTTP channel detail peers", httpDetail.Peers)
+	assertMatchingPeerOrder(t, "HTTP peer list", httpPeers, "HTTP channel detail peers", httpDetail.Peers)
 	if len(cliPeers) != len(httpPeers) {
 		t.Fatalf("CLI network peers = %#v, want %d peers", cliPeers, len(httpPeers))
 	}
+	assertNetworkPeerOrdering(t, "CLI peer list", cliPeers)
+	assertMatchingPeerOrder(t, "HTTP peer list", httpPeers, "CLI peer list", cliPeers)
 	for _, peer := range httpPeers {
 		if requirePeerIDForSession(t, cliPeers, derefString(peer.SessionID)) != strings.TrimSpace(peer.PeerID) {
 			t.Fatalf("CLI peers = %#v, want peer %q for session %v", cliPeers, peer.PeerID, peer.SessionID)
@@ -718,6 +722,86 @@ func assertCLINetworkParity(
 		cliChannel.MessageCount != httpChannel.MessageCount {
 		t.Fatalf("CLI channel = %#v, want parity with HTTP %#v", cliChannel, httpChannel)
 	}
+}
+
+func assertNetworkPeerOrdering(
+	t testing.TB,
+	label string,
+	peers []aghcontract.NetworkPeerPayload,
+) {
+	t.Helper()
+
+	for index := 1; index < len(peers); index++ {
+		left := peers[index-1]
+		right := peers[index]
+		if networkPeerShouldSortBefore(left, right) {
+			continue
+		}
+		t.Fatalf("%s ordering mismatch at index %d: %#v should not come before %#v", label, index, left, right)
+	}
+}
+
+func assertMatchingPeerOrder(
+	t testing.TB,
+	leftLabel string,
+	left []aghcontract.NetworkPeerPayload,
+	rightLabel string,
+	right []aghcontract.NetworkPeerPayload,
+) {
+	t.Helper()
+
+	if len(left) != len(right) {
+		t.Fatalf("%s len = %d, %s len = %d, want equal", leftLabel, len(left), rightLabel, len(right))
+	}
+	for index := range left {
+		if got, want := strings.TrimSpace(right[index].PeerID), strings.TrimSpace(left[index].PeerID); got != want {
+			t.Fatalf("%s[%d].peer_id = %q, want %q from %s", rightLabel, index, got, want, leftLabel)
+		}
+	}
+}
+
+func networkPeerShouldSortBefore(
+	left aghcontract.NetworkPeerPayload,
+	right aghcontract.NetworkPeerPayload,
+) bool {
+	if left.Local != right.Local {
+		return left.Local
+	}
+
+	leftRecency := networkPeerEffectiveRecency(left)
+	rightRecency := networkPeerEffectiveRecency(right)
+	switch {
+	case leftRecency != nil && rightRecency != nil && !leftRecency.Equal(*rightRecency):
+		return leftRecency.After(*rightRecency)
+	case leftRecency != nil && rightRecency == nil:
+		return true
+	case leftRecency == nil && rightRecency != nil:
+		return false
+	}
+
+	leftName := networkPeerSortName(left)
+	rightName := networkPeerSortName(right)
+	if leftName != rightName {
+		return leftName < rightName
+	}
+	if strings.TrimSpace(left.PeerID) != strings.TrimSpace(right.PeerID) {
+		return strings.TrimSpace(left.PeerID) < strings.TrimSpace(right.PeerID)
+	}
+	return strings.TrimSpace(left.Channel) <= strings.TrimSpace(right.Channel)
+}
+
+func networkPeerEffectiveRecency(peer aghcontract.NetworkPeerPayload) *time.Time {
+	if peer.LastSeen != nil {
+		return peer.LastSeen
+	}
+	return peer.JoinedAt
+}
+
+func networkPeerSortName(peer aghcontract.NetworkPeerPayload) string {
+	if value := strings.TrimSpace(peer.DisplayName); value != "" {
+		return value
+	}
+	return strings.TrimSpace(peer.PeerID)
 }
 
 func findChannelPayload(

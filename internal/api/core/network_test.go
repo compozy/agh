@@ -167,6 +167,36 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should normalize empty peer-card arrays to empty slices", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:   "founder.sess-empty",
+			Channel:  "builders",
+			Local:    true,
+			PeerCard: network.PeerCard{PeerID: "founder.sess-empty"},
+		})
+
+		if payload.PeerCard.ProfilesSupported == nil {
+			t.Fatal("payload.PeerCard.ProfilesSupported = nil, want empty slice")
+		}
+		if got := len(payload.PeerCard.ProfilesSupported); got != 0 {
+			t.Fatalf("len(payload.PeerCard.ProfilesSupported) = %d, want 0", got)
+		}
+		if payload.PeerCard.ArtifactsSupported == nil {
+			t.Fatal("payload.PeerCard.ArtifactsSupported = nil, want empty slice")
+		}
+		if got := len(payload.PeerCard.ArtifactsSupported); got != 0 {
+			t.Fatalf("len(payload.PeerCard.ArtifactsSupported) = %d, want 0", got)
+		}
+		if payload.PeerCard.TrustModesSupported == nil {
+			t.Fatal("payload.PeerCard.TrustModesSupported = nil, want empty slice")
+		}
+		if got := len(payload.PeerCard.TrustModesSupported); got != 0 {
+			t.Fatalf("len(payload.PeerCard.TrustModesSupported) = %d, want 0", got)
+		}
+	})
+
 	t.Run("Should clone capability brief peer-card metadata", func(t *testing.T) {
 		t.Parallel()
 
@@ -633,11 +663,145 @@ func TestBaseHandlersNetworkPeersUseBestEffortSessionEnrichment(t *testing.T) {
 		if got, want := len(payload.Peers), 2; got != want {
 			t.Fatalf("len(peers) = %d, want %d", got, want)
 		}
-		if got, want := payload.Peers[0].DisplayName, "Reviewer"; got != want {
-			t.Fatalf("peers[0].display_name = %q, want %q", got, want)
+		displayNames := []string{payload.Peers[0].DisplayName, payload.Peers[1].DisplayName}
+		sort.Strings(displayNames)
+		if got, want := displayNames, []string{brokenDisplayName, "Reviewer"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("display names = %#v, want %#v", got, want)
 		}
-		if got, want := payload.Peers[1].DisplayName, brokenDisplayName; got != want {
-			t.Fatalf("peers[1].display_name = %q, want %q", got, want)
+		if payload.Peers[0].PeerCard.ProfilesSupported == nil {
+			t.Fatal("peers[0].peer_card.profiles_supported = nil, want empty slice")
+		}
+		if payload.Peers[0].PeerCard.ArtifactsSupported == nil {
+			t.Fatal("peers[0].peer_card.artifacts_supported = nil, want empty slice")
+		}
+		if payload.Peers[0].PeerCard.TrustModesSupported == nil {
+			t.Fatal("peers[0].peer_card.trust_modes_supported = nil, want empty slice")
+		}
+	})
+}
+
+func TestBaseHandlersNetworkPeerOrderingUsesEffectiveRecency(t *testing.T) {
+	t.Parallel()
+
+	backendSessionID := "sess-backend"
+	coderSessionID := "sess-coder"
+	backendJoinedAt := time.Date(2026, 4, 28, 7, 17, 11, 0, time.UTC)
+	coderJoinedAt := backendJoinedAt.Add(3 * time.Second)
+
+	newFixture := func(t *testing.T) handlerFixture {
+		t.Helper()
+
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{
+					{
+						ID:        backendSessionID,
+						Name:      "Backend",
+						AgentName: "backend",
+						Channel:   "builders",
+						State:     session.StateActive,
+					},
+					{
+						ID:        coderSessionID,
+						Name:      "Coder",
+						AgentName: "coder",
+						Channel:   "builders",
+						State:     session.StateActive,
+					},
+				}, nil
+			},
+		}
+
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				switch channel {
+				case "", "builders":
+				default:
+					t.Fatalf("ListPeers() channel = %q, want empty or builders", channel)
+				}
+				return []network.PeerInfo{
+					{
+						SessionID: &backendSessionID,
+						PeerID:    "backend.sess-older",
+						Channel:   "builders",
+						Local:     true,
+						PeerCard:  network.PeerCard{PeerID: "backend.sess-older"},
+						JoinedAt:  &backendJoinedAt,
+					},
+					{
+						SessionID: &coderSessionID,
+						PeerID:    "coder.sess-newer",
+						Channel:   "builders",
+						Local:     true,
+						PeerCard:  network.PeerCard{PeerID: "coder.sess-newer"},
+						JoinedAt:  &coderJoinedAt,
+					},
+				}, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.Channel, "builders"; got != want {
+					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
+				}
+				return nil, nil
+			},
+		}
+		return fixture
+	}
+
+	t.Run("Should sort peer list by joined-at recency when last-seen is missing", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/peers?channel=builders", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("peers code = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload contract.NetworkPeersResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Peers), 2; got != want {
+			t.Fatalf("len(peers) = %d, want %d", got, want)
+		}
+		if got, want := payload.Peers[0].PeerID, "coder.sess-newer"; got != want {
+			t.Fatalf("peers[0].peer_id = %q, want %q", got, want)
+		}
+		if got, want := payload.Peers[1].PeerID, "backend.sess-older"; got != want {
+			t.Fatalf("peers[1].peer_id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should sort channel detail peers by joined-at recency when last-seen is missing", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newFixture(t)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("channel detail code = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload contract.NetworkChannelResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Channel.Peers), 2; got != want {
+			t.Fatalf("len(channel peers) = %d, want %d", got, want)
+		}
+		if got, want := payload.Channel.Peers[0].PeerID, "coder.sess-newer"; got != want {
+			t.Fatalf("channel peers[0].peer_id = %q, want %q", got, want)
+		}
+		if got, want := payload.Channel.Peers[1].PeerID, "backend.sess-older"; got != want {
+			t.Fatalf("channel peers[1].peer_id = %q, want %q", got, want)
 		}
 	})
 }
@@ -1066,6 +1230,97 @@ func TestBaseHandlersNetworkChannelsSeparatePresenceFromConversation(t *testing.
 	})
 }
 
+func TestBaseHandlersNetworkChannelsTrackDistinctHistoricalPeerIdentities(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	recordedAt := time.Date(2026, 4, 28, 6, 22, 0, 0, time.UTC)
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return nil, nil
+		},
+	}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	fixture.Handlers.Config.Network.Enabled = true
+	fixture.Handlers.Config.Network.GreetInterval = 30
+	fixture.Handlers.Network = testutil.StubNetworkService{
+		ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+			switch channel {
+			case "":
+				return nil, nil
+			case "founders":
+				return nil, nil
+			default:
+				t.Fatalf("ListPeers() channel = %q, want founders or empty", channel)
+				return nil, nil
+			}
+		},
+	}
+	fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+		ListNetworkMessagesFn: func(
+			_ context.Context,
+			query store.NetworkMessageQuery,
+		) ([]store.NetworkMessageEntry, error) {
+			messages := []store.NetworkMessageEntry{
+				{
+					MessageID: "msg-greet-founder-01",
+					Channel:   "founders",
+					Direction: network.AuditDirectionReceived,
+					PeerFrom:  "founder.sess-old",
+					Kind:      "greet",
+					Body:      greetBodyJSON("founder.sess-old", "founder", "Founder", ""),
+					Timestamp: recordedAt,
+				},
+				{
+					MessageID: "msg-greet-founder-02",
+					Channel:   "founders",
+					Direction: network.AuditDirectionReceived,
+					PeerFrom:  "founder.sess-new",
+					Kind:      "greet",
+					Body:      greetBodyJSON("founder.sess-new", "founder", "Founder", ""),
+					Timestamp: recordedAt.Add(time.Minute),
+				},
+			}
+			if query.Channel == "" || query.Channel == "founders" {
+				return messages, nil
+			}
+			t.Fatalf("ListNetworkMessages() channel = %q, want founders or empty", query.Channel)
+			return nil, nil
+		},
+	}
+
+	channelsResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels", nil)
+	if channelsResp.Code != http.StatusOK {
+		t.Fatalf("channels code = %d, want %d", channelsResp.Code, http.StatusOK)
+	}
+
+	var channelsPayload contract.NetworkChannelsResponse
+	testutil.DecodeJSONResponse(t, channelsResp, &channelsPayload)
+	if got, want := len(channelsPayload.Channels), 1; got != want {
+		t.Fatalf("len(channels) = %d, want %d", got, want)
+	}
+	if got, want := channelsPayload.Channels[0].PresenceCount, 2; got != want {
+		t.Fatalf("channels[0].PresenceCount = %d, want %d", got, want)
+	}
+	if got, want := channelsPayload.Channels[0].HistoricalParticipantCount, 2; got != want {
+		t.Fatalf("channels[0].HistoricalParticipantCount = %d, want %d", got, want)
+	}
+
+	detailResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/founders", nil)
+	if detailResp.Code != http.StatusOK {
+		t.Fatalf("detail code = %d, want %d", detailResp.Code, http.StatusOK)
+	}
+
+	var detailPayload contract.NetworkChannelResponse
+	testutil.DecodeJSONResponse(t, detailResp, &detailPayload)
+	if got, want := detailPayload.Channel.PresenceCount, 2; got != want {
+		t.Fatalf("detail presence_count = %d, want %d", got, want)
+	}
+	if got, want := detailPayload.Channel.HistoricalParticipantCount, 2; got != want {
+		t.Fatalf("detail historical_participant_count = %d, want %d", got, want)
+	}
+}
+
 func TestBaseHandlersNetworkChannelMessagesTogglePresenceEpisodes(t *testing.T) {
 	t.Run("Should coalesce presence-only channel episodes behind the presence toggle", func(t *testing.T) {
 		t.Parallel()
@@ -1239,6 +1494,564 @@ func TestBaseHandlersNetworkChannelMessagesTogglePresenceEpisodes(t *testing.T) 
 			)
 		}
 	})
+
+	t.Run("Should paginate coalesced presence episodes instead of raw greet rows", func(t *testing.T) {
+		t.Parallel()
+
+		recordedAt := time.Date(2026, 4, 11, 20, 0, 0, 0, time.UTC)
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return nil, nil
+			},
+		}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Config.Network.GreetInterval = 30
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, "presence-only"; got != want {
+					t.Fatalf("ListPeers() channel = %q, want %q", got, want)
+				}
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(
+				_ context.Context,
+				query store.NetworkMessageQuery,
+			) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.Channel, "presence-only"; got != want {
+					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
+				}
+				if query.Limit != 0 {
+					t.Fatalf("ListNetworkMessages() limit = %d, want 0 for raw fetch", query.Limit)
+				}
+				if query.BeforeMessageID != "" {
+					t.Fatalf("ListNetworkMessages() before = %q, want empty raw cursor", query.BeforeMessageID)
+				}
+				if query.AfterMessageID != "" {
+					t.Fatalf("ListNetworkMessages() after = %q, want empty raw cursor", query.AfterMessageID)
+				}
+				return []store.NetworkMessageEntry{
+					{
+						MessageID: "msg-greet-01",
+						Channel:   "presence-only",
+						Direction: network.AuditDirectionReceived,
+						PeerFrom:  "reviewer.sess-remote",
+						Kind:      "greet",
+						Body:      greetBodyJSON("reviewer.sess-remote", "Reviewer", "Review pull requests", ""),
+						Timestamp: recordedAt,
+					},
+					{
+						MessageID: "msg-greet-02",
+						Channel:   "presence-only",
+						Direction: network.AuditDirectionReceived,
+						PeerFrom:  "planner.sess-remote",
+						Kind:      "greet",
+						Body:      greetBodyJSON("planner.sess-remote", "Planner", "Track launch milestones", ""),
+						Timestamp: recordedAt.Add(10 * time.Second),
+					},
+					{
+						MessageID: "msg-greet-03",
+						Channel:   "presence-only",
+						Direction: network.AuditDirectionReceived,
+						PeerFrom:  "reviewer.sess-remote",
+						Kind:      "greet",
+						Body:      greetBodyJSON("reviewer.sess-remote", "Reviewer", "Review pull requests", ""),
+						Timestamp: recordedAt.Add(20 * time.Second),
+					},
+					{
+						MessageID: "msg-greet-04",
+						Channel:   "presence-only",
+						Direction: network.AuditDirectionReceived,
+						PeerFrom:  "planner.sess-remote",
+						Kind:      "greet",
+						Body:      greetBodyJSON("planner.sess-remote", "Planner", "Track launch milestones", ""),
+						Timestamp: recordedAt.Add(30 * time.Second),
+					},
+				}, nil
+			},
+		}
+
+		limitResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/presence-only/messages?include_presence=true&limit=1",
+			nil,
+		)
+		if limitResp.Code != http.StatusOK {
+			t.Fatalf("limit presence messages code = %d, want %d", limitResp.Code, http.StatusOK)
+		}
+		var limitPayload contract.NetworkChannelMessagesResponse
+		testutil.DecodeJSONResponse(t, limitResp, &limitPayload)
+		if got, want := len(limitPayload.Messages), 1; got != want {
+			t.Fatalf("len(limit presence messages) = %d, want %d", got, want)
+		}
+		if got, want := limitPayload.Messages[0].MessageID, "msg-greet-03"; got != want {
+			t.Fatalf("limit presence messages[0].message_id = %q, want %q", got, want)
+		}
+		if got, want := limitPayload.Messages[0].PresenceCount, 2; got != want {
+			t.Fatalf("limit presence messages[0].presence_count = %d, want %d", got, want)
+		}
+
+		afterResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/presence-only/messages?include_presence=true&after=msg-greet-03&limit=1",
+			nil,
+		)
+		if afterResp.Code != http.StatusOK {
+			t.Fatalf("after presence messages code = %d, want %d", afterResp.Code, http.StatusOK)
+		}
+		var afterPayload contract.NetworkChannelMessagesResponse
+		testutil.DecodeJSONResponse(t, afterResp, &afterPayload)
+		if got, want := len(afterPayload.Messages), 1; got != want {
+			t.Fatalf("len(after presence messages) = %d, want %d", got, want)
+		}
+		if got, want := afterPayload.Messages[0].MessageID, "msg-greet-04"; got != want {
+			t.Fatalf("after presence messages[0].message_id = %q, want %q", got, want)
+		}
+		if got, want := afterPayload.Messages[0].PresenceCount, 2; got != want {
+			t.Fatalf("after presence messages[0].presence_count = %d, want %d", got, want)
+		}
+
+		hiddenCursorResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/presence-only/messages?include_presence=true&after=msg-greet-01&limit=1",
+			nil,
+		)
+		if hiddenCursorResp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"hidden cursor presence messages code = %d, want %d; body=%s",
+				hiddenCursorResp.Code,
+				http.StatusBadRequest,
+				hiddenCursorResp.Body.String(),
+			)
+		}
+		var hiddenCursorPayload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, hiddenCursorResp, &hiddenCursorPayload)
+		if !strings.Contains(hiddenCursorPayload.Error, "message cursor not found") {
+			t.Fatalf("hidden cursor payload = %#v, want message cursor not found error", hiddenCursorPayload)
+		}
+	})
+}
+
+func TestBaseHandlersNetworkChannelsHideDirectedTrafficFromPublicTimeline(t *testing.T) {
+	t.Run(
+		"Should keep directed traffic in peer rooms while hiding it from channel timelines and summaries",
+		func(t *testing.T) {
+			t.Parallel()
+
+			recordedAt := time.Date(2026, 4, 12, 9, 0, 0, 0, time.UTC)
+			channel := "builders"
+			peerID := "reviewer.sess-remote"
+
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{
+					ListAllFn: func(context.Context) ([]*session.Info, error) {
+						return nil, nil
+					},
+				},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+				nil,
+				nil,
+			)
+			fixture.Handlers.Config.Network.Enabled = true
+			fixture.Handlers.Config.Network.GreetInterval = 30
+			fixture.Handlers.Network = testutil.StubNetworkService{
+				ListPeersFn: func(_ context.Context, requestedChannel string) ([]network.PeerInfo, error) {
+					displayName := "Reviewer"
+					peers := []network.PeerInfo{{
+						PeerID:  peerID,
+						Channel: channel,
+						Local:   false,
+						PeerCard: network.PeerCard{
+							PeerID:      peerID,
+							DisplayName: &displayName,
+						},
+					}}
+					switch requestedChannel {
+					case "", channel:
+						return peers, nil
+					default:
+						return nil, nil
+					}
+				},
+			}
+
+			messages := []store.NetworkMessageEntry{
+				{
+					MessageID: "msg-greet-01",
+					Channel:   channel,
+					Direction: network.AuditDirectionReceived,
+					PeerFrom:  peerID,
+					Kind:      "greet",
+					Body:      greetBodyJSON(peerID, "Reviewer", "Review pull requests", ""),
+					Timestamp: recordedAt,
+				},
+				{
+					MessageID:   "msg-say-01",
+					Channel:     channel,
+					Direction:   network.AuditDirectionSent,
+					PeerFrom:    "coder.sess-local",
+					Kind:        "say",
+					Text:        "Public rollout update.",
+					PreviewText: "Public rollout update.",
+					Body:        json.RawMessage(`{"text":"Public rollout update."}`),
+					Timestamp:   recordedAt.Add(time.Minute),
+				},
+				{
+					MessageID:   "msg-direct-01",
+					Channel:     channel,
+					Direction:   network.AuditDirectionReceived,
+					PeerFrom:    peerID,
+					PeerTo:      "coder.sess-local",
+					Kind:        "direct",
+					Text:        "Private review note.",
+					PreviewText: "Private review note.",
+					Body:        json.RawMessage(`{"text":"Private review note."}`),
+					Timestamp:   recordedAt.Add(2 * time.Minute),
+				},
+				{
+					MessageID:   "msg-receipt-01",
+					Channel:     channel,
+					Direction:   network.AuditDirectionSent,
+					PeerFrom:    "coder.sess-local",
+					PeerTo:      peerID,
+					Kind:        "receipt",
+					Text:        "Received the private review note.",
+					PreviewText: "Received the private review note.",
+					Body:        json.RawMessage(`{"status":"received","text":"Received the private review note."}`),
+					Timestamp:   recordedAt.Add(3 * time.Minute),
+				},
+				{
+					MessageID:   "msg-trace-01",
+					Channel:     channel,
+					Direction:   network.AuditDirectionSent,
+					PeerFrom:    "coder.sess-local",
+					PeerTo:      peerID,
+					Kind:        "trace",
+					Text:        "Working on the requested review.",
+					PreviewText: "Working on the requested review.",
+					Body:        json.RawMessage(`{"status":"working","text":"Working on the requested review."}`),
+					Timestamp:   recordedAt.Add(4 * time.Minute),
+				},
+			}
+			fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+				ListNetworkChannelsFn: func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
+					return nil, nil
+				},
+				ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+					switch {
+					case query.Channel == channel:
+						return messages, nil
+					case query.PeerID == peerID:
+						return messages, nil
+					case query.Channel == "":
+						return messages, nil
+					default:
+						return nil, nil
+					}
+				},
+			}
+
+			channelMessagesResp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/network/channels/builders/messages?include_presence=true",
+				nil,
+			)
+			if channelMessagesResp.Code != http.StatusOK {
+				t.Fatalf("channel messages code = %d, want %d", channelMessagesResp.Code, http.StatusOK)
+			}
+			var channelMessagesPayload contract.NetworkChannelMessagesResponse
+			testutil.DecodeJSONResponse(t, channelMessagesResp, &channelMessagesPayload)
+			if got, want := len(channelMessagesPayload.Messages), 2; got != want {
+				t.Fatalf("len(channel messages) = %d, want %d", got, want)
+			}
+			if got, want := channelMessagesPayload.Messages[0].Kind, "greet"; got != want {
+				t.Fatalf("channel messages[0].Kind = %q, want %q", got, want)
+			}
+			if got, want := channelMessagesPayload.Messages[1].Kind, "say"; got != want {
+				t.Fatalf("channel messages[1].Kind = %q, want %q", got, want)
+			}
+
+			peerMessagesResp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/network/peers/reviewer.sess-remote/messages?include_presence=true",
+				nil,
+			)
+			if peerMessagesResp.Code != http.StatusOK {
+				t.Fatalf("peer messages code = %d, want %d", peerMessagesResp.Code, http.StatusOK)
+			}
+			var peerMessagesPayload contract.NetworkPeerMessagesResponse
+			testutil.DecodeJSONResponse(t, peerMessagesResp, &peerMessagesPayload)
+			if got, want := len(peerMessagesPayload.Messages), 4; got != want {
+				t.Fatalf("len(peer messages) = %d, want %d", got, want)
+			}
+			if got, want := peerMessagesPayload.Messages[1].Kind, "direct"; got != want {
+				t.Fatalf("peer messages[1].Kind = %q, want %q", got, want)
+			}
+			if got, want := peerMessagesPayload.Messages[2].Kind, "receipt"; got != want {
+				t.Fatalf("peer messages[2].Kind = %q, want %q", got, want)
+			}
+			if got, want := peerMessagesPayload.Messages[3].Kind, "trace"; got != want {
+				t.Fatalf("peer messages[3].Kind = %q, want %q", got, want)
+			}
+
+			channelResp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/network/channels/builders",
+				nil,
+			)
+			if channelResp.Code != http.StatusOK {
+				t.Fatalf("channel detail code = %d, want %d", channelResp.Code, http.StatusOK)
+			}
+			var channelPayload contract.NetworkChannelResponse
+			testutil.DecodeJSONResponse(t, channelResp, &channelPayload)
+			if got, want := channelPayload.Channel.MessageCount, 1; got != want {
+				t.Fatalf("channel detail message_count = %d, want %d", got, want)
+			}
+			if got, want := channelPayload.Channel.PresenceCount, 1; got != want {
+				t.Fatalf("channel detail presence_count = %d, want %d", got, want)
+			}
+			if got, want := channelPayload.Channel.HistoricalParticipantCount, 2; got != want {
+				t.Fatalf("channel detail historical_participant_count = %d, want %d", got, want)
+			}
+			if got, want := channelPayload.Channel.LastMessagePreview, "Public rollout update."; got != want {
+				t.Fatalf("channel detail last_message_preview = %q, want %q", got, want)
+			}
+			if channelPayload.Channel.LastActivityAt == nil ||
+				!channelPayload.Channel.LastActivityAt.Equal(recordedAt.Add(time.Minute)) {
+				t.Fatalf(
+					"channel detail last_activity_at = %#v, want %s",
+					channelPayload.Channel.LastActivityAt,
+					recordedAt.Add(time.Minute),
+				)
+			}
+			if got, want := channelPayload.Channel.LastPresenceAt, timePtr(
+				recordedAt,
+			); got == nil ||
+				!got.Equal(*want) {
+				t.Fatalf("channel detail last_presence_at = %#v, want %s", got, *want)
+			}
+			if got, want := channelPayload.Channel.KindCounts, []contract.NetworkChannelKindCountPayload{{
+				Kind:  "say",
+				Count: 1,
+			}}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("channel detail kind_counts = %#v, want %#v", got, want)
+			}
+
+			channelsResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels", nil)
+			if channelsResp.Code != http.StatusOK {
+				t.Fatalf("channels list code = %d, want %d", channelsResp.Code, http.StatusOK)
+			}
+			var channelsPayload contract.NetworkChannelsResponse
+			testutil.DecodeJSONResponse(t, channelsResp, &channelsPayload)
+			if got, want := len(channelsPayload.Channels), 1; got != want {
+				t.Fatalf("len(channels) = %d, want %d", got, want)
+			}
+			if got, want := channelsPayload.Channels[0].MessageCount, 1; got != want {
+				t.Fatalf("channels[0].MessageCount = %d, want %d", got, want)
+			}
+			if got, want := channelsPayload.Channels[0].PresenceCount, 1; got != want {
+				t.Fatalf("channels[0].PresenceCount = %d, want %d", got, want)
+			}
+			if got, want := channelsPayload.Channels[0].HistoricalParticipantCount, 2; got != want {
+				t.Fatalf("channels[0].HistoricalParticipantCount = %d, want %d", got, want)
+			}
+			if got, want := channelsPayload.Channels[0].LastMessagePreview, "Public rollout update."; got != want {
+				t.Fatalf("channels[0].LastMessagePreview = %q, want %q", got, want)
+			}
+			if channelsPayload.Channels[0].LastActivityAt == nil ||
+				!channelsPayload.Channels[0].LastActivityAt.Equal(recordedAt.Add(time.Minute)) {
+				t.Fatalf(
+					"channels[0].LastActivityAt = %#v, want %s",
+					channelsPayload.Channels[0].LastActivityAt,
+					recordedAt.Add(time.Minute),
+				)
+			}
+		},
+	)
+}
+
+func TestBaseHandlersNetworkChannelMessagesPaginateVisiblePublicTimeline(t *testing.T) {
+	t.Run(
+		"Should paginate against visible public messages instead of hidden greet or directed traffic",
+		func(t *testing.T) {
+			t.Parallel()
+
+			recordedAt := time.Date(2026, 4, 12, 10, 0, 0, 0, time.UTC)
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{
+					ListAllFn: func(context.Context) ([]*session.Info, error) {
+						return nil, nil
+					},
+				},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+				nil,
+				nil,
+			)
+			fixture.Handlers.Config.Network.Enabled = true
+			fixture.Handlers.Network = testutil.StubNetworkService{
+				ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+					if got, want := channel, "builders"; got != want {
+						t.Fatalf("ListPeers() channel = %q, want %q", got, want)
+					}
+					return nil, nil
+				},
+			}
+
+			messages := []store.NetworkMessageEntry{
+				{
+					MessageID: "msg-greet-01",
+					Channel:   "builders",
+					Direction: network.AuditDirectionReceived,
+					PeerFrom:  "reviewer.sess-remote",
+					Kind:      "greet",
+					Body:      greetBodyJSON("reviewer.sess-remote", "Reviewer", "Review pull requests", ""),
+					Timestamp: recordedAt,
+				},
+				{
+					MessageID:   "msg-say-01",
+					Channel:     "builders",
+					Direction:   network.AuditDirectionSent,
+					PeerFrom:    "founder.sess-local",
+					Kind:        "say",
+					Text:        "Public update one.",
+					PreviewText: "Public update one.",
+					Body:        json.RawMessage(`{"text":"Public update one."}`),
+					Timestamp:   recordedAt.Add(time.Minute),
+				},
+				{
+					MessageID:   "msg-direct-01",
+					Channel:     "builders",
+					Direction:   network.AuditDirectionReceived,
+					PeerFrom:    "reviewer.sess-remote",
+					PeerTo:      "coder.sess-local",
+					Kind:        "direct",
+					Text:        "Private handoff.",
+					PreviewText: "Private handoff.",
+					Body:        json.RawMessage(`{"text":"Private handoff."}`),
+					Timestamp:   recordedAt.Add(2 * time.Minute),
+				},
+				{
+					MessageID:   "msg-receipt-01",
+					Channel:     "builders",
+					Direction:   network.AuditDirectionSent,
+					PeerFrom:    "coder.sess-local",
+					PeerTo:      "reviewer.sess-remote",
+					Kind:        "receipt",
+					Text:        "Receipt for private handoff.",
+					PreviewText: "Receipt for private handoff.",
+					Body:        json.RawMessage(`{"status":"received","text":"Receipt for private handoff."}`),
+					Timestamp:   recordedAt.Add(3 * time.Minute),
+				},
+				{
+					MessageID:   "msg-say-02",
+					Channel:     "builders",
+					Direction:   network.AuditDirectionSent,
+					PeerFrom:    "founder.sess-local",
+					Kind:        "say",
+					Text:        "Public update two.",
+					PreviewText: "Public update two.",
+					Body:        json.RawMessage(`{"text":"Public update two."}`),
+					Timestamp:   recordedAt.Add(4 * time.Minute),
+				},
+			}
+			fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+				ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+					if got, want := query.Channel, "builders"; got != want {
+						t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
+					}
+					if query.Limit != 0 {
+						t.Fatalf("ListNetworkMessages() limit = %d, want handler-side pagination", query.Limit)
+					}
+					if query.BeforeMessageID != "" {
+						t.Fatalf(
+							"ListNetworkMessages() before = %q, want empty raw fetch cursor",
+							query.BeforeMessageID,
+						)
+					}
+					if query.AfterMessageID != "" {
+						t.Fatalf("ListNetworkMessages() after = %q, want empty raw fetch cursor", query.AfterMessageID)
+					}
+					return messages, nil
+				},
+			}
+
+			limitResp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/network/channels/builders/messages?limit=1",
+				nil,
+			)
+			if limitResp.Code != http.StatusOK {
+				t.Fatalf("limit messages code = %d, want %d", limitResp.Code, http.StatusOK)
+			}
+			var limitPayload contract.NetworkChannelMessagesResponse
+			testutil.DecodeJSONResponse(t, limitResp, &limitPayload)
+			if got, want := len(limitPayload.Messages), 1; got != want {
+				t.Fatalf("len(limit messages) = %d, want %d", got, want)
+			}
+			if got, want := limitPayload.Messages[0].MessageID, "msg-say-01"; got != want {
+				t.Fatalf("limit messages[0].message_id = %q, want %q", got, want)
+			}
+
+			afterResp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/network/channels/builders/messages?after=msg-say-01&limit=1",
+				nil,
+			)
+			if afterResp.Code != http.StatusOK {
+				t.Fatalf("after messages code = %d, want %d", afterResp.Code, http.StatusOK)
+			}
+			var afterPayload contract.NetworkChannelMessagesResponse
+			testutil.DecodeJSONResponse(t, afterResp, &afterPayload)
+			if got, want := len(afterPayload.Messages), 1; got != want {
+				t.Fatalf("len(after messages) = %d, want %d", got, want)
+			}
+			if got, want := afterPayload.Messages[0].MessageID, "msg-say-02"; got != want {
+				t.Fatalf("after messages[0].message_id = %q, want %q", got, want)
+			}
+
+			hiddenCursorResp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/network/channels/builders/messages?after=msg-direct-01&limit=1",
+				nil,
+			)
+			if hiddenCursorResp.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"hidden cursor messages code = %d, want %d; body=%s",
+					hiddenCursorResp.Code,
+					http.StatusBadRequest,
+					hiddenCursorResp.Body.String(),
+				)
+			}
+			var hiddenCursorPayload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, hiddenCursorResp, &hiddenCursorPayload)
+			if !strings.Contains(hiddenCursorPayload.Error, "message cursor not found") {
+				t.Fatalf("hidden cursor payload = %#v, want message cursor not found error", hiddenCursorPayload)
+			}
+		},
+	)
 }
 
 func TestBaseHandlersNetworkPeerMessagesCanIncludePresenceWithoutBroadcasts(t *testing.T) {
@@ -1343,6 +2156,263 @@ func TestBaseHandlersNetworkPeerMessagesCanIncludePresenceWithoutBroadcasts(t *t
 		}
 		if got, want := payload.Messages[1].Kind, "direct"; got != want {
 			t.Fatalf("messages[1].Kind = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should paginate coalesced peer presence episodes instead of raw greet rows", func(t *testing.T) {
+		t.Parallel()
+
+		recordedAt := time.Date(2026, 4, 11, 21, 0, 0, 0, time.UTC)
+		peerID := "reviewer.sess-remote"
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return nil, nil
+			},
+		}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Config.Network.GreetInterval = 30
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, ""; got != want {
+					t.Fatalf("ListPeers() channel = %q, want empty", got)
+				}
+				displayName := "Reviewer"
+				return []network.PeerInfo{{
+					PeerID:  peerID,
+					Channel: "builders",
+					Local:   false,
+					PeerCard: network.PeerCard{
+						PeerID:      peerID,
+						DisplayName: &displayName,
+					},
+				}}, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(
+				_ context.Context,
+				query store.NetworkMessageQuery,
+			) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.PeerID, peerID; got != want {
+					t.Fatalf("ListNetworkMessages() peer_id = %q, want %q", got, want)
+				}
+				if query.DirectedOnly {
+					t.Fatal("include_presence peer query should fetch raw rows before visibility pagination")
+				}
+				if query.Limit != 0 {
+					t.Fatalf("ListNetworkMessages() limit = %d, want 0 for raw fetch", query.Limit)
+				}
+				if query.BeforeMessageID != "" {
+					t.Fatalf("ListNetworkMessages() before = %q, want empty raw cursor", query.BeforeMessageID)
+				}
+				if query.AfterMessageID != "" {
+					t.Fatalf("ListNetworkMessages() after = %q, want empty raw cursor", query.AfterMessageID)
+				}
+				return []store.NetworkMessageEntry{
+					{
+						MessageID: "msg-greet-01",
+						Channel:   "builders",
+						Direction: network.AuditDirectionReceived,
+						PeerFrom:  peerID,
+						Kind:      "greet",
+						Body:      greetBodyJSON(peerID, "Reviewer", "Review pull requests", ""),
+						Timestamp: recordedAt,
+					},
+					{
+						MessageID: "msg-greet-02",
+						Channel:   "builders",
+						Direction: network.AuditDirectionReceived,
+						PeerFrom:  peerID,
+						Kind:      "greet",
+						Body:      greetBodyJSON(peerID, "Reviewer", "Review pull requests", ""),
+						Timestamp: recordedAt.Add(20 * time.Second),
+					},
+					{
+						MessageID:   "msg-direct-01",
+						Channel:     "builders",
+						Direction:   network.AuditDirectionReceived,
+						PeerFrom:    peerID,
+						PeerTo:      "coder.sess-local",
+						Kind:        "direct",
+						Text:        "Please review the rollout.",
+						PreviewText: "Please review the rollout.",
+						Body:        json.RawMessage(`{"text":"Please review the rollout."}`),
+						Timestamp:   recordedAt.Add(time.Minute),
+					},
+				}, nil
+			},
+		}
+
+		limitResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/peers/reviewer.sess-remote/messages?include_presence=true&limit=1",
+			nil,
+		)
+		if limitResp.Code != http.StatusOK {
+			t.Fatalf("limit peer messages code = %d, want %d", limitResp.Code, http.StatusOK)
+		}
+		var limitPayload contract.NetworkPeerMessagesResponse
+		testutil.DecodeJSONResponse(t, limitResp, &limitPayload)
+		if got, want := len(limitPayload.Messages), 1; got != want {
+			t.Fatalf("len(limit peer messages) = %d, want %d", got, want)
+		}
+		if got, want := limitPayload.Messages[0].MessageID, "msg-greet-02"; got != want {
+			t.Fatalf("limit peer messages[0].message_id = %q, want %q", got, want)
+		}
+		if got, want := limitPayload.Messages[0].PresenceCount, 2; got != want {
+			t.Fatalf("limit peer messages[0].presence_count = %d, want %d", got, want)
+		}
+
+		afterResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/peers/reviewer.sess-remote/messages?include_presence=true&after=msg-greet-02&limit=1",
+			nil,
+		)
+		if afterResp.Code != http.StatusOK {
+			t.Fatalf("after peer messages code = %d, want %d", afterResp.Code, http.StatusOK)
+		}
+		var afterPayload contract.NetworkPeerMessagesResponse
+		testutil.DecodeJSONResponse(t, afterResp, &afterPayload)
+		if got, want := len(afterPayload.Messages), 1; got != want {
+			t.Fatalf("len(after peer messages) = %d, want %d", got, want)
+		}
+		if got, want := afterPayload.Messages[0].MessageID, "msg-direct-01"; got != want {
+			t.Fatalf("after peer messages[0].message_id = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestBaseHandlersNetworkPeerMessagesPaginateVisiblePeerTimeline(t *testing.T) {
+	t.Run("Should paginate peer history against visible peer messages when presence is included", func(t *testing.T) {
+		t.Parallel()
+
+		recordedAt := time.Date(2026, 4, 12, 11, 0, 0, 0, time.UTC)
+		peerID := "reviewer.sess-remote"
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return nil, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Config.Network.GreetInterval = 30
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, ""; got != want {
+					t.Fatalf("ListPeers() channel = %q, want empty", got)
+				}
+				displayName := "Reviewer"
+				return []network.PeerInfo{{
+					PeerID:  peerID,
+					Channel: "builders",
+					Local:   false,
+					PeerCard: network.PeerCard{
+						PeerID:      peerID,
+						DisplayName: &displayName,
+					},
+				}}, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(
+				_ context.Context,
+				query store.NetworkMessageQuery,
+			) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.PeerID, peerID; got != want {
+					t.Fatalf("ListNetworkMessages() peer_id = %q, want %q", got, want)
+				}
+				if query.DirectedOnly {
+					t.Fatal("include_presence peer query should fetch the raw lane before handler-side pagination")
+				}
+				if query.Limit != 0 {
+					t.Fatalf("ListNetworkMessages() limit = %d, want handler-side pagination", query.Limit)
+				}
+				if query.BeforeMessageID != "" {
+					t.Fatalf("ListNetworkMessages() before = %q, want empty raw fetch cursor", query.BeforeMessageID)
+				}
+				if query.AfterMessageID != "" {
+					t.Fatalf("ListNetworkMessages() after = %q, want empty raw fetch cursor", query.AfterMessageID)
+				}
+				return []store.NetworkMessageEntry{
+					{
+						MessageID: "msg-greet-01",
+						Channel:   "builders",
+						Direction: network.AuditDirectionReceived,
+						PeerFrom:  peerID,
+						Kind:      "greet",
+						Body:      greetBodyJSON(peerID, "Reviewer", "Review pull requests", ""),
+						Timestamp: recordedAt,
+					},
+					{
+						MessageID:   "msg-say-01",
+						Channel:     "builders",
+						Direction:   network.AuditDirectionReceived,
+						PeerFrom:    peerID,
+						Kind:        "say",
+						Text:        "Broadcast that should stay out of peer room.",
+						PreviewText: "Broadcast that should stay out of peer room.",
+						Body:        json.RawMessage(`{"text":"Broadcast that should stay out of peer room."}`),
+						Timestamp:   recordedAt.Add(time.Minute),
+					},
+					{
+						MessageID:   "msg-direct-01",
+						Channel:     "builders",
+						Direction:   network.AuditDirectionReceived,
+						PeerFrom:    peerID,
+						PeerTo:      "coder.sess-local",
+						Kind:        "direct",
+						Text:        "Direct handoff.",
+						PreviewText: "Direct handoff.",
+						Body:        json.RawMessage(`{"text":"Direct handoff."}`),
+						Timestamp:   recordedAt.Add(2 * time.Minute),
+					},
+					{
+						MessageID:   "msg-receipt-01",
+						Channel:     "builders",
+						Direction:   network.AuditDirectionSent,
+						PeerFrom:    "coder.sess-local",
+						PeerTo:      peerID,
+						Kind:        "receipt",
+						Text:        "Receipt for direct handoff.",
+						PreviewText: "Receipt for direct handoff.",
+						Body:        json.RawMessage(`{"status":"received","text":"Receipt for direct handoff."}`),
+						Timestamp:   recordedAt.Add(3 * time.Minute),
+					},
+				}, nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/peers/reviewer.sess-remote/messages?include_presence=true&after=msg-greet-01&limit=2",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("peer messages code = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload contract.NetworkPeerMessagesResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Messages), 2; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+		if got, want := payload.Messages[0].MessageID, "msg-direct-01"; got != want {
+			t.Fatalf("messages[0].message_id = %q, want %q", got, want)
+		}
+		if got, want := payload.Messages[1].MessageID, "msg-receipt-01"; got != want {
+			t.Fatalf("messages[1].message_id = %q, want %q", got, want)
 		}
 	})
 }
@@ -2027,6 +3097,172 @@ func TestBaseHandlersNetworkChannelEndpointsIgnoreStoppedSessions(t *testing.T) 
 			t.Fatalf("history-only message count = %d, want %d", got, want)
 		}
 	})
+
+	t.Run("Should preserve history-only direct channels as public-empty rooms", func(t *testing.T) {
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{
+					{
+						ID:          "sess-founder",
+						Name:        "Founder",
+						AgentName:   "founder",
+						WorkspaceID: "ws-1",
+						Channel:     "handoff",
+						Type:        session.SessionTypeUser,
+						State:       session.StateStopped,
+						CreatedAt:   createdAt,
+						UpdatedAt:   createdAt,
+					},
+					{
+						ID:          "sess-coder",
+						Name:        "Coder",
+						AgentName:   "coder",
+						WorkspaceID: "ws-1",
+						Channel:     "handoff",
+						Type:        session.SessionTypeUser,
+						State:       session.StateStopped,
+						CreatedAt:   createdAt.Add(time.Minute),
+						UpdatedAt:   createdAt.Add(time.Minute),
+					},
+				}, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, "handoff"; got != want && got != "" {
+					t.Fatalf("ListPeers() channel = %q, want %q or empty", got, want)
+				}
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.Channel, "handoff"; got != want && got != "" {
+					t.Fatalf("ListNetworkMessages() channel = %q, want %q or empty", got, want)
+				}
+				messages := []store.NetworkMessageEntry{
+					{
+						MessageID: "msg-handoff-greet-founder",
+						SessionID: "sess-founder",
+						Channel:   "handoff",
+						Direction: network.AuditDirectionSent,
+						PeerFrom:  "founder.sess-founder",
+						Kind:      "greet",
+						Body:      greetBodyJSON("founder.sess-founder", "Founder", "", ""),
+						Timestamp: createdAt,
+					},
+					{
+						MessageID: "msg-handoff-greet-coder",
+						SessionID: "sess-coder",
+						Channel:   "handoff",
+						Direction: network.AuditDirectionSent,
+						PeerFrom:  "coder.sess-coder",
+						Kind:      "greet",
+						Body:      greetBodyJSON("coder.sess-coder", "Coder", "Implement a fix", ""),
+						Timestamp: createdAt.Add(time.Minute),
+					},
+					{
+						MessageID:   "msg-handoff-direct",
+						SessionID:   "sess-founder",
+						Channel:     "handoff",
+						Direction:   network.AuditDirectionSent,
+						PeerFrom:    "founder.sess-founder",
+						PeerTo:      "coder.sess-coder",
+						Kind:        "direct",
+						Text:        "Private handoff.",
+						PreviewText: "Private handoff.",
+						Body:        json.RawMessage(`{"text":"Private handoff."}`),
+						Timestamp:   createdAt.Add(2 * time.Minute),
+					},
+				}
+				if query.Channel == "" {
+					return messages, nil
+				}
+				return messages, nil
+			},
+		}
+
+		channelsResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels", nil)
+		if channelsResp.Code != http.StatusOK {
+			t.Fatalf("channels code = %d, want %d", channelsResp.Code, http.StatusOK)
+		}
+		var channelsPayload contract.NetworkChannelsResponse
+		testutil.DecodeJSONResponse(t, channelsResp, &channelsPayload)
+		if got, want := len(channelsPayload.Channels), 1; got != want {
+			t.Fatalf("len(channels) = %d, want %d", got, want)
+		}
+		if got, want := channelsPayload.Channels[0].Channel, "handoff"; got != want {
+			t.Fatalf("channels[0].Channel = %q, want %q", got, want)
+		}
+		if got, want := channelsPayload.Channels[0].MessageCount, 0; got != want {
+			t.Fatalf("channels[0].MessageCount = %d, want %d", got, want)
+		}
+		if got, want := channelsPayload.Channels[0].PresenceCount, 2; got != want {
+			t.Fatalf("channels[0].PresenceCount = %d, want %d", got, want)
+		}
+		if got, want := channelsPayload.Channels[0].HistoricalParticipantCount, 2; got != want {
+			t.Fatalf("channels[0].HistoricalParticipantCount = %d, want %d", got, want)
+		}
+
+		historyResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/handoff", nil)
+		if historyResp.Code != http.StatusOK {
+			t.Fatalf("history-only direct channel detail code = %d, want %d", historyResp.Code, http.StatusOK)
+		}
+		var historyPayload contract.NetworkChannelResponse
+		testutil.DecodeJSONResponse(t, historyResp, &historyPayload)
+		if got, want := historyPayload.Channel.Channel, "handoff"; got != want {
+			t.Fatalf("history-only direct channel = %q, want %q", got, want)
+		}
+		if got, want := historyPayload.Channel.SessionCount, 0; got != want {
+			t.Fatalf("history-only direct session count = %d, want %d", got, want)
+		}
+		if got, want := historyPayload.Channel.PeerCount, 0; got != want {
+			t.Fatalf("history-only direct peer count = %d, want %d", got, want)
+		}
+		if got, want := historyPayload.Channel.MessageCount, 0; got != want {
+			t.Fatalf("history-only direct message count = %d, want %d", got, want)
+		}
+		if got, want := historyPayload.Channel.PresenceCount, 2; got != want {
+			t.Fatalf("history-only direct presence count = %d, want %d", got, want)
+		}
+		if got, want := historyPayload.Channel.HistoricalParticipantCount, 2; got != want {
+			t.Fatalf("history-only direct historical participants = %d, want %d", got, want)
+		}
+
+		publicResp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/handoff/messages", nil)
+		if publicResp.Code != http.StatusOK {
+			t.Fatalf("history-only direct public messages code = %d, want %d", publicResp.Code, http.StatusOK)
+		}
+		var publicPayload contract.NetworkChannelMessagesResponse
+		testutil.DecodeJSONResponse(t, publicResp, &publicPayload)
+		if got, want := len(publicPayload.Messages), 0; got != want {
+			t.Fatalf("len(public messages) = %d, want %d", got, want)
+		}
+
+		presenceResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/handoff/messages?include_presence=true",
+			nil,
+		)
+		if presenceResp.Code != http.StatusOK {
+			t.Fatalf("history-only direct presence messages code = %d, want %d", presenceResp.Code, http.StatusOK)
+		}
+		var presencePayload contract.NetworkChannelMessagesResponse
+		testutil.DecodeJSONResponse(t, presenceResp, &presencePayload)
+		if got, want := len(presencePayload.Messages), 2; got != want {
+			t.Fatalf("len(presence messages) = %d, want %d", got, want)
+		}
+		for index, message := range presencePayload.Messages {
+			if got, want := message.Kind, "greet"; got != want {
+				t.Fatalf("presence messages[%d].Kind = %q, want %q", index, got, want)
+			}
+		}
+	})
 }
 
 func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
@@ -2218,11 +3454,20 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 				if got, want := query.Channel, "builders"; got != want {
 					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
 				}
+				if query.AfterMessageID != "" {
+					t.Fatalf("ListNetworkMessages() after = %q, want empty raw fetch cursor", query.AfterMessageID)
+				}
 				return nil, nil
 			},
 		}
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders/messages", nil)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/builders/messages?after=msg-missing&limit=10",
+			nil,
+		)
 		if resp.Code != http.StatusNotFound {
 			t.Fatalf("channel messages code = %d, want %d", resp.Code, http.StatusNotFound)
 		}
@@ -2230,6 +3475,70 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if !strings.Contains(payload.Error, "network channel not found") {
 			t.Fatalf("channel messages payload = %#v, want network channel not found error", payload)
+		}
+	})
+
+	t.Run("Should return an empty cursor page for a history-only channel", func(t *testing.T) {
+		t.Parallel()
+
+		recordedAt := time.Date(2026, 4, 12, 13, 0, 0, 0, time.UTC)
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return nil, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, "builders"; got != want {
+					t.Fatalf("ListPeers() channel = %q, want %q", got, want)
+				}
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.Channel, "builders"; got != want {
+					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
+				}
+				if query.AfterMessageID != "" {
+					t.Fatalf("ListNetworkMessages() after = %q, want empty raw fetch cursor", query.AfterMessageID)
+				}
+				return []store.NetworkMessageEntry{{
+					MessageID:   "msg-last",
+					Channel:     "builders",
+					Direction:   network.AuditDirectionSent,
+					PeerFrom:    "coder.sess-local",
+					Kind:        "say",
+					Text:        "Past update.",
+					PreviewText: "Past update.",
+					Body:        json.RawMessage(`{"text":"Past update."}`),
+					Timestamp:   recordedAt,
+				}}, nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/builders/messages?after=msg-last&limit=10",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("channel messages code = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.NetworkChannelMessagesResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got := len(payload.Messages); got != 0 {
+			t.Fatalf("len(channel messages) = %d, want empty cursor page", got)
 		}
 	})
 
@@ -2399,6 +3708,20 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 			if got, want := payload.Channel.SessionCount, 2; got != want {
 				t.Fatalf("payload.Channel.SessionCount = %d, want %d", got, want)
 			}
+			if got, want := len(payload.Channel.Peers), 2; got != want {
+				t.Fatalf("len(payload.Channel.Peers) = %d, want %d", got, want)
+			}
+			for index, peer := range payload.Channel.Peers {
+				if peer.PeerCard.ProfilesSupported == nil {
+					t.Fatalf("payload.Channel.Peers[%d].PeerCard.ProfilesSupported = nil, want empty slice", index)
+				}
+				if peer.PeerCard.ArtifactsSupported == nil {
+					t.Fatalf("payload.Channel.Peers[%d].PeerCard.ArtifactsSupported = nil, want empty slice", index)
+				}
+				if peer.PeerCard.TrustModesSupported == nil {
+					t.Fatalf("payload.Channel.Peers[%d].PeerCard.TrustModesSupported = nil, want empty slice", index)
+				}
+			}
 		},
 	)
 }
@@ -2529,6 +3852,29 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 		}
 		if got, want := payload.Peer.Metrics.Rejected, int64(1); got != want {
 			t.Fatalf("payload.Peer.Metrics.Rejected = %d, want %d", got, want)
+		}
+		if payload.Peer.PeerCard.ProfilesSupported == nil {
+			t.Fatal("payload.Peer.PeerCard.ProfilesSupported = nil, want slice")
+		}
+		if got, want := payload.Peer.PeerCard.ProfilesSupported, []string{
+			network.ProtocolV0,
+		}; !reflect.DeepEqual(
+			got,
+			want,
+		) {
+			t.Fatalf("payload.Peer.PeerCard.ProfilesSupported = %#v, want %#v", got, want)
+		}
+		if payload.Peer.PeerCard.ArtifactsSupported == nil {
+			t.Fatal("payload.Peer.PeerCard.ArtifactsSupported = nil, want empty slice")
+		}
+		if got := len(payload.Peer.PeerCard.ArtifactsSupported); got != 0 {
+			t.Fatalf("len(payload.Peer.PeerCard.ArtifactsSupported) = %d, want 0", got)
+		}
+		if payload.Peer.PeerCard.TrustModesSupported == nil {
+			t.Fatal("payload.Peer.PeerCard.TrustModesSupported = nil, want empty slice")
+		}
+		if got := len(payload.Peer.PeerCard.TrustModesSupported); got != 0 {
+			t.Fatalf("len(payload.Peer.PeerCard.TrustModesSupported) = %d, want 0", got)
 		}
 		if got, want := payload.Peer.PeerCard.Capabilities, []contract.NetworkCapabilityBriefPayload{{
 			ID:      "review-pr",

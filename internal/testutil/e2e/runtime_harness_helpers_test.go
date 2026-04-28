@@ -60,8 +60,8 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		AgentName:   "coder",
 		WorkspaceID: "ws-1",
 		State:       "stopped",
-		Environment: &store.SessionEnvironmentMeta{
-			EnvironmentID:  "env-1",
+		Sandbox: &store.SessionSandboxMeta{
+			SandboxID:      "env-1",
 			Backend:        "local",
 			Profile:        "local-sandbox",
 			State:          "stopped",
@@ -149,8 +149,8 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSession() error = %v", err)
 	}
-	if got, want := gotSession.Environment.Profile, "local"; got != want {
-		t.Fatalf("gotSession.Environment.Profile = %q, want %q", got, want)
+	if got, want := gotSession.Sandbox.Profile, "local"; got != want {
+		t.Fatalf("gotSession.Sandbox.Profile = %q, want %q", got, want)
 	}
 	resumedSession, err := harness.ResumeSession(testContext(t), "sess-1")
 	if err != nil {
@@ -301,8 +301,8 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if err := harness.CaptureSessionEvents(testContext(t), "sess-1"); err != nil {
 		t.Fatalf("CaptureSessionEvents() error = %v", err)
 	}
-	if err := harness.CaptureSessionEnvironment(testContext(t), "sess-1"); err != nil {
-		t.Fatalf("CaptureSessionEnvironment() error = %v", err)
+	if err := harness.CaptureSessionSandbox(testContext(t), "sess-1"); err != nil {
+		t.Fatalf("CaptureSessionSandbox() error = %v", err)
 	}
 	if err := harness.CaptureNetworkArtifacts(testContext(t), "builders"); err != nil {
 		t.Fatalf("CaptureNetworkArtifacts() error = %v", err)
@@ -341,7 +341,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		t.Fatalf("CaptureToolHostDiagnosticsJSON() error = %v", err)
 	}
 	if err := harness.CaptureCombinedFlowJSON(CombinedFlowArtifact{
-		Scenario:          "bridge-environment-network",
+		Scenario:          "bridge-sandbox-network",
 		SessionID:         "sess-1",
 		Channel:           "builders",
 		AutomationRunID:   "run-1",
@@ -474,24 +474,24 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		t.Fatalf("task runs artifact = %s, want session linkage and idempotency key", string(taskRunsBytes))
 	}
 
-	sessionEnvironmentPath, ok := harness.Artifacts.ArtifactPath(ArtifactKindSessionEnvironment)
+	sessionSandboxPath, ok := harness.Artifacts.ArtifactPath(ArtifactKindSessionSandbox)
 	if !ok {
-		t.Fatal("ArtifactPath(session_environment) = missing, want present")
+		t.Fatal("ArtifactPath(session_sandbox) = missing, want present")
 	}
-	sessionEnvironmentBytes, err := os.ReadFile(sessionEnvironmentPath)
+	sessionSandboxBytes, err := os.ReadFile(sessionSandboxPath)
 	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v", sessionEnvironmentPath, err)
+		t.Fatalf("os.ReadFile(%q) error = %v", sessionSandboxPath, err)
 	}
-	if !strings.Contains(string(sessionEnvironmentBytes), `"runtime_root_dir": "/workspace"`) {
+	if !strings.Contains(string(sessionSandboxBytes), `"runtime_root_dir": "/workspace"`) {
 		t.Fatalf(
-			"session environment artifact = %s, want persisted runtime root metadata",
-			string(sessionEnvironmentBytes),
+			"session sandbox artifact = %s, want persisted runtime root metadata",
+			string(sessionSandboxBytes),
 		)
 	}
-	if !strings.Contains(string(sessionEnvironmentBytes), `"session_state": "stopped"`) {
+	if !strings.Contains(string(sessionSandboxBytes), `"session_state": "stopped"`) {
 		t.Fatalf(
-			"session environment artifact = %s, want session-level stop visibility",
-			string(sessionEnvironmentBytes),
+			"session sandbox artifact = %s, want session-level stop visibility",
+			string(sessionSandboxBytes),
 		)
 	}
 
@@ -539,7 +539,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.ReadFile(%q) error = %v", combinedFlowPath, err)
 	}
-	if !strings.Contains(string(combinedFlowBytes), `"scenario": "bridge-environment-network"`) ||
+	if !strings.Contains(string(combinedFlowBytes), `"scenario": "bridge-sandbox-network"`) ||
 		!strings.Contains(string(combinedFlowBytes), `"bridge_id": "brg-1"`) {
 		t.Fatalf("combined flow artifact = %s, want cross-domain scenario summary", string(combinedFlowBytes))
 	}
@@ -792,11 +792,11 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				WorkspacePath: "/workspace",
 				State:         "stopped",
 				StopReason:    store.StopCompleted,
-				Environment: &aghcontract.SessionEnvironmentPayload{
-					EnvironmentID: "env-1",
-					Backend:       "local",
-					Profile:       "local",
-					State:         "ready",
+				Sandbox: &aghcontract.SessionSandboxPayload{
+					SandboxID: "env-1",
+					Backend:   "local",
+					Profile:   "local",
+					State:     "ready",
 				},
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -823,11 +823,11 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				WorkspacePath: "/workspace",
 				Channel:       "builders",
 				State:         "active",
-				Environment: &aghcontract.SessionEnvironmentPayload{
-					EnvironmentID: "env-1",
-					Backend:       "local",
-					Profile:       "local",
-					State:         "ready",
+				Sandbox: &aghcontract.SessionSandboxPayload{
+					SandboxID: "env-1",
+					Backend:   "local",
+					Profile:   "local",
+					State:     "ready",
 				},
 				CreatedAt: now,
 				UpdatedAt: routeTime,

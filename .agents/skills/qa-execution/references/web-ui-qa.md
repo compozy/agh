@@ -2,9 +2,15 @@
 
 Read this reference when the project has a Web UI surface and browser flows are in scope.
 
-## agent-browser Core Loop
+## Preferred Browser Order
 
-Every browser interaction follows the **Open -> Snapshot -> Interact -> Re-snapshot -> Verify** cycle.
+1. Use `browser-use:browser` first when the Browser plugin is available.
+2. Use `agent-browser` only when browser-use setup fails or is unavailable.
+3. Record which browser tool was used for each high-risk flow.
+
+## agent-browser Fallback Core Loop
+
+Every `agent-browser` fallback interaction follows the **Open -> Snapshot -> Interact -> Re-snapshot -> Verify** cycle.
 
 ### Navigation
 
@@ -55,8 +61,22 @@ agent-browser wait 2000                 # Wait milliseconds
 3. **Use `snapshot -i` for interaction planning.** It returns only interactive elements, which is more token-efficient and easier to parse than a full accessibility tree.
 4. **Use semantic waiting** (`wait --text`, `wait @e1`) instead of fixed-duration waits whenever possible.
 5. **Chain commands with `&&`** when intermediate output is not needed. Run separately when snapshot output must be parsed before the next action.
+6. **Do not skip browser-use preflight silently.** If browser-use fails, record the failed prerequisite before falling back to `agent-browser`.
 
 ## Web UI QA Categories
+
+### Operator Understanding
+- [ ] The page renders real scenario state created through CLI/API/runtime flows
+- [ ] The operator can identify what happened, who or which agent did it, current status, and next action
+- [ ] Generated artifacts, task/channel/run state, or knowledge entries are visible or reachable when the product exposes them
+- [ ] Empty, stale, historical, and error states explain the situation without requiring direct DB/API inspection
+- [ ] Screenshots and DOM snapshots prove understandable product state, not just successful navigation
+
+### Anti-Smoke Guardrail
+- [ ] A route-render check is treated as smoke only
+- [ ] A list-count check is treated as smoke unless tied to a specific persisted object from the scenario
+- [ ] Browser evidence is paired with CLI/API/runtime evidence for at least one overlapping object or artifact
+- [ ] Browser validation is not used to replace live provider-backed agent behavior when the scenario requires it
 
 ### Functional Flows
 - [ ] Core navigation works (page transitions, links, routing)

@@ -13,7 +13,7 @@ source_review_submitted_at: "2026-04-17T17:17:39Z"
 # Issue 004: Diagnostics capture records expected values, not observed runtime data.
 ## Review Comment
 
-The `diagnostics` struct is populated with expected values for artifact capture purposes. While the test correctly verifies side effects (file content at line 107), it doesn't read back runtime-emitted diagnostics to confirm the daemon actually recorded the tool-host operation. This is acceptable since the file content verification proves the behavior, but for fuller observability validation, consider reading from `harness.SessionEnvironmentArtifact` or a dedicated diagnostics endpoint.
+The `diagnostics` struct is populated with expected values for artifact capture purposes. While the test correctly verifies side effects (file content at line 107), it doesn't read back runtime-emitted diagnostics to confirm the daemon actually recorded the tool-host operation. This is acceptable since the file content verification proves the behavior, but for fuller observability validation, consider reading from `harness.SessionSandboxArtifact` or a dedicated diagnostics endpoint.
 
 ## Triage
 

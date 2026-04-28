@@ -8,7 +8,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -193,7 +193,7 @@ func TestWorkspaceStructSurface(t *testing.T) {
 				{name: "AdditionalDirs", fieldType: reflect.TypeFor[[]string]()},
 				{name: "Name", fieldType: reflect.TypeFor[string]()},
 				{name: "DefaultAgent", fieldType: reflect.TypeFor[string]()},
-				{name: "EnvironmentRef", fieldType: reflect.TypeFor[string]()},
+				{name: "SandboxRef", fieldType: reflect.TypeFor[string]()},
 				{name: "CreatedAt", fieldType: reflect.TypeFor[time.Time]()},
 				{name: "UpdatedAt", fieldType: reflect.TypeFor[time.Time]()},
 			},
@@ -206,7 +206,7 @@ func TestWorkspaceStructSurface(t *testing.T) {
 				{name: "Config", fieldType: reflect.TypeFor[aghconfig.Config]()},
 				{name: "Agents", fieldType: reflect.TypeFor[[]aghconfig.AgentDef]()},
 				{name: "Skills", fieldType: reflect.TypeFor[[]workspace.SkillPath]()},
-				{name: "Environment", fieldType: reflect.TypeFor[environment.Resolved]()},
+				{name: "Sandbox", fieldType: reflect.TypeFor[sandbox.Resolved]()},
 				{name: "ResolvedAt", fieldType: reflect.TypeFor[time.Time]()},
 			},
 		},

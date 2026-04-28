@@ -1,6 +1,6 @@
 import type {
   SettingsAutomationSection,
-  SettingsEnvironmentEntry,
+  SettingsSandboxEntry,
   SettingsExtensionEntry,
   SettingsGeneralSection,
   SettingsHookEntry,
@@ -25,7 +25,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
   },
   config: {
     daemon: { socket: "/tmp/agh.sock" },
-    defaults: { agent: "general", provider: "claude", environment: "local" },
+    defaults: { agent: "general", provider: "claude", sandbox: "local" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_sessions: 10, max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" },
@@ -290,7 +290,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
   },
 ];
 
-export const settingsEnvironmentFixtures: SettingsEnvironmentEntry[] = [
+export const settingsSandboxFixtures: SettingsSandboxEntry[] = [
   {
     name: "local",
     workspace_usage_count: 3,
@@ -369,8 +369,8 @@ export const settingsProvidersCollectionFixture = {
   providers: settingsProviderFixtures,
 };
 
-export const settingsEnvironmentsCollectionFixture = {
-  environments: settingsEnvironmentFixtures,
+export const settingsSandboxesCollectionFixture = {
+  sandboxes: settingsSandboxFixtures,
 };
 
 export const settingsHooksCollectionFixture = {

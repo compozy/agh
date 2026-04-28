@@ -244,12 +244,12 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 	}
 
 	policy := SessionPermissionPolicy{
-		Tools:               []string{"write", " read ", "read"},
-		Skills:              []string{"go"},
-		MCPServers:          []string{"memory"},
-		WorkspacePaths:      []string{"/repo"},
-		NetworkChannels:     []string{"coord"},
-		EnvironmentProfiles: []string{"local"},
+		Tools:           []string{"write", " read ", "read"},
+		Skills:          []string{"go"},
+		MCPServers:      []string{"memory"},
+		WorkspacePaths:  []string{"/repo"},
+		NetworkChannels: []string{"coord"},
+		SandboxProfiles: []string{"local"},
 	}
 	rawPolicy, err := EncodeSessionPermissionPolicy(policy)
 	if err != nil {
@@ -260,12 +260,12 @@ func TestSessionLineageBudgetAndPolicyJSONRoundTrip(t *testing.T) {
 		t.Fatalf("DecodeSessionPermissionPolicy() error = %v", err)
 	}
 	wantPolicy := SessionPermissionPolicy{
-		Tools:               []string{"read", "write"},
-		Skills:              []string{"go"},
-		MCPServers:          []string{"memory"},
-		WorkspacePaths:      []string{"/repo"},
-		NetworkChannels:     []string{"coord"},
-		EnvironmentProfiles: []string{"local"},
+		Tools:           []string{"read", "write"},
+		Skills:          []string{"go"},
+		MCPServers:      []string{"memory"},
+		WorkspacePaths:  []string{"/repo"},
+		NetworkChannels: []string{"coord"},
+		SandboxProfiles: []string{"local"},
 	}
 	if !reflect.DeepEqual(decodedPolicy, wantPolicy) {
 		t.Fatalf("decoded policy = %#v, want %#v", decodedPolicy, wantPolicy)

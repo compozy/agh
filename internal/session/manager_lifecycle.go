@@ -11,7 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -164,8 +164,8 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 
 	m.dispatchAgentStopped(ctx, session, session.processHandle(), waitErr)
 
-	m.logEnvironmentTransport(session, environmentEventTransportDisconnect, nil, 0)
-	errs = appendLifecycleErr(errs, m.finalizeEnvironment(ctx, session, environmentSyncReasonForStop(session)))
+	m.logSandboxTransport(session, sandboxEventTransportDisconnect, nil, 0)
+	errs = appendLifecycleErr(errs, m.finalizeSandbox(ctx, session, sandboxSyncReasonForStop(session)))
 
 	errs = appendLifecycleErr(errs, m.closeSessionRecorder(session))
 	errs = appendLifecycleErr(errs, m.markSessionStopped(session))
@@ -254,15 +254,15 @@ func (m *Manager) persistStopClassification(session *Session, waitErr error) err
 	return errors.Join(m.writeMeta(session), bundleErr)
 }
 
-func environmentSyncReasonForStop(session *Session) environment.SyncReason {
+func sandboxSyncReasonForStop(session *Session) sandbox.SyncReason {
 	if session == nil {
-		return environment.SyncReasonStop
+		return sandbox.SyncReasonStop
 	}
 	info := session.Info()
 	if info != nil && info.StopReason == store.StopAgentCrashed {
-		return environment.SyncReasonCrash
+		return sandbox.SyncReasonCrash
 	}
-	return environment.SyncReasonStop
+	return sandbox.SyncReasonStop
 }
 
 func (m *Manager) recordProcessExitEvent(ctx context.Context, session *Session, waitErr error) error {

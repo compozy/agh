@@ -34,6 +34,7 @@ import {
   formatNetworkKindLabel,
   formatNetworkRelativeTime,
   getMessageAuthorInitial,
+  getMostRecentTimestamp,
   getNetworkMessagePrimaryText,
   getNetworkStatusTone,
 } from "../lib/network-formatters";
@@ -545,6 +546,23 @@ export function NetworkWorkspaceShell({
 }: NetworkWorkspaceShellProps) {
   const selectedTitle =
     activeRoom?.roomType === "channel" ? `#${activeRoom.title}` : activeRoom?.title;
+  const activeRoomRecencyAt = getMostRecentTimestamp(
+    activeRoom?.lastActivityAt,
+    activeRoom?.lastPresenceAt
+  );
+  const activeRoomRecencyKind = activeRoomRecencyAt
+    ? activeRoomRecencyAt === activeRoom?.lastActivityAt
+      ? "activity"
+      : "presence"
+    : null;
+  const activeRoomRecencyLabel = activeRoomRecencyAt
+    ? activeRoomRecencyKind === "presence"
+      ? `presence ${formatNetworkRelativeTime(activeRoomRecencyAt)}`
+      : formatNetworkRelativeTime(activeRoomRecencyAt)
+    : null;
+  const activeRoomRecencyDateTime = activeRoomRecencyAt
+    ? formatNetworkDateTime(activeRoomRecencyAt)
+    : null;
 
   return (
     <div
@@ -690,9 +708,9 @@ export function NetworkWorkspaceShell({
                     <h1 className="truncate text-[18px] font-semibold text-[color:var(--color-text-primary)]">
                       {selectedTitle ?? "Loading room"}
                     </h1>
-                    {activeRoom?.lastActivityAt ? (
+                    {activeRoomRecencyLabel ? (
                       <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[color:var(--color-text-tertiary)]">
-                        {formatNetworkRelativeTime(activeRoom.lastActivityAt)}
+                        {activeRoomRecencyLabel}
                       </span>
                     ) : null}
                   </div>
@@ -813,9 +831,9 @@ export function NetworkWorkspaceShell({
                         {activeRoom?.composeHint ??
                           "Messages poll automatically every few seconds."}
                       </div>
-                      {activeRoom?.lastActivityAt ? (
+                      {activeRoomRecencyDateTime && activeRoomRecencyKind ? (
                         <div className="text-[12px] text-[color:var(--color-text-secondary)]">
-                          Last room activity {formatNetworkDateTime(activeRoom.lastActivityAt)}
+                          {`Last room ${activeRoomRecencyKind} ${activeRoomRecencyDateTime}`}
                         </div>
                       ) : null}
                     </div>
@@ -876,11 +894,9 @@ export function NetworkWorkspaceShell({
                     {activeRoom.description}
                   </p>
                   <p className="text-[13px] leading-6 text-[color:var(--color-text-secondary)]">
-                    Room activity last changed{" "}
-                    {activeRoom.lastActivityAt
-                      ? formatNetworkDateTime(activeRoom.lastActivityAt)
-                      : "recently"}
-                    .
+                    {activeRoomRecencyDateTime && activeRoomRecencyKind
+                      ? `Room ${activeRoomRecencyKind} last changed ${activeRoomRecencyDateTime}.`
+                      : "Room activity last changed recently."}
                   </p>
                 </div>
                 <NetworkDetailFieldList fields={activeRoom.aboutFields} />

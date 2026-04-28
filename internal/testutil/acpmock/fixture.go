@@ -26,7 +26,7 @@ const (
 	StepKindThought       StepKind = "thought"
 	StepKindToolCall      StepKind = "tool_call"
 	StepKindPermission    StepKind = "permission"
-	StepKindEnvironment   StepKind = "environment_exec"
+	StepKindSandbox       StepKind = "sandbox_exec"
 	StepKindBridgeContent StepKind = "bridge_response"
 	StepKindDriverControl StepKind = "driver_control"
 )
@@ -416,8 +416,8 @@ func (s Step) validateKindPayload(path string) error {
 		return validateToolCallStep(path, s)
 	case StepKindPermission:
 		return validatePermissionStep(path, s)
-	case StepKindEnvironment:
-		return validateEnvironmentStep(path, s)
+	case StepKindSandbox:
+		return validateSandboxStep(path, s)
 	case StepKindDriverControl:
 		return validateDriverControlStep(path, s)
 	default:
@@ -458,7 +458,7 @@ func validatePermissionStep(path string, step Step) error {
 	return validatePermissionDecision(path+".expect_decision", step.ExpectDecision)
 }
 
-func validateEnvironmentStep(path string, step Step) error {
+func validateSandboxStep(path string, step Step) error {
 	if strings.TrimSpace(step.Command) == "" {
 		return fmt.Errorf("acpmock: %s.command is required", path)
 	}

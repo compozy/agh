@@ -1130,17 +1130,17 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
 2026/04/25 02:07:18 INFO hook.registry.projected version=1 resource_revision=0 hook_count=1 hook_count_delta=1 duration_ms=0
 2026/04/25 02:07:18 INFO hook.registry.projected version=1 resource_revision=0 hook_count=1 hook_count_delta=1 duration_ms=0
 2026/04/25 02:07:18 INFO hook.dispatch.completed event=agent.pre_start dispatch_depth=1 duration_ms=0 pipeline_trace=[agent-prestart:applied] sync_hooks=1 async_hooks=0
-2026/04/25 02:07:18 INFO hook.dispatch.started event=environment.prepare dispatch_depth=1 sync_hooks=1 async_hooks=0
+2026/04/25 02:07:18 INFO hook.dispatch.started event=sandbox.prepare dispatch_depth=1 sync_hooks=1 async_hooks=0
 2026/04/25 02:07:18 INFO hook.dispatch.started event=agent.spawned dispatch_depth=1 sync_hooks=1 async_hooks=0
 2026/04/25 02:07:18 INFO hook.dispatch.completed event=permission.request dispatch_depth=1 duration_ms=0 pipeline_trace=[permission-request:applied] sync_hooks=1 async_hooks=0
 2026/04/25 02:07:18 INFO hook.dispatch.started event=permission.resolved dispatch_depth=1 sync_hooks=0 async_hooks=1
 2026/04/25 02:07:18 INFO hook.dispatch.completed event=agent.spawned dispatch_depth=1 duration_ms=0 pipeline_trace=[agent-spawned:applied] sync_hooks=1 async_hooks=0
 2026/04/25 02:07:18 INFO hook.dispatch.completed event=permission.resolved dispatch_depth=1 duration_ms=0 pipeline_trace=[] sync_hooks=0 async_hooks=1
 2026/04/25 02:07:18 INFO hook.dispatch.started event=permission.denied dispatch_depth=1 sync_hooks=0 async_hooks=1
-2026/04/25 02:07:18 INFO hook.dispatch.started event=environment.sync.before dispatch_depth=1 sync_hooks=1 async_hooks=0
+2026/04/25 02:07:18 INFO hook.dispatch.started event=sandbox.sync.before dispatch_depth=1 sync_hooks=1 async_hooks=0
 --- PASS: TestHooksCatalogFiltersByEventSourceModeAndExposesExecutorKind (0.00s)
 2026/04/25 02:07:18 INFO hook.registry.projected version=1 resource_revision=0 hook_count=1 hook_count_delta=1 duration_ms=0
-2026/04/25 02:07:18 WARN hook.dispatch.blocked event=environment.prepare dispatch_depth=1 deny_source=environment-pre pipeline_trace=[environment-pre:denied]
+2026/04/25 02:07:18 WARN hook.dispatch.blocked event=sandbox.prepare dispatch_depth=1 deny_source=environment-pre pipeline_trace=[environment-pre:denied]
 2026/04/25 02:07:18 INFO hook.dispatch.started event=event.pre_record dispatch_depth=1 sync_hooks=0 async_hooks=1
 --- PASS: TestHookMatcherMatchesInput (0.00s)
 --- PASS: TestPipelineExecuteSkipsNonRequiredHookFailure (0.00s)
@@ -1148,7 +1148,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
 2026/04/25 02:07:18 INFO hook.dispatch.completed event=permission.denied dispatch_depth=1 duration_ms=0 pipeline_trace=[] sync_hooks=0 async_hooks=1
 2026/04/25 02:07:18 WARN hook.dispatch.async_failed hook=event-observer event=event.pre_record source=native error="context canceled"
 2026/04/25 02:07:18 INFO hook.dispatch.started event=context.pre_compact dispatch_depth=1 sync_hooks=1 async_hooks=0
-2026/04/25 02:07:18 WARN hook.dispatch.blocked event=environment.sync.before dispatch_depth=1 deny_source=environment-sync-before pipeline_trace=[environment-sync-before:denied]
+2026/04/25 02:07:18 WARN hook.dispatch.blocked event=sandbox.sync.before dispatch_depth=1 deny_source=environment-sync-before pipeline_trace=[environment-sync-before:denied]
 === CONT  TestDispatchInputPreSubmitReturnsOriginalPayloadWhenNoHooksMatch
 === CONT  TestHooksRebuildUnchangedSkipsSwap
 2026/04/25 02:07:18 INFO hook.dispatch.completed event=context.pre_compact dispatch_depth=1 duration_ms=0 pipeline_trace=[context-pre:applied] sync_hooks=1 async_hooks=0
@@ -1177,7 +1177,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
 --- PASS: TestHookMatcherMatchesSession (0.00s)
 --- PASS: TestFilterEventDescriptorsSupportsFamilyAndSyncOnly (0.00s)
 --- PASS: TestHooksCatalogFiltersByWorkspaceAndAgent (0.00s)
-2026/04/25 02:07:18 INFO hook.dispatch.started event=environment.stop dispatch_depth=1 sync_hooks=1 async_hooks=0
+2026/04/25 02:07:18 INFO hook.dispatch.started event=sandbox.stop dispatch_depth=1 sync_hooks=1 async_hooks=0
 --- PASS: TestPipelineExecuteShortCircuitsOnExplicitDeny (0.00s)
 --- PASS: TestEnterDispatchDepthOneSucceeds (0.00s)
 --- PASS: TestNewHooksAppliesOptionsAndDefaultResolver (0.00s)
@@ -1189,7 +1189,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
 --- PASS: TestHookMatcherMatchesAgentLifecycle (0.00s)
 --- PASS: TestDispatchTurnAndMessageHooksApplyPatches (0.00s)
 --- PASS: TestDispatchToolHooksApplyPatches (0.00s)
-2026/04/25 02:07:18 WARN hook.dispatch.blocked event=environment.stop dispatch_depth=1 deny_source=environment-stop pipeline_trace=[environment-stop:denied]
+2026/04/25 02:07:18 WARN hook.dispatch.blocked event=sandbox.stop dispatch_depth=1 deny_source=environment-stop pipeline_trace=[environment-stop:denied]
 --- PASS: TestDispatchAgentHooksApplyPatches (0.00s)
 --- PASS: TestDispatchEventPreRecordRunsAsyncHook (0.00s)
 --- PASS: TestDispatchEnvironmentPrepareAppliesEnvOverridesAndDeny (0.00s)
@@ -1287,14 +1287,14 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
 === CONT  TestDefaultHookPriority/agent_definition
 === CONT  TestCloneAsyncPayloadCopiesReferenceFields/event_and_message_raw_json
 === CONT  TestCloneAsyncPayloadCopiesReferenceFields/tool_payloads
-=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.prepare_without_hooks
-=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.prepare_without_hooks
+=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.prepare_without_hooks
+=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.prepare_without_hooks
 === CONT  TestCloneAsyncPayloadCopiesReferenceFields/default_branch_returns_value
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/SessionPostResumePatch
 === CONT  TestCloneAsyncPayloadCopiesReferenceFields/permission_payloads
 === CONT  TestCloneAsyncPayloadCopiesReferenceFields/agent_payloads
-=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.ready_without_hooks
-=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.ready_without_hooks
+=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.ready_without_hooks
+=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.ready_without_hooks
 === CONT  TestCloneAsyncPayloadCopiesReferenceFields/automation_payloads
 === PAUSE TestPayloadsAndPatchesJSONRoundTrip/SessionPostResumePatch
 === CONT  TestCloneAsyncPayloadCopiesReferenceFields/environment_lifecycle_slices
@@ -1307,9 +1307,9 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
     --- PASS: TestDefaultHookPriority/Should_reject_unknown_sources_with_a_sentinel_error (0.00s)
     --- PASS: TestDefaultHookPriority/agent_definition (0.00s)
     --- PASS: TestDefaultHookPriority/config (0.00s)
-=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.sync.before_without_hooks
+=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.sync.before_without_hooks
 === CONT  TestSortResolvedHooks/Should_order_skill_hooks_by_skill_source_before_name
-=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.sync.before_without_hooks
+=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.sync.before_without_hooks
 === CONT  TestSortResolvedHooks/Should_return_a_sorted_copy_without_mutating_the_original_slice
 --- PASS: TestCloneAsyncPayloadCopiesReferenceFields (0.00s)
     --- PASS: TestCloneAsyncPayloadCopiesReferenceFields/environment_prepare (0.00s)
@@ -1321,16 +1321,16 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
     --- PASS: TestCloneAsyncPayloadCopiesReferenceFields/environment_lifecycle_slices (0.00s)
     --- PASS: TestCloneAsyncPayloadCopiesReferenceFields/automation_payloads (0.00s)
     --- PASS: TestCloneAsyncPayloadCopiesReferenceFields/prompt_and_context_payloads (0.00s)
-=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.sync.after_without_hooks
+=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.sync.after_without_hooks
 === CONT  TestSortResolvedHooks/Should_order_hooks_by_priority_then_name
-=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.sync.after_without_hooks
+=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.sync.after_without_hooks
 === CONT  TestDispatchInputPreSubmitSkipsAsyncHooksWhenSyncPhaseDoesNotSucceed/Should_skip_async_hooks_after_a_sync_deny
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/SessionPreStopPatch
-=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.stop_without_hooks
+=== RUN   TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.stop_without_hooks
 === CONT  TestPermissionDecisionDenied/empty
 === CONT  TestRegisteredHookValidate/invalid_source_fails
 === CONT  TestRegisteredHookValidate/valid_sync_hook
-=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.stop_without_hooks
+=== PAUSE TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.stop_without_hooks
 --- PASS: TestSortResolvedHooks (0.00s)
     --- PASS: TestSortResolvedHooks/Should_order_hooks_by_source_precedence (0.00s)
     --- PASS: TestSortResolvedHooks/Should_remain_stable_across_repeated_sorts (0.00s)
@@ -1449,7 +1449,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
 2026/04/25 02:07:18 WARN hook.dispatch.failed event=input.pre_submit dispatch_depth=1 error="hooks: required hook \"sync-input\" failed for event \"input.pre_submit\": sync hook failed" failed_hook=sync-input required=true pipeline_trace="[sync-input:failed:sync hook failed]"
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/PromptPatch
 === PAUSE TestPayloadsAndPatchesJSONRoundTrip/PromptPatch
-=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.sync.before_without_hooks
+=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.sync.before_without_hooks
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/EventPreRecordPayload
 === PAUSE TestPayloadsAndPatchesJSONRoundTrip/EventPreRecordPayload
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/EventPostRecordPayload
@@ -1476,7 +1476,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
 === PAUSE TestPayloadsAndPatchesJSONRoundTrip/AutomationJobPostFirePayload
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/AutomationTriggerPreFirePayload
 === CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_session.post_stop_without_hooks
-=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.ready_without_hooks
+=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.ready_without_hooks
 === PAUSE TestPayloadsAndPatchesJSONRoundTrip/AutomationTriggerPreFirePayload
 === CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_session.pre_stop_without_hooks
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/AutomationTriggerPostFirePayload
@@ -1502,13 +1502,13 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
 === CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_agent.crashed_without_hooks
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/AgentSpawnedPayload
 === PAUSE TestPayloadsAndPatchesJSONRoundTrip/AgentSpawnedPayload
-=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.prepare_without_hooks
-=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.sync.after_without_hooks
+=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.prepare_without_hooks
+=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.sync.after_without_hooks
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/AgentCrashedPayload
 === PAUSE TestPayloadsAndPatchesJSONRoundTrip/AgentCrashedPayload
 === CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_agent.stopped_without_hooks
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/AgentStoppedPayload
-=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.stop_without_hooks
+=== CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.stop_without_hooks
 === PAUSE TestPayloadsAndPatchesJSONRoundTrip/AgentStoppedPayload
 === CONT  TestDispatchMethodsSmokeNoHooks/Should_dispatch_prompt.post_assemble_without_hooks
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/AgentStartPatch
@@ -1519,7 +1519,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
 === RUN   TestPayloadsAndPatchesJSONRoundTrip/AgentCrashedPatch
 --- PASS: TestDispatchMethodsSmokeNoHooks (0.01s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_agent.spawned_without_hooks (0.00s)
-    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.sync.before_without_hooks (0.00s)
+    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.sync.before_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_agent.pre_start_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_session.pre_create_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_message.end_without_hooks (0.00s)
@@ -1538,16 +1538,16 @@ ok  	github.com/pedronauck/agh/internal/acp	0.194s
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_session.post_create_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_message.delta_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_message.start_without_hooks (0.00s)
-    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.ready_without_hooks (0.00s)
+    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.ready_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_input.pre_submit_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_turn.start_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_event.post_record_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_agent.crashed_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_turn.end_without_hooks (0.00s)
-    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.sync.after_without_hooks (0.00s)
+    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.sync.after_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_event.pre_record_without_hooks (0.00s)
-    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.prepare_without_hooks (0.00s)
-    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_environment.stop_without_hooks (0.00s)
+    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.prepare_without_hooks (0.00s)
+    --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_sandbox.stop_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_prompt.post_assemble_without_hooks (0.00s)
     --- PASS: TestDispatchMethodsSmokeNoHooks/Should_dispatch_agent.stopped_without_hooks (0.00s)
 === PAUSE TestPayloadsAndPatchesJSONRoundTrip/AgentCrashedPatch
@@ -2508,10 +2508,10 @@ ok  	github.com/pedronauck/agh/internal/hooks	0.514s
 === PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_list_with_action_grant_only
 === RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_info_with_action_grant_only
 === PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_info_with_action_grant_only
-=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_exec_with_action_and_exec_capability
-=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_exec_with_action_and_exec_capability
-=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_environment_exec_without_exec_capability
-=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_environment_exec_without_exec_capability
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_sandbox_exec_with_action_and_exec_capability
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_sandbox_exec_with_action_and_exec_capability
+=== RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_sandbox_exec_without_exec_capability
+=== PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_sandbox_exec_without_exec_capability
 === RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant
 === PAUSE TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant
 === RUN   TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldRejectBridgeStateReportWithoutActionGrant
@@ -2938,8 +2938,8 @@ ok  	github.com/pedronauck/agh/internal/hooks	0.514s
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_info_with_action_grant_only
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_action_grant_is_missing
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant
-=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_environment_exec_without_exec_capability
-=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_exec_with_action_and_exec_capability
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_sandbox_exec_without_exec_capability
+=== CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_sandbox_exec_with_action_and_exec_capability
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_read_method_with_matching_grant
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_list_method_with_matching_grant
 === CONT  TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_list_with_action_grant_only
@@ -2955,8 +2955,8 @@ ok  	github.com/pedronauck/agh/internal/hooks	0.514s
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_info_with_action_grant_only (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/fails_when_action_grant_is_missing (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/ShouldAllowBridgeStateReportWithWriteGrant (0.00s)
-    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_environment_exec_without_exec_capability (0.00s)
-    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_exec_with_action_and_exec_capability (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/rejects_sandbox_exec_without_exec_capability (0.00s)
+    --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_sandbox_exec_with_action_and_exec_capability (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_read_method_with_matching_grant (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_bridge_list_method_with_matching_grant (0.00s)
     --- PASS: TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates/allows_environment_list_with_action_grant_only (0.00s)
@@ -3314,7 +3314,7 @@ ok  	github.com/pedronauck/agh/internal/extension	3.807s
     --- PASS: TestBackendValid/e2b (0.00s)
     --- PASS: TestBackendValid/docker (0.00s)
 PASS
-ok  	github.com/pedronauck/agh/internal/environment	0.006s
+ok  	github.com/pedronauck/agh/internal/sandbox	0.006s
 === RUN   TestInitializeBridgeRuntimeValidateRejectsInvalidProviderScopedPayload
 === PAUSE TestInitializeBridgeRuntimeValidateRejectsInvalidProviderScopedPayload
 === RUN   TestCloneInitializeBridgeRuntimeDoesNotAliasManagedInstanceState

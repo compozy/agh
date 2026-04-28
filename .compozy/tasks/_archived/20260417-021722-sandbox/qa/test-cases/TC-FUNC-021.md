@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that daemon restart reconciliation attempts to reattach to a remote sandbox for sessions in non-terminal states, using persisted `EnvironmentID`, `InstanceID`, and `ProviderState`.
+Verify that daemon restart reconciliation attempts to reattach to a remote sandbox for sessions in non-terminal states, using persisted `SandboxID`, `InstanceID`, and `ProviderState`.
 
 ---
 
@@ -25,8 +25,8 @@ Verify that daemon restart reconciliation attempts to reattach to a remote sandb
 ### Test Steps
 
 1. **Boot daemon with a persisted running remote session**
-   - **Expected:** Reconciliation calls `Provider.Prepare()` with `EnvironmentID`, `InstanceID`, and `ProviderState` from persisted metadata
+   - **Expected:** Reconciliation calls `Provider.Prepare()` with `SandboxID`, `InstanceID`, and `ProviderState` from persisted metadata
 
 2. **Verify successful reattach**
    - Input: Provider returns success
-   - **Expected:** Session environment metadata updated with fresh provider state, session remains in its prior state
+   - **Expected:** Session sandbox metadata updated with fresh provider state, session remains in its prior state

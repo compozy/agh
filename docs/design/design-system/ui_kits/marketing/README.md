@@ -19,6 +19,6 @@ Recreation of the AGH landing page (`packages/site/app/(home)/page.tsx`) as comp
 ## Known gaps vs production
 
 - Hero visual is a placeholder (the real landing uses a complex `NetworkProtocolVisual` SVG composition).
-- Agent logos are solid placeholders — real SVGs live in `packages/site/components/logos/*.tsx`.
+- Agent logos are solid placeholders — real SVGs live in `packages/ui/src/logos/*.tsx` (imported via `@agh/ui/logos`).
 - The `hero-bg.png` mesh is faked with a subtle radial-gradient overlay.
 - No search palette backend; `⌘K` is decorative.

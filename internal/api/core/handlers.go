@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const defaultPollInterval = 100 * time.Millisecond
@@ -434,6 +435,16 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 
 // ListAgents returns all readable agent definitions in home paths.
 func (h *BaseHandlers) ListAgents(c *gin.Context) {
+	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+		agentDefs, err := h.workspaceAgentDefs(c.Request.Context(), workspaceRef)
+		if err != nil {
+			h.respondError(c, statusForAgentWorkspaceError(err), err)
+			return
+		}
+		h.respondAgentDefs(c, agentDefs)
+		return
+	}
+
 	if h.AgentCatalog != nil {
 		agentDefs, err := h.AgentCatalog.ListAgents(c.Request.Context())
 		if err != nil {
@@ -444,14 +455,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 			h.respondError(c, http.StatusInternalServerError, err)
 			return
 		}
-		agents := make([]contract.AgentPayload, 0, len(agentDefs))
-		for _, agent := range agentDefs {
-			agents = append(agents, AgentPayloadFromDef(agent))
-		}
-		sort.Slice(agents, func(i, j int) bool {
-			return agents[i].Name < agents[j].Name
-		})
-		c.JSON(http.StatusOK, contract.AgentsResponse{Agents: agents})
+		h.respondAgentDefs(c, agentDefs)
 		return
 	}
 
@@ -470,7 +474,7 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		return
 	}
 
-	agents := make([]contract.AgentPayload, 0, len(entries))
+	agentDefs := make([]aghconfig.AgentDef, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -486,18 +490,24 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 			h.Logger.Warn(h.transportName()+": skip unreadable agent definition", "agent_name", name, "error", loadErr)
 			continue
 		}
-		agents = append(agents, AgentPayloadFromDef(agent))
+		agentDefs = append(agentDefs, agent)
 	}
 
-	sort.Slice(agents, func(i, j int) bool {
-		return agents[i].Name < agents[j].Name
-	})
-
-	c.JSON(http.StatusOK, contract.AgentsResponse{Agents: agents})
+	h.respondAgentDefs(c, agentDefs)
 }
 
 // GetAgent returns one agent definition by name.
 func (h *BaseHandlers) GetAgent(c *gin.Context) {
+	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+		agent, err := h.workspaceAgentDef(c.Request.Context(), workspaceRef, c.Param("name"))
+		if err != nil {
+			h.respondError(c, statusForAgentWorkspaceError(err), err)
+			return
+		}
+		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
+		return
+	}
+
 	if h.AgentCatalog != nil {
 		agent, err := h.AgentCatalog.GetAgent(c.Request.Context(), c.Param("name"))
 		if err != nil {
@@ -523,6 +533,69 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
+}
+
+func (h *BaseHandlers) workspaceAgentDefs(ctx context.Context, workspaceRef string) ([]aghconfig.AgentDef, error) {
+	if h.Workspaces == nil {
+		return nil, fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable)
+	}
+	resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
+	if err != nil {
+		return nil, err
+	}
+	agents, err := h.workspaceDetailAgents(ctx, &resolved)
+	if err != nil {
+		return nil, err
+	}
+	return agents, nil
+}
+
+func (h *BaseHandlers) workspaceAgentDef(
+	ctx context.Context,
+	workspaceRef string,
+	name string,
+) (aghconfig.AgentDef, error) {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
+		return aghconfig.AgentDef{}, fmt.Errorf("%s: agent name is required: %w", h.transportName(), os.ErrNotExist)
+	}
+
+	agents, err := h.workspaceAgentDefs(ctx, workspaceRef)
+	if err != nil {
+		return aghconfig.AgentDef{}, err
+	}
+	for _, agent := range agents {
+		if strings.TrimSpace(agent.Name) == trimmedName {
+			return agent, nil
+		}
+	}
+	return aghconfig.AgentDef{}, fmt.Errorf(
+		"%s: agent %q is not available in workspace %q: %w",
+		h.transportName(),
+		trimmedName,
+		strings.TrimSpace(workspaceRef),
+		workspacepkg.ErrAgentNotAvailable,
+	)
+}
+
+func (h *BaseHandlers) respondAgentDefs(c *gin.Context, agentDefs []aghconfig.AgentDef) {
+	agents := make([]contract.AgentPayload, 0, len(agentDefs))
+	for _, agent := range agentDefs {
+		agents = append(agents, AgentPayloadFromDef(agent))
+	}
+	sort.Slice(agents, func(i, j int) bool {
+		return agents[i].Name < agents[j].Name
+	})
+	c.JSON(http.StatusOK, contract.AgentsResponse{Agents: agents})
+}
+
+func statusForAgentWorkspaceError(err error) int {
+	switch {
+	case errors.Is(err, workspacepkg.ErrAgentNotAvailable), errors.Is(err, os.ErrNotExist):
+		return http.StatusNotFound
+	default:
+		return StatusForWorkspaceError(err)
+	}
 }
 
 // HookCatalog returns the resolved hook catalog for the supplied workspace and agent view.

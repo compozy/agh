@@ -153,7 +153,7 @@ type SessionInfo struct {
 	StopDetail   string
 	Failure      *SessionFailure
 	Liveness     *SessionLivenessMeta
-	Environment  *SessionEnvironmentMeta
+	Sandbox      *SessionSandboxMeta
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -213,7 +213,7 @@ type SessionStateUpdate struct {
 	FailureSet    bool
 	Failure       *SessionFailure
 	Liveness      *SessionLivenessMeta
-	Environment   *SessionEnvironmentMeta
+	Sandbox       *SessionSandboxMeta
 	UpdatedAt     time.Time
 }
 
@@ -583,9 +583,9 @@ type ReconcileResult struct {
 	Orphaned []string
 }
 
-// SessionEnvironmentMeta is the persisted runtime environment state for a session.
-type SessionEnvironmentMeta struct {
-	EnvironmentID         string          `json:"environment_id,omitempty"`
+// SessionSandboxMeta is the persisted runtime sandbox state for a session.
+type SessionSandboxMeta struct {
+	SandboxID             string          `json:"sandbox_id,omitempty"`
 	Backend               string          `json:"backend"`
 	Profile               string          `json:"profile,omitempty"`
 	State                 string          `json:"state,omitempty"`
@@ -600,24 +600,24 @@ type SessionEnvironmentMeta struct {
 
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
-	ID           string                  `json:"id"`
-	Name         string                  `json:"name,omitempty"`
-	AgentName    string                  `json:"agent_name"`
-	Provider     string                  `json:"provider,omitempty"`
-	Model        string                  `json:"model,omitempty"`
-	WorkspaceID  string                  `json:"workspace_id,omitempty"`
-	Channel      string                  `json:"channel,omitempty"`
-	SessionType  string                  `json:"session_type,omitempty"`
-	Lineage      *SessionLineage         `json:"lineage,omitempty"`
-	State        string                  `json:"state"`
-	StopReason   *StopReason             `json:"stop_reason,omitempty"`
-	StopDetail   string                  `json:"stop_detail,omitempty"`
-	Failure      *SessionFailure         `json:"failure,omitempty"`
-	ACPSessionID *string                 `json:"acp_session_id,omitempty"`
-	Liveness     *SessionLivenessMeta    `json:"liveness,omitempty"`
-	Environment  *SessionEnvironmentMeta `json:"environment,omitempty"`
-	CreatedAt    time.Time               `json:"created_at"`
-	UpdatedAt    time.Time               `json:"updated_at"`
+	ID           string               `json:"id"`
+	Name         string               `json:"name,omitempty"`
+	AgentName    string               `json:"agent_name"`
+	Provider     string               `json:"provider,omitempty"`
+	Model        string               `json:"model,omitempty"`
+	WorkspaceID  string               `json:"workspace_id,omitempty"`
+	Channel      string               `json:"channel,omitempty"`
+	SessionType  string               `json:"session_type,omitempty"`
+	Lineage      *SessionLineage      `json:"lineage,omitempty"`
+	State        string               `json:"state"`
+	StopReason   *StopReason          `json:"stop_reason,omitempty"`
+	StopDetail   string               `json:"stop_detail,omitempty"`
+	Failure      *SessionFailure      `json:"failure,omitempty"`
+	ACPSessionID *string              `json:"acp_session_id,omitempty"`
+	Liveness     *SessionLivenessMeta `json:"liveness,omitempty"`
+	Sandbox      *SessionSandboxMeta  `json:"sandbox,omitempty"`
+	CreatedAt    time.Time            `json:"created_at"`
+	UpdatedAt    time.Time            `json:"updated_at"`
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.

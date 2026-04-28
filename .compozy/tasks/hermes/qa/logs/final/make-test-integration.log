@@ -17,15 +17,15 @@
 ∅  internal/diagnostics
 ✓  internal/bridgesdk (1.551s)
 ✓  internal/cli/docpost (1.047s)
-∅  internal/environment/daytona/cmd/agh-daytona-sidecar
+∅  internal/sandbox/daytona/cmd/agh-daytona-sidecar
 ✓  internal/codegen/sdkts (1.066s)
-✓  internal/environment (1.046s)
+✓  internal/sandbox (1.046s)
 ✓  extensions/bridges/gchat (3.612s)
 ✓  internal/e2elane (1.175s)
-✓  internal/environment/daytona (1.475s)
+✓  internal/sandbox/daytona (1.475s)
 ✓  internal/config (1.932s)
-✓  internal/environment/providertest (1.041s)
-✓  internal/environment/local (1.131s)
+✓  internal/sandbox/providertest (1.041s)
+✓  internal/sandbox/local (1.131s)
 ✓  internal/codegen/openapits (2.247s)
 ✓  internal/extension/protocol (1.038s)
 ✓  internal/extension/contract (1.039s)
@@ -81,13 +81,13 @@
 ✖  internal/daemon (1m34.037s)
 
 === Skipped
-=== SKIP: internal/environment/daytona TestDaytonaLauncherTransportValidation (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaLauncherTransportValidation (0.00s)
     launcher_transport_integration_test.go:23: DAYTONA_API_KEY is required for Daytona launcher transport validation
 
-=== SKIP: internal/environment/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
     provider_integration_test.go:22: DAYTONA_API_KEY is required for Daytona provider integration tests
 
-=== SKIP: internal/environment/daytona TestDaytonaSSHNonPTYValidation (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaSSHNonPTYValidation (0.00s)
     ssh_validation_test.go:47: DAYTONA_API_KEY is required for Daytona SSH validation
 
 === Failed
@@ -98,7 +98,7 @@
     httpapi_integration_test.go:634: approve status = 409, want 200; body={"error":"session: pending permission not found"}
 
 === FAIL: internal/cli TestSessionListOutputFormatsIntegration (1.94s)
-    cli_integration_test.go:169: toon output = "sessions[1]{id,name,agent_name,provider,environment_backend,state,failure_kind,workspace,channel,updated_at}:\n  sess-cb9c19d20518e3ca,demo,coder,fake,local,active,\"\",/private/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/TestSessionListOutputFormatsIntegration3948600951/002,default,2026-04-25T05:26:31Z\n", want TOON table
+    cli_integration_test.go:169: toon output = "sessions[1]{id,name,agent_name,provider,sandbox_backend,state,failure_kind,workspace,channel,updated_at}:\n  sess-cb9c19d20518e3ca,demo,coder,fake,local,active,\"\",/private/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/TestSessionListOutputFormatsIntegration3948600951/002,default,2026-04-25T05:26:31Z\n", want TOON table
 [GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
  - using env:	export GIN_MODE=release
  - using code:	gin.SetMode(gin.ReleaseMode)
@@ -254,10 +254,10 @@
 [GIN-debug] GET    /api/settings/mcp-servers --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsMCPServers-fm (2 handlers)
 [GIN-debug] PUT    /api/settings/mcp-servers/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsMCPServer-fm (2 handlers)
 [GIN-debug] DELETE /api/settings/mcp-servers/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsMCPServer-fm (2 handlers)
-[GIN-debug] GET    /api/settings/environments --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsEnvironments-fm (2 handlers)
-[GIN-debug] GET    /api/settings/environments/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsEnvironment-fm (2 handlers)
-[GIN-debug] PUT    /api/settings/environments/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsEnvironment-fm (2 handlers)
-[GIN-debug] DELETE /api/settings/environments/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsEnvironment-fm (2 handlers)
+[GIN-debug] GET    /api/settings/sandboxes --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsSandboxes-fm (2 handlers)
+[GIN-debug] GET    /api/settings/sandboxes/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsSandbox-fm (2 handlers)
+[GIN-debug] PUT    /api/settings/sandboxes/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsSandbox-fm (2 handlers)
+[GIN-debug] DELETE /api/settings/sandboxes/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsSandbox-fm (2 handlers)
 [GIN-debug] GET    /api/settings/hooks       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsHooks-fm (2 handlers)
 [GIN-debug] PUT    /api/settings/hooks/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsHook-fm (2 handlers)
 [GIN-debug] DELETE /api/settings/hooks/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsHook-fm (2 handlers)

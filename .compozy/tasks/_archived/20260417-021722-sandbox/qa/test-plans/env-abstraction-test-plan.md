@@ -1,8 +1,8 @@
-# Test Plan: Execution Environment Abstraction + Daytona Provider
+# Test Plan: Execution Sandbox Abstraction + Daytona Provider
 
 **Version:** 1.0
 **Date:** 2026-04-16
-**Feature:** Execution Environment Abstraction Layer (tasks 01-08)
+**Feature:** Execution Sandbox Abstraction Layer (tasks 01-08)
 **Branch:** ext-refac
 **Author:** QA (automated)
 
@@ -10,12 +10,12 @@
 
 ## Executive Summary
 
-This test plan covers the Execution Environment Abstraction feature, which decouples AGH's ACP runtime from the local OS by introducing `Provider`, `Launcher`, `ToolHost`, and `Handle` interfaces. The feature ships a local provider (preserving current behavior) and a Daytona remote provider (SSH transport, tar-over-SSH sync, snapshot-aware sandbox lifecycle). It also integrates environment lifecycle into session management, daemon boot reconciliation, config profiles, workspace resolution, and extension hooks.
+This test plan covers the Execution Sandbox Abstraction feature, which decouples AGH's ACP runtime from the local OS by introducing `Provider`, `Launcher`, `ToolHost`, and `Handle` interfaces. The feature ships a local provider (preserving current behavior) and a Daytona remote provider (SSH transport, tar-over-SSH sync, snapshot-aware sandbox lifecycle). It also integrates sandbox lifecycle into session management, daemon boot reconciliation, config profiles, workspace resolution, and extension hooks.
 
 **Key Objectives:**
 - Verify zero behavior regression for existing local sessions after ACP extraction (tasks 02-04)
-- Verify environment profile configuration, validation, and merge (task 01)
-- Verify session environment lifecycle: prepare -> sync-to -> launch -> sync-from -> destroy (task 04)
+- Verify sandbox profile configuration, validation, and merge (task 01)
+- Verify session sandbox lifecycle: prepare -> sync-to -> launch -> sync-from -> destroy (task 04)
 - Verify daemon restart reconciliation cleans up orphaned remote sandboxes (task 07)
 - Verify environment extension hooks fire at correct lifecycle points with correct payloads (task 08)
 - Verify Daytona provider SSH transport, tar sync safety, env var allowlist, and network policy (tasks 05-06)
@@ -37,23 +37,23 @@ This test plan covers the Execution Environment Abstraction feature, which decou
 
 | Area | Components | Tasks |
 |------|-----------|-------|
-| Core types & interfaces | `internal/environment/types.go`, `registry.go` | 01 |
+| Core types & interfaces | `internal/sandbox/types.go`, `registry.go` | 01 |
 | Config profiles | `internal/config/config.go`, `merge.go` | 01 |
 | Workspace resolution | `internal/workspace/`, `internal/store/globaldb/` | 01 |
 | ACP extraction | `internal/acp/launcher.go`, `tool_host.go` | 02 |
-| Local provider | `internal/environment/local/` | 03 |
-| Session integration | `internal/session/environment.go`, `manager_start.go` | 04 |
-| SSH validation | `internal/environment/daytona/ssh_validation_test.go` | 05 |
-| Daytona provider | `internal/environment/daytona/` (19 files) | 06 |
-| Daemon reconciliation | `internal/daemon/boot.go`, `environment_reconcile.go` | 07 |
+| Local provider | `internal/sandbox/local/` | 03 |
+| Session integration | `internal/session/sandbox.go`, `manager_start.go` | 04 |
+| SSH validation | `internal/sandbox/daytona/ssh_validation_test.go` | 05 |
+| Daytona provider | `internal/sandbox/daytona/` (19 files) | 06 |
+| Daemon reconciliation | `internal/daemon/boot.go`, `sandbox_reconcile.go` | 07 |
 | Extension hooks + Host API | `internal/hooks/`, `internal/extension/` | 08 |
 | API contracts | `internal/api/contract/`, `internal/api/core/` | 01, 04 |
 | CLI flags | `internal/cli/workspace.go` | 01 |
-| DB schema | sessions + workspaces environment columns | 01, 04 |
+| DB schema | sessions + workspaces sandbox columns | 01, 04 |
 
 ### Out-of-Scope
 
-- Web UI rendering of environment info (no frontend changes in this feature)
+- Web UI rendering of sandbox info (no frontend changes in this feature)
 - E2B or other future providers (reserved but not implemented)
 - Turn-level sync (`SyncModeTurnBidirectional` reserved)
 - Automated snapshot creation/mutation
@@ -80,7 +80,7 @@ This test plan covers the Execution Environment Abstraction feature, which decou
 |------|--------|------|
 | Daytona E2E | Integration test with `DAYTONA_API_KEY` | Before merge, requires API key |
 | SSH non-PTY validation | Spike test against live Daytona | Before merge, requires API key |
-| CLI workspace flags | Manual `agh workspace add --environment` | After local build |
+| CLI workspace flags | Manual `agh workspace add --sandbox` | After local build |
 | Session list/info API | Manual `agh session list`, `agh session info` | After local build |
 
 ---
@@ -128,7 +128,7 @@ This test plan covers the Execution Environment Abstraction feature, which decou
 | Large workspace sync causes latency | Medium | Medium | TC-PERF-001 measures sync duration |
 | Daemon crash orphans billable sandboxes | Medium | Medium | TC-FUNC-020 through TC-FUNC-024 validate reconciliation |
 | Concurrent sessions cause data corruption | Low | High | TC-INT-005 validates last-write-wins semantics |
-| Config merge drops environment profile fields | Low | Medium | TC-FUNC-005 validates overlay merge |
+| Config merge drops sandbox profile fields | Low | Medium | TC-FUNC-005 validates overlay merge |
 | Hook deny patch ignored by session manager | Low | High | TC-FUNC-026 through TC-FUNC-028 validate deny semantics |
 
 ---

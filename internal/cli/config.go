@@ -94,7 +94,7 @@ var (
 		"http.port":                    configSetInt,
 		"defaults.agent":               configSetString,
 		"defaults.provider":            configSetString,
-		"defaults.environment":         configSetString,
+		"defaults.sandbox":             configSetString,
 		"limits.max_sessions":          configSetInt,
 		"limits.max_concurrent_agents": configSetInt,
 		"session.limits.timeout":       configSetDuration,
@@ -1017,7 +1017,7 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 	if isProviderMutationPath(path) {
 		return configSetString, false, nil
 	}
-	if kind, redacted, ok := classifyEnvironmentMutationPath(path); ok {
+	if kind, redacted, ok := classifySandboxMutationPath(path); ok {
 		return kind, redacted, nil
 	}
 
@@ -1034,18 +1034,18 @@ func isProviderMutationPath(path []string) bool {
 	return false
 }
 
-func classifyEnvironmentMutationPath(path []string) (configSetValueKind, bool, bool) {
-	if len(path) == 4 && path[0] == "environments" {
+func classifySandboxMutationPath(path []string) (configSetValueKind, bool, bool) {
+	if len(path) == 4 && path[0] == "sandboxes" {
 		switch path[2] {
 		case "env":
 			return configSetString, true, true
 		case "network":
-			return classifyEnvironmentNetworkMutationPath(path[3])
+			return classifySandboxNetworkMutationPath(path[3])
 		case "daytona":
-			return classifyEnvironmentDaytonaMutationPath(path[3])
+			return classifySandboxDaytonaMutationPath(path[3])
 		}
 	}
-	if len(path) == 3 && path[0] == "environments" {
+	if len(path) == 3 && path[0] == "sandboxes" {
 		switch path[2] {
 		case "backend", "sync_mode", "persistence", "runtime_root":
 			return configSetString, false, true
@@ -1054,7 +1054,7 @@ func classifyEnvironmentMutationPath(path []string) (configSetValueKind, bool, b
 	return configSetString, false, false
 }
 
-func classifyEnvironmentNetworkMutationPath(name string) (configSetValueKind, bool, bool) {
+func classifySandboxNetworkMutationPath(name string) (configSetValueKind, bool, bool) {
 	switch name {
 	case "allow_public_ingress", "allow_outbound", "required":
 		return configSetBool, false, true
@@ -1065,7 +1065,7 @@ func classifyEnvironmentNetworkMutationPath(name string) (configSetValueKind, bo
 	}
 }
 
-func classifyEnvironmentDaytonaMutationPath(name string) (configSetValueKind, bool, bool) {
+func classifySandboxDaytonaMutationPath(name string) (configSetValueKind, bool, bool) {
 	switch name {
 	case "api_url", "target", "image", "snapshot", "class", "auto_stop", "auto_archive":
 		return configSetString, false, true

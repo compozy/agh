@@ -1,32 +1,95 @@
 ---
 status: resolved
-file: web/src/storybook/web-storybook-stories-and-fixtures.test.tsx
-line: 30
-severity: nitpick
+file: internal/api/core/tasks_terminal_integration_test.go
+line: 219
 author: coderabbitai[bot]
-provider_ref: review:4177749264,nitpick_hash:65c95664f0ad
-review_hash: 65c95664f0ad
-source_review_id: "4177749264"
-source_review_submitted_at: "2026-04-27T01:09:45Z"
+provider_ref: thread:PRRT_kwDOR5y4QM5-JRQZ,comment:PRRC_kwDOR5y4QM68BYXZ
 ---
 
-# Issue 003: Avoid new deep cross-system imports for agent stories.
+# Issue 003: _⚠️ Potential issue_ | _🟡 Minor_
 ## Review Comment
 
-Lines 30-32 reach into `@/systems/agent/components/stories/...` internals from outside the agent system. Prefer importing through a public barrel (or an explicit `@/systems/agent/storybook` barrel) to keep boundaries stable.
+_⚠️ Potential issue_ | _🟡 Minor_
 
-As per coding guidelines, "Cross-system imports MUST only go through the public barrel (`@/systems/<domain>`). Never reach into another system's internals".
+**Assert empty `payload.Run.Result` on fail/cancel paths.**
+
+When `wantResultJSON` is empty, this block skips any result assertion. A regression that leaks stale result data in non-complete responses would still pass.
+
+
+
+<details>
+<summary>Patch suggestion</summary>
+
+```diff
+-			if tc.wantResultJSON != "" {
+-				assertRawJSONEqual(t, "payload.Run.Result", payload.Run.Result, tc.wantResultJSON)
+-			}
++			if tc.wantResultJSON == "" {
++				if len(payload.Run.Result) != 0 {
++					t.Fatalf("payload.Run.Result = %s, want empty result", string(payload.Run.Result))
++				}
++			} else {
++				assertRawJSONEqual(t, "payload.Run.Result", payload.Run.Result, tc.wantResultJSON)
++			}
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+			if tc.wantResultJSON == "" {
+				if len(payload.Run.Result) != 0 {
+					t.Fatalf("payload.Run.Result = %s, want empty result", string(payload.Run.Result))
+				}
+			} else {
+				assertRawJSONEqual(t, "payload.Run.Result", payload.Run.Result, tc.wantResultJSON)
+			}
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against the current code and only fix it if needed.
+
+In `@internal/api/core/tasks_terminal_integration_test.go` around lines 217 - 219,
+The test currently only asserts payload.Run.Result when tc.wantResultJSON != "",
+which lets stale results slip through on fail/cancel paths; modify the block
+around tc.wantResultJSON to add an explicit assertion for the empty-case so that
+when tc.wantResultJSON == "" the test asserts payload.Run.Result is empty (e.g.,
+assert.Empty or assert.Equal(t, "", payload.Run.Result) / assert.Nil as
+appropriate) instead of skipping; keep using the same variables
+(tc.wantResultJSON, payload.Run.Result) and the existing assert helpers
+(assertRawJSONEqual) for the non-empty branch.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Triage
 
-- Decision: `valid`
+- Decision: `VALID`
 - Notes:
-  - The storybook regression test imports three agent story modules from `@/systems/agent/components/stories/...`, crossing into the agent system internals from the shared storybook test surface.
-  - There is already a precedent for system storybook barrels in `web/src/systems/network/storybook.ts`.
-  - The fix requires a minimal new support file, `web/src/systems/agent/storybook.ts`, that explicitly re-exports the agent story modules as named namespaces, then updates the test to import those modules through `@/systems/agent/storybook`.
+  - `TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration` asserts `payload.Run.Result` only when `wantResultJSON` is non-empty.
+  - Fail/cancel cases use an empty expected result, so a stale non-empty result payload could leak through without test coverage.
+  - Fix approach: add an explicit empty-result assertion when `wantResultJSON == ""` and keep the existing `assertRawJSONEqual` path for non-empty results.
 
 ## Resolution
 
-- Added `web/src/systems/agent/storybook.ts` as an explicit public Storybook barrel for agent stories.
-- Updated `web/src/storybook/web-storybook-stories-and-fixtures.test.tsx` to load agent stories through `@/systems/agent/storybook`.
-- Verified with targeted Vitest and full `make verify`.
+- Added an explicit empty-result assertion for cases where `wantResultJSON == ""`.
+- Preserved `assertRawJSONEqual` for non-empty result payloads.
+- Verified with targeted `go test -race -tags integration ./internal/api/core -run TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration -count=1`.
+- Verified the repository gate with `make verify` after code changes.

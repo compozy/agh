@@ -76,8 +76,11 @@ type DaemonClient interface {
 	GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error)
 	UpdateWorkspace(ctx context.Context, ref string, request WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	DeleteWorkspace(ctx context.Context, ref string) error
-	ListAgents(ctx context.Context) ([]AgentRecord, error)
-	GetAgent(ctx context.Context, name string) (AgentRecord, error)
+	ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error)
+	GetAgent(ctx context.Context, name string, query AgentQuery) (AgentRecord, error)
+	ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error)
+	GetSkill(ctx context.Context, name string, query SkillQuery) (SkillRecord, error)
+	GetSkillContent(ctx context.Context, name string, query SkillQuery) (string, error)
 	HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error)
 	HookRuns(ctx context.Context, query HookRunsQuery) ([]HookRunRecord, error)
 	HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error)
@@ -227,6 +230,19 @@ type AgentRecord = contract.AgentPayload
 
 // AgentMCPServer is one MCP server entry returned by the daemon API.
 type AgentMCPServer = contract.AgentMCPServerJSON
+
+// AgentQuery captures agent definition filters.
+type AgentQuery struct {
+	Workspace string
+}
+
+// SkillRecord is the shared daemon skill payload.
+type SkillRecord = contract.SkillPayload
+
+// SkillQuery captures daemon skill filters.
+type SkillQuery struct {
+	Workspace string
+}
 
 // WorkspaceCreateRequest captures the shared workspace registration payload.
 type WorkspaceCreateRequest = contract.CreateWorkspaceRequest
@@ -995,17 +1011,17 @@ func (c *unixSocketClient) DeleteWorkspace(ctx context.Context, ref string) erro
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *unixSocketClient) ListAgents(ctx context.Context) ([]AgentRecord, error) {
+func (c *unixSocketClient) ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error) {
 	var response struct {
 		Agents []AgentRecord `json:"agents"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/agents", nil, nil, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "/api/agents", agentValues(query), nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Agents, nil
 }
 
-func (c *unixSocketClient) GetAgent(ctx context.Context, name string) (AgentRecord, error) {
+func (c *unixSocketClient) GetAgent(ctx context.Context, name string, query AgentQuery) (AgentRecord, error) {
 	var response struct {
 		Agent AgentRecord `json:"agent"`
 	}
@@ -1013,13 +1029,57 @@ func (c *unixSocketClient) GetAgent(ctx context.Context, name string) (AgentReco
 		ctx,
 		http.MethodGet,
 		"/api/agents/"+url.PathEscape(strings.TrimSpace(name)),
-		nil,
+		agentValues(query),
 		nil,
 		&response,
 	); err != nil {
 		return AgentRecord{}, err
 	}
 	return response.Agent, nil
+}
+
+func (c *unixSocketClient) ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error) {
+	var response struct {
+		Skills []SkillRecord `json:"skills"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/skills", skillValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Skills, nil
+}
+
+func (c *unixSocketClient) GetSkill(ctx context.Context, name string, query SkillQuery) (SkillRecord, error) {
+	var response struct {
+		Skill SkillRecord `json:"skill"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/skills/"+url.PathEscape(strings.TrimSpace(name)),
+		skillValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return SkillRecord{}, err
+	}
+	return response.Skill, nil
+}
+
+func (c *unixSocketClient) GetSkillContent(ctx context.Context, name string, query SkillQuery) (string, error) {
+	var response struct {
+		Content string `json:"content"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/skills/"+url.PathEscape(strings.TrimSpace(name))+"/content",
+		skillValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return "", err
+	}
+	return response.Content, nil
 }
 
 func (c *unixSocketClient) HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
@@ -2139,6 +2199,22 @@ func networkInboxValues(sessionID string) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
+	}
+	return values
+}
+
+func agentValues(query AgentQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
+		values.Set("workspace", trimmed)
+	}
+	return values
+}
+
+func skillValues(query SkillQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
+		values.Set("workspace", trimmed)
 	}
 	return values
 }

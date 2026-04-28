@@ -53,8 +53,8 @@ const (
 	maxMemoryDescriptionLength          = 160
 	tagCommentPrefix                    = "<!-- agh-tags:"
 	hostAPIUnknownExtensionName         = "unknown"
-	hostAPIEnvironmentStateSynced       = "synced"
-	hostAPIEnvironmentStatePending      = "pending"
+	hostAPISandboxStateSynced           = "synced"
+	hostAPISandboxStatePending          = "pending"
 )
 
 type hostAPIContextKey string
@@ -106,7 +106,7 @@ type hostAPISessionManager interface {
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	Stop(ctx context.Context, id string) error
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
-	ExecEnvironment(ctx context.Context, req session.EnvironmentExecRequest) (session.EnvironmentExecResult, error)
+	ExecSandbox(ctx context.Context, req session.SandboxExecRequest) (session.SandboxExecResult, error)
 }
 
 type hostAPIObserver interface {
@@ -448,9 +448,9 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		"bridges/instances/get":                                       handler.handleBridgesInstancesGet,
 		"bridges/instances/report_state":                              handler.handleBridgesInstancesReportState,
 		"bridges/messages/ingest":                                     handler.handleBridgesMessagesIngest,
-		"environment/exec":                                            handler.handleEnvironmentExec,
-		"environment/info":                                            handler.handleEnvironmentInfo,
-		"environment/list":                                            handler.handleEnvironmentList,
+		"sandbox/exec":                                                handler.handleSandboxExec,
+		"sandbox/info":                                                handler.handleSandboxInfo,
+		"sandbox/list":                                                handler.handleSandboxList,
 		"memory/forget":                                               handler.handleMemoryForget,
 		"memory/recall":                                               handler.handleMemoryRecall,
 		"memory/store":                                                handler.handleMemoryStore,
@@ -573,11 +573,11 @@ type hostAPISessionTargetParams = extensioncontract.SessionTargetParams
 
 type hostAPISessionEventsParams = extensioncontract.SessionEventsParams
 
-type hostAPIEnvironmentListParams = extensioncontract.EnvironmentListParams
+type hostAPISandboxListParams = extensioncontract.SandboxListParams
 
-type hostAPIEnvironmentInfoParams = extensioncontract.EnvironmentInfoParams
+type hostAPISandboxInfoParams = extensioncontract.SandboxInfoParams
 
-type hostAPIEnvironmentExecParams = extensioncontract.EnvironmentExecParams
+type hostAPISandboxExecParams = extensioncontract.SandboxExecParams
 
 type hostAPIMemoryStoreParams = extensioncontract.MemoryStoreParams
 
@@ -599,13 +599,13 @@ type hostAPISessionCreateResult = extensioncontract.SessionCreateResult
 
 type hostAPISessionPromptResult = extensioncontract.SessionPromptResult
 
-type hostAPIEnvironmentListResult = extensioncontract.EnvironmentListResult
+type hostAPISandboxListResult = extensioncontract.SandboxListResult
 
-type hostAPIEnvironmentSummary = extensioncontract.EnvironmentSummary
+type hostAPISandboxSummary = extensioncontract.SandboxSummary
 
-type hostAPIEnvironmentInfoResult = extensioncontract.EnvironmentInfoResult
+type hostAPISandboxInfoResult = extensioncontract.SandboxInfoResult
 
-type hostAPIEnvironmentExecResult = extensioncontract.EnvironmentExecResult
+type hostAPISandboxExecResult = extensioncontract.SandboxExecResult
 
 type hostAPIMemoryRecallEntry = extensioncontract.MemoryRecallEntry
 
@@ -870,17 +870,17 @@ func (h *HostAPIHandler) handleSessionsEvents(ctx context.Context, raw json.RawM
 	return result, nil
 }
 
-func (h *HostAPIHandler) handleEnvironmentList(ctx context.Context, raw json.RawMessage) (any, error) {
+func (h *HostAPIHandler) handleSandboxList(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.sessions == nil {
 		return nil, errors.New("extension: session manager is not configured")
 	}
 
-	var params hostAPIEnvironmentListParams
+	var params hostAPISandboxListParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
 
-	filterWorkspaceID, filterWorkspaceRoot, err := h.resolveEnvironmentWorkspaceFilter(ctx, params.Workspace)
+	filterWorkspaceID, filterWorkspaceRoot, err := h.resolveSandboxWorkspaceFilter(ctx, params.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -889,11 +889,11 @@ func (h *HostAPIHandler) handleEnvironmentList(ctx context.Context, raw json.Raw
 	if err != nil {
 		return nil, err
 	}
-	result := hostAPIEnvironmentListResult{
-		Environments: make([]hostAPIEnvironmentSummary, 0, len(infos)),
+	result := hostAPISandboxListResult{
+		Sandboxes: make([]hostAPISandboxSummary, 0, len(infos)),
 	}
 	for _, info := range infos {
-		if info == nil || info.Environment == nil || info.State == session.StateStopped {
+		if info == nil || info.Sandbox == nil || info.State == session.StateStopped {
 			continue
 		}
 		if filterWorkspaceID != "" || filterWorkspaceRoot != "" {
@@ -901,24 +901,24 @@ func (h *HostAPIHandler) handleEnvironmentList(ctx context.Context, raw json.Raw
 				continue
 			}
 		}
-		result.Environments = append(result.Environments, hostAPIEnvironmentSummary{
-			SessionID:     info.ID,
-			EnvironmentID: strings.TrimSpace(info.Environment.EnvironmentID),
-			Backend:       strings.TrimSpace(info.Environment.Backend),
-			Profile:       strings.TrimSpace(info.Environment.Profile),
-			InstanceID:    strings.TrimSpace(info.Environment.InstanceID),
-			State:         strings.TrimSpace(info.Environment.State),
-			SyncState:     hostAPIEnvironmentSyncState(info.Environment),
+		result.Sandboxes = append(result.Sandboxes, hostAPISandboxSummary{
+			SessionID:  info.ID,
+			SandboxID:  strings.TrimSpace(info.Sandbox.SandboxID),
+			Backend:    strings.TrimSpace(info.Sandbox.Backend),
+			Profile:    strings.TrimSpace(info.Sandbox.Profile),
+			InstanceID: strings.TrimSpace(info.Sandbox.InstanceID),
+			State:      strings.TrimSpace(info.Sandbox.State),
+			SyncState:  hostAPISandboxSyncState(info.Sandbox),
 		})
 	}
 	return result, nil
 }
 
-func (h *HostAPIHandler) handleEnvironmentInfo(ctx context.Context, raw json.RawMessage) (any, error) {
+func (h *HostAPIHandler) handleSandboxInfo(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.sessions == nil {
 		return nil, errors.New("extension: session manager is not configured")
 	}
-	var params hostAPIEnvironmentInfoParams
+	var params hostAPISandboxInfoParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -933,26 +933,26 @@ func (h *HostAPIHandler) handleEnvironmentInfo(ctx context.Context, raw json.Raw
 		}
 		return nil, err
 	}
-	if info == nil || info.Environment == nil {
-		return nil, notFoundRPCError("environment", sessionID, errors.New("environment is not configured"))
+	if info == nil || info.Sandbox == nil {
+		return nil, notFoundRPCError("sandbox", sessionID, errors.New("sandbox is not configured"))
 	}
-	return hostAPIEnvironmentInfoResult{
-		EnvironmentID: strings.TrimSpace(info.Environment.EnvironmentID),
-		Backend:       strings.TrimSpace(info.Environment.Backend),
-		Profile:       strings.TrimSpace(info.Environment.Profile),
-		InstanceID:    strings.TrimSpace(info.Environment.InstanceID),
-		RuntimeRoot:   strings.TrimSpace(info.Environment.RuntimeRootDir),
-		SyncState:     hostAPIEnvironmentSyncState(info.Environment),
+	return hostAPISandboxInfoResult{
+		SandboxID:     strings.TrimSpace(info.Sandbox.SandboxID),
+		Backend:       strings.TrimSpace(info.Sandbox.Backend),
+		Profile:       strings.TrimSpace(info.Sandbox.Profile),
+		InstanceID:    strings.TrimSpace(info.Sandbox.InstanceID),
+		RuntimeRoot:   strings.TrimSpace(info.Sandbox.RuntimeRootDir),
+		SyncState:     hostAPISandboxSyncState(info.Sandbox),
 		CreatedAt:     info.CreatedAt,
-		LastSyncError: strings.TrimSpace(info.Environment.LastSyncError),
+		LastSyncError: strings.TrimSpace(info.Sandbox.LastSyncError),
 	}, nil
 }
 
-func (h *HostAPIHandler) handleEnvironmentExec(ctx context.Context, raw json.RawMessage) (any, error) {
+func (h *HostAPIHandler) handleSandboxExec(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.sessions == nil {
 		return nil, errors.New("extension: session manager is not configured")
 	}
-	var params hostAPIEnvironmentExecParams
+	var params hostAPISandboxExecParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -967,7 +967,7 @@ func (h *HostAPIHandler) handleEnvironmentExec(ctx context.Context, raw json.Raw
 	if params.Timeout < 0 {
 		return nil, invalidParamsRPCError(errors.New("timeout must be non-negative"))
 	}
-	result, err := h.sessions.ExecEnvironment(ctx, session.EnvironmentExecRequest{
+	result, err := h.sessions.ExecSandbox(ctx, session.SandboxExecRequest{
 		SessionID: sessionID,
 		Command:   command,
 		Timeout:   time.Duration(params.Timeout) * time.Second,
@@ -981,14 +981,14 @@ func (h *HostAPIHandler) handleEnvironmentExec(ctx context.Context, raw json.Raw
 		}
 		return nil, err
 	}
-	return hostAPIEnvironmentExecResult{
+	return hostAPISandboxExecResult{
 		ExitCode: result.ExitCode,
 		Stdout:   result.Stdout,
 		Stderr:   result.Stderr,
 	}, nil
 }
 
-func (h *HostAPIHandler) resolveEnvironmentWorkspaceFilter(
+func (h *HostAPIHandler) resolveSandboxWorkspaceFilter(
 	ctx context.Context,
 	workspace string,
 ) (string, string, error) {
@@ -1006,7 +1006,7 @@ func (h *HostAPIHandler) resolveEnvironmentWorkspaceFilter(
 	return strings.TrimSpace(resolved.ID), strings.TrimSpace(resolved.RootDir), nil
 }
 
-func hostAPIEnvironmentSyncState(meta *store.SessionEnvironmentMeta) string {
+func hostAPISandboxSyncState(meta *store.SessionSandboxMeta) string {
 	if meta == nil {
 		return ""
 	}
@@ -1014,9 +1014,9 @@ func hostAPIEnvironmentSyncState(meta *store.SessionEnvironmentMeta) string {
 		return extensionStateError
 	}
 	if meta.LastSyncAt != nil {
-		return hostAPIEnvironmentStateSynced
+		return hostAPISandboxStateSynced
 	}
-	return hostAPIEnvironmentStatePending
+	return hostAPISandboxStatePending
 }
 
 func (h *HostAPIHandler) handleMemoryStore(ctx context.Context, raw json.RawMessage) (any, error) {

@@ -7,9 +7,9 @@ import {
 
 import type {
   SettingsAutomationSection,
-  SettingsEnvironmentCollection,
-  SettingsEnvironmentDetail,
-  SettingsEnvironmentRequest,
+  SettingsSandboxCollection,
+  SettingsSandboxDetail,
+  SettingsSandboxRequest,
   SettingsExtensionEntry,
   SettingsGeneralSection,
   SettingsHookCollection,
@@ -391,50 +391,50 @@ export async function deleteSettingsProvider(
   return requireResponseData(data, response, `Failed to delete provider "${name}"`);
 }
 
-export async function listSettingsEnvironments(
+export async function listSettingsSandboxes(
   signal?: AbortSignal
-): Promise<SettingsEnvironmentCollection> {
-  const { data, error, response } = await apiClient.GET("/api/settings/environments", { signal });
+): Promise<SettingsSandboxCollection> {
+  const { data, error, response } = await apiClient.GET("/api/settings/sandboxes", { signal });
 
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to list settings environments", response, error),
+      defaultApiErrorMessage("Failed to list settings sandboxes", response, error),
       response.status
     );
   }
 
-  return requireResponseData(data, response, "Failed to list settings environments");
+  return requireResponseData(data, response, "Failed to list settings sandboxes");
 }
 
-export async function getSettingsEnvironment(
+export async function getSettingsSandbox(
   name: string,
   signal?: AbortSignal
-): Promise<SettingsEnvironmentDetail> {
-  const { data, error, response } = await apiClient.GET("/api/settings/environments/{name}", {
+): Promise<SettingsSandboxDetail> {
+  const { data, error, response } = await apiClient.GET("/api/settings/sandboxes/{name}", {
     params: { path: { name } },
     signal,
   });
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
-      throw new SettingsApiError(`Environment not found: ${name}`, 404);
+      throw new SettingsApiError(`Sandbox not found: ${name}`, 404);
     }
 
     throw new SettingsApiError(
-      defaultApiErrorMessage(`Failed to load environment "${name}"`, response, error),
+      defaultApiErrorMessage(`Failed to load sandbox "${name}"`, response, error),
       response.status
     );
   }
 
-  return requireResponseData(data, response, `Failed to load environment "${name}"`).environment;
+  return requireResponseData(data, response, `Failed to load sandbox "${name}"`).sandbox;
 }
 
-export async function putSettingsEnvironment(
+export async function putSettingsSandbox(
   name: string,
-  body: SettingsEnvironmentRequest,
+  body: SettingsSandboxRequest,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.PUT("/api/settings/environments/{name}", {
+  const { data, error, response } = await apiClient.PUT("/api/settings/sandboxes/{name}", {
     params: { path: { name } },
     body,
     signal,
@@ -442,35 +442,35 @@ export async function putSettingsEnvironment(
 
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
-      defaultApiErrorMessage(`Failed to save environment "${name}"`, response, error),
+      defaultApiErrorMessage(`Failed to save sandbox "${name}"`, response, error),
       response.status
     );
   }
 
-  return requireResponseData(data, response, `Failed to save environment "${name}"`);
+  return requireResponseData(data, response, `Failed to save sandbox "${name}"`);
 }
 
-export async function deleteSettingsEnvironment(
+export async function deleteSettingsSandbox(
   name: string,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
-  const { data, error, response } = await apiClient.DELETE("/api/settings/environments/{name}", {
+  const { data, error, response } = await apiClient.DELETE("/api/settings/sandboxes/{name}", {
     params: { path: { name } },
     signal,
   });
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
-      throw new SettingsApiError(`Environment not found: ${name}`, 404);
+      throw new SettingsApiError(`Sandbox not found: ${name}`, 404);
     }
 
     throw new SettingsApiError(
-      defaultApiErrorMessage(`Failed to delete environment "${name}"`, response, error),
+      defaultApiErrorMessage(`Failed to delete sandbox "${name}"`, response, error),
       response.status
     );
   }
 
-  return requireResponseData(data, response, `Failed to delete environment "${name}"`);
+  return requireResponseData(data, response, `Failed to delete sandbox "${name}"`);
 }
 
 export async function listSettingsHooks(signal?: AbortSignal): Promise<SettingsHookCollection> {

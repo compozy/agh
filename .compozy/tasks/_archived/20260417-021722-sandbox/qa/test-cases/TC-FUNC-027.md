@@ -1,4 +1,4 @@
-## TC-FUNC-027: environment.sync.before deny skips sync
+## TC-FUNC-027: sandbox.sync.before deny skips sync
 
 **Priority:** P2 (Medium)
 **Type:** Functional
@@ -11,13 +11,13 @@
 
 ### Objective
 
-Verify that when the `environment.sync.before` sync hook returns a `ControlPatch.Deny`, the sync operation is skipped (not errored).
+Verify that when the `sandbox.sync.before` sync hook returns a `ControlPatch.Deny`, the sync operation is skipped (not errored).
 
 ---
 
 ### Preconditions
 
-- [x] Hook registered for `environment.sync.before` that returns Deny
+- [x] Hook registered for `sandbox.sync.before` that returns Deny
 
 ---
 
@@ -27,5 +27,5 @@ Verify that when the `environment.sync.before` sync hook returns a `ControlPatch
    - Input: Hook returns `{Deny: true, DenyReason: "skip sync per policy"}`
    - **Expected:** `SyncFromRuntime` is NOT called, session stop continues normally
 
-2. **Verify environment.sync.after NOT fired**
+2. **Verify sandbox.sync.after NOT fired**
    - **Expected:** Since sync was skipped, the after hook should not fire (or fire with zero stats)

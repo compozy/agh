@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   SETTINGS_QUERY_INTERVALS,
   settingsAutomationOptions,
-  settingsEnvironmentDetailOptions,
+  settingsSandboxDetailOptions,
   settingsGeneralOptions,
   settingsMCPServersListOptions,
   settingsProviderDetailOptions,
@@ -24,12 +24,12 @@ describe("settings section options", () => {
 describe("settings collection options", () => {
   it("disables detail queries when name is empty", () => {
     expect(settingsProviderDetailOptions("").enabled).toBe(false);
-    expect(settingsEnvironmentDetailOptions("").enabled).toBe(false);
+    expect(settingsSandboxDetailOptions("").enabled).toBe(false);
   });
 
   it("enables detail queries when name is provided", () => {
     expect(settingsProviderDetailOptions("openai").enabled).toBe(true);
-    expect(settingsEnvironmentDetailOptions("cloud").enabled).toBe(true);
+    expect(settingsSandboxDetailOptions("cloud").enabled).toBe(true);
   });
 
   it("includes scope and workspace filters in MCP list query keys", () => {

@@ -32,14 +32,14 @@ web payloads, SSE streams, logs, channel messages, and memory summaries expose a
 
 The MVP lease contract is intentionally narrow:
 
-| Rule | Behavior |
-| ---- | -------- |
-| One owner | Exactly one active claim token may own a non-terminal run. |
-| One active lease per session | A managed session may hold at most one active task-run lease in the MVP. |
-| Token fencing | Heartbeat, complete, fail, and release compare both the owning session and raw claim token. |
-| Bounded renewal | `--lease-seconds` must be zero or positive and is capped by the task service. Omitted or zero uses the service default. |
-| Expiry recovery | Expired leases are recovered by boot recovery or scheduler sweeps through the task service. |
-| Stale holders fail | A stale heartbeat or late complete after recovery fails explicitly; it does not extend or overwrite a newer claim. |
+| Rule                         | Behavior                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| One owner                    | Exactly one active claim token may own a non-terminal run.                                                              |
+| One active lease per session | A managed session may hold at most one active task-run lease in the MVP.                                                |
+| Token fencing                | Heartbeat, complete, fail, and release compare both the owning session and raw claim token.                             |
+| Bounded renewal              | `--lease-seconds` must be zero or positive and is capped by the task service. Omitted or zero uses the service default. |
+| Expiry recovery              | Expired leases are recovered by boot recovery or scheduler sweeps through the task service.                             |
+| Stale holders fail           | A stale heartbeat or late complete after recovery fails explicitly; it does not extend or overwrite a newer claim.      |
 
 ## Heartbeat
 

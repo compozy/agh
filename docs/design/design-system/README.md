@@ -196,7 +196,7 @@ No photography. The landing uses diagrams (`NetworkProtocolVisual`, `RuntimeMicr
 - `h-4 w-4` (16px) — default, inside 40×40 wells.
 - `h-5 w-5` (20px) — rarely; hero dismiss / nav.
 
-**Logos**: custom SVG-in-TSX files under `packages/site/components/logos/` for partner agents (Claude, OpenAI, Gemini, GitHub, Cursor, OpenCode, Kiro, Pi, Slack, Telegram, Discord, Linear, Microsoft Teams, WhatsApp, Google Chat). For this design system we ship a representative set as inline SVG placeholders — see `assets/logos/`. **Do not generate logo SVGs from scratch**; request the real SVGs if missing.
+**Logos**: custom SVG-in-TSX files under `packages/ui/src/logos/` (imported via `@agh/ui/logos`) for partner agents (Claude, OpenAI, Gemini, GitHub, Cursor, OpenCode, Kiro, Pi, Slack, Telegram, Discord, Linear, Microsoft Teams, WhatsApp, Google Chat). For this design system we ship a representative set as inline SVG placeholders — see `assets/logos/`. **Do not generate logo SVGs from scratch**; request the real SVGs if missing.
 
 **Brand wordmark**: the literal string `agh` in `NuixyberNext` font, followed by an `ALPHA` chip (mono, uppercase, tracking-widest, muted border). See `preview/brand-wordmark.html`.
 
@@ -235,6 +235,6 @@ See `preview/` for each card. Grouped into **Type**, **Colors**, **Spacing**, **
 ## Caveats & flags
 
 - **NuixyberNext** font file: not shipped. Wordmark renders in Inter fallback until you drop the real `.ttf` into `fonts/`.
-- **Logos for partner agents** (Claude, OpenAI, Gemini, etc.) are stored as simplified placeholders — real assets live in `packages/site/components/logos/*.tsx`. Copy those TSX files and strip the React wrapper to get the production SVGs.
+- **Logos for partner agents** (Claude, OpenAI, Gemini, etc.) are stored as simplified placeholders — real assets live in `packages/ui/src/logos/*.tsx` (exported via `@agh/ui/logos`). Copy those TSX files and strip the React wrapper to get the production SVGs.
 - **`hero-bg.png` mesh** is referenced by the hero but not shipped here (lives in `packages/site/public/`). The marketing UI kit renders the hero without it; a CSS noise fallback is used.
 - **Diagrams** (`NetworkProtocolVisual`, `RuntimeMicroDiagram`, `ArchitectureDiagram`) are complex SVG compositions — not recreated in the UI kit. The hero visual is replaced with a static placeholder labeled "Network protocol visual".

@@ -373,12 +373,12 @@ func (r *spawnReaper) hooksOrNoop() session.SpawnHooks {
 func spawnReaperPermissionSet(policy store.SessionPermissionPolicy) *hookspkg.PermissionSet {
 	normalized := store.NormalizeSessionPermissionPolicy(policy)
 	return &hookspkg.PermissionSet{
-		Tools:               append([]string(nil), normalized.Tools...),
-		Skills:              append([]string(nil), normalized.Skills...),
-		MCPServers:          append([]string(nil), normalized.MCPServers...),
-		WorkspacePaths:      append([]string(nil), normalized.WorkspacePaths...),
-		NetworkChannels:     append([]string(nil), normalized.NetworkChannels...),
-		EnvironmentProfiles: append([]string(nil), normalized.EnvironmentProfiles...),
+		Tools:           append([]string(nil), normalized.Tools...),
+		Skills:          append([]string(nil), normalized.Skills...),
+		MCPServers:      append([]string(nil), normalized.MCPServers...),
+		WorkspacePaths:  append([]string(nil), normalized.WorkspacePaths...),
+		NetworkChannels: append([]string(nil), normalized.NetworkChannels...),
+		SandboxProfiles: append([]string(nil), normalized.SandboxProfiles...),
 	}
 }
 

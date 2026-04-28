@@ -1,8 +1,8 @@
 export {
   settingsAppliedMutationFixture,
   settingsAutomationSectionFixture,
-  settingsEnvironmentsCollectionFixture,
-  settingsEnvironmentFixtures,
+  settingsSandboxesCollectionFixture,
+  settingsSandboxFixtures,
   settingsExtensionsCollectionFixture,
   settingsExtensionFixtures,
   settingsGeneralSectionFixture,

@@ -267,8 +267,15 @@ func TestAgentTaskLeaseMutationsFenceTokenAndDoNotEchoIt(t *testing.T) {
 			}
 			var response contract.AgentTaskLeaseResponse
 			decodeJSONResponse(t, recorder, &response)
-			if response.Lease.RunID != "run-1" || response.Lease.Status != tt.status {
-				t.Fatalf("lease = %#v, want run-1 status %s", response.Lease, tt.status)
+			if response.Lease.RunID != "run-1" ||
+				response.Lease.Status != tt.status ||
+				response.Lease.SessionID != "sess-agent" ||
+				response.Lease.CoordinationChannelID != "builders" {
+				t.Fatalf(
+					"lease = %#v, want run-1 status %s session sess-agent channel builders",
+					response.Lease,
+					tt.status,
+				)
 			}
 		})
 	}
