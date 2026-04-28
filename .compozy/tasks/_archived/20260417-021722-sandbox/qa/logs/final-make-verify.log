@@ -410,13 +410,13 @@ ld: warning: -bind_at_load is deprecated on macOS
 ✓  internal/api/udsapi (1.494s)
 ∅  internal/codegen/sdkts
 ✓  extensions/bridges/gchat (3.616s)
-✓  internal/environment (1.02s)
-✓  internal/environment/providertest (1.016s)
-✓  internal/environment/local (1.043s)
+✓  internal/sandbox (1.02s)
+✓  internal/sandbox/providertest (1.016s)
+✓  internal/sandbox/local (1.043s)
 ✓  internal/config (1.326s)
 ✓  internal/extension/contract (1.061s)
 ✓  internal/extension/protocol (1.059s)
-✓  internal/environment/daytona (1.425s)
+✓  internal/sandbox/daytona (1.425s)
 ∅  internal/network/rules
 ✓  internal/extension/surfaces (1.049s)
 ✓  internal/automation (3.307s)

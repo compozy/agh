@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
-  deleteSettingsEnvironment,
+  deleteSettingsSandbox,
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
   disableSettingsExtension,
   enableSettingsExtension,
-  putSettingsEnvironment,
+  putSettingsSandbox,
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
@@ -22,7 +22,7 @@ import {
 import { settingsKeys } from "../lib/query-keys";
 import { useSettingsRestartStore } from "../stores/use-settings-restart-store";
 import type {
-  SettingsEnvironmentRequest,
+  SettingsSandboxRequest,
   SettingsExtensionEntry,
   SettingsHookRequest,
   SettingsMCPServerDeleteFilter,
@@ -66,11 +66,11 @@ function invalidateProviders(queryClient: ReturnType<typeof useQueryClient>, nam
   return Promise.all(tasks);
 }
 
-function invalidateEnvironments(queryClient: ReturnType<typeof useQueryClient>, name?: string) {
-  const tasks = [queryClient.invalidateQueries({ queryKey: settingsKeys.environmentsRoot() })];
+function invalidateSandboxes(queryClient: ReturnType<typeof useQueryClient>, name?: string) {
+  const tasks = [queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxesRoot() })];
 
   if (name) {
-    tasks.push(queryClient.invalidateQueries({ queryKey: settingsKeys.environmentDetail(name) }));
+    tasks.push(queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxDetail(name) }));
   }
 
   return Promise.all(tasks);
@@ -183,24 +183,24 @@ export function useDeleteSettingsProvider() {
   });
 }
 
-export function usePutSettingsEnvironment() {
+export function usePutSettingsSandbox() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ name, body }: NameBodyParams<SettingsEnvironmentRequest>) =>
-      putSettingsEnvironment(name, body),
+    mutationFn: ({ name, body }: NameBodyParams<SettingsSandboxRequest>) =>
+      putSettingsSandbox(name, body),
     onSuccess: recordMutation,
-    onSettled: (_result, _error, variables) => invalidateEnvironments(queryClient, variables?.name),
+    onSettled: (_result, _error, variables) => invalidateSandboxes(queryClient, variables?.name),
   });
 }
 
-export function useDeleteSettingsEnvironment() {
+export function useDeleteSettingsSandbox() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (name: string) => deleteSettingsEnvironment(name),
+    mutationFn: (name: string) => deleteSettingsSandbox(name),
     onSuccess: recordMutation,
-    onSettled: (_result, _error, name) => invalidateEnvironments(queryClient, name),
+    onSettled: (_result, _error, name) => invalidateSandboxes(queryClient, name),
   });
 }
 

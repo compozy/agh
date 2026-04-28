@@ -513,30 +513,30 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 === PAUSE TestBackupSessionDB
 === RUN   TestManagerDelete
 === PAUSE TestManagerDelete
-=== RUN   TestSessionEnvironmentStartPrepareSyncAndLaunchSequence
-=== PAUSE TestSessionEnvironmentStartPrepareSyncAndLaunchSequence
-=== RUN   TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy
-=== PAUSE TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy
-=== RUN   TestSessionEnvironmentCrashSyncIsBestEffort
-=== PAUSE TestSessionEnvironmentCrashSyncIsBestEffort
-=== RUN   TestSessionEnvironmentResumeRestoresProviderState
-=== PAUSE TestSessionEnvironmentResumeRestoresProviderState
-=== RUN   TestSessionEnvironmentLifecycleObserverReceivesRequiredFields
-=== PAUSE TestSessionEnvironmentLifecycleObserverReceivesRequiredFields
-=== RUN   TestSessionEnvironmentHooksDispatchPayloadsAcrossLifecycle
-=== PAUSE TestSessionEnvironmentHooksDispatchPayloadsAcrossLifecycle
-=== RUN   TestSessionEnvironmentPrepareHookDenyAbortsSessionCreation
-=== PAUSE TestSessionEnvironmentPrepareHookDenyAbortsSessionCreation
-=== RUN   TestSessionEnvironmentPrepareHookEnvOverridesMergeIntoEnvironmentConfig
-=== PAUSE TestSessionEnvironmentPrepareHookEnvOverridesMergeIntoEnvironmentConfig
-=== RUN   TestSessionEnvironmentSyncBeforeDenySkipsSyncOperation
-=== PAUSE TestSessionEnvironmentSyncBeforeDenySkipsSyncOperation
-=== RUN   TestSessionEnvironmentSyncBeforeExcludePatternsPassToProvider
-=== PAUSE TestSessionEnvironmentSyncBeforeExcludePatternsPassToProvider
-=== RUN   TestSessionEnvironmentSyncBeforeWithoutHooksSkipsFileCount
-=== PAUSE TestSessionEnvironmentSyncBeforeWithoutHooksSkipsFileCount
-=== RUN   TestSessionEnvironmentStopDenyPreventsDestroyButStopsSession
-=== PAUSE TestSessionEnvironmentStopDenyPreventsDestroyButStopsSession
+=== RUN   TestSessionSandboxStartPrepareSyncAndLaunchSequence
+=== PAUSE TestSessionSandboxStartPrepareSyncAndLaunchSequence
+=== RUN   TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy
+=== PAUSE TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy
+=== RUN   TestSessionSandboxCrashSyncIsBestEffort
+=== PAUSE TestSessionSandboxCrashSyncIsBestEffort
+=== RUN   TestSessionSandboxResumeRestoresProviderState
+=== PAUSE TestSessionSandboxResumeRestoresProviderState
+=== RUN   TestSessionSandboxLifecycleObserverReceivesRequiredFields
+=== PAUSE TestSessionSandboxLifecycleObserverReceivesRequiredFields
+=== RUN   TestSessionSandboxHooksDispatchPayloadsAcrossLifecycle
+=== PAUSE TestSessionSandboxHooksDispatchPayloadsAcrossLifecycle
+=== RUN   TestSessionSandboxPrepareHookDenyAbortsSessionCreation
+=== PAUSE TestSessionSandboxPrepareHookDenyAbortsSessionCreation
+=== RUN   TestSessionSandboxPrepareHookEnvOverridesMergeIntoEnvironmentConfig
+=== PAUSE TestSessionSandboxPrepareHookEnvOverridesMergeIntoEnvironmentConfig
+=== RUN   TestSessionSandboxSyncBeforeDenySkipsSyncOperation
+=== PAUSE TestSessionSandboxSyncBeforeDenySkipsSyncOperation
+=== RUN   TestSessionSandboxSyncBeforeExcludePatternsPassToProvider
+=== PAUSE TestSessionSandboxSyncBeforeExcludePatternsPassToProvider
+=== RUN   TestSessionSandboxSyncBeforeWithoutHooksSkipsFileCount
+=== PAUSE TestSessionSandboxSyncBeforeWithoutHooksSkipsFileCount
+=== RUN   TestSessionSandboxStopDenyPreventsDestroyButStopsSession
+=== PAUSE TestSessionSandboxStopDenyPreventsDestroyButStopsSession
 === RUN   TestManagerExecEnvironmentUsesPreparedToolHost
 === PAUSE TestManagerExecEnvironmentUsesPreparedToolHost
 === RUN   TestManagerExecEnvironmentValidationErrors
@@ -967,7 +967,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 === CONT  TestManagerTranscriptLogsCleanupErrorsWithoutFailingSuccessfulRead
 --- PASS: TestManagerStatusRepairsIncompleteStartMetadata (1.81s)
 === CONT  TestCleanupFailedStartRemovesSessionDir
-=== CONT  TestSessionEnvironmentCrashSyncIsBestEffort
+=== CONT  TestSessionSandboxCrashSyncIsBestEffort
 --- PASS: TestStopWithCauseFinalizesAlreadyExitedProcess (1.78s)
 === CONT  TestActivateAndWatchRollsBackOnMetaWriteFailure
 --- PASS: TestManagerStatusDoesNotRepairPendingStartMetadata (0.25s)
@@ -1023,7 +1023,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 === CONT  TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder
 --- PASS: TestStopWaitsForProcessDoneAfterSuccessfulDriverStop (1.54s)
 === CONT  TestPromptSyntheticRejectsMissingWakeupMetadata
---- PASS: TestSessionEnvironmentCrashSyncIsBestEffort (1.56s)
+--- PASS: TestSessionSandboxCrashSyncIsBestEffort (1.56s)
 === CONT  TestPromptSyntheticPersistsDedicatedEventAndMetadata
 --- PASS: TestCreateUsesPatchedPrompt (1.45s)
 === CONT  TestPromptWithOptsRejectsSyntheticTurnSourceUntilDedicatedPathExists
@@ -1117,12 +1117,12 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 --- PASS: TestCreateFailsWhenSessionPreCreateDenied (0.14s)
 === CONT  TestMarshalAgentEvent
 --- PASS: TestMarshalAgentEvent (0.00s)
-=== CONT  TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy
-=== RUN   TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy/keeps_environment_when_destroy_on_stop_is_false
-=== PAUSE TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy/keeps_environment_when_destroy_on_stop_is_false
-=== RUN   TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy/destroys_environment_when_destroy_on_stop_is_true
-=== PAUSE TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy/destroys_environment_when_destroy_on_stop_is_true
-=== CONT  TestSessionEnvironmentStartPrepareSyncAndLaunchSequence
+=== CONT  TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy
+=== RUN   TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy/keeps_environment_when_destroy_on_stop_is_false
+=== PAUSE TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy/keeps_environment_when_destroy_on_stop_is_false
+=== RUN   TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy/destroys_environment_when_destroy_on_stop_is_true
+=== PAUSE TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy/destroys_environment_when_destroy_on_stop_is_true
+=== CONT  TestSessionSandboxStartPrepareSyncAndLaunchSequence
 --- PASS: TestCreateWithWorkspacePathUsesResolveOrRegister (1.52s)
 === CONT  TestManagerDelete
 === RUN   TestManagerDelete/ShouldRemoveStoppedSessionFromHistory
@@ -1141,7 +1141,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 --- PASS: TestCreateOpensStoreRegistersSessionAndActivates (1.52s)
 === CONT  TestClearConversationRestartsSameSessionWithFreshContext
 === RUN   TestClearConversationRestartsSameSessionWithFreshContext/Should_restart_the_same_session_with_fresh_provider_and_transcript_state
-=== CONT  TestSessionEnvironmentPrepareHookEnvOverridesMergeIntoEnvironmentConfig
+=== CONT  TestSessionSandboxPrepareHookEnvOverridesMergeIntoEnvironmentConfig
 --- PASS: TestPumpPromptDrainsRuntimeEventsAfterTurnDone (1.60s)
 --- PASS: TestBackupSessionDB (0.18s)
     --- PASS: TestBackupSessionDB/Should_roll_back_partial_rename_failures (0.18s)
@@ -1165,12 +1165,12 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 --- PASS: TestResumeLoadsMetaAndPassesStoredACPSessionID (2.42s)
 === CONT  TestResumePassesMergedSkillMCPServers
 --- PASS: TestPostCreateHookFiresAfterSessionActive (1.50s)
-=== CONT  TestSessionEnvironmentHooksDispatchPayloadsAcrossLifecycle
+=== CONT  TestSessionSandboxHooksDispatchPayloadsAcrossLifecycle
 --- PASS: TestCreateUsesPatchedSessionPreCreatePayload (1.40s)
-=== CONT  TestSessionEnvironmentSyncBeforeWithoutHooksSkipsFileCount
+=== CONT  TestSessionSandboxSyncBeforeWithoutHooksSkipsFileCount
 --- PASS: TestPromptNetworkUsesNetworkInputClass (1.98s)
     --- PASS: TestPromptNetworkUsesNetworkInputClass/ShouldUseNetworkInputClass (1.98s)
-=== CONT  TestSessionEnvironmentPrepareHookDenyAbortsSessionCreation
+=== CONT  TestSessionSandboxPrepareHookDenyAbortsSessionCreation
 --- PASS: TestPromptUsesPatchedInputMessage (1.88s)
 === CONT  TestCreateAndResumeRequireWorkspaceResolver
 2026/04/25 01:59:47 INFO resolved MCP server skill_name=resume-skill mcp_server=resume-extra source=user
@@ -1179,14 +1179,14 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 === RUN   TestManagerExecEnvironmentValidationErrors/blank_command
 === RUN   TestManagerExecEnvironmentValidationErrors/missing_session
 === RUN   TestManagerExecEnvironmentValidationErrors/missing_tool_host
---- PASS: TestSessionEnvironmentSyncBeforeWithoutHooksSkipsFileCount (0.10s)
-=== CONT  TestSessionEnvironmentStopDenyPreventsDestroyButStopsSession
+--- PASS: TestSessionSandboxSyncBeforeWithoutHooksSkipsFileCount (0.10s)
+=== CONT  TestSessionSandboxStopDenyPreventsDestroyButStopsSession
 --- PASS: TestCreateAndResumeRequireWorkspaceResolver (0.22s)
 === CONT  TestResumeCleansUpOnStartFailure
---- PASS: TestSessionEnvironmentStartPrepareSyncAndLaunchSequence (1.46s)
+--- PASS: TestSessionSandboxStartPrepareSyncAndLaunchSequence (1.46s)
 === CONT  TestCreateWithNilPromptAssemblerIsSafe
---- PASS: TestSessionEnvironmentPrepareHookEnvOverridesMergeIntoEnvironmentConfig (1.38s)
-=== CONT  TestSessionEnvironmentLifecycleObserverReceivesRequiredFields
+--- PASS: TestSessionSandboxPrepareHookEnvOverridesMergeIntoEnvironmentConfig (1.38s)
+=== CONT  TestSessionSandboxLifecycleObserverReceivesRequiredFields
 === CONT  TestResumePassesResolvedAdditionalDirsToDriver
 --- PASS: TestManagerExecEnvironmentValidationErrors (1.39s)
     --- PASS: TestManagerExecEnvironmentValidationErrors/nil_context (0.00s)
@@ -1201,27 +1201,27 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
     --- PASS: TestClearConversationRejectsPromptInProgress/Should_reject_clearing_while_a_prompt_is_in_progress (1.66s)
 === CONT  TestCreatePassesResolvedAdditionalDirsToDriver
 --- PASS: TestSessionDirAccessorAndStopWithoutProcess (1.40s)
-=== CONT  TestSessionEnvironmentResumeRestoresProviderState
---- PASS: TestSessionEnvironmentPrepareHookDenyAbortsSessionCreation (0.95s)
-=== CONT  TestSessionEnvironmentSyncBeforeDenySkipsSyncOperation
+=== CONT  TestSessionSandboxResumeRestoresProviderState
+--- PASS: TestSessionSandboxPrepareHookDenyAbortsSessionCreation (0.95s)
+=== CONT  TestSessionSandboxSyncBeforeDenySkipsSyncOperation
 2026/04/25 01:59:48 INFO resolved MCP server skill_name=resume-skill mcp_server=resume-extra source=user
 --- PASS: TestMessageDeltaAsyncHooksDoNotBlockPromptStreaming (1.97s)
 === CONT  TestNewManagerOptionsAndValidation
---- PASS: TestSessionEnvironmentHooksDispatchPayloadsAcrossLifecycle (1.62s)
+--- PASS: TestSessionSandboxHooksDispatchPayloadsAcrossLifecycle (1.62s)
 === CONT  TestResumeReturnsExistingActiveSession
 === RUN   TestNewManagerOptionsAndValidation/missing_store_opener
 === PAUSE TestNewManagerOptionsAndValidation/missing_store_opener
 === RUN   TestNewManagerOptionsAndValidation/ShouldWrapInvalidSupervisionConfigWithSessionContext
 === PAUSE TestNewManagerOptionsAndValidation/ShouldWrapInvalidSupervisionConfigWithSessionContext
 === CONT  TestCreateWithBlankWorkspaceReturnsValidationError
---- PASS: TestSessionEnvironmentStopDenyPreventsDestroyButStopsSession (1.58s)
+--- PASS: TestSessionSandboxStopDenyPreventsDestroyButStopsSession (1.58s)
 === CONT  TestHelperFunctionsAndUtilities
 --- PASS: TestHelperFunctionsAndUtilities (0.00s)
 === CONT  TestPromptErrorPaths
 --- PASS: TestCreateWithBlankWorkspaceReturnsValidationError (0.16s)
 === CONT  TestResumeErrorBranches
 --- PASS: TestMessageStartPatchUpdatesFirstAssistantChunk (2.02s)
-=== CONT  TestSessionEnvironmentSyncBeforeExcludePatternsPassToProvider
+=== CONT  TestSessionSandboxSyncBeforeExcludePatternsPassToProvider
 --- PASS: TestPromptDispatchesTurnAndMessageHooksAtACPBoundaries (2.03s)
 === CONT  TestTransitionToSameStateOnlyUpdatesTimestamp
 --- PASS: TestTransitionToSameStateOnlyUpdatesTimestamp (0.03s)
@@ -1230,7 +1230,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 === CONT  TestPrepareStopWithCauseWrapsStageFailures/Should_wrap_pre-stop_hook_failures
 --- PASS: TestResumeErrorBranches (0.15s)
 === CONT  TestPrepareStopWithCauseWrapsStageFailures/Should_wrap_metadata_write_failures
---- PASS: TestSessionEnvironmentLifecycleObserverReceivesRequiredFields (1.42s)
+--- PASS: TestSessionSandboxLifecycleObserverReceivesRequiredFields (1.42s)
 === CONT  TestPrepareStopWithCauseWrapsStageFailures/Should_wrap_prompt_setup_wait_failures
 --- PASS: TestResumePassesMergedSkillMCPServers (2.27s)
 === CONT  TestPrepareStopWithCauseWrapsStageFailures/Should_wrap_state_synchronization_failures
@@ -1269,7 +1269,7 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
     --- PASS: TestClassifyStopReason/Should_classify_max_iterations_subreason (0.00s)
     --- PASS: TestClassifyStopReason/Should_prefer_shutdown_over_process_error (0.00s)
 === RUN   TestCreateErrorBranches/blank_agent_name_without_config_default
---- PASS: TestSessionEnvironmentSyncBeforeDenySkipsSyncOperation (1.31s)
+--- PASS: TestSessionSandboxSyncBeforeDenySkipsSyncOperation (1.31s)
 === CONT  TestRepairRejectsNilContext/Should_reject_nil_context_in_repairInactiveMeta
 --- PASS: TestSessionMetaRoundTripIncludesProvider (0.00s)
     --- PASS: TestSessionMetaRoundTripIncludesProvider/Should_persist_and_reload_provider_in_session_metadata (0.10s)
@@ -1335,9 +1335,9 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 === CONT  TestCancelPrompt/Should_no-op_for_an_active_session_without_a_prompt
 --- PASS: TestResumePassesResolvedAdditionalDirsToDriver (2.27s)
 === CONT  TestCancelPrompt/Should_ignore_cancel_errors_once_the_process_is_already_done
---- PASS: TestSessionEnvironmentSyncBeforeExcludePatternsPassToProvider (1.23s)
+--- PASS: TestSessionSandboxSyncBeforeExcludePatternsPassToProvider (1.23s)
 === CONT  TestCancelPrompt/Should_no-op_when_a_prompting_session_loses_its_process_handle
---- PASS: TestSessionEnvironmentResumeRestoresProviderState (2.41s)
+--- PASS: TestSessionSandboxResumeRestoresProviderState (2.41s)
 === CONT  TestCancelPrompt/Should_no-op_for_a_known_stopped_session
 --- PASS: TestPromptSyntheticUsesSyntheticInputClass (1.74s)
 === CONT  TestCancelPrompt/Should_return_ErrSessionNotFound_for_an_unknown_session
@@ -1355,8 +1355,8 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
 --- PASS: TestNewPromptTurnDispatchStateNormalizesInputClass (0.00s)
     --- PASS: TestNewPromptTurnDispatchStateNormalizesInputClass/unknown_source_falls_back_to_user (0.00s)
     --- PASS: TestNewPromptTurnDispatchStateNormalizesInputClass/synthetic_source_keeps_synthetic_class (0.00s)
-=== CONT  TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy/keeps_environment_when_destroy_on_stop_is_false
-=== CONT  TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy/destroys_environment_when_destroy_on_stop_is_true
+=== CONT  TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy/keeps_environment_when_destroy_on_stop_is_false
+=== CONT  TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy/destroys_environment_when_destroy_on_stop_is_true
 === CONT  TestManagerDelete/ShouldRemoveStoppedSessionFromHistory
 === CONT  TestManagerDelete/ShouldIgnoreConcurrentStopRacesThatReportSessionNotFound
 === CONT  TestManagerDelete/ShouldWrapStopErrorsWithDeleteContext
@@ -1384,9 +1384,9 @@ ok  	github.com/pedronauck/agh/internal/acp	0.237s
     --- PASS: TestSessionNetworkLifecycleHandling/ShouldIgnoreDeadlineExceededLeaveCleanupOnStop (1.33s)
     --- PASS: TestSessionNetworkLifecycleHandling/ShouldIgnoreCanceledLeaveCleanupOnStop (1.36s)
     --- PASS: TestSessionNetworkLifecycleHandling/ShouldRestoreStoppedMetadataWhenResumeJoinFails (1.71s)
---- PASS: TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy (0.00s)
-    --- PASS: TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy/keeps_environment_when_destroy_on_stop_is_false (0.83s)
-    --- PASS: TestSessionEnvironmentStopSyncsBeforeRecorderCloseAndDestroyPolicy/destroys_environment_when_destroy_on_stop_is_true (0.82s)
+--- PASS: TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy (0.00s)
+    --- PASS: TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy/keeps_environment_when_destroy_on_stop_is_false (0.83s)
+    --- PASS: TestSessionSandboxStopSyncsBeforeRecorderCloseAndDestroyPolicy/destroys_environment_when_destroy_on_stop_is_true (0.82s)
 --- PASS: TestCancelPrompt (0.00s)
     --- PASS: TestCancelPrompt/Should_return_ErrSessionNotFound_for_an_unknown_session (0.16s)
     --- PASS: TestCancelPrompt/Should_no-op_for_an_active_session_without_a_prompt (1.43s)

@@ -34,4 +34,4 @@ Verify that the SSH token manager proactively refreshes the token at 50% of the 
    - **Expected:** Proactive refresh triggered, new token fetched, new expiry persisted
 
 4. **Verify persisted expiry updated**
-   - **Expected:** `SessionEnvironmentMeta.SSHAccessExpiresAt` updated to new expiry
+   - **Expected:** `SessionSandboxMeta.SSHAccessExpiresAt` updated to new expiry

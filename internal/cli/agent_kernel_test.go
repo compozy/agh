@@ -192,7 +192,7 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			"/workspace/project",
 			"--channel",
 			"builders",
-			"--environment-profile",
+			"--sandbox-profile",
 			"default",
 			"--idempotency-key",
 			"spawn-1",
@@ -223,8 +223,8 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			gotRequest.Permissions.WorkspacePaths[0] != "/workspace/project" ||
 			len(gotRequest.Permissions.NetworkChannels) != 1 ||
 			gotRequest.Permissions.NetworkChannels[0] != "builders" ||
-			len(gotRequest.Permissions.EnvironmentProfiles) != 1 ||
-			gotRequest.Permissions.EnvironmentProfiles[0] != "default" {
+			len(gotRequest.Permissions.SandboxProfiles) != 1 ||
+			gotRequest.Permissions.SandboxProfiles[0] != "default" {
 			t.Fatalf("spawn permissions = %#v, want all repeatable atom flags", gotRequest.Permissions)
 		}
 

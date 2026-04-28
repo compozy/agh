@@ -218,20 +218,20 @@ function DefaultsSection({ draft, setDraft }: DraftSectionProps) {
         }
       />
       <SettingsFieldRow
-        data-testid="settings-page-general-default-environment"
-        label="Default environment"
+        data-testid="settings-page-general-default-sandbox"
+        label="Default sandbox"
         description="Execution profile for new workspaces"
         hint="DEFAULT"
         control={
           <Input
             className="w-56 font-mono"
-            data-testid="settings-page-general-default-environment-input"
-            value={draft.defaults.environment ?? ""}
+            data-testid="settings-page-general-default-sandbox-input"
+            value={draft.defaults.sandbox ?? ""}
             placeholder="local"
             onChange={event =>
               setDraft({
                 ...draft,
-                defaults: { ...draft.defaults, environment: event.target.value },
+                defaults: { ...draft.defaults, sandbox: event.target.value },
               })
             }
           />

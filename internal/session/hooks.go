@@ -28,28 +28,28 @@ type LifecycleHooks interface {
 	DispatchSessionPostStop(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
 }
 
-// EnvironmentHooks groups execution-environment lifecycle hook dispatch.
-type EnvironmentHooks interface {
-	DispatchEnvironmentPrepare(
+// SandboxHooks groups execution-sandbox lifecycle hook dispatch.
+type SandboxHooks interface {
+	DispatchSandboxPrepare(
 		context.Context,
-		hookspkg.EnvironmentPreparePayload,
-	) (hookspkg.EnvironmentPreparePayload, error)
-	DispatchEnvironmentReady(
+		hookspkg.SandboxPreparePayload,
+	) (hookspkg.SandboxPreparePayload, error)
+	DispatchSandboxReady(
 		context.Context,
-		hookspkg.EnvironmentReadyPayload,
-	) (hookspkg.EnvironmentReadyPayload, error)
-	DispatchEnvironmentSyncBefore(
+		hookspkg.SandboxReadyPayload,
+	) (hookspkg.SandboxReadyPayload, error)
+	DispatchSandboxSyncBefore(
 		context.Context,
-		hookspkg.EnvironmentSyncBeforePayload,
-	) (hookspkg.EnvironmentSyncBeforePayload, error)
-	DispatchEnvironmentSyncAfter(
+		hookspkg.SandboxSyncBeforePayload,
+	) (hookspkg.SandboxSyncBeforePayload, error)
+	DispatchSandboxSyncAfter(
 		context.Context,
-		hookspkg.EnvironmentSyncAfterPayload,
-	) (hookspkg.EnvironmentSyncAfterPayload, error)
-	DispatchEnvironmentStop(
+		hookspkg.SandboxSyncAfterPayload,
+	) (hookspkg.SandboxSyncAfterPayload, error)
+	DispatchSandboxStop(
 		context.Context,
-		hookspkg.EnvironmentStopPayload,
-	) (hookspkg.EnvironmentStopPayload, error)
+		hookspkg.SandboxStopPayload,
+	) (hookspkg.SandboxStopPayload, error)
 }
 
 // PromptHooks groups prompt assembly and user-input hook dispatch.
@@ -115,7 +115,7 @@ type SpawnHooks interface {
 // no-op implementations so callers only provide the domains they exercise.
 type HookSet struct {
 	Session      LifecycleHooks
-	Environment  EnvironmentHooks
+	Sandbox      SandboxHooks
 	Prompt       PromptHooks
 	Events       EventHooks
 	Agent        AgentHooks
@@ -125,7 +125,7 @@ type HookSet struct {
 }
 
 var _ LifecycleHooks = noopSessionLifecycleHooks{}
-var _ EnvironmentHooks = noopEnvironmentHooks{}
+var _ SandboxHooks = noopSandboxHooks{}
 var _ PromptHooks = noopPromptHooks{}
 var _ EventHooks = noopEventHooks{}
 var _ AgentHooks = noopAgentHooks{}
@@ -140,19 +140,19 @@ func (h HookSet) session() LifecycleHooks {
 	return noopSessionLifecycleHooks{}
 }
 
-func (h HookSet) environment() EnvironmentHooks {
-	if h.Environment != nil {
-		return h.Environment
+func (h HookSet) sandbox() SandboxHooks {
+	if h.Sandbox != nil {
+		return h.Sandbox
 	}
-	return noopEnvironmentHooks{}
+	return noopSandboxHooks{}
 }
 
-func (h HookSet) hasEnvironmentHooks() bool {
-	if h.Environment == nil {
+func (h HookSet) hasSandboxHooks() bool {
+	if h.Sandbox == nil {
 		return false
 	}
-	switch h.Environment.(type) {
-	case noopEnvironmentHooks, *noopEnvironmentHooks:
+	switch h.Sandbox.(type) {
+	case noopSandboxHooks, *noopSandboxHooks:
 		return false
 	default:
 		return true
@@ -245,40 +245,40 @@ func (noopSessionLifecycleHooks) DispatchSessionPostStop(
 	return payload, nil
 }
 
-type noopEnvironmentHooks struct{}
+type noopSandboxHooks struct{}
 
-func (noopEnvironmentHooks) DispatchEnvironmentPrepare(
+func (noopSandboxHooks) DispatchSandboxPrepare(
 	_ context.Context,
-	payload hookspkg.EnvironmentPreparePayload,
-) (hookspkg.EnvironmentPreparePayload, error) {
+	payload hookspkg.SandboxPreparePayload,
+) (hookspkg.SandboxPreparePayload, error) {
 	return payload, nil
 }
 
-func (noopEnvironmentHooks) DispatchEnvironmentReady(
+func (noopSandboxHooks) DispatchSandboxReady(
 	_ context.Context,
-	payload hookspkg.EnvironmentReadyPayload,
-) (hookspkg.EnvironmentReadyPayload, error) {
+	payload hookspkg.SandboxReadyPayload,
+) (hookspkg.SandboxReadyPayload, error) {
 	return payload, nil
 }
 
-func (noopEnvironmentHooks) DispatchEnvironmentSyncBefore(
+func (noopSandboxHooks) DispatchSandboxSyncBefore(
 	_ context.Context,
-	payload hookspkg.EnvironmentSyncBeforePayload,
-) (hookspkg.EnvironmentSyncBeforePayload, error) {
+	payload hookspkg.SandboxSyncBeforePayload,
+) (hookspkg.SandboxSyncBeforePayload, error) {
 	return payload, nil
 }
 
-func (noopEnvironmentHooks) DispatchEnvironmentSyncAfter(
+func (noopSandboxHooks) DispatchSandboxSyncAfter(
 	_ context.Context,
-	payload hookspkg.EnvironmentSyncAfterPayload,
-) (hookspkg.EnvironmentSyncAfterPayload, error) {
+	payload hookspkg.SandboxSyncAfterPayload,
+) (hookspkg.SandboxSyncAfterPayload, error) {
 	return payload, nil
 }
 
-func (noopEnvironmentHooks) DispatchEnvironmentStop(
+func (noopSandboxHooks) DispatchSandboxStop(
 	_ context.Context,
-	payload hookspkg.EnvironmentStopPayload,
-) (hookspkg.EnvironmentStopPayload, error) {
+	payload hookspkg.SandboxStopPayload,
+) (hookspkg.SandboxStopPayload, error) {
 	return payload, nil
 }
 

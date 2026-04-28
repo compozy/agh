@@ -156,16 +156,16 @@
 [GIN-debug] GET    /api/settings/mcp-servers --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsMCPServers-fm (2 handlers)
 [GIN-debug] PUT    /api/settings/mcp-servers/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsMCPServer-fm (2 handlers)
 [GIN-debug] DELETE /api/settings/mcp-servers/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsMCPServer-fm (2 handlers)
-[GIN-debug] GET    /api/settings/environments --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsEnvironments-fm (2 handlers)
-[GIN-debug] GET    /api/settings/environments/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsEnvironment-fm (2 handlers)
-[GIN-debug] PUT    /api/settings/environments/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsEnvironment-fm (2 handlers)
-[GIN-debug] DELETE /api/settings/environments/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsEnvironment-fm (2 handlers)
+[GIN-debug] GET    /api/settings/sandboxes --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsSandboxes-fm (2 handlers)
+[GIN-debug] GET    /api/settings/sandboxes/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsSandbox-fm (2 handlers)
+[GIN-debug] PUT    /api/settings/sandboxes/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsSandbox-fm (2 handlers)
+[GIN-debug] DELETE /api/settings/sandboxes/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsSandbox-fm (2 handlers)
 [GIN-debug] GET    /api/settings/hooks       --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).ListSettingsHooks-fm (2 handlers)
 [GIN-debug] PUT    /api/settings/hooks/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).PutSettingsHook-fm (2 handlers)
 [GIN-debug] DELETE /api/settings/hooks/:name --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).DeleteSettingsHook-fm (2 handlers)
 [GIN-debug] POST   /api/settings/actions/restart --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).TriggerSettingsRestart-fm (2 handlers)
 [GIN-debug] GET    /api/settings/actions/restart/:operation_id --> github.com/pedronauck/agh/internal/api/core.(*BaseHandlers).GetSettingsRestartStatus-fm (2 handlers)
-    cli_integration_test.go:169: toon output = "sessions[1]{id,name,agent_name,provider,environment_backend,state,failure_kind,workspace,channel,updated_at}:\n  sess-b1daf416469bd0c8,demo,coder,fake,local,active,\"\",/private/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/TestSessionListOutputFormatsIntegration969590787/002,default,2026-04-25T05:28:45Z\n", want TOON table
+    cli_integration_test.go:169: toon output = "sessions[1]{id,name,agent_name,provider,sandbox_backend,state,failure_kind,workspace,channel,updated_at}:\n  sess-b1daf416469bd0c8,demo,coder,fake,local,active,\"\",/private/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/TestSessionListOutputFormatsIntegration969590787/002,default,2026-04-25T05:28:45Z\n", want TOON table
 --- FAIL: TestSessionListOutputFormatsIntegration (0.48s)
 FAIL
 FAIL	github.com/pedronauck/agh/internal/cli	0.527s

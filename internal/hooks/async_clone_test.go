@@ -8,11 +8,11 @@ import (
 func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("environment prepare", func(t *testing.T) {
+	t.Run("sandbox prepare", func(t *testing.T) {
 		t.Parallel()
 
-		original := EnvironmentPreparePayload{
-			Profile: EnvironmentProfilePayload{
+		original := SandboxPreparePayload{
+			Profile: SandboxProfilePayload{
 				Env: map[string]string{"PATH": "/usr/bin"},
 			},
 			LocalAdditionalDirs: []string{"/tmp/a"},
@@ -40,12 +40,12 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 
-	t.Run("environment lifecycle slices", func(t *testing.T) {
+	t.Run("sandbox lifecycle slices", func(t *testing.T) {
 		t.Parallel()
 
-		ready := cloneAsyncPayload(EnvironmentReadyPayload{RuntimeAdditionalDirs: []string{"/runtime"}})
-		syncBefore := cloneAsyncPayload(EnvironmentSyncBeforePayload{ExcludePatterns: []string{"*.tmp"}})
-		syncAfter := cloneAsyncPayload(EnvironmentSyncAfterPayload{Errors: []string{"before"}})
+		ready := cloneAsyncPayload(SandboxReadyPayload{RuntimeAdditionalDirs: []string{"/runtime"}})
+		syncBefore := cloneAsyncPayload(SandboxSyncBeforePayload{ExcludePatterns: []string{"*.tmp"}})
+		syncAfter := cloneAsyncPayload(SandboxSyncAfterPayload{Errors: []string{"before"}})
 
 		if ready.RuntimeAdditionalDirs[0] != "/runtime" {
 			t.Fatalf("cloned runtime dir = %q, want %q", ready.RuntimeAdditionalDirs[0], "/runtime")

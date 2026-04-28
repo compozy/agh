@@ -18,7 +18,7 @@ Verify that two concurrent sessions referencing the same workspace with local pr
 ### Test Steps
 
 1. **Create two sessions on the same workspace**
-   - **Expected:** Both sessions created, each with unique EnvironmentID
+   - **Expected:** Both sessions created, each with unique SandboxID
 
 2. **Both sessions write to the same file**
    - Input: Session A writes "contentA", Session B writes "contentB"

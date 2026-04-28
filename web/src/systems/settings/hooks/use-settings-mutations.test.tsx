@@ -4,13 +4,13 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../adapters/settings-api", () => ({
-  deleteSettingsEnvironment: vi.fn(),
+  deleteSettingsSandbox: vi.fn(),
   deleteSettingsHook: vi.fn(),
   deleteSettingsMCPServer: vi.fn(),
   deleteSettingsProvider: vi.fn(),
   disableSettingsExtension: vi.fn(),
   enableSettingsExtension: vi.fn(),
-  putSettingsEnvironment: vi.fn(),
+  putSettingsSandbox: vi.fn(),
   putSettingsHook: vi.fn(),
   putSettingsMCPServer: vi.fn(),
   putSettingsProvider: vi.fn(),

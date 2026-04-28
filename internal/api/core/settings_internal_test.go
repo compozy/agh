@@ -50,8 +50,8 @@ func TestSettingsHelperFunctionsAndNilErrorWrappers(t *testing.T) {
 	if _, ok := findSettingsProvider([]settingspkg.ProviderItem{{Name: "openai"}}, "openai"); !ok {
 		t.Fatal("findSettingsProvider() = false, want true")
 	}
-	if _, ok := findSettingsEnvironment([]settingspkg.EnvironmentItem{{Name: "local"}}, "local"); !ok {
-		t.Fatal("findSettingsEnvironment() = false, want true")
+	if _, ok := findSettingsSandbox([]settingspkg.SandboxItem{{Name: "local"}}, "local"); !ok {
+		t.Fatal("findSettingsSandbox() = false, want true")
 	}
 
 	fireLimit := automationFireLimitFromPayload(automationmodel.FireLimitConfig{Max: 5, Window: "1m"})
@@ -209,10 +209,10 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		t.Fatal("extensionRateLimitConfigFromPayload(invalid window) error = nil, want non-nil")
 	}
 
-	if _, err := environmentProfileFromPayload(contract.SettingsEnvironmentProfilePayload{
+	if _, err := sandboxProfileFromPayload(contract.SettingsSandboxProfilePayload{
 		Backend: "invalid",
 	}); err == nil {
-		t.Fatal("environmentProfileFromPayload(invalid backend) error = nil, want non-nil")
+		t.Fatal("sandboxProfileFromPayload(invalid backend) error = nil, want non-nil")
 	}
 
 	if _, err := hookDeclarationFromPayload(contract.SettingsHookDeclarationPayload{

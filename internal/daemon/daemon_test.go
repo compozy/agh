@@ -2717,11 +2717,11 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	if capturedDeps.WorkspaceResolver == nil {
 		t.Fatal("boot() did not inject the session manager workspace resolver")
 	}
-	if capturedDeps.EnvironmentRegistry == nil {
-		t.Fatal("boot() did not inject the session manager environment registry")
+	if capturedDeps.SandboxRegistry == nil {
+		t.Fatal("boot() did not inject the session manager sandbox registry")
 	}
-	if d.environmentRegistry == nil {
-		t.Fatal("boot() did not retain the daemon environment registry")
+	if d.sandboxRegistry == nil {
+		t.Fatal("boot() did not retain the daemon sandbox registry")
 	}
 	if capturedUDSDeps.WorkspaceService == nil {
 		t.Fatal("boot() did not inject the uds workspace service")
@@ -6054,38 +6054,38 @@ func (f *fakeHookRuntime) DispatchContextPostCompact(
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentPrepare(
+func (f *fakeHookRuntime) DispatchSandboxPrepare(
 	_ context.Context,
-	payload hookspkg.EnvironmentPreparePayload,
-) (hookspkg.EnvironmentPreparePayload, error) {
+	payload hookspkg.SandboxPreparePayload,
+) (hookspkg.SandboxPreparePayload, error) {
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentReady(
+func (f *fakeHookRuntime) DispatchSandboxReady(
 	_ context.Context,
-	payload hookspkg.EnvironmentReadyPayload,
-) (hookspkg.EnvironmentReadyPayload, error) {
+	payload hookspkg.SandboxReadyPayload,
+) (hookspkg.SandboxReadyPayload, error) {
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentSyncBefore(
+func (f *fakeHookRuntime) DispatchSandboxSyncBefore(
 	_ context.Context,
-	payload hookspkg.EnvironmentSyncBeforePayload,
-) (hookspkg.EnvironmentSyncBeforePayload, error) {
+	payload hookspkg.SandboxSyncBeforePayload,
+) (hookspkg.SandboxSyncBeforePayload, error) {
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentSyncAfter(
+func (f *fakeHookRuntime) DispatchSandboxSyncAfter(
 	_ context.Context,
-	payload hookspkg.EnvironmentSyncAfterPayload,
-) (hookspkg.EnvironmentSyncAfterPayload, error) {
+	payload hookspkg.SandboxSyncAfterPayload,
+) (hookspkg.SandboxSyncAfterPayload, error) {
 	return payload, nil
 }
 
-func (f *fakeHookRuntime) DispatchEnvironmentStop(
+func (f *fakeHookRuntime) DispatchSandboxStop(
 	_ context.Context,
-	payload hookspkg.EnvironmentStopPayload,
-) (hookspkg.EnvironmentStopPayload, error) {
+	payload hookspkg.SandboxStopPayload,
+) (hookspkg.SandboxStopPayload, error) {
 	return payload, nil
 }
 

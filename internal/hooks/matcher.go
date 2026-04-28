@@ -16,14 +16,14 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"workspace_root": {},
 		"session_type":   {},
 	},
-	HookEventFamilyEnvironment: {
-		"agent_name":          {},
-		"workspace_id":        {},
-		"workspace_root":      {},
-		"environment_id":      {},
-		"environment_backend": {},
-		"environment_profile": {},
-		"sync_direction":      {},
+	HookEventFamilySandbox: {
+		"agent_name":      {},
+		"workspace_id":    {},
+		"workspace_root":  {},
+		"sandbox_id":      {},
+		"sandbox_backend": {},
+		"sandbox_profile": {},
+		"sync_direction":  {},
 	},
 	HookEventFamilyInput: {
 		"agent_name":     {},
@@ -157,47 +157,47 @@ func (m HookMatcher) MatchesSession(payload SessionContext) bool {
 	return m.matchSessionContext(payload, true)
 }
 
-// MatchesEnvironmentPrepare matches environment prepare hooks.
-func (m HookMatcher) MatchesEnvironmentPrepare(payload EnvironmentPreparePayload) bool {
-	return m.matchEnvironment(
+// MatchesSandboxPrepare matches sandbox prepare hooks.
+func (m HookMatcher) MatchesSandboxPrepare(payload SandboxPreparePayload) bool {
+	return m.matchSandbox(
 		payload.SessionContext,
-		payload.EnvironmentID,
+		payload.SandboxID,
 		payload.Backend,
 		payload.Profile.Profile,
 		"",
 	)
 }
 
-// MatchesEnvironmentReady matches environment ready hooks.
-func (m HookMatcher) MatchesEnvironmentReady(payload EnvironmentReadyPayload) bool {
-	return m.matchEnvironment(payload.SessionContext, payload.EnvironmentID, payload.Backend, payload.Profile, "")
+// MatchesSandboxReady matches sandbox ready hooks.
+func (m HookMatcher) MatchesSandboxReady(payload SandboxReadyPayload) bool {
+	return m.matchSandbox(payload.SessionContext, payload.SandboxID, payload.Backend, payload.Profile, "")
 }
 
-// MatchesEnvironmentSyncBefore matches environment pre-sync hooks.
-func (m HookMatcher) MatchesEnvironmentSyncBefore(payload EnvironmentSyncBeforePayload) bool {
-	return m.matchEnvironment(
+// MatchesSandboxSyncBefore matches sandbox pre-sync hooks.
+func (m HookMatcher) MatchesSandboxSyncBefore(payload SandboxSyncBeforePayload) bool {
+	return m.matchSandbox(
 		payload.SessionContext,
-		payload.EnvironmentID,
+		payload.SandboxID,
 		payload.Backend,
 		payload.Profile,
 		payload.Direction,
 	)
 }
 
-// MatchesEnvironmentSyncAfter matches environment post-sync hooks.
-func (m HookMatcher) MatchesEnvironmentSyncAfter(payload EnvironmentSyncAfterPayload) bool {
-	return m.matchEnvironment(
+// MatchesSandboxSyncAfter matches sandbox post-sync hooks.
+func (m HookMatcher) MatchesSandboxSyncAfter(payload SandboxSyncAfterPayload) bool {
+	return m.matchSandbox(
 		payload.SessionContext,
-		payload.EnvironmentID,
+		payload.SandboxID,
 		payload.Backend,
 		payload.Profile,
 		payload.Direction,
 	)
 }
 
-// MatchesEnvironmentStop matches environment stop hooks.
-func (m HookMatcher) MatchesEnvironmentStop(payload EnvironmentStopPayload) bool {
-	return m.matchEnvironment(payload.SessionContext, payload.EnvironmentID, payload.Backend, payload.Profile, "")
+// MatchesSandboxStop matches sandbox stop hooks.
+func (m HookMatcher) MatchesSandboxStop(payload SandboxStopPayload) bool {
+	return m.matchSandbox(payload.SessionContext, payload.SandboxID, payload.Backend, payload.Profile, "")
 }
 
 // MatchesInput matches input-family hooks.
@@ -367,24 +367,24 @@ func matchSessionLifecycle(matcher HookMatcher, payload SessionLifecyclePayload)
 	return matcher.MatchesSession(payload.SessionContext)
 }
 
-func matchEnvironmentPrepare(matcher HookMatcher, payload EnvironmentPreparePayload) bool {
-	return matcher.MatchesEnvironmentPrepare(payload)
+func matchSandboxPrepare(matcher HookMatcher, payload SandboxPreparePayload) bool {
+	return matcher.MatchesSandboxPrepare(payload)
 }
 
-func matchEnvironmentReady(matcher HookMatcher, payload EnvironmentReadyPayload) bool {
-	return matcher.MatchesEnvironmentReady(payload)
+func matchSandboxReady(matcher HookMatcher, payload SandboxReadyPayload) bool {
+	return matcher.MatchesSandboxReady(payload)
 }
 
-func matchEnvironmentSyncBefore(matcher HookMatcher, payload EnvironmentSyncBeforePayload) bool {
-	return matcher.MatchesEnvironmentSyncBefore(payload)
+func matchSandboxSyncBefore(matcher HookMatcher, payload SandboxSyncBeforePayload) bool {
+	return matcher.MatchesSandboxSyncBefore(payload)
 }
 
-func matchEnvironmentSyncAfter(matcher HookMatcher, payload EnvironmentSyncAfterPayload) bool {
-	return matcher.MatchesEnvironmentSyncAfter(payload)
+func matchSandboxSyncAfter(matcher HookMatcher, payload SandboxSyncAfterPayload) bool {
+	return matcher.MatchesSandboxSyncAfter(payload)
 }
 
-func matchEnvironmentStop(matcher HookMatcher, payload EnvironmentStopPayload) bool {
-	return matcher.MatchesEnvironmentStop(payload)
+func matchSandboxStop(matcher HookMatcher, payload SandboxStopPayload) bool {
+	return matcher.MatchesSandboxStop(payload)
 }
 
 func matchInputPreSubmit(matcher HookMatcher, payload InputPreSubmitPayload) bool {
@@ -511,17 +511,17 @@ func (m HookMatcher) matchSessionContext(payload SessionContext, includeSessionT
 	return true
 }
 
-func (m HookMatcher) matchEnvironment(
+func (m HookMatcher) matchSandbox(
 	session SessionContext,
-	environmentID string,
+	sandboxID string,
 	backend string,
 	profile string,
 	direction string,
 ) bool {
 	return m.matchSessionContext(session, false) &&
-		matchStringField(m.EnvironmentID, environmentID) &&
-		matchStringField(m.EnvironmentBackend, backend) &&
-		matchStringField(m.EnvironmentProfile, profile) &&
+		matchStringField(m.SandboxID, sandboxID) &&
+		matchStringField(m.SandboxBackend, backend) &&
+		matchStringField(m.SandboxProfile, profile) &&
 		matchStringField(m.SyncDirection, direction)
 }
 
@@ -550,9 +550,9 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 		WorkspaceID:        strings.TrimSpace(matcher.WorkspaceID),
 		WorkspaceRoot:      strings.TrimSpace(matcher.WorkspaceRoot),
 		SessionType:        strings.TrimSpace(matcher.SessionType),
-		EnvironmentID:      strings.TrimSpace(matcher.EnvironmentID),
-		EnvironmentBackend: strings.TrimSpace(matcher.EnvironmentBackend),
-		EnvironmentProfile: strings.TrimSpace(matcher.EnvironmentProfile),
+		SandboxID:          strings.TrimSpace(matcher.SandboxID),
+		SandboxBackend:     strings.TrimSpace(matcher.SandboxBackend),
+		SandboxProfile:     strings.TrimSpace(matcher.SandboxProfile),
 		SyncDirection:      strings.TrimSpace(matcher.SyncDirection),
 		InputClass:         strings.TrimSpace(matcher.InputClass),
 		ACPEventType:       strings.TrimSpace(matcher.ACPEventType),
@@ -622,9 +622,9 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	appendIf("workspace_id", matcher.WorkspaceID != "")
 	appendIf("workspace_root", matcher.WorkspaceRoot != "")
 	appendIf("session_type", matcher.SessionType != "")
-	appendIf("environment_id", matcher.EnvironmentID != "")
-	appendIf("environment_backend", matcher.EnvironmentBackend != "")
-	appendIf("environment_profile", matcher.EnvironmentProfile != "")
+	appendIf("sandbox_id", matcher.SandboxID != "")
+	appendIf("sandbox_backend", matcher.SandboxBackend != "")
+	appendIf("sandbox_profile", matcher.SandboxProfile != "")
 	appendIf("sync_direction", matcher.SyncDirection != "")
 	appendIf("input_class", matcher.InputClass != "")
 	appendIf("acp_event_type", matcher.ACPEventType != "")
@@ -673,9 +673,9 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		{field: "workspace_id", pattern: matcher.WorkspaceID},
 		{field: "workspace_root", pattern: matcher.WorkspaceRoot},
 		{field: "session_type", pattern: matcher.SessionType},
-		{field: "environment_id", pattern: matcher.EnvironmentID},
-		{field: "environment_backend", pattern: matcher.EnvironmentBackend},
-		{field: "environment_profile", pattern: matcher.EnvironmentProfile},
+		{field: "sandbox_id", pattern: matcher.SandboxID},
+		{field: "sandbox_backend", pattern: matcher.SandboxBackend},
+		{field: "sandbox_profile", pattern: matcher.SandboxProfile},
 		{field: "sync_direction", pattern: matcher.SyncDirection},
 		{field: "input_class", pattern: matcher.InputClass},
 		{field: "acp_event_type", pattern: matcher.ACPEventType},

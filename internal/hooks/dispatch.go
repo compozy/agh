@@ -133,93 +133,93 @@ func (h *Hooks) DispatchSessionPostStop(
 	)
 }
 
-// DispatchEnvironmentPrepare runs the environment.prepare hook pipeline.
-func (h *Hooks) DispatchEnvironmentPrepare(
+// DispatchSandboxPrepare runs the sandbox.prepare hook pipeline.
+func (h *Hooks) DispatchSandboxPrepare(
 	ctx context.Context,
-	payload EnvironmentPreparePayload,
-) (EnvironmentPreparePayload, error) {
+	payload SandboxPreparePayload,
+) (SandboxPreparePayload, error) {
 	return executeDispatch(
 		ctx,
 		h,
-		HookEnvironmentPrepare,
+		HookSandboxPrepare,
 		payload,
-		dispatchConfig[EnvironmentPreparePayload, EnvironmentPreparePatch]{
-			match:  matchEnvironmentPrepare,
-			apply:  applyEnvironmentPreparePatch,
-			denied: environmentPreparePatchDenied,
-			denyErr: func(EnvironmentPreparePayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookEnvironmentPrepare)
+		dispatchConfig[SandboxPreparePayload, SandboxPreparePatch]{
+			match:  matchSandboxPrepare,
+			apply:  applySandboxPreparePatch,
+			denied: sandboxPreparePatchDenied,
+			denyErr: func(SandboxPreparePayload) error {
+				return fmt.Errorf("hooks: event %q denied", HookSandboxPrepare)
 			},
 		},
 	)
 }
 
-// DispatchEnvironmentReady runs the environment.ready hook dispatch.
-func (h *Hooks) DispatchEnvironmentReady(
+// DispatchSandboxReady runs the sandbox.ready hook dispatch.
+func (h *Hooks) DispatchSandboxReady(
 	ctx context.Context,
-	payload EnvironmentReadyPayload,
-) (EnvironmentReadyPayload, error) {
+	payload SandboxReadyPayload,
+) (SandboxReadyPayload, error) {
 	return executeDispatch(
 		ctx,
 		h,
-		HookEnvironmentReady,
+		HookSandboxReady,
 		payload,
-		dispatchConfig[EnvironmentReadyPayload, EnvironmentReadyPatch]{
-			match: matchEnvironmentReady,
-			apply: applyNoop[EnvironmentReadyPayload, EnvironmentReadyPatch],
+		dispatchConfig[SandboxReadyPayload, SandboxReadyPatch]{
+			match: matchSandboxReady,
+			apply: applyNoop[SandboxReadyPayload, SandboxReadyPatch],
 		},
 	)
 }
 
-// DispatchEnvironmentSyncBefore runs the environment.sync.before hook pipeline.
-func (h *Hooks) DispatchEnvironmentSyncBefore(
+// DispatchSandboxSyncBefore runs the sandbox.sync.before hook pipeline.
+func (h *Hooks) DispatchSandboxSyncBefore(
 	ctx context.Context,
-	payload EnvironmentSyncBeforePayload,
-) (EnvironmentSyncBeforePayload, error) {
+	payload SandboxSyncBeforePayload,
+) (SandboxSyncBeforePayload, error) {
 	return executeDispatch(
 		ctx,
 		h,
-		HookEnvironmentSyncBefore,
+		HookSandboxSyncBefore,
 		payload,
-		dispatchConfig[EnvironmentSyncBeforePayload, EnvironmentSyncBeforePatch]{
-			match:  matchEnvironmentSyncBefore,
-			apply:  applyEnvironmentSyncBeforePatch,
-			denied: environmentSyncBeforePatchDenied,
+		dispatchConfig[SandboxSyncBeforePayload, SandboxSyncBeforePatch]{
+			match:  matchSandboxSyncBefore,
+			apply:  applySandboxSyncBeforePatch,
+			denied: sandboxSyncBeforePatchDenied,
 		},
 	)
 }
 
-// DispatchEnvironmentSyncAfter runs the environment.sync.after hook dispatch.
-func (h *Hooks) DispatchEnvironmentSyncAfter(
+// DispatchSandboxSyncAfter runs the sandbox.sync.after hook dispatch.
+func (h *Hooks) DispatchSandboxSyncAfter(
 	ctx context.Context,
-	payload EnvironmentSyncAfterPayload,
-) (EnvironmentSyncAfterPayload, error) {
+	payload SandboxSyncAfterPayload,
+) (SandboxSyncAfterPayload, error) {
 	return executeDispatch(
 		ctx,
 		h,
-		HookEnvironmentSyncAfter,
+		HookSandboxSyncAfter,
 		payload,
-		dispatchConfig[EnvironmentSyncAfterPayload, EnvironmentSyncAfterPatch]{
-			match: matchEnvironmentSyncAfter,
-			apply: applyNoop[EnvironmentSyncAfterPayload, EnvironmentSyncAfterPatch],
+		dispatchConfig[SandboxSyncAfterPayload, SandboxSyncAfterPatch]{
+			match: matchSandboxSyncAfter,
+			apply: applyNoop[SandboxSyncAfterPayload, SandboxSyncAfterPatch],
 		},
 	)
 }
 
-// DispatchEnvironmentStop runs the environment.stop hook pipeline.
-func (h *Hooks) DispatchEnvironmentStop(
+// DispatchSandboxStop runs the sandbox.stop hook pipeline.
+func (h *Hooks) DispatchSandboxStop(
 	ctx context.Context,
-	payload EnvironmentStopPayload,
-) (EnvironmentStopPayload, error) {
+	payload SandboxStopPayload,
+) (SandboxStopPayload, error) {
 	return executeDispatch(
 		ctx,
 		h,
-		HookEnvironmentStop,
+		HookSandboxStop,
 		payload,
-		dispatchConfig[EnvironmentStopPayload, EnvironmentStopPatch]{
-			match:  matchEnvironmentStop,
-			apply:  applyEnvironmentStopPatch,
-			denied: environmentStopPatchDenied,
+		dispatchConfig[SandboxStopPayload, SandboxStopPatch]{
+			match:  matchSandboxStop,
+			apply:  applySandboxStopPatch,
+			denied: sandboxStopPatchDenied,
 		},
 	)
 }
@@ -1191,10 +1191,10 @@ func applySessionLifecyclePatch(payload SessionLifecyclePayload, patch SessionCr
 	return payload
 }
 
-func applyEnvironmentPreparePatch(
-	payload EnvironmentPreparePayload,
-	patch EnvironmentPreparePatch,
-) EnvironmentPreparePayload {
+func applySandboxPreparePatch(
+	payload SandboxPreparePayload,
+	patch SandboxPreparePatch,
+) SandboxPreparePayload {
 	if patch.Deny {
 		payload.Denied = true
 		payload.DenyReason = patch.DenyReason
@@ -1205,10 +1205,10 @@ func applyEnvironmentPreparePatch(
 	return payload
 }
 
-func applyEnvironmentSyncBeforePatch(
-	payload EnvironmentSyncBeforePayload,
-	patch EnvironmentSyncBeforePatch,
-) EnvironmentSyncBeforePayload {
+func applySandboxSyncBeforePatch(
+	payload SandboxSyncBeforePayload,
+	patch SandboxSyncBeforePatch,
+) SandboxSyncBeforePayload {
 	if patch.Deny {
 		payload.Denied = true
 		payload.DenyReason = patch.DenyReason
@@ -1219,7 +1219,7 @@ func applyEnvironmentSyncBeforePatch(
 	return payload
 }
 
-func applyEnvironmentStopPatch(payload EnvironmentStopPayload, patch EnvironmentStopPatch) EnvironmentStopPayload {
+func applySandboxStopPatch(payload SandboxStopPayload, patch SandboxStopPatch) SandboxStopPayload {
 	if patch.Deny {
 		payload.Denied = true
 		payload.DenyReason = patch.DenyReason
@@ -1426,15 +1426,15 @@ func sessionCreatePatchDenied(patch SessionCreatePatch) bool {
 	return patch.Deny
 }
 
-func environmentPreparePatchDenied(patch EnvironmentPreparePatch) bool {
+func sandboxPreparePatchDenied(patch SandboxPreparePatch) bool {
 	return patch.Deny
 }
 
-func environmentSyncBeforePatchDenied(patch EnvironmentSyncBeforePatch) bool {
+func sandboxSyncBeforePatchDenied(patch SandboxSyncBeforePatch) bool {
 	return patch.Deny
 }
 
-func environmentStopPatchDenied(patch EnvironmentStopPatch) bool {
+func sandboxStopPatchDenied(patch SandboxStopPatch) bool {
 	return patch.Deny
 }
 
@@ -1562,9 +1562,9 @@ func validatePermissionSubset(parent *PermissionSet, child *PermissionSet) error
 		return err
 	}
 	return validatePermissionAtoms(
-		"environment_profiles",
-		permissionEnvironmentProfiles(parent),
-		permissionEnvironmentProfiles(child),
+		"sandbox_profiles",
+		permissionSandboxProfiles(parent),
+		permissionSandboxProfiles(child),
 	)
 }
 
@@ -1603,11 +1603,11 @@ func permissionNetworkChannels(src *PermissionSet) []string {
 	return src.NetworkChannels
 }
 
-func permissionEnvironmentProfiles(src *PermissionSet) []string {
+func permissionSandboxProfiles(src *PermissionSet) []string {
 	if src == nil {
 		return nil
 	}
-	return src.EnvironmentProfiles
+	return src.SandboxProfiles
 }
 
 func validatePermissionAtoms(category string, parent []string, child []string) error {
@@ -1636,12 +1636,12 @@ func normalizePermissionSet(src *PermissionSet) *PermissionSet {
 		return nil
 	}
 	return &PermissionSet{
-		Tools:               uniqueTrimmedStrings(src.Tools),
-		Skills:              uniqueTrimmedStrings(src.Skills),
-		MCPServers:          uniqueTrimmedStrings(src.MCPServers),
-		WorkspacePaths:      uniqueTrimmedStrings(src.WorkspacePaths),
-		NetworkChannels:     uniqueTrimmedStrings(src.NetworkChannels),
-		EnvironmentProfiles: uniqueTrimmedStrings(src.EnvironmentProfiles),
+		Tools:           uniqueTrimmedStrings(src.Tools),
+		Skills:          uniqueTrimmedStrings(src.Skills),
+		MCPServers:      uniqueTrimmedStrings(src.MCPServers),
+		WorkspacePaths:  uniqueTrimmedStrings(src.WorkspacePaths),
+		NetworkChannels: uniqueTrimmedStrings(src.NetworkChannels),
+		SandboxProfiles: uniqueTrimmedStrings(src.SandboxProfiles),
 	}
 }
 

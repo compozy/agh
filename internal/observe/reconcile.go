@@ -93,7 +93,7 @@ func (o *Observer) loadSessionMetadata(ctx context.Context) ([]store.SessionInfo
 			StopReason:   stopReason,
 			StopDetail:   normalized.StopDetail,
 			Liveness:     store.CloneSessionLivenessMeta(normalized.Liveness),
-			Environment:  cloneSessionEnvironmentMeta(normalized.Environment),
+			Sandbox:      cloneSessionSandboxMeta(normalized.Sandbox),
 			CreatedAt:    normalized.CreatedAt,
 			UpdatedAt:    normalized.UpdatedAt,
 		})

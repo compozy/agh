@@ -1,6 +1,6 @@
 ---
 status: resolved
-file: internal/environment/daytona/perf_bench_test.go
+file: internal/sandbox/daytona/perf_bench_test.go
 line: 30
 author: coderabbitai[bot]
 provider_ref: thread:PRRT_kwDOR5y4QM57zno0,comment:PRRC_kwDOR5y4QM645ile
@@ -17,7 +17,7 @@ _⚠️ Potential issue_ | _🟡 Minor_
 🏁 Script executed:
 
 ```shell
-cat -n internal/environment/daytona/perf_bench_test.go
+cat -n internal/sandbox/daytona/perf_bench_test.go
 ```
 
 Repository: compozy/agh
@@ -29,7 +29,7 @@ Length of output: 5911
 🏁 Script executed:
 
 ```shell
-rg -n "panic|log\.Fatal|log\.Printf|fmt\.Println" internal/environment/daytona/perf_bench_test.go
+rg -n "panic|log\.Fatal|log\.Printf|fmt\.Println" internal/sandbox/daytona/perf_bench_test.go
 ```
 
 Repository: compozy/agh
@@ -41,7 +41,7 @@ Length of output: 37
 🏁 Script executed:
 
 ```shell
-rg -n "context\.Background()" internal/environment/daytona/perf_bench_test.go
+rg -n "context\.Background()" internal/sandbox/daytona/perf_bench_test.go
 ```
 
 Repository: compozy/agh
@@ -53,7 +53,7 @@ Length of output: 156
 🏁 Script executed:
 
 ```shell
-rg -n "_\s*=" internal/environment/daytona/perf_bench_test.go
+rg -n "_\s*=" internal/sandbox/daytona/perf_bench_test.go
 ```
 
 Repository: compozy/agh
@@ -113,7 +113,7 @@ Change `b.SetBytes(int64(len(sourceData)))` to `b.SetBytes(int64(limit))` to rep
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@internal/environment/daytona/perf_bench_test.go` around lines 20 - 30, The
+In `@internal/sandbox/daytona/perf_bench_test.go` around lines 20 - 30, The
 benchmark currently calls b.SetBytes(int64(len(sourceData))) which overstates
 per-iteration bytes because ioCopyLimit(&dst, session, limit, &mu) only copies
 up to limit bytes; change the call to b.SetBytes(int64(limit)) so the reported
@@ -134,4 +134,4 @@ used by ioCopyLimit and the dst length checks).
 - Root cause: the benchmark reports `len(sourceData)` as bytes processed even though `ioCopyLimit` caps each iteration at `limit`, which inflates throughput metrics by 2x.
 - Fix plan: set benchmark bytes to `limit` so the reported throughput matches the actual copied payload per iteration.
 - Resolution: `BenchmarkIOCopyLimitSlidingWindow` now reports `limit` as the processed byte count, so throughput reflects the copied payload instead of the larger backing buffer.
-- Verification: `go test ./internal/bundles ./internal/environment/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.
+- Verification: `go test ./internal/bundles ./internal/sandbox/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.

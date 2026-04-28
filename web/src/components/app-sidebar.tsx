@@ -2,6 +2,7 @@ import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   Book,
   Bot,
+  Boxes,
   Clock3,
   ListChecks,
   Loader2,
@@ -244,6 +245,7 @@ const WORKSPACE_NAV_ITEMS: NavItemProps[] = [
   { to: "/triggers", icon: Zap, label: "Triggers" },
   { to: "/knowledge", icon: Book, label: "Knowledge" },
   { to: "/skills", icon: Wrench, label: "Skills" },
+  { to: "/sandbox", icon: Boxes, label: "Sandbox" },
 ];
 
 interface NavSlotProps {

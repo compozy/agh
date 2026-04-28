@@ -48,7 +48,7 @@
     ]
   },
   "environment": {
-    "environment_id": "env-dd3c6c17d30ab70c",
+    "sandbox_id": "env-dd3c6c17d30ab70c",
     "backend": "local",
     "profile": "local",
     "state": "prepared"

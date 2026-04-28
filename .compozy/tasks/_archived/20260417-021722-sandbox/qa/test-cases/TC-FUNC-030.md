@@ -1,4 +1,4 @@
-## TC-FUNC-030: Host API environment/exec requires capability
+## TC-FUNC-030: Host API sandbox/exec requires capability
 
 **Priority:** P2 (Medium)
 **Type:** Functional
@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that the `environment/exec` Host API method requires the `environment.exec` security capability, and callers without it receive an authorization error.
+Verify that the `sandbox/exec` Host API method requires the `sandbox.exec` security capability, and callers without it receive an authorization error.
 
 ---
 
@@ -24,12 +24,12 @@ Verify that the `environment/exec` Host API method requires the `environment.exe
 
 ### Test Steps
 
-1. **Call environment/exec without capability**
-   - Input: Extension without `environment.exec` grant calls `{session_id: "...", command: "echo hello"}`
+1. **Call sandbox/exec without capability**
+   - Input: Extension without `sandbox.exec` grant calls `{session_id: "...", command: "echo hello"}`
    - **Expected:** Authorization error returned
 
-2. **Call environment/exec with capability**
-   - Input: Extension with `environment.exec` grant calls same request
+2. **Call sandbox/exec with capability**
+   - Input: Extension with `sandbox.exec` grant calls same request
    - **Expected:** Command executed, response includes `exit_code`, `stdout`, `stderr`
 
 3. **Verify timeout handling**

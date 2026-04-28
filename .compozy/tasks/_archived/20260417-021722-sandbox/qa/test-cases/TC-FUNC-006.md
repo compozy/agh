@@ -1,4 +1,4 @@
-## TC-FUNC-006: Defaults.Environment cascade resolves profile
+## TC-FUNC-006: Defaults.Sandbox cascade resolves profile
 
 **Priority:** P1 (High)
 **Type:** Functional
@@ -11,25 +11,25 @@
 
 ### Objective
 
-Verify the environment resolution cascade: `Workspace.EnvironmentRef` -> `Config.Defaults.Environment` -> implicit `local`.
+Verify the environment resolution cascade: `Workspace.SandboxRef` -> `Config.Defaults.Sandbox` -> implicit `local`.
 
 ---
 
 ### Preconditions
 
 - [x] Workspace resolution calls `buildResolvedWorkspace`
-- [x] Config has `Defaults.Environment` field
+- [x] Config has `Defaults.Sandbox` field
 
 ---
 
 ### Test Steps
 
-1. **Workspace with explicit EnvironmentRef**
-   - Input: `Workspace.EnvironmentRef = "daytona-dev"`, `Config.Defaults.Environment = "staging"`
+1. **Workspace with explicit SandboxRef**
+   - Input: `Workspace.SandboxRef = "daytona-dev"`, `Config.Defaults.Sandbox = "staging"`
    - **Expected:** Resolved environment uses `daytona-dev` profile (workspace wins)
 
-2. **Workspace without EnvironmentRef, config has default**
-   - Input: `Workspace.EnvironmentRef = ""`, `Config.Defaults.Environment = "staging"`
+2. **Workspace without SandboxRef, config has default**
+   - Input: `Workspace.SandboxRef = ""`, `Config.Defaults.Sandbox = "staging"`
    - **Expected:** Resolved environment uses `staging` profile
 
 3. **No workspace ref, no config default**

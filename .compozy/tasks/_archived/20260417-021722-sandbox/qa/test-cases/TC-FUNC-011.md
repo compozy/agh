@@ -27,7 +27,7 @@ Verify that `startSession()` calls `Provider.SyncToRuntime(state, SyncReasonStar
    - **Expected:** Call sequence is: `Prepare` -> `SyncToRuntime(SyncReasonStart)` -> `Launch`
 
 2. **Verify SyncToRuntime receives correct SessionState**
-   - **Expected:** `SessionState` includes `EnvironmentID`, `InstanceID`, `RuntimeRootDir` from Prepare result
+   - **Expected:** `SessionState` includes `SandboxID`, `InstanceID`, `RuntimeRootDir` from Prepare result
 
 3. **Verify SyncToRuntime skipped for local provider**
    - Input: Local provider (sync mode = none)

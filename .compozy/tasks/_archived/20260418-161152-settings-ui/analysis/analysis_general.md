@@ -19,7 +19,7 @@
 
 ## Gaps para implementar a tela inteira
 
-- `GET /api/daemon/status` nao expoe `defaults.agent`, `defaults.provider`, `defaults.environment`, `permissions.mode` nem `session.limits.timeout`.
+- `GET /api/daemon/status` nao expoe `defaults.agent`, `defaults.provider`, `defaults.sandbox`, `permissions.mode` nem `session.limits.timeout`.
 - Nao existe endpoint HTTP para leitura/edicao da configuracao global de settings.
 - Nao existe endpoint de restart do daemon no namespace HTTP atual.
 - "Open Config" hoje depende de acesso direto ao arquivo, nao de endpoint.

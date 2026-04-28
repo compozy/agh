@@ -464,11 +464,11 @@ ld: warning: -bind_at_load is deprecated on macOS
 ✓  internal/api/udsapi (2.083s)
 ✓  internal/api/httpapi (2.303s)
 ∅  internal/diagnostics
-∅  internal/environment/daytona/cmd/agh-daytona-sidecar
-✓  internal/environment (cached)
-✓  internal/environment/providertest (cached)
+∅  internal/sandbox/daytona/cmd/agh-daytona-sidecar
+✓  internal/sandbox (cached)
+✓  internal/sandbox/providertest (cached)
 ✓  internal/extension/protocol (cached)
-✓  internal/environment/local (cached)
+✓  internal/sandbox/local (cached)
 ✓  internal/extension/surfaces (cached)
 ✓  internal/filesnap (cached)
 ✓  internal/fileutil (cached)
@@ -493,7 +493,7 @@ ld: warning: -bind_at_load is deprecated on macOS
 ✓  internal/config (1.71s)
 ✓  internal/extensiontest (1.17s)
 ✓  internal/e2elane (1.257s)
-✓  internal/environment/daytona (1.372s)
+✓  internal/sandbox/daytona (1.372s)
 ✓  internal/testutil (cached)
 ✓  internal/store/sessiondb (cached)
 ∅  internal/testutil/acpmock/cmd/acpmock-driver

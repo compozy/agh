@@ -955,42 +955,42 @@ func (h *RuntimeHarness) CaptureSessionEvents(ctx context.Context, sessionID str
 	return h.Artifacts.CaptureJSON(ArtifactKindEvents, response.Events)
 }
 
-// CaptureSessionEnvironment stores session environment metadata.
-func (h *RuntimeHarness) CaptureSessionEnvironment(ctx context.Context, sessionID string) error {
-	artifact, err := h.SessionEnvironmentArtifact(ctx, sessionID)
+// CaptureSessionSandbox stores session sandbox metadata.
+func (h *RuntimeHarness) CaptureSessionSandbox(ctx context.Context, sessionID string) error {
+	artifact, err := h.SessionSandboxArtifact(ctx, sessionID)
 	if err != nil {
 		return err
 	}
-	return h.Artifacts.CaptureJSON(ArtifactKindSessionEnvironment, artifact)
+	return h.Artifacts.CaptureJSON(ArtifactKindSessionSandbox, artifact)
 }
 
-// SessionEnvironmentArtifact reads the public session payload and, when present,
+// SessionSandboxArtifact reads the public session payload and, when present,
 // the persisted session metadata for one runtime session.
-func (h *RuntimeHarness) SessionEnvironmentArtifact(
+func (h *RuntimeHarness) SessionSandboxArtifact(
 	ctx context.Context,
 	sessionID string,
-) (SessionEnvironmentArtifact, error) {
+) (SessionSandboxArtifact, error) {
 	session, err := h.GetSession(ctx, sessionID)
 	if err != nil {
-		return SessionEnvironmentArtifact{}, err
+		return SessionSandboxArtifact{}, err
 	}
-	artifact := SessionEnvironmentArtifact{
+	artifact := SessionSandboxArtifact{
 		SessionID:    session.ID,
 		SessionState: string(session.State),
 		StopReason:   session.StopReason,
 		StopDetail:   session.StopDetail,
-		API:          session.Environment,
+		API:          session.Sandbox,
 	}
 
 	metaPath := store.SessionMetaFile(filepath.Join(h.HomePaths.SessionsDir, strings.TrimSpace(sessionID)))
 	meta, err := store.ReadSessionMeta(metaPath)
 	switch {
 	case err == nil:
-		artifact.Persisted = meta.Environment
+		artifact.Persisted = meta.Sandbox
 	case errors.Is(err, os.ErrNotExist):
 		// Keep the public-surface artifact even when no persisted meta exists yet.
 	default:
-		return SessionEnvironmentArtifact{}, fmt.Errorf("read session meta %q: %w", metaPath, err)
+		return SessionSandboxArtifact{}, fmt.Errorf("read session meta %q: %w", metaPath, err)
 	}
 	return artifact, nil
 }

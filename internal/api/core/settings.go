@@ -194,19 +194,19 @@ func (h *BaseHandlers) DeleteSettingsMCPServer(c *gin.Context) {
 	h.deleteSettingsCollectionItem(c, req)
 }
 
-// ListSettingsEnvironments returns the environment settings collection.
-func (h *BaseHandlers) ListSettingsEnvironments(c *gin.Context) {
-	h.listSettingsCollection(c, settingspkg.CollectionEnvironments)
+// ListSettingsSandboxes returns the sandbox settings collection.
+func (h *BaseHandlers) ListSettingsSandboxes(c *gin.Context) {
+	h.listSettingsCollection(c, settingspkg.CollectionSandboxes)
 }
 
-// GetSettingsEnvironment returns one environment settings item.
-func (h *BaseHandlers) GetSettingsEnvironment(c *gin.Context) {
-	h.getSettingsCollectionItem(c, settingspkg.CollectionEnvironments)
+// GetSettingsSandbox returns one sandbox settings item.
+func (h *BaseHandlers) GetSettingsSandbox(c *gin.Context) {
+	h.getSettingsCollectionItem(c, settingspkg.CollectionSandboxes)
 }
 
-// PutSettingsEnvironment upserts one environment settings item.
-func (h *BaseHandlers) PutSettingsEnvironment(c *gin.Context) {
-	req, err := parsePutSettingsEnvironmentRequest(c)
+// PutSettingsSandbox upserts one sandbox settings item.
+func (h *BaseHandlers) PutSettingsSandbox(c *gin.Context) {
+	req, err := parsePutSettingsSandboxRequest(c)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
@@ -214,9 +214,9 @@ func (h *BaseHandlers) PutSettingsEnvironment(c *gin.Context) {
 	h.putSettingsCollectionItem(c, req)
 }
 
-// DeleteSettingsEnvironment deletes one environment settings item.
-func (h *BaseHandlers) DeleteSettingsEnvironment(c *gin.Context) {
-	req, err := parseDeleteSettingsCollectionRequest(c, settingspkg.CollectionEnvironments)
+// DeleteSettingsSandbox deletes one sandbox settings item.
+func (h *BaseHandlers) DeleteSettingsSandbox(c *gin.Context) {
+	req, err := parseDeleteSettingsCollectionRequest(c, settingspkg.CollectionSandboxes)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
@@ -444,17 +444,17 @@ func (h *BaseHandlers) getSettingsCollectionItem(c *gin.Context, collection sett
 			return
 		}
 		c.JSON(http.StatusOK, contract.SettingsProviderResponse{Provider: settingsProviderItemPayload(item)})
-	case settingspkg.CollectionEnvironments:
-		item, found := findSettingsEnvironment(envelope.Environments, name)
+	case settingspkg.CollectionSandboxes:
+		item, found := findSettingsSandbox(envelope.Sandboxes, name)
 		if !found {
-			notFound := NewSettingsNotFoundError(fmt.Errorf("environment %q not found", name))
+			notFound := NewSettingsNotFoundError(fmt.Errorf("sandbox %q not found", name))
 			h.respondError(c, StatusForSettingsError(notFound), notFound)
 			return
 		}
-		c.JSON(http.StatusOK, contract.SettingsEnvironmentResponse{
-			Environment: contract.SettingsEnvironmentItemPayload{
+		c.JSON(http.StatusOK, contract.SettingsSandboxResponse{
+			Sandbox: contract.SettingsSandboxItemPayload{
 				Name:                strings.TrimSpace(item.Name),
-				Profile:             settingsEnvironmentProfilePayload(item.Profile),
+				Profile:             settingsSandboxProfilePayload(item.Profile),
 				WorkspaceUsageCount: item.WorkspaceUsageCount,
 				SourceMetadata:      settingsSourceMetadataPayload(item.SourceMetadata),
 			},
@@ -816,21 +816,21 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 	}, nil
 }
 
-func parsePutSettingsEnvironmentRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {
+func parsePutSettingsSandboxRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {
 	var body struct {
-		Profile *contract.SettingsEnvironmentProfilePayload `json:"profile"`
+		Profile *contract.SettingsSandboxProfilePayload `json:"profile"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
-			fmt.Errorf("decode environment settings request: %w", err),
+			fmt.Errorf("decode sandbox settings request: %w", err),
 		)
 	}
 	if body.Profile == nil {
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
-			errors.New("environments.profile is required"),
+			errors.New("sandboxes.profile is required"),
 		)
 	}
-	req, err := parseSettingsCollectionRequest(c, settingspkg.CollectionEnvironments)
+	req, err := parseSettingsCollectionRequest(c, settingspkg.CollectionSandboxes)
 	if err != nil {
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
@@ -838,14 +838,14 @@ func parsePutSettingsEnvironmentRequest(c *gin.Context) (settingspkg.CollectionI
 	if err != nil {
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
-	profile, err := environmentProfileFromPayload(*body.Profile)
+	profile, err := sandboxProfileFromPayload(*body.Profile)
 	if err != nil {
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
 	return settingspkg.CollectionItemPutRequest{
 		CollectionRequest: req,
 		Name:              name,
-		Environment:       &profile,
+		Sandbox:           &profile,
 	}, nil
 }
 
@@ -934,9 +934,9 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 
 	value := settingspkg.GeneralSettings{
 		Defaults: aghconfig.DefaultsConfig{
-			Agent:       strings.TrimSpace(payload.Defaults.Agent),
-			Provider:    strings.TrimSpace(payload.Defaults.Provider),
-			Environment: strings.TrimSpace(payload.Defaults.Environment),
+			Agent:    strings.TrimSpace(payload.Defaults.Agent),
+			Provider: strings.TrimSpace(payload.Defaults.Provider),
+			Sandbox:  strings.TrimSpace(payload.Defaults.Sandbox),
 		},
 		Limits: aghconfig.LimitsConfig{
 			MaxSessions:         payload.Limits.MaxSessions,
@@ -1145,10 +1145,10 @@ func extensionRateLimitConfigFromPayload(
 	}, nil
 }
 
-func environmentProfileFromPayload(
-	payload contract.SettingsEnvironmentProfilePayload,
-) (aghconfig.EnvironmentProfile, error) {
-	value := aghconfig.EnvironmentProfile{
+func sandboxProfileFromPayload(
+	payload contract.SettingsSandboxProfilePayload,
+) (aghconfig.SandboxProfile, error) {
+	value := aghconfig.SandboxProfile{
 		Backend:     strings.TrimSpace(payload.Backend),
 		SyncMode:    strings.TrimSpace(payload.SyncMode),
 		Persistence: strings.TrimSpace(payload.Persistence),
@@ -1175,8 +1175,8 @@ func environmentProfileFromPayload(
 			AutoArchive: strings.TrimSpace(payload.Daytona.AutoArchive),
 		}
 	}
-	if err := value.Validate("environment.profile"); err != nil {
-		return aghconfig.EnvironmentProfile{}, NewSettingsValidationError(err)
+	if err := value.Validate("sandbox.profile"); err != nil {
+		return aghconfig.SandboxProfile{}, NewSettingsValidationError(err)
 	}
 	return value, nil
 }
@@ -1310,13 +1310,13 @@ func findSettingsProvider(values []settingspkg.ProviderItem, name string) (setti
 	return settingspkg.ProviderItem{}, false
 }
 
-func findSettingsEnvironment(values []settingspkg.EnvironmentItem, name string) (settingspkg.EnvironmentItem, bool) {
+func findSettingsSandbox(values []settingspkg.SandboxItem, name string) (settingspkg.SandboxItem, bool) {
 	for _, value := range values {
 		if strings.TrimSpace(value.Name) == name {
 			return value, true
 		}
 	}
-	return settingspkg.EnvironmentItem{}, false
+	return settingspkg.SandboxItem{}, false
 }
 
 func automationFireLimitFromPayload(

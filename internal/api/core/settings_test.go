@@ -222,10 +222,10 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
 	settings.PUT("/mcp-servers/:name", handlers.PutSettingsMCPServer)
 	settings.DELETE("/mcp-servers/:name", handlers.DeleteSettingsMCPServer)
-	settings.GET("/environments", handlers.ListSettingsEnvironments)
-	settings.GET("/environments/:name", handlers.GetSettingsEnvironment)
-	settings.PUT("/environments/:name", handlers.PutSettingsEnvironment)
-	settings.DELETE("/environments/:name", handlers.DeleteSettingsEnvironment)
+	settings.GET("/sandboxes", handlers.ListSettingsSandboxes)
+	settings.GET("/sandboxes/:name", handlers.GetSettingsSandbox)
+	settings.PUT("/sandboxes/:name", handlers.PutSettingsSandbox)
+	settings.DELETE("/sandboxes/:name", handlers.DeleteSettingsSandbox)
 	settings.GET("/hooks", handlers.ListSettingsHooks)
 	settings.PUT("/hooks/:name", handlers.PutSettingsHook)
 	settings.DELETE("/hooks/:name", handlers.DeleteSettingsHook)
@@ -336,7 +336,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					DaemonInfo:       "/tmp/home/daemon.json",
 				},
 				Settings: settingspkg.GeneralSettings{
-					Defaults: aghconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Environment: "local"},
+					Defaults: aghconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
 					Limits:   aghconfig.LimitsConfig{MaxSessions: 4, MaxConcurrentAgents: 2},
 					Permissions: aghconfig.PermissionsConfig{
 						Mode: aghconfig.PermissionModeApproveReads,
@@ -621,12 +621,12 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			}},
 		},
 		{
-			Collection:      settingspkg.CollectionEnvironments,
+			Collection:      settingspkg.CollectionSandboxes,
 			Scope:           settingspkg.ScopeGlobal,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
-			Environments: []settingspkg.EnvironmentItem{{
+			Sandboxes: []settingspkg.SandboxItem{{
 				Name: "local",
-				Profile: aghconfig.EnvironmentProfile{
+				Profile: aghconfig.SandboxProfile{
 					Backend:     "local",
 					SyncMode:    "session-bidirectional",
 					Persistence: "reuse",
@@ -786,9 +786,9 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			body: contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
 					Defaults: contract.SettingsDefaultsPayload{
-						Agent:       "coder",
-						Provider:    "openai",
-						Environment: "local",
+						Agent:    "coder",
+						Provider: "openai",
+						Sandbox:  "local",
 					},
 					Limits: contract.SettingsLimitsPayload{MaxSessions: 4, MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
@@ -1006,13 +1006,13 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 		},
 		{
-			name:   "get environment",
+			name:   "get sandbox",
 			method: http.MethodGet,
-			path:   "/api/settings/environments/local",
+			path:   "/api/settings/sandboxes/local",
 			assert: func(t *testing.T, service *stubSettingsService) {
 				t.Helper()
-				if service.LastListCollectionRequest.Collection != settingspkg.CollectionEnvironments {
-					t.Fatalf("Collection = %q, want environments", service.LastListCollectionRequest.Collection)
+				if service.LastListCollectionRequest.Collection != settingspkg.CollectionSandboxes {
+					t.Fatalf("Collection = %q, want sandboxes", service.LastListCollectionRequest.Collection)
 				}
 			},
 		},
@@ -1047,11 +1047,11 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 		},
 		{
-			name:   "put environment",
+			name:   "put sandbox",
 			method: http.MethodPut,
-			path:   "/api/settings/environments/local",
-			body: contract.PutSettingsEnvironmentRequest{
-				Profile: contract.SettingsEnvironmentProfilePayload{
+			path:   "/api/settings/sandboxes/local",
+			body: contract.PutSettingsSandboxRequest{
+				Profile: contract.SettingsSandboxProfilePayload{
 					Backend:     "local",
 					SyncMode:    "session-bidirectional",
 					Persistence: "reuse",
@@ -1060,9 +1060,9 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assert: func(t *testing.T, service *stubSettingsService) {
 				t.Helper()
-				if service.LastPutCollectionRequest.Environment == nil ||
-					service.LastPutCollectionRequest.Environment.Backend != "local" {
-					t.Fatalf("LastPutCollectionRequest.Environment = %#v", service.LastPutCollectionRequest.Environment)
+				if service.LastPutCollectionRequest.Sandbox == nil ||
+					service.LastPutCollectionRequest.Sandbox.Backend != "local" {
+					t.Fatalf("LastPutCollectionRequest.Sandbox = %#v", service.LastPutCollectionRequest.Sandbox)
 				}
 			},
 		},
@@ -1145,10 +1145,10 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 								},
 							},
 						}}
-					case settingspkg.CollectionEnvironments:
-						envelope.Environments = []settingspkg.EnvironmentItem{{
+					case settingspkg.CollectionSandboxes:
+						envelope.Sandboxes = []settingspkg.SandboxItem{{
 							Name: "local",
-							Profile: aghconfig.EnvironmentProfile{
+							Profile: aghconfig.SandboxProfile{
 								Backend: "local",
 							},
 							SourceMetadata: settingspkg.SourceMetadata{
@@ -1237,11 +1237,11 @@ func TestSettingsCollectionMutationHandlersRejectInvalidPayloads(t *testing.T) {
 			want:   "mcp-servers.server is required",
 		},
 		{
-			name:   "environment missing profile",
+			name:   "sandbox missing profile",
 			method: http.MethodPut,
-			path:   "/api/settings/environments/local",
+			path:   "/api/settings/sandboxes/local",
 			body:   []byte(`{}`),
-			want:   "environments.profile is required",
+			want:   "sandboxes.profile is required",
 		},
 		{
 			name:   "hook missing declaration",
@@ -1370,10 +1370,10 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 				AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			}
 			switch req.Collection {
-			case settingspkg.CollectionEnvironments:
-				envelope.Environments = []settingspkg.EnvironmentItem{{
+			case settingspkg.CollectionSandboxes:
+				envelope.Sandboxes = []settingspkg.SandboxItem{{
 					Name: "local",
-					Profile: aghconfig.EnvironmentProfile{
+					Profile: aghconfig.SandboxProfile{
 						Backend: "local",
 					},
 					SourceMetadata: settingspkg.SourceMetadata{
@@ -1408,7 +1408,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		"/api/settings/automation",
 		"/api/settings/network",
 		"/api/settings/hooks-extensions",
-		"/api/settings/environments",
+		"/api/settings/sandboxes",
 	} {
 		resp := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
 		if got, want := resp.Code, http.StatusOK; got != want {
@@ -1418,7 +1418,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 
 	for _, path := range []string{
 		"/api/settings/providers/openai",
-		"/api/settings/environments/local",
+		"/api/settings/sandboxes/local",
 		"/api/settings/hooks/capture",
 	} {
 		resp := performRequest(t, fixture.Engine, http.MethodDelete, path, nil)

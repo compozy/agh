@@ -50,7 +50,7 @@ func spawnDetachedLoggedProcess(
 	}
 
 	process, err := os.StartProcess(binary, launchArgv(binary, req.Args), &os.ProcAttr{
-		Env:   launchEnvironment(req.Environment),
+		Env:   launchSandbox(req.Sandbox),
 		Files: []*os.File{stdinFile, logFile, logFile},
 		Sys:   &syscall.SysProcAttr{Setpgid: true},
 	})

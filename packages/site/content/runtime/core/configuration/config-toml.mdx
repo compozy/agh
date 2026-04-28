@@ -13,8 +13,8 @@ overlays global and workspace files when they exist.
 | `<workspace>/.agh/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
 | `<workspace>/.agh/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
 
-Unknown TOML keys are errors. There is no implemented `[environments.*]` section today; adding one
-will fail config loading as an unknown key.
+Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes.<name>]`; the old
+Use only `[sandboxes.<name>]` for session execution boundaries.
 
 <OperatorNote>
   Workspace `.env` files are loaded before AGH resolves `$AGH_HOME`. This means
@@ -28,13 +28,14 @@ will fail config loading as an unknown key.
 | ----------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `[daemon]`                    | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                |
 | `[http]`                      | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                               |
-| `[defaults]`                  | Default agent and provider resolution.                                          | `agent = "general"`, `provider = ""`                                              |
+| `[defaults]`                  | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                              |
 | `[limits]`                    | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                 |
 | `[session.limits]`            | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                  |
 | `[session.supervision]`       | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes |
 | `[permissions]`               | Default permission mode.                                                        | `mode = "approve-all"`                                                            |
 | `[[mcp_servers]]`             | Top-level MCP servers passed to agents.                                         | empty list                                                                        |
 | `[providers.<name>]`          | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                          |
+| `[sandboxes.<name>]`          | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                         |
 | `[observability]`             | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                            |
 | `[observability.transcripts]` | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                      |
 | `[log]`                       | Structured log level.                                                           | `level = "info"`                                                                  |
@@ -87,6 +88,8 @@ port = 2123
 agent = "general"
 # Provider used by AGENT.md files that omit provider.
 provider = "claude"
+# Sandbox profile used when a workspace does not set sandbox_ref.
+sandbox = "local"
 
 [limits]
 # Positive daemon-wide limits.
@@ -142,6 +145,36 @@ name = "github"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
 env = { GITHUB_TOKEN = "replace-with-real-token" }
+
+[sandboxes.local]
+backend = "local"
+sync_mode = "none"
+persistence = "reuse"
+runtime_root = "~"
+
+[sandboxes.daytona-dev]
+backend = "daytona"
+sync_mode = "session-bidirectional"
+persistence = "reuse"
+runtime_root = "/home/daytona/workspace"
+
+[sandboxes.daytona-dev.env]
+NODE_ENV = "development"
+
+[sandboxes.daytona-dev.network]
+allow_public_ingress = false
+allow_outbound = true
+allow_list = ["api.example.test"]
+deny_list = ["metadata.google.internal"]
+
+[sandboxes.daytona-dev.daytona]
+api_url = "https://app.daytona.io/api"
+target = "team-default"
+snapshot = "snap-agent-base"
+image = "ubuntu:24.04"
+class = "cpu-2"
+auto_stop = "30m"
+auto_archive = "24h"
 
 [observability]
 enabled = true
@@ -508,15 +541,15 @@ run-enqueue APIs are the execution boundary.
 Coordinator launch only applies to workspace-scoped coordinated runs with a stable
 `coordination_channel_id`. Global runs and intent-only tasks do not start coordinators in the MVP.
 
-| Field                      | Type     | Default       | Valid values                                                      | Description                                                                      |
-| -------------------------- | -------- | ------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `enabled`                  | boolean  | `false`       | `true` or `false`                                                 | Allows coordinator bootstrap after a coordinated workspace run is enqueued.       |
-| `agent_name`               | string   | `coordinator` | Non-empty when enabled.                                           | Agent definition used for managed coordinator sessions.                           |
-| `provider`                 | string   | empty         | Empty or a configured provider key.                               | Optional provider override for the coordinator agent.                             |
-| `model`                    | string   | empty         | Empty or provider-supported model string.                         | Optional model override. If set, `provider` or provider default resolution must exist. |
-| `default_ttl`              | duration | `2h`          | `1m` through `24h`.                                               | Lifetime assigned to managed coordinator sessions.                                |
-| `max_children`             | integer  | `5`           | `0` through `5`.                                                  | Maximum safe-spawn children a coordinator may hold at once.                       |
-| `max_active_per_workspace` | integer  | `1`           | Must be `1` in the MVP.                                           | Enforces one active managed coordinator per workspace.                            |
+| Field                      | Type     | Default       | Valid values                              | Description                                                                            |
+| -------------------------- | -------- | ------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| `enabled`                  | boolean  | `false`       | `true` or `false`                         | Allows coordinator bootstrap after a coordinated workspace run is enqueued.            |
+| `agent_name`               | string   | `coordinator` | Non-empty when enabled.                   | Agent definition used for managed coordinator sessions.                                |
+| `provider`                 | string   | empty         | Empty or a configured provider key.       | Optional provider override for the coordinator agent.                                  |
+| `model`                    | string   | empty         | Empty or provider-supported model string. | Optional model override. If set, `provider` or provider default resolution must exist. |
+| `default_ttl`              | duration | `2h`          | `1m` through `24h`.                       | Lifetime assigned to managed coordinator sessions.                                     |
+| `max_children`             | integer  | `5`           | `0` through `5`.                          | Maximum safe-spawn children a coordinator may hold at once.                            |
+| `max_active_per_workspace` | integer  | `1`           | Must be `1` in the MVP.                   | Enforces one active managed coordinator per workspace.                                 |
 
 Provider and model resolution is intentionally narrow. The daemon applies:
 

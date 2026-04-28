@@ -36,7 +36,7 @@ export const sessionFixtures: SessionPayload[] = [
         mcp_servers: [],
         workspace_paths: ["/workspaces/agh2"],
         network_channels: ["coord-task-001"],
-        environment_profiles: [],
+        sandbox_profiles: [],
       },
     },
     created_at: "2026-04-17T16:00:00Z",

@@ -1,4 +1,4 @@
-# AGH Sandbox / Execution Environment Architecture Research
+# AGH Sandbox / Execution Sandbox Architecture Research
 
 I read every source area requested in Section 1 before drafting this report:
 
@@ -14,7 +14,7 @@ I read every source area requested in Section 1 before drafting this report:
 This report is opinionated. The short version is:
 
 - AGH already has the correct high-level seam at `session.AgentDriver`, but the real execution backend is still hardcoded inside `internal/acp`.
-- The right abstraction is not "sandbox" but "execution environment", with `local` as a first-class provider and Daytona/E2B as optional providers.
+- The right abstraction is not "sandbox" but "execution sandbox", with `local` as a first-class provider and Daytona/E2B as optional providers.
 - The first provider to ship should be Daytona, not E2B, because Daytona maps better to AGH's workspace model and has an official Go SDK surface for sandboxes, filesystem, processes, preview links, and lifecycle.
 - E2B is still valuable, but it fits better as a second provider, especially for transient automation-style workloads.
 
@@ -56,7 +56,7 @@ AGH already has a good lifecycle abstraction at the session layer:
 - `session.AgentDriver` is the protocol/lifecycle interface the session manager consumes (`internal/session/interfaces.go:193-199`).
 - `session.Manager` already receives its dependencies by injection, and `daemon/` is the composition root (`internal/session/manager.go:56-81`, `internal/daemon/daemon.go:377-388`).
 
-But the actual execution environment is still implicit and hardcoded:
+But the actual execution sandbox is still implicit and hardcoded:
 
 - `acp.Driver.spawnProcess` assumes the runtime is a local subprocess (`internal/acp/client.go:143-191`).
 - `permissionPolicy` assumes the authoritative filesystem is local and rooted at `Cwd` (`internal/acp/permission.go:94-181`).
@@ -76,8 +76,8 @@ Specifically:
 
 - `session` should stay responsible for choosing the workspace, resolving the agent, assembling the startup prompt, and persisting session metadata.
 - `acp` should stay responsible for ACP protocol negotiation, prompt streaming, and event translation.
-- A new execution-environment layer should own:
-  - provisioning or reusing the runtime environment
+- A new execution-sandbox layer should own:
+  - provisioning or reusing the runtime sandbox
   - synchronizing the workspace into that environment
   - starting the ACP-capable agent command inside that environment
   - serving ACP file/terminal callbacks against that environment
@@ -102,10 +102,10 @@ Useful existing seams:
 
 What is missing and must be added:
 
-- a first-class execution-environment model in config and workspace resolution
+- a first-class execution-sandbox model in config and workspace resolution
 - provider lifecycle and sync abstractions
 - an ACP launcher abstraction so `acp.Driver` does not assume local subprocesses
-- an ACP tool-host abstraction so filesystem and terminal operations can target a remote environment
+- an ACP tool-host abstraction so filesystem and terminal operations can target a remote sandbox
 - session metadata for provider runtime state
 
 ### 1.5 Data flow map
@@ -144,7 +144,7 @@ Recommended future flow:
 User
   -> session.Manager.Create
   -> workspace.Resolver.Resolve
-  -> environment.Manager.ResolveAndPrepare
+  -> sandbox.Manager.ResolveAndPrepare
   -> acp.Driver.Start via injected Launcher
   -> local or remote ACP runtime
   -> ACP callbacks routed through injected ToolHost
@@ -181,7 +181,7 @@ For AGH, this means Daytona is the better match for:
 
 - long-lived user workspaces
 - session resume flows
-- keeping one remote environment attached to a workspace
+- keeping one remote sandbox attached to a workspace
 - a single-binary Go implementation with minimal polyglot glue
 
 #### E2B
@@ -223,23 +223,23 @@ Important inference: the E2B "Go SDK availability" gap is an inference from the 
 
 ### 3.0 Recommendation in one sentence
 
-Add a new `internal/environment/` package that resolves a workspace-selected execution environment into a prepared runtime, keep ACP as the wire protocol, replace `acp`'s hardcoded local subprocess/tool host with injected launcher and tool-host abstractions, and keep the workspace's local `RootDir` as the canonical AGH identity even when execution is remote.
+Add a new `internal/sandbox/` package that resolves a workspace-selected execution sandbox into a prepared runtime, keep ACP as the wire protocol, replace `acp`'s hardcoded local subprocess/tool host with injected launcher and tool-host abstractions, and keep the workspace's local `RootDir` as the canonical AGH identity even when execution is remote.
 
 ### 3.1 3a. Core abstraction
 
-I would model this as "execution environments", not "sandbox providers", because `local` should implement the same contract as Daytona and E2B.
+I would model this as "execution sandboxes", not "sandbox providers", because `local` should implement the same contract as Daytona and E2B.
 
 The provider abstraction should own three responsibilities:
 
-- prepare or reuse a runtime environment
+- prepare or reuse a runtime sandbox
 - synchronize workspace files into and out of that environment
 - start the ACP-capable agent command and expose an ACP-compatible transport/tool host
 
 I would use the following interfaces.
 
 ```go
-// internal/environment/types.go
-package environment
+// internal/sandbox/types.go
+package sandbox
 
 import (
 	"context"
@@ -383,13 +383,13 @@ Why this split is the right one:
 
 ### 3.2 3b. Integration points
 
-#### New package: `internal/environment/`
+#### New package: `internal/sandbox/`
 
-Create a new package `internal/environment/`.
+Create a new package `internal/sandbox/`.
 
 Responsibility:
 
-- define `Backend`, profile models, resolved environment config, and per-session environment state
+- define `Backend`, profile models, resolved environment config, and per-session sandbox state
 - own provider registry and provider selection
 - implement the `local` provider
 - host Daytona and E2B provider implementations behind the same contract
@@ -398,7 +398,7 @@ Why new package:
 
 - "sandbox" is too vendor-specific
 - AGH needs to represent both local and remote execution backends
-- environment state spans config, workspace resolution, session lifecycle, and ACP launch
+- sandbox state spans config, workspace resolution, session lifecycle, and ACP launch
 
 #### Changes to `workspace`
 
@@ -410,13 +410,13 @@ Files affected:
 
 Changes:
 
-- add `EnvironmentRef string` to `Workspace`
-- add `Environment environment.Resolved` to `ResolvedWorkspace`
-- add `EnvironmentRef` to `RegisterOptions` / `UpdateOptions`
-- when resolving a workspace, compute `ResolvedWorkspace.Environment`
-- include `EnvironmentRef` in cache reuse checks
+- add `SandboxRef string` to `Workspace`
+- add `Environment sandbox.Resolved` to `ResolvedWorkspace`
+- add `SandboxRef` to `RegisterOptions` / `UpdateOptions`
+- when resolving a workspace, compute `ResolvedWorkspace.Sandbox`
+- include `SandboxRef` in cache reuse checks
 
-This keeps environment choice aligned with the existing workspace registration model.
+This keeps sandbox choice aligned with the existing workspace registration model.
 
 #### Changes to `config`
 
@@ -429,16 +429,16 @@ Files affected:
 
 Changes:
 
-- add `Defaults.Environment`
-- add `Config.Environments map[string]EnvironmentProfile`
-- add `ResolveEnvironment(...)` and validation
-- extend overlay merging for `[environments.*]`
+- add `Defaults.Sandbox`
+- add `Config.Sandboxes map[string]SandboxProfile`
+- add `ResolveSandbox(...)` and validation
+- extend overlay merging for `[sandboxes.*]`
 
 Important design choice:
 
-- do not put sandbox/environment selection on `AgentDef`
+- do not put sandbox/sandbox selection on `AgentDef`
 - keep `AgentDef` responsible for the ACP agent command/model/tools
-- keep environment selection workspace-scoped, with config-defined reusable profiles
+- keep sandbox selection workspace-scoped, with config-defined reusable profiles
 
 #### Changes to `acp`
 
@@ -472,15 +472,15 @@ Files affected:
 
 Changes:
 
-- inject an environment manager/runtime factory through `NewManager(...)`
+- inject a sandbox manager/runtime factory through `NewManager(...)`
 - resolve environment before driver start
-- persist `SessionEnvironmentState` in metadata before the runtime becomes active
+- persist `SessionSandboxState` in metadata before the runtime becomes active
 - on turn end and stop, call provider sync-back hooks
 - on resume, use persisted provider runtime state to reattach or restore the environment
 
 Session should not learn Daytona or E2B details. It should only understand:
 
-- which environment profile was selected
+- which sandbox profile was selected
 - what runtime state needs to be persisted for resume/cleanup
 - when to ask for sync and teardown
 
@@ -494,9 +494,9 @@ Files affected:
 
 Changes:
 
-- persist workspace-level environment selection
-- persist session-level environment runtime state
-- optionally index a subset of session environment fields in the global sessions table for filtering and inspection
+- persist workspace-level sandbox selection
+- persist session-level sandbox runtime state
+- optionally index a subset of session sandbox fields in the global sessions table for filtering and inspection
 
 #### Changes to `daemon`
 
@@ -506,7 +506,7 @@ Files affected:
 
 Changes:
 
-- wire the environment manager / local launcher / provider registry from the composition root
+- wire the sandbox manager / local launcher / provider registry from the composition root
 
 This is exactly where AGH wants provider construction to happen.
 
@@ -521,13 +521,13 @@ This should be a workspace concern, not an agent concern.
 Reasoning:
 
 - a workspace defines the filesystem and skill/config visibility model
-- the execution environment changes filesystem semantics, sync requirements, and terminal execution location
+- the execution sandbox changes filesystem semantics, sync requirements, and terminal execution location
 - those are properties of the workspace context, not properties of an individual `AgentDef`
 
 So the selection model should be:
 
-1. `Workspace.EnvironmentRef` if explicitly set on the registered workspace
-2. otherwise `Config.Defaults.Environment`
+1. `Workspace.SandboxRef` if explicitly set on the registered workspace
+2. otherwise `Config.Defaults.Sandbox`
 3. otherwise implicit `local`
 
 This mirrors the existing default-agent override model:
@@ -535,7 +535,7 @@ This mirrors the existing default-agent override model:
 - workspace row stores a local override (`internal/workspace/workspace.go:29-37`)
 - `buildResolvedWorkspace(...)` loads config and applies workspace overrides (`internal/workspace/resolver.go:223-242`)
 
-#### Should `ResolvedWorkspace` gain an environment field?
+#### Should `ResolvedWorkspace` gain a sandbox field?
 
 Yes:
 
@@ -545,7 +545,7 @@ type ResolvedWorkspace struct {
 	Config      aghconfig.Config
 	Agents      []aghconfig.AgentDef
 	Skills      []SkillPath
-	Environment environment.Resolved
+	Environment sandbox.Resolved
 	ResolvedAt  time.Time
 }
 ```
@@ -586,7 +586,7 @@ The default must remain `local`. AGH is explicitly local-first today, and the cu
 
 Today `Session.Workspace` is the local workspace root string (`internal/session/session.go:66-91`) and `acp.StartOpts.Cwd` is that same root (`internal/session/manager_start.go:189-199`).
 
-For remote environments that is no longer safe to assume.
+For remote sandboxes that is no longer safe to assume.
 
 Example:
 
@@ -601,7 +601,7 @@ So the architecture needs two path concepts:
 - canonical local workspace path
 - runtime-visible workspace path
 
-That is why `SessionEnvironmentState` should persist `RuntimeRootDir` separately instead of overwriting `Workspace.RootDir`.
+That is why `SessionSandboxState` should persist `RuntimeRootDir` separately instead of overwriting `Workspace.RootDir`.
 
 ### 3.4 3d. Concrete data model
 
@@ -626,7 +626,7 @@ type Config struct {
 	Permissions   PermissionsConfig
 	MCPServers    []MCPServer
 	Providers     map[string]ProviderConfig
-	Environments  map[string]EnvironmentProfile `toml:"environments"`
+	Environments  map[string]SandboxProfile `toml:"environments"`
 	Observability ObservabilityConfig
 	Log           LogConfig
 	Memory        MemoryConfig
@@ -637,7 +637,7 @@ type Config struct {
 	Network       NetworkConfig
 }
 
-type EnvironmentProfile struct {
+type SandboxProfile struct {
 	Backend       string           `toml:"backend"`
 	SyncMode      string           `toml:"sync_mode,omitempty"`
 	Persistence   string           `toml:"persistence,omitempty"`
@@ -680,21 +680,21 @@ TOML example:
 agent = "general"
 environment = "local"
 
-[environments.local]
+[sandboxes.local]
 backend = "local"
 
-[environments.daytona-dev]
+[sandboxes.daytona-dev]
 backend = "daytona"
 sync_mode = "turn-bidirectional"
 persistence = "reuse"
 runtime_root = "/home/daytona/workspace"
 destroy_on_stop = false
 
-[environments.daytona-dev.network]
+[sandboxes.daytona-dev.network]
 allow_public_ingress = false
 allow_outbound = true
 
-[environments.daytona-dev.daytona]
+[sandboxes.daytona-dev.daytona]
 api_url = "https://app.daytona.io/api"
 target = "team-default"
 image = "ubuntu:24.04"
@@ -702,18 +702,18 @@ class = "cpu-2"
 auto_stop = "30m"
 auto_archive = "24h"
 
-[environments.e2b-ci]
+[sandboxes.e2b-ci]
 backend = "e2b"
 sync_mode = "session-bidirectional"
 persistence = "transient"
 runtime_root = "/home/user/workspace"
 destroy_on_stop = true
 
-[environments.e2b-ci.network]
+[sandboxes.e2b-ci.network]
 allow_public_ingress = false
 allow_outbound = true
 
-[environments.e2b-ci.e2b]
+[sandboxes.e2b-ci.e2b]
 api_url = "https://api.e2b.dev"
 template = "base"
 timeout = "1h"
@@ -733,7 +733,7 @@ type Workspace struct {
 	AdditionalDirs []string
 	Name           string
 	DefaultAgent   string
-	EnvironmentRef string
+	SandboxRef string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -748,14 +748,14 @@ type RegisterOptions struct {
 	Name           string
 	AdditionalDirs []string
 	DefaultAgent   string
-	EnvironmentRef string
+	SandboxRef string
 }
 
 type UpdateOptions struct {
 	Name           *string
 	AdditionalDirs *[]string
 	DefaultAgent   *string
-	EnvironmentRef *string
+	SandboxRef *string
 }
 ```
 
@@ -765,7 +765,7 @@ I would extend session metadata like this:
 
 ```go
 // internal/store/types.go
-type SessionEnvironmentMeta struct {
+type SessionSandboxMeta struct {
 	Backend               string    `json:"backend"`
 	Profile               string    `json:"profile,omitempty"`
 	InstanceID            string    `json:"instance_id,omitempty"`
@@ -786,7 +786,7 @@ type SessionMeta struct {
 	StopReason   *StopReason             `json:"stop_reason,omitempty"`
 	StopDetail   string                  `json:"stop_detail,omitempty"`
 	ACPSessionID *string                 `json:"acp_session_id,omitempty"`
-	Environment  *SessionEnvironmentMeta `json:"environment,omitempty"`
+	Environment  *SessionSandboxMeta `json:"environment,omitempty"`
 	CreatedAt    time.Time               `json:"created_at"`
 	UpdatedAt    time.Time               `json:"updated_at"`
 }
@@ -797,21 +797,21 @@ type SessionMeta struct {
 Workspace table:
 
 ```sql
-ALTER TABLE workspaces ADD COLUMN environment_ref TEXT NOT NULL DEFAULT '';
+ALTER TABLE workspaces ADD COLUMN sandbox_ref TEXT NOT NULL DEFAULT '';
 ```
 
 Sessions table:
 
 ```sql
-ALTER TABLE sessions ADD COLUMN environment_backend TEXT NOT NULL DEFAULT 'local';
-ALTER TABLE sessions ADD COLUMN environment_profile TEXT NOT NULL DEFAULT 'local';
-ALTER TABLE sessions ADD COLUMN environment_instance_id TEXT DEFAULT '';
+ALTER TABLE sessions ADD COLUMN sandbox_backend TEXT NOT NULL DEFAULT 'local';
+ALTER TABLE sessions ADD COLUMN sandbox_profile TEXT NOT NULL DEFAULT 'local';
+ALTER TABLE sessions ADD COLUMN sandbox_instance_id TEXT DEFAULT '';
 ```
 
 Why split this way:
 
-- workspace registration needs queryable environment selection
-- session index should expose enough environment state for list/status/debug
+- workspace registration needs queryable sandbox selection
+- session index should expose enough sandbox state for list/status/debug
 - full provider resume/runtime state still belongs in `session.meta.json`
 
 I would not put provider-specific blobs into the global sessions table. Keep detailed provider state in session metadata, not the index.
@@ -820,7 +820,7 @@ I would not put provider-specific blobs into the global sessions table. Keep det
 
 ### 4.1 The biggest risk is not provisioning, it is filesystem authority
 
-Provisioning a remote environment is the easy part.
+Provisioning a remote sandbox is the easy part.
 
 The hard problem is: where is the authoritative workspace state?
 
@@ -853,7 +853,7 @@ This is the most important technical validation item before implementing the fir
 
 Current permission logic is daemon-local and root-path-based (`internal/acp/permission.go:94-181`).
 
-In remote environments:
+In remote sandboxes:
 
 - ACP file requests can still be mediated by AGH through a provider-backed `ToolHost`
 - but terminal commands can mutate files without passing through `fs/write`
@@ -870,7 +870,7 @@ With environments, resume may mean:
 - restart an archived sandbox
 - recreate a transient sandbox and re-sync the workspace
 
-That makes `SessionEnvironmentMeta` mandatory. `ACPSessionID` alone will not be enough anymore.
+That makes `SessionSandboxMeta` mandatory. `ACPSessionID` alone will not be enough anymore.
 
 ### 4.5 Dependency weight matters
 
@@ -903,9 +903,9 @@ Goal:
 
 Work:
 
-1. Add `Defaults.Environment`, `Config.Environments`, and validation.
-2. Add `Workspace.EnvironmentRef` and `ResolvedWorkspace.Environment`.
-3. Add `SessionEnvironmentMeta`.
+1. Add `Defaults.Sandbox`, `Config.Sandboxes`, and validation.
+2. Add `Workspace.SandboxRef` and `ResolvedWorkspace.Sandbox`.
+3. Add `SessionSandboxMeta`.
 4. Refactor `acp` to use injected `Launcher` and `ToolHost`.
 5. Implement `local` as the first provider, reusing today's subprocess, permission policy, and terminal manager behavior.
 6. Add tests proving the local provider preserves current create/prompt/stop/resume behavior.
@@ -920,7 +920,7 @@ Why this is the right first phase:
 
 Goal:
 
-- first real remote execution environment
+- first real remote execution sandbox
 - workspace-aligned, persistent remote runtime
 
 Work:
@@ -930,7 +930,7 @@ Work:
 3. Implement workspace sync:
    - sync local root + additional dirs to runtime before start
    - sync back on turn end and on stop
-4. Persist Daytona sandbox identity in `SessionEnvironmentMeta`.
+4. Persist Daytona sandbox identity in `SessionSandboxMeta`.
 5. Support resume by reattaching to or restoring the same sandbox when possible.
 6. Add a simple end-to-end profile for a workspace selected into Daytona.
 
@@ -964,8 +964,8 @@ Goal:
 Work:
 
 1. Track sync durations and failures in observability.
-2. Add environment info to status/list APIs.
-3. Add leaked-environment cleanup on daemon restart.
+2. Add sandbox info to status/list APIs.
+3. Add leaked-sandbox cleanup on daemon restart.
 4. Add crash-path sync attempts where safe.
 5. Add explicit policies for secrets/env propagation and network restrictions.
 
@@ -973,9 +973,9 @@ Work:
 
 If the team wants the shortest path that still respects AGH's architecture, do this:
 
-1. Introduce `internal/environment/` and the `local` provider first.
+1. Introduce `internal/sandbox/` and the `local` provider first.
 2. Refactor `acp` to separate ACP protocol from launch/tool-host implementation.
-3. Add workspace-level environment selection through config profiles plus a workspace override.
+3. Add workspace-level sandbox selection through config profiles plus a workspace override.
 4. Ship Daytona first.
 5. Add E2B second, likely starting with explicit automation-oriented profiles.
 

@@ -64,7 +64,7 @@ type Info struct {
 	ACPSessionID string
 	ACPCaps      acp.Caps
 	Liveness     *store.SessionLivenessMeta
-	Environment  *store.SessionEnvironmentMeta
+	Sandbox      *store.SessionSandboxMeta
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -91,7 +91,7 @@ type Session struct {
 	ACPSessionID string
 	ACPCaps      acp.Caps
 	Liveness     *store.SessionLivenessMeta
-	Environment  *store.SessionEnvironmentMeta
+	Sandbox      *store.SessionSandboxMeta
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 
@@ -101,12 +101,12 @@ type Session struct {
 	recorder   EventRecorder
 	process    *AgentProcess
 
-	environmentDestroyOnStop bool
-	promptSetupCount         int
-	promptSetupDone          chan struct{}
-	currentTurnID            string
-	currentTurnSource        TurnSource
-	currentPromptMeta        acp.PromptMeta
+	sandboxDestroyOnStop bool
+	promptSetupCount     int
+	promptSetupDone      chan struct{}
+	currentTurnID        string
+	currentTurnSource    TurnSource
+	currentPromptMeta    acp.PromptMeta
 }
 
 // Info returns a consistent snapshot of the current session state.
@@ -136,7 +136,7 @@ func (s *Session) Info() *Info {
 		ACPSessionID: s.ACPSessionID,
 		ACPCaps:      cloneCaps(s.ACPCaps),
 		Liveness:     store.CloneSessionLivenessMeta(s.Liveness),
-		Environment:  cloneSessionEnvironmentMeta(s.Environment),
+		Sandbox:      cloneSessionSandboxMeta(s.Sandbox),
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,
 	}
@@ -650,27 +650,27 @@ func (s *Session) setFailure(failure *store.SessionFailure) {
 	s.failure = store.CloneSessionFailure(failure)
 }
 
-func (s *Session) setEnvironment(environment *store.SessionEnvironmentMeta, now time.Time) {
+func (s *Session) setSandbox(sandbox *store.SessionSandboxMeta, now time.Time) {
 	if s == nil {
 		return
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Environment = cloneSessionEnvironmentMeta(environment)
+	s.Sandbox = cloneSessionSandboxMeta(sandbox)
 	if !now.IsZero() {
 		s.UpdatedAt = now
 	}
 }
 
-func (s *Session) environmentShouldDestroy() bool {
+func (s *Session) sandboxShouldDestroy() bool {
 	if s == nil {
 		return false
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.environmentDestroyOnStop
+	return s.sandboxDestroyOnStop
 }
 
 func (s *Session) activate(now time.Time, preserveStopReason bool) error {
@@ -787,7 +787,7 @@ func (s *Session) Meta() store.SessionMeta {
 		Failure:      store.CloneSessionFailure(s.failure),
 		ACPSessionID: stringPointer(s.ACPSessionID),
 		Liveness:     store.CloneSessionLivenessMeta(s.Liveness),
-		Environment:  cloneSessionEnvironmentMeta(s.Environment),
+		Sandbox:      cloneSessionSandboxMeta(s.Sandbox),
 		CreatedAt:    s.CreatedAt,
 		UpdatedAt:    s.UpdatedAt,
 	}

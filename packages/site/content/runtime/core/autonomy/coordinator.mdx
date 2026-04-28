@@ -37,15 +37,15 @@ max_children = 5
 max_active_per_workspace = 1
 ```
 
-| Field | Default | Meaning |
-| ----- | ------- | ------- |
-| `enabled` | `false` | Enables spawn-on-run-enqueue coordinator bootstrap. |
-| `agent_name` | `coordinator` | Agent definition name used for the coordinator session. |
-| `provider` | unset | Optional provider override. Empty means fall through to the coordinator agent or global default provider. |
-| `model` | unset | Optional model override. Empty means fall through to the coordinator agent or provider default model. |
-| `default_ttl` | `2h` | Coordinator session TTL. Accepted range is `1m` through `24h`. |
-| `max_children` | `5` | Maximum child sessions the coordinator may spawn. The MVP hard cap is `5`. |
-| `max_active_per_workspace` | `1` | Must remain `1` in the MVP so each workspace has one active coordinator. |
+| Field                      | Default       | Meaning                                                                                                   |
+| -------------------------- | ------------- | --------------------------------------------------------------------------------------------------------- |
+| `enabled`                  | `false`       | Enables spawn-on-run-enqueue coordinator bootstrap.                                                       |
+| `agent_name`               | `coordinator` | Agent definition name used for the coordinator session.                                                   |
+| `provider`                 | unset         | Optional provider override. Empty means fall through to the coordinator agent or global default provider. |
+| `model`                    | unset         | Optional model override. Empty means fall through to the coordinator agent or provider default model.     |
+| `default_ttl`              | `2h`          | Coordinator session TTL. Accepted range is `1m` through `24h`.                                            |
+| `max_children`             | `5`           | Maximum child sessions the coordinator may spawn. The MVP hard cap is `5`.                                |
+| `max_active_per_workspace` | `1`           | Must remain `1` in the MVP so each workspace has one active coordinator.                                  |
 
 ## Precedence
 

@@ -40,7 +40,7 @@ The web E2E lane does **not** use aimock because it has no surface to mock. Play
 - Pure-Go ACP mock driver: `internal/testutil/acpmock/cmd/acpmock-driver/main.go`
 - Uses `github.com/coder/acp-go-sdk` directly (same SDK as the real daemon)
 - Compiled on-demand: `internal/testutil/acpmock/driver_binary.go:36-65` runs `go build` to a temp path at first test use
-- Fixture schema in `fixture.go` (JSON, six `StepKind` values): `assistant`, `thought`, `tool_call`, `permission`, `environment_exec`, `bridge_response`
+- Fixture schema in `fixture.go` (JSON, six `StepKind` values): `assistant`, `thought`, `tool_call`, `permission`, `sandbox_exec`, `bridge_response`
 - Eight fixture files in `testdata/`
 - Node/`dist/` seam fully deleted from disk; `@copilotkit/aimock` is not in any `package.json`
 

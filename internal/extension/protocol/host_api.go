@@ -32,9 +32,9 @@ const (
 	HostAPIMethodSessionsStop                HostAPIMethod = "sessions/stop"
 	HostAPIMethodSessionsStatus              HostAPIMethod = "sessions/status"
 	HostAPIMethodSessionsEvents              HostAPIMethod = "sessions/events"
-	HostAPIMethodEnvironmentList             HostAPIMethod = "environment/list"
-	HostAPIMethodEnvironmentInfo             HostAPIMethod = "environment/info"
-	HostAPIMethodEnvironmentExec             HostAPIMethod = "environment/exec"
+	HostAPIMethodSandboxList                 HostAPIMethod = "sandbox/list"
+	HostAPIMethodSandboxInfo                 HostAPIMethod = "sandbox/info"
+	HostAPIMethodSandboxExec                 HostAPIMethod = "sandbox/exec"
 	HostAPIMethodMemoryRecall                HostAPIMethod = "memory/recall"
 	HostAPIMethodMemoryStore                 HostAPIMethod = "memory/store"
 	HostAPIMethodMemoryForget                HostAPIMethod = "memory/forget"
@@ -92,9 +92,9 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodSessionsStop,
 		HostAPIMethodSessionsStatus,
 		HostAPIMethodSessionsEvents,
-		HostAPIMethodEnvironmentList,
-		HostAPIMethodEnvironmentInfo,
-		HostAPIMethodEnvironmentExec,
+		HostAPIMethodSandboxList,
+		HostAPIMethodSandboxInfo,
+		HostAPIMethodSandboxExec,
 		HostAPIMethodMemoryRecall,
 		HostAPIMethodMemoryStore,
 		HostAPIMethodMemoryForget,

@@ -104,4 +104,4 @@ errors.Is(err, ErrInvalidToolSource) instead of strings.Contains(err.Error(),
 - Root cause: invalid `ToolSource` failures are constructed as ad hoc formatted errors, which forces callers and tests to rely on string matching instead of `errors.Is` as required by project error-handling rules.
 - Fix plan: introduce a sentinel invalid-source error, wrap it from `Validate` and other invalid-source paths, and update the test to assert the sentinel with `errors.Is`.
 - Resolution: `internal/tools/tool.go` now exposes `ErrInvalidToolSource` and wraps it from both `Validate` and `UnmarshalText`, while `TestToolSourceInvalid` now asserts `errors.Is` instead of brittle string matching.
-- Verification: `go test ./internal/bundles ./internal/environment/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.
+- Verification: `go test ./internal/bundles ./internal/sandbox/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.

@@ -13,9 +13,9 @@ import (
 	"time"
 
 	automationpkg "github.com/pedronauck/agh/internal/automation/model"
-	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/extension/surfaces"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/sandbox"
 )
 
 const (
@@ -42,9 +42,9 @@ type HTTPConfig struct {
 
 // DefaultsConfig holds global runtime defaults.
 type DefaultsConfig struct {
-	Agent       string `toml:"agent"`
-	Provider    string `toml:"provider,omitempty"`
-	Environment string `toml:"environment,omitempty"`
+	Agent    string `toml:"agent"`
+	Provider string `toml:"provider,omitempty"`
+	Sandbox  string `toml:"sandbox,omitempty"`
 }
 
 // LimitsConfig defines runtime safety bounds.
@@ -182,8 +182,8 @@ type NetworkConfig struct {
 	MaxQueueDepth  int    `toml:"max_queue_depth"`
 }
 
-// EnvironmentProfile defines one reusable execution environment profile.
-type EnvironmentProfile struct {
+// SandboxProfile defines one reusable execution sandbox profile.
+type SandboxProfile struct {
 	Backend     string            `toml:"backend"`
 	SyncMode    string            `toml:"sync_mode,omitempty"`
 	Persistence string            `toml:"persistence,omitempty"`
@@ -202,7 +202,7 @@ type NetworkProfile struct {
 	Required           bool     `toml:"required,omitempty"`
 }
 
-// DaytonaProfile defines Daytona-specific execution environment settings.
+// DaytonaProfile defines Daytona-specific execution sandbox settings.
 type DaytonaProfile struct {
 	APIURL      string `toml:"api_url,omitempty"`
 	Target      string `toml:"target,omitempty"`
@@ -215,24 +215,24 @@ type DaytonaProfile struct {
 
 // Config is the fully merged AGH configuration.
 type Config struct {
-	Daemon        DaemonConfig                  `toml:"daemon"`
-	HTTP          HTTPConfig                    `toml:"http"`
-	Defaults      DefaultsConfig                `toml:"defaults"`
-	Limits        LimitsConfig                  `toml:"limits"`
-	Session       SessionConfig                 `toml:"session"`
-	Permissions   PermissionsConfig             `toml:"permissions"`
-	MCPServers    []MCPServer                   `toml:"mcp_servers,omitempty"`
-	Providers     map[string]ProviderConfig     `toml:"providers"`
-	Environments  map[string]EnvironmentProfile `toml:"environments"`
-	Observability ObservabilityConfig           `toml:"observability"`
-	Log           LogConfig                     `toml:"log"`
-	Memory        MemoryConfig                  `toml:"memory"`
-	Skills        SkillsConfig                  `toml:"skills"`
-	Extensions    ExtensionsConfig              `toml:"extensions"`
-	Automation    AutomationConfig              `toml:"automation"`
-	Hooks         HooksConfig                   `toml:"hooks"`
-	Network       NetworkConfig                 `toml:"network"`
-	Autonomy      AutonomyConfig                `toml:"autonomy"`
+	Daemon        DaemonConfig              `toml:"daemon"`
+	HTTP          HTTPConfig                `toml:"http"`
+	Defaults      DefaultsConfig            `toml:"defaults"`
+	Limits        LimitsConfig              `toml:"limits"`
+	Session       SessionConfig             `toml:"session"`
+	Permissions   PermissionsConfig         `toml:"permissions"`
+	MCPServers    []MCPServer               `toml:"mcp_servers,omitempty"`
+	Providers     map[string]ProviderConfig `toml:"providers"`
+	Sandboxes     map[string]SandboxProfile `toml:"sandboxes"`
+	Observability ObservabilityConfig       `toml:"observability"`
+	Log           LogConfig                 `toml:"log"`
+	Memory        MemoryConfig              `toml:"memory"`
+	Skills        SkillsConfig              `toml:"skills"`
+	Extensions    ExtensionsConfig          `toml:"extensions"`
+	Automation    AutomationConfig          `toml:"automation"`
+	Hooks         HooksConfig               `toml:"hooks"`
+	Network       NetworkConfig             `toml:"network"`
+	Autonomy      AutonomyConfig            `toml:"autonomy"`
 }
 
 type loadOptions struct {
@@ -405,8 +405,8 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,
 		},
-		Providers:    map[string]ProviderConfig{},
-		Environments: map[string]EnvironmentProfile{},
+		Providers: map[string]ProviderConfig{},
+		Sandboxes: map[string]SandboxProfile{},
 		Observability: ObservabilityConfig{
 			Enabled:           true,
 			RetentionDays:     7,
@@ -476,7 +476,7 @@ func (c *Config) validateWithEnv(lookup envLookup) error {
 	if err := c.validateProviders(); err != nil {
 		return err
 	}
-	if err := c.validateEnvironments(); err != nil {
+	if err := c.validateSandboxes(); err != nil {
 		return err
 	}
 	return nil
@@ -555,94 +555,94 @@ func (c *Config) validateProviders() error {
 	return nil
 }
 
-func (c *Config) validateEnvironments() error {
-	for name, profile := range c.Environments {
+func (c *Config) validateSandboxes() error {
+	for name, profile := range c.Sandboxes {
 		trimmedName := strings.TrimSpace(name)
 		if trimmedName == "" {
-			return errors.New("environments: profile name is required")
+			return errors.New("sandboxes: profile name is required")
 		}
-		if err := profile.Validate(fmt.Sprintf("environments.%s", trimmedName)); err != nil {
+		if err := profile.Validate(fmt.Sprintf("sandboxes.%s", trimmedName)); err != nil {
 			return err
 		}
 	}
-	if ref := strings.TrimSpace(c.Defaults.Environment); ref != "" {
-		if _, err := c.ResolveEnvironment(ref); err != nil {
-			return fmt.Errorf("defaults.environment: %w", err)
+	if ref := strings.TrimSpace(c.Defaults.Sandbox); ref != "" {
+		if _, err := c.ResolveSandbox(ref); err != nil {
+			return fmt.Errorf("defaults.sandbox: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// ResolveEnvironment resolves a named environment profile into runtime policy.
-func (c *Config) ResolveEnvironment(ref string) (environment.Resolved, error) {
+// ResolveSandbox resolves a named sandbox profile into runtime policy.
+func (c *Config) ResolveSandbox(ref string) (sandbox.Resolved, error) {
 	profileName := strings.TrimSpace(ref)
 	if profileName == "" {
-		profileName = string(environment.BackendLocal)
+		profileName = string(sandbox.BackendLocal)
 	}
 
-	profile, ok := c.Environments[profileName]
+	profile, ok := c.Sandboxes[profileName]
 	if !ok {
-		if profileName == string(environment.BackendLocal) {
-			return defaultLocalEnvironment(), nil
+		if profileName == string(sandbox.BackendLocal) {
+			return defaultLocalSandbox(), nil
 		}
-		return environment.Resolved{}, fmt.Errorf("environment profile %q not found", profileName)
+		return sandbox.Resolved{}, fmt.Errorf("sandbox profile %q not found", profileName)
 	}
 
 	resolved, err := profile.Resolve(profileName)
 	if err != nil {
-		return environment.Resolved{}, err
+		return sandbox.Resolved{}, err
 	}
 	return resolved, nil
 }
 
-func defaultLocalEnvironment() environment.Resolved {
-	return environment.Resolved{
-		Profile:       string(environment.BackendLocal),
-		Backend:       environment.BackendLocal,
-		SyncMode:      environment.SyncModeNone,
-		Persistence:   environment.PersistenceTransient,
+func defaultLocalSandbox() sandbox.Resolved {
+	return sandbox.Resolved{
+		Profile:       string(sandbox.BackendLocal),
+		Backend:       sandbox.BackendLocal,
+		SyncMode:      sandbox.SyncModeNone,
+		Persistence:   sandbox.PersistenceTransient,
 		DestroyOnStop: false,
 	}
 }
 
-// Validate ensures the environment profile is internally consistent.
-func (p EnvironmentProfile) Validate(path string) error {
-	backend := environment.Backend(strings.TrimSpace(p.Backend))
+// Validate ensures the sandbox profile is internally consistent.
+func (p SandboxProfile) Validate(path string) error {
+	backend := sandbox.Backend(strings.TrimSpace(p.Backend))
 	if !backend.Valid() {
 		return fmt.Errorf(
 			"%s.backend must be one of %q, %q, %q: %q",
 			path,
-			environment.BackendLocal,
-			environment.BackendDaytona,
-			environment.BackendE2B,
+			sandbox.BackendLocal,
+			sandbox.BackendDaytona,
+			sandbox.BackendE2B,
 			p.Backend,
 		)
 	}
 
 	if syncMode := strings.TrimSpace(p.SyncMode); syncMode != "" {
-		mode := environment.SyncMode(syncMode)
+		mode := sandbox.SyncMode(syncMode)
 		if !mode.Valid() {
 			return fmt.Errorf(
 				"%s.sync_mode must be one of %q, %q, %q: %q",
 				path,
-				environment.SyncModeNone,
-				environment.SyncModeSessionBidirectional,
-				environment.SyncModeTurnBidirectional,
+				sandbox.SyncModeNone,
+				sandbox.SyncModeSessionBidirectional,
+				sandbox.SyncModeTurnBidirectional,
 				p.SyncMode,
 			)
 		}
 	}
 
 	if persistenceMode := strings.TrimSpace(p.Persistence); persistenceMode != "" {
-		mode := environment.PersistenceMode(persistenceMode)
+		mode := sandbox.PersistenceMode(persistenceMode)
 		if !mode.Valid() {
 			return fmt.Errorf(
 				"%s.persistence must be one of %q, %q, %q: %q",
 				path,
-				environment.PersistenceTransient,
-				environment.PersistenceReuse,
-				environment.PersistenceArchive,
+				sandbox.PersistenceTransient,
+				sandbox.PersistenceReuse,
+				sandbox.PersistenceArchive,
 				p.Persistence,
 			)
 		}
@@ -651,31 +651,31 @@ func (p EnvironmentProfile) Validate(path string) error {
 	return nil
 }
 
-// Resolve converts one validated config profile into runtime environment policy.
-func (p EnvironmentProfile) Resolve(profileName string) (environment.Resolved, error) {
-	if err := p.Validate("environment profile " + profileName); err != nil {
-		return environment.Resolved{}, err
+// Resolve converts one validated config profile into runtime sandbox policy.
+func (p SandboxProfile) Resolve(profileName string) (sandbox.Resolved, error) {
+	if err := p.Validate("sandbox profile " + profileName); err != nil {
+		return sandbox.Resolved{}, err
 	}
 
-	backend := environment.Backend(strings.TrimSpace(p.Backend))
-	syncMode := environment.SyncMode(strings.TrimSpace(p.SyncMode))
+	backend := sandbox.Backend(strings.TrimSpace(p.Backend))
+	syncMode := sandbox.SyncMode(strings.TrimSpace(p.SyncMode))
 	if syncMode == "" {
 		syncMode = defaultSyncModeForBackend(backend)
 	}
-	persistence := environment.PersistenceMode(strings.TrimSpace(p.Persistence))
+	persistence := sandbox.PersistenceMode(strings.TrimSpace(p.Persistence))
 	if persistence == "" {
-		persistence = environment.PersistenceTransient
+		persistence = sandbox.PersistenceTransient
 	}
 
-	resolved := environment.Resolved{
+	resolved := sandbox.Resolved{
 		Profile:        strings.TrimSpace(profileName),
 		Backend:        backend,
 		SyncMode:       syncMode,
 		Persistence:    persistence,
 		RuntimeRootDir: strings.TrimSpace(p.RuntimeRoot),
-		DestroyOnStop:  persistence != environment.PersistenceReuse,
+		DestroyOnStop:  persistence != sandbox.PersistenceReuse,
 		Env:            mergeStringMaps(nil, p.Env),
-		Network: environment.NetworkPolicy{
+		Network: sandbox.NetworkPolicy{
 			AllowPublicIngress: p.Network.AllowPublicIngress,
 			AllowOutbound:      p.Network.AllowOutbound,
 			AllowList:          cloneStrings(p.Network.AllowList),
@@ -683,7 +683,7 @@ func (p EnvironmentProfile) Resolve(profileName string) (environment.Resolved, e
 			Required:           p.Network.Required,
 		},
 	}
-	if backend == environment.BackendDaytona {
+	if backend == sandbox.BackendDaytona {
 		daytona := p.Daytona.Resolve()
 		resolved.Daytona = &daytona
 	}
@@ -691,16 +691,16 @@ func (p EnvironmentProfile) Resolve(profileName string) (environment.Resolved, e
 	return resolved, nil
 }
 
-func defaultSyncModeForBackend(backend environment.Backend) environment.SyncMode {
-	if backend == environment.BackendLocal {
-		return environment.SyncModeNone
+func defaultSyncModeForBackend(backend sandbox.Backend) sandbox.SyncMode {
+	if backend == sandbox.BackendLocal {
+		return sandbox.SyncModeNone
 	}
-	return environment.SyncModeSessionBidirectional
+	return sandbox.SyncModeSessionBidirectional
 }
 
 // Resolve converts Daytona profile inputs into provider startup policy.
-func (p DaytonaProfile) Resolve() environment.DaytonaConfig {
-	resolved := environment.DaytonaConfig{
+func (p DaytonaProfile) Resolve() sandbox.DaytonaConfig {
+	resolved := sandbox.DaytonaConfig{
 		APIURL:      strings.TrimSpace(p.APIURL),
 		Target:      strings.TrimSpace(p.Target),
 		Image:       strings.TrimSpace(p.Image),
@@ -711,10 +711,10 @@ func (p DaytonaProfile) Resolve() environment.DaytonaConfig {
 	}
 	switch {
 	case resolved.Snapshot != "":
-		resolved.StartupSource = environment.DaytonaStartupSourceSnapshot
+		resolved.StartupSource = sandbox.DaytonaStartupSourceSnapshot
 		resolved.StartupRef = resolved.Snapshot
 	case resolved.Image != "":
-		resolved.StartupSource = environment.DaytonaStartupSourceImage
+		resolved.StartupSource = sandbox.DaytonaStartupSourceImage
 		resolved.StartupRef = resolved.Image
 	}
 	return resolved

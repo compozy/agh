@@ -1,4 +1,4 @@
-## TC-FUNC-001: Valid environment profile parses from TOML
+## TC-FUNC-001: Valid sandbox profile parses from TOML
 
 **Priority:** P1 (High)
 **Type:** Functional
@@ -11,21 +11,21 @@
 
 ### Objective
 
-Verify that a complete EnvironmentProfile with all fields (backend, sync_mode, persistence, runtime_root, env, network, daytona) parses correctly from TOML config.
+Verify that a complete SandboxProfile with all fields (backend, sync_mode, persistence, runtime_root, env, network, daytona) parses correctly from TOML config.
 
 ---
 
 ### Preconditions
 
 - [x] Config loader available
-- [x] EnvironmentProfile type defined in `internal/config/config.go`
+- [x] SandboxProfile type defined in `internal/config/config.go`
 
 ---
 
 ### Test Steps
 
-1. **Load TOML config with complete environment profile**
-   - Input: TOML with `[environments.test]` containing all fields
+1. **Load TOML config with complete sandbox profile**
+   - Input: TOML with `[sandboxes.test]` containing all fields
    - **Expected:** All fields populated: `Backend`, `SyncMode`, `Persistence`, `RuntimeRoot`, `Env`, `Network.*`, `Daytona.*`
 
 2. **Verify nested DaytonaProfile fields**

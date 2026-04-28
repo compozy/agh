@@ -453,7 +453,7 @@ func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) 
 		FailureSet:    true,
 		Failure:       store.CloneSessionFailure(info.Failure),
 		Liveness:      store.CloneSessionLivenessMeta(info.Liveness),
-		Environment:   cloneSessionEnvironmentMeta(info.Environment),
+		Sandbox:       cloneSessionSandboxMeta(info.Sandbox),
 		UpdatedAt:     info.UpdatedAt,
 	}); err != nil {
 		o.logger.Warn(
@@ -494,7 +494,7 @@ func (o *Observer) OnAgentEventForSession(ctx context.Context, sess *session.Ses
 		State:        string(info.State),
 		ACPSessionID: stringPointer(info.ACPSessionID),
 		Liveness:     store.CloneSessionLivenessMeta(info.Liveness),
-		Environment:  cloneSessionEnvironmentMeta(info.Environment),
+		Sandbox:      cloneSessionSandboxMeta(info.Sandbox),
 		UpdatedAt:    info.UpdatedAt,
 	}); err != nil {
 		o.logger.Warn(
@@ -904,24 +904,24 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 		StopDetail:   info.StopDetail,
 		Failure:      store.CloneSessionFailure(info.Failure),
 		Liveness:     store.CloneSessionLivenessMeta(info.Liveness),
-		Environment:  cloneSessionEnvironmentMeta(info.Environment),
+		Sandbox:      cloneSessionSandboxMeta(info.Sandbox),
 		CreatedAt:    info.CreatedAt,
 		UpdatedAt:    info.UpdatedAt,
 	}
 }
 
-// OnEnvironmentLifecycleEvent receives optional environment lifecycle spans from session orchestration.
-func (o *Observer) OnEnvironmentLifecycleEvent(_ context.Context, event session.EnvironmentLifecycleEvent) {
+// OnSandboxLifecycleEvent receives optional sandbox lifecycle spans from session orchestration.
+func (o *Observer) OnSandboxLifecycleEvent(_ context.Context, event session.SandboxLifecycleEvent) {
 	if o == nil || o.logger == nil {
 		return
 	}
 	o.logger.Debug(
-		"observe: environment lifecycle",
+		"observe: sandbox lifecycle",
 		"name", event.Name,
 		"span", event.Span,
 		"session_id", event.SessionID,
 		"workspace_id", event.WorkspaceID,
-		"environment_id", event.EnvironmentID,
+		"sandbox_id", event.SandboxID,
 		"backend", event.Backend,
 		"profile", event.Profile,
 		"instance_id", event.InstanceID,
@@ -1001,7 +1001,7 @@ func sanitizeHookSessionID(sessionID string) (string, error) {
 	return target, nil
 }
 
-func cloneSessionEnvironmentMeta(meta *store.SessionEnvironmentMeta) *store.SessionEnvironmentMeta {
+func cloneSessionSandboxMeta(meta *store.SessionSandboxMeta) *store.SessionSandboxMeta {
 	if meta == nil {
 		return nil
 	}

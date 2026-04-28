@@ -7,13 +7,13 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Important Decisions
 - Reused the existing subprocess-backed `internal/testutil/e2e` harness instead of adding a second environment-specific runtime harness.
-- Seeded the runtime config with named environment profiles and `defaults.environment` so tests exercise the real environment registry and session startup path.
+- Seeded the runtime config with named sandbox profiles and `defaults.sandbox` so tests exercise the real sandbox registry and session startup path.
 - Drove the runtime scenarios with a helper ACP agent embedded in the integration test binary. The same helper runs an allowed or blocked filesystem action depending on the scenario and the seeded agent permissions.
 - Captured environment truth from both the public session payload and persisted session metadata, with tool-host diagnostics stored as explicit allowed/blocked operation records.
-- Explicitly stopped sessions through the public UDS surface after the ACP turn so the stopped-state environment metadata becomes deterministic for assertions and artifact capture.
+- Explicitly stopped sessions through the public UDS surface after the ACP turn so the stopped-state sandbox metadata becomes deterministic for assertions and artifact capture.
 
 ## Learnings
-- The local-provider sandbox denial is stable to assert via three surfaces together: missing host-side file, persisted/public environment metadata, and the agent-visible tool error containing the `approve-reads` restriction.
+- The local-provider sandbox denial is stable to assert via three surfaces together: missing host-side file, persisted/public sandbox metadata, and the agent-visible tool error containing the `approve-reads` restriction.
 - `internal/testutil/e2e` does not clear the 80% bar on unit-only coverage because the useful behavior is runtime-heavy; integration-inclusive coverage is the meaningful package measure here.
 - Reusing the existing `provider_calls.json` artifact slot for tool-host diagnostics keeps failure manifests compact while still surfacing the environment-specific action outcomes needed for debugging.
 
@@ -33,7 +33,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 - The stopped-state assertion originally expected a completed stop reason, but explicit stop requests are recorded as `store.StopUserCanceled`; tests now assert the real persisted behavior.
 
 ## Ready for Next Run
-- Final committed code is in `9bc89054` (`test: add local environment sandbox e2e`).
+- Final committed code is in `9bc89054` (`test: add local sandbox sandbox e2e`).
 - Verification completed on the committed tree:
   - `go test ./internal/testutil/e2e`
   - `go test -tags integration -cover ./internal/testutil/e2e`

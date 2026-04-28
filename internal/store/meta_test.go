@@ -24,8 +24,8 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		State:       "stopped",
 		StopReason:  &stopReason,
 		StopDetail:  "hook denied continuation",
-		Environment: &SessionEnvironmentMeta{
-			EnvironmentID:         "env-123",
+		Sandbox: &SessionSandboxMeta{
+			SandboxID:             "env-123",
 			Backend:               "daytona",
 			Profile:               "daytona-dev",
 			State:                 "ready",
@@ -64,36 +64,36 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	if *readBack.StopReason != *meta.StopReason {
 		t.Fatalf("ReadSessionMeta().StopReason = %q, want %q", *readBack.StopReason, *meta.StopReason)
 	}
-	if readBack.Environment == nil {
-		t.Fatal("ReadSessionMeta().Environment = nil, want metadata")
+	if readBack.Sandbox == nil {
+		t.Fatal("ReadSessionMeta().Sandbox = nil, want metadata")
 	}
-	if readBack.Environment.EnvironmentID != "env-123" ||
-		readBack.Environment.State != "ready" ||
-		readBack.Environment.InstanceID != "sandbox-123" ||
-		readBack.Environment.LastSyncError != "sync warning" {
-		t.Fatalf("ReadSessionMeta().Environment = %#v, want persisted environment metadata", readBack.Environment)
+	if readBack.Sandbox.SandboxID != "env-123" ||
+		readBack.Sandbox.State != "ready" ||
+		readBack.Sandbox.InstanceID != "sandbox-123" ||
+		readBack.Sandbox.LastSyncError != "sync warning" {
+		t.Fatalf("ReadSessionMeta().Sandbox = %#v, want persisted sandbox metadata", readBack.Sandbox)
 	}
 	var providerState struct {
 		SandboxID string `json:"sandbox_id"`
 	}
-	if err := json.Unmarshal(readBack.Environment.ProviderState, &providerState); err != nil {
+	if err := json.Unmarshal(readBack.Sandbox.ProviderState, &providerState); err != nil {
 		t.Fatalf("json.Unmarshal(ProviderState) error = %v", err)
 	}
 	if providerState.SandboxID != "sandbox-123" {
 		t.Fatalf("ProviderState sandbox_id = %q, want sandbox-123", providerState.SandboxID)
 	}
-	if readBack.Environment.SSHAccessExpiresAt == nil ||
-		!readBack.Environment.SSHAccessExpiresAt.Equal(*meta.Environment.SSHAccessExpiresAt) {
+	if readBack.Sandbox.SSHAccessExpiresAt == nil ||
+		!readBack.Sandbox.SSHAccessExpiresAt.Equal(*meta.Sandbox.SSHAccessExpiresAt) {
 		t.Fatalf("SSHAccessExpiresAt = %#v, want %#v",
-			readBack.Environment.SSHAccessExpiresAt,
-			meta.Environment.SSHAccessExpiresAt,
+			readBack.Sandbox.SSHAccessExpiresAt,
+			meta.Sandbox.SSHAccessExpiresAt,
 		)
 	}
-	if readBack.Environment.LastSyncAt == nil ||
-		!readBack.Environment.LastSyncAt.Equal(*meta.Environment.LastSyncAt) {
+	if readBack.Sandbox.LastSyncAt == nil ||
+		!readBack.Sandbox.LastSyncAt.Equal(*meta.Sandbox.LastSyncAt) {
 		t.Fatalf("LastSyncAt = %#v, want %#v",
-			readBack.Environment.LastSyncAt,
-			meta.Environment.LastSyncAt,
+			readBack.Sandbox.LastSyncAt,
+			meta.Sandbox.LastSyncAt,
 		)
 	}
 }

@@ -50,7 +50,7 @@ func TestVerifyContentDetectsCriticalPatterns(t *testing.T) {
 		},
 		{
 			name:        "rm rf",
-			content:     "Run RM -RF / to clean up the environment.",
+			content:     "Run RM -RF / to clean up the sandbox.",
 			wantPattern: "rm-rf",
 		},
 		{

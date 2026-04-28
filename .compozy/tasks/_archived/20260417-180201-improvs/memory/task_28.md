@@ -15,7 +15,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 - `internal/store` runtime concurrency is concentrated in `sessiondb.SessionDB`: one owned writer goroutine, three package-local channels, one `sync.RWMutex`, and all production `select` sites are cancellation-aware.
 - The largest production files are `global_db_automation.go`, `global_db_bridge.go`, `global_db_task.go`, `migrate_workspace.go`, and `session_db.go`; duplication is concentrated in `globaldb` helpers.
 - Existing tests already assert that network audit/message timestamp parse failures must be surfaced with wrapped context; session environment `LastSyncAt` parsing lacks an equivalent guard.
-- `globaldb.scanSessionEnvironment` now follows the same persisted-timestamp corruption rule and fails scans on malformed `environment_last_sync_at` values.
+- `globaldb.scanSessionSandbox` now follows the same persisted-timestamp corruption rule and fails scans on malformed `sandbox_last_sync_at` values.
 - `globaldb.ReplaceBridgeInstances` materially improved after reusing prepared bridge-instance payloads in the replacement transaction rather than normalizing/encoding them twice.
 - Final validation succeeded with `make verify`, and package coverage stayed above the task target (`internal/store` 84.0%, `globaldb` 80.6%, `sessiondb` 83.0%).
 

@@ -26,7 +26,7 @@ func migrateToolProcessRecords(ctx context.Context, tx *sql.Tx) error {
 			terminal_id      TEXT NOT NULL DEFAULT '',
 			extension_name   TEXT NOT NULL DEFAULT '',
 			hook_name        TEXT NOT NULL DEFAULT '',
-			environment_id   TEXT NOT NULL DEFAULT '',
+			sandbox_id   TEXT NOT NULL DEFAULT '',
 			pid              INTEGER NOT NULL DEFAULT 0,
 			process_group_id INTEGER NOT NULL DEFAULT 0,
 			command          TEXT NOT NULL DEFAULT '',
@@ -75,7 +75,7 @@ func (g *GlobalDB) UpsertProcessRecord(ctx context.Context, record toolruntime.P
 		ctx,
 		`INSERT INTO tool_processes (
 			id, source, session_id, turn_id, tool_call_id, terminal_id, extension_name,
-			hook_name, environment_id, pid, process_group_id, command, args_json, cwd,
+			hook_name, sandbox_id, pid, process_group_id, command, args_json, cwd,
 			started_at, started_by_pid, state, exit_code, error, created_at, updated_at, completed_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
@@ -86,7 +86,7 @@ func (g *GlobalDB) UpsertProcessRecord(ctx context.Context, record toolruntime.P
 			terminal_id = excluded.terminal_id,
 			extension_name = excluded.extension_name,
 			hook_name = excluded.hook_name,
-			environment_id = excluded.environment_id,
+			sandbox_id = excluded.sandbox_id,
 			pid = excluded.pid,
 			process_group_id = excluded.process_group_id,
 			command = excluded.command,
@@ -107,7 +107,7 @@ func (g *GlobalDB) UpsertProcessRecord(ctx context.Context, record toolruntime.P
 		record.Owner.TerminalID,
 		record.Owner.ExtensionName,
 		record.Owner.HookName,
-		record.Owner.EnvironmentID,
+		record.Owner.SandboxID,
 		record.PID,
 		record.ProcessGroupID,
 		record.Command,
@@ -222,7 +222,7 @@ func toolProcessListQuery(query toolruntime.ProcessQuery) (string, []any) {
 	var builder strings.Builder
 	builder.WriteString(`SELECT
 		id, source, session_id, turn_id, tool_call_id, terminal_id, extension_name,
-		hook_name, environment_id, pid, process_group_id, command, args_json, cwd,
+		hook_name, sandbox_id, pid, process_group_id, command, args_json, cwd,
 		started_at, started_by_pid, state, exit_code, error, created_at, updated_at, completed_at
 		FROM tool_processes`)
 	if len(where) > 0 {
@@ -256,7 +256,7 @@ func scanToolProcessRecord(rows *sql.Rows) (toolruntime.ProcessRecord, error) {
 		&record.Owner.TerminalID,
 		&record.Owner.ExtensionName,
 		&record.Owner.HookName,
-		&record.Owner.EnvironmentID,
+		&record.Owner.SandboxID,
 		&record.PID,
 		&record.ProcessGroupID,
 		&record.Command,

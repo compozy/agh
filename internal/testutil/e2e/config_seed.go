@@ -33,17 +33,17 @@ type AgentSeed struct {
 
 // ConfigSeedOptions configures the seeded daemon runtime config.
 type ConfigSeedOptions struct {
-	Host               string
-	HTTPPort           int
-	SocketPath         string
-	DefaultAgent       string
-	DefaultProvider    string
-	DefaultEnvironment string
-	PermissionMode     aghconfig.PermissionMode
-	Providers          map[string]aghconfig.ProviderConfig
-	Environments       map[string]aghconfig.EnvironmentProfile
-	AgentDefs          []AgentSeed
-	Mutate             func(*aghconfig.Config)
+	Host            string
+	HTTPPort        int
+	SocketPath      string
+	DefaultAgent    string
+	DefaultProvider string
+	DefaultSandbox  string
+	PermissionMode  aghconfig.PermissionMode
+	Providers       map[string]aghconfig.ProviderConfig
+	Sandboxes       map[string]aghconfig.SandboxProfile
+	AgentDefs       []AgentSeed
+	Mutate          func(*aghconfig.Config)
 }
 
 // WorkspaceSeedOptions configures the seeded workspace root.
@@ -53,14 +53,14 @@ type WorkspaceSeedOptions struct {
 }
 
 type configSeedFile struct {
-	Daemon       *configSeedDaemonSection                `toml:"daemon,omitempty"`
-	HTTP         *configSeedHTTPSection                  `toml:"http,omitempty"`
-	Defaults     *configSeedDefaultsSection              `toml:"defaults,omitempty"`
-	Permissions  *configSeedPermissionsSection           `toml:"permissions,omitempty"`
-	Session      *aghconfig.SessionConfig                `toml:"session,omitempty"`
-	Network      *aghconfig.NetworkConfig                `toml:"network,omitempty"`
-	Providers    map[string]aghconfig.ProviderConfig     `toml:"providers,omitempty"`
-	Environments map[string]aghconfig.EnvironmentProfile `toml:"environments,omitempty"`
+	Daemon      *configSeedDaemonSection            `toml:"daemon,omitempty"`
+	HTTP        *configSeedHTTPSection              `toml:"http,omitempty"`
+	Defaults    *configSeedDefaultsSection          `toml:"defaults,omitempty"`
+	Permissions *configSeedPermissionsSection       `toml:"permissions,omitempty"`
+	Session     *aghconfig.SessionConfig            `toml:"session,omitempty"`
+	Network     *aghconfig.NetworkConfig            `toml:"network,omitempty"`
+	Providers   map[string]aghconfig.ProviderConfig `toml:"providers,omitempty"`
+	Sandboxes   map[string]aghconfig.SandboxProfile `toml:"sandboxes,omitempty"`
 }
 
 type configSeedDaemonSection struct {
@@ -73,9 +73,9 @@ type configSeedHTTPSection struct {
 }
 
 type configSeedDefaultsSection struct {
-	Agent       string `toml:"agent,omitempty"`
-	Provider    string `toml:"provider,omitempty"`
-	Environment string `toml:"environment,omitempty"`
+	Agent    string `toml:"agent,omitempty"`
+	Provider string `toml:"provider,omitempty"`
+	Sandbox  string `toml:"sandbox,omitempty"`
 }
 
 type configSeedPermissionsSection struct {
@@ -114,8 +114,8 @@ func SeedConfig(t testing.TB, homePaths aghconfig.HomePaths, opts ConfigSeedOpti
 	if trimmed := strings.TrimSpace(opts.DefaultProvider); trimmed != "" {
 		cfg.Defaults.Provider = trimmed
 	}
-	if trimmed := strings.TrimSpace(opts.DefaultEnvironment); trimmed != "" {
-		cfg.Defaults.Environment = trimmed
+	if trimmed := strings.TrimSpace(opts.DefaultSandbox); trimmed != "" {
+		cfg.Defaults.Sandbox = trimmed
 	}
 	if opts.PermissionMode != "" {
 		cfg.Permissions.Mode = opts.PermissionMode
@@ -123,8 +123,8 @@ func SeedConfig(t testing.TB, homePaths aghconfig.HomePaths, opts ConfigSeedOpti
 	if len(opts.Providers) > 0 {
 		cfg.Providers = cloneProviders(opts.Providers)
 	}
-	if len(opts.Environments) > 0 {
-		cfg.Environments = cloneEnvironmentProfiles(opts.Environments)
+	if len(opts.Sandboxes) > 0 {
+		cfg.Sandboxes = cloneSandboxProfiles(opts.Sandboxes)
 	}
 	if opts.Mutate != nil {
 		opts.Mutate(&cfg)
@@ -157,14 +157,14 @@ func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) e
 			Port: cfg.HTTP.Port,
 		},
 		Defaults: &configSeedDefaultsSection{
-			Agent:       cfg.Defaults.Agent,
-			Provider:    cfg.Defaults.Provider,
-			Environment: cfg.Defaults.Environment,
+			Agent:    cfg.Defaults.Agent,
+			Provider: cfg.Defaults.Provider,
+			Sandbox:  cfg.Defaults.Sandbox,
 		},
-		Session:      cloneSessionConfig(cfg.Session),
-		Network:      &cfg.Network,
-		Providers:    cloneProviders(cfg.Providers),
-		Environments: cloneEnvironmentProfiles(cfg.Environments),
+		Session:   cloneSessionConfig(cfg.Session),
+		Network:   &cfg.Network,
+		Providers: cloneProviders(cfg.Providers),
+		Sandboxes: cloneSandboxProfiles(cfg.Sandboxes),
 	}
 	if cfg.Permissions.Mode != "" {
 		overlay.Permissions = &configSeedPermissionsSection{Mode: cfg.Permissions.Mode}
@@ -250,13 +250,13 @@ func seedWorkspaceTargetPath(root string, relativePath string) (string, error) {
 	return targetPath, nil
 }
 
-func cloneEnvironmentProfiles(
-	profiles map[string]aghconfig.EnvironmentProfile,
-) map[string]aghconfig.EnvironmentProfile {
+func cloneSandboxProfiles(
+	profiles map[string]aghconfig.SandboxProfile,
+) map[string]aghconfig.SandboxProfile {
 	if len(profiles) == 0 {
 		return nil
 	}
-	cloned := make(map[string]aghconfig.EnvironmentProfile, len(profiles))
+	cloned := make(map[string]aghconfig.SandboxProfile, len(profiles))
 	for name, profile := range profiles {
 		next := profile
 		next.Env = maps.Clone(profile.Env)

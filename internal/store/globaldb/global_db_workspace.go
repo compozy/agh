@@ -26,14 +26,14 @@ func (g *GlobalDB) InsertWorkspace(ctx context.Context, ws aghworkspace.Workspac
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO workspaces (
-			id, root_dir, add_dirs, name, default_agent, environment_ref, created_at, updated_at
+			id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		normalized.RootDir,
 		addDirsJSON,
 		normalized.Name,
 		store.NullableString(normalized.DefaultAgent),
-		normalized.EnvironmentRef,
+		normalized.SandboxRef,
 		store.FormatTimestamp(normalized.CreatedAt),
 		store.FormatTimestamp(normalized.UpdatedAt),
 	); err != nil {
@@ -57,13 +57,13 @@ func (g *GlobalDB) UpdateWorkspace(ctx context.Context, ws aghworkspace.Workspac
 	result, err := g.db.ExecContext(
 		ctx,
 		`UPDATE workspaces
-		 SET root_dir = ?, add_dirs = ?, name = ?, default_agent = ?, environment_ref = ?, updated_at = ?
+		 SET root_dir = ?, add_dirs = ?, name = ?, default_agent = ?, sandbox_ref = ?, updated_at = ?
 		 WHERE id = ?`,
 		normalized.RootDir,
 		addDirsJSON,
 		normalized.Name,
 		store.NullableString(normalized.DefaultAgent),
-		normalized.EnvironmentRef,
+		normalized.SandboxRef,
 		store.FormatTimestamp(normalized.UpdatedAt),
 		normalized.ID,
 	)
@@ -122,7 +122,7 @@ func (g *GlobalDB) GetWorkspace(ctx context.Context, id string) (aghworkspace.Wo
 
 	return g.getWorkspaceByQuery(
 		ctx,
-		`SELECT id, root_dir, add_dirs, name, default_agent, environment_ref, created_at, updated_at
+		`SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
 		 FROM workspaces WHERE id = ?`,
 		trimmedID,
 	)
@@ -141,7 +141,7 @@ func (g *GlobalDB) GetWorkspaceByPath(ctx context.Context, rootDir string) (aghw
 
 	return g.getWorkspaceByQuery(
 		ctx,
-		`SELECT id, root_dir, add_dirs, name, default_agent, environment_ref, created_at, updated_at
+		`SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
 		 FROM workspaces WHERE root_dir = ?`,
 		trimmedRoot,
 	)
@@ -160,7 +160,7 @@ func (g *GlobalDB) GetWorkspaceByName(ctx context.Context, name string) (aghwork
 
 	return g.getWorkspaceByQuery(
 		ctx,
-		`SELECT id, root_dir, add_dirs, name, default_agent, environment_ref, created_at, updated_at
+		`SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
 		 FROM workspaces WHERE name = ?`,
 		trimmedName,
 	)
@@ -174,7 +174,7 @@ func (g *GlobalDB) ListWorkspaces(ctx context.Context) ([]aghworkspace.Workspace
 
 	rows, err := g.db.QueryContext(
 		ctx,
-		`SELECT id, root_dir, add_dirs, name, default_agent, environment_ref, created_at, updated_at
+		`SELECT id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
 		 FROM workspaces
 		 ORDER BY name ASC, id ASC`,
 	)
@@ -249,12 +249,12 @@ func (g *GlobalDB) normalizeWorkspaceForUpdate(ws aghworkspace.Workspace) (aghwo
 
 func scanWorkspace(scanner rowScanner) (aghworkspace.Workspace, error) {
 	var (
-		ws             aghworkspace.Workspace
-		addDirsRaw     string
-		defaultAgent   sql.NullString
-		environmentRef string
-		createdAtRaw   string
-		updatedAtRaw   string
+		ws           aghworkspace.Workspace
+		addDirsRaw   string
+		defaultAgent sql.NullString
+		sandboxRef   string
+		createdAtRaw string
+		updatedAtRaw string
 	)
 	if err := scanner.Scan(
 		&ws.ID,
@@ -262,7 +262,7 @@ func scanWorkspace(scanner rowScanner) (aghworkspace.Workspace, error) {
 		&addDirsRaw,
 		&ws.Name,
 		&defaultAgent,
-		&environmentRef,
+		&sandboxRef,
 		&createdAtRaw,
 		&updatedAtRaw,
 	); err != nil {
@@ -277,7 +277,7 @@ func scanWorkspace(scanner rowScanner) (aghworkspace.Workspace, error) {
 	if defaultAgent.Valid {
 		ws.DefaultAgent = strings.TrimSpace(defaultAgent.String)
 	}
-	ws.EnvironmentRef = strings.TrimSpace(environmentRef)
+	ws.SandboxRef = strings.TrimSpace(sandboxRef)
 
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {
@@ -299,7 +299,7 @@ func normalizeWorkspaceRecord(ws aghworkspace.Workspace) (aghworkspace.Workspace
 	normalized.RootDir = strings.TrimSpace(normalized.RootDir)
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.DefaultAgent = strings.TrimSpace(normalized.DefaultAgent)
-	normalized.EnvironmentRef = strings.TrimSpace(normalized.EnvironmentRef)
+	normalized.SandboxRef = strings.TrimSpace(normalized.SandboxRef)
 	normalized.AdditionalDirs = compactStrings(normalized.AdditionalDirs)
 
 	switch {

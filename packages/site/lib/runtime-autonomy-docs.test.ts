@@ -148,7 +148,7 @@ describe("generated autonomy CLI references", () => {
       "--mcp-server",
       "--workspace-path",
       "--channel",
-      "--environment-profile",
+      "--sandbox-profile",
     ]);
   });
 });

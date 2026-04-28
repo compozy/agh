@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that session resume correctly restores environment metadata and passes it to the local provider's Prepare method, then the session works normally.
+Verify that session resume correctly restores sandbox metadata and passes it to the local provider's Prepare method, then the session works normally.
 
 ---
 
@@ -21,7 +21,7 @@ Verify that session resume correctly restores environment metadata and passes it
    - **Expected:** Session stopped, metadata persisted
 
 2. **Resume session**
-   - **Expected:** Environment metadata restored, local provider Prepare called with prior EnvironmentID (no-op for local), session runs normally
+   - **Expected:** Environment metadata restored, local provider Prepare called with prior SandboxID (no-op for local), session runs normally
 
 3. **Verify resumed session can prompt and file IO**
    - **Expected:** ACP communication works, file operations work

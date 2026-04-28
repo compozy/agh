@@ -1,4 +1,4 @@
-## TC-FUNC-015: Session resume restores environment metadata
+## TC-FUNC-015: Session resume restores sandbox metadata
 
 **Priority:** P0 (Critical)
 **Type:** Functional
@@ -11,13 +11,13 @@
 
 ### Objective
 
-Verify that on session resume, `SessionEnvironmentMeta` is correctly restored and passed to `Provider.Prepare()` with `EnvironmentID`, `InstanceID`, and `ProviderState` to enable sandbox reattachment.
+Verify that on session resume, `SessionSandboxMeta` is correctly restored and passed to `Provider.Prepare()` with `SandboxID`, `InstanceID`, and `ProviderState` to enable sandbox reattachment.
 
 ---
 
 ### Preconditions
 
-- [x] Session previously created with environment metadata persisted
+- [x] Session previously created with sandbox metadata persisted
 - [x] Session in resumable state
 
 ---
@@ -25,10 +25,10 @@ Verify that on session resume, `SessionEnvironmentMeta` is correctly restored an
 ### Test Steps
 
 1. **Create session, stop it, then resume**
-   - **Expected:** `PrepareRequest` on resume includes `EnvironmentID` from original session, `InstanceID` from prior Prepare, `ProviderState` from prior persist
+   - **Expected:** `PrepareRequest` on resume includes `SandboxID` from original session, `InstanceID` from prior Prepare, `ProviderState` from prior persist
 
 2. **Verify provider reattaches (not creates new)**
    - **Expected:** Mock provider receives non-empty `InstanceID`, indicating reattach rather than fresh create
 
-3. **Verify environment state transitions**
+3. **Verify sandbox state transitions**
    - **Expected:** State goes from stopped -> creating -> prepared -> running

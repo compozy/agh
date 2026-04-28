@@ -15,7 +15,7 @@ Introduce a shared runtime process registry and scoped interrupt model for long-
 
 <critical>
 - ALWAYS READ `_techspec.md`, ADR-001, ADR-004, and task_01 outputs before changing subprocess ownership
-- DO NOT put the registry inside `session.Manager` or `environment.ToolHost`; use a shared runtime package
+- DO NOT put the registry inside `session.Manager` or `sandbox.ToolHost`; use a shared runtime package
 - DO NOT kill by PID alone; validate ownership and process start time before signaling recovered processes
 - DO NOT introduce fire-and-forget goroutines for process watching
 - Interrupts must be scoped and auditable, not a blanket session reset
@@ -47,7 +47,7 @@ The registry should be a small runtime package imported by owners that launch to
 - `internal/acp/launcher.go` - ACP subprocess launch integration
 - `internal/acp/launcher_tool_host.go` - ACP tool-host process ownership
 - `internal/acp/handlers.go` - interrupt and tool-call handling
-- `internal/environment/types.go` - environment tool process ownership
+- `internal/sandbox/types.go` - environment tool process ownership
 - `internal/hooks/executor_subprocess.go` - hook subprocess integration
 - `internal/extension/host_api.go` - extension host process integration
 - `internal/subprocess/` - shared subprocess helpers

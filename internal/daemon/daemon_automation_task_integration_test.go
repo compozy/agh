@@ -408,8 +408,8 @@ func registerAutomationPromptArtifacts(
 		if err := harness.CaptureSessionEvents(ctx, runs[0].SessionID); err != nil {
 			t.Logf("CaptureSessionEvents(%q) error = %v", runs[0].SessionID, err)
 		}
-		if err := harness.CaptureSessionEnvironment(ctx, runs[0].SessionID); err != nil {
-			t.Logf("CaptureSessionEnvironment(%q) error = %v", runs[0].SessionID, err)
+		if err := harness.CaptureSessionSandbox(ctx, runs[0].SessionID); err != nil {
+			t.Logf("CaptureSessionSandbox(%q) error = %v", runs[0].SessionID, err)
 		}
 		if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
 			t.Logf("CaptureMockAgentDiagnostics() error = %v", err)
@@ -447,8 +447,8 @@ func registerAutomationTaskArtifacts(
 			if err := harness.CaptureSessionEvents(ctx, sessionID); err != nil {
 				t.Logf("CaptureSessionEvents(%q) error = %v", sessionID, err)
 			}
-			if err := harness.CaptureSessionEnvironment(ctx, sessionID); err != nil {
-				t.Logf("CaptureSessionEnvironment(%q) error = %v", sessionID, err)
+			if err := harness.CaptureSessionSandbox(ctx, sessionID); err != nil {
+				t.Logf("CaptureSessionSandbox(%q) error = %v", sessionID, err)
 			}
 		}
 		if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {

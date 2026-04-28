@@ -4,6 +4,7 @@ export { BentoSection } from "./bento-section";
 export { SupportedAgents } from "./supported-agents";
 export { NetworkSection } from "./network-section";
 export { RuntimeSection } from "./runtime-section";
+export { SandboxSection } from "./sandbox-section";
 export { BridgesSection } from "./bridges-section";
 export { ExtensibilitySection } from "./extensibility-section";
 export { InstallSection } from "./install-section";

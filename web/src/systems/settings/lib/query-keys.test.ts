@@ -18,17 +18,12 @@ describe("settingsKeys", () => {
     expect(settingsKeys.providersList()).toEqual(["settings", "collection", "providers", "list"]);
   });
 
-  it("isolates environments and hooks collection keys", () => {
-    expect(settingsKeys.environmentsList()).toEqual([
+  it("isolates sandboxes and hooks collection keys", () => {
+    expect(settingsKeys.sandboxesList()).toEqual(["settings", "collection", "sandboxes", "list"]);
+    expect(settingsKeys.sandboxDetail("prod")).toEqual([
       "settings",
       "collection",
-      "environments",
-      "list",
-    ]);
-    expect(settingsKeys.environmentDetail("prod")).toEqual([
-      "settings",
-      "collection",
-      "environments",
+      "sandboxes",
       "detail",
       "prod",
     ]);

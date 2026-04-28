@@ -41,23 +41,23 @@ type hookRuntime interface {
 	) (hookspkg.SessionPostResumePayload, error)
 	DispatchSessionPreStop(context.Context, hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error)
 	DispatchSessionPostStop(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
-	DispatchEnvironmentPrepare(
+	DispatchSandboxPrepare(
 		context.Context,
-		hookspkg.EnvironmentPreparePayload,
-	) (hookspkg.EnvironmentPreparePayload, error)
-	DispatchEnvironmentReady(
+		hookspkg.SandboxPreparePayload,
+	) (hookspkg.SandboxPreparePayload, error)
+	DispatchSandboxReady(
 		context.Context,
-		hookspkg.EnvironmentReadyPayload,
-	) (hookspkg.EnvironmentReadyPayload, error)
-	DispatchEnvironmentSyncBefore(
+		hookspkg.SandboxReadyPayload,
+	) (hookspkg.SandboxReadyPayload, error)
+	DispatchSandboxSyncBefore(
 		context.Context,
-		hookspkg.EnvironmentSyncBeforePayload,
-	) (hookspkg.EnvironmentSyncBeforePayload, error)
-	DispatchEnvironmentSyncAfter(
+		hookspkg.SandboxSyncBeforePayload,
+	) (hookspkg.SandboxSyncBeforePayload, error)
+	DispatchSandboxSyncAfter(
 		context.Context,
-		hookspkg.EnvironmentSyncAfterPayload,
-	) (hookspkg.EnvironmentSyncAfterPayload, error)
-	DispatchEnvironmentStop(context.Context, hookspkg.EnvironmentStopPayload) (hookspkg.EnvironmentStopPayload, error)
+		hookspkg.SandboxSyncAfterPayload,
+	) (hookspkg.SandboxSyncAfterPayload, error)
+	DispatchSandboxStop(context.Context, hookspkg.SandboxStopPayload) (hookspkg.SandboxStopPayload, error)
 	DispatchInputPreSubmit(context.Context, hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error)
 	DispatchPromptPostAssemble(context.Context, hookspkg.PromptPayload) (hookspkg.PromptPayload, error)
 	DispatchEventPreRecord(context.Context, hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error)
@@ -309,7 +309,7 @@ type hooksNotifier struct {
 
 var _ session.Notifier = (*hooksNotifier)(nil)
 var _ session.LifecycleHooks = (*hooksNotifier)(nil)
-var _ session.EnvironmentHooks = (*hooksNotifier)(nil)
+var _ session.SandboxHooks = (*hooksNotifier)(nil)
 var _ session.PromptHooks = (*hooksNotifier)(nil)
 var _ session.EventHooks = (*hooksNotifier)(nil)
 var _ session.AgentHooks = (*hooksNotifier)(nil)
@@ -318,7 +318,7 @@ var _ session.CompactionHooks = (*hooksNotifier)(nil)
 var _ session.SpawnHooks = (*hooksNotifier)(nil)
 var _ taskpkg.RunHookDispatcher = (*hooksNotifier)(nil)
 var _ session.AgentEventNotifier = (*hooksNotifier)(nil)
-var _ session.EnvironmentLifecycleNotifier = (*hooksNotifier)(nil)
+var _ session.SandboxLifecycleNotifier = (*hooksNotifier)(nil)
 
 func newHooksNotifier(logger *slog.Logger, now func() time.Time) *hooksNotifier {
 	if logger == nil {
@@ -446,68 +446,68 @@ func (n *hooksNotifier) DispatchSessionPostStop(
 	)
 }
 
-func (n *hooksNotifier) DispatchEnvironmentPrepare(
+func (n *hooksNotifier) DispatchSandboxPrepare(
 	ctx context.Context,
-	payload hookspkg.EnvironmentPreparePayload,
-) (hookspkg.EnvironmentPreparePayload, error) {
+	payload hookspkg.SandboxPreparePayload,
+) (hookspkg.SandboxPreparePayload, error) {
 	return dispatchRuntime(
 		ctx,
 		n,
-		hookspkg.HookEnvironmentPrepare,
+		hookspkg.HookSandboxPrepare,
 		payload,
-		hookRuntime.DispatchEnvironmentPrepare,
+		hookRuntime.DispatchSandboxPrepare,
 	)
 }
 
-func (n *hooksNotifier) DispatchEnvironmentReady(
+func (n *hooksNotifier) DispatchSandboxReady(
 	ctx context.Context,
-	payload hookspkg.EnvironmentReadyPayload,
-) (hookspkg.EnvironmentReadyPayload, error) {
+	payload hookspkg.SandboxReadyPayload,
+) (hookspkg.SandboxReadyPayload, error) {
 	return dispatchRuntime(
 		ctx,
 		n,
-		hookspkg.HookEnvironmentReady,
+		hookspkg.HookSandboxReady,
 		payload,
-		hookRuntime.DispatchEnvironmentReady,
+		hookRuntime.DispatchSandboxReady,
 	)
 }
 
-func (n *hooksNotifier) DispatchEnvironmentSyncBefore(
+func (n *hooksNotifier) DispatchSandboxSyncBefore(
 	ctx context.Context,
-	payload hookspkg.EnvironmentSyncBeforePayload,
-) (hookspkg.EnvironmentSyncBeforePayload, error) {
+	payload hookspkg.SandboxSyncBeforePayload,
+) (hookspkg.SandboxSyncBeforePayload, error) {
 	return dispatchRuntime(
 		ctx,
 		n,
-		hookspkg.HookEnvironmentSyncBefore,
+		hookspkg.HookSandboxSyncBefore,
 		payload,
-		hookRuntime.DispatchEnvironmentSyncBefore,
+		hookRuntime.DispatchSandboxSyncBefore,
 	)
 }
 
-func (n *hooksNotifier) DispatchEnvironmentSyncAfter(
+func (n *hooksNotifier) DispatchSandboxSyncAfter(
 	ctx context.Context,
-	payload hookspkg.EnvironmentSyncAfterPayload,
-) (hookspkg.EnvironmentSyncAfterPayload, error) {
+	payload hookspkg.SandboxSyncAfterPayload,
+) (hookspkg.SandboxSyncAfterPayload, error) {
 	return dispatchRuntime(
 		ctx,
 		n,
-		hookspkg.HookEnvironmentSyncAfter,
+		hookspkg.HookSandboxSyncAfter,
 		payload,
-		hookRuntime.DispatchEnvironmentSyncAfter,
+		hookRuntime.DispatchSandboxSyncAfter,
 	)
 }
 
-func (n *hooksNotifier) DispatchEnvironmentStop(
+func (n *hooksNotifier) DispatchSandboxStop(
 	ctx context.Context,
-	payload hookspkg.EnvironmentStopPayload,
-) (hookspkg.EnvironmentStopPayload, error) {
+	payload hookspkg.SandboxStopPayload,
+) (hookspkg.SandboxStopPayload, error) {
 	return dispatchRuntime(
 		ctx,
 		n,
-		hookspkg.HookEnvironmentStop,
+		hookspkg.HookSandboxStop,
 		payload,
-		hookRuntime.DispatchEnvironmentStop,
+		hookRuntime.DispatchSandboxStop,
 	)
 }
 
@@ -968,10 +968,10 @@ func (n *hooksNotifier) OnAgentEventForSession(ctx context.Context, sess *sessio
 	n.dispatchAgentEvent(ctx, hookSessionContext(sess), event)
 }
 
-func (n *hooksNotifier) OnEnvironmentLifecycleEvent(ctx context.Context, event session.EnvironmentLifecycleEvent) {
+func (n *hooksNotifier) OnSandboxLifecycleEvent(ctx context.Context, event session.SandboxLifecycleEvent) {
 	_, agentEventNotify := n.runtime()
-	if notifier, ok := agentEventNotify.(session.EnvironmentLifecycleNotifier); ok {
-		notifier.OnEnvironmentLifecycleEvent(ctx, event)
+	if notifier, ok := agentEventNotify.(session.SandboxLifecycleNotifier); ok {
+		notifier.OnSandboxLifecycleEvent(ctx, event)
 	}
 }
 

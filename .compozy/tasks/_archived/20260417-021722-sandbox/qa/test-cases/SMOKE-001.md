@@ -10,7 +10,7 @@
 
 ### Objective
 
-Verify the full build gate (`make verify`) passes with zero warnings and zero errors, confirming that the environment abstraction feature compiles, lints, and tests cleanly.
+Verify the full build gate (`make verify`) passes with zero warnings and zero errors, confirming that the sandbox abstraction feature compiles, lints, and tests cleanly.
 
 ---
 
@@ -31,7 +31,7 @@ Verify the full build gate (`make verify`) passes with zero warnings and zero er
    - **Expected:** `golangci-lint` reports 0 issues
 
 3. **Verify test count includes environment packages**
-   - **Expected:** Test output includes `internal/environment`, `internal/environment/local`, `internal/session`, `internal/daemon` packages
+   - **Expected:** Test output includes `internal/sandbox`, `internal/sandbox/local`, `internal/session`, `internal/daemon` packages
 
 ---
 

@@ -19,7 +19,7 @@ Verify that every explicit session create/read surface agrees on provider reques
 
 ### Preconditions
 
-- [ ] HTTP, UDS, CLI, and Host API surfaces are available in the execution environment.
+- [ ] HTTP, UDS, CLI, and Host API surfaces are available in the execution sandbox.
 - [ ] One canonical workspace and agent fixture can be used across all surfaces.
 - [ ] Provider `B` is valid in the chosen workspace.
 

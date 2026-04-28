@@ -204,7 +204,7 @@ Add or extend:
 - `internal/acp`, `internal/session`, `internal/subprocess`, `internal/procutil`
 - `internal/automation`, `internal/config/automation.go`
 - `internal/config/provider.go`, `internal/config/mcp_resource.go`, `internal/skills`
-- `internal/tools`, `internal/hooks`, `internal/environment`, `internal/extension`
+- `internal/tools`, `internal/hooks`, `internal/sandbox`, `internal/extension`
 - `internal/memory`, `internal/cli/memory.go`, `internal/cli/observe.go`
 - `internal/cli/root.go`, `internal/cli/install.go`, `internal/cli/extension.go`
 - `.goreleaser.yml`

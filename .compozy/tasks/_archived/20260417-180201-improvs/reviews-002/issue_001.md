@@ -62,4 +62,4 @@ failures from affecting empty-state ListActivations.
 - Root cause: `ListActivations` always preloads bundle resources immediately after listing activations, so an empty activation set can still fail when `ListBundleResources` is unavailable.
 - Fix plan: return early when `len(activations) == 0` and add a regression test that verifies an empty-state listing does not depend on bundle-resource loading.
 - Resolution: `ListActivations` now returns an empty slice before loading bundle resources, and `TestServiceListActivationsReturnsEmptyWithoutLoadingBundleResources` covers the empty-state regression.
-- Verification: `go test ./internal/bundles ./internal/environment/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.
+- Verification: `go test ./internal/bundles ./internal/sandbox/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.

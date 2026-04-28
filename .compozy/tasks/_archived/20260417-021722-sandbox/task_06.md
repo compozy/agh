@@ -13,7 +13,7 @@ dependencies:
 
 ## Overview
 
-Implement the Daytona provider with SSH transport, tar-first filesystem sync, snapshot-aware sandbox creation, and full lifecycle management. This is the first remote execution environment, proving the entire abstraction layer works end-to-end: sandbox provisioning via Daytona SDK, ACP agent launch over SSH, file IO via SDK point operations, workspace sync via tar-over-SSH (copy-on-start/collect-on-stop), and cleanup. Includes E2E integration tests.
+Implement the Daytona provider with SSH transport, tar-first filesystem sync, snapshot-aware sandbox creation, and full lifecycle management. This is the first remote execution sandbox, proving the entire abstraction layer works end-to-end: sandbox provisioning via Daytona SDK, ACP agent launch over SSH, file IO via SDK point operations, workspace sync via tar-over-SSH (copy-on-start/collect-on-stop), and cleanup. Includes E2E integration tests.
 
 <critical>
 - ALWAYS READ the PRD and TechSpec before starting
@@ -30,8 +30,8 @@ Implement the Daytona provider with SSH transport, tar-first filesystem sync, sn
 - MUST implement SSH token management: fetch via REST API, persist expiry, proactive refresh at 50% expiry, and retry once on auth failure with a fresh token
 - MUST implement SSH keepalive (30s interval)
 - MUST implement `daytonaProvider` fulfilling `Provider` interface
-- MUST implement `Prepare()`: create or reattach sandbox via Daytona Go SDK using `EnvironmentID`, `InstanceID`, and `ProviderState`
-- MUST attach AGH labels/tags (`agh_session_id`, `agh_environment_id`) during sandbox creation
+- MUST implement `Prepare()`: create or reattach sandbox via Daytona Go SDK using `SandboxID`, `InstanceID`, and `ProviderState`
+- MUST attach AGH labels/tags (`agh_session_id`, `agh_sandbox_id`) during sandbox creation
 - MUST support `DaytonaProfile.Snapshot` as first-class startup input; `snapshot` wins over `image`
 - MUST implement `SyncToRuntime()`: stream workspace `RootDir` + `AdditionalDirs` as tar archives over separate short-lived SSH sessions
 - MUST implement `SyncFromRuntime()`: stream runtime roots back as tar archives over separate short-lived SSH sessions and apply last-write-wins locally
@@ -54,7 +54,7 @@ Implement the Daytona provider with SSH transport, tar-first filesystem sync, sn
 - [ ] 6.3 Implement `daytonaProvider` with snapshot-aware sandbox lifecycle (create/start/stop/archive/delete) and AGH labels/tags
 - [ ] 6.4 Implement workspace sync via tar-over-SSH for root + additional dirs
 - [ ] 6.5 Implement `daytonaLauncher` and `daytonaToolHost`
-- [ ] 6.6 Add env var allowlist filtering for sandbox env propagation
+- [ ] 6.6 Add environment variable allowlist filtering for sandbox process environment propagation
 - [ ] 6.7 Write E2E integration tests for full Daytona session lifecycle
 
 ## Implementation Details
@@ -63,16 +63,16 @@ See TechSpec sections: "Integration Points — Daytona Go SDK", "Integration Poi
 
 ### Relevant Files
 
-- `internal/environment/daytona/transport.go` — Transport interface + `sshTransport` (to create)
-- `internal/environment/daytona/ssh.go` — SSH connection and token management (to create)
-- `internal/environment/daytona/provider.go` — `daytonaProvider` implementation (to create)
-- `internal/environment/daytona/launcher.go` — `daytonaLauncher` (to create)
-- `internal/environment/daytona/tool_host.go` — `daytonaToolHost` (to create)
-- `internal/environment/daytona/sync.go` — Tar-over-SSH workspace sync logic (to create)
-- `internal/environment/daytona/tar.go` — Archive creation/extraction and safety validation (to create, or folded into sync package if simpler)
-- `internal/environment/daytona/env.go` — Env var allowlist filtering (to create)
-- `internal/environment/types.go` — Interfaces to implement (from task 01)
-- `internal/environment/registry.go` — Register `daytona` backend (from task 03)
+- `internal/sandbox/daytona/transport.go` — Transport interface + `sshTransport` (to create)
+- `internal/sandbox/daytona/ssh.go` — SSH connection and token management (to create)
+- `internal/sandbox/daytona/provider.go` — `daytonaProvider` implementation (to create)
+- `internal/sandbox/daytona/launcher.go` — `daytonaLauncher` (to create)
+- `internal/sandbox/daytona/tool_host.go` — `daytonaToolHost` (to create)
+- `internal/sandbox/daytona/sync.go` — Tar-over-SSH workspace sync logic (to create)
+- `internal/sandbox/daytona/tar.go` — Archive creation/extraction and safety validation (to create, or folded into sync package if simpler)
+- `internal/sandbox/daytona/env.go` — Env var allowlist filtering (to create)
+- `internal/sandbox/types.go` — Interfaces to implement (from task 01)
+- `internal/sandbox/registry.go` — Register `daytona` backend (from task 03)
 
 ### Dependent Files
 
@@ -87,7 +87,7 @@ See TechSpec sections: "Integration Points — Daytona Go SDK", "Integration Poi
 
 ## Deliverables
 
-- `internal/environment/daytona/` package with all files listed above
+- `internal/sandbox/daytona/` package with all files listed above
 - Daytona provider registered in provider registry
 - `go.mod` updated with `golang.org/x/crypto/ssh` and Daytona SDK
 - Tar sync implementation using Go standard library `archive/tar`
@@ -101,9 +101,9 @@ See TechSpec sections: "Integration Points — Daytona Go SDK", "Integration Poi
   - [ ] `sshTransport.Dial` fails with invalid token and returns error
   - [ ] SSH token refresh triggers before 50% expiry
   - [ ] SSH auth failure triggers one forced token refresh and retry
-  - [ ] `daytonaProvider.Prepare` creates sandbox with `agh_session_id` and `agh_environment_id` labels/tags and returns correct runtime paths
+  - [ ] `daytonaProvider.Prepare` creates sandbox with `agh_session_id` and `agh_sandbox_id` labels/tags and returns correct runtime paths
   - [ ] `daytonaProvider.Prepare` uses snapshot when configured and falls back to image only when snapshot is empty
-  - [ ] `daytonaProvider.Prepare` with `EnvironmentID`/`InstanceID`/`ProviderState` reattaches to existing sandbox
+  - [ ] `daytonaProvider.Prepare` with `SandboxID`/`InstanceID`/`ProviderState` reattaches to existing sandbox
   - [ ] `daytonaProvider.SyncToRuntime` writes tar streams for root + additional dirs over separate SSH sessions
   - [ ] `daytonaProvider.SyncFromRuntime` reads tar streams and applies local last-write-wins updates
   - [ ] Tar extraction rejects absolute paths, `..`, symlink escapes, and unsupported file modes

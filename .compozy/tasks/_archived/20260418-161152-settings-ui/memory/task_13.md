@@ -17,7 +17,7 @@ type: project
 - Scope switch is a chip row (Global + one chip per workspace). Switching scope resets the editor/delete state and calls `selectWorkspace(id)` / `selectGlobal()` on the hook.
 - Target selector in the editor dialog is an explicit `<select>` rather than segmented buttons. Availability derives from `entry.source_metadata.available_targets` filtered through the current scope.
 - Delete dialog has its own target selector + an inline preview of the effective source and the first shadowed source (or a "no other sources" note) so operators see what becomes effective after delete.
-- `MCPEditorState` and `MCPDeleteState` are tagged unions like the providers/environments pattern; the editor state carries a `target: SettingsMCPServerTarget` field so the UI can pre-select `auto` and let operators override per-save.
+- `MCPEditorState` and `MCPDeleteState` are tagged unions like the providers/sandboxes pattern; the editor state carries a `target: SettingsMCPServerTarget` field so the UI can pre-select `auto` and let operators override per-save.
 - New-server flows default `target="auto"` (backend interprets this as "write to sidecar by default"), matching the TechSpec collection mutation semantics.
 - "Last action" banner surfaces the `write_target` (mapped to short labels like `GLOBAL MCP` / `WS CFG`) plus a `remainingShadowed` count so the operator can tell whether lower-precedence definitions will become effective on reload.
 

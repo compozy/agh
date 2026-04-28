@@ -11,13 +11,13 @@
 
 ### Objective
 
-Verify that `startSession()` persists `SessionEnvironmentMeta` with `State = "creating"` before calling `Provider.Prepare()`. This ensures recovery is possible if Prepare fails or times out.
+Verify that `startSession()` persists `SessionSandboxMeta` with `State = "creating"` before calling `Provider.Prepare()`. This ensures recovery is possible if Prepare fails or times out.
 
 ---
 
 ### Preconditions
 
-- [x] Session environment columns exist in sessions table
+- [x] Session sandbox columns exist in sessions table
 - [x] Provider.Prepare can be intercepted/mocked
 
 ---
@@ -25,7 +25,7 @@ Verify that `startSession()` persists `SessionEnvironmentMeta` with `State = "cr
 ### Test Steps
 
 1. **Create session and inspect metadata before Prepare completes**
-   - **Expected:** `SessionEnvironmentMeta.State == "creating"`, `EnvironmentID` non-empty, `Backend` matches resolved profile
+   - **Expected:** `SessionSandboxMeta.State == "creating"`, `SandboxID` non-empty, `Backend` matches resolved profile
 
 2. **Simulate Prepare failure**
    - Input: Mock provider that returns error from Prepare

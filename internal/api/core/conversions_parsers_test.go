@@ -61,8 +61,8 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			CrashBundlePath: "/tmp/agh-crash.json",
 		},
 		ACPSessionID: "acp-123",
-		Environment: &store.SessionEnvironmentMeta{
-			EnvironmentID: "env-1",
+		Sandbox: &store.SessionSandboxMeta{
+			SandboxID:     "env-1",
 			Backend:       "local",
 			Profile:       "local",
 			State:         "prepared",
@@ -121,16 +121,16 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
 		t.Fatalf("caps = %#v", payload.ACPCaps)
 	}
-	if payload.Environment == nil || payload.Environment.EnvironmentID != "env-1" ||
-		payload.Environment.Backend != "local" ||
-		payload.Environment.Profile != "local" ||
-		payload.Environment.State != "prepared" ||
-		payload.Environment.InstanceID != "instance-1" ||
-		payload.Environment.LastSyncError != "sync failed" {
-		t.Fatalf("environment = %#v", payload.Environment)
+	if payload.Sandbox == nil || payload.Sandbox.SandboxID != "env-1" ||
+		payload.Sandbox.Backend != "local" ||
+		payload.Sandbox.Profile != "local" ||
+		payload.Sandbox.State != "prepared" ||
+		payload.Sandbox.InstanceID != "instance-1" ||
+		payload.Sandbox.LastSyncError != "sync failed" {
+		t.Fatalf("sandbox = %#v", payload.Sandbox)
 	}
-	if payload.Environment.ProviderStateJSON != nil {
-		t.Fatalf("environment provider state = %s, want omitted", string(payload.Environment.ProviderStateJSON))
+	if payload.Sandbox.ProviderStateJSON != nil {
+		t.Fatalf("sandbox provider state = %s, want omitted", string(payload.Sandbox.ProviderStateJSON))
 	}
 }
 

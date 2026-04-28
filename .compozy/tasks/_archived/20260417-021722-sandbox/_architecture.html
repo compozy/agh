@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AGH Sandbox — Execution Environment Architecture</title>
+    <title>AGH Sandbox — Execution Sandbox Architecture</title>
     <link
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
@@ -137,7 +137,7 @@
       <div class="header">
         <div class="header-row">
           <div class="pulse-dot"></div>
-          <h1>AGH Sandbox — Execution Environment Architecture</h1>
+          <h1>AGH Sandbox — Execution Sandbox Architecture</h1>
         </div>
         <p class="subtitle">
           Provider abstraction for local + Daytona ACP runtimes · techspec-based view
@@ -274,7 +274,7 @@
             marker-end="url(#arrowhead-cyan)"
           />
 
-          <!-- Session Manager → Extension Hooks (dispatch environment.*) -->
+          <!-- Session Manager → Extension Hooks (dispatch sandbox.*) -->
           <line
             x1="420"
             y1="195"
@@ -286,7 +286,7 @@
             marker-end="url(#arrowhead)"
           />
           <text x="600" y="188" fill="#94a3b8" font-size="8" text-anchor="middle">
-            dispatch environment.*
+            dispatch sandbox.*
           </text>
 
           <!-- Session Manager → Provider interface (Prepare/Sync/Destroy lifecycle) -->
@@ -473,7 +473,7 @@
             Create → Prepare → Start → Sync → Destroy
           </text>
           <text x="275" y="222" fill="#34d399" font-size="8" text-anchor="middle">
-            persists SessionEnvironmentMeta
+            persists SessionSandboxMeta
           </text>
 
           <!-- Workspace Resolver -->
@@ -495,7 +495,7 @@
             internal/workspace
           </text>
           <text x="620" y="210" fill="#94a3b8" font-size="8" text-anchor="middle">
-            EnvironmentRef → Resolved profile
+            SandboxRef → Resolved profile
           </text>
           <text x="620" y="222" fill="#34d399" font-size="8" text-anchor="middle">
             local / daytona / e2b(future)
@@ -517,10 +517,10 @@
             Extension Hooks + Host API
           </text>
           <text x="990" y="194" fill="#94a3b8" font-size="8" text-anchor="middle">
-            environment.prepare · ready · sync.before/after · stop
+            sandbox.prepare · ready · sync.before/after · stop
           </text>
           <text x="990" y="207" fill="#94a3b8" font-size="8" text-anchor="middle">
-            Host API: environment/list · info · exec
+            Host API: sandbox/list · info · exec
           </text>
           <text x="990" y="222" fill="#fb7185" font-size="8" text-anchor="middle">
             sync hooks support Deny + env_overrides
@@ -566,7 +566,7 @@
             stroke-dasharray="8,4"
           />
           <text x="56" y="390" fill="#fbbf24" font-size="11" font-weight="600">
-            internal/environment/ — Provider Registry &amp; Abstractions
+            internal/sandbox/ — Provider Registry &amp; Abstractions
           </text>
 
           <!-- Interfaces row -->
@@ -668,7 +668,7 @@
             local · daytona · (e2b future)
           </text>
           <text x="1035" y="449" fill="#94a3b8" font-size="8" text-anchor="middle">
-            Defaults.Environment cascade
+            Defaults.Sandbox cascade
           </text>
 
           <!-- Local Provider container -->
@@ -683,7 +683,7 @@
             stroke-width="1.5"
           />
           <text x="86" y="510" fill="#34d399" font-size="11" font-weight="600">
-            Local Provider · internal/environment/local/
+            Local Provider · internal/sandbox/local/
           </text>
           <text x="86" y="524" fill="#94a3b8" font-size="8">
             Prepare/Sync/Destroy = no-op · preserves current AGH behavior
@@ -768,7 +768,7 @@
             stroke-width="1.5"
           />
           <text x="616" y="510" fill="#fbbf24" font-size="11" font-weight="600">
-            Daytona Provider · internal/environment/daytona/
+            Daytona Provider · internal/sandbox/daytona/
           </text>
           <text x="616" y="524" fill="#94a3b8" font-size="8">
             SDK lifecycle + SSH transport · copy-on-start / collect-on-stop sync
@@ -856,7 +856,7 @@
             → Resume token for reattach + orphan cleanup
           </text>
           <text x="880" y="712" fill="#94a3b8" font-size="8" text-anchor="middle">
-            SessionEnvironmentMeta persisted before sandbox create
+            SessionSandboxMeta persisted before sandbox create
           </text>
 
           <!-- =====================================================
@@ -1100,7 +1100,7 @@
             <li>• Permission approval <strong>stays daemon-local</strong></li>
             <li>• ToolHost enforces policy on runtime paths (no split-brain)</li>
             <li>• Allowlist env propagation · never leak <code>DAYTONA_API_KEY</code></li>
-            <li>• <code>environment.prepare</code> hook injects <code>env_overrides</code></li>
+            <li>• <code>sandbox.prepare</code> hook injects <code>env_overrides</code></li>
             <li>• Sync hooks support Deny + exclude_patterns</li>
             <li>• Network policy best-effort enforced per provider</li>
           </ul>
@@ -1112,11 +1112,11 @@
             <h3>Config &amp; Workspace Surface</h3>
           </div>
           <ul>
-            <li>• <code>Workspace.EnvironmentRef</code> → Config.Environments key</li>
-            <li>• Cascade: workspace → Defaults.Environment → <code>local</code></li>
-            <li>• CLI: <code>workspace add/edit --environment &lt;name&gt;</code></li>
+            <li>• <code>Workspace.SandboxRef</code> → Config.Sandboxes key</li>
+            <li>• Cascade: workspace → Defaults.Sandbox → <code>local</code></li>
+            <li>• CLI: <code>workspace add/edit --sandbox &lt;name&gt;</code></li>
             <li>• Session list/get/status expose backend + instance_id</li>
-            <li>• <code>SessionEnvironmentMeta</code> persisted in sessions table</li>
+            <li>• <code>SessionSandboxMeta</code> persisted in sessions table</li>
             <li>• No new fields on session create request</li>
           </ul>
         </div>

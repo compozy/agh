@@ -18,4 +18,4 @@ You set `Profile`, `State`, and `InstanceID` in the fixture but don’t assert t
 ## Triage
 
 - Decision: `VALID`
-- Notes: The fixture in `TestSessionPayloadFromInfo` sets `Profile`, `State`, and `InstanceID`, but the assertions only check a subset of the mapped environment fields. Adding explicit assertions closes a real regression gap in the conversion test.
+- Notes: The fixture in `TestSessionPayloadFromInfo` sets `Profile`, `State`, and `InstanceID`, but the assertions only check a subset of the mapped sandbox fields. Adding explicit assertions closes a real regression gap in the conversion test.

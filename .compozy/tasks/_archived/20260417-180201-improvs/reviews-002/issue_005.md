@@ -109,4 +109,4 @@ scenario inside its own t.Run closure to follow the test guidelines.
 - Root cause: two distinct failure-path checks live inline in a larger test body, which blurs the failing scenario and weakens the repo's preferred subtest structure for isolated cases.
 - Fix plan: wrap each `taskManagerAndActor` failure path in its own named `t.Run("Should...")` subtest while keeping the assertions unchanged.
 - Resolution: the two `taskManagerAndActor` failure paths now run as isolated named subtests, keeping the original assertions while making failures attributable to a single scenario.
-- Verification: `go test ./internal/bundles ./internal/environment/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.
+- Verification: `go test ./internal/bundles ./internal/sandbox/daytona ./internal/extension ./internal/tools` and `make verify` passed on 2026-04-17.

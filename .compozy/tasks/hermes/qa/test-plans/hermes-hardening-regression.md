@@ -92,7 +92,7 @@ Recommended commands:
 
 Recommended commands:
 
-- `go test ./internal/toolruntime ./internal/acp ./internal/hooks ./internal/extension ./internal/environment ./internal/subprocess`
+- `go test ./internal/toolruntime ./internal/acp ./internal/hooks ./internal/extension ./internal/sandbox ./internal/subprocess`
 - Manual restart/interruption flow with local and remote-terminal record variants.
 
 ### Memory Visibility

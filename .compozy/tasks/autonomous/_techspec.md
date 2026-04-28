@@ -312,7 +312,7 @@ Add typed payload/patch structs for autonomy events:
 
 **Permission narrowing**
 
-Spawn permission checks compare concrete atoms, not free-form text. The MVP atom space is tools, skills, MCP server IDs, workspace path grants, network channels, and environment profile grants. A child permission set must be a subset of the parent set. Unknown child atoms count as widening and reject the spawn. The daemon rejects invalid spawn requests; it must not silently narrow and continue.
+Spawn permission checks compare concrete atoms, not free-form text. The MVP atom space is tools, skills, MCP server IDs, workspace path grants, network channels, and sandbox profile grants. A child permission set must be a subset of the parent set. Unknown child atoms count as widening and reject the spawn. The daemon rejects invalid spawn requests; it must not silently narrow and continue.
 
 **TTL and active leases**
 

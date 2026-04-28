@@ -193,7 +193,7 @@ Collection resources:
 - `mcp-servers`
   - scoped collection with `scope`, optional `workspace_id`, effective precedence summary, `effective_source`, `shadowed_sources`, `available_targets`, and target file metadata
 - `environments`
-  - environment profiles with computed workspace usage counts
+  - sandbox profiles with computed workspace usage counts
 - `hooks`
   - hook declarations stored in canonical config overlays
 
@@ -214,8 +214,8 @@ Persistence targets:
 
 Collection mutation semantics:
 
-- `PUT /providers/:name`, `PUT /environments/:name`, and `PUT /hooks/:name` are full replacements of the named overlay entry in the selected canonical target.
-- `DELETE /providers/:name`, `DELETE /environments/:name`, and `DELETE /hooks/:name` remove only the selected overlay entry. When a builtin provider exists with the same name, deleting the overlay reveals the builtin definition again.
+- `PUT /providers/:name`, `PUT /sandboxes/:name`, and `PUT /hooks/:name` are full replacements of the named overlay entry in the selected canonical target.
+- `DELETE /providers/:name`, `DELETE /sandboxes/:name`, and `DELETE /hooks/:name` remove only the selected overlay entry. When a builtin provider exists with the same name, deleting the overlay reveals the builtin definition again.
 - `mcp-servers` accepts an explicit `target=auto|config|sidecar` selector. `target=auto` edits the highest-precedence source in the selected scope when the server already exists, and writes new servers to `mcp.json` by default.
 - `DELETE /mcp-servers/:name?target=auto` removes the highest-precedence definition in the selected scope only. Lower-precedence definitions may become effective again and must be reported as `shadowed_sources` in the next read model.
 
@@ -225,7 +225,7 @@ If a field does not have an explicit live-apply surface in this matrix, it defau
 
 | Section | Field or action | Behavior | Notes |
 |---------|-----------------|----------|-------|
-| `general` | `defaults.agent`, `defaults.provider`, `defaults.environment` | `restart_required` | default resolution remains tied to the daemon's loaded config snapshot in v1 |
+| `general` | `defaults.agent`, `defaults.provider`, `defaults.sandbox` | `restart_required` | default resolution remains tied to the daemon's loaded config snapshot in v1 |
 | `general` | `limits.max_sessions`, `limits.max_concurrent_agents` | `restart_required` | daemon-wide admission controls remain startup-configured |
 | `general` | `session.limits.timeout`, `permissions.mode` | `restart_required` | applies to future daemon activity after reload |
 | `general` | `http.host`, `http.port`, `daemon.socket` | `restart_required` | listener and socket rebinding require controlled restart |
@@ -272,10 +272,10 @@ Collection resources:
 - `GET /api/settings/mcp-servers?scope=global|workspace&workspace_id=...`
 - `PUT /api/settings/mcp-servers/:name?scope=global|workspace&workspace_id=...&target=auto|config|sidecar`
 - `DELETE /api/settings/mcp-servers/:name?scope=global|workspace&workspace_id=...&target=auto|config|sidecar`
-- `GET /api/settings/environments`
-- `GET /api/settings/environments/:name`
-- `PUT /api/settings/environments/:name`
-- `DELETE /api/settings/environments/:name`
+- `GET /api/settings/sandboxes`
+- `GET /api/settings/sandboxes/:name`
+- `PUT /api/settings/sandboxes/:name`
+- `DELETE /api/settings/sandboxes/:name`
 - `GET /api/settings/hooks`
 - `PUT /api/settings/hooks/:name`
 - `DELETE /api/settings/hooks/:name`

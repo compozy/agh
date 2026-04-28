@@ -105,17 +105,17 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		descriptor.PatchSchema != "AutomationObservationPatch" {
 		t.Fatalf("automation.run.failed descriptor = %#v, want automation async observation schema", descriptor)
 	}
-	if descriptor := byEvent[HookEnvironmentPrepare]; descriptor.Family != HookEventFamilyEnvironment ||
+	if descriptor := byEvent[HookSandboxPrepare]; descriptor.Family != HookEventFamilySandbox ||
 		!descriptor.SyncEligible ||
-		descriptor.PayloadSchema != "EnvironmentPreparePayload" ||
-		descriptor.PatchSchema != "EnvironmentPreparePatch" {
-		t.Fatalf("environment.prepare descriptor = %#v, want sync environment prepare descriptor", descriptor)
+		descriptor.PayloadSchema != "SandboxPreparePayload" ||
+		descriptor.PatchSchema != "SandboxPreparePatch" {
+		t.Fatalf("sandbox.prepare descriptor = %#v, want sync sandbox prepare descriptor", descriptor)
 	}
-	if descriptor := byEvent[HookEnvironmentSyncAfter]; descriptor.Family != HookEventFamilyEnvironment ||
+	if descriptor := byEvent[HookSandboxSyncAfter]; descriptor.Family != HookEventFamilySandbox ||
 		descriptor.SyncEligible ||
-		descriptor.PayloadSchema != "EnvironmentSyncAfterPayload" ||
-		descriptor.PatchSchema != "EnvironmentSyncAfterPatch" {
-		t.Fatalf("environment.sync.after descriptor = %#v, want async sync-after descriptor", descriptor)
+		descriptor.PayloadSchema != "SandboxSyncAfterPayload" ||
+		descriptor.PatchSchema != "SandboxSyncAfterPatch" {
+		t.Fatalf("sandbox.sync.after descriptor = %#v, want async sync-after descriptor", descriptor)
 	}
 	autonomyDescriptors := map[HookEvent]struct {
 		family  HookEventFamily

@@ -1,4 +1,4 @@
-## TC-FUNC-007: Missing EnvironmentRef resolves to local
+## TC-FUNC-007: Missing SandboxRef resolves to local
 
 **Priority:** P1 (High)
 **Type:** Functional
@@ -17,16 +17,16 @@ Verify that when neither workspace nor config defaults specify an environment, t
 
 ### Preconditions
 
-- [x] Workspace has no `EnvironmentRef`
-- [x] Config has no `Defaults.Environment`
+- [x] Workspace has no `SandboxRef`
+- [x] Config has no `Defaults.Sandbox`
 
 ---
 
 ### Test Steps
 
-1. **Resolve workspace with no environment reference**
-   - Input: Workspace with `EnvironmentRef = ""`, config with no default
-   - **Expected:** `ResolvedWorkspace.Environment.Backend == BackendLocal`, `SyncMode == SyncModeNone`, `Persistence == PersistenceTransient`
+1. **Resolve workspace with no sandbox reference**
+   - Input: Workspace with `SandboxRef = ""`, config with no default
+   - **Expected:** `ResolvedWorkspace.Sandbox.Backend == BackendLocal`, `SyncMode == SyncModeNone`, `Persistence == PersistenceTransient`
 
 2. **Verify local provider is used for session**
    - **Expected:** Session manager selects local provider from registry, Prepare is a no-op

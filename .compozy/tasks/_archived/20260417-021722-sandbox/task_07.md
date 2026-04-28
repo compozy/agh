@@ -1,17 +1,17 @@
 ---
 status: completed
-title: "Daemon restart environment cleanup"
+title: "Daemon restart sandbox cleanup"
 type: backend
 complexity: medium
 dependencies:
   - task_04
 ---
 
-# Task 07: Daemon restart environment cleanup
+# Task 07: Daemon restart sandbox cleanup
 
 ## Overview
 
-Add environment reconciliation to the daemon boot sequence so that orphaned or partially-created remote sandboxes from a prior crash/provider timeout are detected, reattached, or cleaned up. Without this, a daemon crash leaves billable Daytona sandboxes running indefinitely.
+Add sandbox reconciliation to the daemon boot sequence so that orphaned or partially-created remote sandboxes from a prior crash/provider timeout are detected, reattached, or cleaned up. Without this, a daemon crash leaves billable Daytona sandboxes running indefinitely.
 
 <critical>
 - ALWAYS READ the PRD and TechSpec before starting
@@ -22,10 +22,10 @@ Add environment reconciliation to the daemon boot sequence so that orphaned or p
 </critical>
 
 <requirements>
-- MUST add environment reconciliation step in `bootRuntime` after `cleanupOrphans`
-- MUST load persisted `SessionEnvironmentMeta` for all sessions with non-local backends
-- MUST attempt reattach via `Provider.Prepare()` with `EnvironmentID`, `InstanceID`, and `ProviderState` for sessions in non-terminal states
-- MUST list/find remote sandboxes by `agh_environment_id` when local metadata has `EnvironmentID` but no `InstanceID`
+- MUST add sandbox reconciliation step in `bootRuntime` after `cleanupOrphans`
+- MUST load persisted `SessionSandboxMeta` for all sessions with non-local backends
+- MUST attempt reattach via `Provider.Prepare()` with `SandboxID`, `InstanceID`, and `ProviderState` for sessions in non-terminal states
+- MUST list/find remote sandboxes by `agh_sandbox_id` when local metadata has `SandboxID` but no `InstanceID`
 - MUST reattach partial creates when the session is recoverable and destroy them when the session is unrecoverable
 - MUST call `Provider.Destroy()` for unrecoverable sandboxes and log the cleanup
 - MUST NOT block daemon boot if cleanup fails — log errors and continue
@@ -35,10 +35,10 @@ Add environment reconciliation to the daemon boot sequence so that orphaned or p
 
 ## Subtasks
 
-- [x] 7.1 Add environment reconciliation function to daemon boot
-- [x] 7.2 Load session environment metadata for non-local backends during boot
-- [x] 7.3 Attempt reattach for recoverable sessions, including partial creates found by `agh_environment_id`
-- [x] 7.4 Destroy unrecoverable or orphaned environments and log cleanup
+- [x] 7.1 Add sandbox reconciliation function to daemon boot
+- [x] 7.2 Load session sandbox metadata for non-local backends during boot
+- [x] 7.3 Attempt reattach for recoverable sessions, including partial creates found by `agh_sandbox_id`
+- [x] 7.4 Destroy unrecoverable or orphaned sandboxes and log cleanup
 - [x] 7.5 Add structured logging for all cleanup actions and errors
 
 ## Implementation Details
@@ -49,11 +49,11 @@ The reconciliation plugs into `bootRuntime` in `daemon/boot.go` after the existi
 
 ### Relevant Files
 
-- `internal/daemon/boot.go:274-288` — After `cleanupOrphans`, add environment cleanup
+- `internal/daemon/boot.go:274-288` — After `cleanupOrphans`, add sandbox cleanup
 - `internal/daemon/orphan.go` — Existing orphan cleanup pattern to follow
-- `internal/store/globaldb/global_db_session.go` — Load session environment metadata
-- `internal/environment/registry.go` — Lookup provider by backend name
-- `internal/environment/types.go` — `Provider.Prepare()` and `Provider.Destroy()` interfaces
+- `internal/store/globaldb/global_db_session.go` — Load session sandbox metadata
+- `internal/sandbox/registry.go` — Lookup provider by backend name
+- `internal/sandbox/types.go` — `Provider.Prepare()` and `Provider.Destroy()` interfaces
 
 ### Dependent Files
 
@@ -65,8 +65,8 @@ The reconciliation plugs into `bootRuntime` in `daemon/boot.go` after the existi
 
 ## Deliverables
 
-- Environment reconciliation function in daemon boot
-- Partial-create recovery by daemon-owned `EnvironmentID`
+- Sandbox reconciliation function in daemon boot
+- Partial-create recovery by daemon-owned `SandboxID`
 - Structured logging for all cleanup actions
 - Unit tests with >=80% coverage
 - Integration test simulating daemon crash with active remote sessions
@@ -75,8 +75,8 @@ The reconciliation plugs into `bootRuntime` in `daemon/boot.go` after the existi
 
 - Unit tests:
   - [x] Reconciliation with no remote sessions is a no-op
-  - [x] Reconciliation with recoverable remote session calls `Prepare` with `EnvironmentID`, `InstanceID`, and `ProviderState`
-  - [x] Reconciliation with partial create and no local `InstanceID` finds remote sandbox by `agh_environment_id`
+  - [x] Reconciliation with recoverable remote session calls `Prepare` with `SandboxID`, `InstanceID`, and `ProviderState`
+  - [x] Reconciliation with partial create and no local `InstanceID` finds remote sandbox by `agh_sandbox_id`
   - [x] Reconciliation with recoverable partial create attaches sandbox to session and persists returned `InstanceID`/`ProviderState`
   - [x] Reconciliation with unrecoverable partial create calls `Destroy` and logs cleanup
   - [x] Reconciliation with unrecoverable session calls `Destroy` and logs
@@ -84,8 +84,8 @@ The reconciliation plugs into `bootRuntime` in `daemon/boot.go` after the existi
   - [x] Reconciliation failure does not block daemon boot (returns nil, logs error)
   - [x] Reconciliation skips sessions with `backend=local`
 - Integration tests:
-  - [x] Simulate daemon restart with persisted `SessionEnvironmentMeta` for crashed active session — verify reattach via `Prepare` with `EnvironmentID`, `InstanceID`, and `ProviderState` is attempted
-  - [x] Simulate provider create succeeds remotely but times out locally — verify restart reconciliation finds sandbox by `agh_environment_id`
+  - [x] Simulate daemon restart with persisted `SessionSandboxMeta` for crashed active session — verify reattach via `Prepare` with `SandboxID`, `InstanceID`, and `ProviderState` is attempted
+  - [x] Simulate provider create succeeds remotely but times out locally — verify restart reconciliation finds sandbox by `agh_sandbox_id`
   - [x] Simulate daemon restart with unrecoverable sandbox (provider returns error) — verify `Destroy` is called and cleanup logged
   - [x] Simulate daemon restart with stopped session that has remote backend — verify no reattach attempted (terminal state)
 - Test coverage target: >=80%
@@ -96,5 +96,5 @@ The reconciliation plugs into `bootRuntime` in `daemon/boot.go` after the existi
 - All tests passing
 - Test coverage >=80%
 - `make verify` passes
-- Daemon boots successfully even when environment cleanup encounters errors
+- Daemon boots successfully even when sandbox cleanup encounters errors
 - Orphaned sandboxes are detected and cleanup is attempted

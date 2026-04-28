@@ -156,7 +156,7 @@ max_queue_depth = 12
 	})
 }
 
-func TestApplyConfigOverlayFileMergesEnvironmentProfiles(t *testing.T) {
+func TestApplyConfigOverlayFileMergesSandboxProfiles(t *testing.T) {
 	t.Parallel()
 
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -165,7 +165,7 @@ func TestApplyConfigOverlayFileMergesEnvironmentProfiles(t *testing.T) {
 	}
 
 	cfg := DefaultWithHome(homePaths)
-	cfg.Environments["daytona-dev"] = EnvironmentProfile{
+	cfg.Sandboxes["daytona-dev"] = SandboxProfile{
 		Backend:     "daytona",
 		SyncMode:    "session-bidirectional",
 		Persistence: "reuse",
@@ -189,16 +189,16 @@ func TestApplyConfigOverlayFileMergesEnvironmentProfiles(t *testing.T) {
 	overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
 	writeFile(t, overlayPath, `
 [defaults]
-environment = "daytona-dev"
+sandbox = "daytona-dev"
 
-[environments.daytona-dev]
+[sandboxes.daytona-dev]
 sync_mode = "none"
 
-[environments.daytona-dev.env]
+[sandboxes.daytona-dev.env]
 SHARED = "workspace"
 WORKSPACE_ONLY = "true"
 
-[environments.daytona-dev.daytona]
+[sandboxes.daytona-dev.daytona]
 snapshot = "snap-workspace"
 `)
 
@@ -206,15 +206,15 @@ snapshot = "snap-workspace"
 		t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 	}
 
-	profile := cfg.Environments["daytona-dev"]
-	if got, want := cfg.Defaults.Environment, "daytona-dev"; got != want {
-		t.Fatalf("Defaults.Environment = %q, want %q", got, want)
+	profile := cfg.Sandboxes["daytona-dev"]
+	if got, want := cfg.Defaults.Sandbox, "daytona-dev"; got != want {
+		t.Fatalf("Defaults.Sandbox = %q, want %q", got, want)
 	}
 	if profile.Backend != "daytona" || profile.Persistence != "reuse" || profile.RuntimeRoot != "/workspace" {
-		t.Fatalf("environment profile base fields not preserved: %#v", profile)
+		t.Fatalf("sandbox profile base fields not preserved: %#v", profile)
 	}
 	if profile.SyncMode != "none" {
-		t.Fatalf("environment SyncMode = %q, want none", profile.SyncMode)
+		t.Fatalf("sandbox SyncMode = %q, want none", profile.SyncMode)
 	}
 	if profile.Daytona.APIURL != "https://app.daytona.io/api" ||
 		profile.Daytona.Image != "ubuntu:24.04" ||

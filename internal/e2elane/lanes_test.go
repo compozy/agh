@@ -101,7 +101,7 @@ func TestPlanForLaneKeepsCredentialedNightlyOutOfPRRequiredEntryPoints(t *testin
 
 			for _, suite := range plan.GoSuites {
 				for _, pkg := range suite.Packages {
-					if pkg == "./internal/environment/daytona" {
+					if pkg == "./internal/sandbox/daytona" {
 						t.Fatalf("plan.GoSuites unexpectedly included nightly package %q", pkg)
 					}
 				}

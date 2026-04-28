@@ -63,7 +63,7 @@
     },
     {
       "status": 200,
-      "url": "http://127.0.0.1:3001/src/routes/_app/settings/environments.tsx"
+      "url": "http://127.0.0.1:3001/src/routes/_app/sandbox.tsx"
     },
     {
       "status": 200,

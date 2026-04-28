@@ -1044,8 +1044,8 @@ func TestStopManagedProcessRespectsContext(t *testing.T) {
 	})
 }
 
-func TestRegisterAgentProcessRetainsRegistryForPIDLessEnvironmentAgents(t *testing.T) {
-	t.Run("Should keep registry available for external environment terminal tracking", func(t *testing.T) {
+func TestRegisterAgentProcessRetainsRegistryForPIDLessSandboxAgents(t *testing.T) {
+	t.Run("Should keep registry available for external sandbox terminal tracking", func(t *testing.T) {
 		t.Parallel()
 
 		registry := toolruntime.NewRegistry(nil)

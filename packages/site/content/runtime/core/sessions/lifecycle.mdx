@@ -246,13 +246,13 @@ That durable store is what makes [resume](/runtime/core/sessions/resume), [event
 
 AGH records why a session exists:
 
-| Type     | Meaning                                                |
-| -------- | ------------------------------------------------------ |
-| `user`   | Normal interactive work created by a person or client. |
-| `dream`  | Background memory consolidation work.                  |
-| `system` | Internal AGH-managed work.                             |
+| Type          | Meaning                                                                  |
+| ------------- | ------------------------------------------------------------------------ |
+| `user`        | Normal interactive work created by a person or client.                   |
+| `dream`       | Background memory consolidation work.                                    |
+| `system`      | Internal AGH-managed work.                                               |
 | `coordinator` | Managed autonomy coordinator for workspace-scoped coordinated task runs. |
-| `spawned` | Child session created by an agent through safe spawn. |
+| `spawned`     | Child session created by an agent through safe spawn.                    |
 
 Dream sessions are special for permissions: they always start with `approve-all`.
 

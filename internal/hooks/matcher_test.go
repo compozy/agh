@@ -238,63 +238,63 @@ func TestHookMatcherMatchesAutomation(t *testing.T) {
 	}
 }
 
-func TestHookMatcherMatchesEnvironment(t *testing.T) {
+func TestHookMatcherMatchesSandbox(t *testing.T) {
 	t.Parallel()
 
 	prepareMatcher := HookMatcher{
-		AgentName:          "codex",
-		WorkspaceID:        "ws-1",
-		EnvironmentID:      "env-1",
-		EnvironmentBackend: "daytona",
-		EnvironmentProfile: "daytona-dev",
+		AgentName:      "codex",
+		WorkspaceID:    "ws-1",
+		SandboxID:      "env-1",
+		SandboxBackend: "daytona",
+		SandboxProfile: "daytona-dev",
 	}
-	if !prepareMatcher.MatchesEnvironmentPrepare(EnvironmentPreparePayload{
+	if !prepareMatcher.MatchesSandboxPrepare(SandboxPreparePayload{
 		SessionContext: SessionContext{
 			AgentName:   "codex",
 			WorkspaceID: "ws-1",
 		},
-		EnvironmentID: "env-1",
-		Backend:       "daytona",
-		Profile:       EnvironmentProfilePayload{Profile: "daytona-dev"},
+		SandboxID: "env-1",
+		Backend:   "daytona",
+		Profile:   SandboxProfilePayload{Profile: "daytona-dev"},
 	}) {
-		t.Fatal("MatchesEnvironmentPrepare() = false, want true")
+		t.Fatal("MatchesSandboxPrepare() = false, want true")
 	}
 	syncMatcher := prepareMatcher
 	syncMatcher.SyncDirection = "to_runtime"
-	if !syncMatcher.MatchesEnvironmentSyncBefore(EnvironmentSyncBeforePayload{
+	if !syncMatcher.MatchesSandboxSyncBefore(SandboxSyncBeforePayload{
 		SessionContext: SessionContext{
 			AgentName:   "codex",
 			WorkspaceID: "ws-1",
 		},
-		EnvironmentID: "env-1",
-		Backend:       "daytona",
-		Profile:       "daytona-dev",
-		Direction:     "to_runtime",
+		SandboxID: "env-1",
+		Backend:   "daytona",
+		Profile:   "daytona-dev",
+		Direction: "to_runtime",
 	}) {
-		t.Fatal("MatchesEnvironmentSyncBefore() = false, want true")
+		t.Fatal("MatchesSandboxSyncBefore() = false, want true")
 	}
-	if syncMatcher.MatchesEnvironmentSyncAfter(EnvironmentSyncAfterPayload{
+	if syncMatcher.MatchesSandboxSyncAfter(SandboxSyncAfterPayload{
 		SessionContext: SessionContext{
 			AgentName:   "codex",
 			WorkspaceID: "ws-1",
 		},
-		EnvironmentID: "env-1",
-		Backend:       "daytona",
-		Profile:       "daytona-dev",
-		Direction:     "from_runtime",
+		SandboxID: "env-1",
+		Backend:   "daytona",
+		Profile:   "daytona-dev",
+		Direction: "from_runtime",
 	}) {
-		t.Fatal("MatchesEnvironmentSyncAfter() = true, want false for direction mismatch")
+		t.Fatal("MatchesSandboxSyncAfter() = true, want false for direction mismatch")
 	}
-	if prepareMatcher.MatchesEnvironmentStop(EnvironmentStopPayload{
+	if prepareMatcher.MatchesSandboxStop(SandboxStopPayload{
 		SessionContext: SessionContext{
 			AgentName:   "codex",
 			WorkspaceID: "ws-1",
 		},
-		EnvironmentID: "env-2",
-		Backend:       "daytona",
-		Profile:       "daytona-dev",
+		SandboxID: "env-2",
+		Backend:   "daytona",
+		Profile:   "daytona-dev",
 	}) {
-		t.Fatal("MatchesEnvironmentStop() = true, want false for environment id mismatch")
+		t.Fatal("MatchesSandboxStop() = true, want false for sandbox id mismatch")
 	}
 }
 

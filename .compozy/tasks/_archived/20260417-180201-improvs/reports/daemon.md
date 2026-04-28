@@ -39,7 +39,7 @@ Output from `gocyclo $(rg --files internal/daemon -g '*.go' -g '!**/*_test.go' |
 | `internal/daemon/daemon.go` | 1111 | Core runtime state, option wiring, service factories, shutdown sequencing, and boundary helpers share one file. |
 | `internal/daemon/agent_skill_resources.go` | 977 | Agent/skill resource syncers, catalog lookup, declaration providers, projectors, and cloning helpers are tightly packed. |
 | `internal/daemon/tool_mcp_resources.go` | 731 | Shared resource catalogs, tool/MCP syncers, declaration providers, projectors, and clone helpers are co-located. |
-| `internal/daemon/environment_reconcile.go` | 587 | Boot-time environment reattachment, metadata scanning, session recovery, and cleanup policy are combined in one unit. |
+| `internal/daemon/sandbox_reconcile.go` | 587 | Boot-time environment reattachment, metadata scanning, session recovery, and cleanup policy are combined in one unit. |
 | `internal/daemon/bundle_resources.go` | 538 | Bundle publication, activation resources, and extension declaration harvesting share one file. |
 | `internal/daemon/task_runtime.go` | 426 | Task session bridging, stop semantics, recovery bookkeeping, and helper mappings are bundled together. |
 | `internal/daemon/hook_agent_events.go` | 337 | ACP agent-event normalization, JSON decoding, and permission/tool hook dispatch all live in one file. |

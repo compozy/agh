@@ -11,7 +11,7 @@
 
 ### Objective
 
-Verify that `Provider.Destroy()` is called when the environment profile has `Persistence = "transient"` (DestroyOnStop), and is NOT called when persistence is `"reuse"` or `"archive"`.
+Verify that `Provider.Destroy()` is called when the sandbox profile has `Persistence = "transient"` (DestroyOnStop), and is NOT called when persistence is `"reuse"` or `"archive"`.
 
 ---
 

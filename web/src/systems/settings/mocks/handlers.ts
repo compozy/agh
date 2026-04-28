@@ -3,8 +3,8 @@ import { http, HttpResponse, type HttpHandler } from "msw";
 import {
   settingsAppliedMutationFixture,
   settingsAutomationSectionFixture,
-  settingsEnvironmentsCollectionFixture,
-  settingsEnvironmentFixtures,
+  settingsSandboxesCollectionFixture,
+  settingsSandboxFixtures,
   settingsExtensionsCollectionFixture,
   settingsExtensionFixtures,
   settingsGeneralSectionFixture,
@@ -79,24 +79,22 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json(mutationResult("providers", true))
   ),
 
-  http.get("/api/settings/environments", () =>
-    HttpResponse.json(settingsEnvironmentsCollectionFixture)
-  ),
-  http.get("/api/settings/environments/:name", ({ params }) => {
+  http.get("/api/settings/sandboxes", () => HttpResponse.json(settingsSandboxesCollectionFixture)),
+  http.get("/api/settings/sandboxes/:name", ({ params }) => {
     const name = String(params.name);
-    const environment = settingsEnvironmentFixtures.find(entry => entry.name === name);
+    const sandbox = settingsSandboxFixtures.find(entry => entry.name === name);
 
-    if (!environment) {
-      return HttpResponse.json({ error: `Environment not found: ${name}` }, { status: 404 });
+    if (!sandbox) {
+      return HttpResponse.json({ error: `Sandbox not found: ${name}` }, { status: 404 });
     }
 
-    return HttpResponse.json({ environment });
+    return HttpResponse.json({ sandbox });
   }),
-  http.put("/api/settings/environments/:name", () =>
-    HttpResponse.json(mutationResult("environments", true))
+  http.put("/api/settings/sandboxes/:name", () =>
+    HttpResponse.json(mutationResult("sandboxes", true))
   ),
-  http.delete("/api/settings/environments/:name", () =>
-    HttpResponse.json(mutationResult("environments", true))
+  http.delete("/api/settings/sandboxes/:name", () =>
+    HttpResponse.json(mutationResult("sandboxes", true))
   ),
 
   http.get("/api/settings/hooks", () => HttpResponse.json(settingsHooksCollectionFixture)),

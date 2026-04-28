@@ -15,7 +15,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/toolruntime"
 )
@@ -25,7 +25,7 @@ func TestLocalLauncherLaunchProvidesWorkingPipes(t *testing.T) {
 
 	root := t.TempDir()
 	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
-	handle, err := launcher.Launch(testutil.Context(t), environment.LaunchSpec{
+	handle, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
 		Command: "sh -c 'read line; printf \"%s\\n\" \"$line\"; sleep 0.1'",
 		Cwd:     root,
 		Env:     os.Environ(),
@@ -95,7 +95,7 @@ func TestLocalLauncherLaunchInvalidCommandReturnsError(t *testing.T) {
 	t.Parallel()
 
 	launcher := newLocalLauncher(testDiscardLogger(), time.Second)
-	if _, err := launcher.Launch(testutil.Context(t), environment.LaunchSpec{
+	if _, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
 		Command: "definitely-not-an-agh-test-command",
 		Cwd:     t.TempDir(),
 	}); err == nil {
@@ -110,7 +110,7 @@ func TestLocalLauncherLaunchHonorsCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := launcher.Launch(ctx, environment.LaunchSpec{
+	_, err := launcher.Launch(ctx, sandbox.LaunchSpec{
 		Command: "sh -c 'sleep 1'",
 		Cwd:     t.TempDir(),
 	})
@@ -123,7 +123,7 @@ func TestLocalProcessHandleStopTerminatesProcess(t *testing.T) {
 	t.Parallel()
 
 	launcher := newLocalLauncher(testDiscardLogger(), 10*time.Millisecond)
-	handle, err := launcher.Launch(testutil.Context(t), environment.LaunchSpec{
+	handle, err := launcher.Launch(testutil.Context(t), sandbox.LaunchSpec{
 		Command: "sh -c 'while :; do sleep 1; done'",
 		Cwd:     t.TempDir(),
 		Env:     os.Environ(),
@@ -215,11 +215,11 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	t.Parallel()
 
 	approveAll, _ := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
-	for _, op := range []environment.PermissionOperation{
-		environment.PermissionOperationReadTextFile,
-		environment.PermissionOperationWriteTextFile,
-		environment.PermissionOperationCreateTerminal,
-		environment.PermissionOperationRequestToolGrant,
+	for _, op := range []sandbox.PermissionOperation{
+		sandbox.PermissionOperationReadTextFile,
+		sandbox.PermissionOperationWriteTextFile,
+		sandbox.PermissionOperationCreateTerminal,
+		sandbox.PermissionOperationRequestToolGrant,
 	} {
 		if err := approveAll.Authorize(op); err != nil {
 			t.Fatalf("Authorize(%s) with approve-all error = %v", op, err)
@@ -227,11 +227,11 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	}
 
 	denyAll, _ := newTestLocalToolHost(t, aghconfig.PermissionModeDenyAll)
-	for _, op := range []environment.PermissionOperation{
-		environment.PermissionOperationReadTextFile,
-		environment.PermissionOperationWriteTextFile,
-		environment.PermissionOperationCreateTerminal,
-		environment.PermissionOperationRequestToolGrant,
+	for _, op := range []sandbox.PermissionOperation{
+		sandbox.PermissionOperationReadTextFile,
+		sandbox.PermissionOperationWriteTextFile,
+		sandbox.PermissionOperationCreateTerminal,
+		sandbox.PermissionOperationRequestToolGrant,
 	} {
 		if err := denyAll.Authorize(op); !errors.Is(err, ErrPermissionDenied) {
 			t.Fatalf("Authorize(%s) with deny-all error = %v, want ErrPermissionDenied", op, err)
@@ -455,19 +455,19 @@ func TestDriverLaunchAgentProcessWrapsLauncherErrors(t *testing.T) {
 }
 
 type recordingLauncher struct {
-	delegate environment.Launcher
-	handle   environment.Handle
+	delegate sandbox.Launcher
+	handle   sandbox.Handle
 	err      error
 
 	mu     sync.Mutex
 	called bool
-	spec   environment.LaunchSpec
+	spec   sandbox.LaunchSpec
 }
 
 func (l *recordingLauncher) Launch(
 	ctx context.Context,
-	spec environment.LaunchSpec,
-) (environment.Handle, error) {
+	spec sandbox.LaunchSpec,
+) (sandbox.Handle, error) {
 	l.mu.Lock()
 	l.called = true
 	l.spec = spec
@@ -481,7 +481,7 @@ func (l *recordingLauncher) Launch(
 	return l.delegate.Launch(ctx, spec)
 }
 
-func (l *recordingLauncher) lastSpec() (environment.LaunchSpec, bool) {
+func (l *recordingLauncher) lastSpec() (sandbox.LaunchSpec, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.spec, l.called

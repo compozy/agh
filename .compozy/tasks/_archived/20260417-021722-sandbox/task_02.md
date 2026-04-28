@@ -63,8 +63,8 @@ The `localLauncher` wraps the existing `subprocess.Launch` call. The `localToolH
 
 ### Dependent Files
 
-- `internal/environment/local/provider.go` — Will compose `localLauncher` + `localToolHost` (task 03)
-- `internal/environment/daytona/provider.go` — Will provide alternative implementations (task 06)
+- `internal/sandbox/local/provider.go` — Will compose `localLauncher` + `localToolHost` (task 03)
+- `internal/sandbox/daytona/provider.go` — Will provide alternative implementations (task 06)
 - `internal/daemon/daemon.go` — Will inject Launcher/ToolHost into Driver (task 04)
 
 ### Related ADRs

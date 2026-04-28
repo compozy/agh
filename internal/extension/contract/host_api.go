@@ -25,9 +25,9 @@ const (
 	HostAPIMethodSessionsStop                = extensionprotocol.HostAPIMethodSessionsStop
 	HostAPIMethodSessionsStatus              = extensionprotocol.HostAPIMethodSessionsStatus
 	HostAPIMethodSessionsEvents              = extensionprotocol.HostAPIMethodSessionsEvents
-	HostAPIMethodEnvironmentList             = extensionprotocol.HostAPIMethodEnvironmentList
-	HostAPIMethodEnvironmentInfo             = extensionprotocol.HostAPIMethodEnvironmentInfo
-	HostAPIMethodEnvironmentExec             = extensionprotocol.HostAPIMethodEnvironmentExec
+	HostAPIMethodSandboxList                 = extensionprotocol.HostAPIMethodSandboxList
+	HostAPIMethodSandboxInfo                 = extensionprotocol.HostAPIMethodSandboxInfo
+	HostAPIMethodSandboxExec                 = extensionprotocol.HostAPIMethodSandboxExec
 	HostAPIMethodMemoryRecall                = extensionprotocol.HostAPIMethodMemoryRecall
 	HostAPIMethodMemoryStore                 = extensionprotocol.HostAPIMethodMemoryStore
 	HostAPIMethodMemoryForget                = extensionprotocol.HostAPIMethodMemoryForget
@@ -128,18 +128,18 @@ type SessionEventsParams struct {
 	Since     time.Time `json:"since"`
 }
 
-// EnvironmentListParams filters active environments.
-type EnvironmentListParams struct {
+// SandboxListParams filters active sandboxes.
+type SandboxListParams struct {
 	Workspace string `json:"workspace,omitempty"`
 }
 
-// EnvironmentInfoParams identifies one session environment.
-type EnvironmentInfoParams struct {
+// SandboxInfoParams identifies one session sandbox.
+type SandboxInfoParams struct {
 	SessionID string `json:"session_id"`
 }
 
-// EnvironmentExecParams executes one command inside a session environment.
-type EnvironmentExecParams struct {
+// SandboxExecParams executes one command inside a session sandbox.
+type SandboxExecParams struct {
 	SessionID string `json:"session_id"`
 	Command   string `json:"command"`
 	Timeout   int    `json:"timeout,omitempty"`
@@ -436,25 +436,25 @@ type SessionPromptResult struct {
 	TurnID string `json:"turn_id"`
 }
 
-// EnvironmentSummary is one active environment in the host-visible list response.
-type EnvironmentSummary struct {
-	SessionID     string `json:"session_id"`
-	EnvironmentID string `json:"environment_id"`
-	Backend       string `json:"backend"`
-	Profile       string `json:"profile,omitempty"`
-	InstanceID    string `json:"instance_id,omitempty"`
-	State         string `json:"state"`
-	SyncState     string `json:"sync_state,omitempty"`
+// SandboxSummary is one active sandbox in the host-visible list response.
+type SandboxSummary struct {
+	SessionID  string `json:"session_id"`
+	SandboxID  string `json:"sandbox_id"`
+	Backend    string `json:"backend"`
+	Profile    string `json:"profile,omitempty"`
+	InstanceID string `json:"instance_id,omitempty"`
+	State      string `json:"state"`
+	SyncState  string `json:"sync_state,omitempty"`
 }
 
-// EnvironmentListResult returns active environment instances.
-type EnvironmentListResult struct {
-	Environments []EnvironmentSummary `json:"environments"`
+// SandboxListResult returns active sandbox instances.
+type SandboxListResult struct {
+	Sandboxes []SandboxSummary `json:"sandboxes"`
 }
 
-// EnvironmentInfoResult returns detailed environment state for a session.
-type EnvironmentInfoResult struct {
-	EnvironmentID string    `json:"environment_id"`
+// SandboxInfoResult returns detailed sandbox state for a session.
+type SandboxInfoResult struct {
+	SandboxID     string    `json:"sandbox_id"`
 	Backend       string    `json:"backend"`
 	Profile       string    `json:"profile"`
 	InstanceID    string    `json:"instance_id"`
@@ -464,8 +464,8 @@ type EnvironmentInfoResult struct {
 	LastSyncError string    `json:"last_sync_error"`
 }
 
-// EnvironmentExecResult returns command execution output.
-type EnvironmentExecResult struct {
+// SandboxExecResult returns command execution output.
+type SandboxExecResult struct {
 	ExitCode int    `json:"exit_code"`
 	Stdout   string `json:"stdout,omitempty"`
 	Stderr   string `json:"stderr,omitempty"`
@@ -541,20 +541,20 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Result: NamedType{Name: "SessionEvent", Value: []SessionEvent{}},
 	},
 	{
-		Method:         HostAPIMethodEnvironmentList,
-		Params:         NamedType{Name: "EnvironmentListParams", Value: EnvironmentListParams{}},
-		Result:         NamedType{Name: "EnvironmentListResult", Value: EnvironmentListResult{}},
+		Method:         HostAPIMethodSandboxList,
+		Params:         NamedType{Name: "SandboxListParams", Value: SandboxListParams{}},
+		Result:         NamedType{Name: "SandboxListResult", Value: SandboxListResult{}},
 		OptionalParams: true,
 	},
 	{
-		Method: HostAPIMethodEnvironmentInfo,
-		Params: NamedType{Name: "EnvironmentInfoParams", Value: EnvironmentInfoParams{}},
-		Result: NamedType{Name: "EnvironmentInfoResult", Value: EnvironmentInfoResult{}},
+		Method: HostAPIMethodSandboxInfo,
+		Params: NamedType{Name: "SandboxInfoParams", Value: SandboxInfoParams{}},
+		Result: NamedType{Name: "SandboxInfoResult", Value: SandboxInfoResult{}},
 	},
 	{
-		Method: HostAPIMethodEnvironmentExec,
-		Params: NamedType{Name: "EnvironmentExecParams", Value: EnvironmentExecParams{}},
-		Result: NamedType{Name: "EnvironmentExecResult", Value: EnvironmentExecResult{}},
+		Method: HostAPIMethodSandboxExec,
+		Params: NamedType{Name: "SandboxExecParams", Value: SandboxExecParams{}},
+		Result: NamedType{Name: "SandboxExecResult", Value: SandboxExecResult{}},
 	},
 	{
 		Method: HostAPIMethodMemoryRecall,

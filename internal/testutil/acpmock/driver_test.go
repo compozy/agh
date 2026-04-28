@@ -80,7 +80,7 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 	}
 }
 
-func TestDriverSupportsNetworkOriginEnvironmentExpectations(t *testing.T) {
+func TestDriverSupportsNetworkOriginSandboxExpectations(t *testing.T) {
 	root := t.TempDir()
 	fakeAGH := filepath.Join(root, "agh")
 	if err := os.WriteFile(fakeAGH, []byte("#!/bin/sh\nprintf network-ok\n"), 0o755); err != nil {
@@ -118,8 +118,8 @@ func TestDriverSupportsNetworkOriginEnvironmentExpectations(t *testing.T) {
 	defer stopDriverProcess(t, driver, proc)
 
 	eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
-		TurnID:  "turn-network-environment",
-		Message: "run environment",
+		TurnID:  "turn-network-sandbox",
+		Message: "run sandbox",
 		Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceNetwork},
 	})
 	if err != nil {

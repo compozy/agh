@@ -57,8 +57,8 @@ var knownPermissionCategories = []permissionCategory{
 	{name: "mcp_servers", values: func(p store.SessionPermissionPolicy) []string { return p.MCPServers }},
 	{name: "workspace_paths", values: func(p store.SessionPermissionPolicy) []string { return p.WorkspacePaths }},
 	{name: "network_channels", values: func(p store.SessionPermissionPolicy) []string { return p.NetworkChannels }},
-	{name: "environment_profiles", values: func(p store.SessionPermissionPolicy) []string {
-		return p.EnvironmentProfiles
+	{name: "sandbox_profiles", values: func(p store.SessionPermissionPolicy) []string {
+		return p.SandboxProfiles
 	}},
 }
 
@@ -433,12 +433,12 @@ func effectiveSpawnBudget(budget store.SessionSpawnBudget) store.SessionSpawnBud
 func hookPermissionSetFromPolicy(policy store.SessionPermissionPolicy) *hookspkg.PermissionSet {
 	normalized := store.NormalizeSessionPermissionPolicy(policy)
 	return &hookspkg.PermissionSet{
-		Tools:               append([]string(nil), normalized.Tools...),
-		Skills:              append([]string(nil), normalized.Skills...),
-		MCPServers:          append([]string(nil), normalized.MCPServers...),
-		WorkspacePaths:      append([]string(nil), normalized.WorkspacePaths...),
-		NetworkChannels:     append([]string(nil), normalized.NetworkChannels...),
-		EnvironmentProfiles: append([]string(nil), normalized.EnvironmentProfiles...),
+		Tools:           append([]string(nil), normalized.Tools...),
+		Skills:          append([]string(nil), normalized.Skills...),
+		MCPServers:      append([]string(nil), normalized.MCPServers...),
+		WorkspacePaths:  append([]string(nil), normalized.WorkspacePaths...),
+		NetworkChannels: append([]string(nil), normalized.NetworkChannels...),
+		SandboxProfiles: append([]string(nil), normalized.SandboxProfiles...),
 	}
 }
 
@@ -447,12 +447,12 @@ func policyFromHookPermissionSet(src *hookspkg.PermissionSet) store.SessionPermi
 		return store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{})
 	}
 	return store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{
-		Tools:               append([]string(nil), src.Tools...),
-		Skills:              append([]string(nil), src.Skills...),
-		MCPServers:          append([]string(nil), src.MCPServers...),
-		WorkspacePaths:      append([]string(nil), src.WorkspacePaths...),
-		NetworkChannels:     append([]string(nil), src.NetworkChannels...),
-		EnvironmentProfiles: append([]string(nil), src.EnvironmentProfiles...),
+		Tools:           append([]string(nil), src.Tools...),
+		Skills:          append([]string(nil), src.Skills...),
+		MCPServers:      append([]string(nil), src.MCPServers...),
+		WorkspacePaths:  append([]string(nil), src.WorkspacePaths...),
+		NetworkChannels: append([]string(nil), src.NetworkChannels...),
+		SandboxProfiles: append([]string(nil), src.SandboxProfiles...),
 	})
 }
 

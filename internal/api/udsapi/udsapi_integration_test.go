@@ -22,10 +22,10 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	environmentlocal "github.com/pedronauck/agh/internal/environment/local"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
+	sandboxlocal "github.com/pedronauck/agh/internal/sandbox/local"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -2136,7 +2136,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
-	environmentRegistry, err := environmentlocal.NewRegistry()
+	sandboxRegistry, err := sandboxlocal.NewRegistry()
 	if err != nil {
 		t.Fatalf("local.NewRegistry() error = %v", err)
 	}
@@ -2146,7 +2146,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		session.WithLogger(discardLogger()),
 		session.WithDriver(newIntegrationDriver()),
 		session.WithNotifier(fanout),
-		session.WithEnvironmentRegistry(environmentRegistry),
+		session.WithSandboxRegistry(sandboxRegistry),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)

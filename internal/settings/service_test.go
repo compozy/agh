@@ -426,9 +426,9 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 		SectionRequest: SectionRequest{Section: SectionGeneral},
 		General: &GeneralSettings{
 			Defaults: aghconfig.DefaultsConfig{
-				Agent:       "editor",
-				Provider:    "codex",
-				Environment: "dev",
+				Agent:    "editor",
+				Provider: "codex",
+				Sandbox:  "dev",
 			},
 			Limits: aghconfig.LimitsConfig{
 				MaxSessions:         7,
@@ -630,8 +630,8 @@ func TestClassifyMutationSupportsCollectionFields(t *testing.T) {
 			ChangedFields: []string{"mcp-servers.alpha.command"},
 		},
 		{
-			Section:       SectionName(CollectionEnvironments),
-			ChangedFields: []string{"environments.dev.backend"},
+			Section:       SectionName(CollectionSandboxes),
+			ChangedFields: []string{"sandboxes.dev.backend"},
 		},
 		{
 			Section:       SectionName(CollectionHooks),
@@ -654,7 +654,7 @@ func TestClassifyMutationSupportsCollectionFields(t *testing.T) {
 	}
 }
 
-func TestListCollectionBuildsProvidersEnvironmentsAndHooks(t *testing.T) {
+func TestListCollectionBuildsProvidersSandboxesAndHooks(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -669,7 +669,7 @@ command = "custom-acp --stdio"
 default_model = "custom-model"
 api_key_env = "CUSTOM_API_KEY"
 
-[environments.staging]
+[sandboxes.staging]
 backend = "local"
 
 [[hooks.declarations]]
@@ -694,9 +694,9 @@ command = "/bin/ship"
 		},
 		WorkspaceResolver: fakeWorkspaceResolver{
 			listed: []workspacepkg.Workspace{
-				{ID: "ws-dev", EnvironmentRef: "dev"},
-				{ID: "ws-stage-a", EnvironmentRef: "staging"},
-				{ID: "ws-stage-b", EnvironmentRef: "staging"},
+				{ID: "ws-dev", SandboxRef: "dev"},
+				{ID: "ws-stage-a", SandboxRef: "staging"},
+				{ID: "ws-stage-b", SandboxRef: "staging"},
 			},
 		},
 	})
@@ -733,15 +733,15 @@ command = "/bin/ship"
 		t.Fatalf("claude effective source = %q, want %q", got, want)
 	}
 
-	environments, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionEnvironments})
+	sandboxes, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionSandboxes})
 	if err != nil {
-		t.Fatalf("ListCollection(environments) error = %v", err)
+		t.Fatalf("ListCollection(sandboxes) error = %v", err)
 	}
-	dev := findEnvironmentItem(t, environments.Environments, "dev")
+	dev := findSandboxItem(t, sandboxes.Sandboxes, "dev")
 	if got, want := dev.WorkspaceUsageCount, 1; got != want {
 		t.Fatalf("dev workspace usage = %d, want %d", got, want)
 	}
-	staging := findEnvironmentItem(t, environments.Environments, "staging")
+	staging := findSandboxItem(t, sandboxes.Sandboxes, "staging")
 	if got, want := staging.WorkspaceUsageCount, 2; got != want {
 		t.Fatalf("staging workspace usage = %d, want %d", got, want)
 	}
@@ -761,7 +761,7 @@ command = "/bin/ship"
 	}
 }
 
-func TestCollectionMutationsProviderEnvironmentAndHook(t *testing.T) {
+func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -803,10 +803,10 @@ func TestCollectionMutationsProviderEnvironmentAndHook(t *testing.T) {
 		t.Fatalf("provider overlay still present after delete:\n%s", configPayload)
 	}
 
-	environmentResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionEnvironments},
+	sandboxResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionSandboxes},
 		Name:              "staging",
-		Environment: &aghconfig.EnvironmentProfile{
+		Sandbox: &aghconfig.SandboxProfile{
 			Backend:     "local",
 			SyncMode:    "session-bidirectional",
 			Persistence: "transient",
@@ -814,25 +814,25 @@ func TestCollectionMutationsProviderEnvironmentAndHook(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("PutCollectionItem(environment) error = %v", err)
+		t.Fatalf("PutCollectionItem(sandbox) error = %v", err)
 	}
-	if got, want := environmentResult.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("environment write target = %q, want %q", got, want)
+	if got, want := sandboxResult.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("sandbox write target = %q, want %q", got, want)
 	}
 	configPayload = readFile(t, homePaths.ConfigFile)
-	if !strings.Contains(configPayload, "[environments.staging]") ||
+	if !strings.Contains(configPayload, "[sandboxes.staging]") ||
 		!strings.Contains(configPayload, `runtime_root = "/tmp/staging"`) {
-		t.Fatalf("config payload missing environment overlay:\n%s", configPayload)
+		t.Fatalf("config payload missing sandbox overlay:\n%s", configPayload)
 	}
 	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionEnvironments},
+		CollectionRequest: CollectionRequest{Collection: CollectionSandboxes},
 		Name:              "staging",
 	}); err != nil {
-		t.Fatalf("DeleteCollectionItem(environment) error = %v", err)
+		t.Fatalf("DeleteCollectionItem(sandbox) error = %v", err)
 	}
 	configPayload = readFile(t, homePaths.ConfigFile)
-	if strings.Contains(configPayload, "[environments.staging]") {
-		t.Fatalf("environment overlay still present after delete:\n%s", configPayload)
+	if strings.Contains(configPayload, "[sandboxes.staging]") {
+		t.Fatalf("sandbox overlay still present after delete:\n%s", configPayload)
 	}
 
 	hookResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
@@ -1140,7 +1140,7 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
 	t.Parallel()
 
-	profileValues := environmentProfileMap(aghconfig.EnvironmentProfile{
+	profileValues := sandboxProfileMap(aghconfig.SandboxProfile{
 		Backend:  "daytona",
 		SyncMode: "mirror",
 		Env:      map[string]string{"TOKEN": "value"},
@@ -1162,13 +1162,13 @@ func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
 		},
 	})
 	if _, ok := profileValues["env"]; !ok {
-		t.Fatalf("environmentProfileMap() missing env: %#v", profileValues)
+		t.Fatalf("sandboxProfileMap() missing env: %#v", profileValues)
 	}
 	if _, ok := profileValues["network"]; !ok {
-		t.Fatalf("environmentProfileMap() missing network: %#v", profileValues)
+		t.Fatalf("sandboxProfileMap() missing network: %#v", profileValues)
 	}
 	if _, ok := profileValues["daytona"]; !ok {
-		t.Fatalf("environmentProfileMap() missing daytona: %#v", profileValues)
+		t.Fatalf("sandboxProfileMap() missing daytona: %#v", profileValues)
 	}
 
 	readOnly := true
@@ -1237,9 +1237,9 @@ func TestUpdateSectionNoChangesReturnsWarning(t *testing.T) {
 		SectionRequest: SectionRequest{Section: SectionGeneral},
 		General: &GeneralSettings{
 			Defaults: aghconfig.DefaultsConfig{
-				Agent:       "writer",
-				Provider:    "codex",
-				Environment: "dev",
+				Agent:    "writer",
+				Provider: "codex",
+				Sandbox:  "dev",
 			},
 			Limits: aghconfig.LimitsConfig{
 				MaxSessions:         7,
@@ -1524,7 +1524,7 @@ func baseSettingsConfig() string {
 [defaults]
 agent = "writer"
 provider = "codex"
-environment = "dev"
+sandbox = "dev"
 
 [limits]
 max_sessions = 7
@@ -1574,7 +1574,7 @@ max_concurrent_jobs = 3
 max = 9
 window = "1h"
 
-[environments.dev]
+[sandboxes.dev]
 backend = "local"
 
 [network]
@@ -1633,15 +1633,15 @@ func mustFindProviderItem(t *testing.T, items []ProviderItem, name string) Provi
 	return ProviderItem{}
 }
 
-func findEnvironmentItem(t *testing.T, items []EnvironmentItem, name string) EnvironmentItem {
+func findSandboxItem(t *testing.T, items []SandboxItem, name string) SandboxItem {
 	t.Helper()
 	for _, item := range items {
 		if item.Name == name {
 			return item
 		}
 	}
-	t.Fatalf("Environment item %q not found in %#v", name, items)
-	return EnvironmentItem{}
+	t.Fatalf("Sandbox item %q not found in %#v", name, items)
+	return SandboxItem{}
 }
 
 func findMCPItem(t *testing.T, items []MCPServerItem, name string) MCPServerItem {

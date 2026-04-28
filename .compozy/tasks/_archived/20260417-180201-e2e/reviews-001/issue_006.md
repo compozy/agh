@@ -30,8 +30,8 @@ In `@internal/daemon/daemon_environment_sandbox_integration_test.go` around line
 e2etest.ToolHostDiagnosticsArtifact (variable diagnostics) and then asserts
 diagnostics.Allowed/Blocked on that same object, which doesn't verify emitted
 runtime diagnostics; change the assertions to read the captured diagnostics from
-harness.SessionEnvironmentArtifact (use environmentArtifact or its persisted
-payload returned by SessionEnvironmentArtifact(ctx, sessionID)) and assert
+harness.SessionSandboxArtifact (use environmentArtifact or its persisted
+payload returned by SessionSandboxArtifact(ctx, sessionID)) and assert
 Allowed/Blocked against that observed data (inspect the actual tool-host
 diagnostics slice in environmentArtifact.Persisted or the runtime payload)
 instead of the locally-constructed e2etest.ToolHostDiagnosticsArtifact; apply
@@ -50,5 +50,5 @@ as also applies to 224-240).
 - Decision: `VALID`
 - Root cause: the final `Allowed` / `Blocked` checks are tautological because they assert against a synthetic diagnostics struct constructed in the test itself, not against an observed runtime surface.
 - Fix plan: stop using the synthetic diagnostics object as test evidence and rely on the already-observed side-effect, event, and persisted-environment assertions as the source of truth. The synthetic artifact remains only as retained debug data during cleanup.
-- Resolution: removed the tautological `Allowed` / `Blocked` assertions so the test now relies only on the observed side effects, failure signal, and persisted environment metadata.
+- Resolution: removed the tautological `Allowed` / `Blocked` assertions so the test now relies only on the observed side effects, failure signal, and persisted sandbox metadata.
 - Verification: `go test ./internal/daemon` passed. Historical note: the later blocker about a missing `driver/dist/index.js` was stale; the shipped mock driver is `internal/testutil/acpmock/cmd/acpmock-driver`.

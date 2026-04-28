@@ -14,13 +14,13 @@ to exchange operational context.
 
 ## Channels are conversation, not ownership
 
-| Use `agh ch` for | Use `agh task` for |
-| ---------------- | ------------------ |
-| status updates | claiming a run |
-| requests and replies | extending a lease |
-| blockers | completing a run |
-| handoffs | failing a run |
-| review requests | releasing a run |
+| Use `agh ch` for                      | Use `agh task` for      |
+| ------------------------------------- | ----------------------- |
+| status updates                        | claiming a run          |
+| requests and replies                  | extending a lease       |
+| blockers                              | completing a run        |
+| handoffs                              | failing a run           |
+| review requests                       | releasing a run         |
 | result exchange for synthesis context | terminal task-run state |
 
 Channel messages never own task status. A `status` or `result` message can describe progress, but it
@@ -31,28 +31,28 @@ task APIs.
 
 The MVP accepts these coordination message kinds:
 
-| Kind | Use |
-| ---- | --- |
-| `status` | Non-authoritative progress or current state. |
-| `request` | Ask another participant for information or action. |
-| `reply` | Answer a received coordination message. |
-| `blocker` | Report a blocking condition that needs attention. |
-| `handoff` | Transfer context between coordinator, worker, reviewer, or operator. |
-| `result` | Share output or synthesis context before or after terminal task APIs. |
-| `review_request` | Ask another participant to inspect work. |
+| Kind             | Use                                                                   |
+| ---------------- | --------------------------------------------------------------------- |
+| `status`         | Non-authoritative progress or current state.                          |
+| `request`        | Ask another participant for information or action.                    |
+| `reply`          | Answer a received coordination message.                               |
+| `blocker`        | Report a blocking condition that needs attention.                     |
+| `handoff`        | Transfer context between coordinator, worker, reviewer, or operator.  |
+| `result`         | Share output or synthesis context before or after terminal task APIs. |
+| `review_request` | Ask another participant to inspect work.                              |
 
 ## Correlation metadata
 
 Task-bound channel messages carry typed metadata:
 
-| Field | Required | Meaning |
-| ----- | -------- | ------- |
-| `task_id` | yes | Task the conversation belongs to. |
-| `run_id` | yes | Task run the message is correlated with. |
-| `workflow_id` | no | Workflow correlation when present. Workflow is metadata in the MVP, not a first-class workflow store. |
-| `coordination_channel_id` | yes | Stable channel binding recorded on the run. |
-| `message_kind` | yes | One of the MVP message kinds. |
-| `correlation_id` | yes | Message-level correlation, commonly the run ID or a request ID. |
+| Field                     | Required | Meaning                                                                                               |
+| ------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `task_id`                 | yes      | Task the conversation belongs to.                                                                     |
+| `run_id`                  | yes      | Task run the message is correlated with.                                                              |
+| `workflow_id`             | no       | Workflow correlation when present. Workflow is metadata in the MVP, not a first-class workflow store. |
+| `coordination_channel_id` | yes      | Stable channel binding recorded on the run.                                                           |
+| `message_kind`            | yes      | One of the MVP message kinds.                                                                         |
+| `correlation_id`          | yes      | Message-level correlation, commonly the run ID or a request ID.                                       |
 
 Raw `claim_token` fields are rejected in coordination metadata and must not appear in channel
 message bodies, extension metadata, logs, read models, or memory summaries.

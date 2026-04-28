@@ -117,7 +117,7 @@ var nightlyGoSuites = []GoSuite{
 		Run:      NightlyRuntimeE2EPattern,
 	},
 	{
-		Packages: []string{"./internal/environment/daytona"},
+		Packages: []string{"./internal/sandbox/daytona"},
 		Run:      DaytonaNightlyE2EPattern,
 	},
 }

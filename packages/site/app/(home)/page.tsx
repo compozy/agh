@@ -9,6 +9,7 @@ import {
   InstallSection,
   NetworkSection,
   RuntimeSection,
+  SandboxSection,
   SupportedAgents,
 } from "@/components/landing";
 
@@ -21,6 +22,7 @@ export default function HomePage() {
       <SupportedAgents />
       <NetworkSection />
       <RuntimeSection />
+      <SandboxSection />
       <BridgesSection />
       <ExtensibilitySection />
       <InstallSection />

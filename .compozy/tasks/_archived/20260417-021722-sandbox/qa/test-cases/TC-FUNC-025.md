@@ -1,4 +1,4 @@
-## TC-FUNC-025: EnvironmentProfile.Env map parses key-value pairs
+## TC-FUNC-025: SandboxProfile.Env map parses key-value pairs
 
 **Priority:** P2 (Medium)
 **Type:** Functional
@@ -11,24 +11,24 @@
 
 ### Objective
 
-Verify that the `Env` map field in `EnvironmentProfile` correctly parses key-value pairs from TOML and preserves them through config loading.
+Verify that the `Env` map field in `SandboxProfile` correctly parses key-value pairs from TOML and preserves them through config loading.
 
 ---
 
 ### Preconditions
 
-- [x] EnvironmentProfile.Env field defined as `map[string]string`
+- [x] SandboxProfile.Env field defined as `map[string]string`
 
 ---
 
 ### Test Steps
 
 1. **Load config with env map**
-   - Input: `[environments.test.env]` with `KEY1 = "value1"`, `KEY2 = "value2"`
+   - Input: `[sandboxes.test.env]` with `KEY1 = "value1"`, `KEY2 = "value2"`
    - **Expected:** `profile.Env["KEY1"] == "value1"`, `profile.Env["KEY2"] == "value2"`
 
 2. **Verify empty env map**
-   - Input: No `[environments.test.env]` section
+   - Input: No `[sandboxes.test.env]` section
    - **Expected:** `profile.Env` is nil or empty map
 
 ---

@@ -98,7 +98,7 @@ This plan defines the reusable QA scope for the first-class Tasks operator surfa
 
 ## Environment Matrix
 
-| Environment ID | Purpose | Runtime / Browser | Viewports | Notes |
+| Sandbox ID | Purpose | Runtime / Browser | Viewports | Notes |
 | --- | --- | --- | --- | --- |
 | `ENV-WEB-01` | Browser gate | daemon-served `web/e2e` + Playwright `Desktop Chrome` | desktop only | Matches `web/playwright.config.ts` and is the blocking browser lane |
 | `ENV-WEB-02` | Manual responsive/visual spot checks | local daemon-served web app in Chrome devtools | `1280`, `768`, `375` | Derived from the `qa-report` responsive standard and local Paper exports |

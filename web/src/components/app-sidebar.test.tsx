@@ -334,6 +334,7 @@ describe("AppSidebar", () => {
         "nav-triggers",
         "nav-knowledge",
         "nav-skills",
+        "nav-sandbox",
       ]);
     });
 
@@ -345,6 +346,7 @@ describe("AppSidebar", () => {
       ["triggers", "/triggers"],
       ["knowledge", "/knowledge"],
       ["skills", "/skills"],
+      ["sandbox", "/sandbox"],
     ])("renders %s nav item linking to %s", (testKey, href) => {
       renderSidebar(makeProps());
       expect(screen.getByTestId(`nav-${testKey}`)).toHaveAttribute("href", href);
@@ -362,6 +364,7 @@ describe("AppSidebar", () => {
       ["triggers", "/triggers"],
       ["knowledge", "/knowledge"],
       ["skills", "/skills"],
+      ["sandbox", "/sandbox"],
     ])("renders 2px accent bar on active %s nav", (testKey, path) => {
       matchedRoute[path] = true;
       renderSidebar(makeProps());

@@ -32,7 +32,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 - `internal/api/core/conversions.go`
 - `internal/api/core/agent_identity.go`
 - `internal/agentidentity/identity.go`
-- `internal/daemon/environment_reconcile.go`
+- `internal/daemon/sandbox_reconcile.go`
 - `internal/observe/observer.go`
 
 ## Errors / Corrections

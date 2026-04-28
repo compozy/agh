@@ -30,7 +30,7 @@ Write the six configuration reference pages providing complete schema documentat
 </critical>
 
 <requirements>
-- MUST create `packages/site/content/runtime/reference/config-toml.mdx` — complete `config.toml` schema: every section (`[daemon]`, `[defaults]`, `[observe]`, `[memory]`, `[network]`, `[environments.*]`, etc.), every field with type, default, valid values, and description
+- MUST create `packages/site/content/runtime/reference/config-toml.mdx` — complete `config.toml` schema: every section (`[daemon]`, `[defaults]`, `[observe]`, `[memory]`, `[network]`, `[sandboxes.*]`, etc.), every field with type, default, valid values, and description
 - MUST create `packages/site/content/runtime/reference/agent-md.mdx` — complete AGENT.md frontmatter schema: all fields, types, defaults, valid values; markdown body conventions; examples for each provider
 - MUST create `packages/site/content/runtime/reference/skill-md.mdx` — complete SKILL.md frontmatter schema: all fields, types, defaults; procedural instruction body conventions; MCP sidecar config
 - MUST create `packages/site/content/runtime/reference/mcp-json.mdx` — mcp.json configuration format for MCP server definitions, tool mappings, sidecar lifecycle

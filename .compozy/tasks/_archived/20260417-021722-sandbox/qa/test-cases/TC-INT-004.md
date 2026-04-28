@@ -1,4 +1,4 @@
-## TC-INT-004: Session list API includes environment field
+## TC-INT-004: Session list API includes sandbox field
 
 **Priority:** P0 (Critical)
 **Type:** Integration
@@ -18,13 +18,13 @@ Verify that session list and session get API responses include the `environment`
 ### Test Steps
 
 1. **Create session via API**
-   - **Expected:** Session created with environment metadata
+   - **Expected:** Session created with sandbox metadata
 
 2. **List sessions via API**
-   - **Expected:** Response includes `environment` object: `{environment_id: "...", backend: "local", state: "..."}`
+   - **Expected:** Response includes `environment` object: `{sandbox_id: "...", backend: "local", state: "..."}`
 
 3. **Get specific session via API**
-   - **Expected:** Full environment payload: `environment_id`, `backend`, `profile`, `state`, `instance_id`, `sync_state`, `last_sync_error`
+   - **Expected:** Full sandbox payload: `sandbox_id`, `backend`, `profile`, `state`, `instance_id`, `sync_state`, `last_sync_error`
 
 4. **Verify JSON serialization**
-   - **Expected:** `SessionEnvironmentPayload` correctly serialized in JSON response
+   - **Expected:** `SessionSandboxPayload` correctly serialized in JSON response

@@ -169,7 +169,7 @@ func TestSubprocessExecutorExecuteTimesOut(t *testing.T) {
 	}
 }
 
-func TestSubprocessExecutorExecuteFiltersEnvironment(t *testing.T) {
+func TestSubprocessExecutorExecuteFiltersSandbox(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("subprocess shell test requires POSIX shell")
 	}

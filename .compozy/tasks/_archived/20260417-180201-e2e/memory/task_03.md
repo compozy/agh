@@ -14,7 +14,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Learnings
 - The shared harness needed explicit `EnableNetwork` support plus typed helpers for network status, peers, channels, channel detail, channel messages, inbox, send, and audit reads so composition-root scenarios can assert through public surfaces instead of bespoke JSON calls.
-- The original idea of having the fixture issue nested `agh network ...` sends through terminal `environment_exec` was not reliable under the real runtime path; the stable shape is to send through the runtime test's real CLI surface and let the fixtures behave as deterministic recipients.
+- The original idea of having the fixture issue nested `agh network ...` sends through terminal `sandbox_exec` was not reliable under the real runtime path; the stable shape is to send through the runtime test's real CLI surface and let the fixtures behave as deterministic recipients.
 - Stable network-audit assertions are easier to review when the artifact helper rewrites daemon JSONL audit logs into ordered JSON arrays for each scenario run.
 
 ## Files / Surfaces
@@ -37,7 +37,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 ## Errors / Corrections
 - Corrected the harness seeding path so `[network]` config is actually written to disk before the daemon boots.
 - Replaced raw JSONL audit artifact snapshots with stable decoded JSON arrays.
-- Moved message initiation out of brittle mock `environment_exec` sends and into the runtime test's real CLI surface after the nested terminal path proved unreliable.
+- Moved message initiation out of brittle mock `sandbox_exec` sends and into the runtime test's real CLI surface after the nested terminal path proved unreliable.
 
 ## Ready for Next Run
 - Task complete after clean `make verify`: composition-root daemon runtime E2E now covers direct reply lifecycle plus whois/recipe exchange with correlation, duplicate rejection, channel history, peer visibility, audit capture, transcript checks, and CLI/API parity.

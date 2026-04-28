@@ -1,4 +1,4 @@
-## TC-FUNC-028: environment.stop deny prevents destroy
+## TC-FUNC-028: sandbox.stop deny prevents destroy
 
 **Priority:** P2 (Medium)
 **Type:** Functional
@@ -11,13 +11,13 @@
 
 ### Objective
 
-Verify that when the `environment.stop` sync hook returns Deny, the sandbox is NOT destroyed but the session still stops.
+Verify that when the `sandbox.stop` sync hook returns Deny, the sandbox is NOT destroyed but the session still stops.
 
 ---
 
 ### Preconditions
 
-- [x] Hook registered for `environment.stop` that returns Deny
+- [x] Hook registered for `sandbox.stop` that returns Deny
 - [x] Session with transient persistence (would normally destroy)
 
 ---
@@ -29,4 +29,4 @@ Verify that when the `environment.stop` sync hook returns Deny, the sandbox is N
    - **Expected:** `Provider.Destroy()` is NOT called, session stops normally, sandbox left alive
 
 2. **Verify session metadata reflects stopped state**
-   - **Expected:** Session is stopped, environment state updated accordingly
+   - **Expected:** Session is stopped, sandbox state updated accordingly

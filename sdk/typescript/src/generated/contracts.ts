@@ -21,9 +21,6 @@ export type HostAPIMethod =
   | "bridges/instances/list"
   | "bridges/instances/report_state"
   | "bridges/messages/ingest"
-  | "environment/exec"
-  | "environment/info"
-  | "environment/list"
   | "memory/forget"
   | "memory/recall"
   | "memory/store"
@@ -32,6 +29,9 @@ export type HostAPIMethod =
   | "resources/get"
   | "resources/list"
   | "resources/snapshot"
+  | "sandbox/exec"
+  | "sandbox/info"
+  | "sandbox/list"
   | "sessions/create"
   | "sessions/events"
   | "sessions/list"
@@ -75,11 +75,11 @@ export type HookEvent =
   | "session.post_resume"
   | "session.pre_stop"
   | "session.post_stop"
-  | "environment.prepare"
-  | "environment.ready"
-  | "environment.sync.before"
-  | "environment.sync.after"
-  | "environment.stop"
+  | "sandbox.prepare"
+  | "sandbox.ready"
+  | "sandbox.sync.before"
+  | "sandbox.sync.after"
+  | "sandbox.stop"
   | "input.pre_submit"
   | "prompt.post_assemble"
   | "event.pre_record"
@@ -875,208 +875,6 @@ export interface DeliveryRequest {
 
 export type EmptyResult = Record<string, never>;
 
-export interface EnvironmentExecParams {
-  session_id: string;
-  command: string;
-  timeout?: number;
-}
-
-export interface EnvironmentExecResult {
-  exit_code: number;
-  stdout?: string;
-  stderr?: string;
-}
-
-export interface EnvironmentInfoParams {
-  session_id: string;
-}
-
-export interface EnvironmentInfoResult {
-  environment_id: string;
-  backend: string;
-  profile: string;
-  instance_id: string;
-  runtime_root: string;
-  sync_state: string;
-  created_at: ISODateTime;
-  last_sync_error: string;
-}
-
-export interface EnvironmentListParams {
-  workspace?: string;
-}
-
-export interface EnvironmentSummary {
-  session_id: string;
-  environment_id: string;
-  backend: string;
-  profile?: string;
-  instance_id?: string;
-  state: string;
-  sync_state?: string;
-}
-
-export interface EnvironmentListResult {
-  environments: EnvironmentSummary[];
-}
-
-export type EnvironmentObservationPatch = Record<string, never>;
-
-export interface EnvironmentPreparePatch {
-  deny?: boolean;
-  deny_reason?: string;
-  env_overrides?: Record<string, string>;
-}
-
-export interface EnvironmentProfilePayload {
-  profile?: string;
-  backend?: string;
-  sync_mode?: string;
-  persistence?: string;
-  runtime_root?: string;
-  destroy_on_stop?: boolean;
-  env?: Record<string, string>;
-}
-
-export interface EnvironmentPreparePayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  acp_session_id?: string;
-  state?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  environment_id?: string;
-  backend?: string;
-  profile: EnvironmentProfilePayload;
-  local_root?: string;
-  local_additional_dirs?: string[];
-  agent_command?: string;
-  agent_env?: string[];
-  permissions?: string;
-  resume_acp_state?: string;
-  env_overrides?: Record<string, string>;
-  denied?: boolean;
-  deny_reason?: string;
-}
-
-export type EnvironmentReadyPatch = Record<string, never>;
-
-export interface EnvironmentReadyPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  acp_session_id?: string;
-  state?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  environment_id?: string;
-  backend?: string;
-  profile?: string;
-  instance_id?: string;
-  runtime_root?: string;
-  runtime_additional_dirs?: string[];
-}
-
-export interface EnvironmentStopPatch {
-  deny?: boolean;
-  deny_reason?: string;
-}
-
-export interface EnvironmentStopPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  acp_session_id?: string;
-  state?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  environment_id?: string;
-  backend?: string;
-  profile?: string;
-  instance_id?: string;
-  runtime_root?: string;
-  stop_reason?: string;
-  will_destroy?: boolean;
-  denied?: boolean;
-  deny_reason?: string;
-}
-
-export type EnvironmentSyncAfterPatch = Record<string, never>;
-
-export interface EnvironmentSyncAfterPayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  acp_session_id?: string;
-  state?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  environment_id?: string;
-  backend?: string;
-  profile?: string;
-  instance_id?: string;
-  runtime_root?: string;
-  direction?: string;
-  reason?: string;
-  files_synced?: number;
-  bytes_transferred?: number;
-  duration_ms?: number;
-  errors?: string[];
-}
-
-export interface EnvironmentSyncBeforePatch {
-  deny?: boolean;
-  deny_reason?: string;
-  exclude_patterns?: string[];
-}
-
-export interface EnvironmentSyncBeforePayload {
-  event: HookEvent;
-  timestamp: ISODateTime;
-  session_id?: string;
-  session_name?: string;
-  session_type?: string;
-  agent_name?: string;
-  workspace_id?: string;
-  workspace?: string;
-  acp_session_id?: string;
-  state?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-  environment_id?: string;
-  backend?: string;
-  profile?: string;
-  instance_id?: string;
-  runtime_root?: string;
-  direction?: string;
-  reason?: string;
-  file_count?: number;
-  exclude_patterns?: string[];
-  denied?: boolean;
-  deny_reason?: string;
-}
-
 export interface EventPostRecordPatch {
   labels?: Record<string, string>;
 }
@@ -1154,9 +952,9 @@ export interface HookMatcher {
   workspace_id?: string;
   workspace_root?: string;
   session_type?: string;
-  environment_id?: string;
-  environment_backend?: string;
-  environment_profile?: string;
+  sandbox_id?: string;
+  sandbox_backend?: string;
+  sandbox_profile?: string;
   sync_direction?: string;
   input_class?: string;
   acp_event_type?: string;
@@ -1849,7 +1647,7 @@ export interface PermissionSet {
   mcp_servers?: string[];
   workspace_paths?: string[];
   network_channels?: string[];
-  environment_profiles?: string[];
+  sandbox_profiles?: string[];
 }
 
 export interface PromptPatch {
@@ -1948,6 +1746,208 @@ export interface Run {
   error?: string;
   delivery_error?: string;
   delivery_error_at?: ISODateTime;
+}
+
+export interface SandboxExecParams {
+  session_id: string;
+  command: string;
+  timeout?: number;
+}
+
+export interface SandboxExecResult {
+  exit_code: number;
+  stdout?: string;
+  stderr?: string;
+}
+
+export interface SandboxInfoParams {
+  session_id: string;
+}
+
+export interface SandboxInfoResult {
+  sandbox_id: string;
+  backend: string;
+  profile: string;
+  instance_id: string;
+  runtime_root: string;
+  sync_state: string;
+  created_at: ISODateTime;
+  last_sync_error: string;
+}
+
+export interface SandboxListParams {
+  workspace?: string;
+}
+
+export interface SandboxSummary {
+  session_id: string;
+  sandbox_id: string;
+  backend: string;
+  profile?: string;
+  instance_id?: string;
+  state: string;
+  sync_state?: string;
+}
+
+export interface SandboxListResult {
+  sandboxes: SandboxSummary[];
+}
+
+export type SandboxObservationPatch = Record<string, never>;
+
+export interface SandboxPreparePatch {
+  deny?: boolean;
+  deny_reason?: string;
+  env_overrides?: Record<string, string>;
+}
+
+export interface SandboxProfilePayload {
+  profile?: string;
+  backend?: string;
+  sync_mode?: string;
+  persistence?: string;
+  runtime_root?: string;
+  destroy_on_stop?: boolean;
+  env?: Record<string, string>;
+}
+
+export interface SandboxPreparePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  acp_session_id?: string;
+  state?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  sandbox_id?: string;
+  backend?: string;
+  profile: SandboxProfilePayload;
+  local_root?: string;
+  local_additional_dirs?: string[];
+  agent_command?: string;
+  agent_env?: string[];
+  permissions?: string;
+  resume_acp_state?: string;
+  env_overrides?: Record<string, string>;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
+export type SandboxReadyPatch = Record<string, never>;
+
+export interface SandboxReadyPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  acp_session_id?: string;
+  state?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  sandbox_id?: string;
+  backend?: string;
+  profile?: string;
+  instance_id?: string;
+  runtime_root?: string;
+  runtime_additional_dirs?: string[];
+}
+
+export interface SandboxStopPatch {
+  deny?: boolean;
+  deny_reason?: string;
+}
+
+export interface SandboxStopPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  acp_session_id?: string;
+  state?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  sandbox_id?: string;
+  backend?: string;
+  profile?: string;
+  instance_id?: string;
+  runtime_root?: string;
+  stop_reason?: string;
+  will_destroy?: boolean;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
+export type SandboxSyncAfterPatch = Record<string, never>;
+
+export interface SandboxSyncAfterPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  acp_session_id?: string;
+  state?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  sandbox_id?: string;
+  backend?: string;
+  profile?: string;
+  instance_id?: string;
+  runtime_root?: string;
+  direction?: string;
+  reason?: string;
+  files_synced?: number;
+  bytes_transferred?: number;
+  duration_ms?: number;
+  errors?: string[];
+}
+
+export interface SandboxSyncBeforePatch {
+  deny?: boolean;
+  deny_reason?: string;
+  exclude_patterns?: string[];
+}
+
+export interface SandboxSyncBeforePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  acp_session_id?: string;
+  state?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  sandbox_id?: string;
+  backend?: string;
+  profile?: string;
+  instance_id?: string;
+  runtime_root?: string;
+  direction?: string;
+  reason?: string;
+  file_count?: number;
+  exclude_patterns?: string[];
+  denied?: boolean;
+  deny_reason?: string;
 }
 
 export interface SessionContext {
@@ -3474,11 +3474,11 @@ export interface HookPayloadByEvent {
   "session.post_resume": SessionPostResumePayload;
   "session.pre_stop": SessionPreStopPayload;
   "session.post_stop": SessionPostStopPayload;
-  "environment.prepare": EnvironmentPreparePayload;
-  "environment.ready": EnvironmentReadyPayload;
-  "environment.sync.before": EnvironmentSyncBeforePayload;
-  "environment.sync.after": EnvironmentSyncAfterPayload;
-  "environment.stop": EnvironmentStopPayload;
+  "sandbox.prepare": SandboxPreparePayload;
+  "sandbox.ready": SandboxReadyPayload;
+  "sandbox.sync.before": SandboxSyncBeforePayload;
+  "sandbox.sync.after": SandboxSyncAfterPayload;
+  "sandbox.stop": SandboxStopPayload;
   "input.pre_submit": InputPreSubmitPayload;
   "prompt.post_assemble": PromptPayload;
   "event.pre_record": EventPreRecordPayload;
@@ -3534,11 +3534,11 @@ export interface HookPatchByEvent {
   "session.post_resume": SessionPostResumePatch;
   "session.pre_stop": SessionPreStopPatch;
   "session.post_stop": SessionPostStopPatch;
-  "environment.prepare": EnvironmentPreparePatch;
-  "environment.ready": EnvironmentReadyPatch;
-  "environment.sync.before": EnvironmentSyncBeforePatch;
-  "environment.sync.after": EnvironmentSyncAfterPatch;
-  "environment.stop": EnvironmentStopPatch;
+  "sandbox.prepare": SandboxPreparePatch;
+  "sandbox.ready": SandboxReadyPatch;
+  "sandbox.sync.before": SandboxSyncBeforePatch;
+  "sandbox.sync.after": SandboxSyncAfterPatch;
+  "sandbox.stop": SandboxStopPatch;
   "input.pre_submit": InputPreSubmitPatch;
   "prompt.post_assemble": PromptPatch;
   "event.pre_record": EventPreRecordPatch;
@@ -3612,17 +3612,17 @@ export interface HostAPIMethodMap {
     params: SessionEventsParams;
     result: SessionEvent[];
   };
-  "environment/list": {
-    params: EnvironmentListParams | undefined;
-    result: EnvironmentListResult;
+  "sandbox/list": {
+    params: SandboxListParams | undefined;
+    result: SandboxListResult;
   };
-  "environment/info": {
-    params: EnvironmentInfoParams;
-    result: EnvironmentInfoResult;
+  "sandbox/info": {
+    params: SandboxInfoParams;
+    result: SandboxInfoResult;
   };
-  "environment/exec": {
-    params: EnvironmentExecParams;
-    result: EnvironmentExecResult;
+  "sandbox/exec": {
+    params: SandboxExecParams;
+    result: SandboxExecResult;
   };
   "memory/recall": {
     params: MemoryRecallParams;

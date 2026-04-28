@@ -110,7 +110,7 @@ func TestAgentContractNormalizationAndJSONShape(t *testing.T) {
 	assertContractArray(t, permissionPolicy, "mcp_servers")
 	assertContractArray(t, permissionPolicy, "workspace_paths")
 	assertContractArray(t, permissionPolicy, "network_channels")
-	assertContractArray(t, permissionPolicy, "environment_profiles")
+	assertContractArray(t, permissionPolicy, "sandbox_profiles")
 
 	coordination := nestedContractObject(t, contextObject, "coordination_channel")
 	channelObject := nestedContractObject(t, coordination, "channel")

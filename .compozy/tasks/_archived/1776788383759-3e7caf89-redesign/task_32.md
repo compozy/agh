@@ -19,7 +19,7 @@ dependencies:
 
 ## Overview
 
-Rewrite the five remaining Phase 6 sub-route pages `/settings/mcp-servers`, `/settings/hooks-extensions`, `/settings/observability`, `/settings/environments`, and `/settings/network` on top of the Settings shell from task 30 and the same `@agh/ui` primitive set used in task 31. Every page keeps its query hooks, mutations, and validation intact — only the visual layer is replaced.
+Rewrite the five remaining Phase 6 sub-route pages `/settings/mcp-servers`, `/settings/hooks-extensions`, `/settings/observability`, `/sandbox`, and `/settings/network` on top of the Settings shell from task 30 and the same `@agh/ui` primitive set used in task 31. Every page keeps its query hooks, mutations, and validation intact — only the visual layer is replaced.
 
 <critical>
 - ALWAYS READ the PRD and TechSpec before starting
@@ -49,7 +49,7 @@ Rewrite the five remaining Phase 6 sub-route pages `/settings/mcp-servers`, `/se
 - [x] 32.1 Rewrite `/settings/mcp-servers` — server `Table` (name, command, transport, status `Pills`), add-server `Dialog` with `Field` + `Combobox` for transport, per-row edit / delete actions, `Empty` state.
 - [x] 32.2 Rewrite `/settings/hooks-extensions` — hook groups (`Section` per hook kind), enabled `Switch`, inline script `Input`, add-hook `Dialog`, `Empty` state when no hooks are registered.
 - [x] 32.3 Rewrite `/settings/observability` — metric grid (sessions, events, rate) through `SettingsStatGrid` + `Metric`; log-level `NativeSelect`; OTLP endpoint `Field`; restart-banner wiring.
-- [x] 32.4 Rewrite `/settings/environments` — environment `Table` (name, scope, var count, default `Switch`), add / edit `Dialog` with variable editor, restart-banner wiring when defaults change, `Empty` state.
+- [x] 32.4 Rewrite `/sandbox` — environment `Table` (name, scope, var count, default `Switch`), add / edit `Dialog` with variable editor, restart-banner wiring when defaults change, `Empty` state.
 - [x] 32.5 Rewrite `/settings/network` — bind-address / port `Field`s, TLS `Switch`, allowed-origins `Pills` input, CORS `NativeSelect`; restart-banner wiring on any submit.
 - [x] 32.6 Update the matching `*.stories.tsx` files under `web/src/routes/_app/settings/stories/` to consume the new components and exercise idle + dirty + loading + empty states.
 - [x] 32.7 Regenerate Playwright snapshot baselines per sub-route (idle + dirty minimum; add empty for `mcp-servers`, `hooks-extensions`, `environments`).
@@ -63,7 +63,7 @@ See TechSpec Impact Analysis row `web/src/routes/_app/settings/**` and ADR-004 P
 - `web/src/routes/_app/settings/mcp-servers.tsx` — rewrite target.
 - `web/src/routes/_app/settings/hooks-extensions.tsx` — rewrite target.
 - `web/src/routes/_app/settings/observability.tsx` — rewrite target.
-- `web/src/routes/_app/settings/environments.tsx` — rewrite target.
+- `web/src/routes/_app/sandbox.tsx` — rewrite target.
 - `web/src/routes/_app/settings/network.tsx` — rewrite target.
 - `web/src/routes/_app/settings/stories/-mcp-servers.stories.tsx`, `-hooks-extensions.stories.tsx`, `-observability.stories.tsx`, `-environments.stories.tsx`, `-network.stories.tsx` — update.
 - `web/src/hooks/routes/use-settings-*.ts` — consumed unchanged.
@@ -85,7 +85,7 @@ See TechSpec Impact Analysis row `web/src/routes/_app/settings/**` and ADR-004 P
 
 - Five rewritten route files consuming only `@agh/ui` primitives and the task-30 Settings shell.
 - Updated `.stories.tsx` files with idle / dirty / loading / empty variants exercised for each page.
-- Playwright snapshot baselines for `/settings/mcp-servers`, `/settings/hooks-extensions`, `/settings/observability`, `/settings/environments`, `/settings/network` in idle + dirty states, plus empty baselines for the three list-oriented pages **(REQUIRED)**.
+- Playwright snapshot baselines for `/settings/mcp-servers`, `/settings/hooks-extensions`, `/settings/observability`, `/sandbox`, `/settings/network` in idle + dirty states, plus empty baselines for the three list-oriented pages **(REQUIRED)**.
 - Unit tests with 80%+ coverage **(REQUIRED)**.
 - Integration tests asserting mutation payload contracts per sub-route **(REQUIRED)**.
 
@@ -99,13 +99,13 @@ See TechSpec Impact Analysis row `web/src/routes/_app/settings/**` and ADR-004 P
   - [ ] `/settings/hooks-extensions` — the add-hook `Dialog` `Combobox` filters kinds (`pre-session`, `post-session`, `on-error`) and submits `{ kind: "pre-session", script: "./hooks/warmup.sh" }`.
   - [ ] `/settings/observability` — changing the log-level `NativeSelect` from `"info"` to `"debug"` calls PATCH `/api/settings` with `{ observability: { logLevel: "debug" } }` and surfaces the restart-banner in warning tone.
   - [ ] `/settings/observability` — the metric grid renders three `@agh/ui` `Metric` cards with mono eyebrows and numeric values from the hook's snapshot.
-  - [ ] `/settings/environments` — toggling an environment's default `Switch` calls PATCH `/api/settings/environments/<id>` with `{ default: true }` and opens the restart-banner.
-  - [ ] `/settings/environments` — opening the edit `Dialog` loads the environment's variables into editable `Field`s and submits the delta on save.
+  - [ ] `/sandbox` — toggling an environment's default `Switch` calls PATCH `/api/settings/sandboxes/<id>` with `{ default: true }` and opens the restart-banner.
+  - [ ] `/sandbox` — opening the edit `Dialog` loads the environment's variables into editable `Field`s and submits the delta on save.
   - [ ] `/settings/network` — changing the bind-port `Input` from `2123` to `2200` marks the draft dirty and submits `{ network: { port: 2200 } }` on save.
   - [ ] `/settings/network` — toggling the TLS `Switch` on requires cert / key fields to become `Field`-required; submitting without them surfaces validation errors in the `SettingsSaveBar`.
 - Integration tests:
   - [ ] Storybook `play()` on each sub-route story submits a valid change and asserts the MSW-intercepted PATCH / POST / DELETE payload matches the frozen contract.
-  - [ ] Playwright snapshot baselines for the five sub-routes in idle + dirty states match within 0.1% threshold; `/settings/mcp-servers`, `/settings/hooks-extensions`, `/settings/environments` additionally match the empty-state baseline.
+  - [ ] Playwright snapshot baselines for the five sub-routes in idle + dirty states match within 0.1% threshold; `/settings/mcp-servers`, `/settings/hooks-extensions`, `/sandbox` additionally match the empty-state baseline.
 - Test coverage target: >=80%
 - All tests must pass
 

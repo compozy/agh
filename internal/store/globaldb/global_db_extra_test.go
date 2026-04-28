@@ -768,7 +768,7 @@ func TestCopyMigratedSessionsPreservesProvider(t *testing.T) {
 						add_dirs TEXT NOT NULL DEFAULT '[]',
 						name TEXT NOT NULL UNIQUE,
 						default_agent TEXT DEFAULT '',
-						environment_ref TEXT NOT NULL DEFAULT '',
+						sandbox_ref TEXT NOT NULL DEFAULT '',
 						created_at TEXT NOT NULL,
 						updated_at TEXT NOT NULL
 					);`,
@@ -893,7 +893,7 @@ func TestMigrateBridgeInstanceColumnsNoopAndIdempotent(t *testing.T) {
 	}
 }
 
-func TestMigrateWorkspaceColumnsAddsEnvironmentRef(t *testing.T) {
+func TestMigrateWorkspaceColumnsAddsSandboxRef(t *testing.T) {
 	t.Parallel()
 
 	db, err := store.OpenSQLiteDatabase(testutil.Context(t), filepath.Join(t.TempDir(), "workspace-columns.db"), nil)
@@ -929,8 +929,8 @@ func TestMigrateWorkspaceColumnsAddsEnvironmentRef(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tableColumns(workspaces) error = %v", err)
 	}
-	if _, ok := columns["environment_ref"]; !ok {
-		t.Fatalf("tableColumns(workspaces) missing environment_ref in %#v", columns)
+	if _, ok := columns["sandbox_ref"]; !ok {
+		t.Fatalf("tableColumns(workspaces) missing sandbox_ref in %#v", columns)
 	}
 }
 
@@ -1014,7 +1014,7 @@ func TestMigrateGlobalSchemaUpgradesLegacyBridgeAndExtensionTables(t *testing.T)
 
 	for table, expected := range map[string][]string{
 		"sessions":         {"provider", "stop_reason", "stop_detail", "channel", "subprocess_pid", "subprocess_started_at", "last_update_at", "stall_state", "stall_reason"},
-		"workspaces":       {"environment_ref"},
+		"workspaces":       {"sandbox_ref"},
 		"extensions":       {"registry_slug", "registry_name", "remote_version"},
 		"bridge_instances": {"source", "dm_policy", "provider_config", "degradation_reason", "degradation_message"},
 	} {

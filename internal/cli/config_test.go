@@ -190,7 +190,7 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestConfigOutputRedactsMCPAndEnvironmentSecrets(t *testing.T) {
+func TestConfigOutputRedactsMCPAndSandboxSecrets(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{})
@@ -204,10 +204,10 @@ name = "remote"
 command = "remote-mcp"
 env = { MCP_TOKEN = "raw-mcp-secret" }
 
-[environments.dev]
+[sandboxes.dev]
 backend = "local"
 
-[environments.dev.env]
+[sandboxes.dev.env]
 API_TOKEN = "raw-env-secret"
 `)
 
@@ -239,21 +239,21 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{})
-	if _, _, err := executeRootCommand(t, deps, "config", "set", "environments.dev.backend", "local"); err != nil {
-		t.Fatalf("config set environment backend error = %v", err)
+	if _, _, err := executeRootCommand(t, deps, "config", "set", "sandboxes.dev.backend", "local"); err != nil {
+		t.Fatalf("config set sandbox backend error = %v", err)
 	}
 	out, _, err := executeRootCommand(
 		t,
 		deps,
 		"config",
 		"set",
-		"environments.dev.env.API_TOKEN",
+		"sandboxes.dev.env.API_TOKEN",
 		"raw-secret",
 		"-o",
 		"json",
 	)
 	if err != nil {
-		t.Fatalf("config set environment env error = %v", err)
+		t.Fatalf("config set sandbox env error = %v", err)
 	}
 	if strings.Contains(out, "raw-secret") {
 		t.Fatalf("config set leaked secret value:\n%s", out)

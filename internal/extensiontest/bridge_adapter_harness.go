@@ -18,11 +18,11 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	environmentlocal "github.com/pedronauck/agh/internal/environment/local"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	observepkg "github.com/pedronauck/agh/internal/observe"
+	sandboxlocal "github.com/pedronauck/agh/internal/sandbox/local"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store/globaldb"
@@ -1257,7 +1257,7 @@ func newHarnessSessions(
 ) *session.Manager {
 	t.Helper()
 
-	environmentRegistry, err := environmentlocal.NewRegistry()
+	sandboxRegistry, err := sandboxlocal.NewRegistry()
 	if err != nil {
 		t.Fatalf("local.NewRegistry() error = %v", err)
 	}
@@ -1272,7 +1272,7 @@ func newHarnessSessions(
 		session.WithNow(func() time.Time { return now }),
 		session.WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		session.WithTurnIDGenerator(sequentialIDGenerator("turn")),
-		session.WithEnvironmentRegistry(environmentRegistry),
+		session.WithSandboxRegistry(sandboxRegistry),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)

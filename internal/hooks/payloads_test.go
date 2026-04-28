@@ -102,12 +102,12 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Workspace: &workspace,
 	})
 
-	assertJSONRoundTrip(t, "EnvironmentPreparePayload", EnvironmentPreparePayload{
-		PayloadBase:    samplePayloadBase(HookEnvironmentPrepare),
+	assertJSONRoundTrip(t, "SandboxPreparePayload", SandboxPreparePayload{
+		PayloadBase:    samplePayloadBase(HookSandboxPrepare),
 		SessionContext: sampleSession,
-		EnvironmentID:  "env-1",
+		SandboxID:      "env-1",
 		Backend:        "daytona",
-		Profile: EnvironmentProfilePayload{
+		Profile: SandboxProfilePayload{
 			Profile:        "daytona-dev",
 			Backend:        "daytona",
 			SyncMode:       "session-bidirectional",
@@ -126,20 +126,20 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Denied:              true,
 		DenyReason:          "policy",
 	})
-	assertJSONRoundTrip(t, "EnvironmentReadyPayload", EnvironmentReadyPayload{
-		PayloadBase:           samplePayloadBase(HookEnvironmentReady),
+	assertJSONRoundTrip(t, "SandboxReadyPayload", SandboxReadyPayload{
+		PayloadBase:           samplePayloadBase(HookSandboxReady),
 		SessionContext:        sampleSession,
-		EnvironmentID:         "env-1",
+		SandboxID:             "env-1",
 		Backend:               "daytona",
 		Profile:               "daytona-dev",
 		InstanceID:            "instance-1",
 		RuntimeRootDir:        "/runtime",
 		RuntimeAdditionalDirs: []string{"/runtime-extra"},
 	})
-	assertJSONRoundTrip(t, "EnvironmentSyncBeforePayload", EnvironmentSyncBeforePayload{
-		PayloadBase:     samplePayloadBase(HookEnvironmentSyncBefore),
+	assertJSONRoundTrip(t, "SandboxSyncBeforePayload", SandboxSyncBeforePayload{
+		PayloadBase:     samplePayloadBase(HookSandboxSyncBefore),
 		SessionContext:  sampleSession,
-		EnvironmentID:   "env-1",
+		SandboxID:       "env-1",
 		Backend:         "daytona",
 		Profile:         "daytona-dev",
 		InstanceID:      "instance-1",
@@ -151,10 +151,10 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Denied:          true,
 		DenyReason:      "blocked",
 	})
-	assertJSONRoundTrip(t, "EnvironmentSyncAfterPayload", EnvironmentSyncAfterPayload{
-		PayloadBase:      samplePayloadBase(HookEnvironmentSyncAfter),
+	assertJSONRoundTrip(t, "SandboxSyncAfterPayload", SandboxSyncAfterPayload{
+		PayloadBase:      samplePayloadBase(HookSandboxSyncAfter),
 		SessionContext:   sampleSession,
-		EnvironmentID:    "env-1",
+		SandboxID:        "env-1",
 		Backend:          "daytona",
 		Profile:          "daytona-dev",
 		InstanceID:       "instance-1",
@@ -166,10 +166,10 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		DurationMS:       37,
 		Errors:           []string{"retryable warning"},
 	})
-	assertJSONRoundTrip(t, "EnvironmentStopPayload", EnvironmentStopPayload{
-		PayloadBase:    samplePayloadBase(HookEnvironmentStop),
+	assertJSONRoundTrip(t, "SandboxStopPayload", SandboxStopPayload{
+		PayloadBase:    samplePayloadBase(HookSandboxStop),
 		SessionContext: sampleSession,
-		EnvironmentID:  "env-1",
+		SandboxID:      "env-1",
 		Backend:        "daytona",
 		Profile:        "daytona-dev",
 		InstanceID:     "instance-1",
@@ -179,15 +179,15 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Denied:         true,
 		DenyReason:     "retain",
 	})
-	assertJSONRoundTrip(t, "EnvironmentPreparePatch", EnvironmentPreparePatch{
+	assertJSONRoundTrip(t, "SandboxPreparePatch", SandboxPreparePatch{
 		ControlPatch: ControlPatch{Deny: true, DenyReason: "policy"},
 		EnvOverrides: map[string]string{"SECRET": "token"},
 	})
-	assertJSONRoundTrip(t, "EnvironmentSyncBeforePatch", EnvironmentSyncBeforePatch{
+	assertJSONRoundTrip(t, "SandboxSyncBeforePatch", SandboxSyncBeforePatch{
 		ControlPatch:    ControlPatch{Deny: true, DenyReason: "sync blocked"},
 		ExcludePatterns: []string{"tmp/**"},
 	})
-	assertJSONRoundTrip(t, "EnvironmentStopPatch", EnvironmentStopPatch{
+	assertJSONRoundTrip(t, "SandboxStopPatch", SandboxStopPatch{
 		ControlPatch: ControlPatch{Deny: true, DenyReason: "retain"},
 	})
 

@@ -8,9 +8,9 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Important Decisions
 
-- Registry placement must be a shared runtime package (`internal/toolruntime` per task/ADR), not `session.Manager` or `environment.ToolHost`.
+- Registry placement must be a shared runtime package (`internal/toolruntime` per task/ADR), not `session.Manager` or `sandbox.ToolHost`.
 - Recovered process signaling must validate ownership plus start-time evidence; PID-only signaling is prohibited.
-- Daemon boot owns construction of one shared `toolruntime.Registry` from the global DB store and passes it into sessions, environment providers, hooks, extensions, ACP, and subprocess helpers.
+- Daemon boot owns construction of one shared `toolruntime.Registry` from the global DB store and passes it into sessions, sandbox providers, hooks, extensions, ACP, and subprocess helpers.
 - `CancelPrompt` remains cooperative first; scoped registry interruption is a follow-on for only the active session turn and treats no matching process as a no-op.
 
 ## Learnings
@@ -23,8 +23,8 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Files / Surfaces
 
-- Planned inspection surfaces: `internal/toolruntime` (new), `internal/acp`, `internal/environment`, `internal/hooks`, `internal/extension`, `internal/subprocess`, `internal/procutil`, `internal/daemon`, API/web/docs impact points, and `.compozy/tasks/hermes/task_10.md` QA follow-up.
-- Implemented/touched surfaces: `internal/toolruntime`, `internal/store/globaldb`, `internal/procutil`, `internal/subprocess`, `internal/acp`, `internal/environment/local`, `internal/environment/daytona`, `internal/hooks`, `internal/extension`, `internal/session`, `internal/daemon`, `packages/site/content/runtime/core/operations/{daemon,database}.mdx`, and `.compozy/tasks/hermes/task_10.md`.
+- Planned inspection surfaces: `internal/toolruntime` (new), `internal/acp`, `internal/sandbox`, `internal/hooks`, `internal/extension`, `internal/subprocess`, `internal/procutil`, `internal/daemon`, API/web/docs impact points, and `.compozy/tasks/hermes/task_10.md` QA follow-up.
+- Implemented/touched surfaces: `internal/toolruntime`, `internal/store/globaldb`, `internal/procutil`, `internal/subprocess`, `internal/acp`, `internal/sandbox/local`, `internal/sandbox/daytona`, `internal/hooks`, `internal/extension`, `internal/session`, `internal/daemon`, `packages/site/content/runtime/core/operations/{daemon,database}.mdx`, and `.compozy/tasks/hermes/task_10.md`.
 
 ## Errors / Corrections
 
@@ -33,6 +33,6 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Ready for Next Run
 
-- Targeted verification passed: `go test ./internal/toolruntime ./internal/procutil ./internal/subprocess ./internal/acp ./internal/hooks ./internal/extension ./internal/environment/local ./internal/environment/daytona ./internal/session ./internal/daemon ./internal/store/globaldb`.
+- Targeted verification passed: `go test ./internal/toolruntime ./internal/procutil ./internal/subprocess ./internal/acp ./internal/hooks ./internal/extension ./internal/sandbox/local ./internal/sandbox/daytona ./internal/session ./internal/daemon ./internal/store/globaldb`.
 - Final verification passed after the final docs/tracking edits: `make verify` exited 0 with web format/lint/typecheck/tests/build, Go lint, `DONE 5820 tests`, and package boundary checks passing.
 - Local implementation/docs commit created: `0f3e1893 feat: add tool process registry`.

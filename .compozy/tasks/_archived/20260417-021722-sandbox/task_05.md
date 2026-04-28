@@ -44,15 +44,15 @@ Validate that Daytona's SSH gateway supports non-PTY sessions with clean stdio b
 
 See TechSpec section: build order step 9, ADR-002 "Implementation Notes".
 
-Write a small Go test file (`internal/environment/daytona/ssh_validation_test.go`) with build tag `integration` that performs the validation. The test requires `DAYTONA_API_KEY` environment variable.
+Write a small Go test file (`internal/sandbox/daytona/ssh_validation_test.go`) with build tag `integration` that performs the validation. The test requires `DAYTONA_API_KEY` environment variable.
 
 ### Relevant Files
 
-- `internal/environment/daytona/ssh_validation_test.go` — New validation test file (to create)
+- `internal/sandbox/daytona/ssh_validation_test.go` — New validation test file (to create)
 
 ### Dependent Files
 
-- `internal/environment/daytona/transport.go` — SSH transport implementation depends on validation result (task 06)
+- `internal/sandbox/daytona/transport.go` — SSH transport implementation depends on validation result (task 06)
 
 ### Related ADRs
 
@@ -60,7 +60,7 @@ Write a small Go test file (`internal/environment/daytona/ssh_validation_test.go
 
 ## Deliverables
 
-- `internal/environment/daytona/ssh_validation_test.go` — Integration test with `//go:build integration`
+- `internal/sandbox/daytona/ssh_validation_test.go` — Integration test with `//go:build integration`
 - Validation report documenting: pass/fail, payload sizes tested, latency, any artifacts observed
 - Gate decision: proceed with SSH or switch to WebSocket sidecar
 

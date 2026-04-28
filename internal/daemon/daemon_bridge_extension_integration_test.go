@@ -391,8 +391,8 @@ func registerBridgeExtensionArtifacts(
 			if err := harness.CaptureSessionEvents(ctx, trimmedSessionID); err != nil {
 				t.Logf("CaptureSessionEvents(%q) error = %v", trimmedSessionID, err)
 			}
-			if err := harness.CaptureSessionEnvironment(ctx, trimmedSessionID); err != nil {
-				t.Logf("CaptureSessionEnvironment(%q) error = %v", trimmedSessionID, err)
+			if err := harness.CaptureSessionSandbox(ctx, trimmedSessionID); err != nil {
+				t.Logf("CaptureSessionSandbox(%q) error = %v", trimmedSessionID, err)
 			}
 		}
 

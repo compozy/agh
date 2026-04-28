@@ -50,13 +50,13 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 			return CollectionEnvelope{}, buildErr
 		}
 		envelope.MCPServers = items
-	case CollectionEnvironments:
+	case CollectionSandboxes:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal}
-		items, buildErr := s.buildEnvironmentItems(ctx, &cfg)
+		items, buildErr := s.buildSandboxItems(ctx, &cfg)
 		if buildErr != nil {
 			return CollectionEnvelope{}, buildErr
 		}
-		envelope.Environments = items
+		envelope.Sandboxes = items
 	case CollectionHooks:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal}
 		envelope.Hooks = buildHookItems(cfg.Hooks.Declarations)
@@ -91,16 +91,16 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 			return MutationResult{}, validationError(errors.New("settings: MCP server payload is required"))
 		}
 		return s.putMCPServer(ctx, scope, workspaceID, name, req.Target, *req.MCPServer)
-	case CollectionEnvironments:
+	case CollectionSandboxes:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(
-				errors.New("settings: environments do not support workspace scope"),
+				errors.New("settings: sandboxes do not support workspace scope"),
 			)
 		}
-		if req.Environment == nil {
-			return MutationResult{}, validationError(errors.New("settings: environment payload is required"))
+		if req.Sandbox == nil {
+			return MutationResult{}, validationError(errors.New("settings: sandbox payload is required"))
 		}
-		return s.putEnvironment(name, *req.Environment)
+		return s.putSandbox(name, *req.Sandbox)
 	case CollectionHooks:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(errors.New("settings: hooks do not support workspace scope"))
@@ -132,13 +132,13 @@ func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDe
 		return s.deleteProvider(name)
 	case CollectionMCPServers:
 		return s.deleteMCPServer(ctx, scope, workspaceID, name, req.Target)
-	case CollectionEnvironments:
+	case CollectionSandboxes:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(
-				errors.New("settings: environments do not support workspace scope"),
+				errors.New("settings: sandboxes do not support workspace scope"),
 			)
 		}
-		return s.deleteEnvironment(name)
+		return s.deleteSandbox(name)
 	case CollectionHooks:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(errors.New("settings: hooks do not support workspace scope"))
@@ -216,18 +216,18 @@ func (s *service) buildProviderItems(cfg *aghconfig.Config) ([]ProviderItem, err
 	return items, nil
 }
 
-func (s *service) buildEnvironmentItems(
+func (s *service) buildSandboxItems(
 	ctx context.Context,
 	cfg *aghconfig.Config,
-) ([]EnvironmentItem, error) {
+) ([]SandboxItem, error) {
 	usage := make(map[string]int)
 	if s.workspaceResolver != nil {
 		workspaces, err := s.workspaceResolver.List(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("settings: list workspaces for environment usage: %w", err)
+			return nil, fmt.Errorf("settings: list workspaces for sandbox usage: %w", err)
 		}
 		for _, workspace := range workspaces {
-			ref := strings.TrimSpace(workspace.EnvironmentRef)
+			ref := strings.TrimSpace(workspace.SandboxRef)
 			if ref == "" {
 				continue
 			}
@@ -235,21 +235,21 @@ func (s *service) buildEnvironmentItems(
 		}
 	}
 
-	names := make([]string, 0, len(cfg.Environments))
-	for name := range cfg.Environments {
+	names := make([]string, 0, len(cfg.Sandboxes))
+	for name := range cfg.Sandboxes {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 
-	items := make([]EnvironmentItem, 0, len(names))
+	items := make([]SandboxItem, 0, len(names))
 	for _, name := range names {
-		item := EnvironmentItem{
+		item := SandboxItem{
 			Name:                name,
-			Profile:             cfg.Environments[name],
+			Profile:             cfg.Sandboxes[name],
 			WorkspaceUsageCount: usage[name],
 			SourceMetadata:      globalConfigSourceMetadata(),
 		}
-		items = append(items, cloneEnvironmentItem(item))
+		items = append(items, cloneSandboxItem(item))
 	}
 	return items, nil
 }
@@ -370,39 +370,39 @@ func (s *service) deleteProvider(name string) (MutationResult, error) {
 	return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", target.Kind()), nil
 }
 
-func (s *service) putEnvironment(name string, profile aghconfig.EnvironmentProfile) (MutationResult, error) {
-	values := environmentProfileMap(profile)
+func (s *service) putSandbox(name string, profile aghconfig.SandboxProfile) (MutationResult, error) {
+	values := sandboxProfileMap(profile)
 	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
 	if err != nil {
 		return MutationResult{}, err
 	}
 
 	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
-		return editor.SetTable([]string{"environments", name}, values)
+		return editor.SetTable([]string{"sandboxes", name}, values)
 	}); err != nil {
-		return MutationResult{}, fmt.Errorf("settings: write environment %q: %w", name, err)
+		return MutationResult{}, fmt.Errorf("settings: write sandbox %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionEnvironments, ScopeGlobal, "", target.Kind()), nil
+	return mutationResultForCollection(CollectionSandboxes, ScopeGlobal, "", target.Kind()), nil
 }
 
-func (s *service) deleteEnvironment(name string) (MutationResult, error) {
+func (s *service) deleteSandbox(name string) (MutationResult, error) {
 	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
 	if err != nil {
 		return MutationResult{}, err
 	}
 
 	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
-		path := []string{"environments", name}
+		path := []string{"sandboxes", name}
 		if !editor.HasPath(path) {
-			return notFoundError(fmt.Errorf("settings: environment %q not found", name))
+			return notFoundError(fmt.Errorf("settings: sandbox %q not found", name))
 		}
 		return editor.Delete(path)
 	}); err != nil {
-		return MutationResult{}, fmt.Errorf("settings: delete environment %q: %w", name, err)
+		return MutationResult{}, fmt.Errorf("settings: delete sandbox %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionEnvironments, ScopeGlobal, "", target.Kind()), nil
+	return mutationResultForCollection(CollectionSandboxes, ScopeGlobal, "", target.Kind()), nil
 }
 
 func (s *service) putHook(name string, declaration hookspkg.HookDecl) (MutationResult, error) {
@@ -780,7 +780,7 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 	return values
 }
 
-func environmentProfileMap(profile aghconfig.EnvironmentProfile) map[string]any {
+func sandboxProfileMap(profile aghconfig.SandboxProfile) map[string]any {
 	values := map[string]any{
 		"backend": profile.Backend,
 	}

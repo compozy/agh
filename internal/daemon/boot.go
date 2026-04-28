@@ -15,9 +15,6 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
-	"github.com/pedronauck/agh/internal/environment/daytona"
-	"github.com/pedronauck/agh/internal/environment/local"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
@@ -26,6 +23,9 @@ import (
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/sandbox"
+	"github.com/pedronauck/agh/internal/sandbox/daytona"
+	"github.com/pedronauck/agh/internal/sandbox/local"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/situation"
@@ -57,7 +57,7 @@ type bootState struct {
 	notifier            *hooksNotifier
 	registry            Registry
 	processRegistry     *toolruntime.Registry
-	environmentRegistry *environment.Registry
+	sandboxRegistry     *sandbox.Registry
 	workspaceResolver   *workspacepkg.Resolver
 	sessions            SessionManager
 	tasks               *taskRuntime
@@ -478,11 +478,11 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootProcessRegistry(ctx, state); err != nil {
 		return err
 	}
-	environmentRegistry, err := d.buildEnvironmentRegistry(state)
+	sandboxRegistry, err := d.buildSandboxRegistry(state)
 	if err != nil {
 		return err
 	}
-	state.environmentRegistry = environmentRegistry
+	state.sandboxRegistry = sandboxRegistry
 	state.bridges = d.composeBridgeRuntime(state, cleanup)
 
 	resourceKernel, err := d.buildResourceKernel(state.registry)
@@ -533,7 +533,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		Notifier:  d.sessionNotifier(state),
 		Hooks: session.HookSet{
 			Session:      state.notifier,
-			Environment:  state.notifier,
+			Sandbox:      state.notifier,
 			Prompt:       state.notifier,
 			Events:       state.notifier,
 			Agent:        state.notifier,
@@ -549,7 +549,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SkillRegistry:        skillRegistryDependency(state.skillsRegistry),
 		MCPResolver:          mcpResolverDependency(state.mcpResolver),
 		WorkspaceResolver:    state.workspaceResolver,
-		EnvironmentRegistry:  state.environmentRegistry,
+		SandboxRegistry:      state.sandboxRegistry,
 		SessionSupervision:   state.cfg.Session.Supervision,
 		ProcessRegistry:      state.processRegistry,
 	}
@@ -584,22 +584,22 @@ func (d *Daemon) bootProcessRegistry(ctx context.Context, state *bootState) erro
 	return nil
 }
 
-func (d *Daemon) buildEnvironmentRegistry(state *bootState) (*environment.Registry, error) {
+func (d *Daemon) buildSandboxRegistry(state *bootState) (*sandbox.Registry, error) {
 	if state == nil {
-		return nil, errors.New("daemon: environment registry state is required")
+		return nil, errors.New("daemon: sandbox registry state is required")
 	}
 	registry, err := local.NewRegistry(
 		local.WithLogger(state.logger),
 		local.WithProcessRegistry(state.processRegistry),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: create environment registry: %w", err)
+		return nil, fmt.Errorf("daemon: create sandbox registry: %w", err)
 	}
 	if err := registry.Register(daytona.NewProvider(
 		daytona.WithLogger(state.logger),
 		daytona.WithProcessRegistry(state.processRegistry),
 	)); err != nil {
-		return nil, fmt.Errorf("daemon: register daytona environment provider: %w", err)
+		return nil, fmt.Errorf("daemon: register daytona sandbox provider: %w", err)
 	}
 	return registry, nil
 }
@@ -1486,7 +1486,7 @@ func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
 		}
 	}
 
-	d.reconcileDaemonEnvironments(ctx, state)
+	d.reconcileDaemonSandboxes(ctx, state)
 
 	reconcileResult, err := state.observer.Reconcile(ctx)
 	if err != nil {
@@ -1537,7 +1537,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.udsServer = state.udsServer
 	d.dreamRuntime = state.dreamRuntime
 	d.workspaceResolver = state.workspaceResolver
-	d.environmentRegistry = state.environmentRegistry
+	d.sandboxRegistry = state.sandboxRegistry
 	d.skillsRegistry = state.skillsRegistry
 	d.skillsCancel = state.skillsCancel
 	d.skillsDone = state.skillsDone

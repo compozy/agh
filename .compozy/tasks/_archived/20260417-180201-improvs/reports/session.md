@@ -19,7 +19,7 @@ Output from `gocyclo -over 0 $(rg --files internal/session --glob '!**/*_test.go
 | Complexity | Function | File |
 | --- | --- | --- |
 | 19 | `(*Manager).ListAll` | `internal/session/query.go:16` |
-| 18 | `(*Manager).ExecEnvironment` | `internal/session/environment_exec.go:30` |
+| 18 | `(*Manager).ExecEnvironment` | `internal/session/sandbox_exec.go:30` |
 | 14 | `NewManager` | `internal/session/manager.go:222` |
 | 14 | `(*Manager).runContextCompaction` | `internal/session/manager_hooks.go:465` |
 | 13 | `classifyStopReason` | `internal/session/stop_reason.go:14` |
@@ -60,7 +60,7 @@ Baseline output from `dupl -plumbing -t 30 $(rg --files internal/session --glob 
 
 | Function | File:Line | Reasoning | Benchmark |
 | --- | --- | --- | --- |
-| `(*Manager).dispatchEnvironmentSyncBefore` | `internal/session/environment.go:287` | This runs on every environment sync path before runtime transfer and was building hook payload metadata even when no environment hooks were configured. | `BenchmarkDispatchEnvironmentSyncBeforeNoHooks` |
+| `(*Manager).dispatchEnvironmentSyncBefore` | `internal/session/environment.go:287` | This runs on every environment sync path before runtime transfer and was building hook payload metadata even when no sandbox hooks were configured. | `BenchmarkDispatchEnvironmentSyncBeforeNoHooks` |
 | `(*Manager).ListAll` | `internal/session/query.go:16` | This is the shared disk-backed session listing path for API/CLI callers and merges in-memory state with on-disk metadata on every list call. | `BenchmarkManagerListAllLarge` |
 | `(*Session).Info` | `internal/session/session.go:88` | This allocation-heavy read model is called throughout notifier, lifecycle, and query code whenever session state is observed. | `BenchmarkSessionInfo` |
 
@@ -147,7 +147,7 @@ Values below use the mean of 5 runs captured in `/tmp/session-bench-before.txt` 
 | `internal/session/manager_lifecycle.go:19` | `CreateOpts` fields from CLI/API callers (`AgentName`, `Name`, `Workspace`, `WorkspacePath`, `Channel`, `Type`). | `dispatchSessionPreCreate`, `resolveCreateWorkspace`, `aghconfig.ResolveAgentName`, `strings.TrimSpace`, and `normalizeSessionType` in `prepareCreateStart`. | Session metadata/session-dir setup and runtime launch through `startSession`. | LOW — rejected; values are normalized/validated before they reach filesystem paths or driver startup. |
 | `internal/session/manager_prompt.go:22` and `internal/session/manager_prompt.go:92` | Prompt session IDs, message text, and turn source from callers. | `parsePromptRequest` requires non-nil context, non-empty session ID/message, and allowlisted turn sources; stored-session fallback now flows through `readMeta` validation. | `recordPromptInputEvent`, `lookupPromptSession`, and `m.driver.Prompt`. | LOW — rejected; prompt text is persisted and forwarded as data only, while session ID lookups use validated active/stored session resolution. |
 | `internal/session/query.go:86`, `internal/session/query.go:108`, `internal/session/query.go:131`, `internal/session/transcript.go:14`, `internal/session/manager_lifecycle.go:38`, `internal/session/stop_reason.go:89`, `internal/session/manager_prompt.go:163` | Session IDs from control-plane callers across status/history/event/transcript/resume/stop/approval flows. | `normalizeStoredSessionID` in `readMeta` rejects blank, absolute, dot-segment, slash, and backslash-containing IDs before any on-disk lookup; in-memory lookups still use trimmed IDs only. | `store.SessionMetaFile(filepath.Join(...))` and `store.SessionDBFile(filepath.Join(...))` in `query.go`, plus lifecycle decisions keyed by session ID. | LOW — fixed; traversal-style IDs no longer reach session metadata or event-store path resolution. |
-| `internal/session/environment_exec.go:30` | `EnvironmentExecRequest{SessionID, Command, Timeout}` from callers. | Trims and requires non-empty session ID and command, verifies active session/environment state, and requires a tool host before delegation. | `toolHost.CreateTerminal`, `WaitForTerminalExit`, and `TerminalOutput`. | LOW — rejected; this is an intentional privileged capability behind a trusted caller boundary, not an injection sink inside `internal/session`. |
+| `internal/session/sandbox_exec.go:30` | `EnvironmentExecRequest{SessionID, Command, Timeout}` from callers. | Trims and requires non-empty session ID and command, verifies active session/environment state, and requires a tool host before delegation. | `toolHost.CreateTerminal`, `WaitForTerminalExit`, and `TerminalOutput`. | LOW — rejected; this is an intentional privileged capability behind a trusted caller boundary, not an injection sink inside `internal/session`. |
 | `internal/session/manager_prompt.go:163` | `acp.ApproveRequest` fields from a caller resolving a pending permission request. | `req.Validate()`, trimmed session ID, active-session lookup, and typed ACP error mapping. | `session.ApprovePermission` / driver-facing permission resolution. | LOW — rejected; request structure is validated and only forwarded to an already-owned active session. |
 | `internal/session/query.go:196` and `internal/session/manager_lifecycle.go:49` | Persisted session metadata loaded back from disk on query/resume paths. | `store.ReadSessionMeta`, `repairInactiveMeta`, and `validateInfrastructure` bound the resumed/read state before reuse. | `sessionInfoFromMeta`, `prepareResumeStart`, and on-disk event-store reopen paths. | LOW — rejected; filesystem tampering requires same-user home-dir control, which is outside the declared threat model. |
 
@@ -156,9 +156,9 @@ Values below use the mean of 5 runs captured in `/tmp/session-bench-before.txt` 
 | ID | Skill | Severity | File:Line | Summary | Decision |
 | --- | --- | --- | --- | --- | --- |
 | `SES-SEC-001` | security-review | high | `internal/session/query.go:196` | Stored-session queries accepted traversal-style session IDs and fed them into `SessionMetaFile` / `SessionDBFile` path resolution for metadata and event history access. | fixed |
-| `SES-PERF-001` | extreme-software-optimization | medium | `internal/session/environment.go:287` | `dispatchEnvironmentSyncBefore` always walked the workspace to count files even when no environment hooks were configured to consume the payload. | fixed |
+| `SES-PERF-001` | extreme-software-optimization | medium | `internal/session/environment.go:287` | `dispatchEnvironmentSyncBefore` always walked the workspace to count files even when no sandbox hooks were configured to consume the payload. | fixed |
 | `SES-CON-001` | deadlock-finder-and-fixer | high | `internal/session/stop_reason.go:111` | A failing `driver.Stop` could still fall into stop finalization if the process exited concurrently during the failed stop call, making `StopWithCause` block behind unrelated finalization work. | fixed |
-| `SES-REF-001` | refactoring-analysis | medium | `internal/session/environment.go:1` | `environment.go` remains a 1100+ LOC unit that mixes environment lifecycle orchestration, metadata repair, sync bookkeeping, and helper utilities. | deferred |
+| `SES-REF-001` | refactoring-analysis | medium | `internal/session/environment.go:1` | `environment.go` remains a 1100+ LOC unit that mixes sandbox lifecycle orchestration, metadata repair, sync bookkeeping, and helper utilities. | deferred |
 | `SES-REF-002` | refactoring-analysis | medium | `internal/session/manager_hooks.go:1` | `manager_hooks.go` remains an 800+ LOC unit that concentrates multiple hook domains and repeated dispatch patterns. | deferred |
 | `SES-REF-003` | refactoring-analysis | low | `internal/session/query.go:108` | `Events` and `History` still duplicate the same recorder open/defer/query wrapper shape. | wontfix |
 

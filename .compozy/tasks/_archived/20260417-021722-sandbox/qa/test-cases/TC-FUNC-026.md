@@ -1,4 +1,4 @@
-## TC-FUNC-026: environment.prepare deny aborts session creation
+## TC-FUNC-026: sandbox.prepare deny aborts session creation
 
 **Priority:** P0 (Critical)
 **Type:** Functional
@@ -11,13 +11,13 @@
 
 ### Objective
 
-Verify that when the `environment.prepare` sync hook returns a `ControlPatch.Deny`, session creation is aborted with an error that includes the deny reason.
+Verify that when the `sandbox.prepare` sync hook returns a `ControlPatch.Deny`, session creation is aborted with an error that includes the deny reason.
 
 ---
 
 ### Preconditions
 
-- [x] Hook registered for `environment.prepare` that returns Deny patch
+- [x] Hook registered for `sandbox.prepare` that returns Deny patch
 
 ---
 

@@ -133,8 +133,8 @@ type SessionPreStopPatch = SessionCreatePatch
 // SessionPostStopPatch is the post-stop patch surface.
 type SessionPostStopPatch = SessionCreatePatch
 
-// EnvironmentProfilePayload is the environment profile snapshot exposed to environment hooks.
-type EnvironmentProfilePayload struct {
+// SandboxProfilePayload is the sandbox profile snapshot exposed to sandbox hooks.
+type SandboxProfilePayload struct {
 	Profile        string            `json:"profile,omitempty"`
 	Backend        string            `json:"backend,omitempty"`
 	SyncMode       string            `json:"sync_mode,omitempty"`
@@ -144,29 +144,29 @@ type EnvironmentProfilePayload struct {
 	Env            map[string]string `json:"env,omitempty"`
 }
 
-// EnvironmentPreparePayload is delivered before a session environment is prepared.
-type EnvironmentPreparePayload struct {
+// SandboxPreparePayload is delivered before a session sandbox is prepared.
+type SandboxPreparePayload struct {
 	PayloadBase
 	SessionContext
-	EnvironmentID       string                    `json:"environment_id,omitempty"`
-	Backend             string                    `json:"backend,omitempty"`
-	Profile             EnvironmentProfilePayload `json:"profile"`
-	LocalRootDir        string                    `json:"local_root,omitempty"`
-	LocalAdditionalDirs []string                  `json:"local_additional_dirs,omitempty"`
-	AgentCommand        string                    `json:"agent_command,omitempty"`
-	AgentEnv            []string                  `json:"agent_env,omitempty"`
-	Permissions         string                    `json:"permissions,omitempty"`
-	ResumeACPState      string                    `json:"resume_acp_state,omitempty"`
-	EnvOverrides        map[string]string         `json:"env_overrides,omitempty"`
-	Denied              bool                      `json:"denied,omitempty"`
-	DenyReason          string                    `json:"deny_reason,omitempty"`
+	SandboxID           string                `json:"sandbox_id,omitempty"`
+	Backend             string                `json:"backend,omitempty"`
+	Profile             SandboxProfilePayload `json:"profile"`
+	LocalRootDir        string                `json:"local_root,omitempty"`
+	LocalAdditionalDirs []string              `json:"local_additional_dirs,omitempty"`
+	AgentCommand        string                `json:"agent_command,omitempty"`
+	AgentEnv            []string              `json:"agent_env,omitempty"`
+	Permissions         string                `json:"permissions,omitempty"`
+	ResumeACPState      string                `json:"resume_acp_state,omitempty"`
+	EnvOverrides        map[string]string     `json:"env_overrides,omitempty"`
+	Denied              bool                  `json:"denied,omitempty"`
+	DenyReason          string                `json:"deny_reason,omitempty"`
 }
 
-// EnvironmentReadyPayload is delivered after an environment has been prepared and synchronized.
-type EnvironmentReadyPayload struct {
+// SandboxReadyPayload is delivered after a sandbox has been prepared and synchronized.
+type SandboxReadyPayload struct {
 	PayloadBase
 	SessionContext
-	EnvironmentID         string   `json:"environment_id,omitempty"`
+	SandboxID             string   `json:"sandbox_id,omitempty"`
 	Backend               string   `json:"backend,omitempty"`
 	Profile               string   `json:"profile,omitempty"`
 	InstanceID            string   `json:"instance_id,omitempty"`
@@ -174,11 +174,11 @@ type EnvironmentReadyPayload struct {
 	RuntimeAdditionalDirs []string `json:"runtime_additional_dirs,omitempty"`
 }
 
-// EnvironmentSyncBeforePayload is delivered before an environment sync operation runs.
-type EnvironmentSyncBeforePayload struct {
+// SandboxSyncBeforePayload is delivered before a sandbox sync operation runs.
+type SandboxSyncBeforePayload struct {
 	PayloadBase
 	SessionContext
-	EnvironmentID   string   `json:"environment_id,omitempty"`
+	SandboxID       string   `json:"sandbox_id,omitempty"`
 	Backend         string   `json:"backend,omitempty"`
 	Profile         string   `json:"profile,omitempty"`
 	InstanceID      string   `json:"instance_id,omitempty"`
@@ -191,11 +191,11 @@ type EnvironmentSyncBeforePayload struct {
 	DenyReason      string   `json:"deny_reason,omitempty"`
 }
 
-// EnvironmentSyncAfterPayload is delivered after an environment sync operation finishes.
-type EnvironmentSyncAfterPayload struct {
+// SandboxSyncAfterPayload is delivered after a sandbox sync operation finishes.
+type SandboxSyncAfterPayload struct {
 	PayloadBase
 	SessionContext
-	EnvironmentID    string   `json:"environment_id,omitempty"`
+	SandboxID        string   `json:"sandbox_id,omitempty"`
 	Backend          string   `json:"backend,omitempty"`
 	Profile          string   `json:"profile,omitempty"`
 	InstanceID       string   `json:"instance_id,omitempty"`
@@ -208,11 +208,11 @@ type EnvironmentSyncAfterPayload struct {
 	Errors           []string `json:"errors,omitempty"`
 }
 
-// EnvironmentStopPayload is delivered before environment teardown.
-type EnvironmentStopPayload struct {
+// SandboxStopPayload is delivered before sandbox teardown.
+type SandboxStopPayload struct {
 	PayloadBase
 	SessionContext
-	EnvironmentID  string `json:"environment_id,omitempty"`
+	SandboxID      string `json:"sandbox_id,omitempty"`
 	Backend        string `json:"backend,omitempty"`
 	Profile        string `json:"profile,omitempty"`
 	InstanceID     string `json:"instance_id,omitempty"`
@@ -223,29 +223,29 @@ type EnvironmentStopPayload struct {
 	DenyReason     string `json:"deny_reason,omitempty"`
 }
 
-// EnvironmentPreparePatch mutates or denies environment preparation.
-type EnvironmentPreparePatch struct {
+// SandboxPreparePatch mutates or denies sandbox preparation.
+type SandboxPreparePatch struct {
 	ControlPatch
 	EnvOverrides map[string]string `json:"env_overrides,omitempty"`
 }
 
-// EnvironmentSyncBeforePatch mutates or denies environment sync.
-type EnvironmentSyncBeforePatch struct {
+// SandboxSyncBeforePatch mutates or denies sandbox sync.
+type SandboxSyncBeforePatch struct {
 	ControlPatch
 	ExcludePatterns []string `json:"exclude_patterns,omitempty"`
 }
 
-// EnvironmentObservationPatch is the no-op patch surface for environment observation hooks.
-type EnvironmentObservationPatch struct{}
+// SandboxObservationPatch is the no-op patch surface for sandbox observation hooks.
+type SandboxObservationPatch struct{}
 
-// EnvironmentReadyPatch is the ready patch surface.
-type EnvironmentReadyPatch = EnvironmentObservationPatch
+// SandboxReadyPatch is the ready patch surface.
+type SandboxReadyPatch = SandboxObservationPatch
 
-// EnvironmentSyncAfterPatch is the sync-after patch surface.
-type EnvironmentSyncAfterPatch = EnvironmentObservationPatch
+// SandboxSyncAfterPatch is the sync-after patch surface.
+type SandboxSyncAfterPatch = SandboxObservationPatch
 
-// EnvironmentStopPatch mutates or denies environment teardown.
-type EnvironmentStopPatch struct {
+// SandboxStopPatch mutates or denies sandbox teardown.
+type SandboxStopPatch struct {
 	ControlPatch
 }
 
@@ -803,12 +803,12 @@ type TaskRunObservationPatch = AutonomyObservationPatch
 
 // PermissionSet captures concrete permission atoms that spawned children may only narrow.
 type PermissionSet struct {
-	Tools               []string `json:"tools,omitempty"`
-	Skills              []string `json:"skills,omitempty"`
-	MCPServers          []string `json:"mcp_servers,omitempty"`
-	WorkspacePaths      []string `json:"workspace_paths,omitempty"`
-	NetworkChannels     []string `json:"network_channels,omitempty"`
-	EnvironmentProfiles []string `json:"environment_profiles,omitempty"`
+	Tools           []string `json:"tools,omitempty"`
+	Skills          []string `json:"skills,omitempty"`
+	MCPServers      []string `json:"mcp_servers,omitempty"`
+	WorkspacePaths  []string `json:"workspace_paths,omitempty"`
+	NetworkChannels []string `json:"network_channels,omitempty"`
+	SandboxProfiles []string `json:"sandbox_profiles,omitempty"`
 }
 
 // SpawnContext carries spawn identifiers shared across spawn lifecycle hooks.
@@ -882,23 +882,23 @@ func (p SessionLifecyclePayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 
-func (p EnvironmentPreparePayload) hookSessionContext() SessionContext {
+func (p SandboxPreparePayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 
-func (p EnvironmentReadyPayload) hookSessionContext() SessionContext {
+func (p SandboxReadyPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 
-func (p EnvironmentSyncBeforePayload) hookSessionContext() SessionContext {
+func (p SandboxSyncBeforePayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 
-func (p EnvironmentSyncAfterPayload) hookSessionContext() SessionContext {
+func (p SandboxSyncAfterPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 
-func (p EnvironmentStopPayload) hookSessionContext() SessionContext {
+func (p SandboxStopPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 

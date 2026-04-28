@@ -16,12 +16,12 @@
 ∅  internal/diagnostics
 ✓  internal/bridgesdk (cached)
 ✓  internal/api/contract (cached)
-✓  internal/environment (cached)
+✓  internal/sandbox (cached)
 ✓  internal/cli/docpost (cached)
-∅  internal/environment/daytona/cmd/agh-daytona-sidecar
-✓  internal/environment/local (cached)
+∅  internal/sandbox/daytona/cmd/agh-daytona-sidecar
+✓  internal/sandbox/local (cached)
 ✓  internal/api/spec (cached)
-✓  internal/environment/providertest (cached)
+✓  internal/sandbox/providertest (cached)
 ✓  internal/extension/contract (cached)
 ✓  internal/bridges (cached)
 ✓  internal/acp (cached)
@@ -32,7 +32,7 @@
 ✓  internal/logger (cached)
 ✓  internal/mcp/auth (cached)
 ✓  internal/filesnap (cached)
-✓  internal/environment/daytona (cached)
+✓  internal/sandbox/daytona (cached)
 ✓  internal/memory/consolidation (cached)
 ✓  internal/config (cached)
 ∅  internal/network/rules (1ms)
@@ -81,13 +81,13 @@
 ✓  internal/daemon (1m7.64s)
 
 === Skipped
-=== SKIP: internal/environment/daytona TestDaytonaLauncherTransportValidation (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaLauncherTransportValidation (0.00s)
     launcher_transport_integration_test.go:23: DAYTONA_API_KEY is required for Daytona launcher transport validation
 
-=== SKIP: internal/environment/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaProviderIntegrationFullLifecycle (0.00s)
     provider_integration_test.go:22: DAYTONA_API_KEY is required for Daytona provider integration tests
 
-=== SKIP: internal/environment/daytona TestDaytonaSSHNonPTYValidation (0.00s)
+=== SKIP: internal/sandbox/daytona TestDaytonaSSHNonPTYValidation (0.00s)
     ssh_validation_test.go:47: DAYTONA_API_KEY is required for Daytona SSH validation
 
 DONE 6333 tests, 3 skipped in 67.653s

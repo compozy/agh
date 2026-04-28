@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-AGH already has substantial subsystem coverage for sessions, ACP, network routing, automation dispatch, task orchestration, bridge delivery, extension subprocesses, and environment providers. What it still lacks is a single end-to-end strategy that proves the shipped product behaves correctly when those parts are composed into real agentic flows. That is the actual goal of this spec.
+AGH already has substantial subsystem coverage for sessions, ACP, network routing, automation dispatch, task orchestration, bridge delivery, extension subprocesses, and sandbox providers. What it still lacks is a single end-to-end strategy that proves the shipped product behaves correctly when those parts are composed into real agentic flows. That is the actual goal of this spec.
 
 This techspec defines E2E as two coordinated layers:
 
@@ -60,7 +60,7 @@ For a representative system scenario:
    - task runtime
    - bridge manager
    - extension manager
-   - environment registry
+   - sandbox registry
 3. The harness registers one or more deterministic ACP mock agents through temporary agent definitions.
 4. The scenario stimulates the system through a real ingress path:
    - session prompt
@@ -209,7 +209,7 @@ The E2E suites must treat these as first-class product surfaces:
   - required for true channel and peer collaboration scenarios
 - Existing bridge adapter harness in `internal/extensiontest/`
   - reused for provider and extension conformance building blocks
-- Environment providers
+- Sandbox providers
   - local provider in PR-required suites
   - Daytona provider in nightly or credentialed suites
 - Playwright
@@ -270,7 +270,7 @@ These are the minimum daemon/runtime proofs for the shipped agentic system:
 
 6. `TestDaemonE2EEnvironmentToolExecutionHonorsSandbox`
    - Run a session in the configured environment.
-   - Assert allowed tool execution, blocked operation behavior, and persisted environment metadata.
+   - Assert allowed tool execution, blocked operation behavior, and persisted sandbox metadata.
 
 7. `TestDaemonE2EExtensionHostAPIEnvironmentAndAutomationFlow`
    - Use a real extension subprocess.
@@ -378,7 +378,7 @@ Every failed E2E run must leave behind enough state to explain the breakage with
 - task and task-run snapshots
 - bridge health snapshots
 - mocked provider API logs or marker files
-- session environment metadata
+- session sandbox metadata
 - browser traces, screenshots, console errors, and network logs for Playwright
 
 Artifact capture is mandatory, not best-effort.
@@ -446,7 +446,7 @@ Artifact capture is mandatory, not best-effort.
   - Likelihood: high.
   - Mitigation: mark those as future work in the spec and do not represent them as shipped E2E scope.
 
-- Risk: credentialed providers and remote environments add CI instability.
+- Risk: credentialed providers and remote sandboxes add CI instability.
   - Likelihood: medium.
   - Mitigation: keep them in nightly or explicitly credentialed lanes.
 
@@ -455,7 +455,7 @@ Artifact capture is mandatory, not best-effort.
 - [ADR-001: Mock ACP Through a Temporary Agent Definition](adrs/adr-001.md) - Historical proposal for a temp-agent mock strategy; superseded by ADR-006.
 - [ADR-002: Separate Runtime and Browser E2E Lanes](adrs/adr-002.md) - Treat daemon/runtime proof and browser/operator proof as coordinated but distinct test layers.
 - [ADR-003: Run Cross-System Runtime E2E From the Composition Root](adrs/adr-003.md) - Put network, tasks, automation, bridges, extensions, and environments together under `internal/daemon`.
-- [ADR-004: Assert Through Domain-Specific Product Surfaces](adrs/adr-004.md) - Use transcripts, network logs, run records, bridge health, environment metadata, and UI outcomes instead of transcript-only goldens.
+- [ADR-004: Assert Through Domain-Specific Product Surfaces](adrs/adr-004.md) - Use transcripts, network logs, run records, bridge health, sandbox metadata, and UI outcomes instead of transcript-only goldens.
 - [ADR-005: Keep PR-Required E2E On Shipped Surfaces and Use Tiered Execution](adrs/adr-005.md) - Cover externally reachable flows in PRs and move heavier credentialed or future surfaces into later tiers.
 - [ADR-006: Keep ACP Mock Implemented in Go](adrs/adr-006.md) - Standardize the shipped Go mock driver and the shared-binary runtime/browser harness contract.
 - [ADR-007: No Current E2E Lane Uses Real LLM Providers](adrs/adr-007.md) - Document the present confidence boundary and keep provider coverage as a separate future tier.

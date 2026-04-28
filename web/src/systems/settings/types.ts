@@ -23,13 +23,10 @@ export type SettingsProviderEntry = SettingsProviderCollection["providers"][numb
 export type SettingsProviderDetail = OperationResponse<"getSettingsProvider", 200>["provider"];
 export type SettingsProviderRequest = OperationRequestBody<"putSettingsProvider">;
 
-export type SettingsEnvironmentCollection = OperationResponse<"listSettingsEnvironments", 200>;
-export type SettingsEnvironmentEntry = SettingsEnvironmentCollection["environments"][number];
-export type SettingsEnvironmentDetail = OperationResponse<
-  "getSettingsEnvironment",
-  200
->["environment"];
-export type SettingsEnvironmentRequest = OperationRequestBody<"putSettingsEnvironment">;
+export type SettingsSandboxCollection = OperationResponse<"listSettingsSandboxes", 200>;
+export type SettingsSandboxEntry = SettingsSandboxCollection["sandboxes"][number];
+export type SettingsSandboxDetail = OperationResponse<"getSettingsSandbox", 200>["sandbox"];
+export type SettingsSandboxRequest = OperationRequestBody<"putSettingsSandbox">;
 
 export type SettingsHookCollection = OperationResponse<"listSettingsHooks", 200>;
 export type SettingsHookEntry = SettingsHookCollection["hooks"][number];
@@ -65,7 +62,7 @@ export type SettingsSourceKind =
   SettingsProviderEntry["source_metadata"]["effective_source"]["kind"];
 export type SettingsMCPServerTarget = NonNullable<SettingsMCPServerPutFilter["target"]>;
 
-export type SettingsCollectionName = "providers" | "mcp-servers" | "environments" | "hooks";
+export type SettingsCollectionName = "providers" | "mcp-servers" | "sandboxes" | "hooks";
 
 export interface SettingsSectionDescriptor {
   slug: SettingsSectionSlug;
@@ -76,7 +73,7 @@ export type SettingsSectionSlug =
   | "general"
   | "providers"
   | "mcp-servers"
-  | "environments"
+  | "sandboxes"
   | "memory"
   | "skills"
   | "automation"

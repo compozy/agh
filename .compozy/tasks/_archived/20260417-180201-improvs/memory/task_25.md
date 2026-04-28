@@ -9,7 +9,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 ## Important Decisions
 - Use the existing workflow-wide UBS wording: `Skill runner unavailable in this environment; this session exposes skill instructions but no dedicated UBS invocation tool.`
 - Treat stored-session IDs as path segments, not arbitrary relative paths; reject absolute paths, dot segments, and slash/backslash-containing IDs in `readMeta`.
-- Skip environment sync file counting when no real environment hooks are configured; the benchmarked hot path should not walk the workspace for noop hook payloads.
+- Skip environment sync file counting when no real sandbox hooks are configured; the benchmarked hot path should not walk the workspace for noop hook payloads.
 - Keep the `Events`/`History` wrapper duplication as `wontfix` for this pass because extracting a helper would add abstraction without a meaningful maintenance win.
 
 ## Learnings
@@ -23,7 +23,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 - `internal/session/hooks.go`
 - `internal/session/stop_reason.go`
 - `internal/session/query_test.go`
-- `internal/session/manager_environment_test.go`
+- `internal/session/manager_sandbox_test.go`
 - `internal/session/perf_bench_test.go`
 - `.compozy/tasks/improvs/reports/session.md`
 

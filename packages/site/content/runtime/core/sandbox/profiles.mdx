@@ -1,0 +1,87 @@
+---
+title: Sandbox Profiles
+description: Configure sandbox profiles, defaults, workspace selection, and safe-spawn grants.
+---
+
+Sandbox profiles live in `config.toml` under `[sandboxes.<name>]`. The profile name is the stable
+identifier used by workspaces, child-session grants, API payloads, and the web Sandbox page.
+
+## Minimal local profile
+
+```toml
+[defaults]
+sandbox = "local"
+
+[sandboxes.local]
+backend = "local"
+sync_mode = "none"
+persistence = "reuse"
+runtime_root = "~"
+```
+
+The local backend runs through the host process. It is still a sandbox profile so session metadata,
+workspace resolution, hooks, and extension Host APIs all use one vocabulary.
+
+## Daytona profile
+
+```toml
+[sandboxes.daytona-dev]
+backend = "daytona"
+sync_mode = "session-bidirectional"
+persistence = "reuse"
+runtime_root = "/home/daytona/workspace"
+
+[sandboxes.daytona-dev.env]
+NODE_ENV = "development"
+
+[sandboxes.daytona-dev.network]
+allow_public_ingress = false
+allow_outbound = true
+allow_list = ["api.example.test"]
+deny_list = ["metadata.google.internal"]
+
+[sandboxes.daytona-dev.daytona]
+api_url = "https://app.daytona.io/api"
+target = "team-default"
+snapshot = "snap-agent-base"
+image = "ubuntu:24.04"
+class = "cpu-2"
+auto_stop = "30m"
+auto_archive = "24h"
+```
+
+When both `snapshot` and `image` are set, AGH resolves startup from `snapshot` and preserves `image`
+as profile metadata.
+
+## Attach a workspace
+
+```bash
+agh workspace add /Users/you/project --name project --sandbox daytona-dev
+agh workspace edit project --sandbox local
+```
+
+If no workspace sandbox is set, AGH uses `[defaults].sandbox`. If that is empty, the local backend is
+used.
+
+## Safe spawn grants
+
+Child sessions do not inherit every sandbox profile automatically. Grant the profiles a child may use:
+
+```bash
+agh spawn --agent coder --sandbox-profile daytona-dev --prompt "Reproduce the failing build"
+```
+
+The permission policy is serialized as `sandbox_profiles`, and narrowing rules prevent a child from
+expanding beyond the parent's allowed profiles.
+
+## API shape
+
+Sandbox profile management is config-backed:
+
+```http
+GET /api/settings/sandboxes
+PUT /api/settings/sandboxes/daytona-dev
+DELETE /api/settings/sandboxes/daytona-dev
+```
+
+List responses use a `sandboxes` array. Detail responses use a `sandbox` object.

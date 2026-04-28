@@ -98,7 +98,6 @@ describe("SettingsShell", () => {
       "general",
       "providers",
       "mcp-servers",
-      "environments",
       "memory",
       "skills",
       "automation",

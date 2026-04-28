@@ -72,7 +72,7 @@ export const WithWarnings: Story = {
     slug: "general",
     isDirty: true,
     isSaving: false,
-    warnings: ["Restart required", "Environment mismatch"],
+    warnings: ["Restart required", "Sandbox mismatch"],
     onSave: fn(),
     onReset: fn(),
   },

@@ -20,8 +20,8 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/sandbox"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
@@ -2723,7 +2723,7 @@ type harness struct {
 	driver        *fakeDriver
 	notifier      *fakeNotifier
 	resolver      *fakeWorkspaceResolver
-	environment   *environment.Registry
+	sandbox       *sandbox.Registry
 	cfg           aghconfig.Config
 	homePaths     aghconfig.HomePaths
 	workspace     string
@@ -2750,16 +2750,16 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 	h := &harness{
 		driver:        newFakeDriver(),
 		notifier:      newFakeNotifier(),
-		environment:   newFakeEnvironmentRegistry(t),
+		sandbox:       newFakeSandboxRegistry(t),
 		cfg:           aghconfig.DefaultWithHome(homePaths),
 		homePaths:     homePaths,
 		workspace:     workspace,
 		workspaceID:   "ws-primary",
 		workspaceName: "workspace",
 	}
-	resolvedEnvironment, err := h.cfg.ResolveEnvironment(h.cfg.Defaults.Environment)
+	resolvedSandbox, err := h.cfg.ResolveSandbox(h.cfg.Defaults.Sandbox)
 	if err != nil {
-		t.Fatalf("ResolveEnvironment() error = %v", err)
+		t.Fatalf("ResolveSandbox() error = %v", err)
 	}
 	h.resolver = newFakeWorkspaceResolver(&workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
@@ -2780,7 +2780,7 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 				Prompt:   "You are a coding assistant.",
 			},
 		},
-		Environment: resolvedEnvironment,
+		Sandbox: resolvedSandbox,
 	})
 	h.manager = newManagerWithHarness(t, h, extraOpts...)
 	return h
@@ -2815,8 +2815,8 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		WithTurnIDGenerator(sequentialIDGenerator("turn")),
-		WithEnvironmentRegistry(h.environment),
-		WithEnvironmentIDGenerator(sequentialIDGenerator("env")),
+		WithSandboxRegistry(h.sandbox),
+		WithSandboxIDGenerator(sequentialIDGenerator("env")),
 	}
 	opts = append(opts, extraOpts...)
 
@@ -3199,30 +3199,30 @@ func newFakeSkillRegistry() *fakeSkillRegistry {
 	}
 }
 
-func newFakeEnvironmentRegistry(t *testing.T) *environment.Registry {
+func newFakeSandboxRegistry(t *testing.T) *sandbox.Registry {
 	t.Helper()
 
-	registry, err := environment.NewRegistry(fakeEnvironmentProvider{})
+	registry, err := sandbox.NewRegistry(fakeSandboxProvider{})
 	if err != nil {
-		t.Fatalf("NewRegistry(fake environment) error = %v", err)
+		t.Fatalf("NewRegistry(fake sandbox) error = %v", err)
 	}
 	return registry
 }
 
-type fakeEnvironmentProvider struct{}
+type fakeSandboxProvider struct{}
 
-func (fakeEnvironmentProvider) Backend() environment.Backend {
-	return environment.BackendLocal
+func (fakeSandboxProvider) Backend() sandbox.Backend {
+	return sandbox.BackendLocal
 }
 
-func (fakeEnvironmentProvider) Prepare(
+func (fakeSandboxProvider) Prepare(
 	_ context.Context,
-	req environment.PrepareRequest,
-) (environment.Prepared, error) {
-	state := environment.SessionState{
-		EnvironmentID:         req.EnvironmentID,
-		Backend:               environment.BackendLocal,
-		Profile:               req.Environment.Profile,
+	req sandbox.PrepareRequest,
+) (sandbox.Prepared, error) {
+	state := sandbox.SessionState{
+		SandboxID:             req.SandboxID,
+		Backend:               sandbox.BackendLocal,
+		Profile:               req.Sandbox.Profile,
 		InstanceID:            strings.TrimSpace(req.InstanceID),
 		State:                 "prepared",
 		RuntimeRootDir:        req.LocalRootDir,
@@ -3230,11 +3230,11 @@ func (fakeEnvironmentProvider) Prepare(
 		ProviderState:         append(json.RawMessage(nil), req.ProviderState...),
 		PreparedAt:            time.Now().UTC(),
 	}
-	return environment.Prepared{
+	return sandbox.Prepared{
 		State:                 state,
 		RuntimeRootDir:        req.LocalRootDir,
 		RuntimeAdditionalDirs: append([]string(nil), req.LocalAdditionalDirs...),
-		Launch: environment.LaunchSpec{
+		Launch: sandbox.LaunchSpec{
 			Command:        req.AgentCommand,
 			Cwd:            req.LocalRootDir,
 			AdditionalDirs: append([]string(nil), req.LocalAdditionalDirs...),
@@ -3243,23 +3243,23 @@ func (fakeEnvironmentProvider) Prepare(
 	}, nil
 }
 
-func (fakeEnvironmentProvider) SyncToRuntime(
+func (fakeSandboxProvider) SyncToRuntime(
 	context.Context,
-	environment.SessionState,
-	environment.SyncOptions,
-) (environment.SyncResult, error) {
-	return environment.SyncResult{}, nil
+	sandbox.SessionState,
+	sandbox.SyncOptions,
+) (sandbox.SyncResult, error) {
+	return sandbox.SyncResult{}, nil
 }
 
-func (fakeEnvironmentProvider) SyncFromRuntime(
+func (fakeSandboxProvider) SyncFromRuntime(
 	context.Context,
-	environment.SessionState,
-	environment.SyncOptions,
-) (environment.SyncResult, error) {
-	return environment.SyncResult{}, nil
+	sandbox.SessionState,
+	sandbox.SyncOptions,
+) (sandbox.SyncResult, error) {
+	return sandbox.SyncResult{}, nil
 }
 
-func (fakeEnvironmentProvider) Destroy(context.Context, environment.SessionState) error {
+func (fakeSandboxProvider) Destroy(context.Context, sandbox.SessionState) error {
 	return nil
 }
 

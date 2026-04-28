@@ -97,7 +97,7 @@ shutdown context is 10 seconds.
 ## Understand tool process recovery
 
 Long-running tool work can create subprocesses outside the main agent process. Examples include ACP
-terminals, environment-backed terminals, hook subprocesses, managed extension processes, and shared
+terminals, sandbox-backed terminals, hook subprocesses, managed extension processes, and shared
 subprocess helpers.
 
 AGH records those processes in the global database when they start, updates the record when ownership
@@ -109,7 +109,7 @@ On daemon boot, AGH reconciles active process records before it starts accepting
 
 - records with a PID and matching start-time evidence remain active for scoped interruption
 - records whose PID evidence no longer matches are marked `stale`
-- records without reusable local PID evidence, such as remote environment terminals, are retired as
+- records without reusable local PID evidence, such as remote sandbox terminals, are retired as
   stale after restart rather than signaled by PID
 
 This prevents AGH from killing an unrelated host process after PID reuse.

@@ -103,8 +103,8 @@
 
 ### 1.8 Sandbox Task (`.compozy/tasks/sandbox/`)
 
-- `_idea.md` — Execution environment research (local, Daytona, E2B providers)
-- `_techspec.md` — Execution environment abstraction + Daytona provider implementation spec
+- `_idea.md` — Execution sandbox research (local, Daytona, E2B providers)
+- `_techspec.md` — Execution sandbox abstraction + Daytona provider implementation spec
 
 ---
 
@@ -238,7 +238,7 @@ Skills `VerifyContent` scans for prompt injection patterns before loading into t
 
 ### 4.10 Execution Environment Abstraction
 
-The sandbox spec introduces Provider, Launcher, and ToolHost interfaces to decouple ACP from local-only execution. Supports local, Daytona, and E2B backends. Key insight: "The right abstraction is not 'sandbox' but 'execution environment', with local as a first-class provider."
+The sandbox spec introduces Provider, Launcher, and ToolHost interfaces to decouple ACP from local-only execution. Supports local, Daytona, and E2B backends. Key insight: "The right abstraction is not 'sandbox' but 'execution sandbox', with local as a first-class provider."
 
 ---
 
@@ -403,7 +403,7 @@ Based on this inventory, the documentation site should be organized into these m
 5. **Reference** — CLI commands, configuration, API endpoints, AGENT.md schema, SKILL.md schema
 6. **Architecture** — Package layout, data flow, design decisions (adapted from CLAUDE.md/TechSpecs)
 7. **AGH Network** — Protocol overview, wire format, message kinds, lifecycle, trust profile, implementation guide
-8. **Ecosystem** — Extensions, marketplace, channel adapters, execution environments
+8. **Ecosystem** — Extensions, marketplace, channel adapters, execution sandboxes
 9. **Comparisons** — Why AGH, AGH vs alternatives (adapted from gap analysis)
 10. **Blog/Design Stories** — Protocol evolution, engineering decisions, pattern analysis
 

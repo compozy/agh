@@ -30,12 +30,12 @@ type SessionSpawnBudget struct {
 
 // SessionPermissionPolicy captures concrete permission atoms available to a session.
 type SessionPermissionPolicy struct {
-	Tools               []string `json:"tools"`
-	Skills              []string `json:"skills"`
-	MCPServers          []string `json:"mcp_servers"`
-	WorkspacePaths      []string `json:"workspace_paths"`
-	NetworkChannels     []string `json:"network_channels"`
-	EnvironmentProfiles []string `json:"environment_profiles"`
+	Tools           []string `json:"tools"`
+	Skills          []string `json:"skills"`
+	MCPServers      []string `json:"mcp_servers"`
+	WorkspacePaths  []string `json:"workspace_paths"`
+	NetworkChannels []string `json:"network_channels"`
+	SandboxProfiles []string `json:"sandbox_profiles"`
 }
 
 // CloneSessionLineage returns a deep copy of lineage metadata.
@@ -117,12 +117,12 @@ func ValidateSessionLineage(sessionID string, lineage *SessionLineage) error {
 // NormalizeSessionPermissionPolicy returns a policy with stable, trimmed atom lists.
 func NormalizeSessionPermissionPolicy(policy SessionPermissionPolicy) SessionPermissionPolicy {
 	return SessionPermissionPolicy{
-		Tools:               normalizePolicyAtoms(policy.Tools),
-		Skills:              normalizePolicyAtoms(policy.Skills),
-		MCPServers:          normalizePolicyAtoms(policy.MCPServers),
-		WorkspacePaths:      normalizePolicyAtoms(policy.WorkspacePaths),
-		NetworkChannels:     normalizePolicyAtoms(policy.NetworkChannels),
-		EnvironmentProfiles: normalizePolicyAtoms(policy.EnvironmentProfiles),
+		Tools:           normalizePolicyAtoms(policy.Tools),
+		Skills:          normalizePolicyAtoms(policy.Skills),
+		MCPServers:      normalizePolicyAtoms(policy.MCPServers),
+		WorkspacePaths:  normalizePolicyAtoms(policy.WorkspacePaths),
+		NetworkChannels: normalizePolicyAtoms(policy.NetworkChannels),
+		SandboxProfiles: normalizePolicyAtoms(policy.SandboxProfiles),
 	}
 }
 
@@ -151,7 +151,7 @@ func validateSessionPermissionPolicy(policy SessionPermissionPolicy) error {
 		{name: "mcp_servers", values: policy.MCPServers},
 		{name: "workspace_paths", values: policy.WorkspacePaths},
 		{name: "network_channels", values: policy.NetworkChannels},
-		{name: "environment_profiles", values: policy.EnvironmentProfiles},
+		{name: "sandbox_profiles", values: policy.SandboxProfiles},
 	}
 	for _, check := range checks {
 		for _, value := range check.values {

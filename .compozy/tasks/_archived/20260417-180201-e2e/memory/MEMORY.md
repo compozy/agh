@@ -9,7 +9,7 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - Task 03 is complete: `internal/daemon` now has composition-root runtime network collaboration scenarios for direct reply lifecycle plus whois/recipe exchange, backed by the shared harness and fixture-driven mock agents.
 - Task 04 is complete: `internal/daemon` now has composition-root runtime automation coverage for webhook-created system sessions and task-backed automation delegation, backed by shared automation/task harness helpers and fixture-driven mock agents.
 - Task 05 is complete: `internal/daemon` now has composition-root runtime bridge ingress coverage for route creation, session reuse, delivery progression, secret bindings, and real extension subprocess Host API behavior through `telegram-reference`.
-- Task 06 is complete: `internal/daemon` now has local-provider runtime E2E coverage for allowed tool execution, blocked sandbox operations, persisted environment metadata, and explicit tool-host diagnostics, backed by the shared harness.
+- Task 06 is complete: `internal/daemon` now has local-provider runtime E2E coverage for allowed tool execution, blocked sandbox operations, persisted sandbox metadata, and explicit tool-host diagnostics, backed by the shared harness.
 - Task 07 is complete: HTTP and UDS transport parity coverage now reuses the shared runtime harness for HTTP approval flow, HTTP webhook ingress, UDS/CLI projection parity, and the documented UDS approval `501 Not Implemented` gap.
 - Task 08 is complete: `web/e2e/` now provides the shared Playwright browser harness, daemon launch/attach runtime helpers, stable browser artifact capture, and smoke coverage against the daemon-served onboarding shell.
 - Task 11 is complete: the browser lane now covers Automation-page operator flow with seeded jobs/triggers, real manual job execution, visible run history, and linked session/transcript navigation on the shipped UI.
@@ -39,13 +39,13 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - Gosec needs explicit path-containment validation for artifact writes in the shared collector even when artifact paths come from a fixed internal contract.
 - The ACP mock layer stays maintainable when it only owns deterministic ACP session behavior and fixture diagnostics, leaving daemon boot, config validation, permissions, and public-surface assertions to the real runtime.
 - Network enablement has to be persisted into the seeded config file, not only toggled in-memory, or the real daemon boots with the embedded network runtime disabled.
-- The shared harness now installs a real `agh` shim into the seeded home `PATH`, which lets daemon-owned runtime code and mock-agent `environment_exec` commands reach the product CLI deterministically.
+- The shared harness now installs a real `agh` shim into the seeded home `PATH`, which lets daemon-owned runtime code and mock-agent `sandbox_exec` commands reach the product CLI deterministically.
 - Stable network audit assertions are easier to maintain when artifact capture decodes the JSONL audit log into ordered JSON arrays before writing snapshots.
 - Automation webhook fixtures must be signed with a live current timestamp during test execution because the daemon validates request freshness.
 - Integration-inclusive coverage is the meaningful threshold for these runtime-heavy packages; task 04 leaves `internal/daemon` at 80.0% and `internal/testutil/e2e` at 80.1% with the shipped runtime lane enabled.
 - The shared E2E helper layer now includes bridge/operator helpers plus bridge-specific artifact capture for routes, delivery state, and secret bindings, which later transport-parity and browser bridge tasks should reuse instead of open-coding UDS calls.
 - Bridge secret bindings are exposed on the daemon operator surface under `/api/bridges/:id/secret-bindings`, not a `/secrets` alias.
-- Runtime tasks can seed named environment profiles plus `defaults.environment` through `internal/testutil/e2e.ConfigSeedOptions`, which keeps local-provider coverage on the same subprocess harness instead of adding an environment-specific boot path.
+- Runtime tasks can seed named sandbox profiles plus `defaults.sandbox` through `internal/testutil/e2e.ConfigSeedOptions`, which keeps local-provider coverage on the same subprocess harness instead of adding an environment-specific boot path.
 - Session environment diagnostics are most useful when captured from both surfaces at once: the public session payload and the persisted `session.json` metadata under the seeded session home. This keeps environment assertions readable after stop or failure.
 - Real prompted user sessions do not stop automatically after an ACP turn; runtime E2E that needs stable stopped-state assertions should issue an explicit public-surface stop and then wait for `store.SessionMetaFile` plus `/api/sessions/:id` to converge.
 - Tool-host diagnostics for sandbox scenarios should be recorded as explicit allowed/blocked operation outcomes in the shared artifact model, paired with host side effects or their absence, rather than relying on transcript text alone.
@@ -64,7 +64,7 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 
 ## Open Risks
 
-- Credentialed Daytona and other live-provider nightly scenarios still depend on external secrets/providers in the execution environment; default PR-required lanes must remain secret-free.
+- Credentialed Daytona and other live-provider nightly scenarios still depend on external secrets/providers in the execution sandbox; default PR-required lanes must remain secret-free.
 
 ## Handoffs
 

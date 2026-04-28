@@ -39,8 +39,8 @@ func TestSyncEligibleClassification(t *testing.T) {
 		HookAutomationTriggerPostFire: {},
 		HookAutomationRunCompleted:    {},
 		HookAutomationRunFailed:       {},
-		HookEnvironmentReady:          {},
-		HookEnvironmentSyncAfter:      {},
+		HookSandboxReady:              {},
+		HookSandboxSyncAfter:          {},
 		HookPermissionResolved:        {},
 		HookPermissionDenied:          {},
 	}

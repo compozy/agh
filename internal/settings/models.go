@@ -65,8 +65,8 @@ const (
 	CollectionProviders CollectionName = "providers"
 	// CollectionMCPServers exposes the scoped MCP server catalog.
 	CollectionMCPServers CollectionName = "mcp-servers"
-	// CollectionEnvironments exposes execution environments.
-	CollectionEnvironments CollectionName = "environments"
+	// CollectionSandboxes exposes execution sandboxes.
+	CollectionSandboxes CollectionName = "sandboxes"
 	// CollectionHooks exposes config-defined hook declarations.
 	CollectionHooks CollectionName = "hooks"
 )
@@ -149,12 +149,12 @@ type CollectionRequest struct {
 // CollectionItemPutRequest identifies one collection upsert.
 type CollectionItemPutRequest struct {
 	CollectionRequest
-	Name        string
-	Target      TargetSelector
-	Provider    *ProviderSettings
-	MCPServer   *aghconfig.MCPServer
-	Environment *aghconfig.EnvironmentProfile
-	Hook        *hookspkg.HookDecl
+	Name      string
+	Target    TargetSelector
+	Provider  *ProviderSettings
+	MCPServer *aghconfig.MCPServer
+	Sandbox   *aghconfig.SandboxProfile
+	Hook      *hookspkg.HookDecl
 }
 
 // CollectionItemDeleteRequest identifies one collection delete.
@@ -187,7 +187,7 @@ type CollectionEnvelope struct {
 	AvailableScopes []ScopeKind
 	Providers       []ProviderItem
 	MCPServers      []MCPServerItem
-	Environments    []EnvironmentItem
+	Sandboxes       []SandboxItem
 	Hooks           []HookItem
 }
 
@@ -468,10 +468,10 @@ type MCPServerItem struct {
 	SourceMetadata SourceMetadata
 }
 
-// EnvironmentItem is one environment collection row.
-type EnvironmentItem struct {
+// SandboxItem is one sandbox collection row.
+type SandboxItem struct {
 	Name                string
-	Profile             aghconfig.EnvironmentProfile
+	Profile             aghconfig.SandboxProfile
 	WorkspaceUsageCount int
 	SourceMetadata      SourceMetadata
 }
@@ -576,8 +576,8 @@ func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
 	return value
 }
 
-func cloneEnvironmentItem(value EnvironmentItem) EnvironmentItem {
-	value.Profile = aghconfig.EnvironmentProfile{
+func cloneSandboxItem(value SandboxItem) SandboxItem {
+	value.Profile = aghconfig.SandboxProfile{
 		Backend:     value.Profile.Backend,
 		SyncMode:    value.Profile.SyncMode,
 		Persistence: value.Profile.Persistence,

@@ -50,7 +50,7 @@ This plan defines the reusable QA artifacts that `task_16` must execute without 
   - `/settings/general`
   - `/settings/providers`
   - `/settings/mcp-servers`
-  - `/settings/environments`
+  - `/sandbox`
   - `/settings/memory`
   - `/settings/skills`
   - `/settings/automation`
@@ -133,7 +133,7 @@ This plan defines the reusable QA artifacts that `task_16` must execute without 
 - All P0 cases pass.
 - At least 90% of P1 cases pass.
 - No open `Critical` or `High` bugs remain without an accepted workaround and follow-up plan.
-- `task_16` publishes `.compozy/tasks/settings-ui/qa/verification-report.md` with executed case IDs, environment details, evidence links, and rerun results.
+- `task_16` publishes `.compozy/tasks/settings-ui/qa/verification-report.md` with executed case IDs, sandbox details, evidence links, and rerun results.
 - Browser E2E coverage lands in the standard daemon-served lane and the repo verification gates pass after the final fix set.
 
 ## Risk Assessment
@@ -160,7 +160,7 @@ This plan defines the reusable QA artifacts that `task_16` must execute without 
 | Automation | `/settings/automation` | `task_11` | `AGH Settings — Automation@2x.png` | `TC-FUNC-006`, `TC-UI-014` | P1 |
 | Network | `/settings/network` | `task_11` | `AGH Settings — Network@2x.png` | `TC-FUNC-007`, `TC-UI-014`, `TC-INT-013` | P1 |
 | Providers | `/settings/providers` | `task_12` | `AGH Settings — Providers@2x.png` | `TC-FUNC-008`, `TC-UI-015` | P0 |
-| Environments | `/settings/environments` | `task_12` | `AGH Settings — Environments@2x.png` | `TC-FUNC-009`, `TC-UI-015` | P1 |
+| Environments | `/sandbox` | `task_12` | `AGH Settings — Environments@2x.png` | `TC-FUNC-009`, `TC-UI-015` | P1 |
 | MCP Servers | `/settings/mcp-servers` | `task_13` | `AGH Settings — MCP Servers@2x.png` | `TC-FUNC-010`, `TC-INT-011`, `TC-UI-015` | P0 |
 | Hooks & Extensions | `/settings/hooks-extensions` | `task_14` | `AGH Settings — Hooks & Extensions@2x.png` | `TC-FUNC-012`, `TC-INT-013`, `TC-UI-015` | P0 |
 

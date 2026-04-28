@@ -11,13 +11,13 @@
 
 ### Objective
 
-Verify the complete session lifecycle (create -> prompt -> file read/write -> terminal -> stop) works end-to-end through the daemon with the local provider, confirming the environment abstraction layer is transparent for local execution.
+Verify the complete session lifecycle (create -> prompt -> file read/write -> terminal -> stop) works end-to-end through the daemon with the local provider, confirming the sandbox abstraction layer is transparent for local execution.
 
 ---
 
 ### Preconditions
 
-- [x] Daemon wiring complete with environment registry
+- [x] Daemon wiring complete with sandbox registry
 - [x] Local provider registered
 - [x] Mock ACP server subprocess available
 
@@ -26,7 +26,7 @@ Verify the complete session lifecycle (create -> prompt -> file read/write -> te
 ### Test Steps
 
 1. **Create session with default (local) environment**
-   - **Expected:** Session created, environment metadata shows `backend: local`, `state: prepared`
+   - **Expected:** Session created, sandbox metadata shows `backend: local`, `state: prepared`
 
 2. **Send prompt via ACP driver**
    - **Expected:** Agent responds, ACP protocol works through local Launcher

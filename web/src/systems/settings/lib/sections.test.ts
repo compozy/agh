@@ -13,7 +13,6 @@ describe("settings sections metadata", () => {
       "general",
       "providers",
       "mcp-servers",
-      "environments",
       "memory",
       "skills",
       "automation",

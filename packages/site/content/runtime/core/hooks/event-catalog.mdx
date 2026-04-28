@@ -111,30 +111,30 @@ count limits.
 
 ### Coordinator
 
-| Event                     | Sync | Payload                       | Patch                         | Fires when                                                       |
-| ------------------------- | ---- | ----------------------------- | ----------------------------- | ---------------------------------------------------------------- |
-| `coordinator.pre_spawn`   | yes  | `CoordinatorPreSpawnPayload`  | `CoordinatorSpawnPatch`       | Before AGH creates a managed coordinator session.                |
-| `coordinator.spawned`     | yes  | `CoordinatorSpawnedPayload`   | `CoordinatorObservationPatch` | After a managed coordinator session is created.                  |
-| `coordinator.decision`    | yes  | `CoordinatorDecisionPayload`  | `CoordinatorObservationPatch` | When a coordinator records a semantic coordination decision.     |
-| `coordinator.stopped`     | yes  | `CoordinatorStoppedPayload`   | `CoordinatorObservationPatch` | After a managed coordinator session stops.                       |
-| `coordinator.failed`      | yes  | `CoordinatorFailedPayload`    | `CoordinatorObservationPatch` | After coordinator bootstrap or lifecycle handling fails.         |
+| Event                   | Sync | Payload                      | Patch                         | Fires when                                                   |
+| ----------------------- | ---- | ---------------------------- | ----------------------------- | ------------------------------------------------------------ |
+| `coordinator.pre_spawn` | yes  | `CoordinatorPreSpawnPayload` | `CoordinatorSpawnPatch`       | Before AGH creates a managed coordinator session.            |
+| `coordinator.spawned`   | yes  | `CoordinatorSpawnedPayload`  | `CoordinatorObservationPatch` | After a managed coordinator session is created.              |
+| `coordinator.decision`  | yes  | `CoordinatorDecisionPayload` | `CoordinatorObservationPatch` | When a coordinator records a semantic coordination decision. |
+| `coordinator.stopped`   | yes  | `CoordinatorStoppedPayload`  | `CoordinatorObservationPatch` | After a managed coordinator session stops.                   |
+| `coordinator.failed`    | yes  | `CoordinatorFailedPayload`   | `CoordinatorObservationPatch` | After coordinator bootstrap or lifecycle handling fails.     |
 
 `CoordinatorSpawnPatch` may deny coordinator spawn or replace `agent_name`, `provider`, and
 `model`. Observation patches are empty and record hook execution only.
 
 ### Task Run
 
-| Event                         | Sync | Payload                         | Patch                     | Fires when                                                        |
-| ----------------------------- | ---- | ------------------------------- | ------------------------- | ----------------------------------------------------------------- |
-| `task.run.enqueued`           | yes  | `TaskRunEnqueuedPayload`        | `TaskRunObservationPatch` | After a task run is enqueued and its audit event is committed.    |
-| `task.run.pre_claim`          | yes  | `TaskRunPreClaimPayload`        | `TaskRunPreClaimPatch`    | Before a task-run claim transaction commits.                      |
-| `task.run.post_claim`         | yes  | `TaskRunPostClaimPayload`       | `TaskRunObservationPatch` | After a task-run claim and audit event commit.                    |
-| `task.run.lease_extended`     | yes  | `TaskRunLeaseExtendedPayload`   | `TaskRunObservationPatch` | After a token-fenced heartbeat extends a task-run lease.          |
-| `task.run.lease_expired`      | yes  | `TaskRunLeaseExpiredPayload`    | `TaskRunObservationPatch` | After a task-run lease reaches expiry.                            |
-| `task.run.lease_recovered`    | yes  | `TaskRunLeaseRecoveredPayload`  | `TaskRunObservationPatch` | After lease recovery requeues or finalizes expired work.          |
-| `task.run.released`           | yes  | `TaskRunReleasedPayload`        | `TaskRunObservationPatch` | After a token-fenced task-run lease release.                      |
-| `task.run.completed`          | yes  | `TaskRunCompletedPayload`       | `TaskRunObservationPatch` | After a token-fenced task-run completion.                         |
-| `task.run.failed`             | yes  | `TaskRunFailedPayload`          | `TaskRunObservationPatch` | After a token-fenced task-run failure.                            |
+| Event                      | Sync | Payload                        | Patch                     | Fires when                                                     |
+| -------------------------- | ---- | ------------------------------ | ------------------------- | -------------------------------------------------------------- |
+| `task.run.enqueued`        | yes  | `TaskRunEnqueuedPayload`       | `TaskRunObservationPatch` | After a task run is enqueued and its audit event is committed. |
+| `task.run.pre_claim`       | yes  | `TaskRunPreClaimPayload`       | `TaskRunPreClaimPatch`    | Before a task-run claim transaction commits.                   |
+| `task.run.post_claim`      | yes  | `TaskRunPostClaimPayload`      | `TaskRunObservationPatch` | After a task-run claim and audit event commit.                 |
+| `task.run.lease_extended`  | yes  | `TaskRunLeaseExtendedPayload`  | `TaskRunObservationPatch` | After a token-fenced heartbeat extends a task-run lease.       |
+| `task.run.lease_expired`   | yes  | `TaskRunLeaseExpiredPayload`   | `TaskRunObservationPatch` | After a task-run lease reaches expiry.                         |
+| `task.run.lease_recovered` | yes  | `TaskRunLeaseRecoveredPayload` | `TaskRunObservationPatch` | After lease recovery requeues or finalizes expired work.       |
+| `task.run.released`        | yes  | `TaskRunReleasedPayload`       | `TaskRunObservationPatch` | After a token-fenced task-run lease release.                   |
+| `task.run.completed`       | yes  | `TaskRunCompletedPayload`      | `TaskRunObservationPatch` | After a token-fenced task-run completion.                      |
+| `task.run.failed`          | yes  | `TaskRunFailedPayload`         | `TaskRunObservationPatch` | After a token-fenced task-run failure.                         |
 
 `TaskRunPreClaimPatch` may deny the claim, add required capabilities, or raise `priority_min`. It
 cannot remove task-run requirements or change the selected run after the claim transaction commits.

@@ -7,22 +7,22 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
-// Launcher starts an ACP-capable agent process inside an environment.
-type Launcher = environment.Launcher
+// Launcher starts an ACP-capable agent process inside a sandbox.
+type Launcher = sandbox.Launcher
 
 // Handle represents a running agent process.
-type Handle = environment.Handle
+type Handle = sandbox.Handle
 
-// LaunchSpec describes the ACP-capable command to start inside an environment.
-type LaunchSpec = environment.LaunchSpec
+// LaunchSpec describes the ACP-capable command to start inside a sandbox.
+type LaunchSpec = sandbox.LaunchSpec
 
 var (
-	_ environment.Launcher = (*localLauncher)(nil)
-	_ environment.Handle   = (*localProcessHandle)(nil)
+	_ sandbox.Launcher = (*localLauncher)(nil)
+	_ sandbox.Handle   = (*localProcessHandle)(nil)
 )
 
 type localLauncher struct {
@@ -36,7 +36,7 @@ type localProcessHandle struct {
 }
 
 // NewLocalLauncher returns the local daemon-host subprocess launcher.
-func NewLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) environment.Launcher {
+func NewLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) sandbox.Launcher {
 	return newLocalLauncher(logger, stopTimeout)
 }
 
@@ -55,8 +55,8 @@ func newLocalLauncher(logger *slog.Logger, stopTimeout time.Duration) *localLaun
 
 func (l *localLauncher) Launch(
 	ctx context.Context,
-	spec environment.LaunchSpec,
-) (environment.Handle, error) {
+	spec sandbox.LaunchSpec,
+) (sandbox.Handle, error) {
 	command, args, err := parseCommandString(spec.Command)
 	if err != nil {
 		return nil, err

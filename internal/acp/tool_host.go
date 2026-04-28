@@ -9,33 +9,33 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
+	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
 // ToolHost abstracts ACP file, permission, and terminal operations for a runtime.
-type ToolHost = environment.ToolHost
+type ToolHost = sandbox.ToolHost
 
-type permissionOperation = environment.PermissionOperation
-
-const (
-	permissionReadTextFile     = environment.PermissionOperationReadTextFile
-	permissionWriteTextFile    = environment.PermissionOperationWriteTextFile
-	permissionCreateTerminal   = environment.PermissionOperationCreateTerminal
-	permissionRequestToolGrant = environment.PermissionOperationRequestToolGrant
-)
-
-type permissionDecision = environment.PermissionDecision
+type permissionOperation = sandbox.PermissionOperation
 
 const (
-	decisionPending      = environment.PermissionDecisionPending
-	decisionAllowOnce    = environment.PermissionDecisionAllowOnce
-	decisionAllowAlways  = environment.PermissionDecisionAllowAlways
-	decisionRejectOnce   = environment.PermissionDecisionRejectOnce
-	decisionRejectAlways = environment.PermissionDecisionRejectAlways
+	permissionReadTextFile     = sandbox.PermissionOperationReadTextFile
+	permissionWriteTextFile    = sandbox.PermissionOperationWriteTextFile
+	permissionCreateTerminal   = sandbox.PermissionOperationCreateTerminal
+	permissionRequestToolGrant = sandbox.PermissionOperationRequestToolGrant
 )
 
-var _ environment.ToolHost = (*localToolHost)(nil)
+type permissionDecision = sandbox.PermissionDecision
+
+const (
+	decisionPending      = sandbox.PermissionDecisionPending
+	decisionAllowOnce    = sandbox.PermissionDecisionAllowOnce
+	decisionAllowAlways  = sandbox.PermissionDecisionAllowAlways
+	decisionRejectOnce   = sandbox.PermissionDecisionRejectOnce
+	decisionRejectAlways = sandbox.PermissionDecisionRejectAlways
+)
+
+var _ sandbox.ToolHost = (*localToolHost)(nil)
 
 type localToolHost struct {
 	cwd         string
@@ -64,7 +64,7 @@ func NewLocalToolHost(
 	mode aghconfig.PermissionMode,
 	logger *slog.Logger,
 	opts ...LocalRuntimeOption,
-) (environment.ToolHost, error) {
+) (sandbox.ToolHost, error) {
 	return newLocalToolHost(ctx, root, mode, logger, opts...)
 }
 
@@ -144,13 +144,13 @@ func (h *localToolHost) ResolvePath(path string) (string, error) {
 	return h.permissions.resolvePath(path)
 }
 
-func (h *localToolHost) Authorize(op environment.PermissionOperation) error {
+func (h *localToolHost) Authorize(op sandbox.PermissionOperation) error {
 	return h.permissions.authorize(op)
 }
 
 func (h *localToolHost) PermissionDecision(
 	req acpsdk.RequestPermissionRequest,
-) (environment.PermissionDecision, bool) {
+) (sandbox.PermissionDecision, bool) {
 	return h.permissions.permissionDecision(req)
 }
 

@@ -14,9 +14,9 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/environment"
 	"github.com/pedronauck/agh/internal/filesnap"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/sandbox"
 )
 
 func TestResolveRoutesByIdentifierType(t *testing.T) {
@@ -178,21 +178,21 @@ func symlinkWorkspaceRootForTest(t *testing.T, target string) string {
 	return link
 }
 
-func TestResolveWorkspaceEnvironmentCascade(t *testing.T) {
+func TestResolveWorkspaceSandboxCascade(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	homePaths := newTestHomePaths(t)
 	baseConfig := validConfig(homePaths)
-	baseConfig.Defaults.Environment = "default-env"
-	baseConfig.Environments["default-env"] = aghconfig.EnvironmentProfile{
+	baseConfig.Defaults.Sandbox = "default-env"
+	baseConfig.Sandboxes["default-env"] = aghconfig.SandboxProfile{
 		Backend:     "daytona",
 		Persistence: "reuse",
 		Daytona: aghconfig.DaytonaProfile{
 			Snapshot: "snap-default",
 		},
 	}
-	baseConfig.Environments["explicit-env"] = aghconfig.EnvironmentProfile{
+	baseConfig.Sandboxes["explicit-env"] = aghconfig.SandboxProfile{
 		Backend:  "daytona",
 		SyncMode: "none",
 		Daytona: aghconfig.DaytonaProfile{
@@ -205,24 +205,24 @@ func TestResolveWorkspaceEnvironmentCascade(t *testing.T) {
 		workspace   Workspace
 		cfg         aghconfig.Config
 		wantProfile string
-		wantBackend environment.Backend
-		wantSync    environment.SyncMode
+		wantBackend sandbox.Backend
+		wantSync    sandbox.SyncMode
 	}{
 		{
 			name: "workspace ref wins over default",
 			workspace: Workspace{
-				ID:             "ws_explicit",
-				RootDir:        mustCanonicalRoot(t, t.TempDir()),
-				Name:           "explicit",
-				EnvironmentRef: "explicit-env",
+				ID:         "ws_explicit",
+				RootDir:    mustCanonicalRoot(t, t.TempDir()),
+				Name:       "explicit",
+				SandboxRef: "explicit-env",
 			},
 			cfg:         baseConfig,
 			wantProfile: "explicit-env",
-			wantBackend: environment.BackendDaytona,
-			wantSync:    environment.SyncModeNone,
+			wantBackend: sandbox.BackendDaytona,
+			wantSync:    sandbox.SyncModeNone,
 		},
 		{
-			name: "defaults environment applies when workspace omits ref",
+			name: "defaults sandbox applies when workspace omits ref",
 			workspace: Workspace{
 				ID:      "ws_default",
 				RootDir: mustCanonicalRoot(t, t.TempDir()),
@@ -230,8 +230,8 @@ func TestResolveWorkspaceEnvironmentCascade(t *testing.T) {
 			},
 			cfg:         baseConfig,
 			wantProfile: "default-env",
-			wantBackend: environment.BackendDaytona,
-			wantSync:    environment.SyncModeSessionBidirectional,
+			wantBackend: sandbox.BackendDaytona,
+			wantSync:    sandbox.SyncModeSessionBidirectional,
 		},
 		{
 			name: "implicit local applies with no workspace or default ref",
@@ -242,12 +242,12 @@ func TestResolveWorkspaceEnvironmentCascade(t *testing.T) {
 			},
 			cfg: func() aghconfig.Config {
 				cfg := validConfig(homePaths)
-				cfg.Defaults.Environment = ""
+				cfg.Defaults.Sandbox = ""
 				return cfg
 			}(),
 			wantProfile: "local",
-			wantBackend: environment.BackendLocal,
-			wantSync:    environment.SyncModeNone,
+			wantBackend: sandbox.BackendLocal,
+			wantSync:    sandbox.SyncModeNone,
 		},
 	}
 
@@ -266,11 +266,11 @@ func TestResolveWorkspaceEnvironmentCascade(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Resolve() error = %v", err)
 			}
-			if resolved.Environment.Profile != tt.wantProfile ||
-				resolved.Environment.Backend != tt.wantBackend ||
-				resolved.Environment.SyncMode != tt.wantSync {
-				t.Fatalf("resolved environment = %#v, want profile=%q backend=%q sync=%q",
-					resolved.Environment,
+			if resolved.Sandbox.Profile != tt.wantProfile ||
+				resolved.Sandbox.Backend != tt.wantBackend ||
+				resolved.Sandbox.SyncMode != tt.wantSync {
+				t.Fatalf("resolved sandbox = %#v, want profile=%q backend=%q sync=%q",
+					resolved.Sandbox,
 					tt.wantProfile,
 					tt.wantBackend,
 					tt.wantSync,
@@ -280,17 +280,17 @@ func TestResolveWorkspaceEnvironmentCascade(t *testing.T) {
 	}
 }
 
-func TestRegisterUpdateAndLoadWorkspaceEnvironmentRef(t *testing.T) {
+func TestRegisterUpdateAndLoadWorkspaceSandboxRef(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	homePaths := newTestHomePaths(t)
 	cfg := validConfig(homePaths)
-	cfg.Environments["daytona-dev"] = aghconfig.EnvironmentProfile{
+	cfg.Sandboxes["daytona-dev"] = aghconfig.SandboxProfile{
 		Backend: "daytona",
 		Daytona: aghconfig.DaytonaProfile{Snapshot: "snap-dev"},
 	}
-	cfg.Environments["local-dev"] = aghconfig.EnvironmentProfile{Backend: "local"}
+	cfg.Sandboxes["local-dev"] = aghconfig.SandboxProfile{Backend: "local"}
 
 	store := newMockWorkspaceStore()
 	resolver := newTestResolver(t, store,
@@ -301,35 +301,35 @@ func TestRegisterUpdateAndLoadWorkspaceEnvironmentRef(t *testing.T) {
 
 	root := t.TempDir()
 	registered, err := resolver.Register(ctx, RegisterOptions{
-		RootDir:        root,
-		Name:           "env-workspace",
-		EnvironmentRef: "daytona-dev",
+		RootDir:    root,
+		Name:       "env-workspace",
+		SandboxRef: "daytona-dev",
 	})
 	if err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
-	if got, want := registered.EnvironmentRef, "daytona-dev"; got != want {
-		t.Fatalf("registered EnvironmentRef = %q, want %q", got, want)
+	if got, want := registered.SandboxRef, "daytona-dev"; got != want {
+		t.Fatalf("registered SandboxRef = %q, want %q", got, want)
 	}
 
 	loaded, err := resolver.Get(ctx, registered.ID)
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
-	if got, want := loaded.EnvironmentRef, "daytona-dev"; got != want {
-		t.Fatalf("loaded EnvironmentRef = %q, want %q", got, want)
+	if got, want := loaded.SandboxRef, "daytona-dev"; got != want {
+		t.Fatalf("loaded SandboxRef = %q, want %q", got, want)
 	}
 
-	nextEnvironment := "local-dev"
-	if err := resolver.Update(ctx, registered.ID, UpdateOptions{EnvironmentRef: &nextEnvironment}); err != nil {
+	nextSandbox := "local-dev"
+	if err := resolver.Update(ctx, registered.ID, UpdateOptions{SandboxRef: &nextSandbox}); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
 	updated, err := resolver.Get(ctx, registered.ID)
 	if err != nil {
 		t.Fatalf("Get(updated) error = %v", err)
 	}
-	if got, want := updated.EnvironmentRef, "local-dev"; got != want {
-		t.Fatalf("updated EnvironmentRef = %q, want %q", got, want)
+	if got, want := updated.SandboxRef, "local-dev"; got != want {
+		t.Fatalf("updated SandboxRef = %q, want %q", got, want)
 	}
 }
 
