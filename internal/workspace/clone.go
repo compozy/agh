@@ -72,6 +72,17 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 			Marketplace:             src.Skills.Marketplace,
 		},
 		Extensions: src.Extensions,
+		Tools: aghconfig.ToolsConfig{
+			Enabled:               src.Tools.Enabled,
+			HostedMCPEnabled:      src.Tools.HostedMCPEnabled,
+			DefaultMaxResultBytes: src.Tools.DefaultMaxResultBytes,
+			HostedMCP:             src.Tools.HostedMCP,
+			Policy: aghconfig.ToolsPolicyConfig{
+				ExternalDefault:        src.Tools.Policy.ExternalDefault,
+				ApprovalTimeoutSeconds: src.Tools.Policy.ApprovalTimeoutSeconds,
+				TrustedSources:         append([]string(nil), src.Tools.Policy.TrustedSources...),
+			},
+		},
 		Automation: src.Automation,
 		Autonomy:   src.Autonomy,
 		Hooks: aghconfig.HooksConfig{
@@ -156,6 +167,8 @@ func cloneAgentDefs(src []aghconfig.AgentDef) []aghconfig.AgentDef {
 			Command:      agent.Command,
 			Model:        agent.Model,
 			Tools:        append([]string(nil), agent.Tools...),
+			Toolsets:     append([]string(nil), agent.Toolsets...),
+			DenyTools:    append([]string(nil), agent.DenyTools...),
 			Permissions:  agent.Permissions,
 			MCPServers:   cloneMCPServers(agent.MCPServers),
 			Hooks:        cloneHookDecls(agent.Hooks),

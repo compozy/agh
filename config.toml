@@ -16,6 +16,19 @@ max_concurrent_agents = 20
 [permissions]
 mode = "approve-all"
 
+[tools]
+enabled = true
+hosted_mcp_enabled = true
+default_max_result_bytes = 262144
+
+[tools.hosted_mcp]
+bind_nonce_ttl_seconds = 30
+
+[tools.policy]
+external_default = "disabled"
+approval_timeout_seconds = 120
+trusted_sources = []
+
 [providers.claude]
 default_model = "claude-sonnet-4-20250514"
 api_key_env = "ANTHROPIC_API_KEY"

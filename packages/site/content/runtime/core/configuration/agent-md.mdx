@@ -28,7 +28,9 @@ The parser is strict. Unknown frontmatter fields fail loading.
 | `provider`    | string                      | `[defaults].provider`                       | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, and API key metadata. |
 | `command`     | string                      | Provider `command`                          | Non-empty when overriding.                                          | Agent-specific ACP launch command.                             |
 | `model`       | string                      | Provider `default_model`                    | Any string.                                                         | Agent-specific model metadata.                                 |
-| `tools`       | string array                | `["*"]`                                     | Strings; no current vocabulary validation.                          | Tool allowlist metadata exposed by CLI/API.                    |
+| `tools`       | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Agent tool allowlist grammar.                                  |
+| `toolsets`    | string array                | empty                                       | Canonical ToolsetIDs.                                               | Named tool bundles allowed for the agent.                      |
+| `deny_tools`  | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.               |
 | `permissions` | string                      | `[permissions].mode`, default `approve-all` | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                |
 | `mcp_servers` | array of MCP server objects | empty                                       | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                       |
 | `hooks`       | array of hook declarations  | empty                                       | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                |
@@ -71,9 +73,18 @@ provider: claude
 # Optional. Defaults to the provider default_model.
 model: claude-sonnet-4-20250514
 
-# Optional. Defaults to ["*"].
+# Optional. Exact canonical ToolIDs or namespace-prefix wildcard patterns.
 tools:
-  - "*"
+  - "agh__skill_view"
+  - "mcp__github__*"
+
+# Optional. Named ToolsetIDs.
+toolsets:
+  - "agh__catalog"
+
+# Optional. Denies always narrow the allowed set.
+deny_tools:
+  - "agh__task_*"
 
 # Optional. Defaults to [permissions].mode.
 permissions: approve-reads
@@ -145,13 +156,33 @@ Put blocking findings first and cite the relevant file or symbol.
 
 ### `tools`
 
-| Attribute    | Value                                                                                                                                                                      |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Type         | string array                                                                                                                                                               |
-| Default      | `["*"]`                                                                                                                                                                    |
-| Required     | no                                                                                                                                                                         |
-| Valid values | Strings.                                                                                                                                                                   |
-| Description  | Tool allowlist metadata exposed through AGH surfaces. The current ACP start path does not enforce individual tool names; permissions are the enforced control plane today. |
+| Attribute    | Value                                                                                                                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Type         | string array                                                                                                                                                                                                                   |
+| Default      | empty                                                                                                                                                                                                                          |
+| Required     | no                                                                                                                                                                                                                             |
+| Valid values | Exact canonical ToolIDs such as `agh__skill_view`, or namespace-prefix wildcards such as `agh__skill_*` and `mcp__github__*`. `*`, dotted names, hyphens, uppercase, suffix wildcards, and mid-segment wildcards are rejected. |
+| Description  | Agent tool allowlist grammar consumed by the registry policy layer. It does not raise authority above `[permissions].mode`.                                                                                                    |
+
+### `toolsets`
+
+| Attribute    | Value                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Type         | string array                                                                                                       |
+| Default      | empty                                                                                                              |
+| Required     | no                                                                                                                 |
+| Valid values | Canonical ToolsetIDs such as `agh__catalog` or `linear__read`.                                                     |
+| Description  | Named tool bundles allowed for the agent. Toolsets are separate from `tools`; do not place toolset IDs in `tools`. |
+
+### `deny_tools`
+
+| Attribute    | Value                                                                                                                |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Type         | string array                                                                                                         |
+| Default      | empty                                                                                                                |
+| Required     | no                                                                                                                   |
+| Valid values | Same grammar as `tools`: exact canonical ToolIDs or namespace-prefix wildcard patterns.                              |
+| Description  | Explicit narrowing layer. A deny can overlap an allow; later policy evaluation treats the deny as taking precedence. |
 
 ### `permissions`
 
@@ -359,7 +390,9 @@ Sidecar behavior:
 | Provider      | `AGENT.md` `provider`, then `[defaults].provider`    | Fails if still empty.                                                     |
 | Command       | `AGENT.md` `command`, then provider `command`        | Fails if empty after provider resolution.                                 |
 | Model         | `AGENT.md` `model`, then provider `default_model`    | Empty is allowed.                                                         |
-| Tools         | `AGENT.md` `tools`, then `["*"]`                     | No per-tool validation today.                                             |
+| Tools         | `AGENT.md` `tools`                                   | Must be exact canonical ToolIDs or approved namespace-prefix wildcards.   |
+| Toolsets      | `AGENT.md` `toolsets`                                | Must be canonical ToolsetIDs.                                             |
+| Deny tools    | `AGENT.md` `deny_tools`                              | Same grammar as `tools`; denies narrow later policy evaluation.           |
 | Permissions   | `AGENT.md` `permissions`, then `[permissions].mode`  | Must be a supported permission mode.                                      |
 | MCP servers   | Top-level config, provider, agent, active skills     | Same-name TOML entries merge fields; JSON sidecars replace whole objects. |
 

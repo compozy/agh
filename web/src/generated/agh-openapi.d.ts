@@ -4575,6 +4575,7 @@ export interface operations {
           "application/json": {
             agents: {
               command?: string;
+              deny_tools?: string[];
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -4602,6 +4603,7 @@ export interface operations {
               prompt: string;
               provider: string;
               tools?: string[];
+              toolsets?: string[];
             }[];
           };
         };
@@ -4649,6 +4651,7 @@ export interface operations {
           "application/json": {
             agent: {
               command?: string;
+              deny_tools?: string[];
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -4676,6 +4679,7 @@ export interface operations {
               prompt: string;
               provider: string;
               tools?: string[];
+              toolsets?: string[];
             };
           };
         };
@@ -24116,6 +24120,7 @@ export interface operations {
           "application/json": {
             agents?: {
               command?: string;
+              deny_tools?: string[];
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -24143,6 +24148,7 @@ export interface operations {
               prompt: string;
               provider: string;
               tools?: string[];
+              toolsets?: string[];
             }[];
             providers?: {
               name: string;

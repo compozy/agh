@@ -324,8 +324,8 @@ func TestResolveAgentDefaultsToolsAndPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveAgent() error = %v", err)
 	}
-	if len(resolved.Tools) != 1 || resolved.Tools[0] != "*" {
-		t.Fatalf("ResolveAgent() Tools = %#v", resolved.Tools)
+	if len(resolved.Tools) != 0 {
+		t.Fatalf("ResolveAgent() Tools = %#v, want empty default", resolved.Tools)
 	}
 	if resolved.Permissions != string(PermissionModeApproveAll) {
 		t.Fatalf("ResolveAgent() Permissions = %q, want %q", resolved.Permissions, PermissionModeApproveAll)
@@ -377,7 +377,9 @@ func TestResolveSessionAgent(t *testing.T) {
 			Model:       "agent-model",
 			Permissions: string(PermissionModeApproveReads),
 			Prompt:      "prompt",
-			Tools:       []string{"bash"},
+			Tools:       []string{"agh__skill_view"},
+			Toolsets:    []string{"agh__catalog"},
+			DenyTools:   []string{"agh__task_*"},
 			MCPServers: []MCPServer{
 				{Name: "agent", Command: "agent-command"},
 			},

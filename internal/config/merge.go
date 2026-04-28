@@ -28,6 +28,7 @@ type configOverlay struct {
 	Memory        memoryOverlay              `toml:"memory"`
 	Skills        skillsOverlay              `toml:"skills"`
 	Extensions    extensionsOverlay          `toml:"extensions"`
+	Tools         toolsOverlay               `toml:"tools"`
 	Automation    automationOverlay          `toml:"automation"`
 	Hooks         hooksOverlay               `toml:"hooks"`
 	Network       networkOverlay             `toml:"network"`
@@ -169,6 +170,24 @@ type extensionsRateLimitOverlay struct {
 	Queue    *int           `toml:"queue"`
 }
 
+type toolsOverlay struct {
+	Enabled               *bool                 `toml:"enabled"`
+	HostedMCPEnabled      *bool                 `toml:"hosted_mcp_enabled"`
+	DefaultMaxResultBytes *int64                `toml:"default_max_result_bytes"`
+	HostedMCP             toolsHostedMCPOverlay `toml:"hosted_mcp"`
+	Policy                toolsPolicyOverlay    `toml:"policy"`
+}
+
+type toolsHostedMCPOverlay struct {
+	BindNonceTTLSeconds *int `toml:"bind_nonce_ttl_seconds"`
+}
+
+type toolsPolicyOverlay struct {
+	ExternalDefault        *ToolsExternalDefault `toml:"external_default"`
+	ApprovalTimeoutSeconds *int                  `toml:"approval_timeout_seconds"`
+	TrustedSources         *[]string             `toml:"trusted_sources"`
+}
+
 type networkOverlay struct {
 	Enabled        *bool   `toml:"enabled"`
 	DefaultChannel *string `toml:"default_channel"`
@@ -288,6 +307,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	inheritDreamAgentFromDefaultAgent(dst, o)
 	o.Skills.Apply(&dst.Skills)
 	o.Extensions.Apply(&dst.Extensions)
+	o.Tools.Apply(&dst.Tools)
 	if err := o.Automation.Apply(&dst.Automation); err != nil {
 		return err
 	}
@@ -564,6 +584,38 @@ func (o extensionsRateLimitOverlay) Apply(dst *ExtensionsResourceRateLimitConfig
 	}
 	if o.Queue != nil {
 		dst.Queue = *o.Queue
+	}
+}
+
+func (o toolsOverlay) Apply(dst *ToolsConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.HostedMCPEnabled != nil {
+		dst.HostedMCPEnabled = *o.HostedMCPEnabled
+	}
+	if o.DefaultMaxResultBytes != nil {
+		dst.DefaultMaxResultBytes = *o.DefaultMaxResultBytes
+	}
+	o.HostedMCP.Apply(&dst.HostedMCP)
+	o.Policy.Apply(&dst.Policy)
+}
+
+func (o toolsHostedMCPOverlay) Apply(dst *ToolsHostedMCPConfig) {
+	if o.BindNonceTTLSeconds != nil {
+		dst.BindNonceTTLSeconds = *o.BindNonceTTLSeconds
+	}
+}
+
+func (o toolsPolicyOverlay) Apply(dst *ToolsPolicyConfig) {
+	if o.ExternalDefault != nil {
+		dst.ExternalDefault = *o.ExternalDefault
+	}
+	if o.ApprovalTimeoutSeconds != nil {
+		dst.ApprovalTimeoutSeconds = *o.ApprovalTimeoutSeconds
+	}
+	if o.TrustedSources != nil {
+		dst.TrustedSources = append([]string(nil), (*o.TrustedSources)...)
 	}
 }
 

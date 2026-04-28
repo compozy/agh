@@ -50,6 +50,23 @@ timeout = "30m"
 [permissions]
 mode = "approve-all"
 
+[[mcp_servers]]
+name = "linear"
+command = "linear-mcp"
+
+[tools]
+enabled = true
+hosted_mcp_enabled = false
+default_max_result_bytes = 131072
+
+[tools.hosted_mcp]
+bind_nonce_ttl_seconds = 45
+
+[tools.policy]
+external_default = "ask"
+approval_timeout_seconds = 90
+trusted_sources = ["mcp:linear", "extension:linear"]
+
 [providers.claude]
 default_model = "claude-opus"
 api_key_env = "ANTHROPIC_KEY"
@@ -134,6 +151,30 @@ max_queue_depth = 250
 	}
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
 		t.Fatalf("Load() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
+	}
+	if cfg.Tools.HostedMCPEnabled {
+		t.Fatal("Load() Tools.HostedMCPEnabled = true, want false")
+	}
+	if got, want := cfg.Tools.DefaultMaxResultBytes, int64(131072); got != want {
+		t.Fatalf("Load() Tools.DefaultMaxResultBytes = %d, want %d", got, want)
+	}
+	if got, want := cfg.Tools.HostedMCP.BindNonceTTLSeconds, 45; got != want {
+		t.Fatalf("Load() Tools.HostedMCP.BindNonceTTLSeconds = %d, want %d", got, want)
+	}
+	if got, want := cfg.Tools.Policy.ExternalDefault, ToolsExternalDefaultAsk; got != want {
+		t.Fatalf("Load() Tools.Policy.ExternalDefault = %q, want %q", got, want)
+	}
+	if got, want := cfg.Tools.Policy.ApprovalTimeoutSeconds, 90; got != want {
+		t.Fatalf("Load() Tools.Policy.ApprovalTimeoutSeconds = %d, want %d", got, want)
+	}
+	if got, want := cfg.Tools.Policy.TrustedSources, []string{
+		"mcp:linear",
+		"extension:linear",
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("Load() Tools.Policy.TrustedSources = %#v, want %#v", got, want)
 	}
 	if cfg.Observability.RetentionDays != 14 || cfg.Observability.MaxGlobalBytes != 2048 ||
 		cfg.Observability.AgentProbeTimeout != 9*time.Second {

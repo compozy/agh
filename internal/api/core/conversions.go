@@ -293,6 +293,8 @@ func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
 		Command:     agent.Command,
 		Model:       agent.Model,
 		Tools:       append([]string(nil), agent.Tools...),
+		Toolsets:    append([]string(nil), agent.Toolsets...),
+		DenyTools:   append([]string(nil), agent.DenyTools...),
 		Permissions: agent.Permissions,
 		MCPServers:  mcpServers,
 		Prompt:      agent.Prompt,

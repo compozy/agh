@@ -309,7 +309,7 @@ func agentSkillIntegrationWorkspace(t *testing.T) string {
 	writeAgentSkillIntegrationFile(t, filepath.Join(agentDir, "AGENT.md"), `---
 name: coder
 provider: claude
-tools: ["lookup"]
+tools: ["agh__lookup"]
 ---
 
 Use the workspace tool catalog.

@@ -31,7 +31,7 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		{
 			ID:    "workspace:coder",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
-			Spec:  aghconfig.AgentDef{Name: "coder", Prompt: "workspace coder", Tools: []string{"lookup"}},
+			Spec:  aghconfig.AgentDef{Name: "coder", Prompt: "workspace coder", Tools: []string{"agh__lookup"}},
 		},
 	})
 
@@ -63,7 +63,7 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveAgent(coder) error = %v", err)
 	}
-	if coder.Prompt != "workspace coder" || len(coder.Tools) != 1 || coder.Tools[0] != "lookup" {
+	if coder.Prompt != "workspace coder" || len(coder.Tools) != 1 || coder.Tools[0] != "agh__lookup" {
 		t.Fatalf("ResolveAgent(coder) = %#v, want workspace override", coder)
 	}
 }
@@ -261,7 +261,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 			spec: aghconfig.AgentDef{
 				Name:   "coder",
 				Prompt: "Use canonical tools.",
-				Tools:  []string{"lookup"},
+				Tools:  []string{"agh__lookup"},
 			},
 		}},
 		skills: []skillPublicationInput{{

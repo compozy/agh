@@ -16,7 +16,9 @@ func TestParseAgentDefValidFrontmatterAndBody(t *testing.T) {
 name: coder
 provider: claude
 model: claude-opus
-tools: ["bash", "edit"]
+tools: ["agh__skill_view", "mcp__github__*"]
+toolsets: ["agh__catalog"]
+deny_tools: ["agh__task_*"]
 permissions: approve-reads
 mcp_servers:
   - name: github
@@ -36,12 +38,146 @@ You are a senior Go engineer.
 	if len(agent.Tools) != 2 {
 		t.Fatalf("ParseAgentDef() Tools = %#v", agent.Tools)
 	}
+	if got, want := strings.Join(agent.Toolsets, ","), "agh__catalog"; got != want {
+		t.Fatalf("ParseAgentDef() Toolsets = %#v, want %q", agent.Toolsets, want)
+	}
+	if got, want := strings.Join(agent.DenyTools, ","), "agh__task_*"; got != want {
+		t.Fatalf("ParseAgentDef() DenyTools = %#v, want %q", agent.DenyTools, want)
+	}
 	if !strings.Contains(agent.Prompt, "senior Go engineer") {
 		t.Fatalf("ParseAgentDef() Prompt = %q", agent.Prompt)
 	}
 	if len(agent.MCPServers) != 1 || agent.MCPServers[0].Name != "github" {
 		t.Fatalf("ParseAgentDef() MCPServers = %#v", agent.MCPServers)
 	}
+}
+
+func TestParseAgentDefRejectsInvalidToolGrammar(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name: "ShouldRejectLegacySingleToolName",
+			content: `---
+name: coder
+tools: ["bash"]
+---
+
+Prompt.
+`,
+			wantErr: "agent.tools[0]",
+		},
+		{
+			name: "ShouldRejectGlobalWildcard",
+			content: `---
+name: coder
+tools: ["*"]
+---
+
+Prompt.
+`,
+			wantErr: "agent.tools[0]",
+		},
+		{
+			name: "ShouldRejectMidSegmentWildcard",
+			content: `---
+name: coder
+tools: ["agh__*__view"]
+---
+
+Prompt.
+`,
+			wantErr: "agent.tools[0]",
+		},
+		{
+			name: "ShouldRejectDottedToolID",
+			content: `---
+name: coder
+tools: ["agh.skill_view"]
+---
+
+Prompt.
+`,
+			wantErr: "agent.tools[0]",
+		},
+		{
+			name: "ShouldRejectLegacySingleToolsetName",
+			content: `---
+name: coder
+toolsets: ["core"]
+---
+
+Prompt.
+`,
+			wantErr: "agent.toolsets[0]",
+		},
+		{
+			name: "ShouldRejectDottedToolsetID",
+			content: `---
+name: coder
+toolsets: ["agh.core"]
+---
+
+Prompt.
+`,
+			wantErr: "agent.toolsets[0]",
+		},
+		{
+			name: "ShouldRejectDenyToolSuffixWildcard",
+			content: `---
+name: coder
+deny_tools: ["*__search"]
+---
+
+Prompt.
+`,
+			wantErr: "agent.deny_tools[0]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := ParseAgentDef([]byte(tt.content))
+			if err == nil {
+				t.Fatal("ParseAgentDef() error = nil, want invalid tool grammar")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("ParseAgentDef() error = %q, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestParseAgentDefAllowsDenyToolsToNarrowAllowedTools(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow deny tools to overlap allowed tools", func(t *testing.T) {
+		t.Parallel()
+
+		agent, err := ParseAgentDef([]byte(`---
+name: coder
+tools: ["agh__skill_view"]
+deny_tools: ["agh__skill_view"]
+---
+
+Prompt.
+`))
+		if err != nil {
+			t.Fatalf("ParseAgentDef() error = %v", err)
+		}
+		if got, want := strings.Join(agent.Tools, ","), "agh__skill_view"; got != want {
+			t.Fatalf("ParseAgentDef() Tools = %#v, want %q", agent.Tools, want)
+		}
+		if got, want := strings.Join(agent.DenyTools, ","), "agh__skill_view"; got != want {
+			t.Fatalf("ParseAgentDef() DenyTools = %#v, want %q", agent.DenyTools, want)
+		}
+	})
 }
 
 func TestParseAgentDefNormalizesCRLFAndPreservesConfigFrontmatterErrors(t *testing.T) {

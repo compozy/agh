@@ -58,6 +58,24 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 			wantErr: "agent.mcp_servers[0]",
 		},
 		{
+			name: "ShouldRejectInvalidToolPattern",
+			spec: AgentDef{
+				Name:   "coder",
+				Prompt: "You are helpful.",
+				Tools:  []string{"github.search"},
+			},
+			wantErr: "agent.tools[0]",
+		},
+		{
+			name: "ShouldRejectInvalidToolsetID",
+			spec: AgentDef{
+				Name:     "coder",
+				Prompt:   "You are helpful.",
+				Toolsets: []string{"core"},
+			},
+			wantErr: "agent.toolsets[0]",
+		},
+		{
 			name: "ShouldRejectInvalidCapabilityCatalog",
 			spec: AgentDef{
 				Name:   "coder",
@@ -104,7 +122,15 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 	raw, err := codec.Encode(AgentDef{
 		Name:   " coder ",
 		Prompt: " Build things. ",
-		Tools:  []string{" github.search ", "", "github.search", " * "},
+		Tools:  []string{" mcp__github__search ", "mcp__github__search", " agh__skill_* "},
+		Toolsets: []string{
+			" agh__catalog ",
+			"agh__catalog",
+		},
+		DenyTools: []string{
+			" agh__task_* ",
+			"agh__task_*",
+		},
 		Capabilities: &CapabilityCatalog{
 			Capabilities: []CapabilityDef{{
 				ID:                " build-site ",
@@ -136,8 +162,23 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 	if got.Name != "coder" || got.Prompt != "Build things." {
 		t.Fatalf("decoded agent = %#v, want trimmed name and prompt", got)
 	}
-	if want := []string{"github.search", "*"}; strings.Join(got.Tools, ",") != strings.Join(want, ",") {
+	if want := []string{
+		"mcp__github__search",
+		"agh__skill_*",
+	}; strings.Join(
+		got.Tools,
+		",",
+	) != strings.Join(
+		want,
+		",",
+	) {
 		t.Fatalf("Tools = %#v, want %#v", got.Tools, want)
+	}
+	if want := []string{"agh__catalog"}; strings.Join(got.Toolsets, ",") != strings.Join(want, ",") {
+		t.Fatalf("Toolsets = %#v, want %#v", got.Toolsets, want)
+	}
+	if want := []string{"agh__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {
+		t.Fatalf("DenyTools = %#v, want %#v", got.DenyTools, want)
 	}
 	if gotCount, wantCount := len(got.MCPServers), 1; gotCount != wantCount {
 		t.Fatalf("len(MCPServers) = %d, want %d", gotCount, wantCount)

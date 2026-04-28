@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Tools Config Lifecycle and Agent Grammar
 type: backend
 complexity: high
@@ -30,12 +30,12 @@ Add the configuration and agent-definition grammar required by the registry befo
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Add tools config structs, defaults, and validation
-- [ ] 2.2 Extend agent config with `toolsets` and `deny_tools`
-- [ ] 2.3 Validate ToolID atoms, source grants, trusted sources, and hosted MCP values
-- [ ] 2.4 Update merge, workspace overlay, and example config behavior
-- [ ] 2.5 Add config tests for defaults, invalid values, overlays, and agent grammar
-- [ ] 2.6 Document downstream docs and generated examples required by task_14
+- [x] 2.1 Add tools config structs, defaults, and validation
+- [x] 2.2 Extend agent config with `toolsets` and `deny_tools`
+- [x] 2.3 Validate ToolID atoms, source grants, trusted sources, and hosted MCP values
+- [x] 2.4 Update merge, workspace overlay, and example config behavior
+- [x] 2.5 Add config tests for defaults, invalid values, overlays, and agent grammar
+- [x] 2.6 Document downstream docs and generated examples required by task_14
 
 ## Implementation Details
 
@@ -77,13 +77,13 @@ Use TechSpec "Config Lifecycle" and "Agent Manageability" sections. Keep this ta
 
 ## Tests
 - Unit tests:
-  - [ ] Empty config loads safe defaults for `[tools]`, policy, hosted MCP, and result limits
-  - [ ] Invalid ToolID atoms, invalid toolsets, negative timeouts, and unsafe trusted-source entries fail validation
-  - [ ] `deny_tools` overrides parsed allow atoms without requiring policy evaluation in config code
-  - [ ] Workspace overlays preserve deterministic precedence for tools config
+  - [x] Empty config loads safe defaults for `[tools]`, policy, hosted MCP, and result limits
+  - [x] Invalid ToolID atoms, invalid toolsets, negative timeouts, and unsafe trusted-source entries fail validation
+  - [x] `deny_tools` overrides parsed allow atoms without requiring policy evaluation in config code
+  - [x] Workspace overlays preserve deterministic precedence for tools config
 - Integration tests:
-  - [ ] A realistic `config.toml` with tools policy and agent toolsets loads through the same path used by the daemon
-  - [ ] Existing config fixtures still reject unknown keys and malformed MCP server config
+  - [x] A realistic `config.toml` with tools policy and agent toolsets loads through the same path used by the daemon
+  - [x] Existing config fixtures still reject unknown keys and malformed MCP server config
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -27,6 +27,8 @@ type AgentSeed struct {
 	Model       string
 	Permissions string
 	Tools       []string
+	Toolsets    []string
+	DenyTools   []string
 	MCPServers  []aghconfig.MCPServer
 	Prompt      string
 }
@@ -298,6 +300,8 @@ type seedAgentDefFrontmatter struct {
 	Model       string                 `yaml:"model,omitempty"`
 	Permissions string                 `yaml:"permissions,omitempty"`
 	Tools       []string               `yaml:"tools,omitempty"`
+	Toolsets    []string               `yaml:"toolsets,omitempty"`
+	DenyTools   []string               `yaml:"deny_tools,omitempty"`
 	MCPServers  []seedAgentMCPServerFM `yaml:"mcp_servers,omitempty"`
 }
 
@@ -321,6 +325,8 @@ func renderSeedAgentDef(seed AgentSeed) (string, error) {
 		Model:       strings.TrimSpace(seed.Model),
 		Permissions: strings.TrimSpace(seed.Permissions),
 		Tools:       trimSeedValues(seed.Tools),
+		Toolsets:    trimSeedValues(seed.Toolsets),
+		DenyTools:   trimSeedValues(seed.DenyTools),
 		MCPServers:  make([]seedAgentMCPServerFM, 0, len(seed.MCPServers)),
 	}
 	for _, server := range seed.MCPServers {

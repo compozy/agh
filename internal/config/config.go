@@ -229,6 +229,7 @@ type Config struct {
 	Memory        MemoryConfig              `toml:"memory"`
 	Skills        SkillsConfig              `toml:"skills"`
 	Extensions    ExtensionsConfig          `toml:"extensions"`
+	Tools         ToolsConfig               `toml:"tools"`
 	Automation    AutomationConfig          `toml:"automation"`
 	Hooks         HooksConfig               `toml:"hooks"`
 	Network       NetworkConfig             `toml:"network"`
@@ -437,6 +438,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			PollInterval: 3 * time.Second,
 		},
 		Extensions: ExtensionsConfig{},
+		Tools:      DefaultToolsConfig(),
 		Automation: AutomationConfig{
 			Enabled:           true,
 			Timezone:          automationpkg.DefaultTimezone,
@@ -523,6 +525,9 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 		return err
 	}
 	if err := c.Extensions.Validate(); err != nil {
+		return err
+	}
+	if err := c.Tools.Validate(c.MCPServers, c.Providers); err != nil {
 		return err
 	}
 	if err := c.Automation.validateWithEnv(lookup); err != nil {

@@ -68,6 +68,8 @@ type ResolvedAgent struct {
 	Command     string
 	Model       string
 	Tools       []string
+	Toolsets    []string
+	DenyTools   []string
 	Permissions string
 	APIKeyEnv   string
 	MCPServers  []MCPServer
@@ -180,11 +182,6 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		return ResolvedAgent{}, err
 	}
 
-	tools := cloneStrings(agent.Tools)
-	if len(tools) == 0 {
-		tools = []string{"*"}
-	}
-
 	resolvedPermissions := strings.TrimSpace(agent.Permissions)
 	if resolvedPermissions == "" {
 		resolvedPermissions = string(permissions.Mode)
@@ -205,7 +202,9 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		Provider:    providerName,
 		Command:     command,
 		Model:       model,
-		Tools:       tools,
+		Tools:       cloneStrings(agent.Tools),
+		Toolsets:    cloneStrings(agent.Toolsets),
+		DenyTools:   cloneStrings(agent.DenyTools),
 		Permissions: resolvedPermissions,
 		APIKeyEnv:   provider.APIKeyEnv,
 		MCPServers:  mergeMCPServerLayers(mcpServers, provider.MCPServers, agent.MCPServers),

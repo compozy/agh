@@ -33,6 +33,9 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 | `[session.limits]`            | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                  |
 | `[session.supervision]`       | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes |
 | `[permissions]`               | Default permission mode.                                                        | `mode = "approve-all"`                                                            |
+| `[tools]`                     | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                               |
+| `[tools.hosted_mcp]`          | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                        |
+| `[tools.policy]`              | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources          |
 | `[[mcp_servers]]`             | Top-level MCP servers passed to agents.                                         | empty list                                                                        |
 | `[providers.<name>]`          | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                          |
 | `[sandboxes.<name>]`          | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                         |
@@ -115,6 +118,26 @@ timeout_cancel_grace = "30s"
 [permissions]
 # Valid values: deny-all, approve-reads, approve-all.
 mode = "approve-all"
+
+[tools]
+# Disables registry dispatch and hosted MCP exposure when false.
+enabled = true
+# Enables AGH-hosted local MCP projection for session-visible tools.
+hosted_mcp_enabled = true
+# Default result cap for tool descriptors that do not set a smaller cap.
+default_max_result_bytes = 262144
+
+[tools.hosted_mcp]
+# Non-secret launch correlation nonce lifetime before UDS peer binding.
+bind_nonce_ttl_seconds = 30
+
+[tools.policy]
+# Valid values: disabled, ask, enabled.
+external_default = "disabled"
+# Bounded wait for daemon-mediated approval flows.
+approval_timeout_seconds = 120
+# External read-only sources trusted for approve-reads. Entries use kind:owner.
+trusted_sources = []
 
 [[mcp_servers]]
 name = "filesystem"
@@ -344,6 +367,35 @@ continues to observe runtime activity or controlled waiting heartbeats.
 | Field  | Type   | Default       | Valid values                               | Description                                                                              |
 | ------ | ------ | ------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `mode` | string | `approve-all` | `deny-all`, `approve-reads`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`. |
+
+## `[tools]`
+
+Tool registry configuration is loaded before runtime policy and dispatch consume it. These keys only
+establish defaults and parse-time guardrails; dispatch still revalidates visibility, permission,
+availability, hooks, and approval state per call.
+
+| Field                      | Type    | Default  | Valid values            | Description                                                                |
+| -------------------------- | ------- | -------- | ----------------------- | -------------------------------------------------------------------------- |
+| `enabled`                  | boolean | `true`   | `true` or `false`.      | When false, disables AGH-owned registry dispatch and hosted MCP exposure.  |
+| `hosted_mcp_enabled`       | boolean | `true`   | `true` or `false`.      | Allows AGH to expose the local hosted MCP proxy for session-visible tools. |
+| `default_max_result_bytes` | integer | `262144` | `0` through `16777216`. | Result cap used when a descriptor does not specify a smaller limit.        |
+
+## `[tools.hosted_mcp]`
+
+| Field                    | Type    | Default | Valid values               | Description                                                                |
+| ------------------------ | ------- | ------- | -------------------------- | -------------------------------------------------------------------------- |
+| `bind_nonce_ttl_seconds` | integer | `30`    | `1` through `300` seconds. | Lifetime for the non-secret hosted MCP bind nonce before UDS peer binding. |
+
+## `[tools.policy]`
+
+| Field                      | Type         | Default    | Valid values                          | Description                                                                                                |
+| -------------------------- | ------------ | ---------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `external_default`         | string       | `disabled` | `disabled`, `ask`, `enabled`.         | Default executable policy for extension, MCP, and dynamic tools before explicit tool/source grants.        |
+| `approval_timeout_seconds` | integer      | `120`      | `1` through `600` seconds.            | Maximum wait for daemon-mediated approval flows.                                                           |
+| `trusted_sources`          | string array | `[]`       | `mcp:<server>` or `extension:<name>`. | External read-only sources trusted for `approve-reads`; MCP entries must reference configured MCP servers. |
+
+`trusted_sources` does not store credentials. Remote MCP OAuth tokens remain in the MCP auth store,
+and hosted MCP bind nonces are transient session launch state.
 
 ## `[[mcp_servers]]`
 

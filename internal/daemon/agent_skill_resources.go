@@ -980,6 +980,8 @@ func cloneAgentDef(agent aghconfig.AgentDef) aghconfig.AgentDef {
 		Command:      strings.TrimSpace(agent.Command),
 		Model:        strings.TrimSpace(agent.Model),
 		Tools:        slices.Clone(agent.Tools),
+		Toolsets:     slices.Clone(agent.Toolsets),
+		DenyTools:    slices.Clone(agent.DenyTools),
 		Permissions:  strings.TrimSpace(agent.Permissions),
 		MCPServers:   cloneMCPServers(agent.MCPServers),
 		Hooks:        cloneHookDecls(agent.Hooks),

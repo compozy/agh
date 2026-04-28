@@ -26,7 +26,9 @@ AGH agent definitions are parsed from `AGENT.md` files with YAML frontmatter fol
 name: general
 provider: claude
 model: claude-sonnet-4-20250514
-tools: [read, glob, grep, write, bash]
+tools: [agh__skill_view, agh__skill_search]
+toolsets: [agh__catalog]
+deny_tools: [agh__task_*]
 permissions: approve-all
 ---
 You are a reliable software engineering agent.
@@ -40,7 +42,9 @@ The prompt body after the frontmatter is required. AGH will reject an agent defi
 - `provider`: optional if you already configured a default provider
 - `model`: optional if the provider config already defines a default model
 - `command`: optional when the provider already defines how to launch the ACP adapter
-- `tools`: optional; AGH defaults to `["*"]` when omitted
+- `tools`: optional exact canonical ToolIDs or namespace-prefix wildcard patterns, such as `agh__skill_view` or `mcp__github__*`
+- `toolsets`: optional named ToolsetIDs, such as `agh__catalog`
+- `deny_tools`: optional exact ToolIDs or patterns that narrow the agent's grants
 - `permissions`: optional; AGH falls back to the global permissions mode when omitted
 - `mcp_servers`: optional per-agent MCP server list
 - `mcp.json`: optional sidecar file in the same agent directory when you want MCP declarations outside frontmatter

@@ -20,6 +20,8 @@ type AgentDef struct {
 	Command      string              `yaml:"command,omitempty"     toml:"command,omitempty"`
 	Model        string              `yaml:"model,omitempty"       toml:"model,omitempty"`
 	Tools        []string            `yaml:"tools,omitempty"       toml:"tools,omitempty"`
+	Toolsets     []string            `yaml:"toolsets,omitempty"    toml:"toolsets,omitempty"`
+	DenyTools    []string            `yaml:"deny_tools,omitempty"  toml:"deny_tools,omitempty"`
 	Permissions  string              `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
 	MCPServers   []MCPServer         `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
 	Hooks        []hookspkg.HookDecl `yaml:"hooks,omitempty"       toml:"hooks,omitempty"`
@@ -33,6 +35,8 @@ type parsedAgentDef struct {
 	Command     string                  `yaml:"command,omitempty"     toml:"command,omitempty"`
 	Model       string                  `yaml:"model,omitempty"       toml:"model,omitempty"`
 	Tools       []string                `yaml:"tools,omitempty"       toml:"tools,omitempty"`
+	Toolsets    []string                `yaml:"toolsets,omitempty"    toml:"toolsets,omitempty"`
+	DenyTools   []string                `yaml:"deny_tools,omitempty"  toml:"deny_tools,omitempty"`
 	Permissions string                  `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
 	MCPServers  []MCPServer             `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
 	Hooks       []parsedHookDeclaration `yaml:"hooks,omitempty"       toml:"hooks,omitempty"`
@@ -218,13 +222,12 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 		Provider:    strings.TrimSpace(parsed.Provider),
 		Command:     strings.TrimSpace(parsed.Command),
 		Model:       strings.TrimSpace(parsed.Model),
-		Tools:       cloneStrings(parsed.Tools),
+		Tools:       normalizeAgentToolPatterns(parsed.Tools),
+		Toolsets:    normalizeAgentToolsetRefs(parsed.Toolsets),
+		DenyTools:   normalizeAgentToolPatterns(parsed.DenyTools),
 		Permissions: strings.TrimSpace(parsed.Permissions),
 		MCPServers:  cloneMCPServers(parsed.MCPServers),
 		Prompt:      strings.TrimSpace(body),
-	}
-	if len(agent.Tools) == 0 {
-		agent.Tools = []string{"*"}
 	}
 	if len(parsed.Hooks) > 0 {
 		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
@@ -257,6 +260,15 @@ func (a AgentDef) Validate() error {
 		if err := PermissionMode(a.Permissions).Validate("agent.permissions"); err != nil {
 			return err
 		}
+	}
+	if err := validateAgentToolPatterns(a.Tools, "agent.tools"); err != nil {
+		return err
+	}
+	if err := validateAgentToolsets(a.Toolsets, "agent.toolsets"); err != nil {
+		return err
+	}
+	if err := validateAgentToolPatterns(a.DenyTools, "agent.deny_tools"); err != nil {
+		return err
 	}
 
 	for i, server := range a.MCPServers {

@@ -152,6 +152,8 @@ type AgentPayload struct {
 	Command     string               `json:"command,omitempty"`
 	Model       string               `json:"model,omitempty"`
 	Tools       []string             `json:"tools,omitempty"`
+	Toolsets    []string             `json:"toolsets,omitempty"`
+	DenyTools   []string             `json:"deny_tools,omitempty"`
 	Permissions string               `json:"permissions,omitempty"`
 	MCPServers  []AgentMCPServerJSON `json:"mcp_servers,omitempty"`
 	Prompt      string               `json:"prompt"`

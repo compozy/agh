@@ -34,7 +34,9 @@ func validateAgentResourceSpec(
 		Provider:    strings.TrimSpace(spec.Provider),
 		Command:     strings.TrimSpace(spec.Command),
 		Model:       strings.TrimSpace(spec.Model),
-		Tools:       normalizeAgentToolRefs(spec.Tools),
+		Tools:       normalizeAgentToolPatterns(spec.Tools),
+		Toolsets:    normalizeAgentToolsetRefs(spec.Toolsets),
+		DenyTools:   normalizeAgentToolPatterns(spec.DenyTools),
 		Permissions: strings.TrimSpace(spec.Permissions),
 		MCPServers:  cloneMCPServers(spec.MCPServers),
 		Hooks:       cloneHookDecls(spec.Hooks),
@@ -56,24 +58,4 @@ func validateAgentResourceSpec(
 		return AgentDef{}, errors.Join(resources.ErrValidation, err)
 	}
 	return normalized, nil
-}
-
-func normalizeAgentToolRefs(values []string) []string {
-	refs := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		refs = append(refs, trimmed)
-	}
-	if len(refs) == 0 {
-		return []string{"*"}
-	}
-	return refs
 }

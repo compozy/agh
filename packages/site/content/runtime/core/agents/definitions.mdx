@@ -74,7 +74,9 @@ Session creation first resolves the agent name, then resolves the provider and r
 | Provider    | `agent.provider` -> `defaults.provider`                    | `agent provider is required`; run `agh install` or set `agent.provider`/`defaults.provider` |
 | Command     | `agent.command` -> provider `command`                      | `provider "<name>" command is required`                                                     |
 | Model       | `agent.model` -> provider `default_model`                  | Empty is allowed when the provider has no default.                                          |
-| Tools       | `agent.tools` -> `["*"]`                                   | No validation of individual names today.                                                    |
+| Tools       | `agent.tools`                                              | Must be exact canonical ToolIDs or namespace-prefix wildcards.                              |
+| Toolsets    | `agent.toolsets`                                           | Must be canonical ToolsetIDs.                                                               |
+| Deny tools  | `agent.deny_tools`                                         | Same grammar as `tools`; denies narrow later policy evaluation.                             |
 | Permissions | `agent.permissions` -> `[permissions].mode`                | Must be one of the supported permission modes.                                              |
 
 The bootstrap `general` agent created by `agh install` intentionally contains only `name: general`
@@ -90,7 +92,9 @@ These are the frontmatter fields accepted by the current `internal/config` parse
 | `provider`    | string                      | no       | `defaults.provider`                 | Provider ID such as `claude`, `codex`, or a custom configured provider. Required at resolution time unless `defaults.provider` is set.                         |
 | `command`     | string                      | no       | provider `command`                  | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                           |
 | `model`       | string                      | no       | provider `default_model`            | Stored as the resolved model metadata. The current ACP `session/new` and `session/load` payloads do not send this field.                                       |
-| `tools`       | string array                | no       | `["*"]`                             | Parsed and exposed through CLI/API. The current ACP start flow does not send a tool allowlist, so permissions are the enforced control plane today.            |
+| `tools`       | string array                | no       | empty                               | Exact canonical ToolIDs such as `agh__skill_view`, or namespace-prefix wildcards such as `agh__skill_*` and `mcp__github__*`.                                  |
+| `toolsets`    | string array                | no       | empty                               | Canonical ToolsetIDs such as `agh__catalog` or `linear__read`.                                                                                                 |
+| `deny_tools`  | string array                | no       | empty                               | Same grammar as `tools`. Denies can overlap allows and are interpreted as a narrowing layer by registry policy.                                                |
 | `permissions` | string                      | no       | `[permissions].mode`                | `deny-all`, `approve-reads`, or `approve-all`.                                                                                                                 |
 | `mcp_servers` | array of MCP server objects | no       | merged with config/provider servers | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                      |
 | `hooks`       | array of hook declarations  | no       | none                                | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                            |
@@ -152,7 +156,9 @@ Sidecar behavior is precise:
 name: code-reviewer
 provider: claude
 model: claude-sonnet-4-20250514
-tools: ["*"]
+tools: ["agh__skill_view", "mcp__github__*"]
+toolsets: ["agh__catalog"]
+deny_tools: ["agh__task_*"]
 permissions: approve-reads
 mcp_servers:
   - name: github

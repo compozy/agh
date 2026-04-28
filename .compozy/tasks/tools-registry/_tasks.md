@@ -9,7 +9,7 @@ Source artifacts: `_techspec.md`, ADR-001 through ADR-010, `analysis/synthesis.m
 | # | Title | Status | Complexity | Dependencies |
 |---|-------|--------|------------|--------------|
 | 01 | Core Tool Contracts and Canonical ToolID | completed | high | - |
-| 02 | Tools Config Lifecycle and Agent Grammar | pending | high | task_01 |
+| 02 | Tools Config Lifecycle and Agent Grammar | completed | high | task_01 |
 | 03 | Registry Indexing, Toolsets, Policy, and Projections | pending | critical | task_01, task_02 |
 | 04 | Dispatch Pipeline, Hooks, Budgets, and Observability | pending | critical | task_03 |
 | 05 | Native Go Built-In Providers | pending | high | task_04 |

@@ -257,7 +257,9 @@ func TestWriteAgentDefPersistsOptionalSections(t *testing.T) {
 		Command:     "fake-agent --stdio",
 		Model:       "model-1",
 		Permissions: string(aghconfig.PermissionModeApproveAll),
-		Tools:       []string{"read", "write"},
+		Tools:       []string{"agh__skill_view", "mcp__filesystem__read_file"},
+		Toolsets:    []string{"agh__catalog"},
+		DenyTools:   []string{"agh__task_*"},
 		MCPServers: []aghconfig.MCPServer{{
 			Name:    "filesystem",
 			Command: "mcp-fs",
@@ -278,6 +280,12 @@ func TestWriteAgentDefPersistsOptionalSections(t *testing.T) {
 	}
 	if got, want := len(agent.Tools), 2; got != want {
 		t.Fatalf("len(agent.Tools) = %d, want %d", got, want)
+	}
+	if got, want := len(agent.Toolsets), 1; got != want {
+		t.Fatalf("len(agent.Toolsets) = %d, want %d", got, want)
+	}
+	if got, want := len(agent.DenyTools), 1; got != want {
+		t.Fatalf("len(agent.DenyTools) = %d, want %d", got, want)
 	}
 	if got, want := len(agent.MCPServers), 1; got != want {
 		t.Fatalf("len(agent.MCPServers) = %d, want %d", got, want)
@@ -309,7 +317,9 @@ func TestWriteAgentDefEscapesYAMLSensitiveValues(t *testing.T) {
 		Command:     "fake-agent --prompt \"review:all #now\"",
 		Model:       "model:1",
 		Permissions: string(aghconfig.PermissionModeApproveAll),
-		Tools:       []string{"read:all", "write #notes"},
+		Tools:       []string{"agh__skill_view", "mcp__filesystem__read_file"},
+		Toolsets:    []string{"agh__catalog"},
+		DenyTools:   []string{"agh__task_*"},
 		MCPServers: []aghconfig.MCPServer{{
 			Name:    "filesystem",
 			Command: "mcp-fs --mode=read:write",
@@ -336,9 +346,15 @@ func TestWriteAgentDefEscapesYAMLSensitiveValues(t *testing.T) {
 	if got, want := agent.Model, "model:1"; got != want {
 		t.Fatalf("agent.Model = %q, want %q", got, want)
 	}
-	if got, want := agent.Tools, []string{"read:all", "write #notes"}; len(got) != len(want) ||
+	if got, want := agent.Tools, []string{"agh__skill_view", "mcp__filesystem__read_file"}; len(got) != len(want) ||
 		got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("agent.Tools = %#v, want %#v", got, want)
+	}
+	if got, want := agent.Toolsets, []string{"agh__catalog"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("agent.Toolsets = %#v, want %#v", got, want)
+	}
+	if got, want := agent.DenyTools, []string{"agh__task_*"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("agent.DenyTools = %#v, want %#v", got, want)
 	}
 	if got, want := len(agent.MCPServers), 1; got != want {
 		t.Fatalf("len(agent.MCPServers) = %d, want %d", got, want)
