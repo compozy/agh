@@ -3459,6 +3459,59 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return an empty cursor page for a history-only channel", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return nil, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+				if got, want := channel, "builders"; got != want {
+					t.Fatalf("ListPeers() channel = %q, want %q", got, want)
+				}
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if got, want := query.Channel, "builders"; got != want {
+					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
+				}
+				if got, want := query.AfterMessageID, "msg-last"; got != want {
+					t.Fatalf("ListNetworkMessages() after = %q, want %q", got, want)
+				}
+				return nil, nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/builders/messages?after=msg-last&limit=10",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("channel messages code = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.NetworkChannelMessagesResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got := len(payload.Messages); got != 0 {
+			t.Fatalf("len(channel messages) = %d, want empty cursor page", got)
+		}
+	})
+
 	t.Run("Should reject invalid channel message limits", func(t *testing.T) {
 		t.Parallel()
 

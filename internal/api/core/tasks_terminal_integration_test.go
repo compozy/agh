@@ -214,7 +214,11 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 			} else {
 				assertRawJSONEqual(t, "payload.Run.Metadata", payload.Run.Metadata, tc.wantMetadataJSON)
 			}
-			if tc.wantResultJSON != "" {
+			if tc.wantResultJSON == "" {
+				if len(payload.Run.Result) != 0 {
+					t.Fatalf("payload.Run.Result = %s, want empty result", string(payload.Run.Result))
+				}
+			} else {
 				assertRawJSONEqual(t, "payload.Run.Result", payload.Run.Result, tc.wantResultJSON)
 			}
 

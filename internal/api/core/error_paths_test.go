@@ -236,30 +236,34 @@ func TestListAgentsHandlesMissingDirectory(t *testing.T) {
 func TestListAgentsWorkspaceResolverUnavailable(t *testing.T) {
 	t.Parallel()
 
-	fixture := newHandlerFixture(
-		t,
-		testutil.StubSessionManager{},
-		testutil.StubObserver{},
-		testutil.StubWorkspaceService{},
-		nil,
-		nil,
-	)
-	fixture.Handlers.Workspaces = nil
+	t.Run("Should return service unavailable when workspace resolver is missing", func(t *testing.T) {
+		t.Parallel()
 
-	resp := performRequest(t, fixture.Engine, http.MethodGet, "/agents?workspace=alpha", nil)
-	if resp.Code != http.StatusServiceUnavailable {
-		t.Fatalf(
-			"workspace agents status = %d, want %d; body=%s",
-			resp.Code,
-			http.StatusServiceUnavailable,
-			resp.Body.String(),
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
 		)
-	}
-	var payload contract.ErrorPayload
-	testutil.DecodeJSONResponse(t, resp, &payload)
-	if !strings.Contains(payload.Error, "workspace resolver unavailable") {
-		t.Fatalf("workspace agents error = %#v, want resolver unavailable detail", payload)
-	}
+		fixture.Handlers.Workspaces = nil
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/agents?workspace=alpha", nil)
+		if resp.Code != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"workspace agents status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusServiceUnavailable,
+				resp.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !strings.Contains(payload.Error, "workspace resolver unavailable") {
+			t.Fatalf("workspace agents error = %#v, want resolver unavailable detail", payload)
+		}
+	})
 }
 
 func TestListAgentsSkipsUnreadableDefinitions(t *testing.T) {

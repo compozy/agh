@@ -36,11 +36,11 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			workspace, err := commandWorkspaceFlag(cmd)
+			query, err := agentQueryFromCommand(cmd)
 			if err != nil {
 				return err
 			}
-			agents, err := client.ListAgents(cmd.Context(), AgentQuery{Workspace: workspace})
+			agents, err := client.ListAgents(cmd.Context(), query)
 			if err != nil {
 				return err
 			}
@@ -70,11 +70,11 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			workspace, err := commandWorkspaceFlag(cmd)
+			query, err := agentQueryFromCommand(cmd)
 			if err != nil {
 				return err
 			}
-			agent, err := client.GetAgent(cmd.Context(), args[0], AgentQuery{Workspace: workspace})
+			agent, err := client.GetAgent(cmd.Context(), args[0], query)
 			if err != nil {
 				return err
 			}
@@ -83,6 +83,14 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().String("workspace", "", "Resolve the agent from a workspace id, name, or path")
 	return cmd
+}
+
+func agentQueryFromCommand(cmd *cobra.Command) (AgentQuery, error) {
+	workspace, err := commandWorkspaceFlag(cmd)
+	if err != nil {
+		return AgentQuery{}, err
+	}
+	return AgentQuery{Workspace: workspace}, nil
 }
 
 func agentListBundle(items []AgentRecord) outputBundle {

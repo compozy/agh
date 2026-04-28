@@ -210,7 +210,10 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	if len(rawMessages) == 0 && !networkChannelExists(sessions, peers, metadata, channel) {
+	if len(rawMessages) == 0 &&
+		strings.TrimSpace(query.BeforeMessageID) == "" &&
+		strings.TrimSpace(query.AfterMessageID) == "" &&
+		!networkChannelExists(sessions, peers, metadata, channel) {
 		notFoundErr := fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
 		h.respondError(c, http.StatusNotFound, notFoundErr)
 		return
