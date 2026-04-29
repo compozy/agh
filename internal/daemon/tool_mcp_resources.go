@@ -740,9 +740,22 @@ func cloneToolSpec(src toolspkg.Tool) toolspkg.Tool {
 
 func cloneDaemonMCPServer(src aghconfig.MCPServer) aghconfig.MCPServer {
 	return aghconfig.MCPServer{
-		Name:    src.Name,
-		Command: src.Command,
-		Args:    slices.Clone(src.Args),
-		Env:     cloneStringMap(src.Env),
+		Name:      src.Name,
+		Transport: src.Transport,
+		Command:   src.Command,
+		Args:      slices.Clone(src.Args),
+		Env:       cloneStringMap(src.Env),
+		URL:       src.URL,
+		Auth: aghconfig.MCPAuthConfig{
+			Type:             src.Auth.Type,
+			IssuerURL:        src.Auth.IssuerURL,
+			MetadataURL:      src.Auth.MetadataURL,
+			AuthorizationURL: src.Auth.AuthorizationURL,
+			TokenURL:         src.Auth.TokenURL,
+			RevocationURL:    src.Auth.RevocationURL,
+			ClientID:         src.Auth.ClientID,
+			ClientSecretEnv:  src.Auth.ClientSecretEnv,
+			Scopes:           slices.Clone(src.Auth.Scopes),
+		},
 	}
 }

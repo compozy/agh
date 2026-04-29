@@ -487,12 +487,14 @@ type ExtensionToolCallResponse struct {
 
 // MCPToolDescriptor describes one externally discovered MCP tool.
 type MCPToolDescriptor struct {
-	ID          ToolID          `json:"id"`
-	RawName     string          `json:"raw_name"`
-	Title       string          `json:"title,omitempty"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema"`
-	ReadOnly    bool            `json:"read_only"`
+	ID           ToolID          `json:"id"`
+	RawName      string          `json:"raw_name"`
+	Title        string          `json:"title,omitempty"`
+	Description  string          `json:"description,omitempty"`
+	InputSchema  json.RawMessage `json:"input_schema"`
+	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
+	Source       SourceRef       `json:"source"`
+	ReadOnly     bool            `json:"read_only"`
 }
 
 // MCPToolCallRequest is the daemon-owned MCP adapter call request.

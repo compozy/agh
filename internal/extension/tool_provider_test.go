@@ -507,7 +507,7 @@ func buildGoSDKToolProviderBinary(t *testing.T, name string, readOnly bool) stri
 	writeFile(
 		t,
 		filepath.Join(dir, "go.mod"),
-		"module example.com/"+name+"\n\ngo 1.25.4\n\nrequire github.com/pedronauck/agh v0.0.0\n",
+		"module example.com/"+name+"\n\ngo 1.25.5\n\nrequire github.com/pedronauck/agh v0.0.0\n",
 	)
 	writeFile(t, filepath.Join(dir, "main.go"), goSDKToolProviderSource(name, readOnly))
 

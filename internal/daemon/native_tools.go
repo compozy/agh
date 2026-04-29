@@ -12,6 +12,8 @@ import (
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	mcppkg "github.com/pedronauck/agh/internal/mcp"
+	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/skills"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -59,6 +61,9 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	if state == nil {
 		return errors.New("daemon: tool registry state is required")
 	}
+	if state.mcpServerCatalog == nil {
+		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
+	}
 	var registry *toolspkg.RuntimeRegistry
 	provider, err := newDaemonNativeProvider(daemonNativeToolsDeps{
 		Registry: func() toolspkg.Registry {
@@ -88,6 +93,13 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	if extensionProvider != nil {
 		providers = append(providers, extensionProvider)
 	}
+	mcpProvider, err := d.newDaemonMCPToolProvider(state)
+	if err != nil {
+		return fmt.Errorf("daemon: create mcp tool provider: %w", err)
+	}
+	if mcpProvider != nil {
+		providers = append(providers, mcpProvider)
+	}
 	registry, err = toolspkg.NewRegistry(
 		toolspkg.WithProviders(providers...),
 		toolspkg.WithPolicyInputs(policyInputs, toolsets),
@@ -99,6 +111,33 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	state.toolRegistry = registry
 	state.deps.ToolRegistry = registry
 	return nil
+}
+
+func (d *Daemon) newDaemonMCPToolProvider(state *bootState) (toolspkg.Provider, error) {
+	if state == nil {
+		return nil, nil
+	}
+	resolver := mcppkg.ServerResolverFunc(func(context.Context) ([]aghconfig.MCPServer, error) {
+		return daemonMCPServerConfigs(state), nil
+	})
+	options := []mcppkg.CallExecutorOption{}
+	if d != nil && d.getenv != nil {
+		options = append(options, mcppkg.WithSecretLookup(d.getenv))
+	}
+	if store, ok := state.registry.(mcpauth.TokenStore); ok {
+		options = append(options, mcppkg.WithTokenStore(store))
+	}
+	executor, err := mcppkg.NewMCPCallExecutor(resolver, options...)
+	if err != nil {
+		return nil, err
+	}
+	return toolspkg.NewMCPProvider(
+		toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) {
+			return daemonMCPSources(state), nil
+		}),
+		executor,
+		executor,
+	)
 }
 
 func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error) {
@@ -123,6 +162,90 @@ func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error)
 			return toolRuntime
 		},
 	)
+}
+
+func daemonMCPServerConfigs(state *bootState) []aghconfig.MCPServer {
+	if state == nil {
+		return nil
+	}
+	servers := make([]aghconfig.MCPServer, 0, len(state.cfg.MCPServers))
+	seen := map[string]struct{}{}
+	add := func(server aghconfig.MCPServer) {
+		name := strings.TrimSpace(server.Name)
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		servers = append(servers, cloneDaemonMCPServer(server))
+	}
+	for _, server := range state.cfg.MCPServers {
+		add(server)
+	}
+	providerNames := make([]string, 0, len(state.cfg.Providers))
+	for name := range state.cfg.Providers {
+		providerNames = append(providerNames, name)
+	}
+	slices.Sort(providerNames)
+	for _, name := range providerNames {
+		for _, server := range state.cfg.Providers[name].MCPServers {
+			add(server)
+		}
+	}
+	if state.mcpServerCatalog != nil {
+		for _, record := range state.mcpServerCatalog.Snapshot() {
+			add(record.Spec)
+		}
+	}
+	return servers
+}
+
+func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
+	if state == nil {
+		return nil
+	}
+	sources := make([]toolspkg.SourceRef, 0, len(state.cfg.MCPServers))
+	seen := map[string]struct{}{}
+	add := func(server aghconfig.MCPServer, source toolspkg.SourceRef) {
+		name := strings.TrimSpace(server.Name)
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		source.Kind = toolspkg.SourceMCP
+		source.Owner = name
+		source.RawServerName = name
+		sources = append(sources, source)
+	}
+	for _, server := range state.cfg.MCPServers {
+		add(server, toolspkg.SourceRef{})
+	}
+	providerNames := make([]string, 0, len(state.cfg.Providers))
+	for name := range state.cfg.Providers {
+		providerNames = append(providerNames, name)
+	}
+	slices.Sort(providerNames)
+	for _, name := range providerNames {
+		for _, server := range state.cfg.Providers[name].MCPServers {
+			add(server, toolspkg.SourceRef{})
+		}
+	}
+	if state.mcpServerCatalog != nil {
+		for _, record := range state.mcpServerCatalog.Snapshot() {
+			add(record.Spec, toolspkg.SourceRef{
+				ResourceID:      record.ID,
+				ResourceVersion: fmt.Sprint(record.Version),
+				WorkspaceID:     record.Scope.ID,
+				Scope:           string(record.Scope.Kind),
+			})
+		}
+	}
+	return sources
 }
 
 func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {

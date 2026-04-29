@@ -384,7 +384,7 @@ func TestExternalConsumerBuildsAgainstPublicSDK(t *testing.T) {
 	writeText(
 		t,
 		filepath.Join(dir, "go.mod"),
-		"module example.com/agh-sdk-consumer\n\ngo 1.25.4\n\nrequire github.com/pedronauck/agh v0.0.0\n",
+		"module example.com/agh-sdk-consumer\n\ngo 1.25.5\n\nrequire github.com/pedronauck/agh v0.0.0\n",
 	)
 	writeText(t, filepath.Join(dir, "main.go"), `package main
 
