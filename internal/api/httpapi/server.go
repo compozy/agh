@@ -49,6 +49,9 @@ type Server struct {
 	automation      core.AutomationManager
 	bridges         core.BridgeService
 	bundles         core.BundleService
+	tools           core.ToolRegistry
+	toolsets        core.ToolsetRegistry
+	toolApprovals   core.ToolApprovalIssuer
 	settings        core.SettingsService
 	settingsRestart core.SettingsRestartController
 	workspaces      core.WorkspaceService
@@ -183,6 +186,27 @@ func WithBridgeService(bridges core.BridgeService) Option {
 func WithBundleService(service core.BundleService) Option {
 	return func(server *Server) {
 		server.bundles = service
+	}
+}
+
+// WithToolRegistry injects the executable tool registry.
+func WithToolRegistry(registry core.ToolRegistry) Option {
+	return func(server *Server) {
+		server.tools = registry
+	}
+}
+
+// WithToolsetRegistry injects the named toolset projection registry.
+func WithToolsetRegistry(registry core.ToolsetRegistry) Option {
+	return func(server *Server) {
+		server.toolsets = registry
+	}
+}
+
+// WithToolApprovalIssuer injects the local approval-token issuer.
+func WithToolApprovalIssuer(issuer core.ToolApprovalIssuer) Option {
+	return func(server *Server) {
+		server.toolApprovals = issuer
 	}
 }
 
@@ -399,6 +423,9 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		automation:      s.automation,
 		bridges:         s.bridges,
 		bundles:         s.bundles,
+		tools:           s.tools,
+		toolsets:        s.toolsets,
+		toolApprovals:   s.toolApprovals,
 		settings:        s.settings,
 		settingsRestart: s.settingsRestart,
 		workspaces:      s.workspaces,

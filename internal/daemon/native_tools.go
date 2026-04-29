@@ -81,6 +81,8 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: build native tool policy inputs: %w", err)
 	}
+	approvalTokens := toolspkg.NewApprovalTokenStore(state.cfg.Tools.Policy.ApprovalTimeout())
+	policyInputs.ApprovalAvailable = true
 	var approvalBridge *toolApprovalBridge
 	if _, ok := state.sessions.(sessionPermissionRequester); ok {
 		approvalBridge = newToolApprovalBridge(
@@ -92,8 +94,10 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 				return requester
 			},
 			state.cfg.Tools.Policy.ApprovalTimeout(),
+			approvalTokens,
 		)
-		policyInputs.ApprovalAvailable = true
+	} else {
+		approvalBridge = newToolApprovalBridge(nil, state.cfg.Tools.Policy.ApprovalTimeout(), approvalTokens)
 	}
 	toolsets, err := toolspkg.BuiltinToolsetCatalog()
 	if err != nil {
@@ -124,7 +128,11 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 		return fmt.Errorf("daemon: create tool registry: %w", err)
 	}
 	state.toolRegistry = registry
+	state.toolsets = registry
+	state.toolApprovals = approvalTokens
 	state.deps.ToolRegistry = registry
+	state.deps.Toolsets = registry
+	state.deps.ToolApprovals = approvalTokens
 	return nil
 }
 

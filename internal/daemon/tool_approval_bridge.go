@@ -29,8 +29,9 @@ type sessionPermissionRequester interface {
 }
 
 type toolApprovalBridge struct {
-	sessions func() sessionPermissionRequester
-	timeout  time.Duration
+	sessions  func() sessionPermissionRequester
+	timeout   time.Duration
+	approvals toolspkg.ApprovalTokenConsumer
 }
 
 var _ toolspkg.ApprovalBridge = (*toolApprovalBridge)(nil)
@@ -38,8 +39,13 @@ var _ toolspkg.ApprovalBridge = (*toolApprovalBridge)(nil)
 func newToolApprovalBridge(
 	sessions func() sessionPermissionRequester,
 	timeout time.Duration,
+	approvals ...toolspkg.ApprovalTokenConsumer,
 ) *toolApprovalBridge {
-	return &toolApprovalBridge{sessions: sessions, timeout: timeout}
+	bridge := &toolApprovalBridge{sessions: sessions, timeout: timeout}
+	if len(approvals) > 0 {
+		bridge.approvals = approvals[0]
+	}
+	return bridge
 }
 
 func (b *toolApprovalBridge) RequestToolApproval(
@@ -49,6 +55,9 @@ func (b *toolApprovalBridge) RequestToolApproval(
 	view *toolspkg.ToolView,
 ) error {
 	toolID := toolApprovalID(call, view)
+	if handled, err := b.consumeLocalToolApproval(ctx, scope, call); handled {
+		return err
+	}
 	if b == nil || b.sessions == nil {
 		return toolApprovalError(
 			toolID,
@@ -76,6 +85,22 @@ func (b *toolApprovalBridge) RequestToolApproval(
 		)
 	}
 	descriptor := toolApprovalDescriptor(call, view)
+	response, err := b.requestSessionToolApproval(ctx, sessions, sessionID, call, descriptor, view)
+	if err != nil {
+		return err
+	}
+	return toolApprovalOutcome(toolID, response.Outcome)
+}
+
+func (b *toolApprovalBridge) requestSessionToolApproval(
+	ctx context.Context,
+	sessions sessionPermissionRequester,
+	sessionID string,
+	call toolspkg.CallRequest,
+	descriptor toolspkg.Descriptor,
+	view *toolspkg.ToolView,
+) (acp.RequestPermissionResponse, error) {
+	toolID := toolApprovalID(call, view)
 	timeout := b.timeout
 	if timeout <= 0 {
 		timeout = 120 * time.Second
@@ -101,26 +126,40 @@ func (b *toolApprovalBridge) RequestToolApproval(
 	if err != nil {
 		switch {
 		case errors.Is(approvalCtx.Err(), context.DeadlineExceeded):
-			return toolApprovalError(
+			return acp.RequestPermissionResponse{}, toolApprovalError(
 				toolID,
 				"tool approval timed out",
 				toolspkg.ReasonApprovalTimedOut,
 			)
 		case errors.Is(ctx.Err(), context.Canceled), errors.Is(err, context.Canceled):
-			return toolApprovalError(
+			return acp.RequestPermissionResponse{}, toolApprovalError(
 				toolID,
 				"tool approval was canceled",
 				toolspkg.ReasonApprovalCanceled,
 			)
 		default:
-			return toolApprovalError(
+			return acp.RequestPermissionResponse{}, toolApprovalError(
 				toolID,
 				fmt.Sprintf("tool approval channel is unreachable: %v", err),
 				toolspkg.ReasonApprovalUnreachable,
 			)
 		}
 	}
-	return toolApprovalOutcome(toolID, response.Outcome)
+	return response, nil
+}
+
+func (b *toolApprovalBridge) consumeLocalToolApproval(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	call toolspkg.CallRequest,
+) (bool, error) {
+	if b == nil || b.approvals == nil {
+		return false, nil
+	}
+	if !scope.Operator && strings.TrimSpace(call.ApprovalToken) == "" {
+		return false, nil
+	}
+	return true, b.approvals.ConsumeToolApproval(ctx, scope, call)
 }
 
 func toolApprovalID(call toolspkg.CallRequest, view *toolspkg.ToolView) toolspkg.ToolID {

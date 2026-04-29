@@ -1,0 +1,264 @@
+package daemon_test
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	core "github.com/pedronauck/agh/internal/api/core"
+	"github.com/pedronauck/agh/internal/api/httpapi"
+	"github.com/pedronauck/agh/internal/api/testutil"
+	"github.com/pedronauck/agh/internal/api/udsapi"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
+)
+
+func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
+	t.Parallel()
+
+	requests := []struct {
+		name   string
+		method string
+		path   string
+		body   []byte
+	}{
+		{name: "ShouldListTools", method: http.MethodGet, path: "/api/tools"},
+		{
+			name:   "ShouldSearchTools",
+			method: http.MethodPost,
+			path:   "/api/tools/search",
+			body:   []byte(`{"query":"skill"}`),
+		},
+		{name: "ShouldGetTool", method: http.MethodGet, path: "/api/tools/agh__skill_view"},
+		{
+			name:   "ShouldInvokeTool",
+			method: http.MethodPost,
+			path:   "/api/tools/agh__skill_view/invoke",
+			body:   []byte(`{"session_id":"sess-1","input":{"message":"hello"}}`),
+		},
+		{name: "ShouldListSessionTools", method: http.MethodGet, path: "/api/sessions/sess-1/tools"},
+		{
+			name:   "ShouldSearchSessionTools",
+			method: http.MethodPost,
+			path:   "/api/sessions/sess-1/tools/search",
+			body:   []byte(`{"query":"skill"}`),
+		},
+		{name: "ShouldListToolsets", method: http.MethodGet, path: "/api/toolsets"},
+		{name: "ShouldGetToolset", method: http.MethodGet, path: "/api/toolsets/agh__catalog"},
+	}
+
+	for _, request := range requests {
+		t.Run(request.name, func(t *testing.T) {
+			t.Parallel()
+
+			httpEngine := newToolParityHTTPEngine(t)
+			udsEngine := newToolParityUDSEngine(t)
+			httpResp := testutil.PerformRequest(t, httpEngine, request.method, request.path, request.body)
+			udsResp := testutil.PerformRequest(t, udsEngine, request.method, request.path, request.body)
+			if httpResp.Code != udsResp.Code {
+				t.Fatalf("status mismatch http=%d uds=%d", httpResp.Code, udsResp.Code)
+			}
+			if !jsonBodiesEqual(t, httpResp.Body.Bytes(), udsResp.Body.Bytes()) {
+				t.Fatalf("body mismatch\nhttp=%s\nuds=%s", httpResp.Body.String(), udsResp.Body.String())
+			}
+		})
+	}
+}
+
+func newToolParityHTTPEngine(t *testing.T) *gin.Engine {
+	t.Helper()
+	engine := gin.New()
+	httpapi.RegisterRoutes(engine, &httpapi.Handlers{BaseHandlers: newToolParityBaseHandlers(t)})
+	return engine
+}
+
+func newToolParityUDSEngine(t *testing.T) *gin.Engine {
+	t.Helper()
+	engine := gin.New()
+	udsapi.RegisterRoutes(engine, &udsapi.Handlers{BaseHandlers: newToolParityBaseHandlers(t)})
+	return engine
+}
+
+func newToolParityBaseHandlers(t *testing.T) *core.BaseHandlers {
+	t.Helper()
+	homePaths := testutil.NewTestHomePaths(t)
+	registry := newToolParityRegistry()
+	return core.NewBaseHandlers(&core.BaseHandlerConfig{
+		TransportName: "tool-parity-test",
+		Sessions:      testutil.StubSessionManager{},
+		Observer:      testutil.StubObserver{},
+		Tasks:         testutil.StubTaskManager{},
+		Workspaces:    testutil.StubWorkspaceService{},
+		Tools:         registry,
+		Toolsets:      registry,
+		HomePaths:     homePaths,
+		Config:        testutil.ConfigWithDisabledNetwork(homePaths),
+		Logger:        testutil.DiscardLogger(),
+		StartedAt:     time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
+		Now:           func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
+		StreamDone:    make(chan struct{}),
+	})
+}
+
+type toolParityRegistry struct {
+	mu    sync.Mutex
+	views []toolspkg.ToolView
+}
+
+func newToolParityRegistry() *toolParityRegistry {
+	return &toolParityRegistry{views: []toolspkg.ToolView{
+		toolParityView(toolspkg.ToolIDSkillView, toolspkg.VisibilityModel, true),
+		toolParityView("agh__operator_diag", toolspkg.VisibilityOperator, false),
+	}}
+}
+
+func (r *toolParityRegistry) List(_ context.Context, scope toolspkg.Scope) ([]toolspkg.ToolView, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	views := make([]toolspkg.ToolView, 0, len(r.views))
+	for i := range r.views {
+		view := &r.views[i]
+		if scope.Operator || (view.Decision.VisibleToSession && view.Decision.Callable) {
+			views = append(views, r.views[i])
+		}
+	}
+	return views, nil
+}
+
+func (r *toolParityRegistry) Search(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	q toolspkg.SearchQuery,
+) ([]toolspkg.ToolView, error) {
+	views, err := r.List(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	needle := strings.TrimSpace(strings.ToLower(q.Query))
+	if needle == "" {
+		return views, nil
+	}
+	filtered := make([]toolspkg.ToolView, 0, len(views))
+	for i := range views {
+		view := &views[i]
+		if strings.Contains(strings.ToLower(view.Descriptor.ID.String()+" "+view.Descriptor.Description), needle) {
+			filtered = append(filtered, views[i])
+		}
+	}
+	return filtered, nil
+}
+
+func (r *toolParityRegistry) Get(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	id toolspkg.ToolID,
+) (toolspkg.ToolView, error) {
+	views, err := r.List(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolView{}, err
+	}
+	for i := range views {
+		view := &views[i]
+		if view.Descriptor.ID == id {
+			return views[i], nil
+		}
+	}
+	return toolspkg.ToolView{}, toolspkg.NewToolError(
+		toolspkg.ErrorCodeNotFound,
+		id,
+		fmt.Sprintf("tool %q not found", id),
+		toolspkg.ErrToolNotFound,
+		toolspkg.ReasonToolUnknown,
+	)
+}
+
+func (r *toolParityRegistry) Call(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	if _, err := r.Get(ctx, toolspkg.Scope{Operator: true}, req.ToolID); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return toolspkg.ToolResult{
+		Content:    []toolspkg.ToolContent{{Type: "text", Text: "ok"}},
+		Structured: json.RawMessage(`{"ok":true}`),
+		DurationMS: 10,
+	}, nil
+}
+
+func (r *toolParityRegistry) ListToolsets(context.Context, toolspkg.Scope) ([]toolspkg.ToolsetView, error) {
+	return []toolspkg.ToolsetView{toolParityToolset()}, nil
+}
+
+func (r *toolParityRegistry) GetToolset(
+	_ context.Context,
+	_ toolspkg.Scope,
+	id toolspkg.ToolsetID,
+) (toolspkg.ToolsetView, error) {
+	if id == "agh__catalog" {
+		return toolParityToolset(), nil
+	}
+	return toolspkg.ToolsetView{}, toolspkg.NewToolError(
+		toolspkg.ErrorCodeNotFound,
+		toolspkg.ToolID(id),
+		fmt.Sprintf("toolset %q not found", id),
+		toolspkg.ErrToolNotFound,
+		toolspkg.ReasonToolsetUnknown,
+	)
+}
+
+func toolParityView(id toolspkg.ToolID, visibility toolspkg.Visibility, callable bool) toolspkg.ToolView {
+	return toolspkg.ToolView{
+		Descriptor: toolspkg.Descriptor{
+			ID:           id,
+			Backend:      toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: id.String()},
+			DisplayTitle: id.String(),
+			Description:  "Skill registry test tool",
+			InputSchema:  json.RawMessage(`{"type":"object"}`),
+			Source:       toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "agh"},
+			Visibility:   visibility,
+			Risk:         toolspkg.RiskRead,
+			ReadOnly:     true,
+			Toolsets:     []toolspkg.ToolsetID{"agh__catalog"},
+		},
+		Availability: toolspkg.Availability{
+			Registered: true,
+			Enabled:    true,
+			Available:  true,
+			Authorized: true,
+			Executable: callable,
+		},
+		Decision: toolspkg.EffectiveToolDecision{
+			VisibleToOperator: true,
+			VisibleToSession:  callable,
+			Callable:          callable,
+		},
+	}
+}
+
+func toolParityToolset() toolspkg.ToolsetView {
+	return toolspkg.ToolsetView{
+		Toolset:       toolspkg.Toolset{ID: "agh__catalog", Tools: []string{"agh__skill_view"}},
+		ExpandedTools: []toolspkg.ToolID{toolspkg.ToolIDSkillView},
+	}
+}
+
+func jsonBodiesEqual(t *testing.T, left []byte, right []byte) bool {
+	t.Helper()
+	var leftValue any
+	if err := json.Unmarshal(left, &leftValue); err != nil {
+		t.Fatalf("json.Unmarshal(left) error = %v; body=%s", err, left)
+	}
+	var rightValue any
+	if err := json.Unmarshal(right, &rightValue); err != nil {
+		t.Fatalf("json.Unmarshal(right) error = %v; body=%s", err, right)
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
+}

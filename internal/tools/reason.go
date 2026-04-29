@@ -60,6 +60,14 @@ const (
 	ReasonApprovalTimedOut ReasonCode = "approval_timed_out"
 	// ReasonApprovalCanceled reports approval cancellation.
 	ReasonApprovalCanceled ReasonCode = "approval_canceled"
+	// ReasonApprovalTokenMissing reports a missing local approval token.
+	ReasonApprovalTokenMissing ReasonCode = "approval_token_missing"
+	// ReasonApprovalTokenExpired reports an expired local approval token.
+	ReasonApprovalTokenExpired ReasonCode = "approval_token_expired"
+	// ReasonApprovalTokenMismatch reports a local approval token binding mismatch.
+	ReasonApprovalTokenMismatch ReasonCode = "approval_token_mismatch"
+	// ReasonApprovalTokenReplayed reports a replayed local approval token.
+	ReasonApprovalTokenReplayed ReasonCode = "approval_token_replayed"
 	// ReasonSessionDenied reports session lineage denial.
 	ReasonSessionDenied ReasonCode = "session_denied"
 	// ReasonHookDenied reports hook denial.
@@ -115,6 +123,10 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonApprovalUnreachable:        {},
 	ReasonApprovalTimedOut:           {},
 	ReasonApprovalCanceled:           {},
+	ReasonApprovalTokenMissing:       {},
+	ReasonApprovalTokenExpired:       {},
+	ReasonApprovalTokenMismatch:      {},
+	ReasonApprovalTokenReplayed:      {},
 	ReasonSessionDenied:              {},
 	ReasonHookDenied:                 {},
 	ReasonSchemaInvalid:              {},

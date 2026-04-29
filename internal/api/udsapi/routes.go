@@ -14,6 +14,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerObserveRoutes(api, handlers)
 	registerHookRoutes(api, handlers)
 	registerResourceRoutes(api, handlers)
+	registerToolRoutes(api, handlers)
 	registerAutomationRoutes(api, handlers)
 	registerTaskRoutes(api, handlers)
 	registerTaskRunRoutes(api, handlers)
@@ -142,6 +143,29 @@ func registerResourceRoutes(api gin.IRouter, handlers *Handlers) {
 		resourcesGroup.GET("/:kind/:id", handlers.GetResource)
 		resourcesGroup.PUT("/:kind/:id", handlers.PutResource)
 		resourcesGroup.DELETE("/:kind/:id", handlers.DeleteResource)
+	}
+}
+
+func registerToolRoutes(api gin.IRouter, handlers *Handlers) {
+	tools := api.Group("/tools")
+	{
+		tools.GET("", handlers.ListTools)
+		tools.POST("/search", handlers.SearchTools)
+		tools.POST("/:id/approvals", handlers.CreateToolApproval)
+		tools.POST("/:id/invoke", handlers.InvokeTool)
+		tools.GET("/:id", handlers.GetTool)
+	}
+
+	sessions := api.Group("/sessions")
+	{
+		sessions.GET("/:id/tools", handlers.ListSessionTools)
+		sessions.POST("/:id/tools/search", handlers.SearchSessionTools)
+	}
+
+	toolsets := api.Group("/toolsets")
+	{
+		toolsets.GET("", handlers.ListToolsets)
+		toolsets.GET("/:id", handlers.GetToolset)
 	}
 }
 

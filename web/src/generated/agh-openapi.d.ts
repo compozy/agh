@@ -1228,6 +1228,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/{id}/tools": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List session-callable registry tools */
+    get: operations["listSessionTools"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{id}/tools/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Search session-callable registry tools */
+    post: operations["searchSessionTools"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{id}/transcript": {
     parameters: {
       query?: never;
@@ -2055,6 +2089,125 @@ export interface paths {
     put?: never;
     /** Mark one task inbox item as read */
     post: operations["markTaskRead"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tools": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List operator-visible registry tools */
+    get: operations["listTools"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tools/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Search operator-visible registry tools */
+    post: operations["searchTools"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tools/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one operator-visible registry tool */
+    get: operations["getTool"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tools/{id}/approvals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mint a local single-use approval token for one tool invocation */
+    post: operations["createToolApproval"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tools/{id}/invoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Invoke a registry tool through executable dispatch */
+    post: operations["invokeTool"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/toolsets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List named toolsets and expansion status */
+    get: operations["listToolsets"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/toolsets/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect one named toolset expansion */
+    get: operations["getToolset"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -13162,6 +13315,648 @@ export interface operations {
       };
     };
   };
+  listSessionTools: {
+    parameters: {
+      query?: {
+        /** @description Effective workspace id */
+        workspace_id?: string;
+        /** @description Effective workspace reference */
+        workspace?: string;
+        /** @description Effective agent name */
+        agent_name?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            tools: {
+              availability: {
+                authorized: boolean;
+                available: boolean;
+                conflicted: boolean;
+                enabled: boolean;
+                executable: boolean;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registered: boolean;
+              };
+              decision: {
+                agent_policy_result?: string;
+                approval_required: boolean;
+                availability_result?: string;
+                callable: boolean;
+                hook_result?: string;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registry_policy_result?: string;
+                session_policy_result?: string;
+                source_policy_result?: string;
+                system_permission_mode?: string;
+                visible_to_operator: boolean;
+                visible_to_session: boolean;
+              };
+              descriptor: {
+                backend: {
+                  extension_id?: string;
+                  handler?: string;
+                  /** @enum {string} */
+                  kind: "native_go" | "extension_host" | "mcp" | "bridge";
+                  mcp_server?: string;
+                  mcp_tool?: string;
+                  native_name?: string;
+                  requires_capabilities?: string[];
+                };
+                concurrency_safe: boolean;
+                description: string;
+                destructive: boolean;
+                display_title?: string;
+                input_schema: unknown;
+                /** Format: int64 */
+                max_result_bytes?: number;
+                open_world: boolean;
+                output_schema?: unknown;
+                read_only: boolean;
+                requires_interaction: boolean;
+                /** @enum {string} */
+                risk: "read" | "mutating" | "open_world" | "destructive";
+                search_hints?: string[];
+                source: {
+                  /** @enum {string} */
+                  kind: "builtin" | "mcp" | "extension" | "dynamic";
+                  owner: string;
+                  raw_server_name?: string;
+                  raw_tool_name?: string;
+                  resource_id?: string;
+                  resource_version?: string;
+                  scope?: string;
+                  workspace_id?: string;
+                };
+                tags?: string[];
+                tool_id: string;
+                toolsets?: string[];
+                /** @enum {string} */
+                visibility: "internal" | "operator" | "session" | "model";
+              };
+            }[];
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  searchSessionTools: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          limit?: number;
+          query: string;
+          session_id?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            tools: {
+              availability: {
+                authorized: boolean;
+                available: boolean;
+                conflicted: boolean;
+                enabled: boolean;
+                executable: boolean;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registered: boolean;
+              };
+              decision: {
+                agent_policy_result?: string;
+                approval_required: boolean;
+                availability_result?: string;
+                callable: boolean;
+                hook_result?: string;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registry_policy_result?: string;
+                session_policy_result?: string;
+                source_policy_result?: string;
+                system_permission_mode?: string;
+                visible_to_operator: boolean;
+                visible_to_session: boolean;
+              };
+              descriptor: {
+                backend: {
+                  extension_id?: string;
+                  handler?: string;
+                  /** @enum {string} */
+                  kind: "native_go" | "extension_host" | "mcp" | "bridge";
+                  mcp_server?: string;
+                  mcp_tool?: string;
+                  native_name?: string;
+                  requires_capabilities?: string[];
+                };
+                concurrency_safe: boolean;
+                description: string;
+                destructive: boolean;
+                display_title?: string;
+                input_schema: unknown;
+                /** Format: int64 */
+                max_result_bytes?: number;
+                open_world: boolean;
+                output_schema?: unknown;
+                read_only: boolean;
+                requires_interaction: boolean;
+                /** @enum {string} */
+                risk: "read" | "mutating" | "open_world" | "destructive";
+                search_hints?: string[];
+                source: {
+                  /** @enum {string} */
+                  kind: "builtin" | "mcp" | "extension" | "dynamic";
+                  owner: string;
+                  raw_server_name?: string;
+                  raw_tool_name?: string;
+                  resource_id?: string;
+                  resource_version?: string;
+                  scope?: string;
+                  workspace_id?: string;
+                };
+                tags?: string[];
+                tool_id: string;
+                toolsets?: string[];
+                /** @enum {string} */
+                visibility: "internal" | "operator" | "session" | "model";
+              };
+            }[];
+          };
+        };
+      };
+      /** @description Malformed search request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getSessionTranscript: {
     parameters: {
       query?: never;
@@ -23623,6 +24418,2789 @@ export interface operations {
         };
       };
       /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listTools: {
+    parameters: {
+      query?: {
+        /** @description Effective workspace id */
+        workspace_id?: string;
+        /** @description Effective workspace reference */
+        workspace?: string;
+        /** @description Effective session id */
+        session_id?: string;
+        /** @description Effective agent name */
+        agent_name?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            tools: {
+              availability: {
+                authorized: boolean;
+                available: boolean;
+                conflicted: boolean;
+                enabled: boolean;
+                executable: boolean;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registered: boolean;
+              };
+              decision: {
+                agent_policy_result?: string;
+                approval_required: boolean;
+                availability_result?: string;
+                callable: boolean;
+                hook_result?: string;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registry_policy_result?: string;
+                session_policy_result?: string;
+                source_policy_result?: string;
+                system_permission_mode?: string;
+                visible_to_operator: boolean;
+                visible_to_session: boolean;
+              };
+              descriptor: {
+                backend: {
+                  extension_id?: string;
+                  handler?: string;
+                  /** @enum {string} */
+                  kind: "native_go" | "extension_host" | "mcp" | "bridge";
+                  mcp_server?: string;
+                  mcp_tool?: string;
+                  native_name?: string;
+                  requires_capabilities?: string[];
+                };
+                concurrency_safe: boolean;
+                description: string;
+                destructive: boolean;
+                display_title?: string;
+                input_schema: unknown;
+                /** Format: int64 */
+                max_result_bytes?: number;
+                open_world: boolean;
+                output_schema?: unknown;
+                read_only: boolean;
+                requires_interaction: boolean;
+                /** @enum {string} */
+                risk: "read" | "mutating" | "open_world" | "destructive";
+                search_hints?: string[];
+                source: {
+                  /** @enum {string} */
+                  kind: "builtin" | "mcp" | "extension" | "dynamic";
+                  owner: string;
+                  raw_server_name?: string;
+                  raw_tool_name?: string;
+                  resource_id?: string;
+                  resource_version?: string;
+                  scope?: string;
+                  workspace_id?: string;
+                };
+                tags?: string[];
+                tool_id: string;
+                toolsets?: string[];
+                /** @enum {string} */
+                visibility: "internal" | "operator" | "session" | "model";
+              };
+            }[];
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  searchTools: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          limit?: number;
+          query: string;
+          session_id?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            tools: {
+              availability: {
+                authorized: boolean;
+                available: boolean;
+                conflicted: boolean;
+                enabled: boolean;
+                executable: boolean;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registered: boolean;
+              };
+              decision: {
+                agent_policy_result?: string;
+                approval_required: boolean;
+                availability_result?: string;
+                callable: boolean;
+                hook_result?: string;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registry_policy_result?: string;
+                session_policy_result?: string;
+                source_policy_result?: string;
+                system_permission_mode?: string;
+                visible_to_operator: boolean;
+                visible_to_session: boolean;
+              };
+              descriptor: {
+                backend: {
+                  extension_id?: string;
+                  handler?: string;
+                  /** @enum {string} */
+                  kind: "native_go" | "extension_host" | "mcp" | "bridge";
+                  mcp_server?: string;
+                  mcp_tool?: string;
+                  native_name?: string;
+                  requires_capabilities?: string[];
+                };
+                concurrency_safe: boolean;
+                description: string;
+                destructive: boolean;
+                display_title?: string;
+                input_schema: unknown;
+                /** Format: int64 */
+                max_result_bytes?: number;
+                open_world: boolean;
+                output_schema?: unknown;
+                read_only: boolean;
+                requires_interaction: boolean;
+                /** @enum {string} */
+                risk: "read" | "mutating" | "open_world" | "destructive";
+                search_hints?: string[];
+                source: {
+                  /** @enum {string} */
+                  kind: "builtin" | "mcp" | "extension" | "dynamic";
+                  owner: string;
+                  raw_server_name?: string;
+                  raw_tool_name?: string;
+                  resource_id?: string;
+                  resource_version?: string;
+                  scope?: string;
+                  workspace_id?: string;
+                };
+                tags?: string[];
+                tool_id: string;
+                toolsets?: string[];
+                /** @enum {string} */
+                visibility: "internal" | "operator" | "session" | "model";
+              };
+            }[];
+          };
+        };
+      };
+      /** @description Malformed search request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getTool: {
+    parameters: {
+      query?: {
+        /** @description Effective workspace id */
+        workspace_id?: string;
+        /** @description Effective workspace reference */
+        workspace?: string;
+        /** @description Effective session id */
+        session_id?: string;
+        /** @description Effective agent name */
+        agent_name?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical tool id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            tool: {
+              availability: {
+                authorized: boolean;
+                available: boolean;
+                conflicted: boolean;
+                enabled: boolean;
+                executable: boolean;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registered: boolean;
+              };
+              decision: {
+                agent_policy_result?: string;
+                approval_required: boolean;
+                availability_result?: string;
+                callable: boolean;
+                hook_result?: string;
+                reason_codes?: (
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied"
+                )[];
+                registry_policy_result?: string;
+                session_policy_result?: string;
+                source_policy_result?: string;
+                system_permission_mode?: string;
+                visible_to_operator: boolean;
+                visible_to_session: boolean;
+              };
+              descriptor: {
+                backend: {
+                  extension_id?: string;
+                  handler?: string;
+                  /** @enum {string} */
+                  kind: "native_go" | "extension_host" | "mcp" | "bridge";
+                  mcp_server?: string;
+                  mcp_tool?: string;
+                  native_name?: string;
+                  requires_capabilities?: string[];
+                };
+                concurrency_safe: boolean;
+                description: string;
+                destructive: boolean;
+                display_title?: string;
+                input_schema: unknown;
+                /** Format: int64 */
+                max_result_bytes?: number;
+                open_world: boolean;
+                output_schema?: unknown;
+                read_only: boolean;
+                requires_interaction: boolean;
+                /** @enum {string} */
+                risk: "read" | "mutating" | "open_world" | "destructive";
+                search_hints?: string[];
+                source: {
+                  /** @enum {string} */
+                  kind: "builtin" | "mcp" | "extension" | "dynamic";
+                  owner: string;
+                  raw_server_name?: string;
+                  raw_tool_name?: string;
+                  resource_id?: string;
+                  resource_version?: string;
+                  scope?: string;
+                  workspace_id?: string;
+                };
+                tags?: string[];
+                tool_id: string;
+                toolsets?: string[];
+                /** @enum {string} */
+                visibility: "internal" | "operator" | "session" | "model";
+              };
+            };
+          };
+        };
+      };
+      /** @description Invalid tool id */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createToolApproval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Canonical tool id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          input?: unknown;
+          input_digest?: string;
+          session_id: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval: {
+              approval_token: string;
+              /** Format: date-time */
+              expires_at: string;
+              input_digest: string;
+              tool_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid approval request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Approval denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool approval service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  invokeTool: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Canonical tool id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          approval_token?: string;
+          correlation_id?: string;
+          input: unknown;
+          sensitive_input_fields?: string[];
+          session_id?: string;
+          tool_call_id?: string;
+          turn_id?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Completed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: int64 */
+            duration_ms: number;
+            events: {
+              agent_name?: string;
+              approval_mode?: string;
+              correlation_id?: string;
+              decision?: string;
+              destructive: boolean;
+              display_title?: string;
+              /** Format: int64 */
+              duration_ms?: number;
+              /** @enum {string} */
+              error_code?:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              input_digest?: string;
+              /** @enum {string} */
+              kind:
+                | "tool.call_started"
+                | "tool.call_completed"
+                | "tool.call_failed"
+                | "tool.call_denied"
+                | "tool.result_truncated";
+              open_world: boolean;
+              read_only: boolean;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              redacted_input_fields?: string[];
+              /** Format: int64 */
+              result_bytes?: number;
+              result_digest?: string;
+              result_redaction_paths?: string[];
+              /** @enum {string} */
+              risk?: "read" | "mutating" | "open_world" | "destructive";
+              session_id?: string;
+              /** @enum {string} */
+              source_kind?: "builtin" | "mcp" | "extension" | "dynamic";
+              source_owner?: string;
+              tool_id: string;
+              truncated: boolean;
+              workspace_id?: string;
+            }[];
+            result: {
+              artifacts?: {
+                /** Format: int64 */
+                bytes?: number;
+                mime_type?: string;
+                name?: string;
+                uri: string;
+              }[];
+              /** Format: int64 */
+              bytes: number;
+              content?: {
+                data?: unknown;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                mime_type?: string;
+                text?: string;
+                type: string;
+              }[];
+              /** Format: int64 */
+              duration_ms: number;
+              metadata?: {
+                [key: string]: unknown;
+              };
+              preview?: string;
+              redactions?: {
+                /** Format: int64 */
+                bytes?: number;
+                path: string;
+                /** @enum {string} */
+                reason:
+                  | "approval_canceled"
+                  | "approval_required"
+                  | "approval_timed_out"
+                  | "approval_token_expired"
+                  | "approval_token_mismatch"
+                  | "approval_token_missing"
+                  | "approval_token_replayed"
+                  | "approval_unreachable"
+                  | "backend_not_executable"
+                  | "backend_unhealthy"
+                  | "call_canceled"
+                  | "call_timed_out"
+                  | "conflicted_id"
+                  | "conflicted_sanitized_name"
+                  | "dependency_missing"
+                  | "extension_capability_missing"
+                  | "extension_inactive"
+                  | "extension_runtime_mismatch"
+                  | "handler_missing"
+                  | "hook_denied"
+                  | "id_empty"
+                  | "id_empty_segment"
+                  | "id_invalid_format"
+                  | "id_too_long"
+                  | "mcp_auth_expired"
+                  | "mcp_auth_invalid"
+                  | "mcp_auth_refresh_failed"
+                  | "mcp_auth_required"
+                  | "mcp_auth_unconfigured"
+                  | "mcp_unreachable"
+                  | "policy_denied"
+                  | "reserved_conflict"
+                  | "reserved_namespace"
+                  | "result_budget_exceeded"
+                  | "runtime_descriptor_mismatch"
+                  | "runtime_descriptor_missing"
+                  | "schema_invalid"
+                  | "secret_metadata"
+                  | "session_denied"
+                  | "source_disabled"
+                  | "tool_unknown"
+                  | "toolset_cycle"
+                  | "toolset_unknown"
+                  | "visibility_denied";
+              }[];
+              structured?: unknown;
+              truncated: boolean;
+            };
+            status: string;
+            tool_id: string;
+            truncated: boolean;
+          };
+        };
+      };
+      /** @description Approval required */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid invocation request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invocation denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool unavailable or not executable */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Backend adapter failure */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listToolsets: {
+    parameters: {
+      query?: {
+        /** @description Effective workspace id */
+        workspace_id?: string;
+        /** @description Effective workspace reference */
+        workspace?: string;
+        /** @description Effective session id */
+        session_id?: string;
+        /** @description Effective agent name */
+        agent_name?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            toolsets: {
+              expanded_tools?: string[];
+              id: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              status: string;
+              tools?: string[];
+              toolsets?: string[];
+            }[];
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Toolset registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getToolset: {
+    parameters: {
+      query?: {
+        /** @description Effective workspace id */
+        workspace_id?: string;
+        /** @description Effective workspace reference */
+        workspace?: string;
+        /** @description Effective session id */
+        session_id?: string;
+        /** @description Effective agent name */
+        agent_name?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical toolset id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            toolset: {
+              expanded_tools?: string[];
+              id: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              status: string;
+              tools?: string[];
+              toolsets?: string[];
+            };
+          };
+        };
+      };
+      /** @description Invalid toolset id */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Toolset not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "tool_result_too_large"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Toolset registry unavailable */
       503: {
         headers: {
           [name: string]: unknown;

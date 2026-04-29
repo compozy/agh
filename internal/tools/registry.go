@@ -167,6 +167,38 @@ func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest
 	return r.dispatch(ctx, scope, req)
 }
 
+// ListToolsets returns named toolsets with expansion diagnostics for the supplied scope.
+func (r *RuntimeRegistry) ListToolsets(ctx context.Context, scope Scope) ([]ToolsetView, error) {
+	toolsets := r.toolsets.List()
+	views := make([]ToolsetView, 0, len(toolsets))
+	for _, toolset := range toolsets {
+		view, err := r.toolsetView(ctx, scope, toolset)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, view)
+	}
+	return views, nil
+}
+
+// GetToolset returns one named toolset with expansion diagnostics for the supplied scope.
+func (r *RuntimeRegistry) GetToolset(ctx context.Context, scope Scope, id ToolsetID) (ToolsetView, error) {
+	if err := id.Validate(); err != nil {
+		return ToolsetView{}, err
+	}
+	toolset, ok := r.toolsets.Get(id)
+	if !ok {
+		return ToolsetView{}, NewToolError(
+			ErrorCodeNotFound,
+			ToolID(id),
+			fmt.Sprintf("toolset %q not found", id),
+			ErrToolNotFound,
+			ReasonToolsetUnknown,
+		)
+	}
+	return r.toolsetView(ctx, scope, toolset)
+}
+
 // OperatorProjection returns all registered tools with diagnostics.
 func (r *RuntimeRegistry) OperatorProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
 	index, err := r.buildIndex(ctx, scope)
@@ -264,6 +296,28 @@ func (r *RuntimeRegistry) evaluatorFor(ids []ToolID) (PolicyEvaluator, error) {
 		return r.evaluator, nil
 	}
 	return NewEffectivePolicyEvaluator(DefaultPolicyInputs(), ToolsetCatalog{}, ids)
+}
+
+func (r *RuntimeRegistry) toolsetView(ctx context.Context, scope Scope, toolset Toolset) (ToolsetView, error) {
+	index, err := r.buildIndex(ctx, scope)
+	if err != nil {
+		return ToolsetView{}, err
+	}
+	expanded, err := r.toolsets.Expand(toolset.ID, index.ids())
+	if err != nil {
+		reason, ok := ReasonOf(err)
+		if !ok {
+			reason = ReasonToolUnknown
+		}
+		return ToolsetView{
+			Toolset:     cloneToolset(toolset),
+			ReasonCodes: []ReasonCode{reason},
+		}, nil
+	}
+	return ToolsetView{
+		Toolset:       cloneToolset(toolset),
+		ExpandedTools: expanded,
+	}, nil
 }
 
 func (r *RuntimeRegistry) viewFor(

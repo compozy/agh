@@ -69,6 +69,8 @@ type bootState struct {
 	coordinator         *coordinatorRuntime
 	network             networkRuntime
 	toolRegistry        toolspkg.Registry
+	toolsets            core.ToolsetRegistry
+	toolApprovals       toolspkg.ApprovalTokenIssuer
 	observer            Observer
 	lifecycleObservers  *sessionLifecycleFanout
 	hookTelemetrySinks  *hookTelemetryFanout
@@ -748,6 +750,8 @@ func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeD
 		),
 		SkillsRegistry: skillsRegistryAPI(state.skillsRegistry),
 		ToolRegistry:   state.toolRegistry,
+		Toolsets:       state.toolsets,
+		ToolApprovals:  state.toolApprovals,
 		HostedMCP:      state.hostedMCP,
 		DreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
 		StartedAt:      state.startedAt,

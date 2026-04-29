@@ -113,6 +113,8 @@ type RuntimeDeps struct {
 	Tasks             taskpkg.Manager
 	Network           core.NetworkService
 	ToolRegistry      toolspkg.Registry
+	Toolsets          core.ToolsetRegistry
+	ToolApprovals     toolspkg.ApprovalTokenIssuer
 	HostedMCP         *mcppkg.HostedService
 	Observer          Observer
 	Automation        core.AutomationManager
@@ -883,6 +885,9 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				httpapi.WithAutomation(deps.Automation),
 				httpapi.WithBridgeService(deps.Bridges),
 				httpapi.WithBundleService(deps.Bundles),
+				httpapi.WithToolRegistry(deps.ToolRegistry),
+				httpapi.WithToolsetRegistry(deps.Toolsets),
+				httpapi.WithToolApprovalIssuer(deps.ToolApprovals),
 				httpapi.WithSettingsService(deps.Settings),
 				httpapi.WithSettingsRestartController(deps.SettingsRestart),
 				httpapi.WithResourceService(deps.Resources),
@@ -910,6 +915,9 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				udsapi.WithAutomation(deps.Automation),
 				udsapi.WithBridgeService(deps.Bridges),
 				udsapi.WithBundleService(deps.Bundles),
+				udsapi.WithToolRegistry(deps.ToolRegistry),
+				udsapi.WithToolsetRegistry(deps.Toolsets),
+				udsapi.WithToolApprovalIssuer(deps.ToolApprovals),
 				udsapi.WithSettingsService(deps.Settings),
 				udsapi.WithSettingsRestartController(deps.SettingsRestart),
 				udsapi.WithResourceService(deps.Resources),

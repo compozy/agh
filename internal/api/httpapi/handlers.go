@@ -22,6 +22,9 @@ type handlerConfig struct {
 	automation      core.AutomationManager
 	bridges         core.BridgeService
 	bundles         core.BundleService
+	tools           core.ToolRegistry
+	toolsets        core.ToolsetRegistry
+	toolApprovals   core.ToolApprovalIssuer
 	settings        core.SettingsService
 	settingsRestart core.SettingsRestartController
 	workspaces      core.WorkspaceService
@@ -79,6 +82,9 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
 			Bundles:                      cfg.bundles,
+			Tools:                        cfg.tools,
+			Toolsets:                     cfg.toolsets,
+			ToolApprovals:                cfg.toolApprovals,
 			Settings:                     cfg.settings,
 			SettingsRestart:              cfg.settingsRestart,
 			Workspaces:                   cfg.workspaces,

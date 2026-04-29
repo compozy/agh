@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -167,6 +169,73 @@ func StatusForResourceError(err error) int {
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+// StatusForToolError maps registry failures to stable transport statuses.
+func StatusForToolError(err error) int {
+	var toolErr *toolspkg.ToolError
+	var validation *toolspkg.ValidationError
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.As(err, &validation):
+		return http.StatusBadRequest
+	case errors.As(err, &toolErr):
+		return statusForToolCode(toolErr.Code, toolErr.ReasonCodes)
+	case errors.Is(err, toolspkg.ErrToolInvalidInput):
+		return http.StatusBadRequest
+	case errors.Is(err, toolspkg.ErrToolNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, toolspkg.ErrToolDenied):
+		return http.StatusForbidden
+	case errors.Is(err, toolspkg.ErrToolApprovalRequired):
+		return http.StatusAccepted
+	case errors.Is(err, toolspkg.ErrToolConflict):
+		return http.StatusConflict
+	case errors.Is(err, toolspkg.ErrToolUnavailable),
+		errors.Is(err, toolspkg.ErrToolResultTooLarge):
+		return http.StatusUnprocessableEntity
+	case errors.Is(err, toolspkg.ErrToolBackendFailed),
+		errors.Is(err, toolspkg.ErrToolCanceled),
+		errors.Is(err, toolspkg.ErrToolTimedOut):
+		return http.StatusBadGateway
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) int {
+	switch code {
+	case toolspkg.ErrorCodeInvalidInput:
+		return http.StatusBadRequest
+	case toolspkg.ErrorCodeNotFound:
+		return http.StatusNotFound
+	case toolspkg.ErrorCodeDenied:
+		return http.StatusForbidden
+	case toolspkg.ErrorCodeApprovalRequired:
+		if hasToolReason(reasons, toolspkg.ReasonApprovalTokenExpired, toolspkg.ReasonApprovalTokenMismatch,
+			toolspkg.ReasonApprovalTokenReplayed) {
+			return http.StatusForbidden
+		}
+		return http.StatusAccepted
+	case toolspkg.ErrorCodeConflict:
+		return http.StatusConflict
+	case toolspkg.ErrorCodeUnavailable, toolspkg.ErrorCodeResultTooLarge:
+		return http.StatusUnprocessableEntity
+	case toolspkg.ErrorCodeBackendFailed, toolspkg.ErrorCodeCanceled, toolspkg.ErrorCodeTimedOut:
+		return http.StatusBadGateway
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+func hasToolReason(reasons []toolspkg.ReasonCode, want ...toolspkg.ReasonCode) bool {
+	for _, reason := range reasons {
+		if slices.Contains(want, reason) {
+			return true
+		}
+	}
+	return false
 }
 
 // NewTaskValidationError wraps a task validation failure with the shared sentinel.

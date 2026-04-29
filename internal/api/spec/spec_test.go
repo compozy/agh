@@ -308,6 +308,115 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeToolRegistryContractsAndRoutes",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				listTools := operationFor(t, doc, "/api/tools", "GET")
+				assertTagsContain(t, listTools, "tools")
+				assertParameter(t, listTools, "workspace_id", openapi3.ParameterInQuery, false)
+				listSchema := jsonResponseSchema(t, listTools, 200)
+				assertRequired(t, listSchema, "tools")
+				toolsSchema := propertySchema(t, listSchema, "tools")
+				if toolsSchema.Items == nil || toolsSchema.Items.Value == nil {
+					t.Fatal("expected tools to define an items schema")
+				}
+				toolSchema := toolsSchema.Items.Value
+				assertRequired(t, toolSchema, "descriptor", "availability", "decision")
+				descriptorSchema := propertySchema(t, toolSchema, "descriptor")
+				assertRequired(
+					t,
+					descriptorSchema,
+					"tool_id",
+					"backend",
+					"description",
+					"input_schema",
+					"source",
+					"visibility",
+					"risk",
+					"read_only",
+					"destructive",
+					"open_world",
+					"requires_interaction",
+					"concurrency_safe",
+				)
+				assertEnumValues(
+					t,
+					propertySchema(t, propertySchema(t, descriptorSchema, "backend"), "kind"),
+					"bridge",
+					"extension_host",
+					"mcp",
+					"native_go",
+				)
+				assertEnumValues(
+					t,
+					propertySchema(t, descriptorSchema, "visibility"),
+					"internal",
+					"model",
+					"operator",
+					"session",
+				)
+				assertEnumValues(
+					t,
+					propertySchema(t, descriptorSchema, "risk"),
+					"destructive",
+					"mutating",
+					"open_world",
+					"read",
+				)
+
+				invoke := operationFor(t, doc, "/api/tools/{id}/invoke", "POST")
+				assertResponseStatus(t, invoke, 202)
+				invokeRequest := jsonRequestSchema(t, invoke)
+				assertRequired(t, invokeRequest, "input")
+				assertNotRequired(t, invokeRequest, "approval_token", "session_id", "workspace_id")
+				errorSchema := jsonResponseSchema(t, invoke, 202)
+				errorPayload := propertySchema(t, errorSchema, "error")
+				assertRequired(t, errorPayload, "code", "message")
+				assertEnumValues(
+					t,
+					propertySchema(t, errorPayload, "code"),
+					"tool_approval_required",
+					"tool_backend_failed",
+					"tool_canceled",
+					"tool_conflict",
+					"tool_denied",
+					"tool_invalid_input",
+					"tool_not_found",
+					"tool_result_too_large",
+					"tool_timed_out",
+					"tool_unavailable",
+				)
+
+				approval := operationFor(t, doc, "/api/tools/{id}/approvals", "POST")
+				approvalSchema := jsonResponseSchema(t, approval, 201)
+				assertRequired(
+					t,
+					propertySchema(t, approvalSchema, "approval"),
+					"approval_token",
+					"expires_at",
+					"tool_id",
+					"input_digest",
+				)
+
+				sessionTools := operationFor(t, doc, "/api/sessions/{id}/tools", "GET")
+				assertTagsContain(t, sessionTools, "sessions", "tools")
+				assertResponseStatus(t, sessionTools, 200)
+
+				toolsets := operationFor(t, doc, "/api/toolsets", "GET")
+				assertTagsContain(t, toolsets, "toolsets")
+				toolsetsSchema := jsonResponseSchema(t, toolsets, 200)
+				assertRequired(t, toolsetsSchema, "toolsets")
+				toolsetsItems := propertySchema(t, toolsetsSchema, "toolsets")
+				if toolsetsItems.Items == nil || toolsetsItems.Items.Value == nil {
+					t.Fatal("expected toolsets to define an items schema")
+				}
+				toolsetSchema := toolsetsItems.Items.Value
+				assertRequired(t, toolsetSchema, "id", "status")
+				assertNotRequired(t, toolsetSchema, "reason_codes", "expanded_tools")
+			},
+		},
+		{
 			name: "ShouldDescribeBridgeSecretBindingContracts",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

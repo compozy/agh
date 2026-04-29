@@ -13,6 +13,13 @@ type Toolset struct {
 	Toolsets []ToolsetID `json:"toolsets,omitempty"`
 }
 
+// ToolsetView is a named toolset plus its current expansion diagnostics.
+type ToolsetView struct {
+	Toolset       Toolset      `json:"toolset"`
+	ExpandedTools []ToolID     `json:"expanded_tools,omitempty"`
+	ReasonCodes   []ReasonCode `json:"reason_codes,omitempty"`
+}
+
 // ToolsetCatalog expands named toolsets into concrete ToolID atoms.
 type ToolsetCatalog struct {
 	sets map[ToolsetID]Toolset
@@ -62,6 +69,24 @@ func (t Toolset) Validate() error {
 // IDs returns the known toolset IDs in deterministic order.
 func (c ToolsetCatalog) IDs() []ToolsetID {
 	return append([]ToolsetID(nil), c.ids...)
+}
+
+// List returns all known toolsets in deterministic order.
+func (c ToolsetCatalog) List() []Toolset {
+	toolsets := make([]Toolset, 0, len(c.ids))
+	for _, id := range c.ids {
+		toolsets = append(toolsets, cloneToolset(c.sets[id]))
+	}
+	return toolsets
+}
+
+// Get returns one known toolset definition.
+func (c ToolsetCatalog) Get(id ToolsetID) (Toolset, bool) {
+	toolset, ok := c.sets[id]
+	if !ok {
+		return Toolset{}, false
+	}
+	return cloneToolset(toolset), true
 }
 
 // Expand resolves one toolset into concrete ToolID atoms.

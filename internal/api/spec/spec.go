@@ -82,6 +82,12 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[session.State]():                     sessionStateValues(),
 	reflect.TypeFor[store.StopReason]():                  stopReasonValues(),
 	reflect.TypeFor[tools.ToolSource]():                  toolSourceValues(),
+	reflect.TypeFor[tools.BackendKind]():                 toolBackendKindValues(),
+	reflect.TypeFor[tools.Visibility]():                  toolVisibilityValues(),
+	reflect.TypeFor[tools.RiskClass]():                   toolRiskClassValues(),
+	reflect.TypeFor[tools.ReasonCode]():                  toolReasonCodeValues(),
+	reflect.TypeFor[tools.ErrorCode]():                   toolErrorCodeValues(),
+	reflect.TypeFor[tools.ToolCallEventKind]():           toolCallEventKindValues(),
 	reflect.TypeFor[extensionprotocol.HostAPIMethod]():   hostAPIMethodValues(),
 }
 
@@ -167,6 +173,8 @@ func Document() (*openapi3.T, error) {
 			{Name: "settings"},
 			{Name: "skills"},
 			{Name: "tasks"},
+			{Name: "tools"},
+			{Name: "toolsets"},
 			{Name: "workspaces"},
 		},
 	}
@@ -297,6 +305,184 @@ var operationRegistry = []OperationSpec{
 			{Status: 422, Description: "Invalid delete request", Body: contract.ErrorPayload{}},
 			{Status: 429, Description: "Rate limited", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/tools",
+		OperationID: "listTools",
+		Summary:     "List operator-visible registry tools",
+		Tags:        []string{"tools"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("workspace_id", "Effective workspace id", false),
+			queryParam("workspace", "Effective workspace reference", false),
+			queryParam("session_id", "Effective session id", false),
+			queryParam("agent_name", "Effective agent name", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ToolsResponse{}},
+			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
+			{Status: 503, Description: "Tool registry unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tools/search",
+		OperationID: "searchTools",
+		Summary:     "Search operator-visible registry tools",
+		Tags:        []string{"tools"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.ToolSearchRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ToolsResponse{}},
+			{Status: 400, Description: "Malformed search request", Body: contract.ToolErrorResponse{}},
+			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
+			{Status: 503, Description: "Tool registry unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/tools/{id}",
+		OperationID: "getTool",
+		Summary:     "Get one operator-visible registry tool",
+		Tags:        []string{"tools"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Canonical tool id"),
+			queryParam("workspace_id", "Effective workspace id", false),
+			queryParam("workspace", "Effective workspace reference", false),
+			queryParam("session_id", "Effective session id", false),
+			queryParam("agent_name", "Effective agent name", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ToolResponse{}},
+			{Status: 400, Description: "Invalid tool id", Body: contract.ToolErrorResponse{}},
+			{Status: 404, Description: "Tool not found", Body: contract.ToolErrorResponse{}},
+			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
+			{Status: 503, Description: "Tool registry unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tools/{id}/approvals",
+		OperationID: "createToolApproval",
+		Summary:     "Mint a local single-use approval token for one tool invocation",
+		Tags:        []string{"tools"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Canonical tool id"),
+		},
+		RequestBody: contract.ToolApprovalRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: "Created", Body: contract.ToolApprovalResponse{}},
+			{Status: 400, Description: "Invalid approval request", Body: contract.ToolErrorResponse{}},
+			{Status: 403, Description: "Approval denied", Body: contract.ToolErrorResponse{}},
+			{Status: 404, Description: "Tool not found", Body: contract.ToolErrorResponse{}},
+			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
+			{Status: 503, Description: "Tool approval service unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tools/{id}/invoke",
+		OperationID: "invokeTool",
+		Summary:     "Invoke a registry tool through executable dispatch",
+		Tags:        []string{"tools"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Canonical tool id"),
+		},
+		RequestBody: contract.ToolInvokeRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Completed", Body: contract.ToolInvokeResponse{}},
+			{Status: 202, Description: "Approval required", Body: contract.ToolErrorResponse{}},
+			{Status: 400, Description: "Invalid invocation request", Body: contract.ToolErrorResponse{}},
+			{Status: 403, Description: "Invocation denied", Body: contract.ToolErrorResponse{}},
+			{Status: 404, Description: "Tool not found", Body: contract.ToolErrorResponse{}},
+			{Status: 409, Description: "Tool conflict", Body: contract.ToolErrorResponse{}},
+			{Status: 422, Description: "Tool unavailable or not executable", Body: contract.ToolErrorResponse{}},
+			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
+			{Status: 502, Description: "Backend adapter failure", Body: contract.ToolErrorResponse{}},
+			{Status: 503, Description: "Tool registry unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/sessions/{id}/tools",
+		OperationID: "listSessionTools",
+		Summary:     "List session-callable registry tools",
+		Tags:        []string{"sessions", "tools"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Session id"),
+			queryParam("workspace_id", "Effective workspace id", false),
+			queryParam("workspace", "Effective workspace reference", false),
+			queryParam("agent_name", "Effective agent name", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ToolsResponse{}},
+			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
+			{Status: 503, Description: "Tool registry unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/sessions/{id}/tools/search",
+		OperationID: "searchSessionTools",
+		Summary:     "Search session-callable registry tools",
+		Tags:        []string{"sessions", "tools"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Session id"),
+		},
+		RequestBody: contract.ToolSearchRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ToolsResponse{}},
+			{Status: 400, Description: "Malformed search request", Body: contract.ToolErrorResponse{}},
+			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
+			{Status: 503, Description: "Tool registry unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/toolsets",
+		OperationID: "listToolsets",
+		Summary:     "List named toolsets and expansion status",
+		Tags:        []string{"toolsets"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("workspace_id", "Effective workspace id", false),
+			queryParam("workspace", "Effective workspace reference", false),
+			queryParam("session_id", "Effective session id", false),
+			queryParam("agent_name", "Effective agent name", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ToolsetsResponse{}},
+			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
+			{Status: 503, Description: "Toolset registry unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/toolsets/{id}",
+		OperationID: "getToolset",
+		Summary:     "Inspect one named toolset expansion",
+		Tags:        []string{"toolsets"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Canonical toolset id"),
+			queryParam("workspace_id", "Effective workspace id", false),
+			queryParam("workspace", "Effective workspace reference", false),
+			queryParam("session_id", "Effective session id", false),
+			queryParam("agent_name", "Effective agent name", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ToolsetResponse{}},
+			{Status: 400, Description: "Invalid toolset id", Body: contract.ToolErrorResponse{}},
+			{Status: 404, Description: "Toolset not found", Body: contract.ToolErrorResponse{}},
+			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
+			{Status: 503, Description: "Toolset registry unavailable", Body: contract.ErrorPayload{}},
 		},
 	},
 	{
@@ -3898,6 +4084,109 @@ func bridgeDeliveryDefaultsSchema() *openapi3.Schema {
 
 func toolSourceValues() []string {
 	return []string{"builtin", "mcp", "extension", "dynamic"}
+}
+
+func toolBackendKindValues() []string {
+	return []string{
+		string(tools.BackendNativeGo),
+		string(tools.BackendExtensionHost),
+		string(tools.BackendMCP),
+		string(tools.BackendBridge),
+	}
+}
+
+func toolVisibilityValues() []string {
+	return []string{
+		string(tools.VisibilityInternal),
+		string(tools.VisibilityOperator),
+		string(tools.VisibilitySession),
+		string(tools.VisibilityModel),
+	}
+}
+
+func toolRiskClassValues() []string {
+	return []string{
+		string(tools.RiskRead),
+		string(tools.RiskMutating),
+		string(tools.RiskOpenWorld),
+		string(tools.RiskDestructive),
+	}
+}
+
+func toolReasonCodeValues() []string {
+	values := []string{
+		string(tools.ReasonIDEmpty),
+		string(tools.ReasonIDEmptySegment),
+		string(tools.ReasonIDInvalidFormat),
+		string(tools.ReasonIDReservedConflict),
+		string(tools.ReasonReservedNamespace),
+		string(tools.ReasonIDTooLong),
+		string(tools.ReasonDependencyMissing),
+		string(tools.ReasonBackendUnhealthy),
+		string(tools.ReasonBackendNotExecutable),
+		string(tools.ReasonExtensionInactive),
+		string(tools.ReasonExtensionRuntimeMismatch),
+		string(tools.ReasonExtensionCapabilityMissing),
+		string(tools.ReasonRuntimeDescriptorMissing),
+		string(tools.ReasonRuntimeDescriptorMismatch),
+		string(tools.ReasonHandlerMissing),
+		string(tools.ReasonMCPUnreachable),
+		string(tools.ReasonMCPAuthUnconfigured),
+		string(tools.ReasonMCPAuthRequired),
+		string(tools.ReasonMCPAuthExpired),
+		string(tools.ReasonMCPAuthInvalid),
+		string(tools.ReasonMCPAuthRefreshFailed),
+		string(tools.ReasonSourceDisabled),
+		string(tools.ReasonPolicyDenied),
+		string(tools.ReasonVisibilityDenied),
+		string(tools.ReasonApprovalRequired),
+		string(tools.ReasonApprovalUnreachable),
+		string(tools.ReasonApprovalTimedOut),
+		string(tools.ReasonApprovalCanceled),
+		string(tools.ReasonApprovalTokenMissing),
+		string(tools.ReasonApprovalTokenExpired),
+		string(tools.ReasonApprovalTokenMismatch),
+		string(tools.ReasonApprovalTokenReplayed),
+		string(tools.ReasonSessionDenied),
+		string(tools.ReasonHookDenied),
+		string(tools.ReasonSchemaInvalid),
+		string(tools.ReasonConflictedID),
+		string(tools.ReasonConflictedSanitizedName),
+		string(tools.ReasonResultBudgetExceeded),
+		string(tools.ReasonCallCanceled),
+		string(tools.ReasonCallTimedOut),
+		string(tools.ReasonSecretMetadata),
+		string(tools.ReasonToolsetUnknown),
+		string(tools.ReasonToolsetCycle),
+		string(tools.ReasonToolUnknown),
+	}
+	sort.Strings(values)
+	return values
+}
+
+func toolErrorCodeValues() []string {
+	return []string{
+		string(tools.ErrorCodeNotFound),
+		string(tools.ErrorCodeConflict),
+		string(tools.ErrorCodeUnavailable),
+		string(tools.ErrorCodeDenied),
+		string(tools.ErrorCodeApprovalRequired),
+		string(tools.ErrorCodeInvalidInput),
+		string(tools.ErrorCodeResultTooLarge),
+		string(tools.ErrorCodeBackendFailed),
+		string(tools.ErrorCodeCanceled),
+		string(tools.ErrorCodeTimedOut),
+	}
+}
+
+func toolCallEventKindValues() []string {
+	return []string{
+		string(tools.ToolCallStarted),
+		string(tools.ToolCallCompleted),
+		string(tools.ToolCallFailed),
+		string(tools.ToolCallDenied),
+		string(tools.ToolResultTruncated),
+	}
 }
 
 func hostAPIMethodValues() []string {

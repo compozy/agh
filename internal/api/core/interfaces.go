@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -176,6 +177,29 @@ type ResourceService interface {
 	Get(ctx context.Context, kind resources.ResourceKind, id string) (resources.RawRecord, error)
 	Put(ctx context.Context, draft resources.RawDraft) (resources.RawRecord, error)
 	Delete(ctx context.Context, kind resources.ResourceKind, id string, expectedVersion int64) error
+}
+
+// ToolRegistry exposes registry projection and dispatch without binding API handlers to backend packages.
+type ToolRegistry interface {
+	List(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.ToolView, error)
+	Search(ctx context.Context, scope toolspkg.Scope, q toolspkg.SearchQuery) ([]toolspkg.ToolView, error)
+	Get(ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolID) (toolspkg.ToolView, error)
+	Call(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error)
+}
+
+// ToolsetRegistry exposes named toolset projections.
+type ToolsetRegistry interface {
+	ListToolsets(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.ToolsetView, error)
+	GetToolset(ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolsetID) (toolspkg.ToolsetView, error)
+}
+
+// ToolApprovalIssuer mints local one-shot approval references for operator transports.
+type ToolApprovalIssuer interface {
+	CreateToolApproval(
+		ctx context.Context,
+		scope toolspkg.Scope,
+		req toolspkg.ApprovalRequest,
+	) (toolspkg.ApprovalGrant, error)
 }
 
 // AutomationManager exposes automation state and control surfaces to the API layer.
