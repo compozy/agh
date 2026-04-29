@@ -1,0 +1,25 @@
+=== RUN   TestPolicyDenyAll
+=== PAUSE TestPolicyDenyAll
+=== CONT  TestPolicyDenyAll
+=== RUN   TestPolicyDenyAll/Should_block_native_Go_tools_before_provider_invocation
+=== PAUSE TestPolicyDenyAll/Should_block_native_Go_tools_before_provider_invocation
+=== RUN   TestPolicyDenyAll/Should_block_extension_host_tools_before_provider_invocation
+=== PAUSE TestPolicyDenyAll/Should_block_extension_host_tools_before_provider_invocation
+=== RUN   TestPolicyDenyAll/Should_block_MCP_tools_before_provider_invocation
+=== PAUSE TestPolicyDenyAll/Should_block_MCP_tools_before_provider_invocation
+=== CONT  TestPolicyDenyAll/Should_block_native_Go_tools_before_provider_invocation
+=== CONT  TestPolicyDenyAll/Should_block_MCP_tools_before_provider_invocation
+=== CONT  TestPolicyDenyAll/Should_block_extension_host_tools_before_provider_invocation
+=== NAME  TestPolicyDenyAll/Should_block_MCP_tools_before_provider_invocation
+    dispatch_test.go:267: NewRegistry() error = tools: validation failed: providers[0]: mcp_unreachable: mcp sources require raw server and tool names
+=== NAME  TestPolicyDenyAll/Should_block_native_Go_tools_before_provider_invocation
+    dispatch_test.go:283: RuntimeRegistry.Call() error = tool "agh__deny_native" requires approval, want ErrToolDenied
+=== NAME  TestPolicyDenyAll/Should_block_extension_host_tools_before_provider_invocation
+    dispatch_test.go:283: RuntimeRegistry.Call() error = tool "ext__smoke__lookup" requires approval, want ErrToolDenied
+--- FAIL: TestPolicyDenyAll (0.00s)
+    --- FAIL: TestPolicyDenyAll/Should_block_MCP_tools_before_provider_invocation (0.00s)
+    --- FAIL: TestPolicyDenyAll/Should_block_native_Go_tools_before_provider_invocation (0.00s)
+    --- FAIL: TestPolicyDenyAll/Should_block_extension_host_tools_before_provider_invocation (0.00s)
+FAIL
+FAIL	github.com/pedronauck/agh/internal/tools	0.021s
+FAIL

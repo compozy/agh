@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: API Contracts, HTTP/UDS Routes, and Codegen
 type: backend
 complexity: critical
@@ -33,12 +33,12 @@ Expose the Tool Registry through stable public daemon contracts after all execut
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Add tool registry DTOs and contract tests
-- [ ] 11.2 Inject registry interfaces into core handlers without package-boundary violations
-- [ ] 11.3 Add HTTP list/search/info/invoke/toolset/session routes and status-code/body tests
-- [ ] 11.4 Add UDS parity routes and UDS client-compatible error payloads
-- [ ] 11.5 Regenerate OpenAPI and web generated TypeScript contracts
-- [ ] 11.6 Add contract/codegen drift tests and handler integration tests
+- [x] 11.1 Add tool registry DTOs and contract tests
+- [x] 11.2 Inject registry interfaces into core handlers without package-boundary violations
+- [x] 11.3 Add HTTP list/search/info/invoke/toolset/session routes and status-code/body tests
+- [x] 11.4 Add UDS parity routes and UDS client-compatible error payloads
+- [x] 11.5 Regenerate OpenAPI and web generated TypeScript contracts
+- [x] 11.6 Add contract/codegen drift tests and handler integration tests
 
 ## Implementation Details
 
@@ -82,14 +82,14 @@ Use TechSpec "API Endpoints", "Agent Manageability", "Data Models", and "Impleme
 
 ## Tests
 - Unit tests:
-  - [ ] Contract DTOs serialize canonical `tool_id`, backend kind, source ref, availability, and structured errors without secrets
-  - [ ] Core handlers map registry errors to deterministic HTTP/UDS status and body payloads
-  - [ ] Session endpoints return callable projections only while operator endpoints include unavailable/denied tools
+  - [x] Contract DTOs serialize canonical `tool_id`, backend kind, source ref, availability, and structured errors without secrets
+  - [x] Core handlers map registry errors to deterministic HTTP/UDS status and body payloads
+  - [x] Session endpoints return callable projections only while operator endpoints include unavailable/denied tools
 - Integration tests:
-  - [ ] `GET /api/tools`, search, info, invoke, and toolsets routes return status-code plus body assertions
-  - [ ] Matching UDS routes return behaviorally equivalent payloads for the same state
-  - [ ] `make codegen` and `make codegen-check` pass with no generated drift
-  - [ ] `make bun-typecheck` and `make bun-test` pass against regenerated web types
+  - [x] `GET /api/tools`, search, info, invoke, and toolsets routes return status-code plus body assertions
+  - [x] Matching UDS routes return behaviorally equivalent payloads for the same state
+  - [x] `make codegen` and `make codegen-check` pass with no generated drift
+  - [x] `make bun-typecheck` and `make bun-test` pass against regenerated web types
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -98,3 +98,12 @@ Use TechSpec "API Endpoints", "Agent Manageability", "Data Models", and "Impleme
 - Test coverage >=80%
 - HTTP, UDS, OpenAPI, and generated TypeScript contracts describe the same registry behavior
 - Public contracts expose executable backends without leaking tokens, nonces, or approval secrets
+
+## Verification Evidence
+
+- `make codegen` passed and regenerated `openapi/agh.json` plus `web/src/generated/agh-openapi.d.ts`.
+- `make codegen-check` passed with no generated drift.
+- `make bun-typecheck` passed against regenerated web contracts.
+- `make bun-test` passed: 257 files, 1838 tests.
+- Focused package tests passed: `go test ./internal/tools ./internal/api/contract ./internal/api/spec ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/daemon -count=1`.
+- Full `make verify` passed after final tracking updates: codegen, web checks, `golangci-lint` with 0 issues, Go test suite with 6900 tests, build, and package boundaries.

@@ -1,0 +1,201 @@
+package builtin
+
+import (
+	"slices"
+	"testing"
+
+	toolspkg "github.com/pedronauck/agh/internal/tools"
+)
+
+func TestBuiltinNativeDescriptors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose exactly the MVP native tool scope", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := NativeDescriptors()
+		got := make(map[toolspkg.ToolID]toolspkg.Descriptor, len(descriptors))
+		for _, descriptor := range descriptors {
+			if err := descriptor.Validate(); err != nil {
+				t.Fatalf("descriptor %q Validate() error = %v", descriptor.ID, err)
+			}
+			got[descriptor.ID] = descriptor
+		}
+
+		want := []toolspkg.ToolID{
+			toolspkg.ToolIDToolList,
+			toolspkg.ToolIDToolSearch,
+			toolspkg.ToolIDToolInfo,
+			toolspkg.ToolIDSkillList,
+			toolspkg.ToolIDSkillSearch,
+			toolspkg.ToolIDSkillView,
+			toolspkg.ToolIDNetworkPeers,
+			toolspkg.ToolIDNetworkSend,
+			toolspkg.ToolIDTaskList,
+			toolspkg.ToolIDTaskRead,
+			toolspkg.ToolIDTaskCreate,
+			toolspkg.ToolIDTaskChildCreate,
+			toolspkg.ToolIDTaskUpdate,
+			toolspkg.ToolIDTaskCancel,
+			toolspkg.ToolIDTaskRunList,
+		}
+		if gotLen, wantLen := len(got), len(want); gotLen != wantLen {
+			t.Fatalf("len(NativeDescriptors()) = %d, want %d", gotLen, wantLen)
+		}
+		for _, id := range want {
+			descriptor, ok := got[id]
+			if !ok {
+				t.Fatalf("descriptor %q missing from MVP native scope", id)
+			}
+			if descriptor.Backend.Kind != toolspkg.BackendNativeGo {
+				t.Fatalf("%s backend kind = %q, want native_go", id, descriptor.Backend.Kind)
+			}
+			if descriptor.Backend.NativeName == "" {
+				t.Fatalf("%s backend native name is empty", id)
+			}
+			if descriptor.Source != Source() {
+				t.Fatalf("%s source = %#v, want builtin source", id, descriptor.Source)
+			}
+			if descriptor.Visibility != toolspkg.VisibilityModel {
+				t.Fatalf("%s visibility = %q, want model", id, descriptor.Visibility)
+			}
+		}
+
+		excluded := []toolspkg.ToolID{
+			"agh__skill_install",
+			"agh__skill_update",
+			"agh__skill_remove",
+			"agh__task_claim",
+			"agh__task_release",
+			"agh__task_complete",
+			"agh__task_fail",
+			"agh__task_run_start",
+			"agh__task_run_complete",
+			"agh__task_run_cancel",
+		}
+		for _, id := range excluded {
+			if _, ok := got[id]; ok {
+				t.Fatalf("descriptor %q is registered but must be excluded from MVP native scope", id)
+			}
+		}
+	})
+
+	t.Run("Should classify read mutating open world and destructive risk flags", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDToolList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSkillView], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkPeers], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRead], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkSend], toolspkg.RiskOpenWorld, false, false, true)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskCreate], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskChildCreate],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskUpdate], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskCancel], toolspkg.RiskDestructive, false, true, false)
+	})
+
+	t.Run("Should return cloned descriptors", func(t *testing.T) {
+		t.Parallel()
+
+		first := NativeDescriptors()
+		first[0].ID = "agh__mutated"
+		first[0].InputSchema[0] = '['
+
+		second := NativeDescriptors()
+		if second[0].ID == "agh__mutated" {
+			t.Fatal("NativeDescriptors() reused descriptor slice")
+		}
+		if len(second[0].InputSchema) == 0 || second[0].InputSchema[0] == '[' {
+			t.Fatal("NativeDescriptors() reused input schema bytes")
+		}
+	})
+}
+
+func TestBuiltinToolsetCatalog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expand built-in toolsets into canonical MVP tools", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := NativeDescriptors()
+		universe := make([]toolspkg.ToolID, 0, len(descriptors))
+		for _, descriptor := range descriptors {
+			universe = append(universe, descriptor.ID)
+		}
+		catalog, err := ToolsetCatalog()
+		if err != nil {
+			t.Fatalf("ToolsetCatalog() error = %v", err)
+		}
+
+		bootstrap, err := catalog.Expand(toolspkg.ToolsetIDBootstrap, universe)
+		if err != nil {
+			t.Fatalf("Expand(bootstrap) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDToolInfo,
+			toolspkg.ToolIDToolList,
+			toolspkg.ToolIDToolSearch,
+		}; !slices.Equal(
+			bootstrap,
+			want,
+		) {
+			t.Fatalf("bootstrap expansion = %#v, want %#v", bootstrap, want)
+		}
+
+		tasks, err := catalog.Expand(toolspkg.ToolsetIDTasks, universe)
+		if err != nil {
+			t.Fatalf("Expand(tasks) error = %v", err)
+		}
+		if !slices.Contains(tasks, toolspkg.ToolIDTaskChildCreate) ||
+			slices.Contains(tasks, toolspkg.ToolID("agh__task_claim")) {
+			t.Fatalf("task toolset expansion = %#v, want bounded task scope", tasks)
+		}
+	})
+}
+
+func descriptorMap(descriptors []toolspkg.Descriptor) map[toolspkg.ToolID]toolspkg.Descriptor {
+	values := make(map[toolspkg.ToolID]toolspkg.Descriptor, len(descriptors))
+	for _, descriptor := range descriptors {
+		values[descriptor.ID] = descriptor
+	}
+	return values
+}
+
+func requireDescriptorRisk(
+	t *testing.T,
+	descriptor toolspkg.Descriptor,
+	risk toolspkg.RiskClass,
+	readOnly bool,
+	destructive bool,
+	openWorld bool,
+) {
+	t.Helper()
+
+	if descriptor.Risk != risk ||
+		descriptor.ReadOnly != readOnly ||
+		descriptor.Destructive != destructive ||
+		descriptor.OpenWorld != openWorld {
+		t.Fatalf(
+			"%s risk flags = (%s, read=%v, destructive=%v, open_world=%v), want (%s, read=%v, destructive=%v, open_world=%v)",
+			descriptor.ID,
+			descriptor.Risk,
+			descriptor.ReadOnly,
+			descriptor.Destructive,
+			descriptor.OpenWorld,
+			risk,
+			readOnly,
+			destructive,
+			openWorld,
+		)
+	}
+}

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI Operator Commands
 type: backend
 complexity: high
@@ -30,12 +30,12 @@ Add agent-operable CLI surfaces for registry inspection and invocation. This tas
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Add CLI command registration for `tool` and `toolsets`
-- [ ] 12.2 Add UDS/HTTP client methods for list/search/info/invoke/toolsets
-- [ ] 12.3 Add JSON/text output rendering with redaction and deterministic errors
-- [ ] 12.4 Add input JSON validation and stdin/file support for invocation
-- [ ] 12.5 Add command tests, snapshots, and error-path coverage
-- [ ] 12.6 Mark CLI docs regeneration requirements for task_14
+- [x] 12.1 Add CLI command registration for `tool` and `toolsets`
+- [x] 12.2 Add UDS/HTTP client methods for list/search/info/invoke/toolsets
+- [x] 12.3 Add JSON/text output rendering with redaction and deterministic errors
+- [x] 12.4 Add input JSON validation and stdin/file support for invocation
+- [x] 12.5 Add command tests, snapshots, and error-path coverage
+- [x] 12.6 Mark CLI docs regeneration requirements for task_14
 
 ## Implementation Details
 
@@ -77,14 +77,14 @@ Use TechSpec "Agent Manageability" and "Implementation Steps" 14 and 16. CLI com
 
 ## Tests
 - Unit tests:
-  - [ ] `agh tool list -o json` renders canonical IDs, backend kind, availability, and redacted diagnostics
-  - [ ] `agh tool info <tool_id> -o json` rejects invalid IDs and unavailable tools with structured errors
-  - [ ] `agh tool invoke` validates JSON input and redacts sensitive result/error fields
-  - [ ] `agh toolsets list/info` renders expanded and unavailable members deterministically
+  - [x] `agh tool list -o json` renders canonical IDs, backend kind, availability, and redacted diagnostics
+  - [x] `agh tool info <tool_id> -o json` rejects invalid IDs and unavailable tools with structured errors
+  - [x] `agh tool invoke` validates JSON input and redacts sensitive result/error fields
+  - [x] `agh toolsets list/info` renders expanded and unavailable members deterministically
 - Integration tests:
-  - [ ] CLI output matches HTTP/UDS payloads for the same daemon state
-  - [ ] Existing `agh mcp auth status --refresh -o json` remains the auth-management path and agrees with registry diagnostics
-  - [ ] Generated CLI docs include new command pages after task_14 runs `make cli-docs`
+  - [x] CLI output matches HTTP/UDS payloads for the same daemon state
+  - [x] Existing `agh mcp auth status --refresh -o json` remains the auth-management path and agrees with registry diagnostics
+  - [x] Generated CLI docs include new command pages after task_14 runs `make cli-docs`
 - Test coverage target: >=80%
 - All tests must pass
 

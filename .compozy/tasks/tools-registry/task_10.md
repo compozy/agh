@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Hosted AGH MCP Session Exposure and Approval Bridge
 type: backend
 complexity: critical
@@ -15,9 +15,11 @@ dependencies:
 Expose AGH registry tools to ACP sessions through a session-bound hosted MCP proxy. This task adds the local MCP bind lifecycle, ACP stdio injection, UDS peer and AGH binary validation, and approval bridge behavior while ensuring every hosted MCP call re-enters the registry dispatch pipeline.
 
 <critical>
-- ALWAYS READ `_techspec.md`, ADR-002, ADR-005, and ADR-010 before implementing hosted MCP
+- ALWAYS READ `_techspec.md`, ADR-002, ADR-005, ADR-010, and ADR-011 before implementing hosted MCP
 - DO NOT treat the bind nonce as bearer auth; it is a correlation value plus UDS peer/binary validation
 - DO NOT accept client-supplied approval tokens over hosted MCP
+- DO NOT use `WithInputSchema`, `WithOutputSchema`, or any reflection-based schema inference for hosted tools; `mcp.Tool.RawInputSchema` and `RawOutputSchema` must come from descriptor schema bytes
+- DO NOT introduce hand-rolled MCP JSON-RPC framing or stale one-shot tool registration outside the `mark3labs/mcp-go` wrapper
 - TESTS REQUIRED: bind failures, approval timeout/cancel/unreachable, and ACP `mcpServers` injection must be deterministic
 </critical>
 
@@ -31,16 +33,17 @@ Expose AGH registry tools to ACP sessions through a session-bound hosted MCP pro
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Add hosted MCP launch record, bind nonce lifecycle, and redacted diagnostics
-- [ ] 10.2 Implement `agh tool mcp --session --bind-nonce` proxy entrypoint
-- [ ] 10.3 Inject only the AGH-hosted stdio MCP entry into ACP session start/load payloads
-- [ ] 10.4 Validate UDS peer credentials and expected AGH binary, failing closed when unavailable
-- [ ] 10.5 Bridge hosted MCP approval-required calls to existing ACP/session permission flow
-- [ ] 10.6 Add acpmock/runtime tests for hosted MCP list/call, bind failure, approval timeout, cancellation, and disconnect
+- [x] 10.1 Add hosted MCP launch record, bind nonce lifecycle, and redacted diagnostics
+- [x] 10.2 Implement `agh tool mcp --session --bind-nonce` proxy entrypoint with `server.NewMCPServer` + `server.ServeStdio`, registering one `mcp.Tool` per session-callable descriptor using exact descriptor schema bytes via `RawInputSchema` and `RawOutputSchema`
+- [x] 10.3 Inject only the AGH-hosted stdio MCP entry into ACP session start/load payloads
+- [x] 10.3a Add daemon→proxy session tool projection stream so mid-session projection changes drive library add/remove/update and `tools/list_changed`
+- [x] 10.4 Validate UDS peer credentials and expected AGH binary, failing closed when unavailable
+- [x] 10.5 Bridge hosted MCP approval-required calls to existing ACP/session permission flow
+- [x] 10.6 Add acpmock/runtime tests for hosted MCP list/call, bind failure, approval timeout, cancellation, and disconnect
 
 ## Implementation Details
 
-Use TechSpec "Session Tool Exposure", "Hosted MCP Bind Contract", "Approval Bridge", and ADR-002. Hosted MCP is an exposure transport for AGH registry tools, not the external MCP backend implemented in task_09.
+Use TechSpec "Session Tool Exposure", "Hosted MCP Bind Contract", "Approval Bridge", "MCP Library Adoption", and ADR-002/ADR-011. Hosted MCP is an exposure transport for AGH registry tools, not the external MCP backend implemented in task_09.
 
 ### Relevant Files
 - `internal/acp/client.go` - ACP `mcpServers` conversion/injection boundary
@@ -50,6 +53,8 @@ Use TechSpec "Session Tool Exposure", "Hosted MCP Bind Contract", "Approval Brid
 - `internal/mcp/**` - hosted MCP proxy implementation
 - `internal/cli/**` - `agh tool mcp` command entrypoint
 - `internal/testutil/acpmock/**` - fixture support for ACP `mcpServers` and approval assertions
+- `/Users/pedronauck/go/pkg/mod/github.com/mark3labs/mcp-go@v0.49.0/mcp` - tool model including raw schema fields
+- `/Users/pedronauck/go/pkg/mod/github.com/mark3labs/mcp-go@v0.49.0/server` - hosted stdio server APIs used by the proxy
 
 ### Dependent Files
 - `internal/api/contract/tools.go` - task_11 exposes session projection and invoke semantics
@@ -61,6 +66,7 @@ Use TechSpec "Session Tool Exposure", "Hosted MCP Bind Contract", "Approval Brid
 - [ADR-002: Session Tool Exposure Path](adrs/adr-002-session-tool-exposure-path.md) - defines AGH-hosted MCP as session exposure
 - [ADR-005: ACP Approval Policy Integration](adrs/adr-005-acp-approval-policy-integration.md) - defines approval bridge and timeout behavior
 - [ADR-010: Remote MCP Call-Through](adrs/adr-010-remote-mcp-call-through.md) - separates remote MCP backend from hosted AGH MCP
+- [ADR-011: Use `mark3labs/mcp-go` For MCP Protocol And Transport](adrs/adr-011-mark3labs-mcp-go.md) - requires library server/tool APIs and forbids hand-rolled MCP plumbing
 
 ### Web/Docs Impact
 - `web/`: task_13 must reflect session-callable tools and approval-required/unavailable states only when backed by API contracts.
@@ -80,15 +86,17 @@ Use TechSpec "Session Tool Exposure", "Hosted MCP Bind Contract", "Approval Brid
 
 ## Tests
 - Unit tests:
-  - [ ] Bind nonce is session-bound, single-use, expires deterministically, and is redacted from logs/errors
-  - [ ] UDS peer credential or expected binary validation failure rejects the bind
-  - [ ] `toSDKMCPServers` or replacement injection never converts remote HTTP/SSE MCP servers into blank stdio entries
-  - [ ] Approval timeout, cancellation, and unreachable approval channel return stable reason codes
+  - [x] Bind nonce is session-bound, single-use, expires deterministically, and is redacted from logs/errors
+  - [x] UDS peer credential or expected binary validation failure rejects the bind
+  - [x] `toSDKMCPServers` or replacement injection never converts remote HTTP or SSE MCP servers into blank stdio entries; only the AGH-hosted stdio entry is injected into ACP
+  - [x] Approval timeout, cancellation, and unreachable approval channel return stable reason codes
+  - [x] Hosted MCP `mcp.Tool` schemas match descriptor schema bytes exactly through `RawInputSchema` and `RawOutputSchema`; `WithInputSchema` and `WithOutputSchema` are not used
 - Integration tests:
-  - [ ] acpmock observes the AGH-hosted MCP entry during session start/load
-  - [ ] Hosted MCP `tools/list` equals `GET /api/sessions/{id}/tools` once task_11 lands, or the equivalent internal projection before routes exist
-  - [ ] Hosted MCP safe built-in call succeeds and mutating call routes to ACP permission request
-  - [ ] Proxy disconnect cancels in-flight tool calls without leaving stale bind records
+  - [x] acpmock observes the AGH-hosted MCP entry during session start/load
+  - [x] Hosted MCP `tools/list` equals `GET /api/sessions/{id}/tools` once task_11 lands, or the equivalent internal projection before routes exist
+  - [x] Hosted MCP safe built-in call succeeds and mutating call routes to ACP permission request
+  - [x] Proxy disconnect cancels in-flight tool calls without leaving stale bind records
+  - [x] Mid-session extension disable or MCP auth degradation propagates through the projection stream, fires `tools/list_changed`, and updates hosted MCP `tools/list` parity
 - Test coverage target: >=80%
 - All tests must pass
 

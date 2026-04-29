@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: Site Documentation and Generated References
 type: docs
 complexity: high
 dependencies:
-  - task_13
+    - task_13
 ---
 
 # Task 14: Site Documentation and Generated References

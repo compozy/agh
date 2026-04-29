@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Dispatch Pipeline, Hooks, Budgets, and Observability
 type: backend
 complexity: critical
@@ -30,12 +30,12 @@ Implement the central call path for all registry-backed tools. This task adds di
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Implement `Registry.Call` and call-context inputs
-- [ ] 4.2 Add schema validation, availability recheck, policy recheck, and normalized errors
-- [ ] 4.3 Hard-cut registry hook payloads and matchers to canonical `tool_id`
-- [ ] 4.4 Add result limiting, redaction metadata, and sensitive-field filtering
-- [ ] 4.5 Add telemetry/event seams for success, denial, timeout, cancellation, and provider errors
-- [ ] 4.6 Add unit and integration tests for call ordering, hooks, budgets, cancellation, and redaction
+- [x] 4.1 Implement `Registry.Call` and call-context inputs
+- [x] 4.2 Add schema validation, availability recheck, policy recheck, and normalized errors
+- [x] 4.3 Hard-cut registry hook payloads and matchers to canonical `tool_id`
+- [x] 4.4 Add result limiting, redaction metadata, and sensitive-field filtering
+- [x] 4.5 Add telemetry/event seams for success, denial, timeout, cancellation, and provider errors
+- [x] 4.6 Add unit and integration tests for call ordering, hooks, budgets, cancellation, and redaction
 
 ## Implementation Details
 
@@ -79,15 +79,15 @@ Use TechSpec "Core Interfaces", "Integration Points: Hooks", "Test Strategy", an
 
 ## Tests
 - Unit tests:
-  - [ ] Invalid inputs fail before provider invocation
-  - [ ] Policy and availability are rechecked after projection and before handle call
-  - [ ] Pre-call hook denial prevents provider invocation and returns the expected reason
-  - [ ] Post-call and post-error hooks receive canonical `tool_id` and redacted metadata
-  - [ ] Context cancellation stops hook/provider execution and returns deterministic cancellation errors
-  - [ ] Oversized results are truncated with metadata and never leak configured sensitive fields
+  - [x] Invalid inputs fail before provider invocation
+  - [x] Policy and availability are rechecked after projection and before handle call
+  - [x] Pre-call hook denial prevents provider invocation and returns the expected reason
+  - [x] Post-call and post-error hooks receive canonical `tool_id` and redacted metadata
+  - [x] Context cancellation stops hook/provider execution and returns deterministic cancellation errors
+  - [x] Oversized results are truncated with metadata and never leak configured sensitive fields
 - Integration tests:
-  - [ ] A fake provider called through the registry observes schema, policy, hook, budget, and telemetry ordering
-  - [ ] Existing hook tests are migrated off registry-owned `tool_name`/`tool_namespace` assumptions
+  - [x] A fake provider called through the registry observes schema, policy, hook, budget, and telemetry ordering
+  - [x] Existing hook tests are migrated off registry-owned `tool_name`/`tool_namespace` assumptions
 - Test coverage target: >=80%
 - All tests must pass
 

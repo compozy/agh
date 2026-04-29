@@ -98,6 +98,28 @@ func TestPortHandlesNilServer(t *testing.T) {
 	}
 }
 
+func TestNewWithHomePathsRealignsDefaultConfig(t *testing.T) {
+	t.Run("Should use overridden home paths for the default daemon socket", func(t *testing.T) {
+		processHome := filepath.Join(t.TempDir(), "process-home")
+		t.Setenv("AGH_HOME", processHome)
+		homePaths := newTestHomePaths(t)
+
+		server, err := New(
+			WithHomePaths(homePaths),
+			WithSessionManager(stubSessionManager{}),
+			WithTaskService(stubTaskManager{}),
+			WithObserver(stubObserver{}),
+			WithWorkspaceResolver(stubWorkspaceService{}),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if got, want := server.config.Daemon.Socket, homePaths.DaemonSocket; got != want {
+			t.Fatalf("config daemon socket = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 

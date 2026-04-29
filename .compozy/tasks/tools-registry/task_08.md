@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Public Go Extension SDK
 type: backend
 complexity: critical
@@ -30,13 +30,13 @@ Create a public Go SDK for out-of-process extension-host tools so Go authors can
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Create `sdk/go` package layout, public APIs, and module/test setup
-- [ ] 8.2 Implement Go subprocess runtime for initialize, `provide_tools`, and `tools/call`
-- [ ] 8.3 Add Go function-based `Tool(...)` registration and typed result/error helpers
-- [ ] 8.4 Add Host API client primitives required by tool handlers
-- [ ] 8.5 Add digest parity and conformance fixtures shared with daemon and TypeScript SDK
-- [ ] 8.6 Add Go create-extension tool-provider template and scaffold tests
-- [ ] 8.7 Add external-package tests proving no `internal/*` imports or daemon-only dependencies
+- [x] 8.1 Create `sdk/go` package layout, public APIs, and module/test setup
+- [x] 8.2 Implement Go subprocess runtime for initialize, `provide_tools`, and `tools/call`
+- [x] 8.3 Add Go function-based `Tool(...)` registration and typed result/error helpers
+- [x] 8.4 Add Host API client primitives required by tool handlers
+- [x] 8.5 Add digest parity and conformance fixtures shared with daemon and TypeScript SDK
+- [x] 8.6 Add Go create-extension tool-provider template and scaffold tests
+- [x] 8.7 Add external-package tests proving no `internal/*` imports or daemon-only dependencies
 
 ## Implementation Details
 
@@ -78,14 +78,14 @@ Use TechSpec "Go Extension SDK Contract" and ADR-009. The SDK should behave like
 
 ## Tests
 - Unit tests:
-  - [ ] `Tool(...)` rejects invalid IDs, schemas, duplicate handlers, and missing metadata
-  - [ ] Go digest output matches daemon and TypeScript RFC 8785/JCS fixtures
-  - [ ] Host API client redacts or rejects sensitive values according to protocol rules
-  - [ ] SDK package tests do not import daemon `internal/*`
+  - [x] `Tool(...)` rejects invalid IDs, schemas, duplicate handlers, and missing metadata
+  - [x] Go digest output matches daemon and TypeScript RFC 8785/JCS fixtures
+  - [x] Host API client redacts or rejects sensitive values according to protocol rules
+  - [x] SDK package tests do not import daemon `internal/*`
 - Integration tests:
-  - [ ] A compiled Go extension publishes and executes a read-only tool through the registry
-  - [ ] A compiled Go extension publishes a mutating tool gated by policy/approval
-  - [ ] Go create-extension template scaffolds a buildable tool-provider extension
+  - [x] A compiled Go extension publishes and executes a read-only tool through the registry
+  - [x] A compiled Go extension publishes a mutating tool gated by policy/approval
+  - [x] Go create-extension template scaffolds a buildable tool-provider extension
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extension Runtime Protocol and TypeScript SDK Tools
 type: backend
 complexity: critical
@@ -31,12 +31,12 @@ Add executable extension-host tool support through the existing subprocess exten
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Add extension protocol constants, structs, and initialization method coverage
-- [ ] 7.2 Add manager-side `provide_tools` reconciliation and `tools/call` invocation
-- [ ] 7.3 Add TypeScript SDK `extension.tool(...)` handler registration and descriptor export
-- [ ] 7.4 Add TypeScript digest parity tests using task_06 fixtures
-- [ ] 7.5 Add TypeScript create-extension tool-provider template and scaffold tests
-- [ ] 7.6 Add subprocess integration tests for missing methods, schema mismatch, handler mismatch, handler errors, and cancellation
+- [x] 7.1 Add extension protocol constants, structs, and initialization method coverage
+- [x] 7.2 Add manager-side `provide_tools` reconciliation and `tools/call` invocation
+- [x] 7.3 Add TypeScript SDK `extension.tool(...)` handler registration and descriptor export
+- [x] 7.4 Add TypeScript digest parity tests using task_06 fixtures
+- [x] 7.5 Add TypeScript create-extension tool-provider template and scaffold tests
+- [x] 7.6 Add subprocess integration tests for missing methods, schema mismatch, handler mismatch, handler errors, and cancellation
 
 ## Implementation Details
 
@@ -81,15 +81,15 @@ Use TechSpec "Extension Runtime Contract", "Core Interfaces", and "Implementatio
 
 ## Tests
 - Unit tests:
-  - [ ] Initialize rejects `tool.provider` extensions missing `provide_tools` or `tools/call`
-  - [ ] Runtime descriptor digest, risk, handler, and schema mismatches surface deterministic availability reasons
-  - [ ] TypeScript `extension.tool(...)` registers descriptors and handlers with digest parity
-  - [ ] SDK errors redact tool input fields marked sensitive
+  - [x] Initialize rejects `tool.provider` extensions missing `provide_tools` or `tools/call`
+  - [x] Runtime descriptor digest, risk, handler, and schema mismatches surface deterministic availability reasons
+  - [x] TypeScript `extension.tool(...)` registers descriptors and handlers with digest parity
+  - [x] SDK errors redact tool input fields marked sensitive
 - Integration tests:
-  - [ ] A TypeScript extension publishes a read-only executable tool and succeeds through `Registry.Call`
-  - [ ] A TypeScript extension publishes a mutating tool and is gated by policy/approval
-  - [ ] Cancellation propagates from registry dispatch through subprocess `tools/call`
-  - [ ] `bun test` covers SDK and create-extension template behavior
+  - [x] A TypeScript extension publishes a read-only executable tool and succeeds through `Registry.Call`
+  - [x] A TypeScript extension publishes a mutating tool and is gated by policy/approval
+  - [x] Cancellation propagates from registry dispatch through subprocess `tools/call`
+  - [x] `bun test` covers SDK and create-extension template behavior
 - Test coverage target: >=80%
 - All tests must pass
 

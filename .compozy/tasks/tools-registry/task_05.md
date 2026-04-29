@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Native Go Built-In Providers
 type: backend
 complexity: high
@@ -30,12 +30,12 @@ Add the first executable `native_go` providers backed by existing AGH services. 
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Add registry bootstrap tools for list, search, and info
-- [ ] 5.2 Add skill catalog native tools using existing skill registry APIs
-- [ ] 5.3 Add network native tools using existing network manager APIs
-- [ ] 5.4 Add bounded task native tools using existing task services and child-lineage rules
-- [ ] 5.5 Wire native providers in the daemon composition root
-- [ ] 5.6 Add tests proving descriptors, risk flags, dispatch wiring, and excluded tools
+- [x] 5.1 Add registry bootstrap tools for list, search, and info
+- [x] 5.2 Add skill catalog native tools using existing skill registry APIs
+- [x] 5.3 Add network native tools using existing network manager APIs
+- [x] 5.4 Add bounded task tools using existing task services and child-lineage rules
+- [x] 5.5 Wire native providers in the daemon composition root
+- [x] 5.6 Add tests proving descriptors, risk flags, dispatch wiring, and excluded tools
 
 ## Implementation Details
 
@@ -78,16 +78,23 @@ Use TechSpec "MVP Boundary Statement", "Integration Points", and "Implementation
 
 ## Tests
 - Unit tests:
-  - [ ] Native descriptors use canonical IDs, accurate backend refs, accurate source refs, and correct risk flags
-  - [ ] Excluded task and skill lifecycle operations are not registered
-  - [ ] Invalid input schemas for each native tool fail before service calls
-  - [ ] Mutating native tools require the expected policy and approval conditions
+  - [x] Native descriptors use canonical IDs, accurate backend refs, accurate source refs, and correct risk flags
+  - [x] Excluded task and skill lifecycle operations are not registered
+  - [x] Invalid input schemas for each native tool fail before service calls
+  - [x] Mutating native tools require the expected policy and approval conditions
 - Integration tests:
-  - [ ] Skill list/search/view tools return real skill registry results through `Registry.Call`
-  - [ ] Task child creation enforces parent/child lineage constraints
-  - [ ] Network send goes through the existing network manager and preserves deterministic errors
+  - [x] Skill list/search/view tools return real skill registry results through `Registry.Call`
+  - [x] Task tools route through task service methods, including child creation lineage constraints
+  - [x] Network peers/send go through the existing network manager and preserve deterministic errors
 - Test coverage target: >=80%
 - All tests must pass
+
+## Verification Evidence
+- `go test ./internal/tools -count=1`
+- `go test ./internal/daemon -run 'TestDaemonNativeTools|TestDaemonBootToolRegistry' -count=1`
+- `go test ./internal/tools -coverprofile=/tmp/agh-task05-tools.cover -count=1` -> 81.7%
+- `go test ./internal/tools ./internal/daemon -count=1`
+- `make verify` -> passed on 2026-04-28 with 6680 tests and package boundaries clean
 
 ## Success Criteria
 - All tests passing

@@ -1,0 +1,18 @@
+=== RUN   TestPolicyDenyAll
+=== PAUSE TestPolicyDenyAll
+=== CONT  TestPolicyDenyAll
+=== RUN   TestPolicyDenyAll/Should_block_native_Go_tools_before_provider_invocation
+=== PAUSE TestPolicyDenyAll/Should_block_native_Go_tools_before_provider_invocation
+=== RUN   TestPolicyDenyAll/Should_block_extension_host_tools_before_provider_invocation
+=== PAUSE TestPolicyDenyAll/Should_block_extension_host_tools_before_provider_invocation
+=== RUN   TestPolicyDenyAll/Should_block_MCP_tools_before_provider_invocation
+=== PAUSE TestPolicyDenyAll/Should_block_MCP_tools_before_provider_invocation
+=== CONT  TestPolicyDenyAll/Should_block_native_Go_tools_before_provider_invocation
+=== CONT  TestPolicyDenyAll/Should_block_MCP_tools_before_provider_invocation
+=== CONT  TestPolicyDenyAll/Should_block_extension_host_tools_before_provider_invocation
+--- PASS: TestPolicyDenyAll (0.00s)
+    --- PASS: TestPolicyDenyAll/Should_block_extension_host_tools_before_provider_invocation (0.00s)
+    --- PASS: TestPolicyDenyAll/Should_block_native_Go_tools_before_provider_invocation (0.00s)
+    --- PASS: TestPolicyDenyAll/Should_block_MCP_tools_before_provider_invocation (0.00s)
+PASS
+ok  	github.com/pedronauck/agh/internal/tools	1.028s

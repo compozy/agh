@@ -5,16 +5,19 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 import shutil
 import socket
 import subprocess
+import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
 
 ALLOWED_PROVIDER_FILES = ("auth.json", "installation_id", "version.json")
+MAX_UNIX_SOCKET_PATH_BYTES = 103
 
 
 def slugify(value: str) -> str:
@@ -38,6 +41,32 @@ def pick_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return int(sock.getsockname()[1])
+
+
+def socket_path_length(path: Path) -> int:
+    return len(str(path).encode("utf-8"))
+
+
+def socket_limited_paths(agh_home: Path, provider_home: Path) -> dict[str, Path]:
+    return {
+        "AGH_UDS_PATH": agh_home / "aghd.sock",
+        "TMUX_BRIDGE_SOCKET": agh_home / "tmux-bridge.sock",
+        "PROVIDER_DEFAULT_UDS": provider_home / ".agh" / "daemon.sock",
+    }
+
+
+def socket_limit_violations(paths: dict[str, Path]) -> list[str]:
+    violations: list[str] = []
+    for label, path in paths.items():
+        length = socket_path_length(path)
+        if length > MAX_UNIX_SOCKET_PATH_BYTES:
+            violations.append(f"{label} {path} is {length} bytes; max {MAX_UNIX_SOCKET_PATH_BYTES}")
+    return violations
+
+
+def short_runtime_root(scenario_slug: str) -> Path:
+    digest = hashlib.sha256(scenario_slug.encode("utf-8")).hexdigest()[:12]
+    return Path(tempfile.gettempdir()) / f"aghqa-{digest}"
 
 
 def run_init_workspace(repo_root: Path, scenario: str, workspace_root: str) -> dict[str, str]:
@@ -169,6 +198,15 @@ def manifest_health(manifest: dict) -> tuple[bool, list[str]]:
     if not proxy_target or parsed.scheme not in {"http", "https"} or not parsed.netloc:
         healthy = False
         notes.append("AGH_WEB_API_PROXY_TARGET is missing or not an absolute URL")
+
+    socket_paths = {
+        "AGH_UDS_PATH": Path(str(env.get("AGH_UDS_PATH", ""))),
+        "TMUX_BRIDGE_SOCKET": Path(str(env.get("TMUX_BRIDGE_SOCKET", ""))),
+        "PROVIDER_DEFAULT_UDS": required_paths["PROVIDER_HOME"] / ".agh" / "daemon.sock",
+    }
+    for note in socket_limit_violations(socket_paths):
+        healthy = False
+        notes.append(note)
     return healthy, notes
 
 
@@ -247,14 +285,34 @@ def main() -> int:
 
     manifest_path = qa_root / "bootstrap-manifest.json"
     env_path = qa_root / "bootstrap.env"
-    provider_home = workspace_path / ".provider-home"
+
+    if reused_lab and existing_manifest is not None:
+        existing_env = existing_manifest.get("env", {})
+        provider_home = Path(str(existing_env.get("PROVIDER_HOME", workspace_path / ".provider-home"))).resolve()
+        agh_home = Path(str(existing_env.get("AGH_HOME", workspace_path / ".agh" / "runtime"))).resolve()
+    else:
+        provider_home = workspace_path / ".provider-home"
+        agh_home = workspace_path / ".agh" / "runtime"
+        violations = socket_limit_violations(socket_limited_paths(agh_home, provider_home))
+        if violations:
+            runtime_root = short_runtime_root(workspace_info["SCENARIO_SLUG"])
+            provider_home = runtime_root / "provider"
+            agh_home = runtime_root / "runtime"
+            status_notes.append(
+                "Allocated short runtime/provider homes for portable Unix socket paths: " + "; ".join(violations)
+            )
+            followup_violations = socket_limit_violations(socket_limited_paths(agh_home, provider_home))
+            if followup_violations:
+                raise RuntimeError(
+                    "short QA runtime paths still exceed Unix socket limits: " + "; ".join(followup_violations)
+                )
+
     provider_codex_home = prepare_provider_home(global_codex_home, provider_home)
 
     env_block: dict[str, str]
     if reused_lab and existing_manifest is not None:
         env_block = {key: str(value) for key, value in existing_manifest.get("env", {}).items()}
     else:
-        agh_home = workspace_path / ".agh" / "runtime"
         agh_home.mkdir(parents=True, exist_ok=True)
         env_block = {
             "SCENARIO_SLUG": workspace_info["SCENARIO_SLUG"],

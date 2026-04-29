@@ -1,11 +1,11 @@
 ---
-status: pending
+status: completed
 title: Web Operator Tool Diagnostics Surface
 type: frontend
 complexity: high
 dependencies:
-  - task_11
-  - task_12
+    - task_11
+    - task_12
 ---
 
 # Task 13: Web Operator Tool Diagnostics Surface

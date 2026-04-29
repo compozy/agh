@@ -225,6 +225,76 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 	})
 }
 
+func TestPolicyDenyAll(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		descriptor Descriptor
+	}{
+		{
+			name:       "Should block native Go tools before provider invocation",
+			descriptor: nativeDenyAllDescriptor(),
+		},
+		{
+			name:       "Should block extension host tools before provider invocation",
+			descriptor: extensionDenyAllDescriptor(),
+		},
+		{
+			name:       "Should block MCP tools before provider invocation",
+			descriptor: mcpDescriptor("mcp__smoke__echo", "smoke", "echo"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			called := false
+			events := &recordingToolEventSink{}
+			provider := dispatchProviderWithSourceAndHandle(tc.descriptor.Source, tc.descriptor, &registryTestHandle{
+				descriptor:   tc.descriptor,
+				availability: availableDispatchHandle(),
+				call: func(context.Context, CallRequest) (ToolResult, error) {
+					called = true
+					return ToolResult{}, nil
+				},
+			})
+			registry := mustDispatchRegistry(
+				t,
+				provider,
+				WithToolEventSink(events),
+				WithPolicyInputs(PolicyInputs{
+					SystemPermissionMode: PermissionModeDenyAll,
+					ExternalDefault:      ExternalDefaultEnabled,
+				}, ToolsetCatalog{}),
+			)
+
+			_, err := registry.Call(
+				t.Context(),
+				Scope{},
+				CallRequest{ToolID: tc.descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+			)
+			if !errors.Is(err, ErrToolApprovalRequired) {
+				t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolApprovalRequired", err)
+			}
+			if called {
+				t.Fatal("provider handle was called for deny-all policy")
+			}
+			eventSnapshot := events.snapshot()
+			if got, want := events.kinds(), []ToolCallEventKind{ToolCallDenied}; !slices.Equal(got, want) {
+				t.Fatalf("event kinds = %#v, want %#v", got, want)
+			}
+			if !slices.Contains(eventSnapshot[0].ReasonCodes, ReasonApprovalRequired) {
+				t.Fatalf("denial reasons = %#v, want approval_required", eventSnapshot[0].ReasonCodes)
+			}
+			if !slices.Contains(eventSnapshot[0].ReasonCodes, ReasonApprovalUnreachable) {
+				t.Fatalf("denial reasons = %#v, want approval_unreachable", eventSnapshot[0].ReasonCodes)
+			}
+		})
+	}
+}
+
 func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 	t.Parallel()
 
@@ -703,6 +773,22 @@ func validDispatchDescriptor() Descriptor {
 	return descriptor
 }
 
+func nativeDenyAllDescriptor() Descriptor {
+	descriptor := validDispatchDescriptor()
+	descriptor.ID = "agh__deny_native"
+	descriptor.Backend.NativeName = "deny_native"
+	return descriptor
+}
+
+func extensionDenyAllDescriptor() Descriptor {
+	descriptor := validDispatchDescriptor()
+	descriptor.ID = "ext__smoke__lookup"
+	descriptor.DisplayTitle = "Extension lookup"
+	descriptor.Backend = BackendRef{Kind: BackendExtensionHost, ExtensionID: "smoke", Handler: "lookup"}
+	descriptor.Source = SourceRef{Kind: SourceExtension, Owner: "smoke"}
+	return descriptor
+}
+
 func hookAllowedDecision() EffectiveToolDecision {
 	return EffectiveToolDecision{
 		Callable:   true,
@@ -734,8 +820,16 @@ func availableDispatchHandle() Availability {
 }
 
 func dispatchProviderWithHandle(descriptor Descriptor, handle *registryTestHandle) registryTestProvider {
+	return dispatchProviderWithSourceAndHandle(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, descriptor, handle)
+}
+
+func dispatchProviderWithSourceAndHandle(
+	source SourceRef,
+	descriptor Descriptor,
+	handle *registryTestHandle,
+) registryTestProvider {
 	return registryTestProvider{
-		source:      SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
+		source:      source,
 		descriptors: []Descriptor{descriptor},
 		handles:     map[ToolID]Handle{descriptor.ID: handle},
 		resolveErr:  map[ToolID]error{},

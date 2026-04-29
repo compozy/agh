@@ -1,0 +1,98 @@
+{
+  "bootstrap_env_path": "/Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab/qa-artifacts/qa/bootstrap.env",
+  "browser": {
+    "blocker": "",
+    "mode": "browser-use"
+  },
+  "env": {
+    "AGH_HOME": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-ed6aa49b48f8/runtime",
+    "AGH_HTTP_PORT": "64177",
+    "AGH_UDS_PATH": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-ed6aa49b48f8/runtime/aghd.sock",
+    "AGH_WEB_API_PROXY_TARGET": "http://127.0.0.1:64177",
+    "BROWSER_BLOCKER": "",
+    "BROWSER_MODE": "browser-use",
+    "PROVIDER_CODEX_HOME": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-ed6aa49b48f8/provider/.codex",
+    "PROVIDER_HOME": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-ed6aa49b48f8/provider",
+    "QA_OUTPUT_PATH": "/Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab/qa-artifacts",
+    "SCENARIO_SLUG": "tools-registry-task16-20260429-075857-781754",
+    "TMUX_BRIDGE_SOCKET": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-ed6aa49b48f8/runtime/tmux-bridge.sock",
+    "WORKSPACE_PATH": "/Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab"
+  },
+  "manifest_path": "/Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab/qa-artifacts/qa/bootstrap-manifest.json",
+  "paths": {
+    "project_root": "/Users/pedronauck/Dev/compozy/agh",
+    "provider_codex_home": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-ed6aa49b48f8/provider/.codex",
+    "provider_home": "/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-ed6aa49b48f8/provider",
+    "qa_root": "/Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab/qa-artifacts/qa"
+  },
+  "project_contract": {
+    "commands": {
+      "build": [
+        "make build",
+        "make web-build",
+        "bun run build",
+        "go build ./..."
+      ],
+      "install": [
+        "make deps",
+        "bun install --frozen-lockfile",
+        "go mod download"
+      ],
+      "lint": [
+        "make lint",
+        "make web-lint",
+        "make fmt",
+        "bun run lint",
+        "bun run typecheck",
+        "bun run format:check"
+      ],
+      "start": [
+        "make web-dev",
+        "bun run dev"
+      ],
+      "test": [
+        "make test",
+        "make web-test",
+        "make test-e2e-runtime",
+        "make test-e2e-web",
+        "bun run test",
+        "bun run test:e2e",
+        "go test ./..."
+      ],
+      "verify": [
+        "make verify"
+      ]
+    },
+    "notes": [
+      "Prefer repository-defined umbrella commands over ecosystem defaults.",
+      "Treat every discovered command as a candidate until repository instructions or CI confirm ownership."
+    ],
+    "root": "/Users/pedronauck/Dev/compozy/agh",
+    "signals": [
+      "Makefile",
+      "package.json",
+      "go.mod",
+      ".github/workflows"
+    ],
+    "web_ui": {
+      "detected": true,
+      "entry_points": [
+        "web/index.html",
+        "web/src/main.tsx"
+      ],
+      "framework_config": "web/vite.config.ts",
+      "has_start_command": true
+    }
+  },
+  "qa_output_path": "/Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab/qa-artifacts",
+  "scenario_slug": "tools-registry-task16-20260429-075857-781754",
+  "schema_version": 1,
+  "status": {
+    "health": "fresh",
+    "notes": [
+      "Allocated short runtime/provider homes for portable Unix socket paths: AGH_UDS_PATH /Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab/.agh/runtime/aghd.sock is 105 bytes; max 103; TMUX_BRIDGE_SOCKET /Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab/.agh/runtime/tmux-bridge.sock is 112 bytes; max 103; PROVIDER_DEFAULT_UDS /Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab/.provider-home/.agh/daemon.sock is 114 bytes; max 103"
+    ],
+    "reused_lab": false
+  },
+  "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-tools-registry-task16-20260429-075857-781754-lab"
+}

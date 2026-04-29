@@ -10,6 +10,8 @@ The primary architectural trade-off is to make AGH-native tools visible to sessi
 
 The foundation will support executable native/bundled tools, executable extension-host tools, and executable MCP-backed tools. Built-in AGH tools execute in-process through `native_go` handles compiled into the daemon. Third-party TypeScript and Go extension tools execute out-of-process through the existing extension runtime, a new `tool.provider` capability, `provide_tools` reconciliation, and `tools/call` RPC. MCP-backed tools execute through daemon-owned MCP clients that consume the existing MCP config/auth subsystem. Descriptor-only is an unavailable/error state, not the MVP contract for extension or MCP tools.
 
+Implementation direction: AGH should use `github.com/mark3labs/mcp-go` for MCP protocol/session/transport behavior instead of planning hand-rolled MCP JSON-RPC, stdio, SSE, or streamable-HTTP plumbing inside the Tool Registry workstream. AGH still owns registry policy, canonical `ToolID`, approval bridging, UDS/session binding, provenance, redaction, and durable MCP auth state.
+
 ## MVP Boundary Statement
 
 MVP boundary: implementation steps 1-16 build the Tool Registry foundation, AGH-hosted MCP session exposure, native bootstrap tools, executable TypeScript/Go extension-host tools, executable daemon-owned MCP call-through, shared CLI/HTTP/UDS surfaces, policy/availability enforcement, hooks, observability, docs, SDK updates, and verification. This MVP proves the registry as an executable daemon primitive without replacing every ACP provider-native tool.
@@ -55,7 +57,7 @@ Package import boundaries:
 - `internal/tools` owns `ToolID`, descriptors, backend kinds, providers, handles, registry, policy interfaces, availability, dispatch contracts, and result normalization. It must not import `internal/daemon`, `internal/api/*`, `internal/cli`, `internal/extension`, `internal/session`, `internal/network`, or `internal/task`.
 - `internal/catalog`, if added, is a thin composition-facing facade over `internal/tools` and `internal/skills`. It must not own tool dispatch or policy.
 - `internal/extension` may publish manifest-authoritative tool descriptors and expose live out-of-process extension tool invokers through public registry contracts. It must not execute third-party tool handlers in-process and must not import registry internals beyond public `internal/tools` descriptor/provider contracts.
-- `internal/mcp` may adapt external MCP tools, call external MCP servers through daemon-owned clients, and host the AGH MCP stdio proxy. All AGH-owned calls must enter `internal/tools.Registry.Call` through UDS or an injected interface; MCP code must not duplicate dispatch policy.
+- `internal/mcp` may adapt external MCP tools, call external MCP servers through daemon-owned clients, and host the AGH MCP stdio proxy. It wraps `mark3labs/mcp-go` behind AGH-owned interfaces and must keep all AGH-owned calls entering `internal/tools.Registry.Call` through UDS or an injected interface; MCP code must not duplicate dispatch policy.
 - `internal/mcp/auth` already owns remote MCP OAuth 2.1 + PKCE, redacted status, token refresh/logout, and durable token storage through `internal/store/globaldb`. The Tool Registry may consume redacted auth status through a daemon-injected interface, but it must not reimplement OAuth flows, open the MCP auth token store directly, or persist remote MCP token material.
 - `internal/api/core` owns transport-independent handlers. `internal/api/httpapi` and `internal/api/udsapi` only register routes and transport concerns.
 - `internal/cli` calls UDS/HTTP client methods and does not import runtime registry implementations.
@@ -80,11 +82,11 @@ Boundaries to update in implementation:
 | Built-in `native_go` provider | Registers AGH-native tools such as tool search, skill view, network peers/send, and bounded task tools | In-process only because it ships inside the daemon binary |
 | Extension-host provider | Converts extension-published tool resources into runtime descriptors, reconciles them with `provide_tools`, and invokes handlers over extension subprocess RPC | Does not execute extension code in-process; fails closed on manifest/runtime mismatch |
 | Extension SDKs | TypeScript and Go helper APIs let extension authors define tools with functions while the runtime remains out-of-process | SDKs generate/reconcile manifest descriptors and register `tools/call` handlers |
-| MCP adapter provider | Normalizes MCP-backed descriptors, health, auth status, source provenance, and executes calls through daemon-owned MCP clients | Fails closed on health, auth, policy, approval, hook, or name collision problems |
+| MCP adapter provider | Normalizes MCP-backed descriptors, health, auth status, source provenance, and executes calls through daemon-owned MCP clients wrapping `mark3labs/mcp-go` | Fails closed on health, auth, policy, approval, hook, or name collision problems |
 | Existing MCP auth runtime | Supplies redacted remote MCP OAuth 2.1 + PKCE status for external MCP diagnostics | Owned by `internal/mcp/auth`; registry must not duplicate OAuth flow, token storage, or token refresh/logout |
 | `internal/catalog` facade | Thin cross-domain list/search/view facade over tools and skills | Optional coordination layer; runtime tool dispatch remains in `internal/tools` |
 | Policy engine | Combines ACP approval mode, session lineage, agent policy, source/risk defaults, registry allow/deny, toolsets, availability, and hooks | Produces structured effective decisions, never a single ambiguous boolean |
-| AGH-hosted MCP proxy | Exposes session-callable AGH tools as MCP tools using canonical `ToolID` names | Runs through daemon-provided `agh tool mcp --session <id> --bind-nonce <nonce>` and proxies to daemon over UDS |
+| AGH-hosted MCP proxy | Exposes session-callable AGH tools as MCP tools using canonical `ToolID` names | Runs through daemon-provided `agh tool mcp --session <id> --bind-nonce <nonce>`, uses `mark3labs/mcp-go` server/tool APIs over stdio, and proxies to daemon over UDS |
 | API/CLI surfaces | Expose machine-readable list/search/info/invoke/status behavior | Shared contracts in `internal/api/contract`, handlers in `internal/api/core`, HTTP/UDS parity |
 | Hook integration | Runs `tool.pre_call`, `tool.post_call`, and `tool.post_error` around registry dispatch | Hooks can deny, narrow, patch, redact, or annotate, but cannot bypass policy |
 | Observability | Emits durable events and metrics for registration, projection, decisions, calls, failures, conflicts, truncation, and policy denials | Redacts secrets and raw tokens |
@@ -159,6 +161,35 @@ type MCPCallExecutor interface {
 ```
 
 `MCPCallExecutor` is implemented by `internal/mcp`, not by `internal/tools`. It resolves bearer material through `internal/mcp/auth` internally, never exposes `mcpauth.TokenRecord` or raw headers to registry code, and returns only normalized `ToolResult` plus wrapped backend errors.
+
+### MCP Library Adoption
+
+`internal/mcp` wraps `github.com/mark3labs/mcp-go` for MCP protocol/session/transport behavior. This is a protocol implementation choice, not a policy boundary change.
+
+- MVP validation is pinned to `github.com/mark3labs/mcp-go v0.49.0`. Any library version upgrade requires fresh focused tests plus TechSpec/ADR review before adoption.
+- Primary-source anchor points for this decision:
+  - `README.md` and `www/docs/pages/transports/` document first-class `stdio`, `SSE`, and `streamable HTTP` support.
+  - `mcp/tools.go` defines `Tool`, `RawInputSchema`, and `RawOutputSchema`, which align with AGH's descriptor-authored hosted schemas.
+  - `server/server.go`, `server/session.go`, and `server/streamable_http.go` define hosted/server lifecycle, per-session tools, and `tools/list_changed` behavior.
+  - `client/stdio.go`, `client/http.go`, and `client/sse.go` define the remote stdio, streamable HTTP, and SSE client paths.
+- Hosted AGH MCP proxy uses `server.NewMCPServer`, explicit `mcp.Tool` definitions, and `server.ServeStdio`. AGH session projections still decide which tools are registered, and every tool call still re-enters `Registry.Call` through AGH-owned UDS/session binding.
+- External stdio MCP servers use `client.NewStdioMCPClient`.
+- External remote HTTP MCP servers use `client.NewStreamableHttpClient`.
+- External remote SSE MCP servers use `client.NewSSEMCPClient`.
+- Hosted MCP tool registration MUST construct `mcp.Tool` values with `RawInputSchema` and `RawOutputSchema` taken byte-for-byte from `Descriptor.input_schema` and `Descriptor.output_schema`. `WithInputSchema`, `WithOutputSchema`, and other reflection-based schema helpers are forbidden for AGH-hosted tools because AGH manifest/runtime digests treat descriptor schema bytes as authoritative.
+- AGH keeps its stricter canonical `ToolID` grammar even though `mcp-go` accepts a broader MCP tool-name grammar. AGH `ToolID` remains a valid subset and is passed to the library as MCP `Tool.name`.
+- Hosted MCP tool registration should use library list-change behavior rather than inventing a parallel MCP notification format. AGH still owns when a projection changes and which session is allowed to observe it.
+- MVP does not rely on `WithContinuousListening()` or any long-lived upstream notification subscription from external MCP servers. Remote MCP sessions are on-demand, bounded by executor idle TTL, and use upstream `notifications/tools/list_changed` only as cache invalidation hints if they appear during an active session.
+- AGH preserves the existing remote MCP config surface: `transport = "stdio" | "http" | "sse"`. `http` means streamable HTTP via `mcp-go`; `sse` means the library's explicit SSE client path. AGH must not silently rewrite one transport into another.
+
+Remote auth integration contract:
+
+- `internal/mcp/auth` remains the only authority for remote MCP login, refresh, logout, durable token storage, and redacted status.
+- For remote HTTP and SSE requests, `internal/mcp` injects outbound headers from current AGH-owned credential state using library header hooks such as `WithHTTPHeaderFunc` and `WithHeaderFunc`. Raw access and refresh tokens never leave `internal/mcp`.
+- Before a remote `tools/list` or `tools/call`, the executor inspects AGH's persisted auth state. If the state is `authenticated` or `expired` and the token is refreshable but no longer usable, the executor may attempt exactly one `internal/mcp/auth.Service.Refresh` before creating or retrying the outbound client request.
+- If a remote transport still returns an auth failure after that bounded refresh path, the executor returns only redacted backend errors mapped to `mcp_auth_required`, `mcp_auth_expired`, `mcp_auth_invalid`, or `mcp_auth_refresh_failed`.
+- AGH MUST NOT use `client.NewOAuthStreamableHttpClient`, `client.NewOAuthSSEClient`, default `transport.NewOAuthHandler`, `MemoryTokenStore`, or any library-owned login/cache/refresh flow as the authority for remote MCP credentials.
+- If a later design wants to use `mcp-go` OAuth helper types for transport convenience, it must do so only behind an AGH-owned `TokenStore` adapter and a follow-up ADR. MVP does not depend on that path.
 
 Extension protocol additions:
 
@@ -343,6 +374,17 @@ Schema digest contract:
 - TypeScript SDK, Go SDK, and daemon manifest validation must share byte-vector fixtures under `sdk/typescript/test-fixtures/digest/`, `sdk/go/test-fixtures/digest/`, and `internal/extension/testdata/digest/`.
 - A digest mismatch is a hard `extension_runtime_mismatch`. There is no loose fallback, serializer-specific fallback, or warning-only mode.
 
+`MCPToolDescriptor`
+
+- `raw_name string`
+- `title string`
+- `description string`
+- `input_schema json.RawMessage`
+- `output_schema json.RawMessage`
+- `source SourceRef`
+
+`MCPToolDescriptor` is the daemon-internal normalized projection of one upstream MCP `Tool` before registry `Descriptor` synthesis. Hosted MCP descriptors preserve exact descriptor-authored schema bytes through `RawInputSchema` and `RawOutputSchema`. For external MCP discovery, AGH preserves raw schema bytes when the library surfaces them directly; otherwise it stores one canonical JSON encoding of the decoded schema and treats that canonical blob as authoritative for downstream digesting. AGH does not invent missing schemas or use reflection helpers during MCP normalization.
+
 `SourceRef`
 
 - `kind`: `builtin`, `mcp`, `extension`, `dynamic`
@@ -485,6 +527,7 @@ All endpoints are implemented once in `internal/api/core` and registered by HTTP
 | `GET` | `/api/tools` | List operator-visible tools with availability/policy reason codes |
 | `POST` | `/api/tools/search` | Search tools by id, title, description, source, tags, and toolsets |
 | `GET` | `/api/tools/{id}` | Return descriptor, availability, policy view, schema, and source provenance |
+| `POST` | `/api/tools/{id}/approvals` | Mint a single-use approval token for one concrete CLI/HTTP/UDS invocation |
 | `POST` | `/api/tools/{id}/invoke` | Invoke a tool through registry dispatch |
 | `GET` | `/api/sessions/{id}/tools` | Return session/model-visible callable projection |
 | `POST` | `/api/sessions/{id}/tools/search` | Search only within effective session-callable projection |
@@ -503,6 +546,42 @@ Invoke request:
 ```
 
 `approval_token` is an opaque local approval reference issued by the daemon approval surface for CLI/HTTP/UDS calls. AGH stores only a hash, never logs or emits the raw value, redacts it from SSE/events/errors, scopes it to one tool decision, and treats it as separate from `claim_token`. Hosted MCP does not accept client-supplied `approval_token`; it uses the Hosted MCP Approval Bridge below.
+
+### Approval Token Issuance
+
+CLI/HTTP/UDS approval-required flows are two-step in MVP:
+
+1. Request a daemon-issued approval token for one concrete invocation.
+2. Replay that token in `POST /api/tools/{id}/invoke` or the equivalent UDS/CLI surface.
+
+Issuance surfaces:
+
+- HTTP: `POST /api/tools/{id}/approvals`
+- UDS: matching `CreateToolApproval` client method
+- CLI: `agh tool approve <tool-id> --session <id> --workspace <id> --input <json> -o json`
+
+Issuance request fields:
+
+- `session_id`
+- `workspace_id`
+- `input` or `input_digest`
+
+Issuance response fields:
+
+- `approval_token`
+- `expires_at`
+- `tool_id`
+- `input_digest`
+
+Issuance rules:
+
+- Only daemon-authenticated operator surfaces may mint approval tokens. Hosted MCP never mints or accepts them.
+- Approval tokens live only in daemon memory. Daemon restart invalidates all outstanding approval tokens.
+- The daemon stores only a hash of the token plus typed binding fields: `tool_id`, `session_id`, `workspace_id`, `input_digest`, `issued_at`, and `expires_at`.
+- TTL is exactly `[tools.policy].approval_timeout_seconds`.
+- Tokens are single-use. Successful invoke consumption invalidates the token immediately.
+- Replay, mismatch, expiration, or missing-token cases return deterministic reason codes: `approval_token_missing`, `approval_token_expired`, `approval_token_mismatch`, and `approval_token_replayed`.
+- Raw approval tokens may traverse only the authenticated issuance response and the matching invoke request. They never appear in logs, events, SSE payloads, hosted MCP, persisted state, or diagnostics.
 
 Invoke response:
 
@@ -553,7 +632,7 @@ AGH will integrate with ACP by:
 - treating ACP `ToolKind` as risk/display metadata, not identity;
 - keeping `permissions.mode` as the system/session approval ceiling.
 
-Current-state caveat: `internal/acp.toSDKMCPServers` currently emits stdio-only `acpsdk.McpServer` values. MVP registry work must keep hosted AGH MCP as a stdio-only injected server and must not imply remote MCP HTTP/SSE ACP parity until a later implementation adds tested HTTP/SSE conversion, redacted Authorization/header handling, and provider capability checks.
+Current-state caveat: `internal/acp.toSDKMCPServers` currently emits stdio-only `acpsdk.McpServer` values. MVP registry work must keep hosted AGH MCP as a stdio-only injected server and must not imply remote MCP HTTP ACP parity until a later implementation adds tested HTTP conversion, redacted Authorization/header handling, and provider capability checks.
 
 ### Hosted MCP
 
@@ -565,9 +644,12 @@ agent session -> ACP mcpServers -> agh tool mcp --session <id> --bind-nonce <non
 
 The hosted MCP server lists only session-callable tools. It exposes MCP `Tool.name` equal to AGH canonical `ToolID`. It does not expose unavailable, unauthorized, or conflicted tools to the model-visible surface.
 
+The proxy process is an `mcp-go`-based stdio MCP server: `agh tool mcp` constructs a `server.NewMCPServer(...)`, registers one `mcp.Tool` per session-callable registry descriptor using the descriptor's exact schema bytes through `RawInputSchema` and `RawOutputSchema`, and serves over `server.ServeStdio`. The UDS bind, session/workspace scoping, approval bridge, result limiting, and dispatch callback remain AGH-owned.
+
 Hosted MCP authentication:
 
 - On session creation/load, the daemon records a short-lived hosted MCP launch record keyed by `session_id`, `workspace_id`, an opaque non-secret `hosted_mcp_bind_nonce`, expiry, and expected AGH binary path.
+- Hosted MCP launch records live only in daemon memory. Daemon restart invalidates all pending launch records and forces session/load to mint a fresh nonce.
 - The `hosted_mcp_bind_nonce` is a correlation nonce, not a bearer secret and not claim-token-equivalent. It may traverse ACP `mcpServers[].args` because it is insufficient without UDS peer credentials; raw `claim_token`, remote MCP OAuth tokens, and approval tokens never traverse this path.
 - At startup, `agh tool mcp --session <id> --bind-nonce <nonce>` performs a UDS bind RPC. The daemon accepts the bind only when the nonce matches a live launch record, the Unix-domain socket peer credentials identify the same OS user, the peer executable matches the expected AGH binary, and the record has not expired.
 - If the platform cannot provide peer credentials or executable validation, hosted MCP binding fails closed and the session receives no hosted registry projection on that platform.
@@ -580,13 +662,17 @@ Hosted MCP approval bridge:
 
 - Hosted MCP projections include only tools that are callable without a new approval prompt or tools whose session has a live daemon-mediated approval channel.
 - When `EffectiveToolDecision.approval_required=true` and ACP `session/request_permission` is available, `Registry.Call` derives a context with `[tools.policy].approval_timeout_seconds`, issues the ACP permission request, and blocks the MCP `tools/call` response until approved, denied, timed out, canceled, or the hosted MCP stdio/UDS connection closes.
+- Hosted MCP request contexts must reserve a guard band above approval waiting. The library-facing hosted MCP request deadline must be at least `[tools.policy].approval_timeout_seconds + 5s` so a valid daemon approval bridge wait cannot be preempted by an earlier transport deadline.
 - When no approval channel is available, hosted MCP hides the tool from `tools/list` if that can be determined during projection. If a call still reaches dispatch, it returns `ErrToolApprovalRequired` with reason codes `approval_required` and `approval_unreachable`.
 - Approval timeout returns `ErrToolApprovalRequired` with `approval_required` and `approval_timed_out`. Hosted MCP proxy disconnect or stdio close cancels the derived context and returns `approval_required` plus `approval_canceled`.
 - Hosted MCP cannot satisfy approval using client-supplied arguments. CLI/HTTP/UDS may use `approval_token`; hosted MCP must use the daemon approval bridge.
+- Remote MCP outbound call deadlines are derived independently from backend call policy and must not inherit the hosted MCP approval-wait deadline after approval completes.
 
 Hosted MCP lifecycle:
 
 - The stdio proxy is spawned by the ACP runtime from AGH-provided `mcpServers` config and is scoped to one AGH session.
+- After successful bind, the proxy opens a daemon-owned UDS projection stream for that bound session. The daemon pushes add/remove/update deltas for session-callable tools; the proxy translates them into `mcp-go` add/remove/replace operations so the library emits `notifications/tools/list_changed` and `tools/list` stays equal to the daemon projection.
+- If the projection stream drops, the proxy must fail closed by closing the MCP session instead of continuing to serve a stale tool catalog.
 - The proxy exits when stdio closes, when the session stops, or when the launch record expires before successful bind.
 - On ACP `session/load`, the daemon mints a fresh bind nonce and provides a fresh hosted MCP entry for that resumed session.
 - The proxy never accepts a client-supplied workspace id. The daemon derives workspace id from the bound session at projection time and dispatch time.
@@ -595,7 +681,7 @@ Hosted MCP lifecycle:
 
 AGH already has an MCP server configuration and remote-auth subsystem. The Tool Registry must consume those surfaces instead of defining a parallel MCP model:
 
-- `internal/config/provider.go` defines `MCPServer`, `MCPServerTransport` (`stdio`, `http`, `sse`), and `MCPAuthConfig` for OAuth 2.1 + PKCE metadata/client settings. Token material is explicitly outside config.
+- `internal/config/provider.go` currently defines `MCPServer`, `MCPServerTransport` (`stdio`, `http`, `sse`), and `MCPAuthConfig` for OAuth 2.1 + PKCE metadata/client settings. Token material is explicitly outside config. This TechSpec keeps that remote transport surface and maps it directly onto `mcp-go` client transports.
 - `internal/config/mcpjson.go` loads `mcp.json` sidecars using `mcpServers` or `mcp_servers`.
 - `internal/config/mcp_resource.go` validates `mcp_server` desired-state resources.
 - `internal/mcp/auth` owns metadata discovery, PKCE state, authorization-code exchange, refresh, redacted status, logout/revocation, and `StatusValue`.
@@ -606,6 +692,19 @@ AGH already has an MCP server configuration and remote-auth subsystem. The Tool 
 The hosted MCP bind nonce described above is not a remote MCP OAuth token and is not a bearer credential by itself. It is a daemon-minted correlation value for AGH's local stdio proxy, validated together with UDS peer credentials and the expected AGH binary path. Remote MCP OAuth tokens remain owned by `internal/mcp/auth` and `globaldb`. Registry descriptors, events, tool results, and MCP proxy arguments must never mix those credentials or reuse one lifecycle for the other.
 
 Remote MCP call-through uses an `MCPCallExecutor` implemented inside `internal/mcp`. `internal/tools` depends only on the executor interface and redacted `MCPAuthStatusProvider`; it must not import `internal/mcp/auth`, open `mcpauth.TokenStore`, receive raw bearer strings, or construct Authorization headers. The executor resolves bearer material internally, applies transport-specific headers in memory for the outbound MCP request, and maps failures back to redacted registry errors.
+
+Implementation direction for the executor:
+
+- stdio MCP servers use `client.NewStdioMCPClient`;
+- remote HTTP MCP servers use `client.NewStreamableHttpClient`;
+- remote SSE MCP servers use `client.NewSSEMCPClient`;
+- `MCPCallExecutor` maintains one `mcp-go` client/session per `SourceRef` with a bounded idle TTL, recreates it after transport failure or auth-status change, and applies registry-derived per-call deadlines to `ListTools` and `CallTool`;
+- for remote HTTP and SSE, outbound auth headers are injected from current AGH-owned credential state using library header hooks inside `internal/mcp`;
+- the executor may attempt at most one `internal/mcp/auth.Service.Refresh` for refreshable `authenticated` or `expired` states before client creation or one retry after an auth failure; it must never bootstrap a new login flow and must return only redacted reason-mapped errors otherwise;
+- AGH must not instantiate `client.NewOAuthStreamableHttpClient`, `client.NewOAuthSSEClient`, default `transport.NewOAuthHandler`, `MemoryTokenStore`, or any other library-managed OAuth flow as the authority for remote MCP credentials;
+- MVP external MCP descriptor freshness is on-demand, not subscription-based: the daemon refreshes upstream MCP descriptors during projection rebuilds and before a call when the cached descriptor set is missing or stale. It does not rely on long-lived upstream `notifications/tools/list_changed` subscriptions from external MCP servers in MVP.
+- If an upstream external MCP server still delivers `notifications/tools/list_changed` during an active client session, AGH treats it only as a local cache-invalidation hint. It must not mutate registry structure from the notification alone and must not maintain standalone notification subscriptions in MVP.
+- no new manual MCP message framing, request/response routing, or transport-specific retry layer should be introduced outside the `mcp-go` wrapper without a later ADR.
 
 External MCP-backed tool availability must derive auth diagnostics from the existing auth service:
 
@@ -686,6 +785,26 @@ mcp__<server>__<tool>
 ```
 
 The registry must preserve raw server/tool names in `SourceRef`. Sanitization collisions fail closed and mark the candidate tool `conflicted`.
+
+Canonicalization contract:
+
+```go
+func Canonicalize(rawServer, rawTool string) (ToolID, error)
+```
+
+Rules:
+
+- trim surrounding ASCII whitespace from `rawServer` and `rawTool`; either empty result is invalid;
+- lowercase ASCII letters;
+- replace `-` and `.` with `_` inside each raw segment;
+- reject any rune outside ASCII letters, digits, `_`, `-`, and `.` rather than transliterating or dropping it;
+- reject any normalized segment that starts with a digit, becomes empty, or contains `__` after normalization;
+- reject any normalized segment whose leading/trailing `_` would make the reserved `__` separator ambiguous;
+- assemble the result as `mcp__<server>__<tool>`;
+- if the assembled ID exceeds 64 characters, fail with `id_too_long`;
+- if two distinct raw `(server, tool)` pairs normalize to the same assembled ID, keep raw provenance in `SourceRef` and fail closed with `conflicted_sanitized_name` at registry indexing time.
+
+`Canonicalize` is the only allowed raw-name to canonical-`ToolID` transform for MCP sources. `MCPCallExecutor`, MCP descriptor normalization, hosted MCP registration, and config/resource validation must all reference the same helper and share one fixture set proving byte-stable results.
 
 AGH-managed MCP sources in MVP are the existing validated projections, not raw file scans:
 
@@ -922,6 +1041,7 @@ Semantics:
 - `external_default="disabled"` means extension/MCP/dynamic executable tools are registered and operator-visible, but not session-callable until enabled by explicit tool, toolset, source-tier, or agent grants. Built-in AGH bootstrap tools remain enabled by default subject to ACP/session policy.
 - `approval_timeout_seconds=120` bounds daemon-mediated approvals for hosted MCP, CLI, HTTP, and UDS calls.
 - `trusted_sources=[]` is an explicit source allowlist for external read-only auto-approval. Empty means no extension/MCP source can rely on `approve-reads` without an explicit per-tool, toolset, source, or agent grant.
+- Hosted MCP launch records and CLI/HTTP/UDS approval tokens both live only in daemon memory. Restarting the daemon invalidates all pending nonces/tokens and forces fresh issuance.
 
 Allowed `external_default` values:
 
@@ -981,10 +1101,17 @@ Config validation must reject:
 - unknown toolset IDs when a config is resolved in a concrete workspace;
 - `__` misuse;
 - extension attempts to publish under reserved `agh__*`;
+- transport values outside the explicit set `{stdio, http, sse}`; AGH does not silently rewrite one transport into another;
 - global defaults that would expose external tools without source policy support;
 - `trusted_sources` entries that do not resolve to known extension/MCP source refs;
 - approval timeouts or hosted MCP bind nonce TTLs outside daemon min/max bounds;
-- result byte limits below zero or above a daemon maximum.
+- result byte limits below zero or above a daemon maximum;
+- any descriptor or resource publication attempt that uses `source.kind = dynamic` in MVP.
+
+Daemon min/max bounds:
+
+- `[tools.hosted_mcp].bind_nonce_ttl_seconds` must be within `[5, 300]`
+- `[tools.policy].approval_timeout_seconds` must be within `[10, 1800]`
 
 ### Docs And Generated Surfaces
 
@@ -1003,12 +1130,13 @@ Update:
 | Component | Impact Type | Description and Risk | Required Action |
 |---|---|---|---|
 | `internal/tools` | Modified/new | Becomes runtime registry owner, not just metadata definitions | Add `ToolID`, descriptors, providers, registry, policy, dispatch |
-| `internal/config` | Modified/consumed | Existing `MCPServer` transport/auth config is the source of truth for MCP resources | Preserve `transport`, `url`, and `auth`; do not move OAuth config under `[tools]` |
+| `internal/config` | Modified/consumed | Existing `MCPServer` transport/auth config is the source of truth for MCP resources, including remote `stdio`, `http`, and `sse` | Preserve `transport`, `url`, and `auth`; do not rewrite one transport into another or move OAuth config under `[tools]` |
 | `internal/resources` | Modified | Cold tool resource remains desired state but must carry canonical ID/source metadata | Update codecs, validators, tests |
 | `internal/extension` | Modified | Extension tools gain backend metadata, manifest/runtime reconciliation, and executable out-of-process invocation | Extend manifest types, protocol capabilities, `provide_tools`, `tools/call`, validation, lifecycle, and publication tests |
 | `internal/mcp` | Modified/new | Hosted MCP proxy exposes registry tools; MCP adapter normalizes and executes external tools | Add MCP list/call bridge through UDS/registry and daemon-owned remote MCP client call-through |
+| `github.com/mark3labs/mcp-go` | New dependency | MCP protocol/session/transport implementation used by `internal/mcp` and hosted MCP proxy | Add through `go get` pinned to `v0.49.0`; keep usage wrapped behind AGH-owned boundaries |
 | `internal/mcp/auth` | Consumed | Existing remote MCP OAuth/PKCE status drives external MCP availability diagnostics | Inject redacted status provider; do not duplicate token store or OAuth flows |
-| `internal/acp` | Modified | Session creation/load must include hosted AGH MCP where applicable; permission mode becomes registry ceiling; current MCP conversion is stdio-only | Wire session projection, keep hosted MCP stdio-only in MVP, and avoid implying remote HTTP/SSE ACP parity |
+| `internal/acp` | Modified | Session creation/load must include hosted AGH MCP where applicable; permission mode becomes registry ceiling; current MCP conversion is stdio-only | Wire session projection, keep hosted MCP stdio-only in MVP, and avoid implying remote HTTP ACP parity |
 | `internal/store` | Modified | Session lineage `Tools` atoms become canonical resolved `ToolID`s | Validate IDs and preserve subset checks |
 | `internal/hooks` | Modified | Tool hook payloads should use canonical `tool_id` | Update payloads, matchers, docs, tests |
 | `internal/api/contract` | New/modified | Shared DTOs for tools/toolsets/calls/errors | Add contract types and codegen |
@@ -1034,7 +1162,7 @@ Update:
 Test:
 
 - `ToolID` validation, parsing, wildcard matching, and collision rejection.
-- External name sanitization and fail-closed collision behavior.
+- External name sanitization and fail-closed collision behavior, including one shared `Canonicalize(rawServer, rawTool)` fixture set.
 - `Descriptor` validation and schema size limits.
 - Availability state transitions and reason-code composition.
 - Policy matrix across `deny-all`, `approve-reads`, and `approve-all`.
@@ -1047,7 +1175,14 @@ Test:
 - Hook deny/patch/result behavior.
 - Extension manifest backend validation.
 - MCP auth status mapping from `internal/mcp/auth.StatusValue` to registry availability reason codes.
+- Remote HTTP/SSE auth injection stays inside `internal/mcp`, performs at most one `internal/mcp/auth.Service.Refresh`, never starts a new login flow, and returns deterministic redacted reason codes when refresh is impossible.
 - MCP server resource cloning/projection preserves `Transport`, `URL`, and `Auth` when remote MCP resources flow into registry diagnostics.
+- Hosted MCP stdio proxy uses the `mcp-go` server path and proves `tools/list` / `tools/call` parity without manual MCP protocol fixtures.
+- External stdio MCP call-through uses the `mcp-go` stdio client path and preserves AGH redaction/policy boundaries.
+- External remote HTTP MCP call-through uses the explicit `mcp-go` streamable HTTP client path while keeping AGH auth ownership and redacted diagnostics.
+- External remote SSE MCP call-through uses the explicit `mcp-go` SSE client path while keeping AGH auth ownership and redacted diagnostics.
+- `mcp_server.transport = "sse"` remains accepted and maps to the library SSE client path; AGH must not silently reinterpret it as `http`.
+- A focused unit test asserts the pinned `mcp-go` version in `go.mod` so unreviewed dependency drift is caught early.
 
 Mocks are acceptable for provider I/O boundaries, but policy/dispatch correctness must be tested with real registry instances.
 
@@ -1067,16 +1202,18 @@ Test:
 - `agh tool info <mcp-tool>` and `GET /api/tools/{id}` show redacted MCP auth diagnostics that match `/api/settings/mcp-servers` `auth_status` for the same server.
 - Remote OAuth token values never appear in tool CLI/API/UDS/MCP responses, SSE payloads, event payloads, logs, or process diagnostics.
 - A fake remote MCP server that requires `Authorization` proves the header is injected only inside `internal/mcp` and never appears in `internal/tools` errors, logs, events, or result envelopes.
+- If an upstream remote MCP server emits `notifications/tools/list_changed`, AGH treats it as cache invalidation only and still refreshes descriptors on-demand before mutating registry projection.
 - Hosted MCP bind nonces never grant access without UDS peer credentials, and AGH-owned diagnostics never describe them as claim-token-equivalent bearer secrets.
 - Hosted MCP binding fails closed when UDS peer credentials or executable validation are unavailable.
 - Remote MCP configs are not converted to blank stdio ACP servers; hosted-session injection remains the AGH stdio proxy while remote MCP calls happen inside the daemon MCP adapter.
 - Built-in `agh__skill_view` calls real skills registry content.
 - CLI/HTTP/UDS list/search/info parity.
 - `agh tool mcp --session <id> --bind-nonce <nonce>` `tools/list` matches session projection.
-- Hosted MCP rejects a proxy bind without the session-bound token.
+- Hosted MCP rejects a proxy bind without the session-bound bind nonce plus successful UDS peer credential validation.
 - Hosted MCP derives workspace id from session id and rejects client-supplied workspace context.
 - Hosted MCP routes approval-required calls through ACP `session/request_permission` when available and fails closed with `approval_unreachable` when unavailable.
 - Hosted MCP approval-required calls time out with `approval_timed_out` and cancel with `approval_canceled` when the proxy disconnects mid-approval.
+- Mid-session projection changes such as extension disable or MCP auth degradation propagate through the hosted MCP projection stream, fire library `tools/list_changed`, and keep `tools/list` equal to `GET /api/sessions/{id}/tools`.
 - `approve-reads` exposes read-only tools but blocks mutating tools without approval.
 - Mutating, destructive, and open-world extension/MCP tools execute only with explicit `ToolID`/toolset/source/agent grants plus ACP ceiling, approval bridge, session lineage, and hook revalidation.
 - `approve-reads` does not auto-approve external read-only tools from untrusted extension/MCP sources.
@@ -1123,8 +1260,8 @@ Ordered implementation sequence respecting dependencies:
 8. Add extension protocol capability `tool.provider`, wire-stable `provide_tools`/`tools/call` request-response structs, schema digest conformance fixtures, and invocation through the existing subprocess manager - depends on steps 5 and 7.
 9. Add TypeScript SDK `extension.tool(...)`, schema digesting, and handler registration - depends on step 8.
 10. Add public Go extension SDK with function-based tool helpers equivalent to TypeScript SDK - depends on step 8.
-11. Add daemon-owned MCP descriptor discovery and `MCPCallExecutor` call-through adapter using existing MCP config/auth and token redaction boundaries - depends on steps 3-5 and existing `internal/mcp/auth`.
-12. Add hosted MCP stdio proxy command `agh tool mcp --session --bind-nonce`, UDS peer-credential bind, approval bridge timeout/cancellation, and existing MCP resource/auth preservation - depends on steps 3-6 and 11.
+11. Add daemon-owned MCP descriptor discovery and `MCPCallExecutor` call-through adapter using existing MCP config/auth, token redaction boundaries, `mcp-go` version `v0.49.0`, canonical `Canonicalize(rawServer, rawTool)` normalization, and explicit stdio/streamable-HTTP/SSE client transports - depends on steps 3-5 and existing `internal/mcp/auth`.
+12. Add hosted MCP stdio proxy command `agh tool mcp --session --bind-nonce`, implemented with `mcp-go` server/tool APIs over `server.ServeStdio`, exact descriptor schema bytes through `RawInputSchema`/`RawOutputSchema`, a daemon→proxy projection stream, and UDS peer-credential bind plus approval bridge timeout/cancellation and existing MCP resource/auth preservation - depends on steps 3-6 and 11.
 13. Add API contract DTOs and `internal/api/core` handlers - depends on steps 3-6, 8, and 11.
 14. Wire HTTP, UDS, CLI commands, and UDS client methods - depends on step 13.
 15. Wire hooks and canonical `tool_id` payload updates end-to-end, including typed hook payloads, matchers, fixture builders, extension-author docs, and no dual identity mid-PR - depends on step 5.
@@ -1168,6 +1305,12 @@ Blocking dependencies that must be resolved before implementation:
 19. External `extension_host` and `mcp` backend tools are executable only through their registered runtime handles; missing handlers, missing MCP clients, missing capabilities, source denies, auth failures, or runtime mismatches fail closed before user code or remote tools run.
 20. Remote MCP OAuth/PKCE credentials are owned only by `internal/mcp/auth` and its `TokenStore`; the registry may consume redacted status and call through a narrow `internal/mcp/auth`-owned interface, but cannot persist, log, refresh, revoke, or copy access/refresh tokens. Raw tokens stay out of descriptors, resources, events, API responses, CLI output, MCP responses, and tool results.
 21. Hosted MCP bind nonces and remote MCP OAuth tokens have separate issuers, storage, lifetimes, redaction labels, and failure codes. A `hosted_mcp_bind_nonce` is not sufficient to bind an AGH hosted MCP proxy without UDS peer credential validation, must never satisfy a remote MCP server auth check, and a remote MCP OAuth token must never bind an AGH hosted MCP proxy.
+22. Hosted MCP `mcp.Tool` registration uses `Descriptor.input_schema` and `Descriptor.output_schema` bytes as authoritative through `RawInputSchema` and `RawOutputSchema`. `WithInputSchema`, `WithOutputSchema`, and reflection-based schema generation helpers are forbidden for AGH-hosted tools.
+23. AGH must not use `client.NewOAuthStreamableHttpClient`, `client.NewOAuthSSEClient`, default `transport.NewOAuthHandler`, `MemoryTokenStore`, or any library-owned token cache/login/refresh flow for remote MCP credentials. Remote auth remains `internal/mcp/auth` owned, outbound headers are injected only inside `internal/mcp`, and retry logic may attempt at most one `internal/mcp/auth.Service.Refresh`; it must never start a new login flow.
+24. Hosted MCP must maintain a live daemon→proxy projection stream after bind. If the stream fails, the proxy closes the MCP session rather than serving stale tools.
+25. AGH-owned approval timeouts govern hosted MCP approval waits; library-side request deadlines must not preempt a still-valid daemon approval bridge wait. Hosted MCP request deadlines therefore include at least a 5-second guard band above `[tools.policy].approval_timeout_seconds`, while remote MCP outbound deadlines are derived independently.
+26. Post-change remote MCP config accepts `stdio`, `http`, and `sse`. `http` maps to the explicit `mcp-go` streamable HTTP client path, `sse` maps to the explicit `mcp-go` SSE client path, and neither transport may be silently rewritten into the other.
+27. CLI/HTTP/UDS `approval_token` values are daemon-issued, single-use, bound to one `tool_id` + `session_id` + `workspace_id` + `input_digest`, stored only as hashes in daemon memory with TTL `[tools.policy].approval_timeout_seconds`, and may traverse only the authenticated issuance response plus the matching invoke request. They never appear in logs, events, SSE, hosted MCP, persisted state, or diagnostics.
 
 ## Monitoring and Observability
 
@@ -1313,6 +1456,10 @@ Because AGH is greenfield alpha, the implementation should hard-cut ambiguous ol
 - Remove any public standalone `subprocess` backend in favor of `extension_host` subprocess isolation.
 - Replace `internal/tools.Tool.Name` as a registry identity with canonical `ToolID` in new public contracts.
 - Remove any new public use of dotted tool IDs or separate MCP wire aliases.
+- Delete legacy dotted-form `ToolID` atoms in `session_lineage.Tools`. No normalization shim is allowed; pre-TechSpec local databases require a fresh `AGH_HOME`.
+- Remove any new forced hard-cut of `mcp_server.transport = "sse"` or any compatibility shim that silently rewrites `sse` to `http`; the runtime must either support the declared transport explicitly or fail with a typed configuration error.
+- Delete any new hand-rolled MCP protocol/session/transport implementation for hosted MCP or remote MCP call-through in favor of the `mark3labs/mcp-go` wrapper inside `internal/mcp`, including locally-authored MCP message structs, ad-hoc stdio framers, or custom bearer-header injectors outside `internal/mcp/auth`.
+- Rewrite `internal/daemon/tool_mcp_resources.go:cloneDaemonMCPServer` so registry/resource projections preserve `Transport`, `URL`, and `Auth` instead of leaving a partial MCP clone path in tree.
 - Replace hook policy identity based on `tool_name` + `tool_namespace` with canonical `tool_id` for registry-owned tool calls, including `internal/hooks/payloads.go` `ToolPreCallPayload`, `ToolPostCallPayload`, and `ToolPostErrorPayload`.
 - Update docs, tests, CLI/API examples, and task artifacts that refer to dotted IDs or dual aliasing.
 
@@ -1328,6 +1475,7 @@ Because AGH is greenfield alpha, the implementation should hard-cut ambiguous ol
 - [ADR-008: Manifest-Authoritative Extension Tool Descriptors](adrs/adr-008-manifest-authoritative-extension-tool-descriptors.md) - `extension.toml` is source of truth and runtime descriptors reconcile against it.
 - [ADR-009: Public Go Extension Tool SDK](adrs/adr-009-public-go-extension-tool-sdk.md) - Go extensions get function-based subprocess SDK APIs equivalent to TypeScript.
 - [ADR-010: Remote MCP Call-Through](adrs/adr-010-remote-mcp-call-through.md) - remote MCP tools are executable in MVP through daemon-owned MCP adapters.
+- [ADR-011: Use `mark3labs/mcp-go` For MCP Protocol And Transport](adrs/adr-011-mark3labs-mcp-go.md) - hosted MCP and remote MCP call-through use `mcp-go` instead of hand-rolled protocol plumbing.
 
 ## Nits
 
@@ -1359,3 +1507,18 @@ Peer review round 2 blockers and nits disposition:
 - `N-006` Hook payload delete targets: addressed in Delete Targets.
 - `N-007` External read-only trust: addressed in Config Lifecycle with `trusted_sources`.
 - `N-008` Child task lineage authority: addressed in Network And Tasks and Integration Tests.
+
+Peer review round 6 blockers and nits disposition:
+
+- `B-001` `sse` validation contradiction: addressed in Config Lifecycle / Validation by preserving the explicit `{stdio, http, sse}` transport set and forbidding silent transport rewrites.
+- `B-002` undefined `approval_token` producer: addressed in API Endpoints with `POST /api/tools/{id}/approvals`, CLI/UDS parity, typed issuance rules, and Safety Invariant 27.
+- `N-001` launch-record storage: addressed in Hosted MCP authentication and Config Lifecycle by stating launch records are daemon-memory-only.
+- `N-002` min/max bounds: addressed in Config Lifecycle / Validation with explicit TTL and timeout bounds.
+- `N-003` legacy dotted session-lineage atoms: addressed in Delete Targets.
+- `N-004` `dynamic` source rejection: addressed in Config Lifecycle / Validation.
+- `N-005` `internal/catalog` conditional: accepted as non-blocking; MVP keeps `internal/catalog` optional and composition-facing only.
+- `N-006` approval/projection events: deferred as non-blocking observability enrichment for implementation tasks.
+- `N-007` projection-stream wire spec: deferred as a non-blocking implementation-detail refinement; MVP already requires a live daemon→proxy stream plus fail-closed behavior.
+- `N-008` `agh__task_child_create` lineage verification: deferred to implementation task coverage because the TechSpec already requires subset-preserving lineage semantics and integration tests.
+- `N-009` real-scenario QA helper co-ship: accepted as non-blocking because the task pipeline already carries the mandatory QA pair and runtime/acpmock coverage requirements.
+- `N-010` early MCP clone rewrite step: accepted as non-blocking because step 11 already makes `cloneDaemonMCPServer` correction part of the MCP execution workstream and the delete targets call it out explicitly.

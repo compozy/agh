@@ -18,6 +18,7 @@ import (
 	"github.com/pedronauck/agh/internal/skills"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	builtintools "github.com/pedronauck/agh/internal/tools/builtin"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -41,7 +42,7 @@ type nativeToolBinding struct {
 func newDaemonNativeProvider(deps daemonNativeToolsDeps) (toolspkg.Provider, error) {
 	adapter := &daemonNativeTools{deps: deps}
 	bindings := adapter.bindings()
-	descriptors := toolspkg.BuiltinNativeDescriptors()
+	descriptors := builtintools.NativeDescriptors()
 	nativeTools := make([]toolspkg.NativeTool, 0, len(descriptors))
 	for _, descriptor := range descriptors {
 		binding, ok := bindings[descriptor.ID]
@@ -54,7 +55,7 @@ func newDaemonNativeProvider(deps daemonNativeToolsDeps) (toolspkg.Provider, err
 			Availability: binding.availability,
 		})
 	}
-	return toolspkg.NewNativeProvider(toolspkg.BuiltinSource(), nativeTools...)
+	return toolspkg.NewNativeProvider(builtintools.Source(), nativeTools...)
 }
 
 func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
@@ -99,7 +100,7 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	} else {
 		approvalBridge = newToolApprovalBridge(nil, state.cfg.Tools.Policy.ApprovalTimeout(), approvalTokens)
 	}
-	toolsets, err := toolspkg.BuiltinToolsetCatalog()
+	toolsets, err := builtintools.ToolsetCatalog()
 	if err != nil {
 		return fmt.Errorf("daemon: build native toolset catalog: %w", err)
 	}

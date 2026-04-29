@@ -14,6 +14,7 @@ import (
 	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	builtintools "github.com/pedronauck/agh/internal/tools/builtin"
 )
 
 func TestDaemonNativeTools(t *testing.T) {
@@ -522,9 +523,9 @@ func newDaemonNativeRegistry(
 	if err != nil {
 		t.Fatalf("newDaemonNativeProvider() error = %v", err)
 	}
-	toolsets, err := toolspkg.BuiltinToolsetCatalog()
+	toolsets, err := builtintools.ToolsetCatalog()
 	if err != nil {
-		t.Fatalf("BuiltinToolsetCatalog() error = %v", err)
+		t.Fatalf("builtin.ToolsetCatalog() error = %v", err)
 	}
 	registry, err = toolspkg.NewRegistry(
 		toolspkg.WithProviders(provider),

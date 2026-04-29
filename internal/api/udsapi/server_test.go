@@ -98,6 +98,33 @@ func TestPathHandlesNilServer(t *testing.T) {
 	}
 }
 
+func TestNewWithHomePathsRealignsDefaultConfig(t *testing.T) {
+	t.Run("Should use overridden home paths for the default daemon socket", func(t *testing.T) {
+		processHome := filepath.Join(t.TempDir(), "process-home")
+		t.Setenv("AGH_HOME", processHome)
+		homePaths := newTestHomePaths(t)
+		socketPath := shortSocketPath(t)
+
+		server, err := New(
+			WithHomePaths(homePaths),
+			WithSocketPath(socketPath),
+			WithSessionManager(stubSessionManager{}),
+			WithTaskService(stubTaskManager{}),
+			WithObserver(stubObserver{}),
+			WithWorkspaceResolver(stubWorkspaceService{}),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		if got, want := server.config.Daemon.Socket, homePaths.DaemonSocket; got != want {
+			t.Fatalf("config daemon socket = %q, want %q", got, want)
+		}
+		if got, want := server.Path(), socketPath; got != want {
+			t.Fatalf("Path() = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestNewRejectsOverlongSocketPath(t *testing.T) {
 	t.Parallel()
 
@@ -190,6 +217,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 
 		if _, err := New(
 			WithHomePaths(homePaths),
+			WithSocketPath(shortSocketPath(t)),
 			WithSessionManager(stubSessionManager{}),
 			WithTaskService(stubTaskManager{}),
 			WithObserver(stubObserver{}),

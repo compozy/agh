@@ -35,6 +35,7 @@ type Server struct {
 
 	homePaths       aghconfig.HomePaths
 	config          aghconfig.Config
+	configSet       bool
 	host            string
 	port            int
 	logger          *slog.Logger
@@ -79,6 +80,9 @@ type Server struct {
 func WithHomePaths(homePaths aghconfig.HomePaths) Option {
 	return func(server *Server) {
 		server.homePaths = homePaths
+		if !server.configSet {
+			server.config = aghconfig.DefaultWithHome(homePaths)
+		}
 	}
 }
 
@@ -87,6 +91,7 @@ func WithConfig(cfg *aghconfig.Config) Option {
 	return func(server *Server) {
 		if cfg != nil {
 			server.config = *cfg
+			server.configSet = true
 		}
 	}
 }

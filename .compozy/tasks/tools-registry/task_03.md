@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Registry Indexing, Toolsets, Policy, and Projections
 type: backend
 complexity: critical
@@ -31,12 +31,12 @@ Build the executable registry index and effective policy engine used by every ba
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Implement provider registration, indexing, sorting, and collision detection
-- [ ] 3.2 Implement toolset expansion, pattern validation, and cycle detection
-- [ ] 3.3 Implement effective policy evaluation from config, agent, session, source, and ACP ceiling
-- [ ] 3.4 Implement operator and session projections with availability/authorization reason codes
-- [ ] 3.5 Enforce session lineage and child-session subset constraints with concrete ToolID atoms
-- [ ] 3.6 Add focused tests for collisions, source grants, deny precedence, ACP ceiling, and projection differences
+- [x] 3.1 Implement provider registration, indexing, sorting, and collision detection
+- [x] 3.2 Implement toolset expansion, pattern validation, and cycle detection
+- [x] 3.3 Implement effective policy evaluation from config, agent, session, source, and ACP ceiling
+- [x] 3.4 Implement operator and session projections with availability/authorization reason codes
+- [x] 3.5 Enforce session lineage and child-session subset constraints with concrete ToolID atoms
+- [x] 3.6 Add focused tests for collisions, source grants, deny precedence, ACP ceiling, and projection differences
 
 ## Implementation Details
 
@@ -79,14 +79,14 @@ Use TechSpec "Integration Points", "Agent Manageability", "Safety Invariants", a
 
 ## Tests
 - Unit tests:
-  - [ ] Duplicate canonical IDs and sanitized MCP-name collisions fail closed
-  - [ ] Toolset cycles, unknown members, and invalid patterns return deterministic errors
-  - [ ] Explicit denies override allows, toolsets, trusted sources, and `approve-all`
-  - [ ] `approve-reads` does not approve untrusted external read-only tools without source or tool grants
-  - [ ] Child-session permissions cannot exceed parent concrete ToolID atoms after toolset expansion
+  - [x] Duplicate canonical IDs and sanitized MCP-name collisions fail closed
+  - [x] Toolset cycles, unknown members, and invalid patterns return deterministic errors
+  - [x] Explicit denies override allows, toolsets, trusted sources, and `approve-all`
+  - [x] `approve-reads` does not approve untrusted external read-only tools without source or tool grants
+  - [x] Child-session permissions cannot exceed parent concrete ToolID atoms after toolset expansion
 - Integration tests:
-  - [ ] Operator projection includes unavailable, unauthorized, and conflicted tools with reason codes
-  - [ ] Session projection exposes only callable tools for the effective session
+  - [x] Operator projection includes unavailable, unauthorized, and conflicted tools with reason codes
+  - [x] Session projection exposes only callable tools for the effective session
 - Test coverage target: >=80%
 - All tests must pass
 

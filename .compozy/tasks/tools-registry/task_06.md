@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extension Manifest Tool Metadata and Reconciliation
 type: backend
 complexity: high
@@ -30,12 +30,12 @@ Make extension tool descriptors manifest-authoritative while preparing them for 
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Extend extension manifest tool metadata and validation
-- [ ] 6.2 Split cold resource publication from executable descriptor readiness
-- [ ] 6.3 Add schema digest fixture files and daemon digest tests
-- [ ] 6.4 Add reconciliation reason codes for manifest/runtime mismatch states
-- [ ] 6.5 Reject reserved namespaces and invalid handler bindings
-- [ ] 6.6 Add extension lifecycle tests for enabled, disabled, removed, and unhealthy extensions
+- [x] 6.1 Extend extension manifest tool metadata and validation
+- [x] 6.2 Split cold resource publication from executable descriptor readiness
+- [x] 6.3 Add schema digest fixture files and daemon digest tests
+- [x] 6.4 Add reconciliation reason codes for manifest/runtime mismatch states
+- [x] 6.5 Reject reserved namespaces and invalid handler bindings
+- [x] 6.6 Add extension lifecycle tests for enabled, disabled, removed, and unhealthy extensions
 
 ## Implementation Details
 
@@ -77,13 +77,13 @@ Use TechSpec "Extension Runtime Contract", "Data Models", and ADR-008. Keep this
 
 ## Tests
 - Unit tests:
-  - [ ] Valid manifest tool entries produce canonical descriptors and digest metadata
-  - [ ] Reserved `agh__*`, invalid ToolID, missing handler, invalid risk, and non-object schema entries fail validation
-  - [ ] Runtime mismatch placeholders surface deterministic availability reasons
-  - [ ] Disabled and unhealthy extensions remain operator-visible but session-hidden
+  - [x] Valid manifest tool entries produce canonical descriptors and digest metadata
+  - [x] Reserved `agh__*`, invalid ToolID, missing handler, invalid risk, and non-object schema entries fail validation
+  - [x] Runtime mismatch placeholders surface deterministic availability reasons
+  - [x] Disabled and unhealthy extensions remain operator-visible but session-hidden
 - Integration tests:
-  - [ ] Existing extension resource publication still works for non-tool resources
-  - [ ] Tool resources publish cold metadata without creating callable handles before task_07 runtime reconciliation
+  - [x] Existing extension resource publication still works for non-tool resources
+  - [x] Tool resources publish cold metadata without creating callable handles before task_07 runtime reconciliation
 - Test coverage target: >=80%
 - All tests must pass
 

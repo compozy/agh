@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "task": "tools-registry-task16",
+  "sentinels": {
+    "mcp_access_token": "mcp:test:bearer:OAUTHTOKEN_v1",
+    "mcp_refresh_token": "mcp:test:refresh:REFRESHTOKEN_v1",
+    "mcp_authorization_code": "mcp:test:authcode:AUTHCODE_v1",
+    "mcp_pkce_verifier": "mcp:test:pkce:VERIFIER_v1",
+    "hosted_mcp_bind_nonce": "BIND_NONCE_v1_TESTONLY",
+    "approval_token": "APPROVAL_TOKEN_v1_TESTONLY",
+    "task_claim_token": "CLAIM_TOKEN_v1_TESTONLY",
+    "sensitive_tool_field": "tools.sensitive.field:LEAK_v1"
+  },
+  "scan_roots": [
+    ".compozy/tasks/tools-registry/qa/logs",
+    ".compozy/tasks/tools-registry/qa/traces",
+    ".compozy/tasks/tools-registry/qa/screenshots"
+  ]
+}
