@@ -143,6 +143,11 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		spec.startLogger(m).Warn("session.start.runtime_prepare_failed", "phase", spec.startAction, "error", err)
 		return nil, err
 	}
+	defer func() {
+		if err != nil && m.hostedMCP != nil {
+			m.hostedMCP.CancelLaunch(spec.sessionID)
+		}
+	}()
 
 	if err := m.reserve(spec.sessionID, m.effectiveMaxSessions(&spec.workspace.Config)); err != nil {
 		return nil, err
@@ -320,7 +325,7 @@ func (m *Manager) prepareSessionStartRuntime(
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
 
-	startMCPServers, err := m.resolveStartMCPServers(ctx, &spec.workspace, resolved.MCPServers)
+	startMCPServers, err := m.sessionMCPServers(ctx, spec, resolved)
 	if err != nil {
 		return sessionStartRuntime{}, err
 	}
@@ -330,6 +335,25 @@ func (m *Manager) prepareSessionStartRuntime(
 		mcpServers:          startMCPServers,
 		networkCapabilities: networkPeerCapabilities(agentDef.Capabilities),
 	}, nil
+}
+
+func (m *Manager) sessionMCPServers(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	resolved aghconfig.ResolvedAgent,
+) ([]aghconfig.MCPServer, error) {
+	if m.hostedMCP == nil {
+		return m.resolveStartMCPServers(ctx, &spec.workspace, resolved.MCPServers)
+	}
+	hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{
+		SessionID:   spec.sessionID,
+		WorkspaceID: spec.workspace.ID,
+		AgentName:   resolved.Name,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("session: mint hosted MCP launch for %q: %w", spec.sessionID, err)
+	}
+	return []aghconfig.MCPServer{hosted}, nil
 }
 
 func (m *Manager) openSessionStartStorage(

@@ -207,6 +207,56 @@ func TestDriverAdvertisesAndSupportsLoadSession(t *testing.T) {
 	}
 }
 
+func TestDriverDiagnosticsCaptureSessionMCPServers(t *testing.T) {
+	t.Parallel()
+
+	driverPath, err := DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("DefaultDriverPath() error = %v", err)
+	}
+	fixturePath, err := filepath.Abs(filepath.Join("testdata", "tool_permission_fixture.json"))
+	if err != nil {
+		t.Fatalf("filepath.Abs(fixture) error = %v", err)
+	}
+	diagnosticsPath := filepath.Join(t.TempDir(), "hosted-mcp-diagnostics.jsonl")
+	command := BuildCommand(driverPath, fixturePath, "golden", diagnosticsPath)
+
+	driver := acp.New()
+	proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+		AgentName: "golden",
+		Command:   command,
+		Cwd:       t.TempDir(),
+		MCPServers: []aghconfig.MCPServer{{
+			Name:      "agh-hosted-tools",
+			Transport: aghconfig.MCPServerTransportStdio,
+			Command:   "/bin/agh",
+			Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("driver.Start() error = %v", err)
+	}
+	defer stopDriverProcess(t, driver, proc)
+
+	records, err := ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics() error = %v", err)
+	}
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("diagnostics records = %#v, want one session lifecycle record", records)
+	}
+	if records[0].LifecycleEvent != "session_new" {
+		t.Fatalf("LifecycleEvent = %q, want session_new", records[0].LifecycleEvent)
+	}
+	if got, want := len(records[0].MCPServers), 1; got != want {
+		t.Fatalf("MCPServers = %#v, want hosted MCP entry", records[0].MCPServers)
+	}
+	stdio := records[0].MCPServers[0].Stdio
+	if stdio == nil || stdio.Name != "agh-hosted-tools" || stdio.Command != "/bin/agh" {
+		t.Fatalf("diagnostic MCP server = %#v, want AGH hosted stdio entry", records[0].MCPServers[0])
+	}
+}
+
 func TestDriverDiagnosticsIncludePromptMetadataAndMatch(t *testing.T) {
 	t.Parallel()
 

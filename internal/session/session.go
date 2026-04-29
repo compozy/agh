@@ -208,6 +208,32 @@ func (s *Session) ApprovePermission(ctx context.Context, req acp.ApproveRequest)
 	return process.ApprovePermission(ctx, req)
 }
 
+// RequestPermission asks the active session process for a permission decision.
+func (s *Session) RequestPermission(
+	ctx context.Context,
+	req acp.RequestPermissionRequest,
+) (acp.RequestPermissionResponse, error) {
+	if s == nil {
+		return acp.RequestPermissionResponse{}, errors.New("session: session is required")
+	}
+	if ctx == nil {
+		return acp.RequestPermissionResponse{}, errors.New("session: permission context is required")
+	}
+
+	s.mu.RLock()
+	state := s.State
+	process := s.process
+	s.mu.RUnlock()
+
+	if state != StateActive {
+		return acp.RequestPermissionResponse{}, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
+	}
+	if process == nil {
+		return acp.RequestPermissionResponse{}, errors.New("session: agent process is not available")
+	}
+	return process.RequestPermission(ctx, req)
+}
+
 func (s *Session) recorderHandle() EventRecorder {
 	if s == nil {
 		return nil

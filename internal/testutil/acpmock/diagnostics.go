@@ -7,19 +7,22 @@ import (
 	"os"
 	"strings"
 
+	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/pedronauck/agh/internal/acp"
 )
 
 // DiagnosticsRecord captures one prompt execution emitted by the ACP mock driver.
 type DiagnosticsRecord struct {
-	AgentName   string            `json:"agent_name"`
-	SessionID   string            `json:"session_id"`
-	PromptIndex int               `json:"prompt_index"`
-	Prompt      string            `json:"prompt"`
-	PromptMeta  acp.PromptMeta    `json:"prompt_meta"`
-	TurnName    string            `json:"turn_name,omitempty"`
-	Match       TurnMatch         `json:"match"`
-	Steps       []DiagnosticsStep `json:"steps"`
+	AgentName      string             `json:"agent_name"`
+	SessionID      string             `json:"session_id"`
+	LifecycleEvent string             `json:"lifecycle_event,omitempty"`
+	MCPServers     []acpsdk.McpServer `json:"mcp_servers,omitempty"`
+	PromptIndex    int                `json:"prompt_index"`
+	Prompt         string             `json:"prompt"`
+	PromptMeta     acp.PromptMeta     `json:"prompt_meta"`
+	TurnName       string             `json:"turn_name,omitempty"`
+	Match          TurnMatch          `json:"match"`
+	Steps          []DiagnosticsStep  `json:"steps"`
 }
 
 // DiagnosticsStep captures one executed fixture step with any observed runtime outputs.

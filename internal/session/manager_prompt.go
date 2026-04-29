@@ -415,6 +415,42 @@ func (m *Manager) ApprovePermission(ctx context.Context, id string, req acp.Appr
 	return nil
 }
 
+// RequestPermission asks an active session's permission path for a tool-call decision.
+func (m *Manager) RequestPermission(
+	ctx context.Context,
+	id string,
+	req acp.RequestPermissionRequest,
+) (acp.RequestPermissionResponse, error) {
+	if ctx == nil {
+		return acp.RequestPermissionResponse{}, errors.New("session: permission context is required")
+	}
+
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return acp.RequestPermissionResponse{}, errors.New("session: session id is required")
+	}
+
+	session, ok := m.Get(target)
+	if !ok {
+		meta, err := m.readMetaWithContext(ctx, target)
+		if err != nil {
+			return acp.RequestPermissionResponse{}, err
+		}
+		return acp.RequestPermissionResponse{}, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)
+	}
+
+	response, err := session.RequestPermission(ctx, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrSessionNotActive):
+			return acp.RequestPermissionResponse{}, err
+		default:
+			return acp.RequestPermissionResponse{}, fmt.Errorf("session: request permission for %q: %w", target, err)
+		}
+	}
+	return response, nil
+}
+
 func (m *Manager) pumpPrompt(
 	ctx context.Context,
 	session *Session,

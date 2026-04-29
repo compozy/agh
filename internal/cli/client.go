@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/sse"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -595,6 +596,7 @@ type unixSocketClient struct {
 }
 
 var _ DaemonClient = (*unixSocketClient)(nil)
+var _ mcppkg.HostedProxyClient = (*unixSocketClient)(nil)
 
 var errStopSSE = sse.ErrStop
 
@@ -996,6 +998,92 @@ func (c *unixSocketClient) SessionHistory(
 		return nil, err
 	}
 	return response.History, nil
+}
+
+func (c *unixSocketClient) BindHostedMCP(
+	ctx context.Context,
+	request mcppkg.HostedBindRequest,
+) (mcppkg.HostedBindResponse, error) {
+	var response mcppkg.HostedBindResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/api/internal/hosted-mcp/bind", nil, request, &response); err != nil {
+		return mcppkg.HostedBindResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) HostedMCPProjection(
+	ctx context.Context,
+	bindID string,
+) (mcppkg.HostedProjectionResponse, error) {
+	query := url.Values{}
+	query.Set("bind_id", strings.TrimSpace(bindID))
+	var response mcppkg.HostedProjectionResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/internal/hosted-mcp/projection", query, nil, &response); err != nil {
+		return mcppkg.HostedProjectionResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) StreamHostedMCPProjection(
+	ctx context.Context,
+	bindID string,
+	lastDigest string,
+	handler mcppkg.HostedProjectionHandler,
+) error {
+	query := url.Values{}
+	query.Set("bind_id", strings.TrimSpace(bindID))
+	if trimmed := strings.TrimSpace(lastDigest); trimmed != "" {
+		query.Set("last_digest", trimmed)
+	}
+	return c.doSSE(
+		ctx,
+		http.MethodGet,
+		"/api/internal/hosted-mcp/projection/stream",
+		query,
+		nil,
+		"",
+		func(event SSEEvent) error {
+			if event.Event == "error" {
+				return errors.New(strings.TrimSpace(string(event.Data)))
+			}
+			if event.Event != "projection" {
+				return nil
+			}
+			var snapshot mcppkg.HostedProjectionResponse
+			if err := json.Unmarshal(event.Data, &snapshot); err != nil {
+				return fmt.Errorf("cli: decode hosted MCP projection event: %w", err)
+			}
+			if handler == nil {
+				return nil
+			}
+			return handler(snapshot)
+		},
+	)
+}
+
+func (c *unixSocketClient) CallHostedMCP(
+	ctx context.Context,
+	request mcppkg.HostedCallRequest,
+) (mcppkg.HostedCallResponse, error) {
+	var response mcppkg.HostedCallResponse
+	if err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		"/api/internal/hosted-mcp/tools/call",
+		nil,
+		request,
+		&response,
+	); err != nil {
+		return mcppkg.HostedCallResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ReleaseHostedMCP(
+	ctx context.Context,
+	request mcppkg.HostedReleaseRequest,
+) error {
+	return c.doJSON(ctx, http.MethodPost, "/api/internal/hosted-mcp/release", nil, request, nil)
 }
 
 func (c *unixSocketClient) CreateWorkspace(

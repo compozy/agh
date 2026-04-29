@@ -24,6 +24,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerBundleRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
+	registerHostedMCPRoutes(api, handlers)
 }
 
 func registerBridgeRoutes(api gin.IRouter, handlers *Handlers) {

@@ -17,6 +17,7 @@ type RuntimeRegistry struct {
 	policyInputs          PolicyInputs
 	toolsets              ToolsetCatalog
 	hooks                 HookRunner
+	approvalBridge        ApprovalBridge
 	limiter               ResultLimiter
 	events                ToolEventSink
 	defaultMaxResultBytes int64
@@ -73,6 +74,13 @@ func WithPolicyInputs(inputs PolicyInputs, toolsets ToolsetCatalog) RegistryOpti
 func WithHookRunner(hooks HookRunner) RegistryOption {
 	return func(registry *RuntimeRegistry) {
 		registry.hooks = hooks
+	}
+}
+
+// WithApprovalBridge wires approval-required calls into a session permission path.
+func WithApprovalBridge(bridge ApprovalBridge) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.approvalBridge = bridge
 	}
 }
 
@@ -409,6 +417,17 @@ func cloneDescriptor(src Descriptor) Descriptor {
 	cloned.Toolsets = append([]ToolsetID(nil), src.Toolsets...)
 	cloned.Tags = append([]string(nil), src.Tags...)
 	cloned.SearchHints = append([]string(nil), src.SearchHints...)
+	return cloned
+}
+
+func cloneToolView(src *ToolView) ToolView {
+	if src == nil {
+		return ToolView{}
+	}
+	cloned := *src
+	cloned.Descriptor = cloneDescriptor(src.Descriptor)
+	cloned.Availability.ReasonCodes = append([]ReasonCode(nil), src.Availability.ReasonCodes...)
+	cloned.Decision.ReasonCodes = append([]ReasonCode(nil), src.Decision.ReasonCodes...)
 	return cloned
 }
 

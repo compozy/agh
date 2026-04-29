@@ -18,6 +18,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	"github.com/pedronauck/agh/internal/memory"
 )
 
@@ -79,6 +80,7 @@ type Server struct {
 	dreamTrigger      core.DreamTrigger
 	agentLoader       core.AgentLoader
 	extensions        ExtensionService
+	hostedMCP         *mcppkg.HostedService
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -117,12 +119,14 @@ type handlerConfig struct {
 	pollInterval      time.Duration
 	agentLoader       core.AgentLoader
 	extensions        ExtensionService
+	hostedMCP         *mcppkg.HostedService
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
 	*core.BaseHandlers
 	Extensions    ExtensionService
+	HostedMCP     *mcppkg.HostedService
 	promptDrainWG sync.WaitGroup
 }
 
@@ -317,6 +321,13 @@ func WithExtensionService(service ExtensionService) Option {
 	}
 }
 
+// WithHostedMCP injects the hosted AGH MCP session exposure service.
+func WithHostedMCP(service *mcppkg.HostedService) Option {
+	return func(server *Server) {
+		server.hostedMCP = service
+	}
+}
+
 // WithEngine overrides the Gin engine used by the server, mainly for tests.
 func WithEngine(engine *gin.Engine) Option {
 	return func(server *Server) {
@@ -467,6 +478,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		pollInterval:      s.pollInterval,
 		agentLoader:       s.agentLoader,
 		extensions:        s.extensions,
+		hostedMCP:         s.hostedMCP,
 	}
 }
 
@@ -517,6 +529,10 @@ func (s *Server) Start(ctx context.Context) error {
 		Handler:           s.engine,
 		ReadHeaderTimeout: defaultReadHeaderTimeout,
 		IdleTimeout:       defaultIdleTimeout,
+		ConnContext: func(ctx context.Context, conn net.Conn) context.Context {
+			peer, err := mcppkg.PeerInfoFromConn(conn)
+			return mcppkg.ContextWithPeerInfo(ctx, peer, err)
+		},
 	}
 	serveDone := make(chan struct{})
 
@@ -697,6 +713,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			AgentLoader:                  cfg.agentLoader,
 		}),
 		Extensions: cfg.extensions,
+		HostedMCP:  cfg.hostedMCP,
 	}
 }
 

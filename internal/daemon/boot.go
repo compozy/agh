@@ -18,6 +18,7 @@ import (
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
+	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/network"
@@ -61,6 +62,7 @@ type bootState struct {
 	sandboxRegistry     *sandbox.Registry
 	workspaceResolver   *workspacepkg.Resolver
 	sessions            SessionManager
+	hostedMCP           *mcppkg.HostedService
 	tasks               *taskRuntime
 	spawnReaper         *spawnReaper
 	scheduler           *schedulerRuntime
@@ -471,6 +473,11 @@ func (d *Daemon) bootRuntimeServices(
 	}
 	state.sandboxRegistry = sandboxRegistry
 	state.bridges = d.composeBridgeRuntime(state, cleanup)
+	hostedMCP, err := d.buildHostedMCPService(state)
+	if err != nil {
+		return err
+	}
+	state.hostedMCP = hostedMCP
 
 	resourceKernel, err := d.buildResourceKernel(state.registry)
 	if err != nil {
@@ -623,6 +630,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SandboxRegistry:      state.sandboxRegistry,
 		SessionSupervision:   state.cfg.Session.Supervision,
 		ProcessRegistry:      state.processRegistry,
+		HostedMCP:            hostedMCPLauncher(state.hostedMCP),
 	}
 }
 
@@ -740,6 +748,7 @@ func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeD
 		),
 		SkillsRegistry: skillsRegistryAPI(state.skillsRegistry),
 		ToolRegistry:   state.toolRegistry,
+		HostedMCP:      state.hostedMCP,
 		DreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
 		StartedAt:      state.startedAt,
 	}

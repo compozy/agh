@@ -400,6 +400,11 @@ type HookRunner interface {
 	PostError(ctx context.Context, call CallRequest, err error) error
 }
 
+// ApprovalBridge mediates approval-required calls before provider execution.
+type ApprovalBridge interface {
+	RequestToolApproval(ctx context.Context, scope Scope, call CallRequest, view *ToolView) error
+}
+
 // Scope identifies the caller context used for projections and dispatch.
 type Scope struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`

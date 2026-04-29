@@ -22,6 +22,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
 	"github.com/pedronauck/agh/internal/observe"
@@ -112,6 +113,7 @@ type RuntimeDeps struct {
 	Tasks             taskpkg.Manager
 	Network           core.NetworkService
 	ToolRegistry      toolspkg.Registry
+	HostedMCP         *mcppkg.HostedService
 	Observer          Observer
 	Automation        core.AutomationManager
 	Bridges           core.BridgeService
@@ -285,6 +287,7 @@ type SessionManagerDeps struct {
 	SandboxRegistry      *sandbox.Registry
 	SessionSupervision   aghconfig.SessionSupervisionConfig
 	ProcessRegistry      *toolruntime.Registry
+	HostedMCP            session.HostedMCPLauncher
 }
 
 // Daemon is the sole AGH composition root.
@@ -540,6 +543,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithSandboxRegistry(deps.SandboxRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),
+			session.WithHostedMCPLauncher(deps.HostedMCP),
 			session.WithDriver(session.NewACPDriverAdapter(acp.New(
 				acp.WithLogger(deps.Logger),
 				acp.WithProcessRegistry(deps.ProcessRegistry),
@@ -917,6 +921,7 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				udsapi.WithMemoryStore(deps.MemoryStore),
 				udsapi.WithDreamTrigger(deps.DreamTrigger),
 				udsapi.WithExtensionService(deps.Extensions),
+				udsapi.WithHostedMCP(deps.HostedMCP),
 			)
 		}
 	}

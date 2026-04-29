@@ -81,6 +81,20 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: build native tool policy inputs: %w", err)
 	}
+	var approvalBridge *toolApprovalBridge
+	if _, ok := state.sessions.(sessionPermissionRequester); ok {
+		approvalBridge = newToolApprovalBridge(
+			func() sessionPermissionRequester {
+				requester, ok := state.sessions.(sessionPermissionRequester)
+				if !ok {
+					return nil
+				}
+				return requester
+			},
+			state.cfg.Tools.Policy.ApprovalTimeout(),
+		)
+		policyInputs.ApprovalAvailable = true
+	}
 	toolsets, err := toolspkg.BuiltinToolsetCatalog()
 	if err != nil {
 		return fmt.Errorf("daemon: build native toolset catalog: %w", err)
@@ -103,6 +117,7 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	registry, err = toolspkg.NewRegistry(
 		toolspkg.WithProviders(providers...),
 		toolspkg.WithPolicyInputs(policyInputs, toolsets),
+		toolspkg.WithApprovalBridge(approvalBridge),
 		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
 	)
 	if err != nil {

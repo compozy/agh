@@ -173,6 +173,9 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	m.failQueuedSyntheticPrompts(session.ID, ErrSessionNotActive)
 
 	m.removeActive(session.ID)
+	if m.hostedMCP != nil {
+		m.hostedMCP.ReleaseSession(session.ID)
+	}
 	m.dispatchSessionPostStop(ctx, session)
 	if m.notifier != nil {
 		m.notifier.OnSessionStopped(ctx, session)

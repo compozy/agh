@@ -108,6 +108,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskCommand(deps))
 	cmd.AddCommand(newSkillCommand(deps))
 	cmd.AddCommand(newMemoryCommand(deps))
+	cmd.AddCommand(newToolCommand(deps))
 	cmd.AddCommand(newMCPCommand(deps))
 	cmd.AddCommand(newObserveCommand(deps))
 	cmd.AddCommand(newWhoamiCommand(deps))

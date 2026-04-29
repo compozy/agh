@@ -2171,6 +2171,76 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 	}
 }
 
+func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.cfg.MCPServers = []aghconfig.MCPServer{
+		{
+			Name:      "remote-http",
+			Transport: aghconfig.MCPServerTransportHTTP,
+			URL:       "https://example.test/mcp",
+		},
+		{
+			Name:    "legacy-stdio",
+			Command: "legacy-command",
+		},
+	}
+	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "claude",
+			Prompt:   "You are helpful.",
+			MCPServers: []aghconfig.MCPServer{
+				{Name: "agent-stdio", Command: "agent-command"},
+			},
+		}},
+	})
+	hosted := &recordingHostedMCPLauncher{
+		server: aghconfig.MCPServer{
+			Name:      "agh-hosted-tools",
+			Transport: aghconfig.MCPServerTransportStdio,
+			Command:   "/bin/agh",
+			Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
+		},
+	}
+	h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted))
+
+	session := createSession(t, h)
+	if got, want := len(h.driver.startCalls), 1; got != want {
+		t.Fatalf("start calls = %d, want %d", got, want)
+	}
+	got := h.driver.startCalls[0].MCPServers
+	if len(got) != 1 {
+		t.Fatalf("start MCPServers = %#v, want one hosted entry", got)
+	}
+	if got[0].Name != "agh-hosted-tools" || got[0].Command != "/bin/agh" {
+		t.Fatalf("hosted MCP server = %#v, want AGH hosted stdio entry", got[0])
+	}
+
+	requests := hosted.launchRequests()
+	if len(requests) != 1 {
+		t.Fatalf("hosted launch requests = %#v, want one launch request", requests)
+	}
+	if requests[0].SessionID != session.ID || requests[0].WorkspaceID != h.workspaceID ||
+		requests[0].AgentName != "coder" {
+		t.Fatalf("hosted launch request = %#v, want session/workspace/agent scope", requests[0])
+	}
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if releases := hosted.releaseSessionIDs(); !slices.Contains(releases, session.ID) {
+		t.Fatalf("hosted releases = %#v, want released session %q", releases, session.ID)
+	}
+}
+
 func TestResumePassesMergedSkillMCPServers(t *testing.T) {
 	t.Parallel()
 
@@ -3390,6 +3460,50 @@ func cloneResolvedWorkspaceForTests(src *workspacepkg.ResolvedWorkspace) workspa
 	dst.Agents = append([]aghconfig.AgentDef(nil), src.Agents...)
 	dst.Skills = append([]workspacepkg.SkillPath(nil), src.Skills...)
 	return dst
+}
+
+type recordingHostedMCPLauncher struct {
+	mu       sync.Mutex
+	server   aghconfig.MCPServer
+	requests []HostedMCPLaunchRequest
+	cancels  []string
+	releases []string
+}
+
+var _ HostedMCPLauncher = (*recordingHostedMCPLauncher)(nil)
+
+func (l *recordingHostedMCPLauncher) Launch(
+	_ context.Context,
+	req HostedMCPLaunchRequest,
+) (aghconfig.MCPServer, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.requests = append(l.requests, req)
+	return l.server, nil
+}
+
+func (l *recordingHostedMCPLauncher) CancelLaunch(sessionID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.cancels = append(l.cancels, sessionID)
+}
+
+func (l *recordingHostedMCPLauncher) ReleaseSession(sessionID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.releases = append(l.releases, sessionID)
+}
+
+func (l *recordingHostedMCPLauncher) launchRequests() []HostedMCPLaunchRequest {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]HostedMCPLaunchRequest(nil), l.requests...)
+}
+
+func (l *recordingHostedMCPLauncher) releaseSessionIDs() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.releases...)
 }
 
 func newFakeDriver() *fakeDriver {

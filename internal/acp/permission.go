@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +38,12 @@ type ApproveRequest struct {
 	TurnID    string `json:"turn_id,omitempty"`
 	Decision  string `json:"decision"`
 }
+
+// RequestPermissionRequest asks the session permission bridge for a tool-call decision.
+type RequestPermissionRequest = acpsdk.RequestPermissionRequest
+
+// RequestPermissionResponse reports the selected or canceled permission outcome.
+type RequestPermissionResponse = acpsdk.RequestPermissionResponse
 
 // Validate ensures the approval request can be matched to a pending permission.
 func (r ApproveRequest) Validate() error {
@@ -447,6 +454,25 @@ func (p *AgentProcess) ResolvePermission(req ApproveRequest) error {
 
 	pending.response <- decision
 	return nil
+}
+
+// RequestPermission reuses the ACP client-side permission path for daemon-originated tool approvals.
+func (p *AgentProcess) RequestPermission(
+	ctx context.Context,
+	req RequestPermissionRequest,
+) (RequestPermissionResponse, error) {
+	if p == nil {
+		return RequestPermissionResponse{}, errors.New("acp: agent process is required")
+	}
+	if ctx == nil {
+		return RequestPermissionResponse{}, errors.New("acp: permission context is required")
+	}
+	select {
+	case <-p.Done():
+		return RequestPermissionResponse{}, errors.New("acp: agent process is stopped")
+	default:
+	}
+	return p.handleRequestPermission(ctx, req)
 }
 
 func (p *AgentProcess) permissionTimeoutOrDefault() time.Duration {

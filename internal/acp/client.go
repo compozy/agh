@@ -1099,6 +1099,12 @@ func toSDKMCPServers(servers []aghconfig.MCPServer) []acpsdk.McpServer {
 
 	converted := make([]acpsdk.McpServer, 0, len(servers))
 	for _, server := range servers {
+		if server.EffectiveTransport() != aghconfig.MCPServerTransportStdio {
+			continue
+		}
+		if strings.TrimSpace(server.Command) == "" {
+			continue
+		}
 		envKeys := make([]string, 0, len(server.Env))
 		for key := range server.Env {
 			envKeys = append(envKeys, key)

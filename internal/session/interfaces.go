@@ -99,6 +99,7 @@ type AgentProcess struct {
 	waitFn              func() error
 	stderrFn            func() string
 	approvePermissionFn func(context.Context, acp.ApproveRequest) error
+	requestPermissionFn func(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error)
 	configureRuntimeFn  func(func() TurnSource)
 	toolHostFn          func() sandbox.ToolHost
 	toolHost            sandbox.ToolHost
@@ -119,6 +120,7 @@ type AgentProcessOptions struct {
 	Wait              func() error
 	Stderr            func() string
 	ApprovePermission func(context.Context, acp.ApproveRequest) error
+	RequestPermission func(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error)
 	ConfigureRuntime  func(func() TurnSource)
 	ToolHost          sandbox.ToolHost
 }
@@ -158,6 +160,7 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 		waitFn:              waitFn,
 		stderrFn:            stderrFn,
 		approvePermissionFn: opts.ApprovePermission,
+		requestPermissionFn: opts.RequestPermission,
 		configureRuntimeFn:  opts.ConfigureRuntime,
 		toolHost:            opts.ToolHost,
 	}
@@ -198,6 +201,17 @@ func (p *AgentProcess) ApprovePermission(ctx context.Context, req acp.ApproveReq
 	return p.approvePermissionFn(ctx, req)
 }
 
+// RequestPermission asks the active runtime permission path for a tool approval decision.
+func (p *AgentProcess) RequestPermission(
+	ctx context.Context,
+	req acp.RequestPermissionRequest,
+) (acp.RequestPermissionResponse, error) {
+	if p.requestPermissionFn == nil {
+		return acp.RequestPermissionResponse{}, errors.New("session: permission request is not supported")
+	}
+	return p.requestPermissionFn(ctx, req)
+}
+
 func (p *AgentProcess) configureRuntime(currentTurnSource func() TurnSource) {
 	if p == nil || p.configureRuntimeFn == nil {
 		return
@@ -227,6 +241,15 @@ func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 				return err
 			}
 			return proc.ResolvePermission(req)
+		},
+		requestPermissionFn: func(
+			ctx context.Context,
+			req acp.RequestPermissionRequest,
+		) (acp.RequestPermissionResponse, error) {
+			if err := ctx.Err(); err != nil {
+				return acp.RequestPermissionResponse{}, err
+			}
+			return proc.RequestPermission(ctx, req)
 		},
 		configureRuntimeFn: func(currentTurnSource func() TurnSource) {
 			proc.SetTurnSourceProvider(func() string {

@@ -76,6 +76,33 @@ func (s *recordingToolEventSink) snapshot() []ToolCallEvent {
 	return append([]ToolCallEvent(nil), s.events...)
 }
 
+type recordingApprovalBridge struct {
+	err   error
+	calls []approvalBridgeCall
+}
+
+type approvalBridgeCall struct {
+	scope Scope
+	req   CallRequest
+	view  ToolView
+}
+
+var _ ApprovalBridge = (*recordingApprovalBridge)(nil)
+
+func (b *recordingApprovalBridge) RequestToolApproval(
+	_ context.Context,
+	scope Scope,
+	req CallRequest,
+	view *ToolView,
+) error {
+	recorded := ToolView{}
+	if view != nil {
+		recorded = cloneToolView(view)
+	}
+	b.calls = append(b.calls, approvalBridgeCall{scope: scope, req: req, view: recorded})
+	return b.err
+}
+
 func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -194,6 +221,157 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		}
 		if got, want := events.kinds(), []ToolCallEventKind{ToolCallDenied}; !slices.Equal(got, want) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)
+		}
+	})
+}
+
+func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should require bridge approval before provider invocation", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		bridge := &recordingApprovalBridge{}
+		called := false
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(_ context.Context, req CallRequest) (ToolResult, error) {
+				called = true
+				if string(req.Input) != `{"query":"patched"}` {
+					t.Fatalf("provider input = %s, want patched approval input", req.Input)
+				}
+				return ToolResult{Content: []ToolContent{{Type: "text", Text: "ok"}}}, nil
+			},
+		})
+		hooks := &recordingHookRunner{
+			pre: func(_ context.Context, call CallRequest) (CallRequest, EffectiveToolDecision, error) {
+				call.Input = json.RawMessage(`{"query":"patched"}`)
+				return call, hookAllowedDecision(), nil
+			},
+		}
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithPolicyEvaluator(staticPolicyEvaluator{decision: approvalRequiredDispatchDecision()}),
+			WithHookRunner(hooks),
+			WithApprovalBridge(bridge),
+		)
+
+		_, err := registry.Call(
+			t.Context(),
+			Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex"},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"original"}`)},
+		)
+		if err != nil {
+			t.Fatalf("RuntimeRegistry.Call() error = %v, want nil", err)
+		}
+		if !called {
+			t.Fatal("provider handle was not called after approval")
+		}
+		if got, want := len(bridge.calls), 1; got != want {
+			t.Fatalf("approval calls = %d, want %d", got, want)
+		}
+		call := bridge.calls[0]
+		if call.scope.SessionID != "sess-1" || call.req.WorkspaceID != "ws-1" || call.req.AgentName != "codex" {
+			t.Fatalf("approval call context = %#v / %#v, want scoped request", call.scope, call.req)
+		}
+		if string(call.req.Input) != `{"query":"patched"}` {
+			t.Fatalf("approval input = %s, want patched input", call.req.Input)
+		}
+		if !call.view.Decision.ApprovalRequired || call.view.Descriptor.ID != descriptor.ID {
+			t.Fatalf("approval view = %#v, want descriptor decision requiring approval", call.view)
+		}
+	})
+
+	t.Run("Should fail closed when approval channel is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		called := false
+		events := &recordingToolEventSink{}
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				called = true
+				return ToolResult{}, nil
+			},
+		})
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithPolicyEvaluator(staticPolicyEvaluator{decision: approvalRequiredDispatchDecision()}),
+			WithToolEventSink(events),
+		)
+
+		_, err := registry.Call(t.Context(), Scope{}, CallRequest{
+			ToolID: descriptor.ID,
+			Input:  json.RawMessage(`{"query":"x"}`),
+		})
+		if !errors.Is(err, ErrToolApprovalRequired) {
+			t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolApprovalRequired", err)
+		}
+		if called {
+			t.Fatal("provider handle was called without approval bridge")
+		}
+		var toolErr *ToolError
+		if !errors.As(err, &toolErr) || !slices.Contains(toolErr.ReasonCodes, ReasonApprovalUnreachable) {
+			t.Fatalf("approval error = %#v, want approval_unreachable", err)
+		}
+		if got, want := events.kinds(), []ToolCallEventKind{ToolCallStarted, ToolCallDenied}; !slices.Equal(got, want) {
+			t.Fatalf("event kinds = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should map approval cancellation and timeout to approval reason codes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name string
+			err  error
+			want ReasonCode
+		}{
+			{name: "Canceled", err: context.Canceled, want: ReasonApprovalCanceled},
+			{name: "TimedOut", err: context.DeadlineExceeded, want: ReasonApprovalTimedOut},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				descriptor := validDispatchDescriptor()
+				bridge := &recordingApprovalBridge{err: tc.err}
+				called := false
+				provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+					descriptor:   descriptor,
+					availability: availableDispatchHandle(),
+					call: func(context.Context, CallRequest) (ToolResult, error) {
+						called = true
+						return ToolResult{}, nil
+					},
+				})
+				registry := mustDispatchRegistry(
+					t,
+					provider,
+					WithPolicyEvaluator(staticPolicyEvaluator{decision: approvalRequiredDispatchDecision()}),
+					WithApprovalBridge(bridge),
+				)
+
+				_, err := registry.Call(t.Context(), Scope{}, CallRequest{
+					ToolID: descriptor.ID,
+					Input:  json.RawMessage(`{"query":"x"}`),
+				})
+				if !errors.Is(err, ErrToolApprovalRequired) {
+					t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolApprovalRequired", err)
+				}
+				if called {
+					t.Fatal("provider handle was called after approval denial")
+				}
+				var toolErr *ToolError
+				if !errors.As(err, &toolErr) || !slices.Contains(toolErr.ReasonCodes, tc.want) {
+					t.Fatalf("approval error = %#v, want reason %q", err, tc.want)
+				}
+			})
 		}
 	})
 }
@@ -529,6 +707,19 @@ func hookAllowedDecision() EffectiveToolDecision {
 	return EffectiveToolDecision{
 		Callable:   true,
 		HookResult: policyResultAllowed,
+	}
+}
+
+func approvalRequiredDispatchDecision() EffectiveToolDecision {
+	return EffectiveToolDecision{
+		VisibleToOperator:    true,
+		VisibleToSession:     true,
+		Callable:             true,
+		ApprovalRequired:     true,
+		SystemPermissionMode: string(PermissionModeDenyAll),
+		RegistryPolicyResult: policyResultAllowed,
+		HookResult:           policyResultAllowed,
+		ReasonCodes:          []ReasonCode{ReasonApprovalRequired},
 	}
 }
 

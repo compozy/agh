@@ -53,6 +53,9 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 	if err := contextErr(ctx, target.descriptor.ID); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallFailed)
 	}
+	if err := r.requestApproval(ctx, scope, &target, patchedReq); err != nil {
+		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallDenied)
+	}
 	providerResult, err := target.handle.Call(ctx, patchedReq)
 	if err != nil {
 		normalized := normalizeBackendError(target.descriptor.ID, err)
@@ -276,6 +279,61 @@ func (r *RuntimeRegistry) runPreCallHook(
 	}
 	patched.Input = normalizeCallInput(patched.Input)
 	return patched, nil
+}
+
+func (r *RuntimeRegistry) requestApproval(
+	ctx context.Context,
+	scope Scope,
+	target *dispatchTarget,
+	req CallRequest,
+) error {
+	if target == nil || !target.view.Decision.ApprovalRequired {
+		return nil
+	}
+	if r.approvalBridge == nil {
+		return approvalBridgeError(
+			target.descriptor.ID,
+			"tool approval channel is unavailable",
+			ErrToolApprovalRequired,
+			ReasonApprovalUnreachable,
+		)
+	}
+	view := cloneToolView(&target.view)
+	if err := r.approvalBridge.RequestToolApproval(ctx, scope, req, &view); err != nil {
+		return normalizeApprovalBridgeError(target.descriptor.ID, err)
+	}
+	return nil
+}
+
+func normalizeApprovalBridgeError(id ToolID, err error) error {
+	if err == nil {
+		return nil
+	}
+	var toolErr *ToolError
+	if errors.As(err, &toolErr) {
+		return normalizeToolError(id, toolErr)
+	}
+	switch {
+	case errors.Is(err, context.Canceled):
+		return approvalBridgeError(id, "tool approval was canceled", ErrToolApprovalRequired, ReasonApprovalCanceled)
+	case errors.Is(err, context.DeadlineExceeded):
+		return approvalBridgeError(id, "tool approval timed out", ErrToolApprovalRequired, ReasonApprovalTimedOut)
+	case errors.Is(err, ErrToolApprovalRequired):
+		return approvalBridgeError(id, "tool approval was not granted", err)
+	default:
+		return approvalBridgeError(id, "tool approval failed", fmt.Errorf("%w: %w", ErrToolApprovalRequired, err))
+	}
+}
+
+func approvalBridgeError(id ToolID, message string, err error, reasons ...ReasonCode) *ToolError {
+	allReasons := appendUniqueReasons([]ReasonCode{ReasonApprovalRequired}, reasons...)
+	return NewToolError(
+		ErrorCodeApprovalRequired,
+		id,
+		fmt.Sprintf("%s for %q", message, id),
+		err,
+		allReasons...,
+	)
 }
 
 func mergeHookCallRequest(original CallRequest, patched CallRequest) CallRequest {

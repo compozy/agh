@@ -129,13 +129,15 @@ func (a *mockAgent) Cancel(context.Context, acpsdk.CancelNotification) error {
 	return nil
 }
 
-func (a *mockAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
+func (a *mockAgent) NewSession(_ context.Context, params acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	a.nextSession++
 	sessionID := fmt.Sprintf("%s-session-%d", a.agent.Name, a.nextSession)
 	a.sessions[sessionID] = &sessionState{}
+	a.mu.Unlock()
+	if err := a.writeSessionDiagnostics("session_new", sessionID, params.McpServers); err != nil {
+		return acpsdk.NewSessionResponse{}, err
+	}
 	return acpsdk.NewSessionResponse{SessionId: acpsdk.SessionId(sessionID)}, nil
 }
 
@@ -144,13 +146,31 @@ func (a *mockAgent) LoadSession(
 	params acpsdk.LoadSessionRequest,
 ) (acpsdk.LoadSessionResponse, error) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	sessionID := strings.TrimSpace(string(params.SessionId))
 	if sessionID != "" && a.sessions[sessionID] == nil {
 		a.sessions[sessionID] = &sessionState{}
 	}
+	a.mu.Unlock()
+	if err := a.writeSessionDiagnostics("session_load", sessionID, params.McpServers); err != nil {
+		return acpsdk.LoadSessionResponse{}, err
+	}
 	return acpsdk.LoadSessionResponse{}, nil
+}
+
+func (a *mockAgent) writeSessionDiagnostics(
+	event string,
+	sessionID string,
+	servers []acpsdk.McpServer,
+) error {
+	if len(servers) == 0 {
+		return nil
+	}
+	return a.writeDiagnostics(acpmock.DiagnosticsRecord{
+		AgentName:      a.agent.Name,
+		SessionID:      sessionID,
+		LifecycleEvent: event,
+		MCPServers:     append([]acpsdk.McpServer(nil), servers...),
+	})
 }
 
 func (a *mockAgent) SetSessionMode(

@@ -55,6 +55,20 @@ type StoreOpener func(ctx context.Context, sessionID string, path string) (Event
 // IDGenerator returns unique identifiers for sessions and prompt turns.
 type IDGenerator func() string
 
+// HostedMCPLauncher mints and releases session-bound hosted MCP launch records.
+type HostedMCPLauncher interface {
+	Launch(ctx context.Context, req HostedMCPLaunchRequest) (aghconfig.MCPServer, error)
+	CancelLaunch(sessionID string)
+	ReleaseSession(sessionID string)
+}
+
+// HostedMCPLaunchRequest describes the session identity for a hosted MCP entry.
+type HostedMCPLaunchRequest struct {
+	SessionID   string
+	WorkspaceID string
+	AgentName   string
+}
+
 // Option customizes the session manager.
 type Option func(*Manager)
 
@@ -82,6 +96,7 @@ type Manager struct {
 	agentResolver   AgentResolver
 	skillRegistry   SkillRegistry
 	mcpResolver     MCPResolver
+	hostedMCP       HostedMCPLauncher
 	homePaths       aghconfig.HomePaths
 	workspace       workspacepkg.RuntimeResolver
 	openStore       StoreOpener
@@ -164,6 +179,13 @@ func WithAgentResolver(resolver AgentResolver) Option {
 func WithMCPResolver(resolver MCPResolver) Option {
 	return func(manager *Manager) {
 		manager.mcpResolver = resolver
+	}
+}
+
+// WithHostedMCPLauncher injects the session-bound AGH-hosted MCP launcher.
+func WithHostedMCPLauncher(launcher HostedMCPLauncher) Option {
+	return func(manager *Manager) {
+		manager.hostedMCP = launcher
 	}
 }
 
