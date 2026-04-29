@@ -23,6 +23,7 @@ import (
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/toolruntime"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 const (
@@ -1758,6 +1759,7 @@ type extensionHelperServer struct {
 	mu         sync.Mutex
 	writer     *bufio.Writer
 	pendingReq string
+	extension  string
 }
 
 func newExtensionHelperServer(scenario string, marker string) *extensionHelperServer {
@@ -1815,6 +1817,9 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 			return err
 		}
 		response := fakeInitializeResponse(params)
+		h.mu.Lock()
+		h.extension = params.Extension.Name
+		h.mu.Unlock()
 		if err := h.sendResult(req.ID, response); err != nil {
 			return err
 		}
@@ -1883,6 +1888,29 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 			ack.ReplaceRemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq-1)
 		}
 		return h.sendResult(req.ID, ack)
+	case "provide_tools":
+		return h.sendResult(req.ID, h.toolRuntimeDescriptors())
+	case "tools/call":
+		var params toolspkg.ExtensionToolCallRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		if h.scenario == "tool_call_slow" {
+			time.Sleep(200 * time.Millisecond)
+		}
+		if h.scenario == "tool_call_error" {
+			return h.sendError(req.ID, -32010, "Tool execution failed", map[string]string{
+				"error": "handler failed",
+			})
+		}
+		return h.sendResult(req.ID, toolspkg.ExtensionToolCallResponse{
+			Result: toolspkg.ToolResult{
+				Content: []toolspkg.ToolContent{{
+					Type: "text",
+					Text: fmt.Sprintf("search:%s", strings.TrimSpace(string(params.Input))),
+				}},
+			},
+		})
 	case "shutdown":
 		if h.scenario == "shutdown_hang" {
 			select {}
@@ -1897,6 +1925,40 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 	default:
 		return h.sendResult(req.ID, map[string]any{})
 	}
+}
+
+func (h *extensionHelperServer) toolRuntimeDescriptors() toolspkg.ExtensionProvideToolsResponse {
+	id, err := toolspkg.CanonicalToolID("ext", h.extensionName(), "search")
+	if err != nil {
+		id = "ext__helper__search"
+	}
+	descriptor := toolspkg.ExtensionToolRuntimeDescriptor{
+		ID:                id,
+		Handler:           "search",
+		InputSchemaDigest: "1dc63095e8672403bbe40fa26719d175e695c0167f6daad6b9655f6506491f01",
+		ReadOnly:          true,
+		Risk:              toolspkg.RiskRead,
+	}
+	switch h.scenario {
+	case "tool_runtime_handler_mismatch":
+		descriptor.Handler = "lookup"
+	case "tool_runtime_schema_mismatch":
+		descriptor.InputSchemaDigest = "bad-digest"
+	case "tool_runtime_risk_mismatch":
+		descriptor.ReadOnly = false
+		descriptor.Risk = toolspkg.RiskMutating
+	case "tool_runtime_missing_handler":
+		descriptor.Handler = ""
+	}
+	return toolspkg.ExtensionProvideToolsResponse{
+		Tools: []toolspkg.ExtensionToolRuntimeDescriptor{descriptor},
+	}
+}
+
+func (h *extensionHelperServer) extensionName() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return strings.TrimSpace(h.extension)
 }
 
 func (h *extensionHelperServer) handleResponse(resp helperResponse) {
@@ -1926,6 +1988,19 @@ func (h *extensionHelperServer) sendResult(id any, result any) error {
 		"jsonrpc": "2.0",
 		"id":      id,
 		"result":  result,
+	}
+	return h.write(payload)
+}
+
+func (h *extensionHelperServer) sendError(id any, code int, message string, data any) error {
+	payload := map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"error": map[string]any{
+			"code":    code,
+			"message": message,
+			"data":    data,
+		},
 	}
 	return h.write(payload)
 }

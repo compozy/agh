@@ -60,6 +60,32 @@ describe("@agh/create-extension", () => {
     expect(source).toContain('name: "my-memory"');
   });
 
+  it("scaffolds a tool provider template with extension.tool", async () => {
+    const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-tool-"));
+    tempDirs.push(baseDir);
+
+    const projectDir = path.join(baseDir, "tool-provider");
+    await scaffoldExtension({
+      name: "Tool Provider",
+      template: "tool-provider",
+      directory: projectDir,
+      sdkSpec: "file:../sdk/typescript",
+    });
+
+    const extensionManifest = JSON.parse(
+      await readFile(path.join(projectDir, "extension.json"), "utf8")
+    ) as {
+      capabilities: { provides: string[] };
+      resources: { tools: { search: { backend: { handler: string } } } };
+    };
+    const source = await readFile(path.join(projectDir, "src/index.ts"), "utf8");
+
+    expect(extensionManifest.capabilities.provides).toContain("tool.provider");
+    expect(extensionManifest.resources.tools.search.backend.handler).toBe("search");
+    expect(source).toContain("extension.tool<SearchInput>");
+    expect(source).toContain('name: "tool-provider"');
+  });
+
   it("rejects non-empty target directories", async () => {
     const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-full-"));
     tempDirs.push(baseDir);

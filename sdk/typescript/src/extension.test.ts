@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { Extension } from "./extension.js";
@@ -6,10 +9,19 @@ import {
   MethodNotFoundError,
   NotInitializedError,
   ShutdownInProgressError,
+  ToolExecutionError,
 } from "./errors.js";
+import { canonicalJSON, schemaDigest } from "./schema-digest.js";
 import { TestHarness } from "./testing/harness.js";
 import { createMockTransportPair } from "./testing/mock-transport.js";
-import type { InitializeRequest } from "./types.js";
+import type { InitializeRequest, JSONValue } from "./types.js";
+
+interface SchemaDigestFixture {
+  name: string;
+  schema: JSONValue;
+  canonical: string;
+  sha256: string;
+}
 
 function initializeFor(extension: Extension): InitializeRequest {
   const methods = extension.getImplementedMethods();
@@ -272,5 +284,125 @@ describe("Extension", () => {
       acknowledged: true,
     });
     await expect(harness.call("health_check", {})).rejects.toBeInstanceOf(ShutdownInProgressError);
+  });
+
+  it("registers executable tools and serves runtime descriptors", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension({
+      name: "linear",
+      version: "0.1.0",
+    });
+
+    extension.tool<{ query: string }>(
+      "search",
+      {
+        readOnly: true,
+        inputSchema: {
+          required: ["query"],
+          type: "object",
+          properties: {
+            query: { type: "string" },
+          },
+        },
+      },
+      async ({ input }) => ({
+        content: [{ type: "text", text: `found ${input.query}` }],
+        truncated: false,
+        bytes: 0,
+        duration_ms: 0,
+      })
+    );
+
+    await harness.loadExtension(extension);
+
+    expect(extension.definition.capabilities?.provides).toContain("tool.provider");
+    expect(harness.getLastInitializeResponse()?.implemented_methods).toEqual(
+      expect.arrayContaining(["provide_tools", "tools/call"])
+    );
+
+    await expect(harness.call("provide_tools", {})).resolves.toEqual({
+      tools: [
+        {
+          id: "ext__linear__search",
+          handler: "search",
+          input_schema_digest: "1dc63095e8672403bbe40fa26719d175e695c0167f6daad6b9655f6506491f01",
+          read_only: true,
+          risk: "read",
+          capabilities: [],
+        },
+      ],
+    });
+
+    await expect(
+      harness.call("tools/call", {
+        tool_id: "ext__linear__search",
+        handler: "search",
+        session_id: "session-1",
+        input: { query: "alpha" },
+      })
+    ).resolves.toEqual({
+      result: {
+        content: [{ type: "text", text: "found alpha" }],
+        truncated: false,
+        bytes: 0,
+        duration_ms: 0,
+      },
+    });
+  });
+
+  it("redacts sensitive tool input from handler errors", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension({
+      name: "secrets",
+      version: "0.1.0",
+    });
+
+    extension.tool<{ token: string }>(
+      "lookup",
+      {
+        readOnly: true,
+        inputSchema: {
+          type: "object",
+          required: ["token"],
+          properties: {
+            token: { type: "string" },
+          },
+        },
+        sensitiveInputFields: ["token"],
+      },
+      async ({ input }) => {
+        throw new Error(`backend rejected ${input.token}`);
+      }
+    );
+
+    await harness.loadExtension(extension);
+
+    await expect(
+      harness.call("tools/call", {
+        tool_id: "ext__secrets__lookup",
+        handler: "lookup",
+        input: { token: "secret-token" },
+      })
+    ).rejects.toMatchObject({
+      constructor: ToolExecutionError,
+      data: {
+        tool_id: "ext__secrets__lookup",
+        handler: "lookup",
+        error: "backend rejected [REDACTED]",
+        input: { token: "[REDACTED]" },
+        sensitive_input_fields: ["token"],
+      },
+    });
+  });
+
+  it("matches daemon schema digest fixtures", () => {
+    const fixturePath = join(__dirname, "../test-fixtures/digest/cases.json");
+    const fixtures = JSON.parse(readFileSync(fixturePath, "utf8")) as SchemaDigestFixture[];
+
+    expect(fixtures.length).toBeGreaterThan(0);
+    for (const fixture of fixtures) {
+      expect(canonicalJSON(fixture.schema)).toBe(fixture.canonical);
+      expect(schemaDigest(fixture.schema)).toBe(fixture.sha256);
+    }
   });
 });

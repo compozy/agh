@@ -475,6 +475,11 @@ type ExtensionToolCallRequest struct {
 	Input     json.RawMessage `json:"input"`
 }
 
+// ExtensionProvideToolsResponse is the extension host runtime descriptor response.
+type ExtensionProvideToolsResponse struct {
+	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
+}
+
 // ExtensionToolCallResponse is the extension host call response.
 type ExtensionToolCallResponse struct {
 	Result ToolResult `json:"result"`

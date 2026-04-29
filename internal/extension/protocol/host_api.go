@@ -13,6 +13,8 @@ const (
 	CapabilityProvideMemoryBackend = "memory.backend"
 	// CapabilityProvideBridgeAdapter is the provide surface for bridge-capable adapter extensions.
 	CapabilityProvideBridgeAdapter = "bridge.adapter"
+	// CapabilityToolProvider is the provide surface for executable extension-host tools.
+	CapabilityToolProvider = "tool.provider"
 )
 
 // ExtensionServiceMethod identifies one AGH -> extension capability service request.
@@ -23,6 +25,8 @@ const (
 	ExtensionServiceMethodMemoryRecall   ExtensionServiceMethod = "memory/recall"
 	ExtensionServiceMethodMemoryForget   ExtensionServiceMethod = "memory/forget"
 	ExtensionServiceMethodBridgesDeliver ExtensionServiceMethod = "bridges/deliver"
+	ExtensionServiceMethodProvideTools   ExtensionServiceMethod = "provide_tools"
+	ExtensionServiceMethodToolsCall      ExtensionServiceMethod = "tools/call"
 )
 
 const (
@@ -152,6 +156,10 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 	},
 	CapabilityProvideBridgeAdapter: {
 		ExtensionServiceMethodBridgesDeliver,
+	},
+	CapabilityToolProvider: {
+		ExtensionServiceMethodProvideTools,
+		ExtensionServiceMethodToolsCall,
 	},
 }
 

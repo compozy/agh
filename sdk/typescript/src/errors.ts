@@ -22,6 +22,14 @@ export interface ShutdownProgressData {
   deadline_ms?: number;
 }
 
+export interface ToolExecutionData {
+  tool_id?: string;
+  handler?: string;
+  error?: string;
+  input?: JSONValue;
+  sensitive_input_fields?: string[];
+}
+
 export class RPCError<Data = unknown> extends Error {
   readonly code: number;
   readonly data: Data | undefined;
@@ -102,6 +110,12 @@ export class ShutdownInProgressError extends RPCError<ShutdownProgressData> {
   }
 }
 
+export class ToolExecutionError extends RPCError<ToolExecutionData> {
+  public constructor(data: ToolExecutionData = {}) {
+    super(-32010, "Tool execution failed", data);
+  }
+}
+
 export function isRPCError(error: unknown): error is RPCError {
   return error instanceof RPCError;
 }
@@ -125,6 +139,8 @@ export function errorFromObject(error: JSONRPCErrorObject): RPCError {
       return new NotInitializedError((error.data as AllowedMethodsData | undefined) ?? {});
     case -32004:
       return new ShutdownInProgressError((error.data as ShutdownProgressData | undefined) ?? {});
+    case -32010:
+      return new ToolExecutionError((error.data as ToolExecutionData | undefined) ?? {});
     default:
       return new RPCError(error.code, error.message, error.data);
   }

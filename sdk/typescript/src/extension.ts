@@ -7,30 +7,45 @@ import {
   MethodNotFoundError,
   NotInitializedError,
   ShutdownInProgressError,
+  ToolExecutionError,
+  isRPCError,
 } from "./errors.js";
 import { HostAPI } from "./host-api.js";
+import { schemaDigest } from "./schema-digest.js";
 import { StdioTransport } from "./transport.js";
 import type {
   AcceptedCapabilities,
   ExtensionDefinition,
+  ExtensionProvideToolsResponse,
   HealthCheckResult,
   HookEvent,
   HostAPIMethod,
+  ExtensionToolCallRequest,
+  ExtensionToolCallResponse,
+  ExtensionToolRuntimeDescriptor,
   InitializeRequest,
   InitializeResponse,
   InitializeRuntime,
   JSONRPCRequestEnvelope,
+  JSONValue,
+  RiskClass,
   ShutdownRequest,
   ShutdownResponse,
+  ToolID,
+  ToolResult,
 } from "./types.js";
 import type { TransportLike } from "./transport.js";
 
 const SDK_NAME = "@agh/extension-sdk";
 const SDK_VERSION = "0.1.0";
 const SUPPORTED_PROTOCOL_VERSIONS = ["1"];
+const TOOL_PROVIDER_CAPABILITY = "tool.provider";
+const PROVIDE_TOOLS_METHOD = "provide_tools";
+const TOOLS_CALL_METHOD = "tools/call";
 const REQUIRED_PROVIDES_METHODS: Record<string, string[]> = {
   "bridge.adapter": ["bridges/deliver"],
   "memory.backend": ["memory/store", "memory/recall", "memory/forget"],
+  [TOOL_PROVIDER_CAPABILITY]: [PROVIDE_TOOLS_METHOD, TOOLS_CALL_METHOD],
 };
 
 export interface ExtensionOptions {
@@ -59,13 +74,44 @@ export type ExtensionHandler<TParams = unknown, TResult = unknown> = (
   params: TParams
 ) => Promise<TResult> | TResult;
 
+export interface ExtensionToolOptions {
+  id?: ToolID;
+  description?: string;
+  inputSchema: JSONValue;
+  outputSchema?: JSONValue;
+  readOnly?: boolean;
+  risk?: RiskClass;
+  capabilities?: string[];
+  sensitiveInputFields?: string[];
+}
+
+export interface ExtensionToolContext<TInput = unknown> {
+  readonly input: TInput;
+  readonly context: ExtensionContext;
+  readonly host: HostAPI;
+  readonly session: ExtensionSession;
+  readonly toolID: ToolID;
+  readonly handler: string;
+}
+
+export type ExtensionToolHandler<TInput = unknown> = (
+  request: ExtensionToolContext<TInput>
+) => Promise<ToolResult | JSONValue | string | void> | ToolResult | JSONValue | string | void;
+
 type ReadyCallback = (host: HostAPI, session: ExtensionSession) => Promise<void> | void;
+
+interface RegisteredTool {
+  descriptor: ExtensionToolRuntimeDescriptor;
+  handler: ExtensionToolHandler;
+  sensitiveInputFields: string[];
+}
 
 export class Extension {
   private transport: TransportLike;
   private readonly stderr: NodeJS.WritableStream;
   private readonly sdkVersion: string;
   private readonly handlers = new Map<string, ExtensionHandler>();
+  private readonly toolHandlers = new Map<string, RegisteredTool>();
   private readonly readyCallbacks = new Set<ReadyCallback>();
   private readonly transportBindings = new Set<string>();
   private readonly host: HostAPI;
@@ -113,8 +159,50 @@ export class Extension {
     if (cleanMethod === "initialize") {
       throw new Error("initialize is reserved by the SDK");
     }
+    if (this.toolHandlers.size > 0 && isToolProviderMethod(cleanMethod)) {
+      throw new Error(`${cleanMethod} is reserved by extension.tool()`);
+    }
     this.handlers.set(cleanMethod, handler as ExtensionHandler);
     this.bindMethod(cleanMethod);
+    return this;
+  }
+
+  public tool<TInput = unknown>(
+    handler: string,
+    options: ExtensionToolOptions,
+    toolHandler: ExtensionToolHandler<TInput>
+  ): this {
+    const cleanHandler = handler.trim();
+    if (!cleanHandler) {
+      throw new Error("tool handler is required");
+    }
+    if (this.toolHandlers.has(cleanHandler)) {
+      throw new Error(`tool handler already registered: ${cleanHandler}`);
+    }
+    if (this.handlers.has(PROVIDE_TOOLS_METHOD) || this.handlers.has(TOOLS_CALL_METHOD)) {
+      throw new Error("provide_tools and tools/call are reserved by extension.tool()");
+    }
+    const inputSchema = normalizeSchema(options.inputSchema, "inputSchema");
+    const outputSchema =
+      options.outputSchema === undefined
+        ? undefined
+        : normalizeSchema(options.outputSchema, "outputSchema");
+    const descriptor: ExtensionToolRuntimeDescriptor = {
+      id: options.id ?? canonicalExtensionToolID(this.definition.name, cleanHandler),
+      handler: cleanHandler,
+      input_schema_digest: schemaDigest(inputSchema),
+      ...(outputSchema ? { output_schema_digest: schemaDigest(outputSchema) } : {}),
+      read_only: Boolean(options.readOnly),
+      risk: options.risk ?? (options.readOnly ? "read" : "mutating"),
+      capabilities: normalizeStringList(options.capabilities),
+    };
+    this.toolHandlers.set(cleanHandler, {
+      descriptor,
+      handler: toolHandler as ExtensionToolHandler,
+      sensitiveInputFields: normalizeStringList(options.sensitiveInputFields),
+    });
+    this.ensureToolProviderCapability();
+    this.ensureToolProviderHandlers();
     return this;
   }
 
@@ -154,11 +242,22 @@ export class Extension {
     for (const method of this.handlers.keys()) {
       methods.add(method);
     }
+    if (this.toolHandlers.size > 0) {
+      methods.add(PROVIDE_TOOLS_METHOD);
+      methods.add(TOOLS_CALL_METHOD);
+    }
     return Array.from(methods).sort();
   }
 
   public getSupportedHookEvents(): HookEvent[] {
     return [...(this.definition.supported_hook_events ?? [])];
+  }
+
+  public getToolDescriptors(): ExtensionToolRuntimeDescriptor[] {
+    return [...this.toolHandlers.values()].map(tool => ({
+      ...tool.descriptor,
+      capabilities: [...(tool.descriptor.capabilities ?? [])],
+    }));
   }
 
   private bindTransportHandlers(): void {
@@ -167,6 +266,10 @@ export class Extension {
     this.bindMethod("shutdown");
     for (const method of this.handlers.keys()) {
       this.bindMethod(method);
+    }
+    if (this.toolHandlers.size > 0) {
+      this.bindMethod(PROVIDE_TOOLS_METHOD);
+      this.bindMethod(TOOLS_CALL_METHOD);
     }
   }
 
@@ -207,6 +310,10 @@ export class Extension {
         return await this.handleHealthCheck(request, params);
       case "shutdown":
         return await this.handleShutdown(request, params);
+      case PROVIDE_TOOLS_METHOD:
+        return this.handleProvideTools();
+      case TOOLS_CALL_METHOD:
+        return await this.handleToolCall(request, params);
       default:
         return await this.handleUserMethod(method, request, params);
     }
@@ -323,6 +430,48 @@ export class Extension {
     return { acknowledged: true };
   }
 
+  private handleProvideTools(): ExtensionProvideToolsResponse {
+    return {
+      tools: this.getToolDescriptors(),
+    };
+  }
+
+  private async handleToolCall(
+    request: JSONRPCRequestEnvelope,
+    params: unknown
+  ): Promise<ExtensionToolCallResponse> {
+    const call = parseToolCallRequest(params);
+    const registered = this.toolHandlers.get(call.handler);
+    if (!registered) {
+      throw new MethodNotFoundError(call.handler);
+    }
+    if (registered.descriptor.id !== call.tool_id) {
+      throw new InvalidParamsError("tool_id does not match handler", {
+        expected_tool_id: registered.descriptor.id,
+        actual_tool_id: call.tool_id,
+        handler: call.handler,
+      });
+    }
+
+    const context = this.makeContext(request);
+    try {
+      const result = await registered.handler({
+        input: call.input,
+        context,
+        host: context.host,
+        session: context.session,
+        toolID: call.tool_id,
+        handler: call.handler,
+      });
+      return { result: normalizeToolResult(result) };
+    } catch (error) {
+      if (isRPCError(error)) {
+        throw error;
+      }
+      throw toolExecutionError(error, call, registered.sensitiveInputFields);
+    }
+  }
+
   private async handleUserMethod(
     method: string,
     request: JSONRPCRequestEnvelope,
@@ -425,6 +574,20 @@ export class Extension {
     const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
     this.stderr.write(`${message}: ${detail}\n`);
   }
+
+  private ensureToolProviderCapability(): void {
+    const capabilities = this.definition.capabilities ?? {};
+    capabilities.provides = normalizeStringList([
+      ...(capabilities.provides ?? []),
+      TOOL_PROVIDER_CAPABILITY,
+    ]);
+    this.definition.capabilities = capabilities;
+  }
+
+  private ensureToolProviderHandlers(): void {
+    this.bindMethod(PROVIDE_TOOLS_METHOD);
+    this.bindMethod(TOOLS_CALL_METHOD);
+  }
 }
 
 function normalizeStringList(values: readonly string[] | undefined): string[] {
@@ -476,4 +639,208 @@ function parseShutdownRequest(params: unknown): ShutdownRequest {
     reason: request.reason ?? "shutdown",
     deadline_ms: request.deadline_ms,
   };
+}
+
+function parseToolCallRequest(params: unknown): ExtensionToolCallRequest {
+  if (typeof params !== "object" || params === null) {
+    throw new InvalidParamsError("tools/call params must be an object");
+  }
+  const request = params as ExtensionToolCallRequest;
+  if (typeof request.tool_id !== "string" || request.tool_id.trim() === "") {
+    throw new InvalidParamsError("tool_id is required");
+  }
+  if (typeof request.handler !== "string" || request.handler.trim() === "") {
+    throw new InvalidParamsError("handler is required");
+  }
+  return {
+    tool_id: request.tool_id.trim(),
+    handler: request.handler.trim(),
+    ...(request.session_id ? { session_id: request.session_id } : {}),
+    input: (request.input ?? {}) as JSONValue,
+  };
+}
+
+function normalizeToolResult(value: ToolResult | JSONValue | string | void): ToolResult {
+  if (value === undefined) {
+    return emptyToolResult();
+  }
+  if (isToolResult(value)) {
+    return { ...emptyToolResult(), ...value };
+  }
+  if (typeof value === "string") {
+    return {
+      ...emptyToolResult(),
+      content: [{ type: "text", text: value }],
+      preview: value,
+    };
+  }
+  return {
+    ...emptyToolResult(),
+    structured: value,
+  };
+}
+
+function emptyToolResult(): ToolResult {
+  return {
+    truncated: false,
+    bytes: 0,
+    duration_ms: 0,
+  };
+}
+
+function isToolResult(value: ToolResult | JSONValue | string | void): value is ToolResult {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  return [
+    "content",
+    "structured",
+    "preview",
+    "artifacts",
+    "metadata",
+    "redactions",
+    "truncated",
+    "bytes",
+    "duration_ms",
+  ].some(key => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function toolExecutionError(
+  error: unknown,
+  call: ExtensionToolCallRequest,
+  sensitiveInputFields: string[]
+): ToolExecutionError {
+  const errorMessage = redactSensitiveText(
+    error instanceof Error ? error.message : String(error),
+    call.input,
+    sensitiveInputFields
+  );
+  return new ToolExecutionError({
+    tool_id: call.tool_id,
+    handler: call.handler,
+    error: errorMessage,
+    ...(sensitiveInputFields.length > 0
+      ? {
+          input: redactSensitiveInput(call.input, sensitiveInputFields),
+          sensitive_input_fields: sensitiveInputFields,
+        }
+      : {}),
+  });
+}
+
+function redactSensitiveInput(value: JSONValue, sensitiveInputFields: string[]): JSONValue {
+  const cloned = cloneJSON(value);
+  for (const field of sensitiveInputFields) {
+    redactPath(
+      cloned,
+      field
+        .split(".")
+        .map(part => part.trim())
+        .filter(Boolean)
+    );
+  }
+  return cloned;
+}
+
+function redactPath(value: JSONValue, path: string[]): void {
+  if (path.length === 0 || typeof value !== "object" || value === null || Array.isArray(value)) {
+    return;
+  }
+  const [head, ...rest] = path;
+  if (head === undefined) {
+    return;
+  }
+  if (!(head in value)) {
+    return;
+  }
+  if (rest.length === 0) {
+    value[head] = "[REDACTED]";
+    return;
+  }
+  redactPath(value[head] as JSONValue, rest);
+}
+
+function redactSensitiveText(
+  text: string,
+  input: JSONValue,
+  sensitiveInputFields: string[]
+): string {
+  let redacted = text;
+  for (const field of sensitiveInputFields) {
+    const value = readPath(
+      input,
+      field
+        .split(".")
+        .map(part => part.trim())
+        .filter(Boolean)
+    );
+    if (typeof value === "string" && value !== "") {
+      redacted = redacted.replaceAll(value, "[REDACTED]");
+    }
+  }
+  return redacted;
+}
+
+function readPath(value: JSONValue, path: string[]): JSONValue | undefined {
+  if (path.length === 0) {
+    return value;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const [head, ...rest] = path;
+  if (head === undefined) {
+    return undefined;
+  }
+  if (!(head in value)) {
+    return undefined;
+  }
+  return readPath(value[head] as JSONValue, rest);
+}
+
+function cloneJSON(value: JSONValue): JSONValue {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => cloneJSON(item));
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, cloneJSON(entry)]));
+}
+
+function normalizeSchema(value: JSONValue, field: string): JSONValue {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${field} must be a JSON object`);
+  }
+  return cloneJSON(value);
+}
+
+function isToolProviderMethod(method: string): boolean {
+  return method === PROVIDE_TOOLS_METHOD || method === TOOLS_CALL_METHOD;
+}
+
+function canonicalExtensionToolID(extensionName: string, handler: string): ToolID {
+  return `ext__${canonicalIDSegment(extensionName)}__${canonicalIDSegment(handler)}`;
+}
+
+function canonicalIDSegment(raw: string): string {
+  const normalized = raw.trim().toLowerCase();
+  let output = "";
+  let lastUnderscore = false;
+  for (const char of normalized) {
+    if ((char >= "a" && char <= "z") || (char >= "0" && char <= "9")) {
+      output += char;
+      lastUnderscore = false;
+      continue;
+    }
+    if (output.length > 0 && !lastUnderscore) {
+      output += "_";
+      lastUnderscore = true;
+    }
+  }
+  const segment = output.replaceAll(/^_+|_+$/g, "");
+  if (!/^[a-z][a-z0-9_]*$/.test(segment) || segment.includes("__")) {
+    throw new Error(`invalid tool id segment: ${raw}`);
+  }
+  return segment;
 }

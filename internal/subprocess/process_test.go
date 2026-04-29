@@ -616,6 +616,42 @@ func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 			},
 			wantSub: "bridges/deliver",
 		},
+		{
+			name: "missing-tool-provider-provide-tools-service",
+			setup: func(request *InitializeRequest) {
+				request.Capabilities.Provides = []string{extensionprotocol.CapabilityToolProvider}
+				request.Methods.ExtensionServices = extensionprotocol.CapabilityServiceMethods(
+					request.Capabilities.Provides,
+				)
+			},
+			mutate: func(response *InitializeResponse) {
+				response.AcceptedCapabilities.Provides = []string{extensionprotocol.CapabilityToolProvider}
+				response.ImplementedMethods = []string{
+					"health_check",
+					"shutdown",
+					string(extensionprotocol.ExtensionServiceMethodToolsCall),
+				}
+			},
+			wantSub: "provide_tools",
+		},
+		{
+			name: "missing-tool-provider-call-service",
+			setup: func(request *InitializeRequest) {
+				request.Capabilities.Provides = []string{extensionprotocol.CapabilityToolProvider}
+				request.Methods.ExtensionServices = extensionprotocol.CapabilityServiceMethods(
+					request.Capabilities.Provides,
+				)
+			},
+			mutate: func(response *InitializeResponse) {
+				response.AcceptedCapabilities.Provides = []string{extensionprotocol.CapabilityToolProvider}
+				response.ImplementedMethods = []string{
+					"health_check",
+					"shutdown",
+					string(extensionprotocol.ExtensionServiceMethodProvideTools),
+				}
+			},
+			wantSub: "tools/call",
+		},
 	}
 
 	for _, tc := range testCases {

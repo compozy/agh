@@ -8,10 +8,9 @@ import (
 	"strings"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
-
-const extensionToolProviderCapability = "tool.provider"
 
 var defaultManifestToolInputSchema = json.RawMessage(`{"type":"object"}`)
 
@@ -191,7 +190,7 @@ func manifestToolBackend(
 				Handler:     handler,
 				RequiresCapabilities: mergeRequiredCapabilities(
 					cfg.RequiredCapabilities,
-					extensionToolProviderCapability,
+					extensionprotocol.CapabilityToolProvider,
 				),
 			},
 			toolspkg.SourceRef{

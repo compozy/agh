@@ -248,4 +248,127 @@ describe("SDK integration", () => {
     },
     integrationTimeoutMs
   );
+
+  it(
+    "serves extension.tool descriptors and calls over real stdio",
+    async () => {
+      const sdkEntry = resolve(packageDir, "dist/esm/index.js");
+      const tempDir = await mkdtemp(join(tmpdir(), "agh-sdk-tool-integration-"));
+      tempDirs.push(tempDir);
+      await writeFile(
+        join(tempDir, "index.mjs"),
+        `import { Extension } from ${JSON.stringify(sdkEntry)};
+       const extension = new Extension({ name: "tool-ext", version: "0.1.0" });
+       extension.tool("search", {
+         readOnly: true,
+         inputSchema: {
+           type: "object",
+           required: ["query"],
+           properties: { query: { type: "string" } }
+         }
+       }, async ({ input }) => ({
+         content: [{ type: "text", text: "result " + input.query }],
+         truncated: false,
+         bytes: 0,
+         duration_ms: 0
+       }));
+       void extension.start();`
+      );
+
+      const child = spawn(process.execPath, [join(tempDir, "index.mjs")], {
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      const stdout = readline.createInterface({ input: child.stdout });
+
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocol_version: "1",
+            supported_protocol_versions: ["1"],
+            agh_version: "0.5.0",
+            session_nonce: "tool-nonce",
+            extension: { name: "tool-ext", version: "0.1.0", source_tier: "user" },
+            capabilities: {
+              provides: ["tool.provider"],
+              granted_actions: [],
+              granted_security: [],
+              granted_resource_kinds: [],
+              granted_resource_scopes: [],
+            },
+            methods: {
+              daemon_requests: ["health_check", "shutdown"],
+              extension_services: ["provide_tools", "tools/call"],
+            },
+            runtime: {
+              health_check_interval_ms: 30000,
+              health_check_timeout_ms: 5000,
+              shutdown_timeout_ms: 10000,
+              default_hook_timeout_ms: 5000,
+            },
+          },
+        })}\n`
+      );
+
+      await expect(nextMessage(stdout)).resolves.toMatchObject({
+        id: 1,
+        result: {
+          accepted_capabilities: { provides: ["tool.provider"] },
+          implemented_methods: expect.arrayContaining(["provide_tools", "tools/call"]),
+        },
+      });
+
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "provide_tools",
+          params: {},
+        })}\n`
+      );
+      await expect(nextMessage(stdout)).resolves.toMatchObject({
+        id: 2,
+        result: {
+          tools: [
+            {
+              id: "ext__tool_ext__search",
+              handler: "search",
+              read_only: true,
+              risk: "read",
+            },
+          ],
+        },
+      });
+
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: {
+            tool_id: "ext__tool_ext__search",
+            handler: "search",
+            session_id: "session-1",
+            input: { query: "alpha" },
+          },
+        })}\n`
+      );
+      await expect(nextMessage(stdout)).resolves.toMatchObject({
+        id: 3,
+        result: {
+          result: {
+            content: [{ type: "text", text: "result alpha" }],
+            truncated: false,
+            bytes: 0,
+            duration_ms: 0,
+          },
+        },
+      });
+
+      child.kill();
+    },
+    integrationTimeoutMs
+  );
 });

@@ -11,6 +11,7 @@ import (
 
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/skills"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -79,8 +80,16 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: build native toolset catalog: %w", err)
 	}
+	providers := []toolspkg.Provider{provider}
+	extensionProvider, err := newDaemonExtensionToolProvider(state)
+	if err != nil {
+		return fmt.Errorf("daemon: create extension tool provider: %w", err)
+	}
+	if extensionProvider != nil {
+		providers = append(providers, extensionProvider)
+	}
 	registry, err = toolspkg.NewRegistry(
-		toolspkg.WithProviders(provider),
+		toolspkg.WithProviders(providers...),
 		toolspkg.WithPolicyInputs(policyInputs, toolsets),
 		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
 	)
@@ -90,6 +99,30 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	state.toolRegistry = registry
 	state.deps.ToolRegistry = registry
 	return nil
+}
+
+func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error) {
+	if state == nil || state.registry == nil {
+		return nil, nil
+	}
+	dbSource, ok := state.registry.(extensionDBSource)
+	if !ok || dbSource.DB() == nil {
+		return nil, nil
+	}
+	return extensionpkg.NewExtensionToolProvider(
+		extensionpkg.NewRegistry(dbSource.DB()),
+		func() extensionpkg.ExtensionToolRuntime {
+			runtime := state.currentExtensionRuntime()
+			if runtime == nil {
+				return nil
+			}
+			toolRuntime, ok := runtime.(extensionpkg.ExtensionToolRuntime)
+			if !ok {
+				return nil
+			}
+			return toolRuntime
+		},
+	)
 }
 
 func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {

@@ -7,7 +7,11 @@ import type {
   HookPatchByEvent,
   HookPayloadByEvent,
   HostAPIMethod,
+  RiskClass,
   SourceKind,
+  ToolID,
+  ToolsetID,
+  Visibility,
 } from "./generated/contracts.js";
 
 export * from "./base-types.js";
@@ -45,9 +49,30 @@ export interface MCPServerConfig {
 }
 
 export interface ToolConfig {
+  id?: ToolID;
+  display_title?: string;
   description?: string;
   input_schema?: JSONValue;
+  output_schema?: JSONValue;
+  handler?: string;
+  backend?: {
+    kind?: "extension_host" | "mcp";
+    handler?: string;
+    server?: string;
+    tool?: string;
+  };
+  visibility?: Visibility;
+  risk?: RiskClass;
   read_only?: boolean;
+  destructive?: boolean;
+  open_world?: boolean;
+  requires_interaction?: boolean;
+  concurrency_safe?: boolean;
+  max_result_bytes?: number;
+  toolsets?: ToolsetID[];
+  tags?: string[];
+  search_hints?: string[];
+  required_capabilities?: string[];
 }
 
 export interface ResourcesConfig {

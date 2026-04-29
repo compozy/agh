@@ -255,6 +255,13 @@ export interface AgentStoppedPayload {
   error?: string;
 }
 
+export interface ArtifactRef {
+  uri: string;
+  name?: string;
+  mime_type?: string;
+  bytes?: number;
+}
+
 export interface AutomationFirePatch {
   prompt?: string;
   cancel?: boolean;
@@ -942,6 +949,63 @@ export interface EventRecordPayload {
   record_type?: string;
   sequence?: number;
   content?: JSONValue;
+}
+
+export type ToolID = string;
+
+export type RiskClass = string;
+
+export interface ExtensionToolRuntimeDescriptor {
+  id: ToolID;
+  handler: string;
+  input_schema_digest: string;
+  output_schema_digest?: string;
+  read_only: boolean;
+  risk: RiskClass;
+  capabilities?: string[];
+}
+
+export interface ExtensionProvideToolsResponse {
+  tools: ExtensionToolRuntimeDescriptor[];
+}
+
+export interface ExtensionToolCallRequest {
+  tool_id: ToolID;
+  handler: string;
+  session_id?: string;
+  input: JSONValue;
+}
+
+export interface ToolContent {
+  type: string;
+  text?: string;
+  data?: JSONValue;
+  mime_type?: string;
+  metadata?: Record<string, JSONValue>;
+}
+
+export type ReasonCode = string;
+
+export interface Redaction {
+  path: string;
+  reason: ReasonCode;
+  bytes?: number;
+}
+
+export interface ToolResult {
+  content?: ToolContent[];
+  structured?: JSONValue;
+  preview?: string;
+  artifacts?: ArtifactRef[];
+  metadata?: Record<string, JSONValue>;
+  redactions?: Redaction[];
+  truncated: boolean;
+  bytes: number;
+  duration_ms: number;
+}
+
+export interface ExtensionToolCallResponse {
+  result: ToolResult;
 }
 
 export type HookMode = "sync" | "async";
@@ -3258,8 +3322,6 @@ export interface TasksParams {
   limit?: number;
 }
 
-export type ToolID = string;
-
 export type BackendKind = string;
 
 export interface BackendRef {
@@ -3286,8 +3348,6 @@ export interface SourceRef {
 }
 
 export type Visibility = string;
-
-export type RiskClass = string;
 
 export type ToolsetID = string;
 
