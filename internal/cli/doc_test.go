@@ -206,10 +206,18 @@ func TestNewDocCommand_GeneratesAllCommands(t *testing.T) {
 	// Expected files in the nested layout: parents with children render as
 	// <segment>/index.mdx; leaves render as <segment>.mdx.
 	expected := []string{
-		"agh.mdx",           // from agh
-		"session/index.mdx", // parent — has children
-		"daemon/index.mdx",  // parent — has children
-		"version.mdx",       // leaf — no children
+		"agh.mdx",            // from agh
+		"session/index.mdx",  // parent with children
+		"daemon/index.mdx",   // parent with children
+		"tool/index.mdx",     // parent with children
+		"tool/list.mdx",      // tool registry operator command
+		"tool/search.mdx",    // tool registry operator command
+		"tool/info.mdx",      // tool registry operator command
+		"tool/invoke.mdx",    // tool registry operator command
+		"toolsets/index.mdx", // parent with children
+		"toolsets/list.mdx",  // toolset operator command
+		"toolsets/info.mdx",  // toolset operator command
+		"version.mdx",        // leaf without children
 	}
 	for _, want := range expected {
 		if !mdxFiles[want] {

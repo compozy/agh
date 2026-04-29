@@ -83,6 +83,12 @@ type DaemonClient interface {
 	ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error)
 	GetSkill(ctx context.Context, name string, query SkillQuery) (SkillRecord, error)
 	GetSkillContent(ctx context.Context, name string, query SkillQuery) (string, error)
+	ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error)
+	SearchTools(ctx context.Context, request ToolSearchRequest) (ToolsResponseRecord, error)
+	GetTool(ctx context.Context, id string, query ToolQuery) (ToolResponseRecord, error)
+	InvokeTool(ctx context.Context, id string, request ToolInvokeRequest) (ToolInvokeResponseRecord, error)
+	ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error)
+	GetToolset(ctx context.Context, id string, query ToolQuery) (ToolsetResponseRecord, error)
 	HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error)
 	HookRuns(ctx context.Context, query HookRunsQuery) ([]HookRunRecord, error)
 	HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error)
@@ -2612,6 +2618,10 @@ func readAPIError(response *http.Response) error {
 	}
 	if len(body) > 0 && json.Unmarshal(body, &payload) == nil && strings.TrimSpace(payload.Error) != "" {
 		return errors.New(taskpkg.RedactClaimTokens(strings.TrimSpace(payload.Error)))
+	}
+	var toolPayload contract.ToolErrorResponse
+	if len(body) > 0 && json.Unmarshal(body, &toolPayload) == nil && toolPayload.Error.Code != "" {
+		return newToolAPIError(response.StatusCode, response.Status, toolPayload)
 	}
 
 	message := strings.TrimSpace(string(body))

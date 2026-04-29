@@ -13,10 +13,13 @@ import (
 
 func newToolCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:    "tool",
-		Short:  "Internal tool runtime commands",
-		Hidden: true,
+		Use:   "tool",
+		Short: "Inspect and invoke registry tools",
 	}
+	cmd.AddCommand(newToolListCommand(deps))
+	cmd.AddCommand(newToolSearchCommand(deps))
+	cmd.AddCommand(newToolInfoCommand(deps))
+	cmd.AddCommand(newToolInvokeCommand(deps))
 	cmd.AddCommand(newToolMCPCommand(deps))
 	return cmd
 }

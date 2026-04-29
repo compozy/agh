@@ -58,6 +58,12 @@ type stubClient struct {
 	listSkillsFn              func(context.Context, SkillQuery) ([]SkillRecord, error)
 	getSkillFn                func(context.Context, string, SkillQuery) (SkillRecord, error)
 	getSkillContentFn         func(context.Context, string, SkillQuery) (string, error)
+	listToolsFn               func(context.Context, ToolQuery) (ToolsResponseRecord, error)
+	searchToolsFn             func(context.Context, ToolSearchRequest) (ToolsResponseRecord, error)
+	getToolFn                 func(context.Context, string, ToolQuery) (ToolResponseRecord, error)
+	invokeToolFn              func(context.Context, string, ToolInvokeRequest) (ToolInvokeResponseRecord, error)
+	listToolsetsFn            func(context.Context, ToolQuery) (ToolsetsResponseRecord, error)
+	getToolsetFn              func(context.Context, string, ToolQuery) (ToolsetResponseRecord, error)
 	hookCatalogFn             func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
 	hookRunsFn                func(context.Context, HookRunsQuery) ([]HookRunRecord, error)
 	hookEventsFn              func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
@@ -459,6 +465,63 @@ func (s *stubClient) GetSkillContent(ctx context.Context, name string, query Ski
 		return s.getSkillContentFn(ctx, name, query)
 	}
 	return "", errors.New("unexpected GetSkillContent call")
+}
+
+func (s *stubClient) ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error) {
+	if s.listToolsFn != nil {
+		return s.listToolsFn(ctx, query)
+	}
+	return ToolsResponseRecord{}, errors.New("unexpected ListTools call")
+}
+
+func (s *stubClient) SearchTools(
+	ctx context.Context,
+	request ToolSearchRequest,
+) (ToolsResponseRecord, error) {
+	if s.searchToolsFn != nil {
+		return s.searchToolsFn(ctx, request)
+	}
+	return ToolsResponseRecord{}, errors.New("unexpected SearchTools call")
+}
+
+func (s *stubClient) GetTool(
+	ctx context.Context,
+	id string,
+	query ToolQuery,
+) (ToolResponseRecord, error) {
+	if s.getToolFn != nil {
+		return s.getToolFn(ctx, id, query)
+	}
+	return ToolResponseRecord{}, errors.New("unexpected GetTool call")
+}
+
+func (s *stubClient) InvokeTool(
+	ctx context.Context,
+	id string,
+	request ToolInvokeRequest,
+) (ToolInvokeResponseRecord, error) {
+	if s.invokeToolFn != nil {
+		return s.invokeToolFn(ctx, id, request)
+	}
+	return ToolInvokeResponseRecord{}, errors.New("unexpected InvokeTool call")
+}
+
+func (s *stubClient) ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error) {
+	if s.listToolsetsFn != nil {
+		return s.listToolsetsFn(ctx, query)
+	}
+	return ToolsetsResponseRecord{}, errors.New("unexpected ListToolsets call")
+}
+
+func (s *stubClient) GetToolset(
+	ctx context.Context,
+	id string,
+	query ToolQuery,
+) (ToolsetResponseRecord, error) {
+	if s.getToolsetFn != nil {
+		return s.getToolsetFn(ctx, id, query)
+	}
+	return ToolsetResponseRecord{}, errors.New("unexpected GetToolset call")
 }
 
 func (s *stubClient) HookCatalog(

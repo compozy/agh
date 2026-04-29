@@ -43,6 +43,55 @@ func TestMCPAuthStatusReportsRedactedState(t *testing.T) {
 	}
 }
 
+func TestMCPAuthStatusBundlesRenderHumanAndToon(t *testing.T) {
+	t.Parallel()
+
+	expiresAt := timePointer(fixedTestNow)
+	status := mcpauth.Status{
+		ServerName:  "linear",
+		Status:      mcpauth.StatusAuthenticated,
+		RemoteURL:   "https://mcp.example/sse",
+		AuthType:    "oauth2_pkce",
+		ClientID:    "client-id",
+		Scopes:      []string{"read", "write"},
+		ExpiresAt:   expiresAt,
+		Refreshable: true,
+		Diagnostic:  "ok",
+	}
+
+	bundle := mcpAuthStatusBundle(status)
+	human, err := bundle.human()
+	if err != nil {
+		t.Fatalf("mcpAuthStatusBundle.human() error = %v", err)
+	}
+	if !strings.Contains(human, "linear") || !strings.Contains(human, "Refreshable") {
+		t.Fatalf("mcp auth status human = %q, want status rows", human)
+	}
+	toon, err := bundle.toon()
+	if err != nil {
+		t.Fatalf("mcpAuthStatusBundle.toon() error = %v", err)
+	}
+	if !strings.Contains(toon, "mcp_auth") || !strings.Contains(toon, "read|write") {
+		t.Fatalf("mcp auth status toon = %q, want toon fields", toon)
+	}
+
+	listBundle := mcpAuthStatusListBundle([]mcpauth.Status{status})
+	listHuman, err := listBundle.human()
+	if err != nil {
+		t.Fatalf("mcpAuthStatusListBundle.human() error = %v", err)
+	}
+	if !strings.Contains(listHuman, "MCP Auth") || !strings.Contains(listHuman, "linear") {
+		t.Fatalf("mcp auth list human = %q, want status table", listHuman)
+	}
+	listToon, err := listBundle.toon()
+	if err != nil {
+		t.Fatalf("mcpAuthStatusListBundle.toon() error = %v", err)
+	}
+	if !strings.Contains(listToon, "mcp_auth[1]") {
+		t.Fatalf("mcp auth list toon = %q, want toon table", listToon)
+	}
+}
+
 func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 	t.Parallel()
 
