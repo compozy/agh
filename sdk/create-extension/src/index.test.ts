@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -84,6 +85,45 @@ describe("@agh/create-extension", () => {
     expect(extensionManifest.resources.tools.search.backend.handler).toBe("search");
     expect(source).toContain("extension.tool<SearchInput>");
     expect(source).toContain('name: "tool-provider"');
+  });
+
+  it("scaffolds a buildable Go tool provider template", async () => {
+    const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-go-tool-"));
+    tempDirs.push(baseDir);
+
+    const projectDir = path.join(baseDir, "go-tool-provider");
+    await scaffoldExtension({
+      name: "Go Tool Provider",
+      template: "go-tool-provider",
+      directory: projectDir,
+    });
+
+    const extensionManifest = JSON.parse(
+      await readFile(path.join(projectDir, "extension.json"), "utf8")
+    ) as {
+      capabilities: { provides: string[] };
+      subprocess: { command: string };
+      resources: { tools: { search: { backend: { handler: string } } } };
+    };
+    const source = await readFile(path.join(projectDir, "main.go"), "utf8");
+    const goMod = await readFile(path.join(projectDir, "go.mod"), "utf8");
+
+    expect(extensionManifest.capabilities.provides).toContain("tool.provider");
+    expect(extensionManifest.subprocess.command).toBe("./go-tool-provider");
+    expect(extensionManifest.resources.tools.search.backend.handler).toBe("search");
+    expect(source).toContain("aghsdk.Tool[SearchInput]");
+    expect(source).toContain('Name:    "go-tool-provider"');
+    expect(goMod).toContain("module example.com/go-tool-provider");
+
+    const repoRoot = path.resolve(__dirname, "../../..");
+    execFileSync("go", ["mod", "edit", "-replace", `github.com/pedronauck/agh=${repoRoot}`], {
+      cwd: projectDir,
+      stdio: "pipe",
+    });
+    execFileSync("go", ["test", "./..."], {
+      cwd: projectDir,
+      stdio: "pipe",
+    });
   });
 
   it("rejects non-empty target directories", async () => {

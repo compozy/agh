@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -248,6 +250,46 @@ func TestExtensionToolProviderSubprocessIntegration(t *testing.T) {
 	})
 }
 
+func TestExtensionToolProviderGoSDKSubprocessIntegration(t *testing.T) {
+	t.Run("Should dispatch a read-only Go SDK tool through Registry.Call", func(t *testing.T) {
+		binary := buildGoSDKToolProviderBinary(t, "go-sdk-tool", true)
+		env, fixture, descriptor, manager := startCompiledGoSDKToolSubprocess(t, "go-sdk-tool", binary, true)
+		registry := newExtensionToolRegistry(t, env.registry, manager, extensionToolPolicyAllowAll())
+
+		result, err := registry.Call(testutil.Context(t), toolspkg.Scope{SessionID: "session-1"}, toolspkg.CallRequest{
+			ToolID: descriptor.Tool.ID,
+			Input:  json.RawMessage(`{"query":"alpha"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call() error = %v", err)
+		}
+		if len(result.Content) != 1 || result.Content[0].Text != "go-sdk:alpha" {
+			t.Fatalf("Result.Content = %#v, want go-sdk:alpha", result.Content)
+		}
+		if _, err := manager.Get(fixture.manifest.Name); err != nil {
+			t.Fatalf("Manager.Get(%q) error = %v", fixture.manifest.Name, err)
+		}
+	})
+
+	t.Run("Should gate a mutating Go SDK tool on approval policy", func(t *testing.T) {
+		binary := buildGoSDKToolProviderBinary(t, "go-sdk-mutating", false)
+		env, _, descriptor, manager := startCompiledGoSDKToolSubprocess(t, "go-sdk-mutating", binary, false)
+		registry := newExtensionToolRegistry(t, env.registry, manager, toolspkg.PolicyInputs{
+			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
+			ExternalDefault:      toolspkg.ExternalDefaultEnabled,
+			ApprovalAvailable:    true,
+		})
+
+		view, err := registry.Get(testutil.Context(t), toolspkg.Scope{Operator: true}, descriptor.Tool.ID)
+		if err != nil {
+			t.Fatalf("Registry.Get() error = %v", err)
+		}
+		if !view.Decision.ApprovalRequired {
+			t.Fatalf("Decision.ApprovalRequired = false, want true")
+		}
+	})
+}
+
 type fakeExtensionToolRuntime struct {
 	extension   *Extension
 	descriptors []toolspkg.ExtensionToolRuntimeDescriptor
@@ -413,6 +455,134 @@ func startExtensionToolSubprocess(
 		t.Fatalf("manifest tool descriptors = %d, want 1", len(descriptors))
 	}
 	return env, fixture, descriptors[0], manager
+}
+
+func startCompiledGoSDKToolSubprocess(
+	t *testing.T,
+	name string,
+	command string,
+	readOnly bool,
+) (registryTestEnv, managerFixture, ManifestToolDescriptor, *Manager) {
+	t.Helper()
+
+	env := newRegistryTestEnv(t)
+	fixture := createExtensionToolTestExtension(t, name, command, nil, nil, readOnly)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	manager := NewManager(
+		env.registry,
+		WithHealthCheckTimeout(20*time.Millisecond),
+		WithSubprocessSignalGrace(15*time.Millisecond),
+	)
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Manager.Stop() cleanup error = %v", err)
+		}
+	})
+	waitForManagerCondition(t, time.Second, func() bool {
+		extension, err := manager.Get(name)
+		return err == nil && extension.Status.Active && extension.Status.Healthy
+	})
+
+	descriptors, err := ResolveManifestToolDescriptors(fixture.manifest)
+	if err != nil {
+		t.Fatalf("ResolveManifestToolDescriptors() error = %v", err)
+	}
+	if len(descriptors) != 1 {
+		t.Fatalf("manifest tool descriptors = %d, want 1", len(descriptors))
+	}
+	return env, fixture, descriptors[0], manager
+}
+
+func buildGoSDKToolProviderBinary(t *testing.T, name string, readOnly bool) string {
+	t.Helper()
+
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("filepath.Abs(repo root) error = %v", err)
+	}
+	dir := t.TempDir()
+	writeFile(
+		t,
+		filepath.Join(dir, "go.mod"),
+		"module example.com/"+name+"\n\ngo 1.25.4\n\nrequire github.com/pedronauck/agh v0.0.0\n",
+	)
+	writeFile(t, filepath.Join(dir, "main.go"), goSDKToolProviderSource(name, readOnly))
+
+	edit := exec.CommandContext(
+		testutil.Context(t),
+		"go",
+		"mod",
+		"edit",
+		"-replace",
+		"github.com/pedronauck/agh="+repoRoot,
+	)
+	edit.Dir = dir
+	if output, err := edit.CombinedOutput(); err != nil {
+		t.Fatalf("go mod edit -replace error = %v\n%s", err, string(output))
+	}
+
+	binary := filepath.Join(dir, "extension-bin")
+	build := exec.CommandContext(testutil.Context(t), "go", "build", "-o", binary, ".")
+	build.Dir = dir
+	build.Env = append(os.Environ(), "CGO_ENABLED=0")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("go build Go SDK extension error = %v\n%s", err, string(output))
+	}
+	return binary
+}
+
+func goSDKToolProviderSource(name string, readOnly bool) string {
+	return fmt.Sprintf(`package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	aghsdk "github.com/pedronauck/agh/sdk/go"
+)
+
+type searchInput struct {
+	Query string %[1]q
+}
+
+func main() {
+	extension := aghsdk.NewExtension(aghsdk.ExtensionDefinition{
+		Name:    %[2]q,
+		Version: "0.1.0",
+		Capabilities: aghsdk.CapabilitiesConfig{
+			Provides: []string{"tool.provider"},
+		},
+	})
+	if err := aghsdk.Tool[searchInput](
+		extension,
+		"search",
+		aghsdk.ToolOptions{
+			ReadOnly:    %[3]t,
+			InputSchema: map[string]any{
+				"type": "object",
+				"required": []string{"query"},
+				"properties": map[string]any{
+					"query": map[string]any{"type": "string"},
+				},
+			},
+		},
+		func(_ context.Context, req aghsdk.ToolRequest[searchInput]) (aghsdk.ToolResult, error) {
+			return aghsdk.TextResult("go-sdk:" + req.Input.Query), nil
+		},
+	); err != nil {
+		fmt.Fprintf(os.Stderr, "register tool: %%v\n", err)
+		os.Exit(1)
+	}
+	if err := extension.Run(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "run extension: %%v\n", err)
+		os.Exit(1)
+	}
+}
+`, `json:"query"`, name, readOnly)
 }
 
 func createExtensionToolTestExtension(

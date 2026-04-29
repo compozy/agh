@@ -1,0 +1,153 @@
+package aghsdk
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+)
+
+// HostAPIMethod identifies one extension -> AGH Host API request.
+type HostAPIMethod string
+
+const (
+	// HostAPIMethodSessionsList lists sessions visible to the extension.
+	HostAPIMethodSessionsList HostAPIMethod = "sessions/list"
+	// HostAPIMethodSessionsCreate creates a session.
+	HostAPIMethodSessionsCreate HostAPIMethod = "sessions/create"
+	// HostAPIMethodSessionsPrompt prompts a session.
+	HostAPIMethodSessionsPrompt HostAPIMethod = "sessions/prompt"
+	// HostAPIMethodSessionsStop stops a session.
+	HostAPIMethodSessionsStop HostAPIMethod = "sessions/stop"
+	// HostAPIMethodSessionsStatus returns session status.
+	HostAPIMethodSessionsStatus HostAPIMethod = "sessions/status"
+	// HostAPIMethodSessionsEvents returns session events.
+	HostAPIMethodSessionsEvents HostAPIMethod = "sessions/events"
+	// HostAPIMethodMemoryRecall recalls memory.
+	HostAPIMethodMemoryRecall HostAPIMethod = "memory/recall"
+	// HostAPIMethodMemoryStore stores memory.
+	HostAPIMethodMemoryStore HostAPIMethod = "memory/store"
+	// HostAPIMethodMemoryForget forgets memory.
+	HostAPIMethodMemoryForget HostAPIMethod = "memory/forget"
+	// HostAPIMethodObserveHealth returns daemon health.
+	HostAPIMethodObserveHealth HostAPIMethod = "observe/health"
+	// HostAPIMethodObserveEvents returns observed events.
+	HostAPIMethodObserveEvents HostAPIMethod = "observe/events"
+	// HostAPIMethodSkillsList lists skills.
+	HostAPIMethodSkillsList HostAPIMethod = "skills/list"
+	// HostAPIMethodResourcesList lists resources.
+	HostAPIMethodResourcesList HostAPIMethod = "resources/list"
+	// HostAPIMethodResourcesGet fetches one resource.
+	HostAPIMethodResourcesGet HostAPIMethod = "resources/get"
+	// HostAPIMethodResourcesSnapshot snapshots resources.
+	HostAPIMethodResourcesSnapshot HostAPIMethod = "resources/snapshot"
+)
+
+// HostAPI is a minimal typed client for extension Host API calls.
+type HostAPI struct {
+	transport Transport
+	isReady   func() bool
+}
+
+// NewHostAPI creates a Host API client over a transport.
+func NewHostAPI(transport Transport, isReady func() bool) *HostAPI {
+	return newHostAPI(transport, isReady)
+}
+
+// Request calls a Host API method after readiness and sensitive-value checks.
+func (h *HostAPI) Request(ctx context.Context, method HostAPIMethod, params any, result any) error {
+	if h == nil || h.transport == nil {
+		return NewNotInitializedError()
+	}
+	if h.isReady != nil && !h.isReady() {
+		return NewNotInitializedError()
+	}
+	if strings.TrimSpace(string(method)) == "" {
+		return NewInvalidParamsError("host api method is required", nil)
+	}
+	if path, ok := sensitiveJSONPath(params); ok {
+		return NewInvalidParamsError("host api params contain sensitive value", map[string]any{
+			"path": path,
+		})
+	}
+	return h.transport.Call(ctx, string(method), params, result)
+}
+
+// RawRequest calls a Host API method and returns the raw JSON response.
+func (h *HostAPI) RawRequest(ctx context.Context, method HostAPIMethod, params any) (json.RawMessage, error) {
+	var result json.RawMessage
+	if err := h.Request(ctx, method, params, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func newHostAPI(transport Transport, isReady func() bool) *HostAPI {
+	return &HostAPI{transport: transport, isReady: isReady}
+}
+
+func sensitiveJSONPath(value any) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return "", false
+	}
+	var decoded any
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
+		return "", false
+	}
+	return scanSensitive(decoded, "$")
+}
+
+func scanSensitive(value any, path string) (string, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, entry := range typed {
+			childPath := path + "." + key
+			if sensitiveKey(key) {
+				return childPath, true
+			}
+			if found, ok := scanSensitive(entry, childPath); ok {
+				return found, true
+			}
+		}
+	case []any:
+		for _, entry := range typed {
+			childPath := path + "[]"
+			if found, ok := scanSensitive(entry, childPath); ok {
+				return found, true
+			}
+		}
+	case string:
+		if strings.HasPrefix(typed, "agh_claim_") {
+			return path, true
+		}
+	}
+	return "", false
+}
+
+func sensitiveKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	sensitive := []string{
+		"access_token",
+		"approval_token",
+		"authorization",
+		"bearer",
+		"claim_token",
+		"client_secret",
+		"oauth_code",
+		"password",
+		"pkce",
+		"refresh_token",
+		"secret",
+	}
+	for _, item := range sensitive {
+		if strings.Contains(normalized, item) {
+			return true
+		}
+	}
+	return false
+}

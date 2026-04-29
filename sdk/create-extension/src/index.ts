@@ -2,7 +2,11 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-export type TemplateName = "hook-subprocess" | "memory-backend" | "tool-provider";
+export type TemplateName =
+  | "hook-subprocess"
+  | "memory-backend"
+  | "tool-provider"
+  | "go-tool-provider";
 
 export interface ScaffoldOptions {
   name: string;
@@ -16,7 +20,12 @@ export interface ParsedArgs extends ScaffoldOptions {
 }
 
 const DEFAULT_SDK_SPEC = "^0.1.0";
-const TEMPLATE_NAMES: TemplateName[] = ["hook-subprocess", "memory-backend", "tool-provider"];
+const TEMPLATE_NAMES: TemplateName[] = [
+  "hook-subprocess",
+  "memory-backend",
+  "tool-provider",
+  "go-tool-provider",
+];
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const args = [...argv];
@@ -95,7 +104,7 @@ export function renderHelp(): string {
     "Usage: create-extension <name> [options]",
     "",
     "Options:",
-    "  --template, -t  hook-subprocess | memory-backend | tool-provider",
+    "  --template, -t  hook-subprocess | memory-backend | tool-provider | go-tool-provider",
     "  --dir, -d       target directory (defaults to ./<name>)",
     "  --sdk-spec      package spec for @agh/extension-sdk",
     "  --help, -h      show this help message",
