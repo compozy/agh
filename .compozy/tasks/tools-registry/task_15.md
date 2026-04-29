@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: QA Plan and Test Coverage
 type: test
 complexity: high
@@ -31,12 +31,12 @@ Generate the release-grade QA planning artifacts for the Tool Registry after imp
 </requirements>
 
 ## Subtasks
-- [ ] 15.1 Activate `qa-report` with `qa-output-path=.compozy/tasks/tools-registry`
-- [ ] 15.2 Write feature-level QA plan with environment matrix, risks, entry/exit criteria, and artifact layout
-- [ ] 15.3 Generate manual test cases for native, extension-host, MCP, hosted MCP, policy, approval, CLI/API/UDS, web, docs, and config
-- [ ] 15.4 Build regression suites with P0/P1 ordering for task_16 execution
-- [ ] 15.5 Map each P0/P1 case to tasks, TechSpec invariants, ADR decisions, or safety invariants
-- [ ] 15.6 Include negative tests, edge cases, concurrency stress, and redaction leak assertions
+- [x] 15.1 Activate `qa-report` with `qa-output-path=.compozy/tasks/tools-registry`
+- [x] 15.2 Write feature-level QA plan with environment matrix, risks, entry/exit criteria, and artifact layout
+- [x] 15.3 Generate manual test cases for native, extension-host, MCP, hosted MCP, policy, approval, CLI/API/UDS, web, docs, and config
+- [x] 15.4 Build regression suites with P0/P1 ordering for task_16 execution
+- [x] 15.5 Map each P0/P1 case to tasks, TechSpec invariants, ADR decisions, or safety invariants
+- [x] 15.6 Include negative tests, edge cases, concurrency stress, and redaction leak assertions
 
 ## Implementation Details
 
@@ -83,14 +83,14 @@ Use the TechSpec "Test Strategy", "Safety Invariants", and all task files 01-14.
 
 ## Tests
 - Unit tests:
-  - [ ] QA plan includes objectives, scope, risks, environment matrix, entry criteria, and exit criteria across backend, CLI, API, UDS, web, docs, SDKs, MCP, and config
-  - [ ] Manual test cases exist for native tools, TypeScript extension tools, Go extension tools, MCP call-through, hosted MCP, policy, approval, redaction, and web/docs
-  - [ ] Regression suites define smoke, targeted, full, and security/redaction lanes with explicit P0/P1 ordering
-  - [ ] Every P0/P1 case names the exact task, TechSpec invariant, or ADR it proves
+  - [x] QA plan includes objectives, scope, risks, environment matrix, entry criteria, and exit criteria across backend, CLI, API, UDS, web, docs, SDKs, MCP, and config
+  - [x] Manual test cases exist for native tools, TypeScript extension tools, Go extension tools, MCP call-through, hosted MCP, policy, approval, redaction, and web/docs
+  - [x] Regression suites define smoke, targeted, full, and security/redaction lanes with explicit P0/P1 ordering
+  - [x] Every P0/P1 case names the exact task, TechSpec invariant, or ADR it proves
 - Integration tests:
-  - [ ] All generated QA artifacts live under `.compozy/tasks/tools-registry/qa/`
-  - [ ] task_16 can consume the plan without redefining scope, priorities, output paths, or environment setup
-  - [ ] Any bug report created during planning references the originating test case or documented discrepancy
+  - [x] All generated QA artifacts live under `.compozy/tasks/tools-registry/qa/`
+  - [x] task_16 can consume the plan without redefining scope, priorities, output paths, or environment setup
+  - [x] Any bug report created during planning references the originating test case or documented discrepancy
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -99,3 +99,12 @@ Use the TechSpec "Test Strategy", "Safety Invariants", and all task files 01-14.
 - Test coverage >=80%
 - `qa-report` artifacts are complete, traceable, and stored under `.compozy/tasks/tools-registry/qa/`
 - task_16 can begin execution without changing QA scope or artifact paths
+
+## Verification Evidence
+
+- 97 manual test cases authored under `.compozy/tasks/tools-registry/qa/test-cases/` (TC-SEC×14, TC-FUNC×58, TC-INT×16, TC-UI×6, TC-PERF×3).
+- 6 plan documents authored under `.compozy/tasks/tools-registry/qa/test-plans/`: `tool-registry-test-plan.md`, `smoke-regression.md`, `targeted-regression.md`, `full-regression.md`, `security-redaction-regression.md`, `traceability-matrix.md`.
+- Stable artifact directories reserved for task_16: `qa/issues/`, `qa/screenshots/`, `qa/logs/`, `qa/traces/`, `qa/fixtures/`.
+- `traceability-matrix.md` maps every P0 and P1 case to tasks 01-14, TechSpec sections, ADR-001..011, and Safety Invariants 1-27.
+- Smoke lane lists exactly the 14 P0 cases that must pass before downstream regression lanes proceed; security-redaction lane defines sentinels and the grep-based scan command Task 16 must run.
+- `make verify` is not relevant to this planning-only task because no Go/TS source changed; it is required at Task 16 (final gate, see TC-INT-016).
