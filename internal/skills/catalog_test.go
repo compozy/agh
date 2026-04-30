@@ -57,8 +57,9 @@ func TestBuildCatalogFormatsCatalogSortedEscapedAndWithUsageInstructions(t *test
 		`  <skill name="zeta">Last skill</skill>`,
 		"</available-skills>",
 		"",
-		"Use `agh skill view <name>` to load full instructions for any skill.",
-		"Use `agh skill view <name> --file <path>` to read a specific skill resource file.",
+		"Use `agh__skill_view` to load full instructions for any skill.",
+		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
+		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
 	}, "\n")
 
 	if got != want {
@@ -236,8 +237,9 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 		`  <skill name="global">Global skill</skill>`,
 		"</available-skills>",
 		"",
-		"Use `agh skill view <name>` to load full instructions for any skill.",
-		"Use `agh skill view <name> --file <path>` to read a specific skill resource file.",
+		"Use `agh__skill_view` to load full instructions for any skill.",
+		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
+		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
 	}, "\n")
 
 	if got != want {
@@ -247,4 +249,32 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 	if strings.Contains(got, "beta") {
 		t.Fatalf("PromptSection() leaked workspace-two skill into workspace-one catalog: %q", got)
 	}
+}
+
+func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldPreferSkillViewToolOverCliFallback", func(t *testing.T) {
+		t.Parallel()
+
+		got := BuildCatalog([]*Skill{
+			{
+				Meta: SkillMeta{
+					Name:        "agh-tools-guide",
+					Description: "Tool guidance",
+				},
+				Enabled: true,
+			},
+		})
+
+		if !strings.Contains(got, "Use `agh__skill_view` to load full instructions") {
+			t.Fatalf("BuildCatalog() = %q, want agh__skill_view primary guidance", got)
+		}
+		if !strings.Contains(got, "operator fallback") {
+			t.Fatalf("BuildCatalog() = %q, want conditional operator fallback guidance", got)
+		}
+		if strings.Contains(got, "Use `agh skill view <name>` to load full instructions") {
+			t.Fatalf("BuildCatalog() = %q, want no CLI-first loading guidance", got)
+		}
+	})
 }

@@ -28,13 +28,18 @@ The parser is strict. Unknown frontmatter fields fail loading.
 | `provider`    | string                      | `[defaults].provider`                       | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, and API key metadata. |
 | `command`     | string                      | Provider `command`                          | Non-empty when overriding.                                          | Agent-specific ACP launch command.                             |
 | `model`       | string                      | Provider `default_model`                    | Any string.                                                         | Agent-specific model metadata.                                 |
-| `tools`       | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Agent tool allowlist grammar.                                  |
-| `toolsets`    | string array                | empty                                       | Canonical ToolsetIDs.                                               | Named tool bundles allowed for the agent.                      |
+| `tools`       | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Additional agent tool allowlist grammar.                       |
+| `toolsets`    | string array                | empty                                       | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.           |
 | `deny_tools`  | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.               |
 | `permissions` | string                      | `[permissions].mode`, default `approve-all` | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                |
 | `mcp_servers` | array of MCP server objects | empty                                       | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                       |
 | `hooks`       | array of hook declarations  | empty                                       | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                |
 | Markdown body | Markdown text               | required                                    | Non-empty after trimming.                                           | Startup prompt sent as the agent system prompt.                |
+
+Even when `tools` and `toolsets` are empty, AGH adds the discovery toolsets `agh__bootstrap` and
+`agh__catalog` at runtime unless effective policy denies them. Agents should discover AGH-native
+runtime capabilities with `agh__tool_search`, inspect descriptors with `agh__tool_info`, and invoke
+dedicated tools before shelling out to equivalent `agh ...` commands.
 
 ## Discovery And Precedence
 
@@ -73,18 +78,17 @@ provider: claude
 # Optional. Defaults to the provider default_model.
 model: claude-sonnet-4-20250514
 
-# Optional. Exact canonical ToolIDs or namespace-prefix wildcard patterns.
+# Optional. Add only extra ToolIDs beyond default discovery.
 tools:
-  - "agh__skill_view"
   - "mcp__github__*"
 
-# Optional. Named ToolsetIDs.
+# Optional. Add only extra toolsets beyond agh__bootstrap + agh__catalog defaults.
 toolsets:
-  - "agh__catalog"
+  - "agh__coordination"
 
 # Optional. Denies always narrow the allowed set.
 deny_tools:
-  - "agh__task_*"
+  - "agh__network_send"
 
 # Optional. Defaults to [permissions].mode.
 permissions: approve-reads
@@ -162,17 +166,17 @@ Put blocking findings first and cite the relevant file or symbol.
 | Default      | empty                                                                                                                                                                                                                          |
 | Required     | no                                                                                                                                                                                                                             |
 | Valid values | Exact canonical ToolIDs such as `agh__skill_view`, or namespace-prefix wildcards such as `agh__skill_*` and `mcp__github__*`. `*`, dotted names, hyphens, uppercase, suffix wildcards, and mid-segment wildcards are rejected. |
-| Description  | Agent tool allowlist grammar consumed by the registry policy layer. It does not raise authority above `[permissions].mode`.                                                                                                    |
+| Description  | Additional agent tool allowlist grammar consumed by the registry policy layer. It does not raise authority above `[permissions].mode`; default discovery still comes from the runtime overlay unless denied.                   |
 
 ### `toolsets`
 
-| Attribute    | Value                                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------------------ |
-| Type         | string array                                                                                                       |
-| Default      | empty                                                                                                              |
-| Required     | no                                                                                                                 |
-| Valid values | Canonical ToolsetIDs such as `agh__catalog` or `linear__read`.                                                     |
-| Description  | Named tool bundles allowed for the agent. Toolsets are separate from `tools`; do not place toolset IDs in `tools`. |
+| Attribute    | Value                                                                                                                                                                                                           |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type         | string array                                                                                                                                                                                                    |
+| Default      | empty                                                                                                                                                                                                           |
+| Required     | no                                                                                                                                                                                                              |
+| Valid values | Canonical ToolsetIDs such as `agh__catalog` or `linear__read`.                                                                                                                                                  |
+| Description  | Additional named tool bundles allowed for the agent. Toolsets are separate from `tools`; do not place toolset IDs in `tools`. AGH adds `agh__bootstrap` and `agh__catalog` at runtime by default unless denied. |
 
 ### `deny_tools`
 
@@ -395,6 +399,9 @@ Sidecar behavior:
 | Deny tools    | `AGENT.md` `deny_tools`                              | Same grammar as `tools`; denies narrow later policy evaluation.           |
 | Permissions   | `AGENT.md` `permissions`, then `[permissions].mode`  | Must be a supported permission mode.                                      |
 | MCP servers   | Top-level config, provider, agent, active skills     | Same-name TOML entries merge fields; JSON sidecars replace whole objects. |
+
+The `Tools` and `Toolsets` rows describe configured agent policy. Effective runtime discovery also
+adds `agh__bootstrap` and `agh__catalog` by default. Denies still win after that overlay.
 
 ## RFC 001 Fields Not Accepted Today
 

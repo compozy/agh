@@ -80,16 +80,29 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if !containsHarnessSection(startupResolved.Policy.IncludeSections, HarnessPromptSectionNetwork) {
 		t.Fatalf("startup IncludeSections = %#v, want network section", startupResolved.Policy.IncludeSections)
 	}
+	if !containsHarnessSection(startupResolved.Policy.IncludeSections, HarnessPromptSectionTools) {
+		t.Fatalf("startup IncludeSections = %#v, want tools section", startupResolved.Policy.IncludeSections)
+	}
 
 	networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
 	if err != nil {
 		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
 	}
+	toolsGuide, err := bundled.LoadContent(bundledToolsSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", bundledToolsSkillName, err)
+	}
 	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, networkSkill) {
 		t.Fatalf("start system prompt = %q, want bundled network skill content", got)
 	}
+	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, toolsGuide) {
+		t.Fatalf("start system prompt = %q, want bundled tools guide content", got)
+	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
 		t.Fatalf("network skill occurrences = %d, want 1", got)
+	}
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, toolsGuide); got != 1 {
+		t.Fatalf("tools guide occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, "<agh-situation-context>"); got != 1 {
 		t.Fatalf("situation context occurrences = %d, want 1", got)
@@ -101,6 +114,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		"# Persistent Memory",
 		"You are a coding assistant.",
 		"<available-skills>",
+		toolsGuide,
 		networkSkill,
 	)
 
@@ -228,8 +242,15 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
 	}
+	toolsGuide, err := bundled.LoadContent(bundledToolsSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", bundledToolsSkillName, err)
+	}
 	if got := strings.Count(driver.startCalls[1].SystemPrompt, networkSkill); got != 1 {
 		t.Fatalf("resume prompt network skill occurrences = %d, want 1", got)
+	}
+	if got := strings.Count(driver.startCalls[1].SystemPrompt, toolsGuide); got != 1 {
+		t.Fatalf("resume prompt tools guide occurrences = %d, want 1", got)
 	}
 }
 
@@ -269,6 +290,13 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 	if strings.Contains(driver.startCalls[0].SystemPrompt, networkSkill) {
 		t.Fatalf("start system prompt unexpectedly contains bundled network skill")
 	}
+	toolsGuide, err := bundled.LoadContent(bundledToolsSkillName)
+	if err != nil {
+		t.Fatalf("LoadContent(%q) error = %v", bundledToolsSkillName, err)
+	}
+	if !strings.Contains(driver.startCalls[0].SystemPrompt, toolsGuide) {
+		t.Fatalf("start system prompt missing bundled tools guide")
+	}
 	assertPromptContainsInOrder(
 		t,
 		driver.startCalls[0].SystemPrompt,
@@ -276,6 +304,7 @@ func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession
 		"# Persistent Memory",
 		"You are a coding assistant.",
 		"<available-skills>",
+		toolsGuide,
 	)
 }
 

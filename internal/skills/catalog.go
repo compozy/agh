@@ -13,8 +13,9 @@ import (
 const (
 	catalogDescriptionLimit  = 200
 	catalogEllipsis          = "..."
-	catalogUsageInstructions = "Use `agh skill view <name>` to load full instructions for any skill.\n" +
-		"Use `agh skill view <name> --file <path>` to read a specific skill resource file."
+	catalogUsageInstructions = "Use `agh__skill_view` to load full instructions for any skill.\n" +
+		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.\n" +
+		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
 )
 
 var (

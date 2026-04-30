@@ -390,6 +390,47 @@ func TestComposedAssemblerAssembleStartupLoadsBundledNetworkSectionDescriptor(t 
 	}
 }
 
+func TestComposedAssemblerAssembleStartupLoadsBundledToolsSectionDescriptor(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render tools guide only when tools section is selected", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+			ToolsPromptSectionEnabled: true,
+		})
+		assembler := NewComposedAssembler(
+			WithSectionSelector(NewSectionSelector(resolver, nil)),
+			WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil, nil)...),
+		)
+
+		got := assembleStartupPrompt(
+			t,
+			assembler,
+			session.StartupPromptContext{
+				SessionType: session.SessionTypeUser,
+			},
+			testPromptAgent("Base prompt."),
+			t.TempDir(),
+		)
+
+		toolsGuide, err := bundled.LoadContent(bundledToolsSkillName)
+		if err != nil {
+			t.Fatalf("LoadContent(%q) error = %v", bundledToolsSkillName, err)
+		}
+		networkSkill, err := bundled.LoadContent(bundledNetworkSkillName)
+		if err != nil {
+			t.Fatalf("LoadContent(%q) error = %v", bundledNetworkSkillName, err)
+		}
+		if !strings.Contains(got, toolsGuide) {
+			t.Fatalf("AssembleStartup() = %q, want bundled tools guide content", got)
+		}
+		if strings.Contains(got, networkSkill) {
+			t.Fatalf("AssembleStartup() = %q, want no bundled network content without channel", got)
+		}
+	})
+}
+
 type recordingPromptProvider struct {
 	section    string
 	err        error

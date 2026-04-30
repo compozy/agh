@@ -82,22 +82,28 @@ Session creation first resolves the agent name, then resolves the provider and r
 The bootstrap `general` agent created by `agh install` intentionally contains only `name: general`
 and a prompt. Its provider and model come from `~/.agh/config.toml`.
 
+Tool discovery works the same way. The `tools` and `toolsets` frontmatter fields start empty, but
+the effective runtime policy adds `agh__bootstrap` and `agh__catalog` by default unless a deny or
+runtime policy layer removes them. Agents should use `agh__tool_search -> agh__tool_info -> invoke`
+for AGH-native capabilities and `agh__skill_search -> agh__skill_view` for skill loading before
+falling back to equivalent `agh ...` shell commands.
+
 ## Frontmatter reference
 
 These are the frontmatter fields accepted by the current `internal/config` parser.
 
-| Field         | Type                        | Required | Default or resolution               | Valid values and notes                                                                                                                                         |
-| ------------- | --------------------------- | -------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`        | string                      | yes      | none                                | Must be non-empty. `LoadAgentDef(name)` also requires the parsed name to match the requested directory/name. No lowercase or hyphen pattern is enforced today. |
-| `provider`    | string                      | no       | `defaults.provider`                 | Provider ID such as `claude`, `codex`, or a custom configured provider. Required at resolution time unless `defaults.provider` is set.                         |
-| `command`     | string                      | no       | provider `command`                  | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                           |
-| `model`       | string                      | no       | provider `default_model`            | Stored as the resolved model metadata. The current ACP `session/new` and `session/load` payloads do not send this field.                                       |
-| `tools`       | string array                | no       | empty                               | Exact canonical ToolIDs such as `agh__skill_view`, or namespace-prefix wildcards such as `agh__skill_*` and `mcp__github__*`.                                  |
-| `toolsets`    | string array                | no       | empty                               | Canonical ToolsetIDs such as `agh__catalog` or `linear__read`.                                                                                                 |
-| `deny_tools`  | string array                | no       | empty                               | Same grammar as `tools`. Denies can overlap allows and are interpreted as a narrowing layer by registry policy.                                                |
-| `permissions` | string                      | no       | `[permissions].mode`                | `deny-all`, `approve-reads`, or `approve-all`.                                                                                                                 |
-| `mcp_servers` | array of MCP server objects | no       | merged with config/provider servers | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                      |
-| `hooks`       | array of hook declarations  | no       | none                                | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                            |
+| Field         | Type                        | Required | Default or resolution               | Valid values and notes                                                                                                                                                         |
+| ------------- | --------------------------- | -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`        | string                      | yes      | none                                | Must be non-empty. `LoadAgentDef(name)` also requires the parsed name to match the requested directory/name. No lowercase or hyphen pattern is enforced today.                 |
+| `provider`    | string                      | no       | `defaults.provider`                 | Provider ID such as `claude`, `codex`, or a custom configured provider. Required at resolution time unless `defaults.provider` is set.                                         |
+| `command`     | string                      | no       | provider `command`                  | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                                           |
+| `model`       | string                      | no       | provider `default_model`            | Stored as the resolved model metadata. The current ACP `session/new` and `session/load` payloads do not send this field.                                                       |
+| `tools`       | string array                | no       | empty                               | Additional exact canonical ToolIDs such as `agh__skill_view`, or namespace-prefix wildcards such as `agh__skill_*` and `mcp__github__*`. Default discovery is runtime-applied. |
+| `toolsets`    | string array                | no       | empty                               | Additional canonical ToolsetIDs such as `agh__tasks` or `linear__read`. Runtime discovery adds `agh__bootstrap` and `agh__catalog` unless denied.                              |
+| `deny_tools`  | string array                | no       | empty                               | Same grammar as `tools`. Denies can overlap allows and are interpreted as a narrowing layer by registry policy.                                                                |
+| `permissions` | string                      | no       | `[permissions].mode`                | `deny-all`, `approve-reads`, or `approve-all`.                                                                                                                                 |
+| `mcp_servers` | array of MCP server objects | no       | merged with config/provider servers | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                                      |
+| `hooks`       | array of hook declarations  | no       | none                                | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                                            |
 
 The parser accepts YAML frontmatter first. If YAML parsing fails, it tries TOML frontmatter. In
 both formats, unknown fields fail validation.
@@ -156,9 +162,9 @@ Sidecar behavior is precise:
 name: code-reviewer
 provider: claude
 model: claude-sonnet-4-20250514
-tools: ["agh__skill_view", "mcp__github__*"]
-toolsets: ["agh__catalog"]
-deny_tools: ["agh__task_*"]
+tools: ["mcp__github__*"]
+toolsets: ["agh__coordination"]
+deny_tools: ["agh__network_send"]
 permissions: approve-reads
 mcp_servers:
   - name: github

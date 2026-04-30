@@ -10,7 +10,10 @@ Use this guide only when this session is participating in an AGH network channel
 
 ## Operating model
 
-- Use only the audited `agh network` CLI path. Do not attempt direct NATS or broker access.
+- Prefer AGH-native network tools when the registry exposes them in your current policy scope.
+- Use `agh__network_peers` to inspect channel peers and `agh__network_send` to send supported network messages.
+- Use the audited `agh network` CLI path only for network operations that do not yet have a visible dedicated tool in this session.
+- Do not attempt direct NATS or broker access.
 - `--session` is your daemon-local session id. It is not a peer id and it does not let you impersonate another sender.
 - Use `AGH_SESSION_ID` as your local daemon session id when calling `agh network`.
 - Network-participating sessions also expose `AGH_SESSION_CHANNEL` for your joined channel and `AGH_PEER_ID` for your local peer identity.

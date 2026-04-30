@@ -228,6 +228,44 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 	}
 }
 
+func TestHarnessContextResolverIncludesToolsSectionWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include tools section between skills and network", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+			MemoryPromptSectionEnabled: true,
+			SkillsPromptSectionEnabled: true,
+			ToolsPromptSectionEnabled:  true,
+		})
+
+		got, err := resolver.Resolve(HarnessResolutionInput{
+			Surface: ResolutionSurfaceStartup,
+			Session: HarnessSessionInput{
+				Type:    session.SessionTypeUser,
+				Channel: "builders",
+			},
+			Turn: HarnessTurnRequest{
+				Source: session.TurnSourceUser,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+
+		wantSections := []HarnessPromptSection{
+			HarnessPromptSectionMemory,
+			HarnessPromptSectionSkills,
+			HarnessPromptSectionTools,
+			HarnessPromptSectionNetwork,
+		}
+		if !slices.Equal(got.Policy.IncludeSections, wantSections) {
+			t.Fatalf("IncludeSections = %#v, want %#v", got.Policy.IncludeSections, wantSections)
+		}
+	})
+}
+
 func TestHarnessContextResolverValidation(t *testing.T) {
 	t.Parallel()
 

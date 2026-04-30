@@ -298,6 +298,7 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		SituationPromptSectionEnabled: state.situationContext != nil,
 		MemoryPromptSectionEnabled:    state.memoryStore != nil,
 		SkillsPromptSectionEnabled:    state.skillsRegistry != nil,
+		ToolsPromptSectionEnabled:     state.cfg.Tools.Enabled,
 		SituationAugmenter:            state.situationContext != nil,
 		DurableMemoryAugmenter:        state.memoryStore != nil,
 		SyntheticTurnsEnabled:         true,

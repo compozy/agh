@@ -13,15 +13,18 @@ import (
 
 const (
 	bundledNetworkSkillName = "agh-network"
+	bundledToolsSkillName   = "agh-tools-guide"
 
 	startupSituationSectionOrder = 50
 	startupMemorySectionOrder    = 100
 	startupSkillsSectionOrder    = 100
+	startupToolsSectionOrder     = 150
 	startupNetworkSectionOrder   = 200
 
 	startupSituationSectionBudget = 20_000
 	startupMemorySectionBudget    = 24_000
 	startupSkillsSectionBudget    = 16_000
+	startupToolsSectionBudget     = 12_000
 	startupNetworkSectionBudget   = 12_000
 )
 
@@ -67,7 +70,7 @@ func defaultStartupPromptSectionDescriptors(
 	skillsProvider session.PromptProvider,
 	situationProvider session.PromptProvider,
 ) []PromptSectionDescriptor {
-	descriptors := make([]PromptSectionDescriptor, 0, 4)
+	descriptors := make([]PromptSectionDescriptor, 0, 5)
 
 	if situationProvider != nil {
 		descriptors = append(descriptors, PromptSectionDescriptor{
@@ -105,15 +108,26 @@ func defaultStartupPromptSectionDescriptors(
 		})
 	}
 
-	descriptors = append(descriptors, PromptSectionDescriptor{
-		Name:           string(HarnessPromptSectionNetwork),
-		Position:       PromptSectionPositionAppend,
-		Order:          startupNetworkSectionOrder,
-		Budget:         startupNetworkSectionBudget,
-		BudgetBehavior: PromptSectionBudgetBehaviorOmit,
-		Provider:       bundledPromptSectionProvider(bundledNetworkSkillName),
-		Predicate:      policyIncludesSection(HarnessPromptSectionNetwork),
-	})
+	descriptors = append(descriptors,
+		PromptSectionDescriptor{
+			Name:           string(HarnessPromptSectionTools),
+			Position:       PromptSectionPositionAppend,
+			Order:          startupToolsSectionOrder,
+			Budget:         startupToolsSectionBudget,
+			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
+			Provider:       bundledPromptSectionProvider(bundledToolsSkillName),
+			Predicate:      policyIncludesSection(HarnessPromptSectionTools),
+		},
+		PromptSectionDescriptor{
+			Name:           string(HarnessPromptSectionNetwork),
+			Position:       PromptSectionPositionAppend,
+			Order:          startupNetworkSectionOrder,
+			Budget:         startupNetworkSectionBudget,
+			BudgetBehavior: PromptSectionBudgetBehaviorOmit,
+			Provider:       bundledPromptSectionProvider(bundledNetworkSkillName),
+			Predicate:      policyIncludesSection(HarnessPromptSectionNetwork),
+		},
+	)
 
 	return descriptors
 }

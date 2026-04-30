@@ -3521,7 +3521,7 @@ func canonicalDaemonRoot(t *testing.T, root string) string {
 }
 
 func orderedFragments(wantMemory bool, wantSkills bool) []string {
-	fragments := make([]string, 0, 3)
+	fragments := make([]string, 0, 4)
 	if wantMemory {
 		fragments = append(fragments, "# Persistent Memory")
 	}
@@ -3529,6 +3529,7 @@ func orderedFragments(wantMemory bool, wantSkills bool) []string {
 	if wantSkills {
 		fragments = append(fragments, "<available-skills>", "agh-session-guide")
 	}
+	fragments = append(fragments, "# AGH Tools Guide")
 	return fragments
 }
 

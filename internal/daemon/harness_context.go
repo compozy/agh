@@ -48,6 +48,8 @@ const (
 	HarnessPromptSectionMemory HarnessPromptSection = "memory"
 	// HarnessPromptSectionSkills injects the active skills catalog prompt context.
 	HarnessPromptSectionSkills HarnessPromptSection = "skills"
+	// HarnessPromptSectionTools injects AGH-native tool discovery and invocation guidance.
+	HarnessPromptSectionTools HarnessPromptSection = "tools"
 	// HarnessPromptSectionNetwork injects the bundled AGH network startup section.
 	HarnessPromptSectionNetwork HarnessPromptSection = "network"
 )
@@ -97,6 +99,7 @@ type HarnessRuntimeSignals struct {
 	SituationPromptSectionEnabled bool
 	MemoryPromptSectionEnabled    bool
 	SkillsPromptSectionEnabled    bool
+	ToolsPromptSectionEnabled     bool
 	SituationAugmenter            bool
 	DurableMemoryAugmenter        bool
 	SyntheticTurnsEnabled         bool
@@ -493,7 +496,7 @@ func normalizeDetachedRunMetadata(input *DetachedRunMetadata) (*DetachedRunMetad
 }
 
 func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContext) []HarnessPromptSection {
-	sections := make([]HarnessPromptSection, 0, 4)
+	sections := make([]HarnessPromptSection, 0, 5)
 	if r.runtime.SituationPromptSectionEnabled {
 		sections = append(sections, HarnessPromptSectionSituation)
 	}
@@ -502,6 +505,9 @@ func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContex
 	}
 	if r.runtime.SkillsPromptSectionEnabled {
 		sections = append(sections, HarnessPromptSectionSkills)
+	}
+	if r.runtime.ToolsPromptSectionEnabled {
+		sections = append(sections, HarnessPromptSectionTools)
 	}
 	if sessionCtx.ChannelBound {
 		sections = append(sections, HarnessPromptSectionNetwork)

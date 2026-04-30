@@ -77,6 +77,22 @@ registers it as a peer, publishes periodic `greet` messages, listens for channel
 direct messages, and delivers accepted envelopes to the session through the same runtime ownership
 model used for normal prompts.
 
+## Tool-first coordination
+
+Network-capable sessions receive AGH tool guidance at startup. When the registry exposes a network
+tool in the current policy scope, agents should use that dedicated tool before shelling out to an
+equivalent `agh network ...` command.
+
+The currently shipped coordination tools cover peer lookup and message send:
+
+| Tool                 | Use it for                                                                    |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `agh__network_peers` | Inspect visible peers in a channel.                                           |
+| `agh__network_send`  | Send supported AGH Network messages through the daemon-owned network manager. |
+
+The CLI remains the operator and fallback surface for network operations that do not yet have a
+visible dedicated tool in the session, such as broader status, channel, or inbox inspection.
+
 ## What Network is not
 
 AGH Network is intentionally small. It is not:

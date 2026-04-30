@@ -36,6 +36,10 @@ var bundledSkillFixtures = []struct {
 		path: "skills/agh-network/SKILL.md",
 		name: "agh-network",
 	},
+	{
+		path: "skills/agh-tools-guide/SKILL.md",
+		name: "agh-tools-guide",
+	},
 }
 
 func TestBundledFSContainsExpectedSkills(t *testing.T) {
@@ -133,6 +137,41 @@ func TestBundledRegistry(t *testing.T) {
 			t.Fatalf("LoadContent(agh-network) = %q, want AGH Network heading", content)
 		}
 	})
+
+	t.Run("ShouldLoadAghToolsGuideSkill", func(t *testing.T) {
+		t.Parallel()
+
+		registry := skills.NewRegistry(skills.RegistryConfig{
+			BundledFS: bundled.FS(),
+		})
+		if err := registry.LoadAll(context.Background()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+
+		skill, ok := registry.Get("agh-tools-guide")
+		if !ok {
+			t.Fatal("Get(agh-tools-guide) ok = false, want bundled skill")
+		}
+		if skill.Source != skills.SourceBundled {
+			t.Fatalf("Get(agh-tools-guide).Source = %v, want %v", skill.Source, skills.SourceBundled)
+		}
+
+		content, err := registry.LoadContent(context.Background(), skill)
+		if err != nil {
+			t.Fatalf("LoadContent(agh-tools-guide) error = %v", err)
+		}
+		for _, snippet := range []string{
+			"# AGH Tools Guide",
+			"agh__tool_search",
+			"agh__tool_info",
+			"agh__skill_view",
+			"Management-surface exceptions",
+		} {
+			if !strings.Contains(content, snippet) {
+				t.Fatalf("LoadContent(agh-tools-guide) missing %q in %q", snippet, content)
+			}
+		}
+	})
 }
 
 func TestBundledAghNetworkSkillContent(t *testing.T) {
@@ -199,6 +238,9 @@ func TestBundledAghNetworkSkillContent(t *testing.T) {
 		snippet string
 		absent  bool
 	}{
+		{name: "ShouldPreferNetworkPeersTool", snippet: "agh__network_peers"},
+		{name: "ShouldPreferNetworkSendTool", snippet: "agh__network_send"},
+		{name: "ShouldNotKeepCliOnlyNetworkGuidance", snippet: "Use only the audited `agh network` CLI path", absent: true},
 		{name: "ShouldDocumentNetworkMessageWrapper", snippet: "<network-message"},
 		{name: "ShouldDocumentUntrustedWrapperAttribute", snippet: `trust="untrusted"`},
 		{name: "ShouldDocumentNetworkPreviewWrapper", snippet: "<network-preview"},
