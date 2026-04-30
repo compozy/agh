@@ -6,13 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
 
 	apitest "github.com/pedronauck/agh/internal/api/testutil"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	memorypkg "github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -141,6 +144,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDNetworkStatus)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDWorkspaceDescribe)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMemoryList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDObserveEvents)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBridgesList)
 
 		sessionViews, err := registry.List(t.Context(), toolspkg.Scope{SessionID: "sess-1"})
 		if err != nil {
@@ -150,6 +156,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.ToolIDNetworkStatus,
 			toolspkg.ToolIDSessionList,
 			toolspkg.ToolIDWorkspaceDescribe,
+			toolspkg.ToolIDMemoryList,
+			toolspkg.ToolIDObserveEvents,
+			toolspkg.ToolIDBridgesList,
 		} {
 			if nativeToolViewByID(sessionViews, id) != nil {
 				t.Fatalf("session projection leaked unavailable tool %s", id)
@@ -1031,132 +1040,537 @@ func TestDaemonNativeTools(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("Should read memory tools through the current memory store with redaction", func(t *testing.T) {
+		t.Parallel()
+
+		rawClaim := "agh_claim_secret123"
+		globalDir := filepath.Join(t.TempDir(), "global-memory")
+		catalogPath := filepath.Join(t.TempDir(), "memory.db")
+		memoryStore := memorypkg.NewStore(globalDir, memorypkg.WithCatalogDatabasePath(catalogPath))
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		if err := memoryStore.Write(
+			memorypkg.ScopeGlobal,
+			"global.md",
+			nativeMemoryDocument(
+				"Global "+rawClaim,
+				"Global description "+rawClaim,
+				memorypkg.MemoryTypeUser,
+				"global memory body "+rawClaim,
+			),
+		); err != nil {
+			t.Fatalf("Write(global memory) error = %v", err)
+		}
+		if err := memoryStore.ForWorkspace(workspaceRoot).Write(
+			memorypkg.ScopeWorkspace,
+			"workspace.md",
+			nativeMemoryDocument(
+				"Workspace "+rawClaim,
+				"Workspace description "+rawClaim,
+				memorypkg.MemoryTypeProject,
+				"workspace memory body "+rawClaim,
+			),
+		); err != nil {
+			t.Fatalf("Write(workspace memory) error = %v", err)
+		}
+		workspaces := apitest.StubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != "ws-1" {
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			MemoryStore: memoryStore,
+			Workspaces:  workspaces,
+		}, nativeApproveAllPolicyInputs())
+
+		listResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryList,
+				Input:  json.RawMessage(`{"scope":"workspace","workspace":"ws-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, listResult, []byte(`"workspace.md"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(rawClaim))
+
+		globalListResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryList,
+				Input:  json.RawMessage(`{"scope":"global"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_list global) error = %v", err)
+		}
+		requireNativeStructuredContains(t, globalListResult, []byte(`"global.md"`))
+		requireNativeStructuredExcludes(t, globalListResult, []byte(`"workspace.md"`))
+		requireNativeStructuredExcludes(t, globalListResult, []byte(rawClaim))
+
+		combinedListResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryList,
+				Input:  json.RawMessage(`{"workspace":"ws-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_list combined) error = %v", err)
+		}
+		requireNativeStructuredContains(t, combinedListResult, []byte(`"global.md"`))
+		requireNativeStructuredContains(t, combinedListResult, []byte(`"workspace.md"`))
+		requireNativeStructuredExcludes(t, combinedListResult, []byte(rawClaim))
+
+		readResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryRead,
+				Input:  json.RawMessage(`{"filename":"global.md","scope":"global"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_read) error = %v", err)
+		}
+		requireNativeStructuredContains(t, readResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredExcludes(t, readResult, []byte(rawClaim))
+
+		workspaceReadResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryRead,
+				Input:  json.RawMessage(`{"filename":"workspace.md","scope":"workspace","workspace":"ws-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_read workspace) error = %v", err)
+		}
+		requireNativeStructuredContains(t, workspaceReadResult, []byte(`"workspace.md"`))
+		requireNativeStructuredExcludes(t, workspaceReadResult, []byte(rawClaim))
+
+		searchResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemorySearch,
+				Input:  json.RawMessage(`{"query":"memory","workspace":"ws-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_search) error = %v", err)
+		}
+		requireNativeStructuredContains(t, searchResult, []byte(`"workspace.md"`))
+		requireNativeStructuredExcludes(t, searchResult, []byte(rawClaim))
+
+		historyResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryHistory,
+				Input:  json.RawMessage(`{"workspace":"ws-1","limit":10}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_history) error = %v", err)
+		}
+		requireNativeStructuredContains(t, historyResult, []byte(`"memory.search"`))
+		requireNativeStructuredExcludes(t, historyResult, []byte(rawClaim))
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryRead,
+				Input:  json.RawMessage(`{"filename":"missing.md","scope":"global"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolNotFound) {
+			t.Fatalf("Registry.Call(memory_read missing) error = %v, want ErrToolNotFound", err)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryHistory,
+				Input:  json.RawMessage(`{"since":"not-a-date"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(memory_history invalid since) error = %v, want ErrToolInvalidInput", err)
+		}
+	})
+
+	t.Run("Should read observe tools through the observer without leaking event secrets", func(t *testing.T) {
+		t.Parallel()
+
+		rawClaim := "agh_claim_observe123"
+		now := time.Date(2026, 4, 29, 15, 0, 0, 0, time.UTC)
+		observer := &nativeObserverStub{
+			eventSummaries: []store.EventSummary{
+				{
+					ID:        "evt-1",
+					SessionID: "sess-1",
+					Type:      "agent_message",
+					AgentName: "coder",
+					Summary:   "deploy completed " + rawClaim,
+					Timestamp: now,
+				},
+				{
+					ID:        "evt-2",
+					SessionID: "sess-2",
+					Type:      "agent_message",
+					AgentName: "reviewer",
+					Summary:   "review completed",
+					Timestamp: now.Add(time.Second),
+				},
+			},
+			health: observe.Health{
+				Status:         "ok",
+				ActiveSessions: 1,
+				ActiveAgents:   1,
+				Retention: observe.RetentionHealth{
+					LastSweepError: "sweep failed " + rawClaim,
+				},
+				Version: "test",
+			},
+		}
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			Observer: observer,
+		}, nativeApproveAllPolicyInputs())
+
+		eventsResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDObserveEvents,
+				Input:  json.RawMessage(`{"limit":1}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(observe_events) error = %v", err)
+		}
+		requireNativeStructuredContains(t, eventsResult, []byte(`"evt-1"`))
+		requireNativeStructuredExcludes(t, eventsResult, []byte(rawClaim))
+
+		filteredEventsResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDObserveEvents,
+				Input:  json.RawMessage(`{"session_id":"sess-2","since":"2026-04-29T15:00:00Z"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(observe_events filtered) error = %v", err)
+		}
+		requireNativeStructuredContains(t, filteredEventsResult, []byte(`"evt-2"`))
+		requireNativeStructuredExcludes(t, filteredEventsResult, []byte(`"evt-1"`))
+
+		searchResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDObserveSearch,
+				Input:  json.RawMessage(`{"query":"deploy","limit":10}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(observe_search) error = %v", err)
+		}
+		requireNativeStructuredContains(t, searchResult, []byte(`"evt-1"`))
+		requireNativeStructuredExcludes(t, searchResult, []byte(`"evt-2"`))
+		requireNativeStructuredExcludes(t, searchResult, []byte(rawClaim))
+
+		metricsResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDObserveMetrics},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(observe_metrics) error = %v", err)
+		}
+		requireNativeStructuredContains(t, metricsResult, []byte(`"active_sessions":1`))
+		requireNativeStructuredContains(t, metricsResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredExcludes(t, metricsResult, []byte(rawClaim))
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDObserveEvents,
+				Input:  json.RawMessage(`{"since":"not-a-date"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(observe_events invalid since) error = %v, want ErrToolInvalidInput", err)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDObserveSearch,
+				Input:  json.RawMessage(`{"query":""}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(observe_search empty query) error = %v, want ErrToolInvalidInput", err)
+		}
+	})
+
+	t.Run(
+		"Should read bridge tools through existing projections without leaking credential material",
+		func(t *testing.T) {
+			t.Parallel()
+
+			rawClaim := "agh_claim_bridge123"
+			now := time.Date(2026, 4, 29, 16, 0, 0, 0, time.UTC)
+			degradation := &bridgepkg.BridgeDegradation{
+				Reason:  bridgepkg.BridgeDegradationReasonAuthFailed,
+				Message: "refresh failed " + rawClaim,
+			}
+			instance := bridgepkg.BridgeInstance{
+				ID:             "bridge-1",
+				Scope:          bridgepkg.ScopeGlobal,
+				Platform:       "slack",
+				ExtensionName:  "slack-ext",
+				DisplayName:    "Slack",
+				Source:         bridgepkg.BridgeInstanceSourceDynamic,
+				Enabled:        true,
+				Status:         bridgepkg.BridgeStatusReady,
+				DMPolicy:       bridgepkg.BridgeDMPolicyOpen,
+				RoutingPolicy:  bridgepkg.RoutingPolicy{IncludePeer: true},
+				ProviderConfig: json.RawMessage(`{"bot_token":"secret-value"}`),
+				Degradation:    degradation,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			}
+			observer := &nativeObserverStub{
+				bridgeHealth: []observe.BridgeInstanceHealth{{
+					BridgeInstanceID: "bridge-1",
+					Status:           bridgepkg.BridgeStatusReady,
+					RouteCount:       2,
+					LastError:        "provider returned " + rawClaim,
+				}},
+			}
+			bridges := apitest.StubBridgeService{
+				ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					return []bridgepkg.BridgeInstance{instance}, nil
+				},
+				GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+					if id != "bridge-1" {
+						return nil, bridgepkg.ErrBridgeInstanceNotFound
+					}
+					next := instance
+					return &next, nil
+				},
+			}
+			registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+				Bridges:  bridges,
+				Observer: observer,
+			}, nativeApproveAllPolicyInputs())
+
+			listResult, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDBridgesList},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(bridges_list) error = %v", err)
+			}
+			requireNativeStructuredContains(t, listResult, []byte(`"bridge-1"`))
+			requireNativeStructuredContains(t, listResult, []byte(`"route_count":2`))
+			requireNativeStructuredContains(t, listResult, []byte(`agh_claim_[REDACTED]`))
+			requireNativeStructuredExcludes(t, listResult, []byte(`bot_token`))
+			requireNativeStructuredExcludes(t, listResult, []byte(`secret-value`))
+			requireNativeStructuredExcludes(t, listResult, []byte(rawClaim))
+
+			statusResult, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDBridgesStatus,
+					Input:  json.RawMessage(`{"bridge_id":"bridge-1"}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(bridges_status) error = %v", err)
+			}
+			requireNativeStructuredContains(t, statusResult, []byte(`"bridge-1"`))
+			requireNativeStructuredExcludes(t, statusResult, []byte(`bot_token`))
+			requireNativeStructuredExcludes(t, statusResult, []byte(`secret-value`))
+			requireNativeStructuredExcludes(t, statusResult, []byte(rawClaim))
+
+			aggregateStatusResult, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDBridgesStatus},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(bridges_status aggregate) error = %v", err)
+			}
+			requireNativeStructuredContains(t, aggregateStatusResult, []byte(`"status_counts":{"ready":1}`))
+			requireNativeStructuredExcludes(t, aggregateStatusResult, []byte(`bot_token`))
+			requireNativeStructuredExcludes(t, aggregateStatusResult, []byte(rawClaim))
+
+			_, err = registry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDBridgesStatus,
+					Input:  json.RawMessage(`{"bridge_id":"missing"}`),
+				},
+			)
+			if !errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound) {
+				t.Fatalf("Registry.Call(bridges_status missing) error = %v, want ErrBridgeInstanceNotFound", err)
+			}
+		},
+	)
 }
 
 func TestDaemonBootToolRegistry(t *testing.T) {
 	t.Parallel()
 
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	skillsRegistry := newLoadedNativeSkillRegistry(t)
-	state := &bootState{
-		cfg:            cfg,
-		skillsRegistry: skillsRegistry,
-		deps: RuntimeDeps{
-			SkillsRegistry: skillsRegistry,
-			Network:        &nativeNetworkStub{},
-			Tasks:          &nativeTaskManager{},
-		},
-	}
-	daemon := &Daemon{}
+	t.Run("Should wire the native registry during daemon boot", func(t *testing.T) {
+		t.Parallel()
 
-	if err := daemon.bootToolRegistry(t.Context(), state); err != nil {
-		t.Fatalf("bootToolRegistry() error = %v", err)
-	}
-	if state.toolRegistry == nil || state.deps.ToolRegistry == nil {
-		t.Fatalf(
-			"tool registry wiring = state:%#v deps:%#v, want both populated",
-			state.toolRegistry,
-			state.deps.ToolRegistry,
-		)
-	}
-	view, err := state.deps.ToolRegistry.Get(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.ToolIDTaskCancel)
-	if err != nil {
-		t.Fatalf("ToolRegistry.Get(task_cancel) error = %v", err)
-	}
-	if !view.Descriptor.Destructive || view.Descriptor.ReadOnly {
-		t.Fatalf("task_cancel risk flags = %#v, want destructive mutating tool", view.Descriptor)
-	}
-	_, err = state.deps.ToolRegistry.Get(t.Context(), toolspkg.Scope{Operator: true}, "agh__skill_remove")
-	if !errors.Is(err, toolspkg.ErrToolNotFound) {
-		t.Fatalf("ToolRegistry.Get(skill_remove) error = %v, want ErrToolNotFound", err)
-	}
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		skillsRegistry := newLoadedNativeSkillRegistry(t)
+		state := &bootState{
+			cfg:            cfg,
+			skillsRegistry: skillsRegistry,
+			deps: RuntimeDeps{
+				SkillsRegistry: skillsRegistry,
+				Network:        &nativeNetworkStub{},
+				Tasks:          &nativeTaskManager{},
+			},
+		}
+		daemon := &Daemon{}
+
+		if err := daemon.bootToolRegistry(t.Context(), state); err != nil {
+			t.Fatalf("bootToolRegistry() error = %v", err)
+		}
+		if state.toolRegistry == nil || state.deps.ToolRegistry == nil {
+			t.Fatalf(
+				"tool registry wiring = state:%#v deps:%#v, want both populated",
+				state.toolRegistry,
+				state.deps.ToolRegistry,
+			)
+		}
+		view, err := state.deps.ToolRegistry.Get(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.ToolIDTaskCancel)
+		if err != nil {
+			t.Fatalf("ToolRegistry.Get(task_cancel) error = %v", err)
+		}
+		if !view.Descriptor.Destructive || view.Descriptor.ReadOnly {
+			t.Fatalf("task_cancel risk flags = %#v, want destructive mutating tool", view.Descriptor)
+		}
+		_, err = state.deps.ToolRegistry.Get(t.Context(), toolspkg.Scope{Operator: true}, "agh__skill_remove")
+		if !errors.Is(err, toolspkg.ErrToolNotFound) {
+			t.Fatalf("ToolRegistry.Get(skill_remove) error = %v, want ErrToolNotFound", err)
+		}
+	})
 }
 
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
-	ctx := t.Context()
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	sessions := &nativeToolPolicySessionStub{
-		info: &session.Info{
-			ID:        "sess-1",
-			AgentName: "coder",
-			State:     session.StateActive,
-		},
-	}
-	agents := &nativeToolPolicyAgentResolverStub{
-		agent: aghconfig.AgentDef{
-			Name:     "coder",
-			Provider: "opencode",
-			Prompt:   "Use the available tools to help the user.",
-		},
-	}
-	resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
-		Config:            &cfg,
-		Sessions:          sessions,
-		AgentResolver:     agents,
-		ApprovalAvailable: true,
-		DefaultToolsets: []toolspkg.ToolsetID{
-			toolspkg.ToolsetIDBootstrap,
-			toolspkg.ToolsetIDCatalog,
-		},
+	t.Parallel()
+
+	t.Run("Should resolve default discovery and scoped runtime policy inputs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		sessions := &nativeToolPolicySessionStub{
+			info: &session.Info{
+				ID:        "sess-1",
+				AgentName: "coder",
+				State:     session.StateActive,
+			},
+		}
+		agents := &nativeToolPolicyAgentResolverStub{
+			agent: aghconfig.AgentDef{
+				Name:     "coder",
+				Provider: "opencode",
+				Prompt:   "Use the available tools to help the user.",
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:            &cfg,
+			Sessions:          sessions,
+			AgentResolver:     agents,
+			ApprovalAvailable: true,
+			DefaultToolsets: []toolspkg.ToolsetID{
+				toolspkg.ToolsetIDBootstrap,
+				toolspkg.ToolsetIDCatalog,
+			},
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+		registry := newDaemonNativeRegistryWithPolicyResolver(t, daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(t),
+			Tasks:  &nativeTaskManager{},
+		}, resolver)
+		scope := toolspkg.Scope{SessionID: "sess-1"}
+
+		views, err := registry.SessionProjection(ctx, scope)
+		if err != nil {
+			t.Fatalf("SessionProjection(default discovery) error = %v", err)
+		}
+		requireNativeViewContains(t, views, toolspkg.ToolIDToolList)
+		requireNativeViewContains(t, views, toolspkg.ToolIDToolInfo)
+		requireNativeViewContains(t, views, toolspkg.ToolIDSkillView)
+		requireNativeViewExcludes(t, views, toolspkg.ToolIDTaskRead)
+
+		_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDToolInfo,
+			Input:  json.RawMessage(`{"tool_id":"agh__tool_list"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(tool_info default discovery) error = %v", err)
+		}
+
+		agents.agent.Toolsets = []string{toolspkg.ToolsetIDTasks.String()}
+		views, err = registry.SessionProjection(ctx, scope)
+		if err != nil {
+			t.Fatalf("SessionProjection(agent narrowed to tasks) error = %v", err)
+		}
+		requireNativeViewContains(t, views, toolspkg.ToolIDTaskRead)
+		requireNativeViewExcludes(t, views, toolspkg.ToolIDToolInfo)
+		_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDToolInfo,
+			Input:  json.RawMessage(`{"tool_id":"agh__tool_list"}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonPolicyDenied)
+
+		agents.agent.Toolsets = nil
+		sessions.info.Lineage = &store.SessionLineage{
+			ParentSessionID: "parent-1",
+			RootSessionID:   "root-1",
+			SpawnDepth:      1,
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools: []string{toolspkg.ToolIDToolInfo.String()},
+			},
+		}
+		views, err = registry.SessionProjection(ctx, scope)
+		if err != nil {
+			t.Fatalf("SessionProjection(session lineage) error = %v", err)
+		}
+		requireNativeViewContains(t, views, toolspkg.ToolIDToolInfo)
+		requireNativeViewExcludes(t, views, toolspkg.ToolIDToolList)
+		_, err = registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolList})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
-	if err != nil {
-		t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
-	}
-	registry := newDaemonNativeRegistryWithPolicyResolver(t, daemonNativeToolsDeps{
-		Skills: newLoadedNativeSkillRegistry(t),
-		Tasks:  &nativeTaskManager{},
-	}, resolver)
-	scope := toolspkg.Scope{SessionID: "sess-1"}
-
-	views, err := registry.SessionProjection(ctx, scope)
-	if err != nil {
-		t.Fatalf("SessionProjection(default discovery) error = %v", err)
-	}
-	requireNativeViewContains(t, views, toolspkg.ToolIDToolList)
-	requireNativeViewContains(t, views, toolspkg.ToolIDToolInfo)
-	requireNativeViewContains(t, views, toolspkg.ToolIDSkillView)
-	requireNativeViewExcludes(t, views, toolspkg.ToolIDTaskRead)
-
-	_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
-		ToolID: toolspkg.ToolIDToolInfo,
-		Input:  json.RawMessage(`{"tool_id":"agh__tool_list"}`),
-	})
-	if err != nil {
-		t.Fatalf("Registry.Call(tool_info default discovery) error = %v", err)
-	}
-
-	agents.agent.Toolsets = []string{toolspkg.ToolsetIDTasks.String()}
-	views, err = registry.SessionProjection(ctx, scope)
-	if err != nil {
-		t.Fatalf("SessionProjection(agent narrowed to tasks) error = %v", err)
-	}
-	requireNativeViewContains(t, views, toolspkg.ToolIDTaskRead)
-	requireNativeViewExcludes(t, views, toolspkg.ToolIDToolInfo)
-	_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
-		ToolID: toolspkg.ToolIDToolInfo,
-		Input:  json.RawMessage(`{"tool_id":"agh__tool_list"}`),
-	})
-	requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonPolicyDenied)
-
-	agents.agent.Toolsets = nil
-	sessions.info.Lineage = &store.SessionLineage{
-		ParentSessionID: "parent-1",
-		RootSessionID:   "root-1",
-		SpawnDepth:      1,
-		PermissionPolicy: store.SessionPermissionPolicy{
-			Tools: []string{toolspkg.ToolIDToolInfo.String()},
-		},
-	}
-	views, err = registry.SessionProjection(ctx, scope)
-	if err != nil {
-		t.Fatalf("SessionProjection(session lineage) error = %v", err)
-	}
-	requireNativeViewContains(t, views, toolspkg.ToolIDToolInfo)
-	requireNativeViewExcludes(t, views, toolspkg.ToolIDToolList)
-	_, err = registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolList})
-	requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 }
 
 func newDaemonNativeRegistry(
@@ -1266,6 +1680,47 @@ func requireNativeStructuredExcludes(t *testing.T, result toolspkg.ToolResult, n
 	}
 }
 
+func nativeToolViewByID(views []toolspkg.ToolView, id toolspkg.ToolID) *toolspkg.ToolView {
+	for i := range views {
+		if views[i].Descriptor.ID == id {
+			return &views[i]
+		}
+	}
+	return nil
+}
+
+func requireNativeToolAvailable(t *testing.T, views []toolspkg.ToolView, id toolspkg.ToolID) {
+	t.Helper()
+
+	view := nativeToolViewByID(views, id)
+	if view == nil {
+		t.Fatalf("projection does not contain %q: %#v", id, views)
+	}
+	if !view.Availability.Available {
+		t.Fatalf("%s availability = %#v, want available", id, view.Availability)
+	}
+}
+
+func requireNativeToolUnavailableReason(t *testing.T, views []toolspkg.ToolView, id toolspkg.ToolID) {
+	t.Helper()
+
+	view := nativeToolViewByID(views, id)
+	if view == nil {
+		t.Fatalf("projection does not contain %q: %#v", id, views)
+	}
+	if view.Availability.Available {
+		t.Fatalf("%s availability = %#v, want unavailable", id, view.Availability)
+	}
+	if len(view.Availability.ReasonCodes) == 0 ||
+		!slices.Contains(view.Availability.ReasonCodes, toolspkg.ReasonDependencyMissing) {
+		t.Fatalf(
+			"%s availability reasons = %#v, want dependency_missing",
+			id,
+			view.Availability.ReasonCodes,
+		)
+	}
+}
+
 func requireNativeViewContains(t *testing.T, views []toolspkg.ToolView, id toolspkg.ToolID) {
 	t.Helper()
 
@@ -1285,6 +1740,16 @@ func requireNativeViewExcludes(t *testing.T, views []toolspkg.ToolView, id tools
 			t.Fatalf("projection contains %q: %#v", id, views)
 		}
 	}
+}
+
+func nativeMemoryDocument(name string, description string, typ memorypkg.Type, body string) []byte {
+	return fmt.Appendf(nil,
+		"---\nname: %s\ndescription: %s\ntype: %s\n---\n\n%s",
+		name,
+		description,
+		typ,
+		body,
+	)
 }
 
 func requireToolReason(t *testing.T, err error, target error, reason toolspkg.ReasonCode) {
@@ -1310,14 +1775,39 @@ func (b *nativeHookBindingsStub) Sync(context.Context) error {
 }
 
 type nativeObserverStub struct {
-	catalog     []hookspkg.CatalogEntry
-	catalogCall int
-	runs        []hookspkg.HookRunRecord
-	events      []hookspkg.EventDescriptor
+	catalog        []hookspkg.CatalogEntry
+	catalogCall    int
+	runs           []hookspkg.HookRunRecord
+	events         []hookspkg.EventDescriptor
+	eventSummaries []store.EventSummary
+	bridgeHealth   []observe.BridgeInstanceHealth
+	health         observe.Health
 }
 
-func (o *nativeObserverStub) QueryEvents(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
-	return nil, nil
+func (o *nativeObserverStub) QueryEvents(
+	_ context.Context,
+	query store.EventSummaryQuery,
+) ([]store.EventSummary, error) {
+	results := make([]store.EventSummary, 0, len(o.eventSummaries))
+	for _, event := range o.eventSummaries {
+		if query.SessionID != "" && event.SessionID != query.SessionID {
+			continue
+		}
+		if query.AgentName != "" && event.AgentName != query.AgentName {
+			continue
+		}
+		if query.Type != "" && event.Type != query.Type {
+			continue
+		}
+		if !query.Since.IsZero() && event.Timestamp.Before(query.Since) {
+			continue
+		}
+		results = append(results, event)
+	}
+	if query.Limit > 0 && query.Limit < len(results) {
+		return results[:query.Limit], nil
+	}
+	return results, nil
 }
 
 func (o *nativeObserverStub) QueryHookCatalog(
@@ -1346,11 +1836,11 @@ func (o *nativeObserverStub) QueryHookEvents(
 }
 
 func (o *nativeObserverStub) QueryBridgeHealth(context.Context) ([]observe.BridgeInstanceHealth, error) {
-	return nil, nil
+	return append([]observe.BridgeInstanceHealth(nil), o.bridgeHealth...), nil
 }
 
 func (o *nativeObserverStub) Health(context.Context) (observe.Health, error) {
-	return observe.Health{}, nil
+	return o.health, nil
 }
 
 func (o *nativeObserverStub) QueryTaskDashboard(

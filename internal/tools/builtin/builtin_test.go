@@ -42,6 +42,15 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDWorkspaceList,
 			toolspkg.ToolIDWorkspaceInfo,
 			toolspkg.ToolIDWorkspaceDescribe,
+			toolspkg.ToolIDMemoryList,
+			toolspkg.ToolIDMemoryRead,
+			toolspkg.ToolIDMemorySearch,
+			toolspkg.ToolIDMemoryHistory,
+			toolspkg.ToolIDObserveEvents,
+			toolspkg.ToolIDObserveMetrics,
+			toolspkg.ToolIDObserveSearch,
+			toolspkg.ToolIDBridgesList,
+			toolspkg.ToolIDBridgesStatus,
 			toolspkg.ToolIDTaskList,
 			toolspkg.ToolIDTaskRead,
 			toolspkg.ToolIDTaskCreate,
@@ -126,6 +135,15 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceInfo], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceDescribe], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryRead], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemorySearch], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMemoryHistory], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveEvents], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveMetrics], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveSearch], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBridgesList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBridgesStatus], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRead], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkSend], toolspkg.RiskOpenWorld, false, false, true)
@@ -238,6 +256,36 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(workspace, toolspkg.ToolIDWorkspaceDescribe) ||
 			slices.Contains(workspace, toolspkg.ToolID("agh__workspace_remove")) {
 			t.Fatalf("workspace toolset expansion = %#v, want read-only workspace tools", workspace)
+		}
+
+		memory, err := catalog.Expand(toolspkg.ToolsetIDMemory, universe)
+		if err != nil {
+			t.Fatalf("Expand(memory) error = %v", err)
+		}
+		if !slices.Contains(memory, toolspkg.ToolIDMemoryRead) ||
+			!slices.Contains(memory, toolspkg.ToolIDMemoryHistory) ||
+			slices.Contains(memory, toolspkg.ToolID("agh__memory_write")) {
+			t.Fatalf("memory toolset expansion = %#v, want read-only memory tools", memory)
+		}
+
+		observe, err := catalog.Expand(toolspkg.ToolsetIDObserve, universe)
+		if err != nil {
+			t.Fatalf("Expand(observe) error = %v", err)
+		}
+		if !slices.Contains(observe, toolspkg.ToolIDObserveEvents) ||
+			!slices.Contains(observe, toolspkg.ToolIDObserveMetrics) ||
+			slices.Contains(observe, toolspkg.ToolID("agh__observe_delete")) {
+			t.Fatalf("observe toolset expansion = %#v, want read-only observe tools", observe)
+		}
+
+		bridges, err := catalog.Expand(toolspkg.ToolsetIDBridges, universe)
+		if err != nil {
+			t.Fatalf("Expand(bridges) error = %v", err)
+		}
+		if !slices.Contains(bridges, toolspkg.ToolIDBridgesList) ||
+			!slices.Contains(bridges, toolspkg.ToolIDBridgesStatus) ||
+			slices.Contains(bridges, toolspkg.ToolID("agh__bridges_update")) {
+			t.Fatalf("bridges toolset expansion = %#v, want read-only bridge tools", bridges)
 		}
 
 		config, err := catalog.Expand(toolspkg.ToolsetIDConfig, universe)

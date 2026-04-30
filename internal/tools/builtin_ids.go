@@ -44,6 +44,24 @@ const (
 	ToolIDWorkspaceInfo ToolID = "agh__workspace_info"
 	// ToolIDWorkspaceDescribe reads one resolved workspace detail projection.
 	ToolIDWorkspaceDescribe ToolID = "agh__workspace_describe"
+	// ToolIDMemoryList lists memory headers visible for a scope.
+	ToolIDMemoryList ToolID = "agh__memory_list"
+	// ToolIDMemoryRead reads one memory document through the current memory store.
+	ToolIDMemoryRead ToolID = "agh__memory_read"
+	// ToolIDMemorySearch searches memory documents through the current memory store.
+	ToolIDMemorySearch ToolID = "agh__memory_search"
+	// ToolIDMemoryHistory reads redacted memory operation history.
+	ToolIDMemoryHistory ToolID = "agh__memory_history"
+	// ToolIDObserveEvents reads redacted observability events.
+	ToolIDObserveEvents ToolID = "agh__observe_events"
+	// ToolIDObserveMetrics reads daemon observability health and metrics.
+	ToolIDObserveMetrics ToolID = "agh__observe_metrics"
+	// ToolIDObserveSearch searches redacted observability events.
+	ToolIDObserveSearch ToolID = "agh__observe_search"
+	// ToolIDBridgesList lists bridge instances without secret bindings.
+	ToolIDBridgesList ToolID = "agh__bridges_list"
+	// ToolIDBridgesStatus reads bridge status and health without credentials.
+	ToolIDBridgesStatus ToolID = "agh__bridges_status"
 	// ToolIDTaskList lists task summaries through the task service.
 	ToolIDTaskList ToolID = "agh__task_list"
 	// ToolIDTaskRead reads one task view through the task service.
@@ -105,6 +123,12 @@ const (
 	ToolsetIDSessions ToolsetID = "agh__sessions"
 	// ToolsetIDWorkspace groups read-only workspace tools.
 	ToolsetIDWorkspace ToolsetID = "agh__workspace"
+	// ToolsetIDMemory groups read-only memory inspection tools.
+	ToolsetIDMemory ToolsetID = "agh__memory"
+	// ToolsetIDObserve groups read-only observability tools.
+	ToolsetIDObserve ToolsetID = "agh__observe"
+	// ToolsetIDBridges groups read-only bridge inspection tools.
+	ToolsetIDBridges ToolsetID = "agh__bridges"
 	// ToolsetIDConfig groups validated config tools.
 	ToolsetIDConfig ToolsetID = "agh__config"
 	// ToolsetIDHooks groups hook introspection and mutable config-backed hook tools.

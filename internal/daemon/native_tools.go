@@ -7,15 +7,20 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
+	memorypkg "github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
@@ -35,6 +40,8 @@ type daemonNativeToolsDeps struct {
 	Network           core.NetworkService
 	NetworkStore      core.NetworkStore
 	Tasks             taskpkg.Manager
+	MemoryStore       *memorypkg.Store
+	Bridges           core.BridgeService
 	HomePaths         aghconfig.HomePaths
 	Observer          core.Observer
 	HookBindings      hookBindingPublisher
@@ -154,6 +161,8 @@ func (d *Daemon) nativeToolsDeps(
 		Network:           state.deps.Network,
 		NetworkStore:      state.registry,
 		Tasks:             state.deps.Tasks,
+		MemoryStore:       state.memoryStore,
+		Bridges:           state.deps.Bridges,
 		HomePaths:         d.homePaths,
 		Observer:          state.observer,
 		HookBindings:      state.hookBindings,
@@ -304,6 +313,9 @@ type nativeToolAvailabilitySet struct {
 	workspaces       toolspkg.NativeAvailabilityFunc
 	workspaceDetails toolspkg.NativeAvailabilityFunc
 	tasks            toolspkg.NativeAvailabilityFunc
+	memory           toolspkg.NativeAvailabilityFunc
+	observe          toolspkg.NativeAvailabilityFunc
+	bridges          toolspkg.NativeAvailabilityFunc
 	config           toolspkg.NativeAvailabilityFunc
 	hookRead         toolspkg.NativeAvailabilityFunc
 	hookMutation     toolspkg.NativeAvailabilityFunc
@@ -317,6 +329,9 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.networkToolBindings(availability.network))
 	addNativeToolBindings(bindings, n.sessionToolBindings(availability.sessions))
 	addNativeToolBindings(bindings, n.workspaceToolBindings(availability.workspaces, availability.workspaceDetails))
+	addNativeToolBindings(bindings, n.memoryToolBindings(availability.memory))
+	addNativeToolBindings(bindings, n.observeToolBindings(availability.observe))
+	addNativeToolBindings(bindings, n.bridgeToolBindings(availability.bridges))
 	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
@@ -338,6 +353,11 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		workspaceDetails: n.dependencyAvailability(func() bool {
 			return n.deps.Workspaces != nil && n.deps.Sessions != nil
 		}),
+		memory: n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil }),
+		observe: n.dependencyAvailability(func() bool {
+			return n.deps.Observer != nil
+		}),
+		bridges:  n.dependencyAvailability(func() bool { return n.deps.Bridges != nil }),
 		tasks:    n.dependencyAvailability(func() bool { return n.deps.Tasks != nil }),
 		config:   n.dependencyAvailability(configReady),
 		hookRead: n.dependencyAvailability(func() bool { return n.deps.Observer != nil }),
@@ -462,6 +482,63 @@ func (n *daemonNativeTools) workspaceToolBindings(
 		toolspkg.ToolIDWorkspaceDescribe: {
 			call:         n.workspaceDescribe,
 			availability: describeAvailability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) memoryToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDMemoryList: {
+			call:         n.memoryList,
+			availability: availability,
+		},
+		toolspkg.ToolIDMemoryRead: {
+			call:         n.memoryRead,
+			availability: availability,
+		},
+		toolspkg.ToolIDMemorySearch: {
+			call:         n.memorySearch,
+			availability: availability,
+		},
+		toolspkg.ToolIDMemoryHistory: {
+			call:         n.memoryHistory,
+			availability: availability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) observeToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDObserveEvents: {
+			call:         n.observeEvents,
+			availability: availability,
+		},
+		toolspkg.ToolIDObserveMetrics: {
+			call:         n.observeMetrics,
+			availability: availability,
+		},
+		toolspkg.ToolIDObserveSearch: {
+			call:         n.observeSearch,
+			availability: availability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) bridgeToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDBridgesList: {
+			call:         n.bridgesList,
+			availability: availability,
+		},
+		toolspkg.ToolIDBridgesStatus: {
+			call:         n.bridgesStatus,
+			availability: availability,
 		},
 	}
 }
@@ -1044,6 +1121,240 @@ func (n *daemonNativeTools) workspaceDescribe(
 	}, resolved.ID)
 }
 
+func (n *daemonNativeTools) memoryList(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input memoryListInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload, err := n.memoryHeaderPayloads(ctx, scope, input.Scope, input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	payload = limitMemoryPayloads(payload, input.Limit)
+	return structuredResult(map[string]any{"memories": payload}, fmt.Sprintf("%d memories", len(payload)))
+}
+
+func (n *daemonNativeTools) memoryRead(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input memoryReadInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	location, err := n.resolveMemoryLocation(ctx, scope, req.ToolID, input.Filename, input.Scope, input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	content, err := location.Store.Read(location.Scope, location.Filename)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	redactedContent := taskpkg.RedactClaimTokens(string(content))
+	return structuredResult(map[string]any{
+		"filename":  location.Filename,
+		"scope":     location.Scope,
+		"workspace": location.Workspace,
+		"content":   redactedContent,
+		"redacted":  redactedContent != string(content),
+	}, location.Filename)
+}
+
+func (n *daemonNativeTools) memorySearch(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input memorySearchInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	query, err := requiredNativeString(req.ToolID, "query", firstNonEmpty(input.Query, input.Q))
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	memoryScope, workspace, err := n.memoryScopeAndWorkspace(ctx, scope, input.Scope, input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	results, err := n.deps.MemoryStore.Search(ctx, query, memorypkg.SearchOptions{
+		Scope:     memoryScope,
+		Workspace: workspace,
+		Limit:     input.Limit,
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	payload := redactMemorySearchResults(results)
+	return structuredResult(map[string]any{"results": payload}, fmt.Sprintf("%d memory results", len(payload)))
+}
+
+func (n *daemonNativeTools) memoryHistory(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input memoryHistoryInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	memoryScope, workspace, err := n.memoryScopeAndWorkspace(ctx, scope, input.Scope, input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	since, err := parseNativeOptionalRFC3339(req.ToolID, "since", input.Since)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	records, err := n.deps.MemoryStore.History(ctx, memorypkg.OperationHistoryQuery{
+		Scope:     memoryScope,
+		Workspace: workspace,
+		Operation: memorypkg.Operation(strings.TrimSpace(input.Operation)),
+		Since:     since,
+		Limit:     input.Limit,
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
+	}
+	payload := core.MemoryOperationPayloads(records)
+	for i := range payload {
+		payload[i].Summary = taskpkg.RedactClaimTokens(payload[i].Summary)
+	}
+	return structuredResult(map[string]any{"operations": payload}, fmt.Sprintf("%d memory operations", len(payload)))
+}
+
+func (n *daemonNativeTools) observeEvents(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	input, query, err := decodeObserveEventQueryInput(req)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	events, err := n.deps.Observer.QueryEvents(ctx, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := observeEventPayloads(events)
+	payload = limitObservePayloads(payload, input.Limit)
+	return structuredResult(map[string]any{"events": payload}, fmt.Sprintf("%d events", len(payload)))
+}
+
+func (n *daemonNativeTools) observeMetrics(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input struct{}
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	health, err := n.deps.Observer.Health(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := redactObserveHealthPayload(core.ObserveHealthPayloadFromHealth(&health))
+	return structuredResult(map[string]any{"health": payload}, payload.Status)
+}
+
+func (n *daemonNativeTools) observeSearch(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	input, query, err := decodeObserveSearchInput(req)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	query.Limit = 0
+	events, err := n.deps.Observer.QueryEvents(ctx, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := filterObserveEvents(observeEventPayloads(events), input.Query)
+	payload = limitObservePayloads(payload, input.Limit)
+	return structuredResult(map[string]any{"events": payload}, fmt.Sprintf("%d events", len(payload)))
+}
+
+func (n *daemonNativeTools) bridgesList(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input struct{}
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	instances, err := n.deps.Bridges.ListInstances(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	health, err := n.bridgeHealthMap(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := make([]contract.BridgePayload, 0, len(instances))
+	for _, instance := range instances {
+		payload = append(payload, redactedBridgePayload(instance))
+		mergeBridgeDegradation(health, instance)
+	}
+	return structuredResult(map[string]any{
+		"bridges":       payload,
+		"bridge_health": health,
+		"redacted":      true,
+	}, fmt.Sprintf("%d bridges", len(payload)))
+}
+
+func (n *daemonNativeTools) bridgesStatus(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input bridgeStatusInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	health, err := n.bridgeHealthMap(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if bridgeID := strings.TrimSpace(input.BridgeID); bridgeID != "" {
+		instance, err := n.deps.Bridges.GetInstance(ctx, bridgeID)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		mergeBridgeDegradation(health, *instance)
+		return structuredResult(map[string]any{
+			"bridge":   redactedBridgePayload(*instance),
+			"health":   health[strings.TrimSpace(instance.ID)],
+			"redacted": true,
+		}, string(instance.Status))
+	}
+	instances, err := n.deps.Bridges.ListInstances(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := make([]contract.BridgePayload, 0, len(instances))
+	statusCounts := make(map[string]int)
+	for _, instance := range instances {
+		payload = append(payload, redactedBridgePayload(instance))
+		statusCounts[string(instance.Status)]++
+		mergeBridgeDegradation(health, instance)
+	}
+	return structuredResult(map[string]any{
+		"bridges":       payload,
+		"bridge_health": health,
+		"status_counts": statusCounts,
+		"redacted":      true,
+	}, fmt.Sprintf("%d bridges", len(payload)))
+}
+
 func (n *daemonNativeTools) taskList(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -1400,6 +1711,93 @@ type workspaceRefInput struct {
 	Workspace string `json:"workspace"`
 }
 
+type memoryListInput struct {
+	Scope     string `json:"scope,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+type memoryReadInput struct {
+	Filename  string `json:"filename"`
+	Scope     string `json:"scope,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+}
+
+type memorySearchInput struct {
+	Query     string `json:"query,omitempty"`
+	Q         string `json:"q,omitempty"`
+	Scope     string `json:"scope,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+type memoryHistoryInput struct {
+	Scope     string `json:"scope,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+	Operation string `json:"operation,omitempty"`
+	Since     string `json:"since,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+type memoryToolLocation struct {
+	Store     *memorypkg.Store
+	Scope     memorypkg.Scope
+	Workspace string
+	Filename  string
+}
+
+type memoryHeaderPayload struct {
+	Filename    string          `json:"filename"`
+	Name        string          `json:"name"`
+	Type        memorypkg.Type  `json:"type"`
+	Scope       memorypkg.Scope `json:"scope"`
+	Workspace   string          `json:"workspace,omitempty"`
+	AgentName   string          `json:"agent_name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	ModTime     time.Time       `json:"mod_time"`
+}
+
+type observeEventQueryInput struct {
+	SessionID string `json:"session_id,omitempty"`
+	AgentName string `json:"agent_name,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Since     string `json:"since,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+func (i observeEventQueryInput) eventSummaryQuery(id toolspkg.ToolID) (store.EventSummaryQuery, error) {
+	since, err := parseNativeOptionalRFC3339(id, "since", i.Since)
+	if err != nil {
+		return store.EventSummaryQuery{}, err
+	}
+	query := store.EventSummaryQuery{
+		SessionID: strings.TrimSpace(i.SessionID),
+		AgentName: strings.TrimSpace(i.AgentName),
+		Type:      strings.TrimSpace(i.Type),
+		Since:     since,
+		Limit:     i.Limit,
+	}
+	if err := query.Validate(); err != nil {
+		return store.EventSummaryQuery{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			"observe event query is invalid",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	return query, nil
+}
+
+type observeSearchInput struct {
+	Query string `json:"query"`
+	observeEventQueryInput
+}
+
+type bridgeStatusInput struct {
+	BridgeID string `json:"bridge_id,omitempty"`
+}
+
 type taskListInput struct {
 	Scope          string `json:"scope,omitempty"`
 	WorkspaceID    string `json:"workspace_id,omitempty"`
@@ -1600,6 +1998,417 @@ func decodeSessionEventQueryInput(req toolspkg.CallRequest) (sessionEventQueryIn
 		return sessionEventQueryInput{}, store.EventQuery{}, err
 	}
 	return input, query, nil
+}
+
+func (n *daemonNativeTools) memoryHeaderPayloads(
+	ctx context.Context,
+	callerScope toolspkg.Scope,
+	rawScope string,
+	rawWorkspace string,
+) ([]memoryHeaderPayload, error) {
+	scope, err := core.ParseOptionalMemoryScope(rawScope)
+	if err != nil {
+		return nil, err
+	}
+	workspaceRef := firstNonEmpty(rawWorkspace, callerScope.WorkspaceID)
+	locations := []memoryToolLocation{{Store: n.deps.MemoryStore, Scope: memorypkg.ScopeGlobal}}
+	switch scope {
+	case memorypkg.ScopeGlobal:
+		locations = locations[:1]
+	case memorypkg.ScopeWorkspace:
+		workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
+		if err != nil {
+			return nil, err
+		}
+		locations = []memoryToolLocation{
+			{Store: n.deps.MemoryStore.ForWorkspace(workspace), Scope: memorypkg.ScopeWorkspace, Workspace: workspace},
+		}
+	default:
+		if strings.TrimSpace(workspaceRef) != "" {
+			workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
+			if err != nil {
+				return nil, err
+			}
+			locations = append(locations, memoryToolLocation{
+				Store:     n.deps.MemoryStore.ForWorkspace(workspace),
+				Scope:     memorypkg.ScopeWorkspace,
+				Workspace: workspace,
+			})
+		}
+	}
+	payload := make([]memoryHeaderPayload, 0)
+	for _, location := range locations {
+		headers, err := location.Store.Scan(location.Scope)
+		if err != nil {
+			return nil, err
+		}
+		for _, header := range headers {
+			payload = append(payload, memoryHeaderPayloadFromHeader(header, location.Scope, location.Workspace))
+		}
+	}
+	sort.SliceStable(payload, func(i, j int) bool {
+		if payload[i].ModTime.Equal(payload[j].ModTime) {
+			return payload[i].Filename < payload[j].Filename
+		}
+		return payload[i].ModTime.After(payload[j].ModTime)
+	})
+	return payload, nil
+}
+
+func (n *daemonNativeTools) resolveMemoryLocation(
+	ctx context.Context,
+	callerScope toolspkg.Scope,
+	id toolspkg.ToolID,
+	filename string,
+	rawScope string,
+	rawWorkspace string,
+) (memoryToolLocation, error) {
+	trimmedFilename, err := requiredNativeString(id, "filename", filename)
+	if err != nil {
+		return memoryToolLocation{}, err
+	}
+	scope, err := core.ParseOptionalMemoryScope(rawScope)
+	if err != nil {
+		return memoryToolLocation{}, err
+	}
+	workspaceRef := firstNonEmpty(rawWorkspace, callerScope.WorkspaceID)
+	if scope != "" {
+		location, err := n.memoryStoreFor(ctx, scope, workspaceRef)
+		if err != nil {
+			return memoryToolLocation{}, err
+		}
+		exists, err := location.Store.Exists(location.Scope, trimmedFilename)
+		if err != nil {
+			return memoryToolLocation{}, err
+		}
+		if !exists {
+			return memoryToolLocation{}, fmt.Errorf("%w: memory %q not found", os.ErrNotExist, trimmedFilename)
+		}
+		location.Filename = trimmedFilename
+		return location, nil
+	}
+	candidates := []memoryToolLocation{
+		{Store: n.deps.MemoryStore, Scope: memorypkg.ScopeGlobal, Filename: trimmedFilename},
+	}
+	if strings.TrimSpace(workspaceRef) != "" {
+		workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
+		if err != nil {
+			return memoryToolLocation{}, err
+		}
+		candidates = append(candidates, memoryToolLocation{
+			Store:     n.deps.MemoryStore.ForWorkspace(workspace),
+			Scope:     memorypkg.ScopeWorkspace,
+			Workspace: workspace,
+			Filename:  trimmedFilename,
+		})
+	}
+	matches := make([]memoryToolLocation, 0, len(candidates))
+	for _, candidate := range candidates {
+		exists, err := candidate.Store.Exists(candidate.Scope, trimmedFilename)
+		if err != nil {
+			return memoryToolLocation{}, err
+		}
+		if exists {
+			matches = append(matches, candidate)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return memoryToolLocation{}, fmt.Errorf("%w: memory %q not found", os.ErrNotExist, trimmedFilename)
+	case 1:
+		return matches[0], nil
+	default:
+		return memoryToolLocation{}, core.NewMemoryValidationError(
+			fmt.Errorf("memory %q exists in multiple scopes; set scope explicitly", trimmedFilename),
+		)
+	}
+}
+
+func (n *daemonNativeTools) memoryStoreFor(
+	ctx context.Context,
+	scope memorypkg.Scope,
+	workspaceRef string,
+) (memoryToolLocation, error) {
+	switch scope.Normalize() {
+	case memorypkg.ScopeGlobal:
+		return memoryToolLocation{Store: n.deps.MemoryStore, Scope: memorypkg.ScopeGlobal}, nil
+	case memorypkg.ScopeWorkspace:
+		workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
+		if err != nil {
+			return memoryToolLocation{}, err
+		}
+		return memoryToolLocation{
+			Store:     n.deps.MemoryStore.ForWorkspace(workspace),
+			Scope:     memorypkg.ScopeWorkspace,
+			Workspace: workspace,
+		}, nil
+	default:
+		return memoryToolLocation{}, core.NewMemoryValidationError(fmt.Errorf("unsupported scope %q", scope))
+	}
+}
+
+func (n *daemonNativeTools) memoryScopeAndWorkspace(
+	ctx context.Context,
+	callerScope toolspkg.Scope,
+	rawScope string,
+	rawWorkspace string,
+) (memorypkg.Scope, string, error) {
+	scope, err := core.ParseOptionalMemoryScope(rawScope)
+	if err != nil {
+		return "", "", err
+	}
+	workspaceRef := firstNonEmpty(rawWorkspace, callerScope.WorkspaceID)
+	if scope == memorypkg.ScopeWorkspace || strings.TrimSpace(workspaceRef) != "" {
+		workspace, err := n.memoryWorkspaceRoot(ctx, workspaceRef)
+		if err != nil {
+			return "", "", err
+		}
+		return scope, workspace, nil
+	}
+	return scope, "", nil
+}
+
+func (n *daemonNativeTools) memoryWorkspaceRoot(ctx context.Context, ref string) (string, error) {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return core.ResolveMemoryWorkspace(trimmed)
+	}
+	if n.deps.Workspaces != nil {
+		workspace, err := n.deps.Workspaces.Get(ctx, trimmed)
+		switch {
+		case err == nil && strings.TrimSpace(workspace.RootDir) != "":
+			return core.ResolveMemoryWorkspace(workspace.RootDir)
+		case err == nil:
+			return core.ResolveMemoryWorkspace(trimmed)
+		case !errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
+			return "", err
+		}
+	}
+	return core.ResolveMemoryWorkspace(trimmed)
+}
+
+func memoryHeaderPayloadFromHeader(
+	header memorypkg.Header,
+	scope memorypkg.Scope,
+	workspace string,
+) memoryHeaderPayload {
+	return memoryHeaderPayload{
+		Filename:    strings.TrimSpace(header.Filename),
+		Name:        taskpkg.RedactClaimTokens(strings.TrimSpace(header.Name)),
+		Type:        header.Type.Normalize(),
+		Scope:       scope.Normalize(),
+		Workspace:   strings.TrimSpace(workspace),
+		AgentName:   strings.TrimSpace(header.AgentName),
+		Description: taskpkg.RedactClaimTokens(strings.TrimSpace(header.Description)),
+		ModTime:     header.ModTime.UTC(),
+	}
+}
+
+func limitMemoryPayloads(items []memoryHeaderPayload, limit int) []memoryHeaderPayload {
+	if limit <= 0 || limit >= len(items) {
+		return items
+	}
+	return items[:limit]
+}
+
+func redactMemorySearchResults(results []memorypkg.SearchResult) []memorypkg.SearchResult {
+	payload := make([]memorypkg.SearchResult, 0, len(results))
+	for _, result := range results {
+		next := result
+		next.Name = taskpkg.RedactClaimTokens(strings.TrimSpace(next.Name))
+		next.Description = taskpkg.RedactClaimTokens(strings.TrimSpace(next.Description))
+		next.Snippet = taskpkg.RedactClaimTokens(strings.TrimSpace(next.Snippet))
+		next.Workspace = strings.TrimSpace(next.Workspace)
+		next.ModTime = next.ModTime.UTC()
+		payload = append(payload, next)
+	}
+	return payload
+}
+
+func nativeMemoryToolError(id toolspkg.ToolID, err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, memorypkg.ErrValidation):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	case errors.Is(err, os.ErrNotExist):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeNotFound,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err),
+			toolspkg.ReasonToolUnknown,
+		)
+	default:
+		return err
+	}
+}
+
+func decodeObserveEventQueryInput(req toolspkg.CallRequest) (observeEventQueryInput, store.EventSummaryQuery, error) {
+	var input observeEventQueryInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return observeEventQueryInput{}, store.EventSummaryQuery{}, err
+	}
+	query, err := input.eventSummaryQuery(req.ToolID)
+	if err != nil {
+		return observeEventQueryInput{}, store.EventSummaryQuery{}, err
+	}
+	return input, query, nil
+}
+
+func decodeObserveSearchInput(req toolspkg.CallRequest) (observeSearchInput, store.EventSummaryQuery, error) {
+	var input observeSearchInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return observeSearchInput{}, store.EventSummaryQuery{}, err
+	}
+	if _, err := requiredNativeString(req.ToolID, "query", input.Query); err != nil {
+		return observeSearchInput{}, store.EventSummaryQuery{}, err
+	}
+	query, err := input.eventSummaryQuery(req.ToolID)
+	if err != nil {
+		return observeSearchInput{}, store.EventSummaryQuery{}, err
+	}
+	return input, query, nil
+}
+
+func parseNativeOptionalRFC3339(id toolspkg.ToolID, field string, raw string) (time.Time, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return time.Time{}, nil
+	}
+	timestamp, err := time.Parse(time.RFC3339, trimmed)
+	if err != nil {
+		return time.Time{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			fmt.Sprintf("%s must be an RFC3339 timestamp", field),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	return timestamp, nil
+}
+
+func observeEventPayloads(events []store.EventSummary) []contract.ObserveEventPayload {
+	payload := make([]contract.ObserveEventPayload, 0, len(events))
+	for _, event := range events {
+		item := core.ObserveEventPayloadFromEvent(event)
+		item.Summary = taskpkg.RedactClaimTokens(strings.TrimSpace(item.Summary))
+		payload = append(payload, item)
+	}
+	return payload
+}
+
+func redactObserveHealthPayload(payload contract.ObserveHealthPayload) contract.ObserveHealthPayload {
+	payload.Retention.LastSweepError = taskpkg.RedactClaimTokens(strings.TrimSpace(payload.Retention.LastSweepError))
+	for i := range payload.Failures.Recent {
+		payload.Failures.Recent[i].Summary = taskpkg.RedactClaimTokens(
+			strings.TrimSpace(payload.Failures.Recent[i].Summary),
+		)
+		payload.Failures.Recent[i].CrashBundlePath = taskpkg.RedactClaimTokens(
+			strings.TrimSpace(payload.Failures.Recent[i].CrashBundlePath),
+		)
+	}
+	for i := range payload.AgentProbes {
+		payload.AgentProbes[i].Command = taskpkg.RedactClaimTokens(strings.TrimSpace(payload.AgentProbes[i].Command))
+		payload.AgentProbes[i].Executable = taskpkg.RedactClaimTokens(
+			strings.TrimSpace(payload.AgentProbes[i].Executable),
+		)
+		payload.AgentProbes[i].Error = taskpkg.RedactClaimTokens(strings.TrimSpace(payload.AgentProbes[i].Error))
+	}
+	for i := range payload.Activities {
+		payload.Activities[i].LastActivityDetail = taskpkg.RedactClaimTokens(
+			strings.TrimSpace(payload.Activities[i].LastActivityDetail),
+		)
+		payload.Activities[i].CurrentTool = taskpkg.RedactClaimTokens(
+			strings.TrimSpace(payload.Activities[i].CurrentTool),
+		)
+		payload.Activities[i].ToolCallID = taskpkg.RedactClaimTokens(
+			strings.TrimSpace(payload.Activities[i].ToolCallID),
+		)
+		payload.Activities[i].StallReason = taskpkg.RedactClaimTokens(
+			strings.TrimSpace(payload.Activities[i].StallReason),
+		)
+	}
+	return payload
+}
+
+func filterObserveEvents(
+	events []contract.ObserveEventPayload,
+	query string,
+) []contract.ObserveEventPayload {
+	needle := strings.ToLower(strings.TrimSpace(query))
+	if needle == "" {
+		return events
+	}
+	filtered := make([]contract.ObserveEventPayload, 0, len(events))
+	for _, event := range events {
+		values := []string{event.ID, event.SessionID, event.Type, event.AgentName, event.Summary}
+		if slices.ContainsFunc(values, func(value string) bool {
+			return strings.Contains(strings.ToLower(value), needle)
+		}) {
+			filtered = append(filtered, event)
+		}
+	}
+	return filtered
+}
+
+func limitObservePayloads(
+	events []contract.ObserveEventPayload,
+	limit int,
+) []contract.ObserveEventPayload {
+	if limit <= 0 || limit >= len(events) {
+		return events
+	}
+	return events[:limit]
+}
+
+func (n *daemonNativeTools) bridgeHealthMap(ctx context.Context) (map[string]contract.BridgeHealthPayload, error) {
+	health := make(map[string]contract.BridgeHealthPayload)
+	if n.deps.Observer == nil {
+		return health, nil
+	}
+	observed, err := n.deps.Observer.QueryBridgeHealth(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range observed {
+		payload := core.BridgeHealthPayloadFromObserve(item)
+		payload.LastError = taskpkg.RedactClaimTokens(strings.TrimSpace(payload.LastError))
+		health[strings.TrimSpace(item.BridgeInstanceID)] = payload
+	}
+	return health, nil
+}
+
+func redactedBridgePayload(instance bridgepkg.BridgeInstance) contract.BridgePayload {
+	payload := core.BridgePayloadFromBridgeInstance(instance)
+	payload.ProviderConfig = nil
+	if payload.Degradation != nil {
+		payload.Degradation.Message = taskpkg.RedactClaimTokens(strings.TrimSpace(payload.Degradation.Message))
+	}
+	return payload
+}
+
+func mergeBridgeDegradation(
+	health map[string]contract.BridgeHealthPayload,
+	instance bridgepkg.BridgeInstance,
+) {
+	key := strings.TrimSpace(instance.ID)
+	item := health[key]
+	if instance.Degradation != nil {
+		degradation := *instance.Degradation
+		degradation.Message = taskpkg.RedactClaimTokens(strings.TrimSpace(degradation.Message))
+		item.Degradation = &degradation
+	} else {
+		item.Degradation = nil
+	}
+	health[key] = item
 }
 
 func sessionHistoryPayload(history []store.TurnHistory, info *session.Info) []any {

@@ -47,6 +47,30 @@ func ToolsetCatalog() (toolspkg.ToolsetCatalog, error) {
 			},
 		},
 		toolspkg.Toolset{
+			ID: toolspkg.ToolsetIDMemory,
+			Tools: []string{
+				toolspkg.ToolIDMemoryList.String(),
+				toolspkg.ToolIDMemoryRead.String(),
+				toolspkg.ToolIDMemorySearch.String(),
+				toolspkg.ToolIDMemoryHistory.String(),
+			},
+		},
+		toolspkg.Toolset{
+			ID: toolspkg.ToolsetIDObserve,
+			Tools: []string{
+				toolspkg.ToolIDObserveEvents.String(),
+				toolspkg.ToolIDObserveMetrics.String(),
+				toolspkg.ToolIDObserveSearch.String(),
+			},
+		},
+		toolspkg.Toolset{
+			ID: toolspkg.ToolsetIDBridges,
+			Tools: []string{
+				toolspkg.ToolIDBridgesList.String(),
+				toolspkg.ToolIDBridgesStatus.String(),
+			},
+		},
+		toolspkg.Toolset{
 			ID:    toolspkg.ToolsetIDTasks,
 			Tools: []string{"agh__task_*"},
 		},
