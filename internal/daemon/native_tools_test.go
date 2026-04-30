@@ -9,9 +9,12 @@ import (
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/skills"
 	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	builtintools "github.com/pedronauck/agh/internal/tools/builtin"
@@ -221,6 +224,306 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if tasks.createCalls != 0 {
 			t.Fatalf("CreateTask calls = %d, want 0", tasks.createCalls)
+		}
+	})
+
+	t.Run("Should mutate allowed config paths and reject guarded config paths", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			HomePaths: homePaths,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input:  json.RawMessage(`{"path":"defaults.agent","value":"planner"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set allowed) error = %v", err)
+		}
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if cfg.Defaults.Agent != "planner" {
+			t.Fatalf("Defaults.Agent = %q, want planner", cfg.Defaults.Agent)
+		}
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigGet,
+				Input:  json.RawMessage(`{"path":"defaults.agent"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_get) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"planner"`))
+
+		cases := []struct {
+			path   string
+			reason toolspkg.ReasonCode
+		}{
+			{path: "daemon.socket", reason: toolspkg.ReasonConfigTrustRootForbidden},
+			{path: "http.port", reason: toolspkg.ReasonConfigTrustRootForbidden},
+			{path: "providers.claude.api_key_env", reason: toolspkg.ReasonConfigSecretPathForbidden},
+			{path: "mcp_servers[0].env.TOKEN", reason: toolspkg.ReasonConfigSecretPathForbidden},
+			{path: "sandboxes.default.runtime_root", reason: toolspkg.ReasonConfigTrustRootForbidden},
+		}
+		for _, tc := range cases {
+			t.Run(tc.path, func(t *testing.T) {
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{},
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDConfigSet,
+						Input: json.RawMessage(
+							fmt.Sprintf(`{"path":%q,"value":"blocked"}`, tc.path),
+						),
+					},
+				)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, tc.reason)
+			})
+		}
+	})
+
+	t.Run("Should require approval before config writes reach persistence", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			HomePaths: homePaths,
+		}, toolspkg.PolicyInputs{
+			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
+			ApprovalAvailable:    false,
+		})
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input:  json.RawMessage(`{"path":"defaults.agent","value":"planner"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
+			t.Fatalf("Registry.Call(config_set approve-reads) error = %v, want ErrToolApprovalRequired", err)
+		}
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if cfg.Defaults.Agent == "planner" {
+			t.Fatal("Defaults.Agent was mutated before approval")
+		}
+	})
+
+	t.Run("Should manage config backed hooks through normalized binding sync", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		observer := &nativeObserverStub{}
+		bindings := &nativeHookBindingsStub{}
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			HomePaths:    homePaths,
+			Observer:     observer,
+			HookBindings: bindings,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksCreate,
+				Input: json.RawMessage(
+					`{"name":"tool-audit","event":"tool.pre_call","command":"/bin/echo","args":["audit"]}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(hooks_create) error = %v", err)
+		}
+		if bindings.syncCalls != 1 {
+			t.Fatalf("HookBindings.Sync calls = %d, want 1", bindings.syncCalls)
+		}
+		target, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+		if err != nil {
+			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+		}
+		decls, err := aghconfig.OverlayHookDeclarations(target)
+		if err != nil {
+			t.Fatalf("OverlayHookDeclarations() error = %v", err)
+		}
+		if len(decls) != 1 || decls[0].Name != "tool-audit" || decls[0].Command != "/bin/echo" {
+			t.Fatalf("OverlayHookDeclarations() = %#v, want created hook", decls)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksDisable,
+				Input:  json.RawMessage(`{"name":"tool-audit"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(hooks_disable) error = %v", err)
+		}
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		active, err := aghconfig.HookDeclarations(cfg.Hooks, nil)
+		if err != nil {
+			t.Fatalf("HookDeclarations(disabled) error = %v", err)
+		}
+		if len(active) != 0 {
+			t.Fatalf("HookDeclarations(disabled) len = %d, want 0", len(active))
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksEnable,
+				Input:  json.RawMessage(`{"name":"tool-audit"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(hooks_enable) error = %v", err)
+		}
+		cfg, err = aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(enabled) error = %v", err)
+		}
+		active, err = aghconfig.HookDeclarations(cfg.Hooks, nil)
+		if err != nil {
+			t.Fatalf("HookDeclarations(enabled) error = %v", err)
+		}
+		if len(active) != 1 || active[0].Name != "tool-audit" {
+			t.Fatalf("HookDeclarations(enabled) = %#v, want active tool-audit", active)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksUpdate,
+				Input:  json.RawMessage(`{"name":"tool-audit","command":"/usr/bin/env","args":["true"]}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(hooks_update) error = %v", err)
+		}
+		decls, err = aghconfig.OverlayHookDeclarations(target)
+		if err != nil {
+			t.Fatalf("OverlayHookDeclarations(updated) error = %v", err)
+		}
+		if len(decls) != 1 || decls[0].Command != "/usr/bin/env" || len(decls[0].Args) != 1 {
+			t.Fatalf("OverlayHookDeclarations(updated) = %#v, want updated command", decls)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksDelete,
+				Input:  json.RawMessage(`{"name":"tool-audit"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(hooks_delete) error = %v", err)
+		}
+		decls, err = aghconfig.OverlayHookDeclarations(target)
+		if err != nil {
+			t.Fatalf("OverlayHookDeclarations(deleted) error = %v", err)
+		}
+		if len(decls) != 0 {
+			t.Fatalf("OverlayHookDeclarations(deleted) = %#v, want empty", decls)
+		}
+		if bindings.syncCalls != 5 {
+			t.Fatalf("HookBindings.Sync calls = %d, want 5", bindings.syncCalls)
+		}
+	})
+
+	t.Run("Should reject immutable hook sources and secret hook executor inputs", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		bindings := &nativeHookBindingsStub{}
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			HomePaths: homePaths,
+			Observer: &nativeObserverStub{
+				catalog: []hookspkg.CatalogEntry{{
+					Name:   "native-session",
+					Event:  hookspkg.HookSessionPostCreate,
+					Source: hookspkg.HookSourceNative,
+					Mode:   hookspkg.HookModeAsync,
+				}},
+			},
+			HookBindings: bindings,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksUpdate,
+				Input:  json.RawMessage(`{"name":"native-session","command":"/bin/echo"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonHookSourceImmutable)
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksCreate,
+				Input: json.RawMessage(
+					`{"name":"secret-hook","event":"tool.pre_call","command":"/bin/echo","env":{"API_KEY":"secret"}}`,
+				),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonHookSecretInputForbidden)
+		if bindings.syncCalls != 0 {
+			t.Fatalf("HookBindings.Sync calls = %d, want 0 after denied hooks", bindings.syncCalls)
+		}
+	})
+
+	t.Run("Should require approval before hook mutations reach config writer", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		bindings := &nativeHookBindingsStub{}
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			HomePaths:    homePaths,
+			Observer:     &nativeObserverStub{},
+			HookBindings: bindings,
+		}, toolspkg.PolicyInputs{
+			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
+			ApprovalAvailable:    false,
+		})
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksCreate,
+				Input:  json.RawMessage(`{"name":"blocked","event":"tool.pre_call","command":"/bin/echo"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
+			t.Fatalf("Registry.Call(hooks_create approve-reads) error = %v, want ErrToolApprovalRequired", err)
+		}
+		if bindings.syncCalls != 0 {
+			t.Fatalf("HookBindings.Sync calls = %d, want 0 before approval", bindings.syncCalls)
 		}
 	})
 
@@ -569,6 +872,87 @@ func requireNativeStructuredExcludes(t *testing.T, result toolspkg.ToolResult, n
 	if bytes.Contains(result.Structured, needle) {
 		t.Fatalf("structured result = %s, want to exclude %s", result.Structured, needle)
 	}
+}
+
+func requireToolReason(t *testing.T, err error, target error, reason toolspkg.ReasonCode) {
+	t.Helper()
+
+	if !errors.Is(err, target) {
+		t.Fatalf("error = %v, want %v", err, target)
+	}
+	got, ok := toolspkg.ReasonOf(err)
+	if !ok || got != reason {
+		t.Fatalf("ReasonOf(error) = %q/%v, want %q", got, ok, reason)
+	}
+}
+
+type nativeHookBindingsStub struct {
+	syncCalls int
+	err       error
+}
+
+func (b *nativeHookBindingsStub) Sync(context.Context) error {
+	b.syncCalls++
+	return b.err
+}
+
+type nativeObserverStub struct {
+	catalog     []hookspkg.CatalogEntry
+	catalogCall int
+	runs        []hookspkg.HookRunRecord
+	events      []hookspkg.EventDescriptor
+}
+
+func (o *nativeObserverStub) QueryEvents(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
+	return nil, nil
+}
+
+func (o *nativeObserverStub) QueryHookCatalog(
+	_ context.Context,
+	_ hookspkg.CatalogFilter,
+) ([]hookspkg.CatalogEntry, error) {
+	o.catalogCall++
+	return append([]hookspkg.CatalogEntry(nil), o.catalog...), nil
+}
+
+func (o *nativeObserverStub) QueryHookRuns(
+	context.Context,
+	store.HookRunQuery,
+) ([]hookspkg.HookRunRecord, error) {
+	return append([]hookspkg.HookRunRecord(nil), o.runs...), nil
+}
+
+func (o *nativeObserverStub) QueryHookEvents(
+	context.Context,
+	hookspkg.EventFilter,
+) ([]hookspkg.EventDescriptor, error) {
+	if len(o.events) > 0 {
+		return append([]hookspkg.EventDescriptor(nil), o.events...), nil
+	}
+	return hookspkg.AllEventDescriptors(), nil
+}
+
+func (o *nativeObserverStub) QueryBridgeHealth(context.Context) ([]observe.BridgeInstanceHealth, error) {
+	return nil, nil
+}
+
+func (o *nativeObserverStub) Health(context.Context) (observe.Health, error) {
+	return observe.Health{}, nil
+}
+
+func (o *nativeObserverStub) QueryTaskDashboard(
+	context.Context,
+	observe.TaskDashboardQuery,
+) (observe.TaskDashboardView, error) {
+	return observe.TaskDashboardView{}, nil
+}
+
+func (o *nativeObserverStub) QueryTaskInbox(
+	context.Context,
+	observe.TaskInboxQuery,
+	taskpkg.ActorIdentity,
+) (observe.TaskInboxView, error) {
+	return observe.TaskInboxView{}, nil
 }
 
 type nativeNetworkStub struct {

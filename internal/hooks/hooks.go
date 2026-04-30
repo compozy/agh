@@ -299,6 +299,9 @@ func (h *Hooks) collectDeclarations(ctx context.Context) ([]HookDecl, error) {
 		}
 
 		for _, decl := range decls {
+			if !decl.EnabledValue() {
+				continue
+			}
 			normalized := cloneHookDecl(decl)
 			normalized.Source = source.source
 			collected = append(collected, normalized)
@@ -433,6 +436,7 @@ func cloneHookDecl(decl HookDecl) HookDecl {
 	cloned.Args = append([]string(nil), decl.Args...)
 	cloned.Env = cloneStringMap(decl.Env)
 	cloned.Metadata = cloneStringMap(decl.Metadata)
+	cloned.Enabled = cloneBoolPtr(decl.Enabled)
 	if decl.Matcher.ToolReadOnly != nil {
 		value := *decl.Matcher.ToolReadOnly
 		cloned.Matcher.ToolReadOnly = &value

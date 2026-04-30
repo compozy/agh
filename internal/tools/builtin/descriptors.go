@@ -13,6 +13,8 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		skillDescriptors(),
 		networkDescriptors(),
 		taskDescriptors(),
+		configDescriptors(),
+		hookDescriptors(),
 	}
 	total := 0
 	for _, group := range groups {

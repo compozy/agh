@@ -92,6 +92,22 @@ const (
 	ReasonToolsetCycle ReasonCode = "toolset_cycle"
 	// ReasonToolUnknown reports a policy reference to an unknown tool.
 	ReasonToolUnknown ReasonCode = "tool_unknown"
+	// ReasonConfigPathForbidden reports an agent-immutable config path.
+	ReasonConfigPathForbidden ReasonCode = "config_path_forbidden"
+	// ReasonConfigSecretPathForbidden reports a secret-bearing config path.
+	ReasonConfigSecretPathForbidden ReasonCode = "config_secret_path_forbidden" // #nosec G101 -- reason code.
+	// ReasonConfigTrustRootForbidden reports a trust-root config path.
+	ReasonConfigTrustRootForbidden ReasonCode = "config_trust_root_forbidden"
+	// ReasonConfigScopeNotAllowed reports an unsupported config write scope.
+	ReasonConfigScopeNotAllowed ReasonCode = "config_scope_not_allowed"
+	// ReasonConfigValidationFailed reports a validated config writer rejection.
+	ReasonConfigValidationFailed ReasonCode = "config_validation_failed"
+	// ReasonHookSourceImmutable reports a non-config hook source mutation attempt.
+	ReasonHookSourceImmutable ReasonCode = "hook_source_immutable"
+	// ReasonHookSecretInputForbidden reports a secret-bearing hook executor input.
+	ReasonHookSecretInputForbidden ReasonCode = "hook_secret_input_forbidden"
+	// ReasonHookValidationFailed reports a hook normalization or validation rejection.
+	ReasonHookValidationFailed ReasonCode = "hook_validation_failed"
 )
 
 var validReasonCodes = map[ReasonCode]struct{}{
@@ -139,6 +155,14 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonToolsetUnknown:             {},
 	ReasonToolsetCycle:               {},
 	ReasonToolUnknown:                {},
+	ReasonConfigPathForbidden:        {},
+	ReasonConfigSecretPathForbidden:  {},
+	ReasonConfigTrustRootForbidden:   {},
+	ReasonConfigScopeNotAllowed:      {},
+	ReasonConfigValidationFailed:     {},
+	ReasonHookSourceImmutable:        {},
+	ReasonHookSecretInputForbidden:   {},
+	ReasonHookValidationFailed:       {},
 }
 
 // Validate ensures the reason code is documented.

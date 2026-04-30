@@ -48,6 +48,9 @@ func NormalizeHookDecl(decl HookDecl, resolve ExecutorResolver) (ResolvedHook, e
 func NormalizeHookDecls(decls []HookDecl, resolve ExecutorResolver) ([]ResolvedHook, error) {
 	resolved := make([]ResolvedHook, 0, len(decls))
 	for idx, decl := range decls {
+		if !decl.EnabledValue() {
+			continue
+		}
 		hook, err := NormalizeHookDecl(decl, resolve)
 		if err != nil {
 			return nil, fmt.Errorf("hooks: normalize declaration %d (%q): %w", idx, strings.TrimSpace(decl.Name), err)
@@ -129,6 +132,7 @@ func sanitizedHookDecl(decl HookDecl) (HookDecl, error) {
 		Priority:     decl.Priority,
 		PrioritySet:  decl.PrioritySet,
 		Timeout:      decl.Timeout,
+		Enabled:      cloneBoolPtr(decl.Enabled),
 		Matcher:      normalizeHookMatcher(decl.Matcher),
 		ExecutorKind: decl.ExecutorKind,
 		Command:      strings.TrimSpace(decl.Command),
@@ -247,4 +251,12 @@ func cloneStringMap(src map[string]string) map[string]string {
 	dst := make(map[string]string, len(src))
 	maps.Copy(dst, src)
 	return dst
+}
+
+func cloneBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	value := *src
+	return &value
 }

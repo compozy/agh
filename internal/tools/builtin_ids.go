@@ -36,6 +36,38 @@ const (
 	ToolIDTaskCancel ToolID = "agh__task_cancel"
 	// ToolIDTaskRunList lists task runs through the task service.
 	ToolIDTaskRunList ToolID = "agh__task_run_list"
+	// ToolIDConfigShow shows the redacted effective config.
+	ToolIDConfigShow ToolID = "agh__config_show"
+	// ToolIDConfigList lists redacted effective config entries.
+	ToolIDConfigList ToolID = "agh__config_list"
+	// ToolIDConfigGet reads one redacted effective config entry.
+	ToolIDConfigGet ToolID = "agh__config_get"
+	// ToolIDConfigSet mutates one validated config overlay value.
+	ToolIDConfigSet ToolID = "agh__config_set"
+	// ToolIDConfigUnset removes one validated config overlay value.
+	ToolIDConfigUnset ToolID = "agh__config_unset"
+	// ToolIDConfigDiff compares defaults/global config against the effective view.
+	ToolIDConfigDiff ToolID = "agh__config_diff"
+	// ToolIDConfigPath reports resolved config paths.
+	ToolIDConfigPath ToolID = "agh__config_path"
+	// ToolIDHooksList lists resolved hooks.
+	ToolIDHooksList ToolID = "agh__hooks_list"
+	// ToolIDHooksInfo reads one resolved hook.
+	ToolIDHooksInfo ToolID = "agh__hooks_info"
+	// ToolIDHooksEvents lists supported hook events.
+	ToolIDHooksEvents ToolID = "agh__hooks_events"
+	// ToolIDHooksRuns lists hook run audit records.
+	ToolIDHooksRuns ToolID = "agh__hooks_runs"
+	// ToolIDHooksCreate creates one config-backed hook declaration.
+	ToolIDHooksCreate ToolID = "agh__hooks_create"
+	// ToolIDHooksUpdate updates one config-backed hook declaration.
+	ToolIDHooksUpdate ToolID = "agh__hooks_update"
+	// ToolIDHooksDelete deletes one config-backed hook declaration.
+	ToolIDHooksDelete ToolID = "agh__hooks_delete"
+	// ToolIDHooksEnable enables one config-backed hook declaration.
+	ToolIDHooksEnable ToolID = "agh__hooks_enable"
+	// ToolIDHooksDisable disables one config-backed hook declaration.
+	ToolIDHooksDisable ToolID = "agh__hooks_disable"
 )
 
 const (
@@ -47,6 +79,10 @@ const (
 	ToolsetIDCoordination ToolsetID = "agh__coordination"
 	// ToolsetIDTasks groups bounded task tools.
 	ToolsetIDTasks ToolsetID = "agh__tasks"
+	// ToolsetIDConfig groups validated config tools.
+	ToolsetIDConfig ToolsetID = "agh__config"
+	// ToolsetIDHooks groups hook introspection and mutable config-backed hook tools.
+	ToolsetIDHooks ToolsetID = "agh__hooks"
 )
 
 // BuiltinSource returns the provenance shared by daemon-compiled AGH tools.

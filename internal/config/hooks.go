@@ -19,6 +19,7 @@ type parsedHookDeclaration struct {
 	Name     string             `yaml:"name"               toml:"name"`
 	Event    string             `yaml:"event"              toml:"event"`
 	Mode     string             `yaml:"mode,omitempty"     toml:"mode,omitempty"`
+	Enabled  *bool              `yaml:"enabled,omitempty"  toml:"enabled,omitempty"`
 	Required bool               `yaml:"required,omitempty" toml:"required,omitempty"`
 	Priority *int               `yaml:"priority,omitempty" toml:"priority,omitempty"`
 	Timeout  time.Duration      `yaml:"timeout,omitempty"  toml:"timeout,omitempty"`
@@ -87,6 +88,9 @@ func HookDeclarations(hooksCfg HooksConfig, agents []AgentDef) ([]hookspkg.HookD
 
 	normalized := make([]hookspkg.HookDecl, 0, len(raw))
 	for idx, decl := range raw {
+		if !decl.EnabledValue() {
+			continue
+		}
 		resolved, err := hookspkg.NormalizeHookDecl(decl, hookDeclarationResolver)
 		if err != nil {
 			return nil, fmt.Errorf(
@@ -132,6 +136,7 @@ func (d parsedHookDeclaration) toHookDecl(
 		Event:        hookspkg.HookEvent(strings.TrimSpace(d.Event)),
 		Source:       source,
 		Mode:         hookspkg.HookMode(strings.TrimSpace(d.Mode)),
+		Enabled:      cloneBoolPtr(d.Enabled),
 		Required:     d.Required,
 		Timeout:      d.Timeout,
 		Matcher:      matcher,
@@ -231,9 +236,18 @@ func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned.Args = cloneStrings(src.Args)
 	cloned.Env = mergeStringMaps(nil, src.Env)
 	cloned.Metadata = mergeStringMaps(nil, src.Metadata)
+	cloned.Enabled = cloneBoolPtr(src.Enabled)
 	if src.Matcher.ToolReadOnly != nil {
 		value := *src.Matcher.ToolReadOnly
 		cloned.Matcher.ToolReadOnly = &value
 	}
 	return cloned
+}
+
+func cloneBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	value := *src
+	return &value
 }

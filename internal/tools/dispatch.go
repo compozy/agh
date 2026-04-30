@@ -454,6 +454,10 @@ func normalizeBackendError(id ToolID, err error) error {
 	if contextError := contextErrFromError(id, err); contextError != nil {
 		return contextError
 	}
+	var toolErr *ToolError
+	if errors.As(err, &toolErr) {
+		return normalizeToolError(id, toolErr)
+	}
 	return normalizeToolError(id, NewToolError(
 		ErrorCodeBackendFailed,
 		id,

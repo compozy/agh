@@ -1050,6 +1050,7 @@ export interface HookDecl {
   metadata?: Record<string, string>;
   timeout?: number;
   priority?: number;
+  enabled?: boolean;
   source: HookSource;
   required?: boolean;
 }

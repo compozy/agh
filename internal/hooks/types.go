@@ -189,9 +189,15 @@ type HookDecl struct {
 	SkillSource  HookSkillSource   `json:"-"                       yaml:"-"`
 	Timeout      time.Duration     `json:"timeout,omitempty"       yaml:"timeout,omitempty"`
 	Priority     int               `json:"priority,omitempty"      yaml:"priority,omitempty"`
+	Enabled      *bool             `json:"enabled,omitempty"       yaml:"enabled,omitempty"`
 	Source       HookSource        `json:"source"                  yaml:"source"`
 	Required     bool              `json:"required,omitempty"      yaml:"required,omitempty"`
 	PrioritySet  bool              `json:"-"                       yaml:"-"`
+}
+
+// EnabledValue reports whether a declaration participates in dispatch.
+func (d HookDecl) EnabledValue() bool {
+	return d.Enabled == nil || *d.Enabled
 }
 
 // RegisteredHook is the normalized hook ready for dispatch.

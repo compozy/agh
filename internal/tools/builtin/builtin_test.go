@@ -38,6 +38,22 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDTaskUpdate,
 			toolspkg.ToolIDTaskCancel,
 			toolspkg.ToolIDTaskRunList,
+			toolspkg.ToolIDConfigShow,
+			toolspkg.ToolIDConfigList,
+			toolspkg.ToolIDConfigGet,
+			toolspkg.ToolIDConfigSet,
+			toolspkg.ToolIDConfigUnset,
+			toolspkg.ToolIDConfigDiff,
+			toolspkg.ToolIDConfigPath,
+			toolspkg.ToolIDHooksList,
+			toolspkg.ToolIDHooksInfo,
+			toolspkg.ToolIDHooksEvents,
+			toolspkg.ToolIDHooksRuns,
+			toolspkg.ToolIDHooksCreate,
+			toolspkg.ToolIDHooksUpdate,
+			toolspkg.ToolIDHooksDelete,
+			toolspkg.ToolIDHooksEnable,
+			toolspkg.ToolIDHooksDisable,
 		}
 		if gotLen, wantLen := len(got), len(want); gotLen != wantLen {
 			t.Fatalf("len(NativeDescriptors()) = %d, want %d", gotLen, wantLen)
@@ -102,6 +118,13 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskUpdate], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskCancel], toolspkg.RiskDestructive, false, true, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigShow], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigSet], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigUnset], toolspkg.RiskDestructive, false, true, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksCreate], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksDelete], toolspkg.RiskDestructive, false, true, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksDisable], toolspkg.RiskMutating, false, false, false)
 	})
 
 	t.Run("Should return cloned descriptors", func(t *testing.T) {
@@ -159,6 +182,24 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if !slices.Contains(tasks, toolspkg.ToolIDTaskChildCreate) ||
 			slices.Contains(tasks, toolspkg.ToolID("agh__task_claim")) {
 			t.Fatalf("task toolset expansion = %#v, want bounded task scope", tasks)
+		}
+
+		config, err := catalog.Expand(toolspkg.ToolsetIDConfig, universe)
+		if err != nil {
+			t.Fatalf("Expand(config) error = %v", err)
+		}
+		if !slices.Contains(config, toolspkg.ToolIDConfigSet) ||
+			!slices.Contains(config, toolspkg.ToolIDConfigUnset) {
+			t.Fatalf("config toolset expansion = %#v, want mutable config tools", config)
+		}
+
+		hooks, err := catalog.Expand(toolspkg.ToolsetIDHooks, universe)
+		if err != nil {
+			t.Fatalf("Expand(hooks) error = %v", err)
+		}
+		if !slices.Contains(hooks, toolspkg.ToolIDHooksCreate) ||
+			!slices.Contains(hooks, toolspkg.ToolIDHooksDisable) {
+			t.Fatalf("hooks toolset expansion = %#v, want mutable hook tools", hooks)
 		}
 	})
 }

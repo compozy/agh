@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -28,6 +29,9 @@ type daemonNativeToolsDeps struct {
 	WorkspaceResolver workspacepkg.RuntimeResolver
 	Network           core.NetworkService
 	Tasks             taskpkg.Manager
+	HomePaths         aghconfig.HomePaths
+	Observer          core.Observer
+	HookBindings      hookBindingPublisher
 }
 
 type daemonNativeTools struct {
@@ -74,6 +78,9 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 		WorkspaceResolver: state.workspaceResolver,
 		Network:           state.deps.Network,
 		Tasks:             state.deps.Tasks,
+		HomePaths:         d.homePaths,
+		Observer:          state.observer,
+		HookBindings:      state.hookBindings,
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create native tool provider: %w", err)
@@ -272,71 +279,215 @@ func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
 	return sources
 }
 
+type nativeToolAvailabilitySet struct {
+	registry     toolspkg.NativeAvailabilityFunc
+	skills       toolspkg.NativeAvailabilityFunc
+	network      toolspkg.NativeAvailabilityFunc
+	tasks        toolspkg.NativeAvailabilityFunc
+	config       toolspkg.NativeAvailabilityFunc
+	hookRead     toolspkg.NativeAvailabilityFunc
+	hookMutation toolspkg.NativeAvailabilityFunc
+}
+
 func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
-	registryAvailability := n.registryAvailability()
-	skillAvailability := n.dependencyAvailability(func() bool { return n.deps.Skills != nil })
-	networkAvailability := n.dependencyAvailability(func() bool { return n.deps.Network != nil })
-	taskAvailability := n.dependencyAvailability(func() bool { return n.deps.Tasks != nil })
+	availability := n.nativeToolAvailability()
+	bindings := make(map[toolspkg.ToolID]nativeToolBinding, 32)
+	addNativeToolBindings(bindings, n.registryToolBindings(availability.registry))
+	addNativeToolBindings(bindings, n.skillToolBindings(availability.skills))
+	addNativeToolBindings(bindings, n.networkToolBindings(availability.network))
+	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))
+	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
+	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
+	return bindings
+}
+
+func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
+	configReady := func() bool {
+		return strings.TrimSpace(n.deps.HomePaths.ConfigFile) != ""
+	}
+	return nativeToolAvailabilitySet{
+		registry: n.registryAvailability(),
+		skills:   n.dependencyAvailability(func() bool { return n.deps.Skills != nil }),
+		network:  n.dependencyAvailability(func() bool { return n.deps.Network != nil }),
+		tasks:    n.dependencyAvailability(func() bool { return n.deps.Tasks != nil }),
+		config:   n.dependencyAvailability(configReady),
+		hookRead: n.dependencyAvailability(func() bool { return n.deps.Observer != nil }),
+		hookMutation: n.dependencyAvailability(func() bool {
+			return configReady() && n.deps.Observer != nil && n.deps.HookBindings != nil
+		}),
+	}
+}
+
+func addNativeToolBindings(
+	dst map[toolspkg.ToolID]nativeToolBinding,
+	src map[toolspkg.ToolID]nativeToolBinding,
+) {
+	maps.Copy(dst, src)
+}
+
+func (n *daemonNativeTools) registryToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDToolList: {
 			call:         n.toolList,
-			availability: registryAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDToolSearch: {
 			call:         n.toolSearch,
-			availability: registryAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDToolInfo: {
 			call:         n.toolInfo,
-			availability: registryAvailability,
+			availability: availability,
 		},
+	}
+}
+
+func (n *daemonNativeTools) skillToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSkillList: {
 			call:         n.skillList,
-			availability: skillAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDSkillSearch: {
 			call:         n.skillSearch,
-			availability: skillAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDSkillView: {
 			call:         n.skillView,
-			availability: skillAvailability,
+			availability: availability,
 		},
+	}
+}
+
+func (n *daemonNativeTools) networkToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDNetworkPeers: {
 			call:         n.networkPeers,
-			availability: networkAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDNetworkSend: {
 			call:         n.networkSend,
-			availability: networkAvailability,
+			availability: availability,
 		},
+	}
+}
+
+func (n *daemonNativeTools) taskToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDTaskList: {
 			call:         n.taskList,
-			availability: taskAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDTaskRead: {
 			call:         n.taskRead,
-			availability: taskAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDTaskCreate: {
 			call:         n.taskCreate,
-			availability: taskAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDTaskChildCreate: {
 			call:         n.taskChildCreate,
-			availability: taskAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDTaskUpdate: {
 			call:         n.taskUpdate,
-			availability: taskAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDTaskCancel: {
 			call:         n.taskCancel,
-			availability: taskAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDTaskRunList: {
 			call:         n.taskRunList,
-			availability: taskAvailability,
+			availability: availability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) configToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDConfigShow: {
+			call:         n.configShow,
+			availability: availability,
+		},
+		toolspkg.ToolIDConfigList: {
+			call:         n.configList,
+			availability: availability,
+		},
+		toolspkg.ToolIDConfigGet: {
+			call:         n.configGet,
+			availability: availability,
+		},
+		toolspkg.ToolIDConfigSet: {
+			call:         n.configSet,
+			availability: availability,
+		},
+		toolspkg.ToolIDConfigUnset: {
+			call:         n.configUnset,
+			availability: availability,
+		},
+		toolspkg.ToolIDConfigDiff: {
+			call:         n.configDiff,
+			availability: availability,
+		},
+		toolspkg.ToolIDConfigPath: {
+			call:         n.configPath,
+			availability: availability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) hookToolBindings(
+	readAvailability toolspkg.NativeAvailabilityFunc,
+	mutationAvailability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDHooksList: {
+			call:         n.hooksList,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDHooksInfo: {
+			call:         n.hooksInfo,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDHooksEvents: {
+			call:         n.hooksEvents,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDHooksRuns: {
+			call:         n.hooksRuns,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDHooksCreate: {
+			call:         n.hooksCreate,
+			availability: mutationAvailability,
+		},
+		toolspkg.ToolIDHooksUpdate: {
+			call:         n.hooksUpdate,
+			availability: mutationAvailability,
+		},
+		toolspkg.ToolIDHooksDelete: {
+			call:         n.hooksDelete,
+			availability: mutationAvailability,
+		},
+		toolspkg.ToolIDHooksEnable: {
+			call:         n.hooksEnable,
+			availability: mutationAvailability,
+		},
+		toolspkg.ToolIDHooksDisable: {
+			call:         n.hooksDisable,
+			availability: mutationAvailability,
 		},
 	}
 }

@@ -29,5 +29,13 @@ func ToolsetCatalog() (toolspkg.ToolsetCatalog, error) {
 			ID:    toolspkg.ToolsetIDTasks,
 			Tools: []string{"agh__task_*"},
 		},
+		toolspkg.Toolset{
+			ID:    toolspkg.ToolsetIDConfig,
+			Tools: []string{"agh__config_*"},
+		},
+		toolspkg.Toolset{
+			ID:    toolspkg.ToolsetIDHooks,
+			Tools: []string{"agh__hooks_*"},
+		},
 	)
 }
