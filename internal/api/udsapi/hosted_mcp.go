@@ -114,13 +114,28 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 		}
 		response, err = h.HostedMCP.Projection(c.Request.Context(), bindID, peer)
 		if err != nil {
-			if writeErr := core.WriteSSE(writer, core.SSEMessage{Name: "error", Data: map[string]string{
-				"error": err.Error(),
-			}}); writeErr != nil && h.Logger != nil {
+			status := hostedMCPStatus(err)
+			if h.Logger != nil {
+				h.Logger.Warn("udsapi: hosted MCP projection failed", "status", status, "error", err)
+			}
+			if writeErr := core.WriteSSE(writer, core.SSEMessage{
+				Name: "error",
+				Data: hostedMCPStreamErrorData(err),
+			}); writeErr != nil && h.Logger != nil {
 				h.Logger.Warn("udsapi: failed to emit hosted MCP error", "error", writeErr)
 			}
 			return
 		}
+	}
+}
+
+// hostedMCPStreamErrorData keeps stream failures stable without exposing backend error text.
+func hostedMCPStreamErrorData(err error) map[string]any {
+	status := hostedMCPStatus(err)
+	return map[string]any{
+		"error":   "hosted_mcp_projection_failed",
+		"status":  status,
+		"message": http.StatusText(status),
 	}
 }
 

@@ -432,6 +432,52 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			t.Fatalf("error = %q, want redacted claim token", err.Error())
 		}
 	})
+
+	t.Run("Should redact MCP OAuth and secret binding material from API errors", func(t *testing.T) {
+		t.Parallel()
+
+		err := readAPIErrorBody(
+			http.StatusInternalServerError,
+			"500 Internal Server Error",
+			[]byte(
+				`{"error":"mcp_auth_token=raw-mcp access_token=raw-access authorization_code=raw-code code_verifier=raw-verifier secret_binding=raw-binding agh_claim_CLIENTERRORTOKEN456"}`,
+			),
+		)
+		if err == nil {
+			t.Fatal("readAPIErrorBody() error = nil, want redacted API error")
+		}
+		for _, leaked := range []string{
+			"raw-mcp",
+			"raw-access",
+			"raw-code",
+			"raw-verifier",
+			"raw-binding",
+			"agh_claim_CLIENTERRORTOKEN456",
+		} {
+			if strings.Contains(err.Error(), leaked) {
+				t.Fatalf("readAPIErrorBody() error = %q leaked %q", err.Error(), leaked)
+			}
+		}
+		if !strings.Contains(err.Error(), "[REDACTED]") {
+			t.Fatalf("readAPIErrorBody() error = %q, want redacted markers", err.Error())
+		}
+	})
+
+	t.Run("Should redact structured tool API errors", func(t *testing.T) {
+		t.Parallel()
+
+		err := readAPIErrorBody(
+			http.StatusBadGateway,
+			"502 Bad Gateway",
+			[]byte(`{"error":{"code":"backend_failed","message":"pkce_verifier=raw-pkce refresh_token=raw-refresh"}}`),
+		)
+		if err == nil {
+			t.Fatal("readAPIErrorBody(tool error) error = nil, want redacted tool API error")
+		}
+		if strings.Contains(err.Error(), "raw-pkce") || strings.Contains(err.Error(), "raw-refresh") {
+			t.Fatalf("readAPIErrorBody(tool error) error = %q, want sensitive values redacted", err.Error())
+		}
+	})
 }
 
 func agentTaskLeaseHTTPResponse(status taskpkg.RunStatus) *http.Response {
@@ -2879,6 +2925,31 @@ func TestNewClientRequiresSocket(t *testing.T) {
 
 	if _, err := NewClient(""); err == nil {
 		t.Fatal("NewClient(\"\") error = nil, want non-nil")
+	}
+}
+
+func TestNewClientConfiguresTimeouts(t *testing.T) {
+	t.Parallel()
+
+	client, err := NewClient("/tmp/agh.sock")
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	udsClient, ok := client.(*unixSocketClient)
+	if !ok {
+		t.Fatalf("NewClient() = %T, want *unixSocketClient", client)
+	}
+	if udsClient.httpClient == nil {
+		t.Fatal("httpClient = nil, want timeout-bound client")
+	}
+	if udsClient.httpClient.Timeout != defaultUnixSocketClientTimeout {
+		t.Fatalf("httpClient timeout = %v, want %v", udsClient.httpClient.Timeout, defaultUnixSocketClientTimeout)
+	}
+	if udsClient.streamClient == nil {
+		t.Fatal("streamClient = nil, want dedicated streaming client")
+	}
+	if udsClient.streamClient.Timeout != 0 {
+		t.Fatalf("streamClient timeout = %v, want no client-level timeout", udsClient.streamClient.Timeout)
 	}
 }
 

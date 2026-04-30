@@ -322,99 +322,130 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 }
 
 func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
-	runtime := newIntegrationRuntime(t)
+	t.Parallel()
 
-	createResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPut,
-		"http://unix/api/resources/tool/lookup",
-		[]byte(`{
-			"scope":{"kind":"global"},
-			"spec":{
-				"id":" dyn__lookup ",
-				"backend":{"kind":"native_go","native_name":" lookup "},
-				"description":" search workspace ",
-				"input_schema":{"type":"object"},
-				"read_only":true,
-				"source":{"kind":"dynamic","owner":" udsapi "},
-				"visibility":"operator",
-				"risk":"read"
+	t.Run("Should create update tool resource and trigger projection", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newIntegrationRuntime(t)
+
+		createResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPut,
+			"http://unix/api/resources/tool/lookup",
+			[]byte(`{
+				"scope":{"kind":"global"},
+				"spec":{
+					"id":" dyn__lookup ",
+					"backend":{"kind":"native_go","native_name":" lookup "},
+					"description":" search workspace ",
+					"input_schema":{"type":"object"},
+					"read_only":true,
+					"source":{"kind":"dynamic","owner":" udsapi "},
+					"visibility":"operator",
+					"risk":"read"
+				}
+			}`),
+			nil,
+		)
+		if createResp.StatusCode != http.StatusCreated {
+			body, err := io.ReadAll(createResp.Body)
+			if err != nil {
+				t.Fatalf("io.ReadAll(create tool resource body) error = %v", err)
 			}
-		}`),
-		nil,
-	)
-	if createResp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(createResp.Body)
-		_ = createResp.Body.Close()
-		t.Fatalf("create tool resource status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
-	}
-	var created contract.ResourceResponse
-	decodeHTTPJSON(t, createResp, &created)
-	var createdSpec map[string]any
-	if err := json.Unmarshal(created.Record.Spec, &createdSpec); err != nil {
-		t.Fatalf("json.Unmarshal(created tool spec) error = %v", err)
-	}
-	backend, ok := createdSpec["backend"].(map[string]any)
-	if !ok {
-		t.Fatalf("created tool backend = %#v, want object", createdSpec["backend"])
-	}
-	source, ok := createdSpec["source"].(map[string]any)
-	if !ok {
-		t.Fatalf("created tool source = %#v, want object", createdSpec["source"])
-	}
-	if createdSpec["id"] != "dyn__lookup" ||
-		createdSpec["description"] != "search workspace" ||
-		createdSpec["visibility"] != "operator" ||
-		createdSpec["risk"] != "read" ||
-		createdSpec["read_only"] != true ||
-		backend["kind"] != "native_go" ||
-		backend["native_name"] != "lookup" ||
-		source["kind"] != "dynamic" ||
-		source["owner"] != "udsapi" {
-		t.Fatalf("created tool spec = %#v, want normalized fields", createdSpec)
-	}
-
-	waitForProjectedToolRevision(t, runtime, 1)
-	revision, records := runtime.toolCatalog.snapshot()
-	if revision != 1 || len(records) != 1 || records[0].Spec.ID != toolspkg.ToolID("dyn__lookup") {
-		t.Fatalf("tool projection after create = revision:%d records:%#v, want lookup@1", revision, records)
-	}
-
-	updateResp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPut,
-		"http://unix/api/resources/tool/lookup",
-		[]byte(fmt.Sprintf(`{
-			"scope":{"kind":"global"},
-			"expected_version":%d,
-			"spec":{
-				"id":"dyn__lookup",
-				"backend":{"kind":"native_go","native_name":"lookup"},
-				"description":"search workspace v2",
-				"input_schema":{"type":"object"},
-				"read_only":true,
-				"source":{"kind":"dynamic","owner":"udsapi"},
-				"visibility":"operator",
-				"risk":"read"
+			if err := createResp.Body.Close(); err != nil {
+				t.Fatalf("create tool resource body close error = %v", err)
 			}
-		}`, created.Record.Version)),
-		nil,
-	)
-	if updateResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(updateResp.Body)
-		_ = updateResp.Body.Close()
-		t.Fatalf("update tool resource status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
-	}
-	var updated contract.ResourceResponse
-	decodeHTTPJSON(t, updateResp, &updated)
-	waitForProjectedToolRevision(t, runtime, 2)
+			t.Fatalf(
+				"create tool resource status = %d, want %d; body=%s",
+				createResp.StatusCode,
+				http.StatusCreated,
+				string(body),
+			)
+		}
+		var created contract.ResourceResponse
+		decodeHTTPJSON(t, createResp, &created)
+		var createdSpec map[string]any
+		if err := json.Unmarshal(created.Record.Spec, &createdSpec); err != nil {
+			t.Fatalf("json.Unmarshal(created tool spec) error = %v", err)
+		}
+		backend, ok := createdSpec["backend"].(map[string]any)
+		if !ok {
+			t.Fatalf("created tool backend = %#v, want object", createdSpec["backend"])
+		}
+		source, ok := createdSpec["source"].(map[string]any)
+		if !ok {
+			t.Fatalf("created tool source = %#v, want object", createdSpec["source"])
+		}
+		inputSchema, ok := createdSpec["input_schema"].(map[string]any)
+		if !ok {
+			t.Fatalf("created tool input_schema = %#v, want object", createdSpec["input_schema"])
+		}
+		if createdSpec["id"] != "dyn__lookup" ||
+			createdSpec["description"] != "search workspace" ||
+			createdSpec["visibility"] != "operator" ||
+			createdSpec["risk"] != "read" ||
+			createdSpec["read_only"] != true ||
+			inputSchema["type"] != "object" ||
+			backend["kind"] != "native_go" ||
+			backend["native_name"] != "lookup" ||
+			source["kind"] != "dynamic" ||
+			source["owner"] != "udsapi" {
+			t.Fatalf("created tool spec = %#v, want normalized fields", createdSpec)
+		}
 
-	_, records = runtime.toolCatalog.snapshot()
-	if got, want := records[0].Spec.Description, "search workspace v2"; got != want {
-		t.Fatalf("projected tool description = %q, want %q", got, want)
-	}
+		waitForProjectedToolRevision(t, runtime, 1)
+		revision, records := runtime.toolCatalog.snapshot()
+		if revision != 1 || len(records) != 1 || records[0].Spec.ID != toolspkg.ToolID("dyn__lookup") {
+			t.Fatalf("tool projection after create = revision:%d records:%#v, want lookup@1", revision, records)
+		}
+
+		updateResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPut,
+			"http://unix/api/resources/tool/lookup",
+			[]byte(fmt.Sprintf(`{
+				"scope":{"kind":"global"},
+				"expected_version":%d,
+				"spec":{
+					"id":"dyn__lookup",
+					"backend":{"kind":"native_go","native_name":"lookup"},
+					"description":"search workspace v2",
+					"input_schema":{"type":"object"},
+					"read_only":true,
+					"source":{"kind":"dynamic","owner":"udsapi"},
+					"visibility":"operator",
+					"risk":"read"
+				}
+			}`, created.Record.Version)),
+			nil,
+		)
+		if updateResp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(updateResp.Body)
+			if err != nil {
+				t.Fatalf("io.ReadAll(update tool resource body) error = %v", err)
+			}
+			if err := updateResp.Body.Close(); err != nil {
+				t.Fatalf("update tool resource body close error = %v", err)
+			}
+			t.Fatalf(
+				"update tool resource status = %d, want %d; body=%s",
+				updateResp.StatusCode,
+				http.StatusOK,
+				string(body),
+			)
+		}
+		var updated contract.ResourceResponse
+		decodeHTTPJSON(t, updateResp, &updated)
+		waitForProjectedToolRevision(t, runtime, 2)
+
+		_, records = runtime.toolCatalog.snapshot()
+		if got, want := records[0].Spec.Description, "search workspace v2"; got != want {
+			t.Fatalf("projected tool description = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testing.T) {
@@ -2500,9 +2531,12 @@ func decodeHTTPJSON(t *testing.T, resp *http.Response, dest any) {
 	t.Helper()
 
 	body, err := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
+	closeErr := resp.Body.Close()
 	if err != nil {
 		t.Fatalf("io.ReadAll(response) error = %v", err)
+	}
+	if closeErr != nil {
+		t.Fatalf("response body close error = %v", closeErr)
 	}
 	if err := json.Unmarshal(body, dest); err != nil {
 		t.Fatalf("json.Unmarshal(response) error = %v; body=%s", err, string(body))

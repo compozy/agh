@@ -1750,7 +1750,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			t.Fatalf("completed = %#v, want completed leased run", completed)
 		}
 
-		_, _, err := executeRootCommand(
+		exitCode, _, stderr := executeRootCommandWithExit(
 			t,
 			agentDeps,
 			"task",
@@ -1761,11 +1761,14 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"-o",
 			"json",
 		)
-		if err == nil {
-			t.Fatal("second task complete error = nil, want stale token/lifecycle rejection")
+		if exitCode == 0 {
+			t.Fatal("second task complete exit code = 0, want stale token/lifecycle rejection")
 		}
-		if strings.Contains(err.Error(), "agh_claim_") {
-			t.Fatalf("second complete error leaked raw token: %v", err)
+		if !strings.Contains(stderr, "not an active lease") {
+			t.Fatalf("second complete stderr = %q, want inactive lease rejection", stderr)
+		}
+		if strings.Contains(stderr, "agh_claim_") {
+			t.Fatalf("second complete stderr leaked raw token: %s", stderr)
 		}
 	})
 
@@ -1890,12 +1893,15 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			},
 		} {
 			t.Run("Should reject stale "+tt.name+" after recovery", func(t *testing.T) {
-				_, _, err := executeRootCommand(t, agentDeps, tt.args...)
-				if err == nil {
-					t.Fatalf("task %s after recovery error = nil, want stale token rejection", tt.name)
+				exitCode, _, stderr := executeRootCommandWithExit(t, agentDeps, tt.args...)
+				if exitCode == 0 {
+					t.Fatalf("task %s after recovery exit code = 0, want stale token rejection", tt.name)
 				}
-				if strings.Contains(err.Error(), "agh_claim_") {
-					t.Fatalf("task %s after recovery leaked stale token: %v", tt.name, err)
+				if !strings.Contains(stderr, "not an active lease") {
+					t.Fatalf("task %s after recovery stderr = %q, want inactive lease rejection", tt.name, stderr)
+				}
+				if strings.Contains(stderr, "agh_claim_") {
+					t.Fatalf("task %s after recovery leaked stale token: %s", tt.name, stderr)
 				}
 			})
 		}

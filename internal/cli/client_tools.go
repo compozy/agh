@@ -304,7 +304,12 @@ func benignTokenMetric(parts []string) bool {
 }
 
 func redactToolDiagnostic(value string) string {
-	return diagnostics.Redact(taskpkg.RedactClaimTokens(strings.TrimSpace(value)))
+	redactedClaims := taskpkg.RedactClaimTokens(strings.TrimSpace(value))
+	claimMarker := "agh_claim_" + "[REDACTED]"
+	claimGuard := "__AGH_REDACTED_CLAIM_" + "TOKEN__"
+	protectedClaims := strings.ReplaceAll(redactedClaims, claimMarker, claimGuard)
+	redacted := diagnostics.Redact(protectedClaims)
+	return strings.ReplaceAll(redacted, claimGuard, claimMarker)
 }
 
 func trimNonEmptyStrings(values []string) []string {

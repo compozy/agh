@@ -23,12 +23,12 @@ import (
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/sse"
-	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 const (
-	baseURL              = "http://unix"
-	defaultUserAgentName = "agh-cli"
+	baseURL                        = "http://unix"
+	defaultUnixSocketClientTimeout = 30 * time.Second
+	defaultUserAgentName           = "agh-cli"
 )
 
 // DaemonClient is the CLI transport surface for talking to the AGH daemon over UDS.
@@ -597,8 +597,9 @@ type SSEEvent = sse.Event
 type SSEHandler = sse.Handler
 
 type unixSocketClient struct {
-	socketPath string
-	httpClient *http.Client
+	socketPath   string
+	httpClient   *http.Client
+	streamClient *http.Client
 }
 
 var _ DaemonClient = (*unixSocketClient)(nil)
@@ -621,8 +622,9 @@ func NewClient(socketPath string) (DaemonClient, error) {
 	}
 
 	return &unixSocketClient{
-		socketPath: path,
-		httpClient: &http.Client{Transport: transport},
+		socketPath:   path,
+		httpClient:   &http.Client{Transport: transport, Timeout: defaultUnixSocketClientTimeout},
+		streamClient: &http.Client{Transport: transport},
 	}, nil
 }
 
@@ -2118,7 +2120,16 @@ func (c *unixSocketClient) doSSE(
 	lastEventID string,
 	handler SSEHandler,
 ) error {
-	response, err := c.doRequest(ctx, method, path, query, requestBody, lastEventID)
+	response, err := c.doRequestWithCredentialsAndClient(
+		ctx,
+		method,
+		path,
+		query,
+		requestBody,
+		lastEventID,
+		agentidentity.Credentials{},
+		c.streamHTTPClient(),
+	)
 	if err != nil {
 		return err
 	}
@@ -2164,8 +2175,34 @@ func (c *unixSocketClient) doRequestWithCredentials(
 	lastEventID string,
 	credentials agentidentity.Credentials,
 ) (*http.Response, error) {
+	return c.doRequestWithCredentialsAndClient(
+		ctx,
+		method,
+		path,
+		query,
+		requestBody,
+		lastEventID,
+		credentials,
+		c.httpClient,
+	)
+}
+
+// doRequestWithCredentialsAndClient lets SSE streams opt out of the JSON request timeout.
+func (c *unixSocketClient) doRequestWithCredentialsAndClient(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	requestBody any,
+	lastEventID string,
+	credentials agentidentity.Credentials,
+	client *http.Client,
+) (*http.Response, error) {
 	if ctx == nil {
 		return nil, errors.New("cli: context is required")
+	}
+	if client == nil {
+		return nil, errors.New("cli: http client is required")
 	}
 
 	target := baseURL + path
@@ -2195,11 +2232,22 @@ func (c *unixSocketClient) doRequestWithCredentials(
 	}
 	setAgentIdentityHeaders(req, credentials)
 
-	response, err := c.httpClient.Do(req)
+	response, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("cli: %s %s via %s: %w", method, path, c.socketPath, err)
 	}
 	return response, nil
+}
+
+// streamHTTPClient preserves long-lived streams when no dedicated client has been configured.
+func (c *unixSocketClient) streamHTTPClient() *http.Client {
+	if c != nil && c.streamClient != nil {
+		return c.streamClient
+	}
+	if c == nil {
+		return nil
+	}
+	return c.httpClient
 }
 
 func setAgentIdentityHeaders(req *http.Request, credentials agentidentity.Credentials) {
@@ -2620,7 +2668,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		Error string `json:"error"`
 	}
 	if len(body) > 0 && json.Unmarshal(body, &payload) == nil && strings.TrimSpace(payload.Error) != "" {
-		return errors.New(taskpkg.RedactClaimTokens(strings.TrimSpace(payload.Error)))
+		return errors.New(redactToolDiagnostic(payload.Error))
 	}
 	var toolPayload contract.ToolErrorResponse
 	if len(body) > 0 && json.Unmarshal(body, &toolPayload) == nil && toolPayload.Error.Code != "" {
@@ -2631,7 +2679,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 	if message == "" {
 		message = status
 	}
-	message = taskpkg.RedactClaimTokens(message)
+	message = redactToolDiagnostic(message)
 	if strings.TrimSpace(status) == "" {
 		return errors.New(message)
 	}

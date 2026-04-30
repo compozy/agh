@@ -197,7 +197,9 @@ func (h *BaseHandlers) SearchSessionTools(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("tool registry is not configured"))
 		return
 	}
-	scope := toolScopeFromSearch(h.sessionToolScope(c), req)
+	scope := h.sessionToolScope(c)
+	scope.WorkspaceID = firstNonEmpty(req.WorkspaceID, scope.WorkspaceID)
+	scope.AgentName = firstNonEmpty(req.AgentName, scope.AgentName)
 	views, err := h.Tools.Search(c.Request.Context(), scope, toolspkg.SearchQuery{
 		Query: req.Query,
 		Limit: req.Limit,

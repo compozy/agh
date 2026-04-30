@@ -7,14 +7,19 @@ import (
 
 const redactedValue = "[REDACTED]"
 
+const sensitiveKeyPattern = `api[_-]?key|access[_-]?token|refresh[_-]?token|mcp[_-]?auth[_-]?token|oauth[_-]?code|authorization[_-]?code|code[_-]?verifier|pkce[_-]?verifier|secret[_-]?binding|token|secret|password|authorization`
+
+const assignmentSensitiveKeyPattern = `api[_-]?key|access[_-]?token|refresh[_-]?token|mcp[_-]?auth[_-]?token|oauth[_-]?code|authorization[_-]?code|code[_-]?verifier|pkce[_-]?verifier|secret[_-]?binding|secret|password|authorization`
+
 var (
 	bearerTokenPattern  = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
 	quotedSecretPattern = regexp.MustCompile(
-		`(?i)(["'])(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|authorization)(["'])(\s*:\s*)(["'])(?:\\.|[^\\])*?(["'])`,
+		`(?i)(["'])(` + sensitiveKeyPattern + `)(["'])(\s*:\s*)(["'])(?:\\.|[^\\])*?(["'])`,
 	)
 	secretPattern = regexp.MustCompile(
-		`(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|authorization)\b\s*([:=])\s*("[^"]*"|'[^']*'|[^\s,;]+)`,
+		`(?i)\b(` + assignmentSensitiveKeyPattern + `)\b\s*([:=])\s*("[^"]*"|'[^']*'|[^\s,;]+)`,
 	)
+	tokenAssignmentPattern = regexp.MustCompile(`(?i)\b(token)\b\s*(=)\s*("[^"]*"|'[^']*'|[^\s,;]+)`)
 )
 
 // Redact removes common credential shapes from diagnostic text before the text
@@ -25,7 +30,8 @@ func Redact(text string) string {
 	}
 	redacted := bearerTokenPattern.ReplaceAllString(text, "Bearer "+redactedValue)
 	redacted = quotedSecretPattern.ReplaceAllString(redacted, "${1}${2}${3}${4}${5}"+redactedValue+"${6}")
-	return secretPattern.ReplaceAllString(redacted, "${1}${2}"+redactedValue)
+	redacted = secretPattern.ReplaceAllString(redacted, "${1}${2}"+redactedValue)
+	return tokenAssignmentPattern.ReplaceAllString(redacted, "${1}${2}"+redactedValue)
 }
 
 // RedactAndBound redacts diagnostic text and caps it to a deterministic byte

@@ -280,6 +280,7 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 	return sendReq, nil
 }
 
+// validateNetworkSendNoRawClaimToken keeps raw claim_token fields out of client-controlled network payloads.
 func validateNetworkSendNoRawClaimToken(req contract.NetworkSendRequest) error {
 	payload := struct {
 		Body json.RawMessage            `json:"body"`

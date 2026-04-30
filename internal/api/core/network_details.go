@@ -471,7 +471,7 @@ func NetworkChannelPayloads(
 ) ([]contract.NetworkChannelPayload, error) {
 	aggregates, err := networkChannelAggregates(ctx, service, sessionsManager, networkStore)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("api: build network channel aggregates: %w", err)
 	}
 	return sortedNetworkChannelPayloads(aggregates), nil
 }
@@ -494,19 +494,19 @@ func networkChannelAggregates(
 	}
 	runtimePeers, err := service.ListPeers(ctx, "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("api: list network peers: %w", err)
 	}
 	sessions, err := sessionsManager.ListAll(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("api: list sessions: %w", err)
 	}
 	channelMetadata, err := networkStore.ListNetworkChannels(ctx, store.NetworkChannelQuery{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("api: list network channels: %w", err)
 	}
 	messages, err := networkStore.ListNetworkMessages(ctx, store.NetworkMessageQuery{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("api: list network messages: %w", err)
 	}
 
 	aggregates := make(map[string]*networkChannelAggregate)

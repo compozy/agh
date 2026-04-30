@@ -30,6 +30,29 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 		}
 	})
 
+	t.Run("Should redact MCP OAuth PKCE and secret binding values", func(t *testing.T) {
+		t.Parallel()
+
+		redacted := Redact(
+			`{"mcp_auth_token":"mcp-raw","authorization_code":"code-raw","code_verifier":"verifier-raw","secret_binding":"binding-raw","safe":"ok"} oauth_code=oauth-raw pkce_verifier=pkce-raw`,
+		)
+		for _, leaked := range []string{
+			"mcp-raw",
+			"code-raw",
+			"verifier-raw",
+			"binding-raw",
+			"oauth-raw",
+			"pkce-raw",
+		} {
+			if strings.Contains(redacted, leaked) {
+				t.Fatalf("Redact(MCP/OAuth secrets) = %q leaked %q", redacted, leaked)
+			}
+		}
+		if !strings.Contains(redacted, `"safe":"ok"`) {
+			t.Fatalf("Redact(MCP/OAuth secrets) = %q, want safe field preserved", redacted)
+		}
+	})
+
 	t.Run("Should keep non positive byte budgets bounded", func(t *testing.T) {
 		t.Parallel()
 

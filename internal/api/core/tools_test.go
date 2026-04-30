@@ -88,7 +88,7 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/sessions/sess-1/tools/search",
-			[]byte(`{"query":"skill","limit":1,"workspace_id":"ws-1"}`),
+			[]byte(`{"query":"skill","limit":1,"workspace_id":"ws-1","session_id":"sess-other"}`),
 		)
 		if sessionSearchResp.Code != http.StatusOK {
 			t.Fatalf("session search status = %d, want %d", sessionSearchResp.Code, http.StatusOK)
