@@ -1,0 +1,205 @@
+package daemon
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	toolspkg "github.com/pedronauck/agh/internal/tools"
+)
+
+func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose redacted status with management repair paths", func(t *testing.T) {
+		t.Parallel()
+
+		expiresAt := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
+		provider := &nativeMCPAuthStatusProvider{
+			status: toolspkg.MCPAuthStatus{
+				ServerName:   "linear",
+				Status:       "needs_login",
+				AuthType:     "oauth2_pkce",
+				ClientID:     "public-client-id",
+				Scopes:       []string{"read", "write"},
+				ExpiresAt:    &expiresAt,
+				Refreshable:  true,
+				TokenPresent: true,
+				Diagnostic:   "login required",
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
+				return provider
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMCPAuthStatus,
+				Input:  json.RawMessage(`{"server_name":"linear"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(mcp_auth_status) error = %v", err)
+		}
+		if provider.source.RawServerName != "linear" ||
+			provider.source.Owner != "linear" ||
+			provider.source.Kind != toolspkg.SourceMCP {
+			t.Fatalf("provider source = %#v, want MCP source for linear", provider.source)
+		}
+
+		var payload mcpAuthStatusPayload
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("Unmarshal(mcp auth payload) error = %v", err)
+		}
+		if payload.Status.Status != "needs_login" ||
+			payload.Status.AuthType != "oauth2_pkce" ||
+			payload.Status.ClientID != "public-client-id" ||
+			!payload.Status.TokenPresent ||
+			!payload.Status.Refreshable {
+			t.Fatalf("payload status = %#v, want redacted auth status model", payload.Status)
+		}
+		if payload.RepairPaths.LoginCLI != `agh mcp auth login "linear"` ||
+			payload.RepairPaths.LogoutCLI != `agh mcp auth logout "linear"` ||
+			payload.RepairPaths.SettingsHTTP != "/api/settings/mcp-servers" {
+			t.Fatalf("repair paths = %#v, want management paths", payload.RepairPaths)
+		}
+		encoded := string(result.Structured)
+		for _, needle := range []string{
+			"access_token",
+			"refresh_token",
+			"client_secret",
+			"code_verifier",
+			"code_challenge",
+			"callback_secret",
+			"authorization_code",
+		} {
+			if strings.Contains(encoded, needle) {
+				t.Fatalf("mcp auth status leaked %q in structured result: %s", needle, encoded)
+			}
+		}
+	})
+
+	t.Run("Should expose only status tool for MCP auth diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
+				return &nativeMCPAuthStatusProvider{}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		views, err := registry.SessionProjection(t.Context(), toolspkg.Scope{SessionID: "sess-1"})
+		if err != nil {
+			t.Fatalf("SessionProjection() error = %v", err)
+		}
+		requireNativeViewContains(t, views, toolspkg.ToolIDMCPAuthStatus)
+		requireNativeViewExcludes(t, views, toolspkg.ToolID("agh__mcp_auth_login"))
+		requireNativeViewExcludes(t, views, toolspkg.ToolID("agh__mcp_auth_logout"))
+	})
+
+	t.Run("Should reject status calls when MCP auth provider is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		nativeTools := &daemonNativeTools{deps: &daemonNativeToolsDeps{}}
+		_, err := nativeTools.mcpAuthStatus(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMCPAuthStatus,
+				Input:  json.RawMessage(`{"server_name":"linear"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolUnavailable, toolspkg.ReasonDependencyMissing)
+	})
+
+	t.Run("Should propagate MCP auth provider status errors", func(t *testing.T) {
+		t.Parallel()
+
+		sentinelErr := errors.New("status failed")
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
+				return &nativeMCPAuthStatusProvider{err: sentinelErr}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMCPAuthStatus,
+				Input:  json.RawMessage(`{"server_name":"linear"}`),
+			},
+		)
+		if !errors.Is(err, sentinelErr) {
+			t.Fatalf("Registry.Call(mcp_auth_status) error = %v, want %v", err, sentinelErr)
+		}
+	})
+
+	t.Run("Should use requested server name when provider leaves status name empty", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
+				return &nativeMCPAuthStatusProvider{
+					status: toolspkg.MCPAuthStatus{
+						Status:     "not_configured",
+						Diagnostic: "server is not configured for OAuth",
+					},
+					preserveEmptyServerName: true,
+				}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMCPAuthStatus,
+				Input:  json.RawMessage(`{"server_name":"linear"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(mcp_auth_status) error = %v", err)
+		}
+		var payload mcpAuthStatusPayload
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("Unmarshal(mcp auth payload) error = %v", err)
+		}
+		if payload.Status.ServerName != "linear" ||
+			payload.RepairPaths.StatusCLI != `agh mcp auth status "linear"` {
+			t.Fatalf("payload = %#v, want requested server name in status and repair paths", payload)
+		}
+	})
+}
+
+type nativeMCPAuthStatusProvider struct {
+	status                  toolspkg.MCPAuthStatus
+	source                  toolspkg.SourceRef
+	err                     error
+	preserveEmptyServerName bool
+}
+
+func (p *nativeMCPAuthStatusProvider) Status(
+	_ context.Context,
+	source toolspkg.SourceRef,
+) (toolspkg.MCPAuthStatus, error) {
+	p.source = source
+	if p.err != nil {
+		return toolspkg.MCPAuthStatus{}, p.err
+	}
+	status := p.status
+	if !p.preserveEmptyServerName && strings.TrimSpace(status.ServerName) == "" {
+		status.ServerName = strings.TrimSpace(source.RawServerName)
+	}
+	if strings.TrimSpace(status.Status) == "" {
+		status.Status = "authenticated"
+	}
+	return status, nil
+}

@@ -172,6 +172,8 @@ const (
 	ToolIDExtensionsEnable ToolID = "agh__extensions_enable"
 	// ToolIDExtensionsDisable disables one installed extension.
 	ToolIDExtensionsDisable ToolID = "agh__extensions_disable"
+	// ToolIDMCPAuthStatus reads redacted MCP auth diagnostics for one configured server.
+	ToolIDMCPAuthStatus ToolID = "agh__mcp_auth_status"
 )
 
 const (
@@ -203,6 +205,8 @@ const (
 	ToolsetIDAutomation ToolsetID = "agh__automation"
 	// ToolsetIDExtensions groups extension discovery and lifecycle tools.
 	ToolsetIDExtensions ToolsetID = "agh__extensions"
+	// ToolsetIDMCPAuth groups redacted MCP auth diagnostics.
+	ToolsetIDMCPAuth ToolsetID = "agh__mcp_auth"
 )
 
 // BuiltinSource returns the provenance shared by daemon-compiled AGH tools.

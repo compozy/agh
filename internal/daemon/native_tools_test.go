@@ -97,8 +97,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(tool_list) error = %v", err)
 		}
 		requireNativeStructuredContains(t, listResult, []byte(`"agh__task_child_create"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"agh__mcp_auth_status"`))
 		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__task_claim"`))
 		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__skill_install"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__mcp_auth_login"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__mcp_auth_logout"`))
 
 		searchResult, err := registry.Call(
 			t.Context(),
@@ -149,6 +152,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBridgesList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAutomationJobsList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDExtensionsList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMCPAuthStatus)
 
 		sessionViews, err := registry.List(t.Context(), toolspkg.Scope{SessionID: "sess-1"})
 		if err != nil {
@@ -163,6 +167,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.ToolIDBridgesList,
 			toolspkg.ToolIDAutomationJobsList,
 			toolspkg.ToolIDExtensionsList,
+			toolspkg.ToolIDMCPAuthStatus,
 		} {
 			if nativeToolViewByID(sessionViews, id) != nil {
 				t.Fatalf("session projection leaked unavailable tool %s", id)
@@ -228,6 +233,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			Network:    networkService,
 			Tasks:      tasks,
 			Automation: apitest.StubAutomationManager{},
+			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
+				return &nativeMCPAuthStatusProvider{}
+			},
 		}, nativeApproveAllPolicyInputs())
 
 		cases := []struct {
@@ -251,6 +259,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDTaskRunList, json.RawMessage(`{"task_id":"task","limit":"bad"}`)},
 			{toolspkg.ToolIDAutomationJobsList, json.RawMessage(`{"limit":"bad"}`)},
 			{toolspkg.ToolIDAutomationJobsGet, json.RawMessage(`{"job_id":7}`)},
+			{toolspkg.ToolIDMCPAuthStatus, json.RawMessage(`{"server_name":7}`)},
 			{
 				toolspkg.ToolIDAutomationJobsCreate,
 				json.RawMessage(

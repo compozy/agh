@@ -25,6 +25,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		hookDescriptors(),
 		automationDescriptors(),
 		extensionDescriptors(),
+		mcpAuthDescriptors(),
 	}
 	total := 0
 	for _, group := range groups {

@@ -641,7 +641,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 						},
 					},
 				},
-				Structured: json.RawMessage(`{"password":"secret","visible":"ok"}`),
+				Structured: json.RawMessage(`{"password":"secret","token_present":true,"visible":"ok"}`),
 				Metadata: map[string]json.RawMessage{
 					"api_key": json.RawMessage(`"secret"`),
 					"safe":    json.RawMessage(`"ok"`),
@@ -699,6 +699,9 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		}
 		if strings.Contains(string(data), `"secret"`) {
 			t.Fatalf("result leaked secret: %s", data)
+		}
+		if !strings.Contains(string(data), `"token_present":true`) {
+			t.Fatalf("result = %s, want public token_present diagnostic preserved", data)
 		}
 		eventData, err := json.Marshal(events.snapshot())
 		if err != nil {

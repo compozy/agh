@@ -53,6 +53,7 @@ type daemonNativeToolsDeps struct {
 	ExtensionSources  extensionMarketplaceSourceLoader
 	AgentSkills       agentSkillPublisher
 	ToolMCP           toolMCPPublisher
+	MCPAuth           func() toolspkg.MCPAuthStatusProvider
 	Bundles           bundleResourcePublisher
 }
 
@@ -95,9 +96,13 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
 	}
 	var registry *toolspkg.RuntimeRegistry
+	var mcpAuth toolspkg.MCPAuthStatusProvider
 	deps := d.nativeToolsDeps(state, func() toolspkg.Registry {
 		return registry
 	})
+	deps.MCPAuth = func() toolspkg.MCPAuthStatusProvider {
+		return mcpAuth
+	}
 	provider, err := newDaemonNativeProvider(&deps)
 	if err != nil {
 		return fmt.Errorf("daemon: create native tool provider: %w", err)
@@ -135,10 +140,11 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	if extensionProvider != nil {
 		providers = append(providers, extensionProvider)
 	}
-	mcpProvider, err := d.newDaemonMCPToolProvider(state)
+	mcpProvider, mcpAuthProvider, err := d.newDaemonMCPToolProvider(state)
 	if err != nil {
 		return fmt.Errorf("daemon: create mcp tool provider: %w", err)
 	}
+	mcpAuth = mcpAuthProvider
 	if mcpProvider != nil {
 		providers = append(providers, mcpProvider)
 	}
@@ -189,9 +195,11 @@ func (d *Daemon) nativeToolsDeps(
 	}
 }
 
-func (d *Daemon) newDaemonMCPToolProvider(state *bootState) (toolspkg.Provider, error) {
+func (d *Daemon) newDaemonMCPToolProvider(
+	state *bootState,
+) (toolspkg.Provider, toolspkg.MCPAuthStatusProvider, error) {
 	if state == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	resolver := mcppkg.ServerResolverFunc(func(context.Context) ([]aghconfig.MCPServer, error) {
 		return daemonMCPServerConfigs(state), nil
@@ -205,15 +213,19 @@ func (d *Daemon) newDaemonMCPToolProvider(state *bootState) (toolspkg.Provider, 
 	}
 	executor, err := mcppkg.NewMCPCallExecutor(resolver, options...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return toolspkg.NewMCPProvider(
+	provider, err := toolspkg.NewMCPProvider(
 		toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) {
 			return daemonMCPSources(state), nil
 		}),
 		executor,
 		executor,
 	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return provider, executor, nil
 }
 
 func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error) {
@@ -340,6 +352,7 @@ type nativeToolAvailabilitySet struct {
 	hookMutation     toolspkg.NativeAvailabilityFunc
 	automation       toolspkg.NativeAvailabilityFunc
 	extensions       toolspkg.NativeAvailabilityFunc
+	mcpAuth          toolspkg.NativeAvailabilityFunc
 }
 
 func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
@@ -359,6 +372,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
 	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
 	addNativeToolBindings(bindings, n.extensionToolBindings(availability.extensions))
+	addNativeToolBindings(bindings, n.mcpAuthToolBindings(availability.mcpAuth))
 	return bindings
 }
 
@@ -392,6 +406,7 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		extensions: n.dependencyAvailability(func() bool {
 			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
 		}),
+		mcpAuth: n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil }),
 	}
 }
 
@@ -746,6 +761,13 @@ func (n *daemonNativeTools) registry() toolspkg.Registry {
 		return nil
 	}
 	return n.deps.Registry()
+}
+
+func (n *daemonNativeTools) mcpAuthProvider() toolspkg.MCPAuthStatusProvider {
+	if n == nil || n.deps.MCPAuth == nil {
+		return nil
+	}
+	return n.deps.MCPAuth()
 }
 
 func (n *daemonNativeTools) toolList(

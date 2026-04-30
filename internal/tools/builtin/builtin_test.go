@@ -106,6 +106,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDExtensionsRemove,
 			toolspkg.ToolIDExtensionsEnable,
 			toolspkg.ToolIDExtensionsDisable,
+			toolspkg.ToolIDMCPAuthStatus,
 		}
 		if gotLen, wantLen := len(got), len(want); gotLen != wantLen {
 			t.Fatalf("len(NativeDescriptors()) = %d, want %d", gotLen, wantLen)
@@ -139,6 +140,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"agh__task_fail",
 			"agh__task_run_start",
 			"agh__task_run_cancel",
+			"agh__mcp_auth_login",
+			"agh__mcp_auth_logout",
 		}
 		for _, id := range excluded {
 			if _, ok := got[id]; ok {
@@ -307,6 +310,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			false,
 			false,
 		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMCPAuthStatus], toolspkg.RiskRead, true, false, false)
 	})
 
 	t.Run("Should return cloned descriptors", func(t *testing.T) {
@@ -479,6 +483,14 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(extensions, toolspkg.ToolIDExtensionsRemove) ||
 			slices.Contains(extensions, toolspkg.ToolID("agh__extensions_trust_root_set")) {
 			t.Fatalf("extensions toolset expansion = %#v, want bounded extension lifecycle tools", extensions)
+		}
+
+		mcpAuth, err := catalog.Expand(toolspkg.ToolsetIDMCPAuth, universe)
+		if err != nil {
+			t.Fatalf("Expand(mcp_auth) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPAuthStatus}; !slices.Equal(mcpAuth, want) {
+			t.Fatalf("mcp auth expansion = %#v, want %#v", mcpAuth, want)
 		}
 	})
 }

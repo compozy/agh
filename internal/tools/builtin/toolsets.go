@@ -99,4 +99,5 @@ var builtinToolsets = []toolspkg.Toolset{
 	{ID: toolspkg.ToolsetIDHooks, Tools: []string{"agh__hooks_*"}},
 	{ID: toolspkg.ToolsetIDAutomation, Tools: []string{"agh__automation_*"}},
 	{ID: toolspkg.ToolsetIDExtensions, Tools: []string{"agh__extensions_*"}},
+	{ID: toolspkg.ToolsetIDMCPAuth, Tools: []string{toolspkg.ToolIDMCPAuthStatus.String()}},
 }

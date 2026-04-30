@@ -359,7 +359,14 @@ func sensitiveFieldName(key string, configured []string) bool {
 	if slices.Contains(configured, normalized) {
 		return true
 	}
+	if publicDiagnosticFieldName(normalized) {
+		return false
+	}
 	return sensitiveMetadataKey(normalized)
+}
+
+func publicDiagnosticFieldName(normalized string) bool {
+	return normalized == "token_present"
 }
 
 func digestRaw(raw json.RawMessage) string {
