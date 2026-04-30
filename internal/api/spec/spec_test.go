@@ -340,6 +340,13 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"requires_interaction",
 					"concurrency_safe",
 				)
+				searchTools := operationFor(t, doc, "/api/tools/search", "POST")
+				assertTagsContain(t, searchTools, "tools")
+				searchRequest := jsonRequestSchema(t, searchTools)
+				assertRequired(t, searchRequest, "query")
+				assertNotRequired(t, searchRequest, "limit", "workspace_id", "session_id", "agent_name")
+				searchSchema := jsonResponseSchema(t, searchTools, 200)
+				assertRequired(t, searchSchema, "tools")
 				assertEnumValues(
 					t,
 					propertySchema(t, propertySchema(t, descriptorSchema, "backend"), "kind"),
@@ -402,6 +409,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				sessionTools := operationFor(t, doc, "/api/sessions/{id}/tools", "GET")
 				assertTagsContain(t, sessionTools, "sessions", "tools")
 				assertResponseStatus(t, sessionTools, 200)
+				sessionSearch := operationFor(t, doc, "/api/sessions/{id}/tools/search", "POST")
+				assertTagsContain(t, sessionSearch, "sessions", "tools")
+				assertParameter(t, sessionSearch, "id", openapi3.ParameterInPath, true)
+				sessionSearchRequest := jsonRequestSchema(t, sessionSearch)
+				assertRequired(t, sessionSearchRequest, "query")
+				assertNotRequired(t, sessionSearchRequest, "limit", "workspace_id", "session_id", "agent_name")
+				sessionSearchSchema := jsonResponseSchema(t, sessionSearch, 200)
+				assertRequired(t, sessionSearchSchema, "tools")
 
 				toolsets := operationFor(t, doc, "/api/toolsets", "GET")
 				assertTagsContain(t, toolsets, "toolsets")
@@ -414,6 +429,11 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				toolsetSchema := toolsetsItems.Items.Value
 				assertRequired(t, toolsetSchema, "id", "status")
 				assertNotRequired(t, toolsetSchema, "reason_codes", "expanded_tools")
+				toolset := operationFor(t, doc, "/api/toolsets/{id}", "GET")
+				assertTagsContain(t, toolset, "toolsets")
+				assertParameter(t, toolset, "id", openapi3.ParameterInPath, true)
+				toolsetResponse := jsonResponseSchema(t, toolset, 200)
+				assertRequired(t, propertySchema(t, toolsetResponse, "toolset"), "id", "status")
 			},
 		},
 		{

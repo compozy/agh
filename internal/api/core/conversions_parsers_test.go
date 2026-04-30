@@ -223,39 +223,43 @@ func TestRuntimeActivityPayloadFromSessionMeta(t *testing.T) {
 func TestAgentPayloadFromDef(t *testing.T) {
 	t.Parallel()
 
-	payload := core.AgentPayloadFromDef(aghconfig.AgentDef{
-		Name:        "coder",
-		Provider:    "fake",
-		Command:     "codex",
-		Model:       "gpt-test",
-		Tools:       []string{"agh__skill_view"},
-		Toolsets:    []string{"agh__catalog"},
-		DenyTools:   []string{"agh__task_*"},
-		Permissions: "approve-reads",
-		Prompt:      "hello",
-		MCPServers: []aghconfig.MCPServer{{
-			Name:    "memory",
-			Command: "memoryd",
-			Args:    []string{"serve"},
-			Env:     map[string]string{"TOKEN": "secret"},
-		}},
-	})
+	t.Run("Should convert agent definition to payload", func(t *testing.T) {
+		t.Parallel()
 
-	if payload.Name != "coder" || payload.Provider != "fake" || len(payload.MCPServers) != 1 {
-		t.Fatalf("payload = %#v", payload)
-	}
-	if got, want := strings.Join(payload.Tools, ","), "agh__skill_view"; got != want {
-		t.Fatalf("payload tools = %#v, want %q", payload.Tools, want)
-	}
-	if got, want := strings.Join(payload.Toolsets, ","), "agh__catalog"; got != want {
-		t.Fatalf("payload toolsets = %#v, want %q", payload.Toolsets, want)
-	}
-	if got, want := strings.Join(payload.DenyTools, ","), "agh__task_*"; got != want {
-		t.Fatalf("payload deny_tools = %#v, want %q", payload.DenyTools, want)
-	}
-	if payload.MCPServers[0].Env["TOKEN"] != aghconfig.RedactedValue() {
-		t.Fatalf("payload mcp env = %#v", payload.MCPServers[0].Env)
-	}
+		payload := core.AgentPayloadFromDef(aghconfig.AgentDef{
+			Name:        "coder",
+			Provider:    "fake",
+			Command:     "codex",
+			Model:       "gpt-test",
+			Tools:       []string{"agh__skill_view"},
+			Toolsets:    []string{"agh__catalog"},
+			DenyTools:   []string{"agh__task_*"},
+			Permissions: "approve-reads",
+			Prompt:      "hello",
+			MCPServers: []aghconfig.MCPServer{{
+				Name:    "memory",
+				Command: "memoryd",
+				Args:    []string{"serve"},
+				Env:     map[string]string{"TOKEN": "secret"},
+			}},
+		})
+
+		if payload.Name != "coder" || payload.Provider != "fake" || len(payload.MCPServers) != 1 {
+			t.Fatalf("payload = %#v", payload)
+		}
+		if got, want := strings.Join(payload.Tools, ","), "agh__skill_view"; got != want {
+			t.Fatalf("payload tools = %#v, want %q", payload.Tools, want)
+		}
+		if got, want := strings.Join(payload.Toolsets, ","), "agh__catalog"; got != want {
+			t.Fatalf("payload toolsets = %#v, want %q", payload.Toolsets, want)
+		}
+		if got, want := strings.Join(payload.DenyTools, ","), "agh__task_*"; got != want {
+			t.Fatalf("payload deny_tools = %#v, want %q", payload.DenyTools, want)
+		}
+		if payload.MCPServers[0].Env["TOKEN"] != aghconfig.RedactedValue() {
+			t.Fatalf("payload mcp env = %#v", payload.MCPServers[0].Env)
+		}
+	})
 }
 
 func TestSessionEventPayloadFromEventIncludesStopDiagnostics(t *testing.T) {

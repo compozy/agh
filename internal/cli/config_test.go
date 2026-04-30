@@ -286,127 +286,177 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 		{Path: "mcp_servers[0].env.API_TOKEN", Value: aghconfig.RedactedValue(), Redacted: true},
 		{Path: "providers.claude.models", Value: []string{"sonnet", "opus"}},
 	}
-	showBundle := configShowBundle(configShowRecord{
-		Scope:    "global",
-		Redacted: true,
-		Config:   map[string]any{"defaults": map[string]any{"provider": "claude"}},
-	}, entries)
-	showHuman, err := showBundle.human()
-	if err != nil {
-		t.Fatalf("configShowBundle.human() error = %v", err)
-	}
-	if !strings.Contains(showHuman, "defaults.provider") || !strings.Contains(showHuman, "true") {
-		t.Fatalf("config show human = %q, want rows", showHuman)
-	}
-	showToon, err := showBundle.toon()
-	if err != nil {
-		t.Fatalf("configShowBundle.toon() error = %v", err)
-	}
-	if !strings.Contains(showToon, "config[5]") {
-		t.Fatalf("config show toon = %q, want toon rows", showToon)
-	}
 
-	listBundle := configListBundle(configListRecord{Scope: "global", Entries: entries})
-	listHuman, err := listBundle.human()
-	if err != nil {
-		t.Fatalf("configListBundle.human() error = %v", err)
-	}
-	if !strings.Contains(listHuman, "mcp_servers[0].env.API_TOKEN") {
-		t.Fatalf("config list human = %q, want redacted entry", listHuman)
-	}
-	listToon, err := listBundle.toon()
-	if err != nil {
-		t.Fatalf("configListBundle.toon() error = %v", err)
-	}
-	if !strings.Contains(listToon, "config[5]") {
-		t.Fatalf("config list toon = %q, want toon rows", listToon)
-	}
+	t.Run("Should render show bundle outputs", func(t *testing.T) {
+		t.Parallel()
 
-	pathBundle := configPathBundle(configPathRecord{
-		HomeDir:              "/home/agh",
-		GlobalConfig:         "/home/agh/config.toml",
-		GlobalMCPJSON:        "/home/agh/mcp.json",
-		Scope:                "workspace",
-		WorkspaceRoot:        "/workspace/project",
-		WorkspaceConfig:      "/workspace/project/.agh/config.toml",
-		WorkspaceMCPJSON:     "/workspace/project/.agh/mcp.json",
-		Managed:              true,
-		Manager:              "homebrew",
-		SelectedConfigTarget: "/workspace/project/.agh/config.toml",
+		showBundle := configShowBundle(configShowRecord{
+			Scope:    "global",
+			Redacted: true,
+			Config:   map[string]any{"defaults": map[string]any{"provider": "claude"}},
+		}, entries)
+		showHuman, err := showBundle.human()
+		if err != nil {
+			t.Fatalf("configShowBundle.human() error = %v", err)
+		}
+		if !strings.Contains(showHuman, "defaults.provider") || !strings.Contains(showHuman, "true") {
+			t.Fatalf("config show human = %q, want rows", showHuman)
+		}
+		showToon, err := showBundle.toon()
+		if err != nil {
+			t.Fatalf("configShowBundle.toon() error = %v", err)
+		}
+		if !strings.Contains(showToon, "config[5]") {
+			t.Fatalf("config show toon = %q, want toon rows", showToon)
+		}
 	})
-	pathHuman, err := pathBundle.human()
-	if err != nil {
-		t.Fatalf("configPathBundle.human() error = %v", err)
-	}
-	if !strings.Contains(pathHuman, "Workspace Config") || !strings.Contains(pathHuman, "homebrew") {
-		t.Fatalf("config path human = %q, want workspace details", pathHuman)
-	}
-	pathToon, err := pathBundle.toon()
-	if err != nil {
-		t.Fatalf("configPathBundle.toon() error = %v", err)
-	}
-	if !strings.Contains(pathToon, "config_paths") || !strings.Contains(pathToon, "/workspace/project") {
-		t.Fatalf("config path toon = %q, want workspace fields", pathToon)
-	}
 
-	testCases := []struct {
-		path        string
-		wantKind    configSetValueKind
-		wantRedact  bool
-		wantAllowed bool
-	}{
-		{path: "providers.claude.command", wantKind: configSetString, wantAllowed: true},
-		{path: "sandboxes.dev.env.API_TOKEN", wantKind: configSetString, wantRedact: true, wantAllowed: true},
-		{path: "sandboxes.dev.network.allow_public_ingress", wantKind: configSetBool, wantAllowed: true},
-		{path: "sandboxes.dev.network.allow_list", wantKind: configSetStringSlice, wantAllowed: true},
-		{path: "sandboxes.dev.daytona.image", wantKind: configSetString, wantAllowed: true},
-		{path: "sandboxes.dev.unknown.value", wantAllowed: false},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.path, func(t *testing.T) {
-			t.Parallel()
+	t.Run("Should render list bundle outputs", func(t *testing.T) {
+		t.Parallel()
 
-			_, kind, redacted, err := configMutationPath(tc.path)
-			allowed := err == nil
-			if allowed != tc.wantAllowed || (allowed && (kind != tc.wantKind || redacted != tc.wantRedact)) {
-				t.Fatalf(
-					"classifyConfigMutationPath(%q) = (%v, %v, %v), want (%v, %v, %v)",
-					tc.path,
-					kind,
-					redacted,
-					allowed,
-					tc.wantKind,
-					tc.wantRedact,
-					tc.wantAllowed,
-				)
-			}
+		listBundle := configListBundle(configListRecord{Scope: "global", Entries: entries})
+		listHuman, err := listBundle.human()
+		if err != nil {
+			t.Fatalf("configListBundle.human() error = %v", err)
+		}
+		if !strings.Contains(listHuman, "mcp_servers[0].env.API_TOKEN") {
+			t.Fatalf("config list human = %q, want redacted entry", listHuman)
+		}
+		listToon, err := listBundle.toon()
+		if err != nil {
+			t.Fatalf("configListBundle.toon() error = %v", err)
+		}
+		if !strings.Contains(listToon, "config[5]") {
+			t.Fatalf("config list toon = %q, want toon rows", listToon)
+		}
+	})
+
+	t.Run("Should render path bundle outputs", func(t *testing.T) {
+		t.Parallel()
+
+		pathBundle := configPathBundle(configPathRecord{
+			HomeDir:              "/home/agh",
+			GlobalConfig:         "/home/agh/config.toml",
+			GlobalMCPJSON:        "/home/agh/mcp.json",
+			Scope:                "workspace",
+			WorkspaceRoot:        "/workspace/project",
+			WorkspaceConfig:      "/workspace/project/.agh/config.toml",
+			WorkspaceMCPJSON:     "/workspace/project/.agh/mcp.json",
+			Managed:              true,
+			Manager:              "homebrew",
+			SelectedConfigTarget: "/workspace/project/.agh/config.toml",
 		})
-	}
+		pathHuman, err := pathBundle.human()
+		if err != nil {
+			t.Fatalf("configPathBundle.human() error = %v", err)
+		}
+		if !strings.Contains(pathHuman, "Workspace Config") || !strings.Contains(pathHuman, "homebrew") {
+			t.Fatalf("config path human = %q, want workspace details", pathHuman)
+		}
+		pathToon, err := pathBundle.toon()
+		if err != nil {
+			t.Fatalf("configPathBundle.toon() error = %v", err)
+		}
+		if !strings.Contains(pathToon, "config_paths") || !strings.Contains(pathToon, "/workspace/project") {
+			t.Fatalf("config path toon = %q, want workspace fields", pathToon)
+		}
+	})
 
-	values, err := parseStringSliceValue(`["alpha","beta"]`)
-	if err != nil {
-		t.Fatalf("parseStringSliceValue(json) error = %v", err)
-	}
-	if strings.Join(values, ",") != "alpha,beta" {
-		t.Fatalf("parseStringSliceValue(json) = %#v, want alpha,beta", values)
-	}
-	values, err = parseStringSliceValue("alpha, beta, ,gamma")
-	if err != nil {
-		t.Fatalf("parseStringSliceValue(csv) error = %v", err)
-	}
-	if strings.Join(values, ",") != "alpha,beta,gamma" {
-		t.Fatalf("parseStringSliceValue(csv) = %#v, want alpha,beta,gamma", values)
-	}
-	values, err = parseStringSliceValue(" ")
-	if err != nil {
-		t.Fatalf("parseStringSliceValue(empty) error = %v", err)
-	}
-	if len(values) != 0 {
-		t.Fatalf("parseStringSliceValue(empty) = %#v, want empty", values)
-	}
-	if _, err := parseStringSliceValue(`["ok",1]`); err == nil {
-		t.Fatal("parseStringSliceValue(invalid json) error = nil, want error")
-	}
+	t.Run("Should classify mutation paths", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name        string
+			path        string
+			wantKind    configSetValueKind
+			wantRedact  bool
+			wantAllowed bool
+		}{
+			{
+				name:        "Should allow provider command",
+				path:        "providers.claude.command",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should redact sandbox env values",
+				path:        "sandboxes.dev.env.API_TOKEN",
+				wantKind:    configSetString,
+				wantRedact:  true,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow sandbox public ingress",
+				path:        "sandboxes.dev.network.allow_public_ingress",
+				wantKind:    configSetBool,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow sandbox network allow list",
+				path:        "sandboxes.dev.network.allow_list",
+				wantKind:    configSetStringSlice,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow sandbox Daytona image",
+				path:        "sandboxes.dev.daytona.image",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{name: "Should reject unknown sandbox values", path: "sandboxes.dev.unknown.value", wantAllowed: false},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, kind, redacted, err := configMutationPath(tc.path)
+				allowed := err == nil
+				if allowed != tc.wantAllowed || (allowed && (kind != tc.wantKind || redacted != tc.wantRedact)) {
+					t.Fatalf(
+						"classifyConfigMutationPath(%q) = (%v, %v, %v), want (%v, %v, %v)",
+						tc.path,
+						kind,
+						redacted,
+						allowed,
+						tc.wantKind,
+						tc.wantRedact,
+						tc.wantAllowed,
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should parse string slice values", func(t *testing.T) {
+		t.Parallel()
+
+		values, err := parseStringSliceValue(`["alpha","beta"]`)
+		if err != nil {
+			t.Fatalf("parseStringSliceValue(json) error = %v", err)
+		}
+		if strings.Join(values, ",") != "alpha,beta" {
+			t.Fatalf("parseStringSliceValue(json) = %#v, want alpha,beta", values)
+		}
+		values, err = parseStringSliceValue("alpha, beta, ,gamma")
+		if err != nil {
+			t.Fatalf("parseStringSliceValue(csv) error = %v", err)
+		}
+		if strings.Join(values, ",") != "alpha,beta,gamma" {
+			t.Fatalf("parseStringSliceValue(csv) = %#v, want alpha,beta,gamma", values)
+		}
+		values, err = parseStringSliceValue(" ")
+		if err != nil {
+			t.Fatalf("parseStringSliceValue(empty) error = %v", err)
+		}
+		if len(values) != 0 {
+			t.Fatalf("parseStringSliceValue(empty) = %#v, want empty", values)
+		}
+		if _, err := parseStringSliceValue(`["ok",1]`); err == nil {
+			t.Fatal("parseStringSliceValue(invalid json) error = nil, want error")
+		} else if !strings.Contains(err.Error(), "string") {
+			t.Fatalf("parseStringSliceValue(invalid json) error = %v, want element type detail", err)
+		}
+	})
 }
 
 func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *testing.T) {

@@ -362,6 +362,18 @@ func (s *HostedService) ReleaseBind(bindID string) {
 	s.mu.Unlock()
 }
 
+// ReleaseBindForPeer removes a bind only after validating the requesting peer still owns it.
+func (s *HostedService) ReleaseBindForPeer(ctx context.Context, bindID string, peer PeerInfo) error {
+	record, err := s.recordForBind(ctx, bindID, peer)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	delete(s.binds, strings.TrimSpace(record.bindID))
+	s.mu.Unlock()
+	return nil
+}
+
 func (s *HostedService) consumeLaunch(
 	sessionID string,
 	nonce string,

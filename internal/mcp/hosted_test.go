@@ -398,7 +398,24 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 
 		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
 		first := hostedTestBind(t, service, "sess-release-bind", peer)
-		service.ReleaseBind(first.BindID)
+		otherPeer := peer
+		otherPeer.PID = 54321
+		if err := service.ReleaseBindForPeer(
+			t.Context(),
+			first.BindID,
+			otherPeer,
+		); !errors.Is(
+			err,
+			ErrHostedPeerInvalid,
+		) {
+			t.Fatalf("ReleaseBindForPeer(other peer) error = %v, want ErrHostedPeerInvalid", err)
+		}
+		if _, err := service.Projection(t.Context(), first.BindID, peer); err != nil {
+			t.Fatalf("Projection(after rejected ReleaseBindForPeer) error = %v", err)
+		}
+		if err := service.ReleaseBindForPeer(t.Context(), first.BindID, peer); err != nil {
+			t.Fatalf("ReleaseBindForPeer(owner) error = %v", err)
+		}
 		if _, err := service.Projection(t.Context(), first.BindID, peer); !errors.Is(err, ErrHostedBindNotFound) {
 			t.Fatalf("Projection(after ReleaseBind) error = %v, want ErrHostedBindNotFound", err)
 		}

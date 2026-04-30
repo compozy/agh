@@ -758,6 +758,18 @@ func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *te
 		},
 		{name: "Should block extension installs", method: http.MethodPost, path: "/api/extensions", body: []byte(`{}`)},
 		{
+			name:   "Should block tool approvals",
+			method: http.MethodPost,
+			path:   "/api/tools/agh__skill_view/approvals",
+			body:   []byte(`{}`),
+		},
+		{
+			name:   "Should block tool invocation",
+			method: http.MethodPost,
+			path:   "/api/tools/agh__skill_view/invoke",
+			body:   []byte(`{}`),
+		},
+		{
 			name:   "Should block extension enables",
 			method: http.MethodPost,
 			path:   "/api/extensions/demo/enable",

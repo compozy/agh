@@ -933,9 +933,10 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 			Status: "completed",
 			Result: toolspkg.ToolResult{
 				Preview:    "authorization=Bearer abc",
-				Structured: json.RawMessage(`{"password":"super-secret","visible":"ok"}`),
+				Structured: json.RawMessage(`{"password":"super-secret","visible":"ok","completion_tokens":9}`),
 				Metadata: map[string]json.RawMessage{
 					"access_token": json.RawMessage(`"super-secret"`),
+					"token_count":  json.RawMessage(`42`),
 					"safe":         json.RawMessage(`{"nested_token":"super-secret","visible":"ok"}`),
 				},
 				Content: []toolspkg.ToolContent{
@@ -954,6 +955,9 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		encoded := string(mustJSON(t, sanitized))
 		if strings.Contains(encoded, "super-secret") || strings.Contains(encoded, "Bearer abc") {
 			t.Fatalf("sanitizeToolInvokeResponse leaked secret material: %s", encoded)
+		}
+		if !strings.Contains(encoded, "completion_tokens") || !strings.Contains(encoded, "token_count") {
+			t.Fatalf("sanitizeToolInvokeResponse removed benign token metrics: %s", encoded)
 		}
 	})
 

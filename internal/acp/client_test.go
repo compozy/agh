@@ -731,51 +731,55 @@ func TestStartIncludesAdditionalDirsInLoadSessionPayload(t *testing.T) {
 func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	captureFile := filepath.Join(t.TempDir(), "session-new-mcp.jsonl")
-	proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
-		Cwd: t.TempDir(),
-		Env: helperEnvWithCapture("stream_updates", "", captureFile),
-		MCPServers: []aghconfig.MCPServer{
-			{
-				Name:      "agh-hosted-tools",
-				Transport: aghconfig.MCPServerTransportStdio,
-				Command:   "/bin/agh",
-				Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
-				Env:       map[string]string{"AGH_HOME": "/tmp/agh-home"},
-			},
-			{
-				Name:      "remote-http",
-				Transport: aghconfig.MCPServerTransportHTTP,
-				URL:       "https://example.test/mcp",
-			},
-			{
-				Name:      "remote-sse",
-				Transport: aghconfig.MCPServerTransportSSE,
-				URL:       "https://example.test/sse",
-			},
-		},
-	})
-	defer stopProcess(t, driver, proc)
+	t.Run("Should skip remote transports when starting MCP servers", func(t *testing.T) {
+		t.Parallel()
 
-	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
-	request := decodeCapturedNewSessionRequest(t, params)
-	if got, want := len(request.MCPServers), 1; got != want {
-		t.Fatalf("session/new mcpServers = %#v, want only hosted stdio entry", request.MCPServers)
-	}
-	stdio := request.MCPServers[0].Stdio
-	if stdio == nil {
-		t.Fatalf("session/new mcpServers[0] = %#v, want stdio variant", request.MCPServers[0])
-	}
-	if stdio.Name != "agh-hosted-tools" || stdio.Command != "/bin/agh" {
-		t.Fatalf("hosted stdio entry = %#v, want hosted command", stdio)
-	}
-	if !slices.Equal(stdio.Args, []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"}) {
-		t.Fatalf("hosted stdio args = %#v, want tool mcp bind args", stdio.Args)
-	}
-	if got, want := len(stdio.Env), 1; got != want || stdio.Env[0].Name != "AGH_HOME" {
-		t.Fatalf("hosted stdio env = %#v, want AGH_HOME only", stdio.Env)
-	}
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-new-mcp.jsonl")
+		proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
+			Cwd: t.TempDir(),
+			Env: helperEnvWithCapture("stream_updates", "", captureFile),
+			MCPServers: []aghconfig.MCPServer{
+				{
+					Name:      "agh-hosted-tools",
+					Transport: aghconfig.MCPServerTransportStdio,
+					Command:   "/bin/agh",
+					Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
+					Env:       map[string]string{"AGH_HOME": "/tmp/agh-home"},
+				},
+				{
+					Name:      "remote-http",
+					Transport: aghconfig.MCPServerTransportHTTP,
+					URL:       "https://example.test/mcp",
+				},
+				{
+					Name:      "remote-sse",
+					Transport: aghconfig.MCPServerTransportSSE,
+					URL:       "https://example.test/sse",
+				},
+			},
+		})
+		defer stopProcess(t, driver, proc)
+
+		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
+		request := decodeCapturedNewSessionRequest(t, params)
+		if got, want := len(request.MCPServers), 1; got != want {
+			t.Fatalf("session/new mcpServers = %#v, want only hosted stdio entry", request.MCPServers)
+		}
+		stdio := request.MCPServers[0].Stdio
+		if stdio == nil {
+			t.Fatalf("session/new mcpServers[0] = %#v, want stdio variant", request.MCPServers[0])
+		}
+		if stdio.Name != "agh-hosted-tools" || stdio.Command != "/bin/agh" {
+			t.Fatalf("hosted stdio entry = %#v, want hosted command", stdio)
+		}
+		if !slices.Equal(stdio.Args, []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"}) {
+			t.Fatalf("hosted stdio args = %#v, want tool mcp bind args", stdio.Args)
+		}
+		if got, want := len(stdio.Env), 1; got != want || stdio.Env[0].Name != "AGH_HOME" {
+			t.Fatalf("hosted stdio env = %#v, want AGH_HOME only", stdio.Env)
+		}
+	})
 }
 
 func TestStartResumeReturnsSentinelErrors(t *testing.T) {

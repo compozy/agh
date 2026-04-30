@@ -103,9 +103,9 @@ func (h *BaseHandlers) CreateToolApproval(c *gin.Context) {
 	}
 	grant, err := h.ToolApprovals.CreateToolApproval(c.Request.Context(), scope, toolspkg.ApprovalRequest{
 		ToolID:      id,
-		SessionID:   req.SessionID,
-		WorkspaceID: req.WorkspaceID,
-		AgentName:   req.AgentName,
+		SessionID:   scope.SessionID,
+		WorkspaceID: scope.WorkspaceID,
+		AgentName:   scope.AgentName,
 		Input:       cloneRawMessage(req.Input),
 		InputDigest: req.InputDigest,
 	})
@@ -150,9 +150,9 @@ func (h *BaseHandlers) InvokeTool(c *gin.Context) {
 		ToolID:               id,
 		ToolCallID:           req.ToolCallID,
 		TurnID:               req.TurnID,
-		SessionID:            req.SessionID,
-		WorkspaceID:          req.WorkspaceID,
-		AgentName:            req.AgentName,
+		SessionID:            scope.SessionID,
+		WorkspaceID:          scope.WorkspaceID,
+		AgentName:            scope.AgentName,
 		CorrelationID:        req.CorrelationID,
 		Input:                cloneRawMessage(req.Input),
 		SensitiveInputFields: append([]string(nil), req.SensitiveInputFields...),
@@ -420,13 +420,13 @@ func (h *BaseHandlers) respondToolError(c *gin.Context, err error) {
 	switch {
 	case errors.As(err, &toolErr):
 		payload.Code = toolErr.Code
-		payload.Message = toolErr.Error()
+		payload.Message = safeToolErrorMessage(status, toolErr.Code)
 		payload.ToolID = toolErr.ToolID
 		payload.ReasonCodes = append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...)
 		payload.Layer = toolErrorLayer(toolErr.ReasonCodes)
 	case err != nil:
 		payload.Code = toolErrorCodeForStatus(status)
-		payload.Message = err.Error()
+		payload.Message = safeToolErrorMessage(status, payload.Code)
 		if reason, ok := toolspkg.ReasonOf(err); ok {
 			payload.ReasonCodes = []toolspkg.ReasonCode{reason}
 			payload.Layer = toolErrorLayer(payload.ReasonCodes)
@@ -442,6 +442,37 @@ func (h *BaseHandlers) respondToolError(c *gin.Context, err error) {
 		payload.Message = http.StatusText(status)
 	}
 	c.JSON(status, contract.ToolErrorResponse{Error: payload})
+}
+
+func safeToolErrorMessage(status int, code toolspkg.ErrorCode) string {
+	switch code {
+	case toolspkg.ErrorCodeNotFound:
+		return "tool not found"
+	case toolspkg.ErrorCodeConflict:
+		return "tool conflict"
+	case toolspkg.ErrorCodeUnavailable:
+		return "tool unavailable"
+	case toolspkg.ErrorCodeDenied:
+		return "tool invocation denied"
+	case toolspkg.ErrorCodeApprovalRequired:
+		return "tool approval required"
+	case toolspkg.ErrorCodeInvalidInput:
+		return "invalid tool request"
+	case toolspkg.ErrorCodeResultTooLarge:
+		return "tool result too large"
+	case toolspkg.ErrorCodeCanceled:
+		return "tool call canceled"
+	case toolspkg.ErrorCodeTimedOut:
+		return "tool call timed out"
+	case toolspkg.ErrorCodeBackendFailed:
+		return "tool backend failed"
+	default:
+		message := http.StatusText(status)
+		if strings.TrimSpace(message) == "" {
+			return "tool request failed"
+		}
+		return message
+	}
 }
 
 func toolErrorCodeForStatus(status int) toolspkg.ErrorCode {

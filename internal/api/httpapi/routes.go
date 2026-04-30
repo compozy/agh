@@ -124,11 +124,12 @@ func registerResourceRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerToolRoutes(api gin.IRouter, handlers *Handlers) {
+	privileged := handlers.privilegedMutationGuard()
 	tools := api.Group("/tools")
 	tools.GET("", handlers.ListTools)
 	tools.POST("/search", handlers.SearchTools)
-	tools.POST("/:id/approvals", handlers.CreateToolApproval)
-	tools.POST("/:id/invoke", handlers.InvokeTool)
+	tools.POST("/:id/approvals", privileged, handlers.CreateToolApproval)
+	tools.POST("/:id/invoke", privileged, handlers.InvokeTool)
 	tools.GET("/:id", handlers.GetTool)
 
 	sessions := api.Group("/sessions")

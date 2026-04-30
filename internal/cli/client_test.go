@@ -486,7 +486,12 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 						request.SensitiveInputFields[0] != "token" {
 						t.Fatalf("invoke request = %#v, want scoped tool input", request)
 					}
-					return newHTTPResponse(http.StatusOK, string(mustJSON(t, sampleInvokeResponse()))), nil
+					response := sampleInvokeResponse()
+					response.Result.Preview = "token=agh_claim_secret"
+					response.Result.Structured = json.RawMessage(
+						`{"access_token":"super-secret","completion_tokens":9}`,
+					)
+					return newHTTPResponse(http.StatusOK, string(mustJSON(t, response))), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/toolsets":
 					if req.URL.Query().Get("agent_name") != "coder" {
 						t.Fatalf("toolsets query = %s, want agent_name=coder", req.URL.RawQuery)
@@ -567,6 +572,13 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 		}
 		if response.ToolID != toolspkg.ToolIDToolInfo {
 			t.Fatalf("InvokeTool() id = %q, want %q", response.ToolID, toolspkg.ToolIDToolInfo)
+		}
+		encoded := string(mustJSON(t, response))
+		if strings.Contains(encoded, "agh_claim_secret") || strings.Contains(encoded, "super-secret") {
+			t.Fatalf("InvokeTool() leaked sensitive result fields: %s", encoded)
+		}
+		if !strings.Contains(encoded, "completion_tokens") {
+			t.Fatalf("InvokeTool() response = %s, want benign token metrics preserved", encoded)
 		}
 	})
 
@@ -691,285 +703,331 @@ func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
-		httpClient: &http.Client{
-			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				switch {
-				case req.Method == http.MethodPost && req.URL.Path == "/api/internal/hosted-mcp/bind":
-					var request mcppkg.HostedBindRequest
-					if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
-						t.Fatalf("decode bind body: %v", err)
-					}
-					if request.SessionID != "sess-1" || request.Nonce != "nonce-test" {
-						t.Fatalf("bind request = %#v, want session and nonce", request)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"bind_id":"bind-1","scope":{"session_id":"sess-1","workspace_id":"ws-1","agent_name":"coder"},"tools":[],"digest":"digest-1"}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/internal/hosted-mcp/projection":
-					if req.URL.Query().Get("bind_id") != "bind-1" {
-						t.Fatalf("projection query = %s, want bind_id", req.URL.RawQuery)
-					}
-					return newHTTPResponse(http.StatusOK, `{"tools":[],"digest":"digest-2"}`), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/internal/hosted-mcp/projection/stream":
-					if req.URL.Query().Get("bind_id") != "bind-1" ||
-						req.URL.Query().Get("last_digest") != "digest-1" {
-						t.Fatalf("projection stream query = %s, want bind_id and last_digest", req.URL.RawQuery)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						"event: ignored\n"+
-							"data: {}\n\n"+
-							"event: projection\n"+
-							"data: {\"tools\":[],\"digest\":\"digest-3\"}\n\n",
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/internal/hosted-mcp/tools/call":
-					var request mcppkg.HostedCallRequest
-					if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
-						t.Fatalf("decode hosted call body: %v", err)
-					}
-					if request.BindID != "bind-1" ||
-						request.ToolName != "skill_view" ||
-						string(request.Input) != `{"ok":true}` {
-						t.Fatalf("hosted call request = %#v, want bound tool call", request)
-					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"result":{"structured":{"ok":true},"preview":"ok","bytes":2,"duration_ms":1}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/internal/hosted-mcp/release":
-					var request mcppkg.HostedReleaseRequest
-					if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
-						t.Fatalf("decode release body: %v", err)
-					}
-					if request.BindID != "bind-1" {
-						t.Fatalf("release request = %#v, want bind-1", request)
-					}
-					return newHTTPResponse(http.StatusNoContent, ""), nil
-				default:
-					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
-					return nil, nil
-				}
-			}),
-		},
-	}
+	t.Run("Should exercise hosted MCP client methods", func(t *testing.T) {
+		t.Parallel()
 
-	bind, err := client.BindHostedMCP(context.Background(), mcppkg.HostedBindRequest{
-		SessionID: "sess-1",
-		Nonce:     "nonce-test",
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					switch {
+					case req.Method == http.MethodPost && req.URL.Path == "/api/internal/hosted-mcp/bind":
+						var request mcppkg.HostedBindRequest
+						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
+							t.Fatalf("decode bind body: %v", err)
+						}
+						if request.SessionID != "sess-1" || request.Nonce != "nonce-test" {
+							t.Fatalf("bind request = %#v, want session and nonce", request)
+						}
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"bind_id":"bind-1","scope":{"session_id":"sess-1","workspace_id":"ws-1","agent_name":"coder"},"tools":[],"digest":"digest-1"}`,
+						), nil
+					case req.Method == http.MethodGet && req.URL.Path == "/api/internal/hosted-mcp/projection":
+						if req.URL.Query().Get("bind_id") != "bind-1" {
+							t.Fatalf("projection query = %s, want bind_id", req.URL.RawQuery)
+						}
+						return newHTTPResponse(http.StatusOK, `{"tools":[],"digest":"digest-2"}`), nil
+					case req.Method == http.MethodGet && req.URL.Path == "/api/internal/hosted-mcp/projection/stream":
+						if req.URL.Query().Get("bind_id") != "bind-1" ||
+							req.URL.Query().Get("last_digest") != "digest-1" {
+							t.Fatalf("projection stream query = %s, want bind_id and last_digest", req.URL.RawQuery)
+						}
+						return newHTTPResponse(
+							http.StatusOK,
+							"event: ignored\n"+
+								"data: {}\n\n"+
+								"event: projection\n"+
+								"data: {\"tools\":[],\"digest\":\"digest-3\"}\n\n",
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/internal/hosted-mcp/tools/call":
+						var request mcppkg.HostedCallRequest
+						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
+							t.Fatalf("decode hosted call body: %v", err)
+						}
+						if request.BindID != "bind-1" ||
+							request.ToolName != "skill_view" ||
+							string(request.Input) != `{"ok":true}` {
+							t.Fatalf("hosted call request = %#v, want bound tool call", request)
+						}
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"result":{"structured":{"ok":true},"preview":"ok","bytes":2,"duration_ms":1}}`,
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/internal/hosted-mcp/release":
+						var request mcppkg.HostedReleaseRequest
+						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
+							t.Fatalf("decode release body: %v", err)
+						}
+						if request.BindID != "bind-1" {
+							t.Fatalf("release request = %#v, want bind-1", request)
+						}
+						return newHTTPResponse(http.StatusNoContent, ""), nil
+					default:
+						t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+						return nil, nil
+					}
+				}),
+			},
+		}
+
+		bind, err := client.BindHostedMCP(context.Background(), mcppkg.HostedBindRequest{
+			SessionID: "sess-1",
+			Nonce:     "nonce-test",
+		})
+		if err != nil {
+			t.Fatalf("BindHostedMCP() error = %v", err)
+		}
+		if bind.BindID != "bind-1" || bind.Scope.SessionID != "sess-1" || bind.Digest != "digest-1" {
+			t.Fatalf("BindHostedMCP() = %#v, want bind response", bind)
+		}
+
+		projection, err := client.HostedMCPProjection(context.Background(), " bind-1 ")
+		if err != nil {
+			t.Fatalf("HostedMCPProjection() error = %v", err)
+		}
+		if projection.Digest != "digest-2" {
+			t.Fatalf("HostedMCPProjection() digest = %q, want digest-2", projection.Digest)
+		}
+
+		var streamedDigest string
+		err = client.StreamHostedMCPProjection(
+			context.Background(),
+			" bind-1 ",
+			" digest-1 ",
+			func(snapshot mcppkg.HostedProjectionResponse) error {
+				streamedDigest = snapshot.Digest
+				return nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("StreamHostedMCPProjection() error = %v", err)
+		}
+		if streamedDigest != "digest-3" {
+			t.Fatalf("streamed digest = %q, want digest-3", streamedDigest)
+		}
+
+		call, err := client.CallHostedMCP(context.Background(), mcppkg.HostedCallRequest{
+			BindID:   "bind-1",
+			ToolName: "skill_view",
+			Input:    json.RawMessage(`{"ok":true}`),
+		})
+		if err != nil {
+			t.Fatalf("CallHostedMCP() error = %v", err)
+		}
+		if compactJSON(call.Result.Structured) != `{"ok":true}` {
+			t.Fatalf("CallHostedMCP() structured = %s, want ok", call.Result.Structured)
+		}
+
+		if err := client.ReleaseHostedMCP(
+			context.Background(),
+			mcppkg.HostedReleaseRequest{BindID: "bind-1"},
+		); err != nil {
+			t.Fatalf("ReleaseHostedMCP() error = %v", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("BindHostedMCP() error = %v", err)
-	}
-	if bind.BindID != "bind-1" || bind.Scope.SessionID != "sess-1" || bind.Digest != "digest-1" {
-		t.Fatalf("BindHostedMCP() = %#v, want bind response", bind)
-	}
 
-	projection, err := client.HostedMCPProjection(context.Background(), " bind-1 ")
-	if err != nil {
-		t.Fatalf("HostedMCPProjection() error = %v", err)
-	}
-	if projection.Digest != "digest-2" {
-		t.Fatalf("HostedMCPProjection() digest = %q, want digest-2", projection.Digest)
-	}
+	t.Run("Should redact hosted MCP stream errors", func(t *testing.T) {
+		t.Parallel()
 
-	var streamedDigest string
-	err = client.StreamHostedMCPProjection(
-		context.Background(),
-		" bind-1 ",
-		" digest-1 ",
-		func(snapshot mcppkg.HostedProjectionResponse) error {
-			streamedDigest = snapshot.Digest
-			return nil
-		},
-	)
-	if err != nil {
-		t.Fatalf("StreamHostedMCPProjection() error = %v", err)
-	}
-	if streamedDigest != "digest-3" {
-		t.Fatalf("streamed digest = %q, want digest-3", streamedDigest)
-	}
-
-	call, err := client.CallHostedMCP(context.Background(), mcppkg.HostedCallRequest{
-		BindID:   "bind-1",
-		ToolName: "skill_view",
-		Input:    json.RawMessage(`{"ok":true}`),
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodGet || req.URL.Path != "/api/internal/hosted-mcp/projection/stream" {
+						t.Fatalf("request = %s %s, want hosted MCP stream", req.Method, req.URL.Path)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						"event: error\n"+
+							"data: {\"error\":\"bind failed for agh_claim_secret\"}\n\n",
+					), nil
+				}),
+			},
+		}
+		err := client.StreamHostedMCPProjection(context.Background(), "bind-1", "", nil)
+		if err == nil {
+			t.Fatal("StreamHostedMCPProjection(error event) error = nil, want redacted error")
+		}
+		if strings.Contains(err.Error(), "agh_claim_secret") || !strings.Contains(err.Error(), "[REDACTED]") {
+			t.Fatalf("StreamHostedMCPProjection(error event) error = %q, want redacted claim token", err.Error())
+		}
 	})
-	if err != nil {
-		t.Fatalf("CallHostedMCP() error = %v", err)
-	}
-	if compactJSON(call.Result.Structured) != `{"ok":true}` {
-		t.Fatalf("CallHostedMCP() structured = %s, want ok", call.Result.Structured)
-	}
-
-	if err := client.ReleaseHostedMCP(context.Background(), mcppkg.HostedReleaseRequest{BindID: "bind-1"}); err != nil {
-		t.Fatalf("ReleaseHostedMCP() error = %v", err)
-	}
 }
 
 func TestUnixSocketClientStreamsSessionEvents(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
-		httpClient: &http.Client{
-			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				if req.Method != http.MethodGet || req.URL.Path != "/api/sessions/sess-1/stream" {
-					t.Fatalf("request = %s %s, want GET session stream", req.Method, req.URL.Path)
-				}
-				if req.Header.Get("Last-Event-ID") != "evt-0" {
-					t.Fatalf("Last-Event-ID = %q, want evt-0", req.Header.Get("Last-Event-ID"))
-				}
-				if req.URL.Query().Get("type") != "tool_call" ||
-					req.URL.Query().Get("agent_name") != "coder" ||
-					req.URL.Query().Get("limit") != "2" {
-					t.Fatalf("stream query = %s, want filters", req.URL.RawQuery)
-				}
-				return newHTTPResponse(
-					http.StatusOK,
-					"id: evt-1\n"+
-						"event: tool_call\n"+
-						`data: {"id":"evt-1","session_id":"sess-1","sequence":1,"type":"tool_call","agent_name":"coder","timestamp":"2026-04-03T12:00:00Z"}`+
-						"\n\n",
-				), nil
-			}),
-		},
-	}
+	t.Run("Should stream session events", func(t *testing.T) {
+		t.Parallel()
 
-	var events []SSEEvent
-	err := client.StreamSessionEvents(
-		context.Background(),
-		" sess-1 ",
-		SessionEventQuery{Type: "tool_call", AgentName: "coder", Last: 2},
-		"evt-0",
-		func(event SSEEvent) error {
-			events = append(events, event)
-			return nil
-		},
-	)
-	if err != nil {
-		t.Fatalf("StreamSessionEvents() error = %v", err)
-	}
-	if len(events) != 1 || events[0].ID != "evt-1" || events[0].Event != "tool_call" {
-		t.Fatalf("events = %#v, want one tool_call event", events)
-	}
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodGet || req.URL.Path != "/api/sessions/sess-1/stream" {
+						t.Fatalf("request = %s %s, want GET session stream", req.Method, req.URL.Path)
+					}
+					if req.Header.Get("Last-Event-ID") != "evt-0" {
+						t.Fatalf("Last-Event-ID = %q, want evt-0", req.Header.Get("Last-Event-ID"))
+					}
+					if req.URL.Query().Get("type") != "tool_call" ||
+						req.URL.Query().Get("agent_name") != "coder" ||
+						req.URL.Query().Get("limit") != "2" {
+						t.Fatalf("stream query = %s, want filters", req.URL.RawQuery)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						"id: evt-1\n"+
+							"event: tool_call\n"+
+							`data: {"id":"evt-1","session_id":"sess-1","sequence":1,"type":"tool_call","agent_name":"coder","timestamp":"2026-04-03T12:00:00Z"}`+
+							"\n\n",
+					), nil
+				}),
+			},
+		}
+
+		var events []SSEEvent
+		err := client.StreamSessionEvents(
+			context.Background(),
+			" sess-1 ",
+			SessionEventQuery{Type: "tool_call", AgentName: "coder", Last: 2},
+			"evt-0",
+			func(event SSEEvent) error {
+				events = append(events, event)
+				return nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("StreamSessionEvents() error = %v", err)
+		}
+		if len(events) != 1 || events[0].ID != "evt-1" || events[0].Event != "tool_call" {
+			t.Fatalf("events = %#v, want one tool_call event", events)
+		}
+	})
 }
 
 func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
-		httpClient: &http.Client{
-			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				if req.Method != http.MethodPost {
-					t.Fatalf("request method = %s, want POST", req.Method)
-				}
-				switch req.URL.Path {
-				case "/api/tasks/task-1/publish", "/api/tasks/task-1/start", "/api/tasks/task-1/approve":
-					var request TaskExecutionRequest
-					if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
-						t.Fatalf("decode task execution body: %v", err)
-					}
-					if request.IdempotencyKey != "idem-1" || request.NetworkChannel != "builders" {
-						t.Fatalf("task execution request = %#v, want idempotency and channel", request)
-					}
-					return newHTTPResponse(http.StatusOK, string(mustJSON(t, sampleTaskExecutionRecord()))), nil
-				default:
-					t.Fatalf("unexpected request path = %s", req.URL.Path)
-					return nil, nil
-				}
-			}),
-		},
-	}
-	request := TaskExecutionRequest{
-		IdempotencyKey: "idem-1",
-		NetworkChannel: "builders",
-		Metadata:       json.RawMessage(`{"source":"cli-test"}`),
-	}
+	t.Run("Should execute task mutation methods", func(t *testing.T) {
+		t.Parallel()
 
-	published, err := client.PublishTask(context.Background(), " task-1 ", request)
-	if err != nil {
-		t.Fatalf("PublishTask() error = %v", err)
-	}
-	if published.Task.ID == "" || published.Run.ID == "" {
-		t.Fatalf("PublishTask() = %#v, want task and run", published)
-	}
-	started, err := client.StartTask(context.Background(), " task-1 ", request)
-	if err != nil {
-		t.Fatalf("StartTask() error = %v", err)
-	}
-	if started.Task.ID != published.Task.ID {
-		t.Fatalf("StartTask() task id = %q, want %q", started.Task.ID, published.Task.ID)
-	}
-	approved, err := client.ApproveTask(context.Background(), " task-1 ", request)
-	if err != nil {
-		t.Fatalf("ApproveTask() error = %v", err)
-	}
-	if approved.Run.ID != published.Run.ID {
-		t.Fatalf("ApproveTask() run id = %q, want %q", approved.Run.ID, published.Run.ID)
-	}
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodPost {
+						t.Fatalf("request method = %s, want POST", req.Method)
+					}
+					switch req.URL.Path {
+					case "/api/tasks/task-1/publish", "/api/tasks/task-1/start", "/api/tasks/task-1/approve":
+						var request TaskExecutionRequest
+						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
+							t.Fatalf("decode task execution body: %v", err)
+						}
+						if request.IdempotencyKey != "idem-1" || request.NetworkChannel != "builders" {
+							t.Fatalf("task execution request = %#v, want idempotency and channel", request)
+						}
+						return newHTTPResponse(http.StatusOK, string(mustJSON(t, sampleTaskExecutionRecord()))), nil
+					default:
+						t.Fatalf("unexpected request path = %s", req.URL.Path)
+						return nil, nil
+					}
+				}),
+			},
+		}
+		request := TaskExecutionRequest{
+			IdempotencyKey: "idem-1",
+			NetworkChannel: "builders",
+			Metadata:       json.RawMessage(`{"source":"cli-test"}`),
+		}
+
+		published, err := client.PublishTask(context.Background(), " task-1 ", request)
+		if err != nil {
+			t.Fatalf("PublishTask() error = %v", err)
+		}
+		if published.Task.ID == "" || published.Run.ID == "" {
+			t.Fatalf("PublishTask() = %#v, want task and run", published)
+		}
+		started, err := client.StartTask(context.Background(), " task-1 ", request)
+		if err != nil {
+			t.Fatalf("StartTask() error = %v", err)
+		}
+		if started.Task.ID != published.Task.ID {
+			t.Fatalf("StartTask() task id = %q, want %q", started.Task.ID, published.Task.ID)
+		}
+		approved, err := client.ApproveTask(context.Background(), " task-1 ", request)
+		if err != nil {
+			t.Fatalf("ApproveTask() error = %v", err)
+		}
+		if approved.Run.ID != published.Run.ID {
+			t.Fatalf("ApproveTask() run id = %q, want %q", approved.Run.ID, published.Run.ID)
+		}
+	})
 }
 
 func TestUnixSocketClientAgentContextAndSpawnMethods(t *testing.T) {
 	t.Parallel()
 
-	credentials := agentidentity.Credentials{
-		SessionID:   "sess-1",
-		AgentName:   "coder",
-		WorkspaceID: "ws-1",
-	}
-	client := &unixSocketClient{
-		socketPath: "/tmp/agh.sock",
-		httpClient: &http.Client{
-			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				assertAgentRequestHeaders(t, req, credentials)
-				switch {
-				case req.Method == http.MethodGet && req.URL.Path == "/api/agent/context":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"context":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}}`,
-					), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/spawn":
-					var request AgentSpawnRequest
-					if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
-						t.Fatalf("decode spawn body: %v", err)
-					}
-					if request.AgentName != "worker" || request.SpawnRole != "reviewer" {
-						t.Fatalf("spawn request = %#v, want worker reviewer", request)
-					}
-					return newHTTPResponse(
-						http.StatusCreated,
-						`{"spawn":{"session":{"id":"sess-child","agent_name":"worker","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"lineage":{"parent_session_id":"sess-1","root_session_id":"sess-1","depth":1},"permissions":{}}}`,
-					), nil
-				default:
-					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
-					return nil, nil
-				}
-			}),
-		},
-	}
+	t.Run("Should get agent context and spawn child sessions", func(t *testing.T) {
+		t.Parallel()
 
-	contextRecord, err := client.AgentContext(context.Background(), credentials)
-	if err != nil {
-		t.Fatalf("AgentContext() error = %v", err)
-	}
-	if contextRecord.Self.SessionID != "sess-1" || contextRecord.Workspace.ID != "ws-1" {
-		t.Fatalf("AgentContext() = %#v, want caller context", contextRecord)
-	}
+		credentials := agentidentity.Credentials{
+			SessionID:   "sess-1",
+			AgentName:   "coder",
+			WorkspaceID: "ws-1",
+		}
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					assertAgentRequestHeaders(t, req, credentials)
+					switch {
+					case req.Method == http.MethodGet && req.URL.Path == "/api/agent/context":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"context":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}}`,
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/agent/spawn":
+						var request AgentSpawnRequest
+						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
+							t.Fatalf("decode spawn body: %v", err)
+						}
+						if request.AgentName != "worker" || request.SpawnRole != "reviewer" {
+							t.Fatalf("spawn request = %#v, want worker reviewer", request)
+						}
+						return newHTTPResponse(
+							http.StatusCreated,
+							`{"spawn":{"session":{"id":"sess-child","agent_name":"worker","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"lineage":{"parent_session_id":"sess-1","root_session_id":"sess-1","depth":1},"permissions":{}}}`,
+						), nil
+					default:
+						t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+						return nil, nil
+					}
+				}),
+			},
+		}
 
-	spawn, err := client.AgentSpawn(context.Background(), AgentSpawnRequest{
-		AgentName: "worker",
-		SpawnRole: "reviewer",
-	}, credentials)
-	if err != nil {
-		t.Fatalf("AgentSpawn() error = %v", err)
-	}
-	if spawn.Session.ID != "sess-child" || spawn.Session.AgentName != "worker" {
-		t.Fatalf("AgentSpawn() = %#v, want child session", spawn.Session)
-	}
+		contextRecord, err := client.AgentContext(context.Background(), credentials)
+		if err != nil {
+			t.Fatalf("AgentContext() error = %v", err)
+		}
+		if contextRecord.Self.SessionID != "sess-1" || contextRecord.Workspace.ID != "ws-1" {
+			t.Fatalf("AgentContext() = %#v, want caller context", contextRecord)
+		}
+
+		spawn, err := client.AgentSpawn(context.Background(), AgentSpawnRequest{
+			AgentName: "worker",
+			SpawnRole: "reviewer",
+		}, credentials)
+		if err != nil {
+			t.Fatalf("AgentSpawn() error = %v", err)
+		}
+		if spawn.Session.ID != "sess-child" || spawn.Session.AgentName != "worker" {
+			t.Fatalf("AgentSpawn() = %#v, want child session", spawn.Session)
+		}
+	})
 }
 
 func assertAgentRequestHeaders(t *testing.T, req *http.Request, credentials agentidentity.Credentials) {

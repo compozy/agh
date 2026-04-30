@@ -1050,7 +1050,7 @@ func (c *unixSocketClient) StreamHostedMCPProjection(
 		"",
 		func(event SSEEvent) error {
 			if event.Event == "error" {
-				return errors.New(strings.TrimSpace(string(event.Data)))
+				return readAPIErrorBody(0, "", event.Data)
 			}
 			if event.Event != "projection" {
 				return nil
@@ -2612,7 +2612,10 @@ func readAPIError(response *http.Response) error {
 	if err != nil {
 		return fmt.Errorf("cli: read api error response: %w", err)
 	}
+	return readAPIErrorBody(response.StatusCode, response.Status, body)
+}
 
+func readAPIErrorBody(statusCode int, status string, body []byte) error {
 	var payload struct {
 		Error string `json:"error"`
 	}
@@ -2621,15 +2624,18 @@ func readAPIError(response *http.Response) error {
 	}
 	var toolPayload contract.ToolErrorResponse
 	if len(body) > 0 && json.Unmarshal(body, &toolPayload) == nil && toolPayload.Error.Code != "" {
-		return newToolAPIError(response.StatusCode, response.Status, toolPayload)
+		return newToolAPIError(statusCode, status, toolPayload)
 	}
 
 	message := strings.TrimSpace(string(body))
 	if message == "" {
-		message = response.Status
+		message = status
 	}
 	message = taskpkg.RedactClaimTokens(message)
-	return fmt.Errorf("daemon api %s: %s", response.Status, message)
+	if strings.TrimSpace(status) == "" {
+		return errors.New(message)
+	}
+	return fmt.Errorf("daemon api %s: %s", status, message)
 }
 
 func drainResponseBody(method string, path string, body io.Reader) error {

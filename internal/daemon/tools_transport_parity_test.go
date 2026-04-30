@@ -91,8 +91,30 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 
 func newToolParityHTTPEngine(t *testing.T) *gin.Engine {
 	t.Helper()
+	homePaths := testutil.NewTestHomePaths(t)
+	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
+	cfg.HTTP.Host = "127.0.0.1"
+	cfg.HTTP.Port = 2123
+	registry := newToolParityRegistry()
 	engine := gin.New()
-	httpapi.RegisterRoutes(engine, &httpapi.Handlers{BaseHandlers: newToolParityBaseHandlers(t)})
+	if _, err := httpapi.New(
+		httpapi.WithEngine(engine),
+		httpapi.WithHomePaths(homePaths),
+		httpapi.WithConfig(&cfg),
+		httpapi.WithHost(cfg.HTTP.Host),
+		httpapi.WithPort(cfg.HTTP.Port),
+		httpapi.WithSessionManager(testutil.StubSessionManager{}),
+		httpapi.WithObserver(testutil.StubObserver{}),
+		httpapi.WithTaskService(testutil.StubTaskManager{}),
+		httpapi.WithWorkspaceResolver(testutil.StubWorkspaceService{}),
+		httpapi.WithToolRegistry(registry),
+		httpapi.WithToolsetRegistry(registry),
+		httpapi.WithLogger(testutil.DiscardLogger()),
+		httpapi.WithStartedAt(time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)),
+		httpapi.WithNow(func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) }),
+	); err != nil {
+		t.Fatalf("httpapi.New() error = %v", err)
+	}
 	return engine
 }
 

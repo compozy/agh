@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -82,6 +83,29 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			t.Fatalf("search tool count = %d, want %d", got, want)
 		}
 
+		sessionSearchResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/sessions/sess-1/tools/search",
+			[]byte(`{"query":"skill","limit":1,"workspace_id":"ws-1"}`),
+		)
+		if sessionSearchResp.Code != http.StatusOK {
+			t.Fatalf("session search status = %d, want %d", sessionSearchResp.Code, http.StatusOK)
+		}
+		var sessionSearch contract.ToolsResponse
+		decodeToolJSON(t, sessionSearchResp.Body.Bytes(), &sessionSearch)
+		if got, want := len(sessionSearch.Tools), 1; got != want {
+			t.Fatalf("session search tool count = %d, want %d", got, want)
+		}
+		searchScope, searchQuery := registry.lastSearch()
+		if searchScope.SessionID != "sess-1" || searchScope.WorkspaceID != "ws-1" || searchScope.Operator {
+			t.Fatalf("session search scope = %#v, want session workspace scope", searchScope)
+		}
+		if searchQuery.Query != "skill" || searchQuery.Limit != 1 {
+			t.Fatalf("session search query = %#v, want skill limit", searchQuery)
+		}
+
 		getResp := performRequest(t, engine, http.MethodGet, "/tools/agh__skill_view", nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
@@ -124,6 +148,16 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 			len(toolsets.Toolsets[0].ExpandedTools) != 1 ||
 			toolsets.Toolsets[0].ExpandedTools[0] != toolspkg.ToolIDSkillView {
 			t.Fatalf("toolset payload = %#v, want expanded skill_view", toolsets.Toolsets[0])
+		}
+
+		toolsetResp := performRequest(t, engine, http.MethodGet, "/toolsets/agh__catalog", nil)
+		if toolsetResp.Code != http.StatusOK {
+			t.Fatalf("toolset get status = %d, want %d", toolsetResp.Code, http.StatusOK)
+		}
+		var toolset contract.ToolsetResponse
+		decodeToolJSON(t, toolsetResp.Body.Bytes(), &toolset)
+		if toolset.Toolset.ID != toolspkg.ToolsetIDCatalog || registry.lastToolsetID() != toolspkg.ToolsetIDCatalog {
+			t.Fatalf("toolset get = %#v id=%q, want catalog", toolset.Toolset, registry.lastToolsetID())
 		}
 	})
 }
@@ -233,6 +267,98 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 	})
 }
 
+func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should propagate query scope defaults into invoke requests", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newAPITestToolRegistry(t, false)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:      "api-core-test",
+			Sessions:           testutil.StubSessionManager{},
+			Observer:           testutil.StubObserver{},
+			Tasks:              testutil.StubTaskManager{},
+			Workspaces:         testutil.StubWorkspaceService{},
+			Tools:              registry,
+			Toolsets:           registry,
+			ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
+			HomePaths:          testutil.NewTestHomePaths(t),
+			Config:             testutil.ConfigWithDisabledNetwork(testutil.NewTestHomePaths(t)),
+			Logger:             testutil.DiscardLogger(),
+			StartedAt:          time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
+			Now:                func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
+			PollInterval:       time.Millisecond,
+			StreamDone:         make(chan struct{}),
+			MaskInternalErrors: false,
+		})
+		engine := newToolCoreEngine(t, handlers)
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/agh__skill_view/invoke?session_id=sess-query&workspace_id=ws-query&agent_name=coder",
+			[]byte(`{"input":{"message":"hello"}}`),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("invoke status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		scope, call := registry.lastCall()
+		if scope.SessionID != "sess-query" || scope.WorkspaceID != "ws-query" || scope.AgentName != "coder" {
+			t.Fatalf("call scope = %#v, want query defaults", scope)
+		}
+		if call.SessionID != "sess-query" || call.WorkspaceID != "ws-query" || call.AgentName != "coder" {
+			t.Fatalf("call request = %#v, want normalized scope values", call)
+		}
+	})
+
+	t.Run("Should return safe tool error messages", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newAPITestToolRegistry(t, true)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:      "api-core-test",
+			Sessions:           testutil.StubSessionManager{},
+			Observer:           testutil.StubObserver{},
+			Tasks:              testutil.StubTaskManager{},
+			Workspaces:         testutil.StubWorkspaceService{},
+			Tools:              registry,
+			Toolsets:           registry,
+			ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
+			HomePaths:          testutil.NewTestHomePaths(t),
+			Config:             testutil.ConfigWithDisabledNetwork(testutil.NewTestHomePaths(t)),
+			Logger:             testutil.DiscardLogger(),
+			StartedAt:          time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
+			Now:                func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
+			PollInterval:       time.Millisecond,
+			StreamDone:         make(chan struct{}),
+			MaskInternalErrors: false,
+		})
+		engine := newToolCoreEngine(t, handlers)
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/invoke",
+			[]byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"token":"agh_claim_secret"}}`),
+		)
+		if resp.Code != http.StatusAccepted {
+			t.Fatalf("invoke status = %d, want %d; body=%s", resp.Code, http.StatusAccepted, resp.Body.String())
+		}
+		var payload contract.ToolErrorResponse
+		decodeToolJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Error.Message != "tool approval required" {
+			t.Fatalf("tool error message = %q, want safe approval message", payload.Error.Message)
+		}
+		if strings.Contains(resp.Body.String(), "agh_claim_secret") ||
+			strings.Contains(resp.Body.String(), "tool approval token is required") {
+			t.Fatalf("tool error leaked raw backend detail: %s", resp.Body.String())
+		}
+	})
+}
+
 func newToolCoreEngine(t *testing.T, handlers *core.BaseHandlers) *gin.Engine {
 	t.Helper()
 	engine := gin.New()
@@ -249,9 +375,14 @@ func newToolCoreEngine(t *testing.T, handlers *core.BaseHandlers) *gin.Engine {
 }
 
 type apiTestToolRegistry struct {
-	registry *toolspkg.RuntimeRegistry
-	mu       sync.Mutex
-	calls    map[toolspkg.ToolID]int
+	registry        *toolspkg.RuntimeRegistry
+	mu              sync.Mutex
+	calls           map[toolspkg.ToolID]int
+	lastCallScope   toolspkg.Scope
+	lastCallRequest toolspkg.CallRequest
+	lastSearchScope toolspkg.Scope
+	lastSearchQuery toolspkg.SearchQuery
+	lastToolset     toolspkg.ToolsetID
 }
 
 func newAPITestToolRegistry(
@@ -331,6 +462,10 @@ func (r *apiTestToolRegistry) Search(
 	scope toolspkg.Scope,
 	q toolspkg.SearchQuery,
 ) ([]toolspkg.ToolView, error) {
+	r.mu.Lock()
+	r.lastSearchScope = scope
+	r.lastSearchQuery = q
+	r.mu.Unlock()
 	return r.registry.Search(ctx, scope, q)
 }
 
@@ -347,6 +482,10 @@ func (r *apiTestToolRegistry) Call(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	r.mu.Lock()
+	r.lastCallScope = scope
+	r.lastCallRequest = req
+	r.mu.Unlock()
 	return r.registry.Call(ctx, scope, req)
 }
 
@@ -362,6 +501,9 @@ func (r *apiTestToolRegistry) GetToolset(
 	scope toolspkg.Scope,
 	id toolspkg.ToolsetID,
 ) (toolspkg.ToolsetView, error) {
+	r.mu.Lock()
+	r.lastToolset = id
+	r.mu.Unlock()
 	return r.registry.GetToolset(ctx, scope, id)
 }
 
@@ -369,6 +511,24 @@ func (r *apiTestToolRegistry) callCount(id toolspkg.ToolID) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.calls[id]
+}
+
+func (r *apiTestToolRegistry) lastCall() (toolspkg.Scope, toolspkg.CallRequest) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastCallScope, r.lastCallRequest
+}
+
+func (r *apiTestToolRegistry) lastSearch() (toolspkg.Scope, toolspkg.SearchQuery) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastSearchScope, r.lastSearchQuery
+}
+
+func (r *apiTestToolRegistry) lastToolsetID() toolspkg.ToolsetID {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastToolset
 }
 
 type apiTestToolProvider struct {

@@ -476,12 +476,16 @@ func NetworkChannelPayloads(
 	return sortedNetworkChannelPayloads(aggregates), nil
 }
 
+// networkChannelAggregates merges live peers with persisted channel/session/message state for one projection pass.
 func networkChannelAggregates(
 	ctx context.Context,
 	service NetworkService,
 	sessionsManager SessionManager,
 	networkStore NetworkStore,
 ) (map[string]*networkChannelAggregate, error) {
+	if service == nil {
+		return nil, errors.New("api: network service is required")
+	}
 	if networkStore == nil {
 		return nil, errors.New("api: network store is required")
 	}

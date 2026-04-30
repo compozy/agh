@@ -351,8 +351,28 @@ func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
 	}
 	var created contract.ResourceResponse
 	decodeHTTPJSON(t, createResp, &created)
-	if got, want := strings.TrimSpace(string(created.Record.Spec)), `{"id":"dyn__lookup","backend":{"kind":"native_go","native_name":"lookup"},"description":"search workspace","input_schema":{"type":"object"},"source":{"kind":"dynamic","owner":"udsapi"},"visibility":"operator","risk":"read","read_only":true}`; got != want {
-		t.Fatalf("created tool spec = %s, want %s", got, want)
+	var createdSpec map[string]any
+	if err := json.Unmarshal(created.Record.Spec, &createdSpec); err != nil {
+		t.Fatalf("json.Unmarshal(created tool spec) error = %v", err)
+	}
+	backend, ok := createdSpec["backend"].(map[string]any)
+	if !ok {
+		t.Fatalf("created tool backend = %#v, want object", createdSpec["backend"])
+	}
+	source, ok := createdSpec["source"].(map[string]any)
+	if !ok {
+		t.Fatalf("created tool source = %#v, want object", createdSpec["source"])
+	}
+	if createdSpec["id"] != "dyn__lookup" ||
+		createdSpec["description"] != "search workspace" ||
+		createdSpec["visibility"] != "operator" ||
+		createdSpec["risk"] != "read" ||
+		createdSpec["read_only"] != true ||
+		backend["kind"] != "native_go" ||
+		backend["native_name"] != "lookup" ||
+		source["kind"] != "dynamic" ||
+		source["owner"] != "udsapi" {
+		t.Fatalf("created tool spec = %#v, want normalized fields", createdSpec)
 	}
 
 	waitForProjectedToolRevision(t, runtime, 1)

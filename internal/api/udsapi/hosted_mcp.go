@@ -75,6 +75,11 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	}
 	bindID := strings.TrimSpace(c.Query("bind_id"))
 	lastDigest := strings.TrimSpace(c.Query("last_digest"))
+	response, err := h.HostedMCP.Projection(c.Request.Context(), bindID, peer)
+	if err != nil {
+		core.RespondError(c, hostedMCPStatus(err), err, false)
+		return
+	}
 	writer, err := core.PrepareSSE(c)
 	if err != nil {
 		core.RespondError(c, http.StatusInternalServerError, err, false)
@@ -87,15 +92,6 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		response, projectionErr := h.HostedMCP.Projection(c.Request.Context(), bindID, peer)
-		if projectionErr != nil {
-			if writeErr := core.WriteSSE(writer, core.SSEMessage{Name: "error", Data: map[string]string{
-				"error": projectionErr.Error(),
-			}}); writeErr != nil && h.Logger != nil {
-				h.Logger.Warn("udsapi: failed to emit hosted MCP error", "error", writeErr)
-			}
-			return
-		}
 		if response.Digest != "" && response.Digest != lastDigest {
 			if writeErr := core.WriteSSE(writer, core.SSEMessage{
 				ID:   response.Digest,
@@ -115,6 +111,15 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 		case <-h.StreamDoneChannel():
 			return
 		case <-ticker.C:
+		}
+		response, err = h.HostedMCP.Projection(c.Request.Context(), bindID, peer)
+		if err != nil {
+			if writeErr := core.WriteSSE(writer, core.SSEMessage{Name: "error", Data: map[string]string{
+				"error": err.Error(),
+			}}); writeErr != nil && h.Logger != nil {
+				h.Logger.Warn("udsapi: failed to emit hosted MCP error", "error", writeErr)
+			}
+			return
 		}
 	}
 }
@@ -152,7 +157,15 @@ func (h *Handlers) releaseHostedMCP(c *gin.Context) {
 		core.RespondError(c, http.StatusBadRequest, err, false)
 		return
 	}
-	h.HostedMCP.ReleaseBind(req.BindID)
+	peer, err := mcppkg.PeerInfoFromContext(c.Request.Context())
+	if err != nil {
+		core.RespondError(c, http.StatusForbidden, err, false)
+		return
+	}
+	if err := h.HostedMCP.ReleaseBindForPeer(c.Request.Context(), req.BindID, peer); err != nil {
+		core.RespondError(c, hostedMCPStatus(err), err, false)
+		return
+	}
 	c.Status(http.StatusNoContent)
 }
 

@@ -147,7 +147,7 @@ func (c *unixSocketClient) InvokeTool(
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return ToolInvokeResponseRecord{}, err
 	}
-	return response, nil
+	return sanitizeToolInvokeResponse(response), nil
 }
 
 func (c *unixSocketClient) ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error) {
@@ -269,19 +269,38 @@ func sensitiveToolFieldName(key string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
 	for _, marker := range []string{
 		"api_key",
-		"access_token",
-		"refresh_token",
 		"authorization",
 		"password",
 		"secret",
-		"token",
 		"pkce",
 	} {
 		if strings.Contains(normalized, marker) {
 			return true
 		}
 	}
-	return false
+	parts := strings.FieldsFunc(normalized, func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < '0' || r > '9')
+	})
+	if len(parts) == 1 {
+		return parts[0] == "token"
+	}
+	if len(parts) == 0 || benignTokenMetric(parts) {
+		return false
+	}
+	last := parts[len(parts)-1]
+	return last == "token" || last == "tokens"
+}
+
+func benignTokenMetric(parts []string) bool {
+	if len(parts) != 2 {
+		return false
+	}
+	switch parts[0] {
+	case "completion", "prompt", "total":
+		return parts[1] == "tokens"
+	default:
+		return false
+	}
 }
 
 func redactToolDiagnostic(value string) string {
