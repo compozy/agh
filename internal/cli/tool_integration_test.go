@@ -6,12 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	"github.com/pedronauck/agh/internal/api/udsapi"
@@ -47,20 +47,15 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_ = server.Shutdown(ctx)
+		if err := server.Shutdown(ctx); err != nil {
+			t.Errorf("server.Shutdown() error = %v", err)
+		}
 	})
 
-	direct, err := NewClient(cfg.Daemon.Socket)
-	if err != nil {
-		t.Fatalf("NewClient() error = %v", err)
-	}
 	deps := toolIntegrationDeps(t, homePaths, cfg)
 
 	t.Run("Should match tool list payload", func(t *testing.T) {
-		directPayload, err := direct.ListTools(context.Background(), ToolQuery{WorkspaceID: "ws-1"})
-		if err != nil {
-			t.Fatalf("ListTools() error = %v", err)
-		}
+		expectedPayload := expectedCLIToolListPayload(t, registry, toolspkg.Scope{WorkspaceID: "ws-1", Operator: true})
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
@@ -76,15 +71,16 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		}
 		var cliPayload ToolsResponseRecord
 		decodeJSONOutput(t, stdout, &cliPayload)
-		assertContractJSONEqual(t, cliPayload, directPayload)
+		assertContractJSONEqual(t, cliPayload, expectedPayload)
 	})
 
 	t.Run("Should match tool search payload", func(t *testing.T) {
-		request := ToolSearchRequest{Query: "skill", Limit: 1, WorkspaceID: "ws-1"}
-		directPayload, err := direct.SearchTools(context.Background(), request)
-		if err != nil {
-			t.Fatalf("SearchTools() error = %v", err)
-		}
+		expectedPayload := expectedCLIToolSearchPayload(
+			t,
+			registry,
+			toolspkg.Scope{WorkspaceID: "ws-1", Operator: true},
+			toolspkg.SearchQuery{Query: "skill", Limit: 1},
+		)
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
@@ -103,15 +99,22 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		}
 		var cliPayload ToolsResponseRecord
 		decodeJSONOutput(t, stdout, &cliPayload)
-		assertContractJSONEqual(t, cliPayload, directPayload)
+		assertContractJSONEqual(t, cliPayload, expectedPayload)
 	})
 
 	t.Run("Should match tool invoke payload", func(t *testing.T) {
-		request := ToolInvokeRequest{SessionID: "sess-1", Input: json.RawMessage(`{"message":"hello"}`)}
-		directPayload, err := direct.InvokeTool(context.Background(), toolspkg.ToolIDSkillView.String(), request)
-		if err != nil {
-			t.Fatalf("InvokeTool() error = %v", err)
-		}
+		input := json.RawMessage(`{"message":"hello"}`)
+		expectedPayload := expectedCLIToolInvokePayload(
+			t,
+			registry,
+			toolspkg.Scope{SessionID: "sess-1", Operator: true},
+			toolspkg.CallRequest{
+				ToolID:        toolspkg.ToolIDSkillView,
+				SessionID:     "sess-1",
+				Input:         input,
+				ApprovalToken: "approval-ref",
+			},
+		)
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
@@ -122,6 +125,8 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 			"sess-1",
 			"--input",
 			`{"message":"hello"}`,
+			"--approval-token",
+			" approval-ref ",
 			"-o",
 			"json",
 		)
@@ -130,14 +135,11 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		}
 		var cliPayload ToolInvokeResponseRecord
 		decodeJSONOutput(t, stdout, &cliPayload)
-		assertContractJSONEqual(t, cliPayload, directPayload)
+		assertContractJSONEqual(t, cliPayload, expectedPayload)
 	})
 
 	t.Run("Should match toolset info payload", func(t *testing.T) {
-		directPayload, err := direct.GetToolset(context.Background(), toolspkg.ToolsetIDCatalog.String(), ToolQuery{})
-		if err != nil {
-			t.Fatalf("GetToolset() error = %v", err)
-		}
+		expectedPayload := expectedCLIToolsetPayload(t, registry, toolspkg.Scope{Operator: true}, toolspkg.ToolsetIDCatalog)
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
@@ -152,7 +154,7 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		}
 		var cliPayload ToolsetResponseRecord
 		decodeJSONOutput(t, stdout, &cliPayload)
-		assertContractJSONEqual(t, cliPayload, directPayload)
+		assertContractJSONEqual(t, cliPayload, expectedPayload)
 	})
 }
 
@@ -167,9 +169,75 @@ func assertContractJSONEqual(t *testing.T, got any, want any) {
 	if err := json.Unmarshal(mustJSON(t, want), &wantValue); err != nil {
 		t.Fatalf("json.Unmarshal(want) error = %v", err)
 	}
-	if !reflect.DeepEqual(gotValue, wantValue) {
-		t.Fatalf("contract JSON = %#v, want %#v", gotValue, wantValue)
+	if gotJSON, wantJSON := mustJSON(t, gotValue), mustJSON(t, wantValue); string(gotJSON) != string(wantJSON) {
+		t.Fatalf("contract JSON = %s, want %s", gotJSON, wantJSON)
 	}
+}
+
+func expectedCLIToolListPayload(
+	t *testing.T,
+	registry *cliToolIntegrationRegistry,
+	scope toolspkg.Scope,
+) ToolsResponseRecord {
+	t.Helper()
+
+	views, err := registry.List(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("registry.List() error = %v", err)
+	}
+	return ToolsResponseRecord{Tools: core.ToolPayloadsFromViews(views)}
+}
+
+func expectedCLIToolSearchPayload(
+	t *testing.T,
+	registry *cliToolIntegrationRegistry,
+	scope toolspkg.Scope,
+	query toolspkg.SearchQuery,
+) ToolsResponseRecord {
+	t.Helper()
+
+	views, err := registry.Search(context.Background(), scope, query)
+	if err != nil {
+		t.Fatalf("registry.Search() error = %v", err)
+	}
+	return ToolsResponseRecord{Tools: core.ToolPayloadsFromViews(views)}
+}
+
+func expectedCLIToolInvokePayload(
+	t *testing.T,
+	registry *cliToolIntegrationRegistry,
+	scope toolspkg.Scope,
+	request toolspkg.CallRequest,
+) ToolInvokeResponseRecord {
+	t.Helper()
+
+	result, err := registry.Call(context.Background(), scope, request)
+	if err != nil {
+		t.Fatalf("registry.Call() error = %v", err)
+	}
+	return ToolInvokeResponseRecord{
+		ToolID:     request.ToolID,
+		Status:     "completed",
+		Result:     result,
+		Truncated:  result.Truncated,
+		DurationMS: result.DurationMS,
+		Events:     []contract.ToolCallEventPayload{},
+	}
+}
+
+func expectedCLIToolsetPayload(
+	t *testing.T,
+	registry *cliToolIntegrationRegistry,
+	scope toolspkg.Scope,
+	id toolspkg.ToolsetID,
+) ToolsetResponseRecord {
+	t.Helper()
+
+	toolset, err := registry.GetToolset(context.Background(), scope, id)
+	if err != nil {
+		t.Fatalf("registry.GetToolset() error = %v", err)
+	}
+	return ToolsetResponseRecord{Toolset: core.ToolsetPayloadFromView(toolset)}
 }
 
 func toolIntegrationDeps(
@@ -286,9 +354,19 @@ func (r *cliToolIntegrationRegistry) Call(
 	if _, err := r.Get(ctx, scope, request.ToolID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if request.ApprovalToken != "" && request.ApprovalToken != "approval-ref" {
+		return toolspkg.ToolResult{}, toolspkg.NewValidationError(
+			"approval_token",
+			toolspkg.ReasonApprovalTokenMismatch,
+			"approval token did not match integration fixture",
+		)
+	}
 	return toolspkg.ToolResult{
-		Content:    []toolspkg.ToolContent{{Type: "text", Text: "ok"}},
-		Structured: json.RawMessage(`{"ok":true}`),
+		Content: []toolspkg.ToolContent{{Type: "text", Text: "ok"}},
+		Structured: json.RawMessage(fmt.Sprintf(
+			`{"approval_token_present":%t,"ok":true}`,
+			request.ApprovalToken != "",
+		)),
 		Preview:    "ok",
 		DurationMS: 5,
 	}, nil

@@ -27,6 +27,7 @@ type toolInvokeFlags struct {
 	toolCallID           string
 	turnID               string
 	correlationID        string
+	approvalToken        string
 	sensitiveInputFields []string
 }
 
@@ -170,6 +171,7 @@ func newToolInvokeCommand(deps commandDeps) *cobra.Command {
 					ToolCallID:           strings.TrimSpace(flags.toolCallID),
 					TurnID:               strings.TrimSpace(flags.turnID),
 					CorrelationID:        strings.TrimSpace(flags.correlationID),
+					ApprovalToken:        strings.TrimSpace(flags.approvalToken),
 					Input:                input,
 					SensitiveInputFields: trimNonEmptyStrings(flags.sensitiveInputFields),
 				}
@@ -187,6 +189,8 @@ func newToolInvokeCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.toolCallID, "tool-call-id", "", "Optional caller tool-call id")
 	cmd.Flags().StringVar(&flags.turnID, "turn-id", "", "Optional caller turn id")
 	cmd.Flags().StringVar(&flags.correlationID, "correlation-id", "", "Optional correlation id")
+	cmd.Flags().
+		StringVar(&flags.approvalToken, "approval-token", "", "Single-use approval token for approval-gated tools")
 	cmd.Flags().
 		StringArrayVar(&flags.sensitiveInputFields, "sensitive-input-field", nil, "Input field path to redact in events")
 	return cmd

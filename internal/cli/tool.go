@@ -32,10 +32,12 @@ func newToolMCPCommand(deps commandDeps) *cobra.Command {
 		Short:  "Serve session-bound AGH tools over MCP stdio",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if strings.TrimSpace(sessionID) == "" {
+			sessionID = strings.TrimSpace(sessionID)
+			if sessionID == "" {
 				return mcppkg.ErrHostedSessionRequired
 			}
-			if strings.TrimSpace(bindNonce) == "" {
+			bindNonce = strings.TrimSpace(bindNonce)
+			if bindNonce == "" {
 				return mcppkg.ErrHostedNonceRequired
 			}
 			runtime, err := loadRuntimeContext(deps)
