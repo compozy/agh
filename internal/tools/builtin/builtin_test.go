@@ -58,6 +58,11 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDTaskUpdate,
 			toolspkg.ToolIDTaskCancel,
 			toolspkg.ToolIDTaskRunList,
+			toolspkg.ToolIDTaskRunClaimNext,
+			toolspkg.ToolIDTaskRunHeartbeat,
+			toolspkg.ToolIDTaskRunComplete,
+			toolspkg.ToolIDTaskRunFail,
+			toolspkg.ToolIDTaskRunRelease,
 			toolspkg.ToolIDConfigShow,
 			toolspkg.ToolIDConfigList,
 			toolspkg.ToolIDConfigGet,
@@ -133,7 +138,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"agh__task_complete",
 			"agh__task_fail",
 			"agh__task_run_start",
-			"agh__task_run_complete",
 			"agh__task_run_cancel",
 		}
 		for _, id := range excluded {
@@ -185,6 +189,32 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskUpdate], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskCancel], toolspkg.RiskDestructive, false, true, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskRunClaimNext],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskRunHeartbeat],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskRunComplete],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunFail], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunRelease], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigShow], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigSet], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDConfigUnset], toolspkg.RiskDestructive, false, true, false)
@@ -332,8 +362,21 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(tasks) error = %v", err)
 		}
 		if !slices.Contains(tasks, toolspkg.ToolIDTaskChildCreate) ||
-			slices.Contains(tasks, toolspkg.ToolID("agh__task_claim")) {
+			slices.Contains(tasks, toolspkg.ToolIDTaskRunClaimNext) {
 			t.Fatalf("task toolset expansion = %#v, want bounded task scope", tasks)
+		}
+		autonomy, err := catalog.Expand(toolspkg.ToolsetIDAutonomy, universe)
+		if err != nil {
+			t.Fatalf("Expand(autonomy) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDTaskRunClaimNext,
+			toolspkg.ToolIDTaskRunComplete,
+			toolspkg.ToolIDTaskRunFail,
+			toolspkg.ToolIDTaskRunHeartbeat,
+			toolspkg.ToolIDTaskRunRelease,
+		}; !slices.Equal(autonomy, want) {
+			t.Fatalf("autonomy expansion = %#v, want %#v", autonomy, want)
 		}
 
 		coordination, err := catalog.Expand(toolspkg.ToolsetIDCoordination, universe)

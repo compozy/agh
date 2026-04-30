@@ -63,7 +63,7 @@ func (h *BaseHandlers) AgentTaskClaimNext(c *gin.Context) {
 				return
 			}
 			c.JSON(http.StatusOK, contract.AgentTaskClaimResponse{
-				Claim: agentTaskClaimPayloadFromResult(result),
+				Claim: AgentTaskClaimPayloadFromResult(result),
 			})
 			return
 		case errors.Is(err, taskpkg.ErrNoClaimableRun) && req.Wait:
@@ -103,9 +103,14 @@ func (h *BaseHandlers) AgentTaskHeartbeat(c *gin.Context) {
 		h.respondError(c, statusForAgentTaskError(err), err)
 		return
 	}
+	handle, err := h.lookupAgentTaskLease(c.Request.Context(), manager, caller, runID)
+	if err != nil {
+		h.respondError(c, statusForAgentTaskError(err), err)
+		return
+	}
 	run, err := manager.HeartbeatRunLease(c.Request.Context(), taskpkg.LeaseHeartbeat{
 		RunID:         runID,
-		ClaimToken:    req.ClaimToken,
+		ClaimToken:    handle.ClaimToken,
 		LeaseDuration: leaseDuration,
 	}, caller.Actor)
 	if err != nil {
@@ -113,7 +118,7 @@ func (h *BaseHandlers) AgentTaskHeartbeat(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: agentTaskLeasePayloadFromRun(run, nil)})
+	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run, nil)})
 }
 
 // AgentTaskRelease releases one claimed task run back to the queue.
@@ -133,9 +138,14 @@ func (h *BaseHandlers) AgentTaskRelease(c *gin.Context) {
 		return
 	}
 
+	handle, err := h.lookupAgentTaskLease(c.Request.Context(), manager, caller, runID)
+	if err != nil {
+		h.respondError(c, statusForAgentTaskError(err), err)
+		return
+	}
 	run, err := manager.ReleaseRunLease(c.Request.Context(), taskpkg.LeaseRelease{
 		RunID:      runID,
-		ClaimToken: req.ClaimToken,
+		ClaimToken: handle.ClaimToken,
 		Reason:     req.Reason,
 	}, caller.Actor)
 	if err != nil {
@@ -143,7 +153,7 @@ func (h *BaseHandlers) AgentTaskRelease(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: agentTaskLeasePayloadFromRun(run, nil)})
+	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run, nil)})
 }
 
 // AgentTaskComplete completes one claimed task run after token verification.
@@ -163,14 +173,19 @@ func (h *BaseHandlers) AgentTaskComplete(c *gin.Context) {
 		return
 	}
 
-	result, err := completeTaskRunFromRequest(contract.CompleteTaskRunRequest{Result: req.Result})
+	result, err := completeTaskRunFromRequest(contract.CompleteTaskRunRequest(req))
+	if err != nil {
+		h.respondError(c, statusForAgentTaskError(err), err)
+		return
+	}
+	handle, err := h.lookupAgentTaskLease(c.Request.Context(), manager, caller, runID)
 	if err != nil {
 		h.respondError(c, statusForAgentTaskError(err), err)
 		return
 	}
 	run, err := manager.CompleteRunLease(c.Request.Context(), taskpkg.LeaseCompletion{
 		RunID:      runID,
-		ClaimToken: req.ClaimToken,
+		ClaimToken: handle.ClaimToken,
 		Result:     result,
 	}, caller.Actor)
 	if err != nil {
@@ -178,7 +193,7 @@ func (h *BaseHandlers) AgentTaskComplete(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: agentTaskLeasePayloadFromRun(run, nil)})
+	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run, nil)})
 }
 
 // AgentTaskFail fails one claimed task run after token verification.
@@ -198,17 +213,19 @@ func (h *BaseHandlers) AgentTaskFail(c *gin.Context) {
 		return
 	}
 
-	failure, err := failTaskRunFromRequest(contract.FailTaskRunRequest{
-		Error:    req.Error,
-		Metadata: req.Metadata,
-	})
+	failure, err := failTaskRunFromRequest(contract.FailTaskRunRequest(req))
+	if err != nil {
+		h.respondError(c, statusForAgentTaskError(err), err)
+		return
+	}
+	handle, err := h.lookupAgentTaskLease(c.Request.Context(), manager, caller, runID)
 	if err != nil {
 		h.respondError(c, statusForAgentTaskError(err), err)
 		return
 	}
 	run, err := manager.FailRunLease(c.Request.Context(), taskpkg.LeaseFailure{
 		RunID:      runID,
-		ClaimToken: req.ClaimToken,
+		ClaimToken: handle.ClaimToken,
 		Failure:    failure,
 	}, caller.Actor)
 	if err != nil {
@@ -216,7 +233,7 @@ func (h *BaseHandlers) AgentTaskFail(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: agentTaskLeasePayloadFromRun(run, nil)})
+	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run, nil)})
 }
 
 func (h *BaseHandlers) agentTaskLeaseMutationSetup(
@@ -237,6 +254,19 @@ func (h *BaseHandlers) agentTaskLeaseMutationSetup(
 		return nil, agentidentity.Caller{}, "", false
 	}
 	return manager, caller, runID, true
+}
+
+func (h *BaseHandlers) lookupAgentTaskLease(
+	ctx context.Context,
+	manager TaskService,
+	caller agentidentity.Caller,
+	runID string,
+) (taskpkg.AutonomyLeaseHandle, error) {
+	authority, ok := manager.(taskpkg.AutonomyLeaseAuthority)
+	if !ok {
+		return taskpkg.AutonomyLeaseHandle{}, errors.New("task autonomy lease authority is unavailable")
+	}
+	return authority.LookupActiveRunForSession(ctx, caller.Session.ID, runID)
 }
 
 func (h *BaseHandlers) agentTaskClaimCriteria(
@@ -342,7 +372,8 @@ func agentTaskLeaseDuration(seconds int64) (time.Duration, error) {
 	}
 }
 
-func agentTaskClaimPayloadFromResult(result *taskpkg.ClaimResult) contract.AgentTaskClaimPayload {
+// AgentTaskClaimPayloadFromResult builds the public, redacted claim payload.
+func AgentTaskClaimPayloadFromResult(result *taskpkg.ClaimResult) contract.AgentTaskClaimPayload {
 	if result == nil {
 		return contract.AgentTaskClaimPayload{}
 	}
@@ -354,7 +385,7 @@ func agentTaskClaimPayloadFromResult(result *taskpkg.ClaimResult) contract.Agent
 			run.CoordinationChannelID = channel.ID
 		}
 	}
-	lease := agentTaskLeasePayloadFromRun(&result.Run, channel)
+	lease := AgentTaskLeasePayloadFromRun(&result.Run, channel)
 	if lease.LeaseUntil == nil && !result.LeaseUntil.IsZero() {
 		lease.LeaseUntil = optionalTime(result.LeaseUntil)
 	}
@@ -362,12 +393,12 @@ func agentTaskClaimPayloadFromResult(result *taskpkg.ClaimResult) contract.Agent
 		Task:                taskReferencePayloadFromTask(result.Task),
 		Run:                 run,
 		Lease:               lease,
-		ClaimToken:          strings.TrimSpace(result.ClaimToken),
 		CoordinationChannel: channel,
 	}
 }
 
-func agentTaskLeasePayloadFromRun(
+// AgentTaskLeasePayloadFromRun builds the public, redacted lease payload.
+func AgentTaskLeasePayloadFromRun(
 	run *taskpkg.Run,
 	channel *contract.CoordinationChannelPayload,
 ) contract.TaskRunLeaseSummaryPayload {

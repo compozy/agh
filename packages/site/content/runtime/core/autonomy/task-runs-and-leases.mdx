@@ -1,6 +1,6 @@
 ---
 title: Task Runs and Leases
-description: How agents claim work, renew leases, finish runs, release ownership, and handle raw claim tokens safely.
+description: How agents claim work, renew leases, finish runs, and release session-bound ownership safely.
 ---
 
 Task runs are the durable execution records for tasks. A run becomes claimable only after publish,
@@ -21,12 +21,11 @@ sets a lease deadline, and returns a synchronous claim response that includes:
 - task summary
 - run summary
 - safe lease summary
-- raw `claim_token`
+- `claim_token_hash` for observability
 - coordination channel metadata when the run has a bound channel
 
-The raw `claim_token` is shown only in that synchronous claim response. Read/list/detail payloads,
-web payloads, SSE streams, logs, channel messages, and memory summaries expose at most
-`claim_token_hash`.
+The raw bearer lease token is internal to AGH. Public CLI, HTTP, UDS, web, stream, log, channel,
+and memory payloads use the calling session plus `run_id` and expose at most `claim_token_hash`.
 
 ## Lease rules
 
@@ -34,9 +33,9 @@ The MVP lease contract is intentionally narrow:
 
 | Rule                         | Behavior                                                                                                                |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| One owner                    | Exactly one active claim token may own a non-terminal run.                                                              |
+| One owner                    | Exactly one managed session may own a non-terminal run lease.                                                           |
 | One active lease per session | A managed session may hold at most one active task-run lease in the MVP.                                                |
-| Token fencing                | Heartbeat, complete, fail, and release compare both the owning session and raw claim token.                             |
+| Session fencing              | Heartbeat, complete, fail, and release resolve the internal lease from the caller session and `run_id`.                 |
 | Bounded renewal              | `--lease-seconds` must be zero or positive and is capped by the task service. Omitted or zero uses the service default. |
 | Expiry recovery              | Expired leases are recovered by boot recovery or scheduler sweeps through the task service.                             |
 | Stale holders fail           | A stale heartbeat or late complete after recovery fails explicitly; it does not extend or overwrite a newer claim.      |
@@ -46,7 +45,7 @@ The MVP lease contract is intentionally narrow:
 Use heartbeat when work is still active and the session still owns the run:
 
 ```bash
-agh task heartbeat run-123 --claim-token "$CLAIM_TOKEN" --lease-seconds 300
+agh task heartbeat run-123 --lease-seconds 300
 ```
 
 Heartbeats are task-service operations. Do not mirror routine heartbeats into coordination channel
@@ -58,11 +57,10 @@ Use `complete` for successful terminal state:
 
 ```bash
 agh task complete run-123 \
-  --claim-token "$CLAIM_TOKEN" \
   --result '{"summary":"tests passed"}'
 ```
 
-The optional result JSON must not contain a raw `claim_token` field.
+The optional result JSON must not contain raw lease credentials.
 
 ## Failing a run
 
@@ -70,31 +68,30 @@ Use `fail` when the current claim cannot complete successfully:
 
 ```bash
 agh task fail run-123 \
-  --claim-token "$CLAIM_TOKEN" \
   --error "tests failed" \
   --metadata '{"command":"make test"}'
 ```
 
-Failure metadata must not contain raw claim tokens.
+Failure metadata must not contain raw lease credentials.
 
 ## Releasing a run
 
 Use `release` when the session should give up ownership without making the run terminal:
 
 ```bash
-agh task release run-123 --claim-token "$CLAIM_TOKEN" --reason handoff
+agh task release run-123 --reason handoff
 ```
 
 Release is also used by daemon-owned cleanup. For example, if a spawned child reaches TTL or its
 parent stops, AGH releases active child leases with structured reasons such as `ttl_expired` or
 `parent_stopped` before stopping the child session.
 
-## Claim tokens and channels
+## Lease credentials and channels
 
-Never send raw claim tokens through `agh ch send`, `agh ch reply`, network envelopes, logs, or
-memory. If another participant needs to know progress, send a coordination message without the
-token. If a session needs to prove ownership, it calls `agh task heartbeat`, `complete`, `fail`, or
-`release` with its own raw token.
+Never send raw lease credentials through `agh ch send`, `agh ch reply`, network envelopes, logs, or
+memory. If another participant needs to know progress, send a coordination message. If a session
+needs to prove ownership, it calls `agh task heartbeat`, `complete`, `fail`, or `release` for the
+owned `run_id`; AGH resolves the internal lease server-side.
 
 ## Related pages
 

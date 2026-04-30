@@ -206,19 +206,18 @@ func TestClaimTokenExposureBoundaries(t *testing.T) {
 				Status:         taskpkg.TaskRunStatusClaimed,
 				ClaimTokenHash: "sha256:abc",
 			},
-			ClaimToken: "raw-secret-token",
 		},
 	}
 	claimJSON := marshalContractString(t, claimResponse)
-	if !strings.Contains(claimJSON, `"claim_token"`) || !strings.Contains(claimJSON, "raw-secret-token") {
-		t.Fatalf("claim response should issue raw token: %s", claimJSON)
+	if strings.Contains(claimJSON, `"claim_token"`) || strings.Contains(claimJSON, "raw-secret-token") {
+		t.Fatalf("claim response leaked raw token: %s", claimJSON)
 	}
 	found, err := ContainsRawClaimTokenField(claimResponse)
 	if err != nil {
 		t.Fatalf("ContainsRawClaimTokenField(claimResponse) error = %v", err)
 	}
-	if !found {
-		t.Fatal("ContainsRawClaimTokenField(claimResponse) = false, want true")
+	if found {
+		t.Fatal("ContainsRawClaimTokenField(claimResponse) = true, want false")
 	}
 }
 

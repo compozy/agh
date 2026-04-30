@@ -17,6 +17,7 @@ import (
 
 var _ taskpkg.RecordStore = (*GlobalDB)(nil)
 var _ taskpkg.RunStore = (*GlobalDB)(nil)
+var _ taskpkg.AutonomyLeaseStore = (*GlobalDB)(nil)
 var _ taskpkg.DeleteTaskTransactionStore = (*GlobalDB)(nil)
 
 const taskListOrderByActivitySQL = ` ORDER BY COALESCE((

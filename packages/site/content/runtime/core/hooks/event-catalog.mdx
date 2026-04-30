@@ -138,7 +138,7 @@ count limits.
 
 `TaskRunPreClaimPatch` may deny the claim, add required capabilities, or raise `priority_min`. It
 cannot remove task-run requirements or change the selected run after the claim transaction commits.
-The raw `claim_token` never appears in these hook payloads.
+The raw bearer lease token never appears in these hook payloads.
 
 ### Spawn
 

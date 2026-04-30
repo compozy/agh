@@ -3,6 +3,7 @@ package udsapi
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,6 +95,10 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 
 		var response contract.AgentTaskClaimResponse
 		decodeJSONResponse(t, recorder, &response)
+		if strings.Contains(recorder.Body.String(), rawToken) ||
+			strings.Contains(recorder.Body.String(), `"claim_token"`) {
+			t.Fatalf("claim response leaked raw token: %s", recorder.Body.String())
+		}
 
 		if response.Claim.Lease.SessionID != "sess-agent" ||
 			response.Claim.Lease.CoordinationChannelID != historicalChannel ||
@@ -127,7 +132,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 			{
 				name: "Should preserve historical channel bindings in heartbeat responses",
 				path: "/api/agent/tasks/run-1/heartbeat",
-				body: []byte(`{"claim_token":"agh_claim_UDSHB123","lease_seconds":60}`),
+				body: []byte(`{"lease_seconds":60}`),
 				buildManager: func(
 					t *testing.T,
 					capture *agentTaskLeaseBindingCapture,
@@ -135,6 +140,19 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				) stubTaskManager {
 					t.Helper()
 					return stubTaskManager{
+						LookupActiveRunForSessionFn: func(
+							_ context.Context,
+							sessionID string,
+							runID string,
+						) (taskpkg.AutonomyLeaseHandle, error) {
+							return agentTaskLeaseHandleForTest(
+								t,
+								sessionID,
+								runID,
+								"agh_claim_UDSHB123",
+								now.Add(time.Minute),
+							), nil
+						},
 						HeartbeatRunLeaseFn: func(
 							_ context.Context,
 							heartbeat taskpkg.LeaseHeartbeat,
@@ -166,7 +184,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 			{
 				name: "Should preserve historical channel bindings in release responses",
 				path: "/api/agent/tasks/run-1/release",
-				body: []byte(`{"claim_token":"agh_claim_UDSREL123","reason":"handoff"}`),
+				body: []byte(`{"reason":"handoff"}`),
 				buildManager: func(
 					t *testing.T,
 					capture *agentTaskLeaseBindingCapture,
@@ -174,6 +192,19 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				) stubTaskManager {
 					t.Helper()
 					return stubTaskManager{
+						LookupActiveRunForSessionFn: func(
+							_ context.Context,
+							sessionID string,
+							runID string,
+						) (taskpkg.AutonomyLeaseHandle, error) {
+							return agentTaskLeaseHandleForTest(
+								t,
+								sessionID,
+								runID,
+								"agh_claim_UDSREL123",
+								time.Date(2026, 4, 28, 8, 18, 0, 0, time.UTC),
+							), nil
+						},
 						ReleaseRunLeaseFn: func(
 							_ context.Context,
 							release taskpkg.LeaseRelease,
@@ -204,7 +235,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 			{
 				name: "Should preserve historical channel bindings in complete responses",
 				path: "/api/agent/tasks/run-1/complete",
-				body: []byte(`{"claim_token":"agh_claim_UDSCOMP123","result":{"status":"done","mode":"uds-history"}}`),
+				body: []byte(`{"result":{"status":"done","mode":"uds-history"}}`),
 				buildManager: func(
 					t *testing.T,
 					capture *agentTaskLeaseBindingCapture,
@@ -212,6 +243,19 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				) stubTaskManager {
 					t.Helper()
 					return stubTaskManager{
+						LookupActiveRunForSessionFn: func(
+							_ context.Context,
+							sessionID string,
+							runID string,
+						) (taskpkg.AutonomyLeaseHandle, error) {
+							return agentTaskLeaseHandleForTest(
+								t,
+								sessionID,
+								runID,
+								"agh_claim_UDSCOMP123",
+								time.Date(2026, 4, 28, 8, 18, 0, 0, time.UTC),
+							), nil
+						},
 						CompleteRunLeaseFn: func(
 							_ context.Context,
 							completion taskpkg.LeaseCompletion,
@@ -243,7 +287,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 			{
 				name: "Should preserve historical channel bindings in fail responses",
 				path: "/api/agent/tasks/run-1/fail",
-				body: []byte(`{"claim_token":"agh_claim_UDSFAIL123","error":"boom","metadata":{"step":"reclaim"}}`),
+				body: []byte(`{"error":"boom","metadata":{"step":"reclaim"}}`),
 				buildManager: func(
 					t *testing.T,
 					capture *agentTaskLeaseBindingCapture,
@@ -251,6 +295,19 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				) stubTaskManager {
 					t.Helper()
 					return stubTaskManager{
+						LookupActiveRunForSessionFn: func(
+							_ context.Context,
+							sessionID string,
+							runID string,
+						) (taskpkg.AutonomyLeaseHandle, error) {
+							return agentTaskLeaseHandleForTest(
+								t,
+								sessionID,
+								runID,
+								"agh_claim_UDSFAIL123",
+								time.Date(2026, 4, 28, 8, 18, 0, 0, time.UTC),
+							), nil
+						},
 						FailRunLeaseFn: func(
 							_ context.Context,
 							failure taskpkg.LeaseFailure,
@@ -355,4 +412,31 @@ func newHistoricalAgentTaskHandlers(t *testing.T, channelID string, tasks stubTa
 		nil,
 		newTestHomePaths(t),
 	)
+}
+
+func agentTaskLeaseHandleForTest(
+	t *testing.T,
+	sessionID string,
+	runID string,
+	rawToken string,
+	leaseUntil time.Time,
+) taskpkg.AutonomyLeaseHandle {
+	t.Helper()
+	if sessionID != "sess-agent" || runID != "run-1" {
+		t.Fatalf("LookupActiveRunForSession(session=%q, run=%q), want sess-agent/run-1", sessionID, runID)
+	}
+	hash, err := taskpkg.ClaimTokenHash(rawToken)
+	if err != nil {
+		t.Fatalf("ClaimTokenHash() error = %v", err)
+	}
+	return taskpkg.AutonomyLeaseHandle{
+		RunID:          runID,
+		TaskID:         "task-1",
+		WorkspaceID:    "ws-1",
+		SessionID:      sessionID,
+		Status:         taskpkg.TaskRunStatusClaimed,
+		ClaimToken:     rawToken,
+		ClaimTokenHash: hash,
+		LeaseUntil:     leaseUntil,
+	}
 }

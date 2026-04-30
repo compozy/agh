@@ -59,7 +59,7 @@ func (g *GlobalDB) ClaimNextRun(ctx context.Context, criteria taskpkg.ClaimCrite
 			return err
 		}
 		leaseUntil := normalized.Now.Add(normalized.LeaseDuration).UTC()
-		if err := claimRunWithExecutor(ctx, exec, runID, normalized, claimHash, leaseUntil); err != nil {
+		if err := claimRunWithExecutor(ctx, exec, runID, normalized, claimToken, claimHash, leaseUntil); err != nil {
 			return err
 		}
 
@@ -119,10 +119,11 @@ func (g *GlobalDB) HeartbeatRunLease(ctx context.Context, heartbeat taskpkg.Leas
 		result, err := exec.ExecContext(
 			ctx,
 			`UPDATE task_runs
-			 SET lease_until = ?, heartbeat_at = ?, claim_token = NULL
-			 WHERE id = ? AND claim_token_hash = ? AND status IN (?, ?, ?)`,
+				 SET lease_until = ?, heartbeat_at = ?, claim_token = ?
+				 WHERE id = ? AND claim_token_hash = ? AND status IN (?, ?, ?)`,
 			store.FormatTimestamp(leaseUntil),
 			store.FormatTimestamp(normalized.Now),
+			normalized.ClaimToken,
 			normalized.RunID,
 			current.ClaimTokenHash,
 			string(taskpkg.TaskRunStatusClaimed),
@@ -274,6 +275,113 @@ func (g *GlobalDB) FailRunLease(ctx context.Context, failure taskpkg.LeaseFailur
 	return updated, nil
 }
 
+// ListAutonomyLeaseHandles returns internal-only lease handles for one session.
+// Public task-run read projections keep claim_token masked.
+func (g *GlobalDB) ListAutonomyLeaseHandles(
+	ctx context.Context,
+	sessionID string,
+) (handles []taskpkg.AutonomyLeaseHandle, err error) {
+	if err := g.checkReady(ctx, "list autonomy lease handles"); err != nil {
+		return nil, err
+	}
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	if trimmedSessionID == "" {
+		return nil, fmt.Errorf("%w: session_id is required", taskpkg.ErrValidation)
+	}
+
+	rows, err := g.db.QueryContext(
+		ctx,
+		`SELECT tr.id, tr.task_id, COALESCE(t.workspace_id, ''), tr.status,
+		        COALESCE(tr.session_id, ''), tr.claimed_by_kind, tr.claimed_by_ref,
+		        COALESCE(tr.claim_token, ''), COALESCE(tr.claim_token_hash, ''),
+		        tr.lease_until, tr.heartbeat_at
+		   FROM task_runs tr
+		   JOIN tasks t ON t.id = tr.task_id
+		  WHERE tr.session_id = ?
+		    AND COALESCE(tr.claim_token_hash, '') <> ''
+		  ORDER BY COALESCE(tr.lease_until, '') DESC, tr.id ASC`,
+		trimmedSessionID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list autonomy lease handles for session %q: %w", trimmedSessionID, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("store: close autonomy lease handle rows: %w", closeErr)
+		}
+	}()
+
+	handles = make([]taskpkg.AutonomyLeaseHandle, 0)
+	for rows.Next() {
+		handle, scanErr := scanAutonomyLeaseHandle(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		handles = append(handles, handle)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate autonomy lease handles: %w", err)
+	}
+	return handles, nil
+}
+
+func scanAutonomyLeaseHandle(rows *sql.Rows) (taskpkg.AutonomyLeaseHandle, error) {
+	var handle taskpkg.AutonomyLeaseHandle
+	var status string
+	var claimedByKind sql.NullString
+	var claimedByRef sql.NullString
+	var leaseUntilRaw sql.NullString
+	var heartbeatAtRaw sql.NullString
+	if err := rows.Scan(
+		&handle.RunID,
+		&handle.TaskID,
+		&handle.WorkspaceID,
+		&status,
+		&handle.SessionID,
+		&claimedByKind,
+		&claimedByRef,
+		&handle.ClaimToken,
+		&handle.ClaimTokenHash,
+		&leaseUntilRaw,
+		&heartbeatAtRaw,
+	); err != nil {
+		return taskpkg.AutonomyLeaseHandle{}, fmt.Errorf("store: scan autonomy lease handle: %w", err)
+	}
+	handle.Status = taskpkg.RunStatus(strings.TrimSpace(status)).Normalize()
+	if claimedByKind.Valid || claimedByRef.Valid {
+		handle.ClaimedBy = &taskpkg.ActorIdentity{
+			Kind: taskpkg.ActorKind(strings.TrimSpace(claimedByKind.String)),
+			Ref:  strings.TrimSpace(claimedByRef.String),
+		}
+	}
+	if err := setAutonomyLeaseHandleTimestamps(&handle, leaseUntilRaw, heartbeatAtRaw); err != nil {
+		return taskpkg.AutonomyLeaseHandle{}, err
+	}
+	return handle, nil
+}
+
+func setAutonomyLeaseHandleTimestamps(
+	handle *taskpkg.AutonomyLeaseHandle,
+	leaseUntilRaw sql.NullString,
+	heartbeatAtRaw sql.NullString,
+) error {
+	if leaseUntilRaw.Valid && strings.TrimSpace(leaseUntilRaw.String) != "" {
+		leaseUntil, err := store.ParseTimestamp(leaseUntilRaw.String)
+		if err != nil {
+			return fmt.Errorf("store: parse autonomy lease_until for run %q: %w", handle.RunID, err)
+		}
+		handle.LeaseUntil = leaseUntil
+	}
+	if heartbeatAtRaw.Valid && strings.TrimSpace(heartbeatAtRaw.String) != "" {
+		heartbeatAt, err := store.ParseTimestamp(heartbeatAtRaw.String)
+		if err != nil {
+			return fmt.Errorf("store: parse autonomy heartbeat_at for run %q: %w", handle.RunID, err)
+		}
+		handle.HeartbeatAt = heartbeatAt
+	}
+	return nil
+}
+
 // RecoverExpiredRunLeases requeues stale active leases without issuing new ownership.
 func (g *GlobalDB) RecoverExpiredRunLeases(
 	ctx context.Context,
@@ -423,20 +531,22 @@ func claimRunWithExecutor(
 	exec taskSQLExecutor,
 	runID string,
 	criteria taskpkg.ClaimCriteria,
+	claimToken string,
 	claimHash string,
 	leaseUntil time.Time,
 ) error {
 	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE task_runs
-		 SET status = ?, claimed_by_kind = ?, claimed_by_ref = ?, session_id = ?,
-		     claim_token = NULL, claim_token_hash = ?, lease_until = ?, heartbeat_at = ?,
-		     claimed_at = ?, started_at = NULL, ended_at = NULL, error = NULL, result_json = NULL
-		 WHERE id = ? AND status = ?`,
+			 SET status = ?, claimed_by_kind = ?, claimed_by_ref = ?, session_id = ?,
+			     claim_token = ?, claim_token_hash = ?, lease_until = ?, heartbeat_at = ?,
+			     claimed_at = ?, started_at = NULL, ended_at = NULL, error = NULL, result_json = NULL
+			 WHERE id = ? AND status = ?`,
 		string(taskpkg.TaskRunStatusClaimed),
 		taskActorKindValue(criteria.ClaimedBy),
 		taskActorRefValue(criteria.ClaimedBy),
 		criteria.ClaimerSessionID,
+		claimToken,
 		claimHash,
 		store.FormatTimestamp(leaseUntil),
 		store.FormatTimestamp(criteria.Now),

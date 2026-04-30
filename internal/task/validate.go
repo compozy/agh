@@ -470,13 +470,13 @@ func (r Run) Validate() error {
 		return err
 	}
 	if hasRawClaimTokenField(r.Metadata) {
-		return fmt.Errorf("%w: task_run.metadata must not contain raw claim_token", ErrValidation)
+		return fmt.Errorf("%w: task_run.metadata must not contain raw lease credentials", ErrValidation)
 	}
 	if err := ValidateResultSize(r.Result, "task_run.result"); err != nil {
 		return err
 	}
 	if hasRawClaimTokenField(r.Result) {
-		return fmt.Errorf("%w: task_run.result must not contain raw claim_token", ErrValidation)
+		return fmt.Errorf("%w: task_run.result must not contain raw lease credentials", ErrValidation)
 	}
 	return nil
 }
@@ -774,7 +774,7 @@ func (r RunResult) Validate(path string) error {
 		return err
 	}
 	if hasRawClaimTokenField(r.Value) {
-		return fmt.Errorf("%w: %s must not contain raw claim_token", ErrValidation, nestedPath(path, "value"))
+		return fmt.Errorf("%w: %s must not contain raw lease credentials", ErrValidation, nestedPath(path, "value"))
 	}
 	return nil
 }
@@ -788,7 +788,7 @@ func (r RunFailure) Validate(path string) error {
 		return err
 	}
 	if hasRawClaimTokenField(r.Metadata) {
-		return fmt.Errorf("%w: %s must not contain raw claim_token", ErrValidation, nestedPath(path, "metadata"))
+		return fmt.Errorf("%w: %s must not contain raw lease credentials", ErrValidation, nestedPath(path, "metadata"))
 	}
 	return nil
 }

@@ -872,6 +872,152 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should route autonomy tools through session-bound lease lookup", func(t *testing.T) {
+		t.Parallel()
+
+		rawToken := "agh_claim_NATIVEAUTONOMY123"
+		hash, err := taskpkg.ClaimTokenHash(rawToken)
+		if err != nil {
+			t.Fatalf("ClaimTokenHash() error = %v", err)
+		}
+		tasks := &nativeTaskManager{
+			claimResult: &taskpkg.ClaimResult{
+				Task: taskpkg.Task{
+					ID:          "task-1",
+					Title:       "Autonomy task",
+					Status:      taskpkg.TaskStatusInProgress,
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				},
+				Run: taskpkg.Run{
+					ID:                    "run-1",
+					TaskID:                "task-1",
+					Status:                taskpkg.TaskRunStatusClaimed,
+					SessionID:             "sess-agent",
+					ClaimTokenHash:        hash,
+					CoordinationChannelID: "builders",
+					LeaseUntil:            time.Now().UTC().Add(time.Minute),
+				},
+				ClaimToken: rawToken,
+			},
+			lookupHandle: taskpkg.AutonomyLeaseHandle{
+				RunID:          "run-1",
+				TaskID:         "task-1",
+				WorkspaceID:    "ws-1",
+				SessionID:      "sess-agent",
+				Status:         taskpkg.TaskRunStatusClaimed,
+				ClaimToken:     rawToken,
+				ClaimTokenHash: hash,
+				LeaseUntil:     time.Now().UTC().Add(time.Minute),
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-1", AgentName: "coder"}
+
+		claimResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunClaimNext,
+				Input:  json.RawMessage(`{"lease_seconds":60}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_run_claim_next) error = %v", err)
+		}
+		requireNativeStructuredContains(t, claimResult, []byte(`"claimed":true`))
+		requireNativeStructuredContains(t, claimResult, []byte(`"claim_token_hash"`))
+		requireNativeStructuredExcludes(t, claimResult, []byte(rawToken))
+		requireNativeStructuredExcludes(t, claimResult, []byte(`"claim_token"`))
+		if tasks.claimNextCalls != 1 ||
+			tasks.lastClaimCriteria.ClaimerSessionID != "sess-agent" ||
+			tasks.lastClaimCriteria.WorkspaceID != "ws-1" ||
+			tasks.lastClaimActor.Actor.Ref != "sess-agent" {
+			t.Fatalf(
+				"claim next calls/criteria/actor = %d/%#v/%#v, want caller session/workspace",
+				tasks.claimNextCalls,
+				tasks.lastClaimCriteria,
+				tasks.lastClaimActor,
+			)
+		}
+
+		heartbeatResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunHeartbeat,
+				Input:  json.RawMessage(`{"run_id":"run-1","lease_seconds":30}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_run_heartbeat) error = %v", err)
+		}
+		requireNativeStructuredExcludes(t, heartbeatResult, []byte(rawToken))
+		requireNativeStructuredExcludes(t, heartbeatResult, []byte(`"claim_token"`))
+		if tasks.lookupCalls != 1 ||
+			tasks.lastLookupSessionID != "sess-agent" ||
+			tasks.lastLookupRunID != "run-1" ||
+			tasks.heartbeatCalls != 1 ||
+			tasks.lastHeartbeat.ClaimToken != rawToken ||
+			tasks.lastHeartbeat.LeaseDuration != 30*time.Second {
+			t.Fatalf(
+				"heartbeat lookup/call = %d/%q/%q/%d/%#v, want session lookup and internal token writer",
+				tasks.lookupCalls,
+				tasks.lastLookupSessionID,
+				tasks.lastLookupRunID,
+				tasks.heartbeatCalls,
+				tasks.lastHeartbeat,
+			)
+		}
+
+		for _, tt := range []struct {
+			name   string
+			toolID toolspkg.ToolID
+			input  json.RawMessage
+		}{
+			{
+				name:   "Should complete with internal lease token",
+				toolID: toolspkg.ToolIDTaskRunComplete,
+				input:  json.RawMessage(`{"run_id":"run-1","result":{"ok":true}}`),
+			},
+			{
+				name:   "Should fail with internal lease token",
+				toolID: toolspkg.ToolIDTaskRunFail,
+				input:  json.RawMessage(`{"run_id":"run-1","error":"boom","metadata":{"code":"E_TASK"}}`),
+			},
+			{
+				name:   "Should release with internal lease token",
+				toolID: toolspkg.ToolIDTaskRunRelease,
+				input:  json.RawMessage(`{"run_id":"run-1","reason":"handoff"}`),
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				result, err := registry.Call(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{ToolID: tt.toolID, Input: tt.input},
+				)
+				if err != nil {
+					t.Fatalf("Registry.Call(%s) error = %v", tt.toolID, err)
+				}
+				requireNativeStructuredExcludes(t, result, []byte(rawToken))
+				requireNativeStructuredExcludes(t, result, []byte(`"claim_token"`))
+			})
+		}
+		if tasks.lastCompletion.ClaimToken != rawToken ||
+			tasks.lastFailure.ClaimToken != rawToken ||
+			tasks.lastRelease.ClaimToken != rawToken {
+			t.Fatalf(
+				"terminal/release tokens = %q/%q/%q, want internal token",
+				tasks.lastCompletion.ClaimToken,
+				tasks.lastFailure.ClaimToken,
+				tasks.lastRelease.ClaimToken,
+			)
+		}
+	})
+
 	t.Run("Should route child creation through task child-lineage service boundary", func(t *testing.T) {
 		t.Parallel()
 
@@ -2062,30 +2208,47 @@ var errUnexpectedNativeTaskCall = errors.New("unexpected native task manager cal
 
 type nativeTaskManager struct {
 	unsupportedNativeTaskManager
-	createCalls       int
-	lastCreateSpec    taskpkg.CreateTask
-	childCreateCalls  int
-	childParentID     string
-	childSpec         taskpkg.CreateTask
-	childErr          error
-	listCalls         int
-	lastQuery         taskpkg.Query
-	listSummaries     []taskpkg.Summary
-	getCalls          int
-	lastGetID         string
-	getView           *taskpkg.View
-	updateCalls       int
-	lastUpdateID      string
-	lastPatch         taskpkg.Patch
-	updateTask        *taskpkg.Task
-	cancelCalls       int
-	lastCancelID      string
-	lastCancel        taskpkg.CancelTask
-	cancelTask        *taskpkg.Task
-	runListCalls      int
-	lastRunListTaskID string
-	lastRunQuery      taskpkg.RunQuery
-	runs              []taskpkg.Run
+	createCalls         int
+	lastCreateSpec      taskpkg.CreateTask
+	childCreateCalls    int
+	childParentID       string
+	childSpec           taskpkg.CreateTask
+	childErr            error
+	listCalls           int
+	lastQuery           taskpkg.Query
+	listSummaries       []taskpkg.Summary
+	getCalls            int
+	lastGetID           string
+	getView             *taskpkg.View
+	updateCalls         int
+	lastUpdateID        string
+	lastPatch           taskpkg.Patch
+	updateTask          *taskpkg.Task
+	cancelCalls         int
+	lastCancelID        string
+	lastCancel          taskpkg.CancelTask
+	cancelTask          *taskpkg.Task
+	runListCalls        int
+	lastRunListTaskID   string
+	lastRunQuery        taskpkg.RunQuery
+	runs                []taskpkg.Run
+	claimNextCalls      int
+	lastClaimCriteria   taskpkg.ClaimCriteria
+	lastClaimActor      taskpkg.ActorContext
+	claimResult         *taskpkg.ClaimResult
+	lookupCalls         int
+	lastLookupSessionID string
+	lastLookupRunID     string
+	lookupHandle        taskpkg.AutonomyLeaseHandle
+	lookupErr           error
+	heartbeatCalls      int
+	lastHeartbeat       taskpkg.LeaseHeartbeat
+	completeCalls       int
+	lastCompletion      taskpkg.LeaseCompletion
+	failCalls           int
+	lastFailure         taskpkg.LeaseFailure
+	releaseCalls        int
+	lastRelease         taskpkg.LeaseRelease
 }
 
 func (m *nativeTaskManager) CreateTask(
@@ -2172,6 +2335,80 @@ func (m *nativeTaskManager) ListTasks(
 	return append([]taskpkg.Summary(nil), m.listSummaries...), nil
 }
 
+func (m *nativeTaskManager) ClaimNextRun(
+	_ context.Context,
+	criteria taskpkg.ClaimCriteria,
+	actor taskpkg.ActorContext,
+) (*taskpkg.ClaimResult, error) {
+	m.claimNextCalls++
+	m.lastClaimCriteria = criteria
+	m.lastClaimActor = actor
+	if m.claimResult != nil {
+		result := *m.claimResult
+		return &result, nil
+	}
+	return nil, taskpkg.ErrNoClaimableRun
+}
+
+func (m *nativeTaskManager) LookupActiveRunForSession(
+	_ context.Context,
+	sessionID string,
+	runID string,
+) (taskpkg.AutonomyLeaseHandle, error) {
+	m.lookupCalls++
+	m.lastLookupSessionID = sessionID
+	m.lastLookupRunID = runID
+	if m.lookupErr != nil {
+		return taskpkg.AutonomyLeaseHandle{}, m.lookupErr
+	}
+	return m.lookupHandle, nil
+}
+
+func (m *nativeTaskManager) HeartbeatRunLease(
+	_ context.Context,
+	heartbeat taskpkg.LeaseHeartbeat,
+	_ taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	m.heartbeatCalls++
+	m.lastHeartbeat = heartbeat
+	run := nativeLeaseRun(heartbeat.RunID, taskpkg.TaskRunStatusClaimed, m.lookupHandle)
+	run.LeaseUntil = time.Now().UTC().Add(heartbeat.LeaseDuration)
+	return &run, nil
+}
+
+func (m *nativeTaskManager) CompleteRunLease(
+	_ context.Context,
+	completion taskpkg.LeaseCompletion,
+	_ taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	m.completeCalls++
+	m.lastCompletion = completion
+	run := nativeLeaseRun(completion.RunID, taskpkg.TaskRunStatusCompleted, m.lookupHandle)
+	return &run, nil
+}
+
+func (m *nativeTaskManager) FailRunLease(
+	_ context.Context,
+	failure taskpkg.LeaseFailure,
+	_ taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	m.failCalls++
+	m.lastFailure = failure
+	run := nativeLeaseRun(failure.RunID, taskpkg.TaskRunStatusFailed, m.lookupHandle)
+	return &run, nil
+}
+
+func (m *nativeTaskManager) ReleaseRunLease(
+	_ context.Context,
+	release taskpkg.LeaseRelease,
+	_ taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	m.releaseCalls++
+	m.lastRelease = release
+	run := nativeLeaseRun(release.RunID, taskpkg.TaskRunStatusQueued, m.lookupHandle)
+	return &run, nil
+}
+
 func (m *nativeTaskManager) totalCalls() int {
 	return m.createCalls +
 		m.childCreateCalls +
@@ -2179,7 +2416,29 @@ func (m *nativeTaskManager) totalCalls() int {
 		m.getCalls +
 		m.updateCalls +
 		m.cancelCalls +
-		m.runListCalls
+		m.runListCalls +
+		m.claimNextCalls +
+		m.lookupCalls +
+		m.heartbeatCalls +
+		m.completeCalls +
+		m.failCalls +
+		m.releaseCalls
+}
+
+func nativeLeaseRun(
+	runID string,
+	status taskpkg.RunStatus,
+	handle taskpkg.AutonomyLeaseHandle,
+) taskpkg.Run {
+	return taskpkg.Run{
+		ID:                    runID,
+		TaskID:                firstNonEmpty(handle.TaskID, "task-1"),
+		Status:                status,
+		SessionID:             handle.SessionID,
+		ClaimTokenHash:        handle.ClaimTokenHash,
+		CoordinationChannelID: "builders",
+		LeaseUntil:            handle.LeaseUntil,
+	}
 }
 
 func stringValue(value *string) string {

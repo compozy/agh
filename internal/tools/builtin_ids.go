@@ -76,6 +76,16 @@ const (
 	ToolIDTaskCancel ToolID = "agh__task_cancel"
 	// ToolIDTaskRunList lists task runs through the task service.
 	ToolIDTaskRunList ToolID = "agh__task_run_list"
+	// ToolIDTaskRunClaimNext claims the next run for the caller session.
+	ToolIDTaskRunClaimNext ToolID = "agh__task_run_claim_next"
+	// ToolIDTaskRunHeartbeat extends the caller session's active run lease.
+	ToolIDTaskRunHeartbeat ToolID = "agh__task_run_heartbeat"
+	// ToolIDTaskRunComplete completes the caller session's active run lease.
+	ToolIDTaskRunComplete ToolID = "agh__task_run_complete"
+	// ToolIDTaskRunFail fails the caller session's active run lease.
+	ToolIDTaskRunFail ToolID = "agh__task_run_fail"
+	// ToolIDTaskRunRelease releases the caller session's active run lease.
+	ToolIDTaskRunRelease ToolID = "agh__task_run_release"
 	// ToolIDConfigShow shows the redacted effective config.
 	ToolIDConfigShow ToolID = "agh__config_show"
 	// ToolIDConfigList lists redacted effective config entries.
@@ -173,6 +183,8 @@ const (
 	ToolsetIDCoordination ToolsetID = "agh__coordination"
 	// ToolsetIDTasks groups bounded task tools.
 	ToolsetIDTasks ToolsetID = "agh__tasks"
+	// ToolsetIDAutonomy groups session-bound task-run autonomy tools.
+	ToolsetIDAutonomy ToolsetID = "agh__autonomy"
 	// ToolsetIDSessions groups read-only runtime session tools.
 	ToolsetIDSessions ToolsetID = "agh__sessions"
 	// ToolsetIDWorkspace groups read-only workspace tools.

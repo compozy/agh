@@ -45,8 +45,8 @@ const (
 )
 
 var (
-	// ErrRawClaimTokenMetadata reports an unsafe raw claim token in channel metadata.
-	ErrRawClaimTokenMetadata = errors.New("contract: coordination metadata must not contain raw claim_token")
+	// ErrRawClaimTokenMetadata reports an unsafe raw lease credential in channel metadata.
+	ErrRawClaimTokenMetadata = errors.New("contract: coordination metadata must not contain raw lease credentials")
 	// ErrInvalidCoordinationMessageMetadata reports missing or invalid typed correlation metadata.
 	ErrInvalidCoordinationMessageMetadata = errors.New("contract: invalid coordination message metadata")
 )
@@ -264,38 +264,33 @@ type AgentTaskClaimNextRequest struct {
 	IdempotencyKey       string   `json:"idempotency_key,omitempty"`
 }
 
-// AgentTaskClaimPayload is the synchronous claim response that issues the raw claim token.
+// AgentTaskClaimPayload is the synchronous claim response for the session-bound lease.
 type AgentTaskClaimPayload struct {
 	Task                TaskReferencePayload        `json:"task"`
 	Run                 TaskRunPayload              `json:"run"`
 	Lease               TaskRunLeaseSummaryPayload  `json:"lease"`
-	ClaimToken          string                      `json:"claim_token"`
 	CoordinationChannel *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
 }
 
-// AgentTaskHeartbeatRequest extends a task-run lease using the raw claim token.
+// AgentTaskHeartbeatRequest extends the caller session's task-run lease.
 type AgentTaskHeartbeatRequest struct {
-	ClaimToken   string `json:"claim_token"`
-	LeaseSeconds int64  `json:"lease_seconds,omitempty"`
+	LeaseSeconds int64 `json:"lease_seconds,omitempty"`
 }
 
-// AgentTaskCompleteRequest completes a claimed task run using the raw claim token.
+// AgentTaskCompleteRequest completes the caller session's claimed task run.
 type AgentTaskCompleteRequest struct {
-	ClaimToken string          `json:"claim_token"`
-	Result     json.RawMessage `json:"result,omitempty"`
+	Result json.RawMessage `json:"result,omitempty"`
 }
 
-// AgentTaskFailRequest fails a claimed task run using the raw claim token.
+// AgentTaskFailRequest fails the caller session's claimed task run.
 type AgentTaskFailRequest struct {
-	ClaimToken string          `json:"claim_token"`
-	Error      string          `json:"error"`
-	Metadata   json.RawMessage `json:"metadata,omitempty"`
+	Error    string          `json:"error"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 
-// AgentTaskReleaseRequest releases a claimed task run using the raw claim token.
+// AgentTaskReleaseRequest releases the caller session's claimed task run.
 type AgentTaskReleaseRequest struct {
-	ClaimToken string `json:"claim_token"`
-	Reason     string `json:"reason,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // CoordinationMessageMetadataPayload carries typed task/run correlation for channel messages.

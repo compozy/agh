@@ -589,7 +589,10 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				claimResponse := jsonResponseSchema(t, claimOperation, 200)
 				claimPayload := propertySchema(t, claimResponse, "claim")
-				assertRequired(t, claimPayload, "task", "run", "lease", "claim_token")
+				assertRequired(t, claimPayload, "task", "run", "lease")
+				if _, exists := claimPayload.Properties["claim_token"]; exists {
+					t.Fatalf("agent claim payload schema exposes raw claim_token")
+				}
 				leaseSchema := propertySchema(t, claimPayload, "lease")
 				assertRequired(t, leaseSchema, "task_id", "run_id", "status")
 				assertNotRequired(t, leaseSchema, "claim_token_hash", "coordination_channel")
@@ -597,8 +600,10 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				heartbeatOperation := operationFor(t, doc, "/api/agent/tasks/{run_id}/heartbeat", "POST")
 				assertParameter(t, heartbeatOperation, "run_id", openapi3.ParameterInPath, true)
 				heartbeatSchema := jsonRequestSchema(t, heartbeatOperation)
-				assertRequired(t, heartbeatSchema, "claim_token")
 				assertNotRequired(t, heartbeatSchema, "lease_seconds")
+				if _, exists := heartbeatSchema.Properties["claim_token"]; exists {
+					t.Fatalf("agent heartbeat schema exposes raw claim_token")
+				}
 
 				sendOperation := operationFor(t, doc, "/api/agent/channels/{channel}/send", "POST")
 				assertParameter(t, sendOperation, "channel", openapi3.ParameterInPath, true)

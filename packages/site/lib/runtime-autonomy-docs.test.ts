@@ -54,12 +54,12 @@ describe("runtime autonomy docs", () => {
     const channels = readRuntimeDoc("core/autonomy/coordination-channels.mdx");
 
     expectIncludesAll(leases, [
-      "raw `claim_token`",
-      "shown only in that synchronous claim response",
       "`claim_token_hash`",
+      "The raw bearer lease token is internal to AGH",
+      "the calling session plus `run_id`",
       "One active lease per session",
       "Stale holders fail",
-      "Never send raw claim tokens through `agh ch send`",
+      "Never send raw lease credentials through `agh ch send`",
     ]);
     expectIncludesAll(channels, [
       "boundary",
@@ -68,7 +68,7 @@ describe("runtime autonomy docs", () => {
       "Channel messages never own task status",
       "`coordination_channel_id`",
       "`correlation_id`",
-      "Raw `claim_token` fields are rejected",
+      "Raw lease credential fields are rejected",
     ]);
   });
 
@@ -124,10 +124,13 @@ describe("generated autonomy CLI references", () => {
     const spawn = readRuntimeDoc("cli-reference/spawn.mdx");
 
     expectIncludesAll(taskNext, ["--wait", "--lease-seconds", "--capability", "--priority-min"]);
-    expectIncludesAll(heartbeat, ["--claim-token", "--lease-seconds"]);
-    expectIncludesAll(complete, ["--claim-token", "--result"]);
-    expectIncludesAll(fail, ["--claim-token", "--error", "--metadata"]);
-    expectIncludesAll(release, ["--claim-token", "--reason"]);
+    expectIncludesAll(heartbeat, ["--lease-seconds"]);
+    expectIncludesAll(complete, ["--result"]);
+    expectIncludesAll(fail, ["--error", "--metadata"]);
+    expectIncludesAll(release, ["--reason"]);
+    for (const content of [heartbeat, complete, fail, release]) {
+      expect(content).not.toContain("--claim-token");
+    }
     expectIncludesAll(send, [
       "--body",
       "--task-id",

@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -338,6 +339,147 @@ func (m *Service) activeSessionRunLeases(ctx context.Context, sessionID string) 
 		}
 	}
 	return runs, nil
+}
+
+// LookupActiveRunForSession resolves the internal claim token for a session-owned
+// run while preserving the existing token-fenced lease writers as the sole
+// mutation authority.
+func (m *Service) LookupActiveRunForSession(
+	ctx context.Context,
+	sessionID string,
+	runID string,
+) (AutonomyLeaseHandle, error) {
+	normalizedSessionID, normalizedRunID, err := normalizeAutonomyLookupInput(sessionID, runID)
+	if err != nil {
+		return AutonomyLeaseHandle{}, err
+	}
+	store, ok := m.store.(AutonomyLeaseStore)
+	if !ok {
+		return AutonomyLeaseHandle{}, errors.New("task: autonomy lease lookup store is unavailable")
+	}
+	handles, err := store.ListAutonomyLeaseHandles(ctx, normalizedSessionID)
+	if err != nil {
+		return AutonomyLeaseHandle{}, err
+	}
+	return resolveAutonomyLeaseHandle(normalizedSessionID, normalizedRunID, handles, m.now().UTC())
+}
+
+func normalizeAutonomyLookupInput(sessionID string, runID string) (string, string, error) {
+	normalizedSessionID := strings.TrimSpace(sessionID)
+	if normalizedSessionID == "" {
+		return "", "", autonomyError(
+			AutonomySessionRequired,
+			ErrPermissionDenied,
+			"agent session identity is required",
+		)
+	}
+	normalizedRunID := strings.TrimSpace(runID)
+	if normalizedRunID == "" {
+		return "", "", fmt.Errorf("%w: run_id is required", ErrValidation)
+	}
+	return normalizedSessionID, normalizedRunID, nil
+}
+
+func resolveAutonomyLeaseHandle(
+	sessionID string,
+	runID string,
+	handles []AutonomyLeaseHandle,
+	now time.Time,
+) (AutonomyLeaseHandle, error) {
+	target, hasTarget, activeHandles := autonomyLeaseCandidates(handles, sessionID, runID, now)
+	if len(activeHandles) > 1 {
+		return AutonomyLeaseHandle{}, autonomyError(
+			AutonomyLeaseAlreadyHeld,
+			ErrActiveRunLease,
+			"session %q owns multiple active task-run leases",
+			sessionID,
+		)
+	}
+	if !hasTarget {
+		return missingAutonomyLeaseError(sessionID, runID, activeHandles)
+	}
+	if !isActiveAutonomyLeaseHandle(target, sessionID, now) {
+		return AutonomyLeaseHandle{}, autonomyError(
+			AutonomyLeaseExpired,
+			ErrLeaseExpired,
+			"run %q is not an active lease for session %q",
+			runID,
+			sessionID,
+		)
+	}
+	if len(activeHandles) == 1 && activeHandles[0].RunID != runID {
+		return AutonomyLeaseHandle{}, autonomyError(
+			AutonomyForeignRun,
+			ErrPermissionDenied,
+			"run %q is not owned by session %q",
+			runID,
+			sessionID,
+		)
+	}
+	return target, nil
+}
+
+func autonomyLeaseCandidates(
+	handles []AutonomyLeaseHandle,
+	sessionID string,
+	runID string,
+	now time.Time,
+) (AutonomyLeaseHandle, bool, []AutonomyLeaseHandle) {
+	var target AutonomyLeaseHandle
+	hasTarget := false
+	activeHandles := make([]AutonomyLeaseHandle, 0, len(handles))
+	for idx := range handles {
+		handle := normalizeAutonomyLeaseHandle(handles[idx])
+		if handle.RunID == runID {
+			target = handle
+			hasTarget = true
+		}
+		if isActiveAutonomyLeaseHandle(handle, sessionID, now) {
+			activeHandles = append(activeHandles, handle)
+		}
+	}
+	return target, hasTarget, activeHandles
+}
+
+func normalizeAutonomyLeaseHandle(handle AutonomyLeaseHandle) AutonomyLeaseHandle {
+	handle.SessionID = strings.TrimSpace(handle.SessionID)
+	handle.RunID = strings.TrimSpace(handle.RunID)
+	handle.TaskID = strings.TrimSpace(handle.TaskID)
+	handle.WorkspaceID = strings.TrimSpace(handle.WorkspaceID)
+	handle.ClaimToken = strings.TrimSpace(handle.ClaimToken)
+	handle.ClaimTokenHash = strings.TrimSpace(handle.ClaimTokenHash)
+	return handle
+}
+
+func isActiveAutonomyLeaseHandle(handle AutonomyLeaseHandle, sessionID string, now time.Time) bool {
+	return handle.SessionID == sessionID &&
+		isAutonomyLeaseStatusActive(handle.Status) &&
+		!handle.LeaseUntil.IsZero() &&
+		handle.LeaseUntil.After(now) &&
+		handle.ClaimToken != "" &&
+		handle.ClaimTokenHash != ""
+}
+
+func missingAutonomyLeaseError(
+	sessionID string,
+	runID string,
+	activeHandles []AutonomyLeaseHandle,
+) (AutonomyLeaseHandle, error) {
+	if len(activeHandles) == 1 {
+		return AutonomyLeaseHandle{}, autonomyError(
+			AutonomyForeignRun,
+			ErrPermissionDenied,
+			"run %q is not owned by session %q",
+			runID,
+			sessionID,
+		)
+	}
+	return AutonomyLeaseHandle{}, autonomyError(
+		AutonomyNoActiveLease,
+		ErrInvalidClaimToken,
+		"session %q has no active task-run lease",
+		sessionID,
+	)
 }
 
 func requeueSessionRunLease(run Run) Run {

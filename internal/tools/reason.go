@@ -120,6 +120,16 @@ const (
 	ReasonAutomationSecretInputForbidden ReasonCode = "automation_secret_input_forbidden" // #nosec G101 -- reason code.
 	// ReasonAutomationValidationFailed reports automation manager or model validation rejection.
 	ReasonAutomationValidationFailed ReasonCode = "automation_validation_failed"
+	// ReasonAutonomySessionRequired reports a session-bound autonomy call without a caller session.
+	ReasonAutonomySessionRequired ReasonCode = "autonomy_session_required"
+	// ReasonAutonomyNoActiveLease reports no active run lease for the caller session.
+	ReasonAutonomyNoActiveLease ReasonCode = "autonomy_no_active_lease"
+	// ReasonAutonomyForeignRun reports a run id outside the caller session's active lease.
+	ReasonAutonomyForeignRun ReasonCode = "autonomy_foreign_run"
+	// ReasonAutonomyLeaseExpired reports an expired or non-active caller lease.
+	ReasonAutonomyLeaseExpired ReasonCode = "autonomy_lease_expired"
+	// ReasonAutonomyLeaseAlreadyHeld reports multiple active leases for one session.
+	ReasonAutonomyLeaseAlreadyHeld ReasonCode = "autonomy_lease_already_held"
 )
 
 var validReasonCodes = map[ReasonCode]struct{}{
@@ -181,6 +191,11 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonAutomationScopeForbidden:       {},
 	ReasonAutomationSecretInputForbidden: {},
 	ReasonAutomationValidationFailed:     {},
+	ReasonAutonomySessionRequired:        {},
+	ReasonAutonomyNoActiveLease:          {},
+	ReasonAutonomyForeignRun:             {},
+	ReasonAutonomyLeaseExpired:           {},
+	ReasonAutonomyLeaseAlreadyHeld:       {},
 }
 
 // Validate ensures the reason code is documented.

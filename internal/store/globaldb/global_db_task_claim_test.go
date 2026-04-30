@@ -269,8 +269,8 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 		Scan(&storedRaw); err != nil {
 		t.Fatalf("query claim_token error = %v", err)
 	}
-	if storedRaw.Valid {
-		t.Fatalf("stored raw claim_token = %q, want NULL", storedRaw.String)
+	if !storedRaw.Valid || storedRaw.String != claim.ClaimToken {
+		t.Fatalf("stored raw claim_token = %#v, want internal active lease token", storedRaw)
 	}
 
 	secondRun := taskRunForTest("run-lease-lifecycle-second", taskRecord.ID)
@@ -315,6 +315,13 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 	if got, want := heartbeat.LeaseUntil, now.Add(150*time.Second); !got.Equal(want) {
 		t.Fatalf("heartbeat.LeaseUntil = %v, want %v", got, want)
 	}
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
+		Scan(&storedRaw); err != nil {
+		t.Fatalf("query heartbeat claim_token error = %v", err)
+	}
+	if !storedRaw.Valid || storedRaw.String != claim.ClaimToken {
+		t.Fatalf("heartbeat stored raw claim_token = %#v, want retained internal active lease token", storedRaw)
+	}
 
 	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 		RunID:      claim.Run.ID,
@@ -344,6 +351,13 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 	}
 	if completed.ClaimTokenHash == "" {
 		t.Fatal("completed.ClaimTokenHash = empty, want retained hash")
+	}
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
+		Scan(&storedRaw); err != nil {
+		t.Fatalf("query completed claim_token error = %v", err)
+	}
+	if storedRaw.Valid {
+		t.Fatalf("completed stored raw claim_token = %q, want NULL", storedRaw.String)
 	}
 
 	releaseClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{

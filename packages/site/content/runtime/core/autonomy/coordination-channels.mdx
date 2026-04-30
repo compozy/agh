@@ -54,7 +54,7 @@ Task-bound channel messages carry typed metadata:
 | `message_kind`            | yes      | One of the MVP message kinds.                                                                         |
 | `correlation_id`          | yes      | Message-level correlation, commonly the run ID or a request ID.                                       |
 
-Raw `claim_token` fields are rejected in coordination metadata and must not appear in channel
+Raw lease credential fields are rejected in coordination metadata and must not appear in channel
 message bodies, extension metadata, logs, read models, or memory summaries.
 
 ## Sending messages

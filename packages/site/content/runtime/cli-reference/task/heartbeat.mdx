@@ -14,19 +14,18 @@ agh task heartbeat <run-id> [flags]
 ### Examples
 
 ```
-  # Extend the lease with the raw token returned by agh task next
-  agh task heartbeat run-123 --claim-token "$CLAIM_TOKEN"
+  # Extend the active session-bound lease
+  agh task heartbeat run-123
 
-  # Request a specific lease duration
-  agh task heartbeat run-123 --claim-token "$CLAIM_TOKEN" --lease-seconds 300
+	  # Request a specific lease duration
+  agh task heartbeat run-123 --lease-seconds 300
 ```
 
 ### Options
 
 ```
-      --claim-token string   Raw claim token returned by agh task next
-  -h, --help                 help for heartbeat
-      --lease-seconds int    Lease duration in seconds
+  -h, --help                help for heartbeat
+      --lease-seconds int   Lease duration in seconds
 ```
 
 ### Options inherited from parent commands

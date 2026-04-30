@@ -130,7 +130,6 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 	}
 
 	var claim AgentTaskNextRecord
-	var claimToken string
 
 	// Intentionally serial: each subtest advances the same historical run lifecycle.
 	t.Run("Should keep the channel historical before restart", func(t *testing.T) {
@@ -183,13 +182,12 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if got, want := firstCLIValue(claim.Claim.CoordinationChannel.Channel, claim.Claim.CoordinationChannel.ID), channel; got != want {
 			t.Fatalf("coordination channel = %q, want %q", got, want)
 		}
-		if claim.Claim.ClaimToken == "" {
-			t.Fatal("claim.Claim.ClaimToken = empty, want raw token")
+		if claim.Claim.Lease.ClaimTokenHash == "" {
+			t.Fatal("claim.Claim.Lease.ClaimTokenHash = empty, want observability hash")
 		}
-		if strings.Count(nextOut, claim.Claim.ClaimToken) != 1 {
-			t.Fatalf("task next output leaked token outside claim_token once: %s", nextOut)
+		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
+			t.Fatalf("task next output exposed raw claim token: %s", nextOut)
 		}
-		claimToken = claim.Claim.ClaimToken
 	})
 
 	t.Run("Should reject human terminal completion and failure without claim token", func(t *testing.T) {
@@ -218,7 +216,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 				if !strings.Contains(stderr, "invalid claim token") || !strings.Contains(stderr, tt.wantMessage) {
 					t.Fatalf("stderr = %q, want invalid token + %q", stderr, tt.wantMessage)
 				}
-				if strings.Contains(stderr, claimToken) {
+				if strings.Contains(stderr, "agh_claim_") {
 					t.Fatalf("stderr leaked raw claim token: %s", stderr)
 				}
 			})
@@ -263,8 +261,6 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 			"task",
 			"complete",
 			enqueued.ID,
-			"--claim-token",
-			claimToken,
 			"--result",
 			`{"ok":true,"path":"stale-agent-after-cancel"}`,
 			"-o",
@@ -273,10 +269,10 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if exitCode == 0 {
 			t.Fatalf("executeRootCommandWithExit(task complete stale) exitCode = %d, want non-zero", exitCode)
 		}
-		if !strings.Contains(stderr, "is not actively leased") {
-			t.Fatalf("stderr = %q, want not actively leased rejection", stderr)
+		if !strings.Contains(stderr, "not an active lease") {
+			t.Fatalf("stderr = %q, want inactive lease rejection", stderr)
 		}
-		if strings.Contains(stderr, claimToken) {
+		if strings.Contains(stderr, "agh_claim_") {
 			t.Fatalf("stderr leaked raw claim token: %s", stderr)
 		}
 	})

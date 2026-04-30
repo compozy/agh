@@ -63,7 +63,7 @@ type CoordinationChannelMetadata struct {
 	LastActivityAt      time.Time `json:"last_activity_at"`
 }
 
-// ClaimResult is the successful synchronous claim response. ClaimToken is raw and must not be persisted.
+// ClaimResult is the successful synchronous claim result. ClaimToken is raw and must not cross public surfaces.
 type ClaimResult struct {
 	Task                Task                         `json:"task"`
 	Run                 Run                          `json:"run"`

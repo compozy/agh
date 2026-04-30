@@ -620,7 +620,6 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 	t.Parallel()
 
-	rawToken := "agh_claim_COMMANDTOKEN123"
 	t.Run("next", func(t *testing.T) {
 		t.Parallel()
 
@@ -635,7 +634,7 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 				gotRequest = request
 				return AgentTaskNextRecord{
 					Claimed: true,
-					Claim:   ptr(agentTaskClaimRecord(rawToken)),
+					Claim:   ptr(agentTaskClaimRecord()),
 				}, nil
 			},
 		})
@@ -680,8 +679,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
 			t.Fatalf("json.Unmarshal(task next) error = %v", err)
 		}
-		if !output.Claimed || output.Claim == nil || output.Claim.ClaimToken != rawToken {
-			t.Fatalf("task next output = %#v, want claimed token response", output)
+		if !output.Claimed || output.Claim == nil || output.Claim.Lease.ClaimTokenHash == "" {
+			t.Fatalf("task next output = %#v, want claimed session-bound response", output)
 		}
 	})
 
@@ -717,7 +716,7 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 	}{
 		{
 			name: "heartbeat",
-			args: []string{"task", "heartbeat", "run-1", "--claim-token", rawToken, "--lease-seconds", "60", "-o", "json"},
+			args: []string{"task", "heartbeat", "run-1", "--lease-seconds", "60", "-o", "json"},
 			fn: func(t *testing.T) *stubClient {
 				t.Helper()
 				return &stubClient{
@@ -728,8 +727,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 						credentials agentidentity.Credentials,
 					) (AgentTaskLeaseRecord, error) {
 						assertAgentCredentials(t, credentials)
-						if runID != "run-1" || request.ClaimToken != rawToken || request.LeaseSeconds != 60 {
-							t.Fatalf("heartbeat runID=%q request=%#v, want run-1 token lease", runID, request)
+						if runID != "run-1" || request.LeaseSeconds != 60 {
+							t.Fatalf("heartbeat runID=%q request=%#v, want run-1 lease duration", runID, request)
 						}
 						return agentTaskLeaseRecord(taskpkg.TaskRunStatusClaimed), nil
 					},
@@ -738,7 +737,7 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 		},
 		{
 			name: "complete",
-			args: []string{"task", "complete", "run-1", "--claim-token", rawToken, "--result", `{"ok":true}`, "-o", "json"},
+			args: []string{"task", "complete", "run-1", "--result", `{"ok":true}`, "-o", "json"},
 			fn: func(t *testing.T) *stubClient {
 				t.Helper()
 				return &stubClient{
@@ -749,8 +748,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 						credentials agentidentity.Credentials,
 					) (AgentTaskLeaseRecord, error) {
 						assertAgentCredentials(t, credentials)
-						if runID != "run-1" || request.ClaimToken != rawToken || string(request.Result) != `{"ok":true}` {
-							t.Fatalf("complete runID=%q request=%#v, want run-1 token result", runID, request)
+						if runID != "run-1" || string(request.Result) != `{"ok":true}` {
+							t.Fatalf("complete runID=%q request=%#v, want run-1 result", runID, request)
 						}
 						return agentTaskLeaseRecord(taskpkg.TaskRunStatusCompleted), nil
 					},
@@ -760,7 +759,7 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 		{
 			name: "fail",
 			args: []string{
-				"task", "fail", "run-1", "--claim-token", rawToken, "--error", "boom", "--metadata", `{"code":"E_TASK"}`, "-o", "json",
+				"task", "fail", "run-1", "--error", "boom", "--metadata", `{"code":"E_TASK"}`, "-o", "json",
 			},
 			fn: func(t *testing.T) *stubClient {
 				t.Helper()
@@ -773,10 +772,9 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 					) (AgentTaskLeaseRecord, error) {
 						assertAgentCredentials(t, credentials)
 						if runID != "run-1" ||
-							request.ClaimToken != rawToken ||
 							request.Error != "boom" ||
 							string(request.Metadata) != `{"code":"E_TASK"}` {
-							t.Fatalf("fail runID=%q request=%#v, want run-1 token error metadata", runID, request)
+							t.Fatalf("fail runID=%q request=%#v, want run-1 error metadata", runID, request)
 						}
 						return agentTaskLeaseRecord(taskpkg.TaskRunStatusFailed), nil
 					},
@@ -785,7 +783,7 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 		},
 		{
 			name: "release",
-			args: []string{"task", "release", "run-1", "--claim-token", rawToken, "--reason", "handoff", "-o", "json"},
+			args: []string{"task", "release", "run-1", "--reason", "handoff", "-o", "json"},
 			fn: func(t *testing.T) *stubClient {
 				t.Helper()
 				return &stubClient{
@@ -796,8 +794,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 						credentials agentidentity.Credentials,
 					) (AgentTaskLeaseRecord, error) {
 						assertAgentCredentials(t, credentials)
-						if runID != "run-1" || request.ClaimToken != rawToken || request.Reason != "handoff" {
-							t.Fatalf("release runID=%q request=%#v, want run-1 token reason", runID, request)
+						if runID != "run-1" || request.Reason != "handoff" {
+							t.Fatalf("release runID=%q request=%#v, want run-1 reason", runID, request)
 						}
 						return agentTaskLeaseRecord(taskpkg.TaskRunStatusQueued), nil
 					},
@@ -812,8 +810,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s command error = %v", tt.name, err)
 			}
-			if strings.Contains(stdout, rawToken) {
-				t.Fatalf("%s output leaked raw token %q: %s", tt.name, rawToken, stdout)
+			if strings.Contains(stdout, "agh_claim_") {
+				t.Fatalf("%s output leaked raw claim token pattern: %s", tt.name, stdout)
 			}
 			var output AgentTaskLeaseRecord
 			if err := json.Unmarshal([]byte(stdout), &output); err != nil {
@@ -829,7 +827,6 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 	t.Parallel()
 
-	rawToken := "agh_claim_VALIDATIONTOKEN123"
 	tests := []struct {
 		name    string
 		args    []string
@@ -837,13 +834,8 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 	}{
 		{
 			name:    "blank run id",
-			args:    []string{"task", "heartbeat", " ", "--claim-token", rawToken, "-o", "json"},
+			args:    []string{"task", "heartbeat", " ", "-o", "json"},
 			wantErr: "run id is required",
-		},
-		{
-			name:    "missing token",
-			args:    []string{"task", "heartbeat", "run-1", "-o", "json"},
-			wantErr: "claim-token",
 		},
 		{
 			name: "negative lease",
@@ -851,8 +843,6 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 				"task",
 				"heartbeat",
 				"run-1",
-				"--claim-token",
-				rawToken,
 				"--lease-seconds",
 				"-1",
 				"-o",
@@ -871,8 +861,6 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 				"task",
 				"complete",
 				"run-1",
-				"--claim-token",
-				rawToken,
 				"--result",
 				`{"ok":`,
 				"-o",
@@ -886,14 +874,12 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 				"task",
 				"complete",
 				"run-1",
-				"--claim-token",
-				rawToken,
 				"--result",
 				`{"claim_token":"secret"}`,
 				"-o",
 				"json",
 			},
-			wantErr: "must not contain raw claim_token",
+			wantErr: "must not contain raw lease credential",
 		},
 		{
 			name: "raw claim token in failure metadata",
@@ -901,8 +887,6 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 				"task",
 				"fail",
 				"run-1",
-				"--claim-token",
-				rawToken,
 				"--error",
 				"boom",
 				"--metadata",
@@ -910,7 +894,7 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 				"-o",
 				"json",
 			},
-			wantErr: "must not contain raw claim_token",
+			wantErr: "must not contain raw lease credential",
 		},
 	}
 
@@ -1385,7 +1369,7 @@ func sampleTaskExecutionRecord() TaskExecutionRecord {
 	}
 }
 
-func agentTaskClaimRecord(rawToken string) AgentTaskClaimRecord {
+func agentTaskClaimRecord() AgentTaskClaimRecord {
 	lease := agentTaskLeaseRecord(taskpkg.TaskRunStatusClaimed)
 	return AgentTaskClaimRecord{
 		Task: contract.TaskReferencePayload{
@@ -1397,9 +1381,8 @@ func agentTaskClaimRecord(rawToken string) AgentTaskClaimRecord {
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: "ws-1",
 		},
-		Run:        sampleTaskRunRecord(taskpkg.TaskRunStatusClaimed),
-		Lease:      lease,
-		ClaimToken: rawToken,
+		Run:   sampleTaskRunRecord(taskpkg.TaskRunStatusClaimed),
+		Lease: lease,
 		CoordinationChannel: &contract.CoordinationChannelPayload{
 			ID:                  "builders",
 			Channel:             "builders",

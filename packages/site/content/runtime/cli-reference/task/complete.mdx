@@ -15,18 +15,17 @@ agh task complete <run-id> [flags]
 
 ```
   # Complete a claimed run
-  agh task complete run-123 --claim-token "$CLAIM_TOKEN"
+  agh task complete run-123
 
-  # Complete with structured result data
-  agh task complete run-123 --claim-token "$CLAIM_TOKEN" --result '{"summary":"tests passed"}'
+	  # Complete with structured result data
+  agh task complete run-123 --result '{"summary":"tests passed"}'
 ```
 
 ### Options
 
 ```
-      --claim-token string   Raw claim token returned by agh task next
-  -h, --help                 help for complete
-      --result string        Optional result JSON
+  -h, --help            help for complete
+      --result string   Optional result JSON
 ```
 
 ### Options inherited from parent commands

@@ -354,6 +354,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.observeToolBindings(availability.observe))
 	addNativeToolBindings(bindings, n.bridgeToolBindings(availability.bridges))
 	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))
+	addNativeToolBindings(bindings, n.autonomyToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
 	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
@@ -611,6 +612,33 @@ func (n *daemonNativeTools) taskToolBindings(
 		},
 		toolspkg.ToolIDTaskRunList: {
 			call:         n.taskRunList,
+			availability: availability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) autonomyToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDTaskRunClaimNext: {
+			call:         n.autonomyClaimNext,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskRunHeartbeat: {
+			call:         n.autonomyHeartbeat,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskRunComplete: {
+			call:         n.autonomyComplete,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskRunFail: {
+			call:         n.autonomyFail,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskRunRelease: {
+			call:         n.autonomyRelease,
 			availability: availability,
 		},
 	}
@@ -1534,6 +1562,187 @@ func (n *daemonNativeTools) taskRunList(
 	return structuredResult(map[string]any{"runs": runs}, fmt.Sprintf("%d runs", len(runs)))
 }
 
+func (n *daemonNativeTools) autonomyClaimNext(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input autonomyClaimNextInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, sessionID, err := autonomyActorContext(req.ToolID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	criteria, err := input.criteria(scope, sessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	result, err := n.deps.Tasks.ClaimNextRun(ctx, criteria, actor)
+	if err != nil {
+		if errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			return structuredResult(map[string]any{"claimed": false}, "no claimable task runs")
+		}
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	if result == nil {
+		return toolspkg.ToolResult{}, errors.New("daemon: task-run claim returned an empty result")
+	}
+	payload := core.AgentTaskClaimPayloadFromResult(result)
+	return structuredResult(
+		map[string]any{"claimed": true, "claim": payload},
+		fmt.Sprintf("claimed %s", payload.Lease.RunID),
+	)
+}
+
+func (n *daemonNativeTools) autonomyHeartbeat(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input autonomyHeartbeatInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, sessionID, err := autonomyActorContext(req.ToolID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	runID, err := requiredNativeString(req.ToolID, "run_id", input.RunID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	leaseDuration, err := autonomyLeaseDuration(input.LeaseSeconds)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	handle, err := n.lookupAutonomyLease(ctx, req.ToolID, sessionID, runID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	run, err := n.deps.Tasks.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
+		RunID:         runID,
+		ClaimToken:    handle.ClaimToken,
+		LeaseDuration: leaseDuration,
+	}, actor)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
+	return structuredResult(map[string]any{"lease": lease}, fmt.Sprintf("heartbeat %s", lease.RunID))
+}
+
+func (n *daemonNativeTools) autonomyComplete(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input autonomyCompleteInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, sessionID, err := autonomyActorContext(req.ToolID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	runID, err := requiredNativeString(req.ToolID, "run_id", input.RunID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	result := taskpkg.RunResult{Value: cloneJSON(input.Result)}
+	if err := result.Validate("run_result"); err != nil {
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	handle, err := n.lookupAutonomyLease(ctx, req.ToolID, sessionID, runID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	run, err := n.deps.Tasks.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		RunID:      runID,
+		ClaimToken: handle.ClaimToken,
+		Result:     result,
+	}, actor)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
+	return structuredResult(map[string]any{"lease": lease}, fmt.Sprintf("completed %s", lease.RunID))
+}
+
+func (n *daemonNativeTools) autonomyFail(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input autonomyFailInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, sessionID, err := autonomyActorContext(req.ToolID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	runID, err := requiredNativeString(req.ToolID, "run_id", input.RunID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	failure := taskpkg.RunFailure{
+		Error:    strings.TrimSpace(input.Error),
+		Metadata: cloneJSON(input.Metadata),
+	}
+	if err := failure.Validate("run_failure"); err != nil {
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	handle, err := n.lookupAutonomyLease(ctx, req.ToolID, sessionID, runID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	run, err := n.deps.Tasks.FailRunLease(ctx, taskpkg.LeaseFailure{
+		RunID:      runID,
+		ClaimToken: handle.ClaimToken,
+		Failure:    failure,
+	}, actor)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
+	return structuredResult(map[string]any{"lease": lease}, fmt.Sprintf("failed %s", lease.RunID))
+}
+
+func (n *daemonNativeTools) autonomyRelease(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input autonomyReleaseInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, sessionID, err := autonomyActorContext(req.ToolID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	runID, err := requiredNativeString(req.ToolID, "run_id", input.RunID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	handle, err := n.lookupAutonomyLease(ctx, req.ToolID, sessionID, runID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	run, err := n.deps.Tasks.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
+		RunID:      runID,
+		ClaimToken: handle.ClaimToken,
+		Reason:     strings.TrimSpace(input.Reason),
+	}, actor)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
+	return structuredResult(map[string]any{"lease": lease}, fmt.Sprintf("released %s", lease.RunID))
+}
+
 func (n *daemonNativeTools) skillsFor(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -1986,6 +2195,57 @@ func (i taskRunListInput) query() taskpkg.RunQuery {
 	}
 }
 
+type autonomyClaimNextInput struct {
+	WorkspaceID          string   `json:"workspace_id,omitempty"`
+	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
+	PriorityMin          int      `json:"priority_min,omitempty"`
+	LeaseSeconds         int64    `json:"lease_seconds,omitempty"`
+}
+
+func (i autonomyClaimNextInput) criteria(scope toolspkg.Scope, sessionID string) (taskpkg.ClaimCriteria, error) {
+	leaseDuration, err := autonomyLeaseDuration(i.LeaseSeconds)
+	if err != nil {
+		return taskpkg.ClaimCriteria{}, err
+	}
+	workspaceID := strings.TrimSpace(i.WorkspaceID)
+	if workspaceID == "" {
+		workspaceID = strings.TrimSpace(scope.WorkspaceID)
+	}
+	return taskpkg.ClaimCriteria{
+		WorkspaceID:      workspaceID,
+		ClaimerSessionID: sessionID,
+		ClaimedBy: &taskpkg.ActorIdentity{
+			Kind: taskpkg.ActorKindAgentSession,
+			Ref:  sessionID,
+		},
+		AgentName:            strings.TrimSpace(scope.AgentName),
+		RequiredCapabilities: trimNativeStrings(i.RequiredCapabilities),
+		PriorityMin:          i.PriorityMin,
+		LeaseDuration:        leaseDuration,
+	}, nil
+}
+
+type autonomyHeartbeatInput struct {
+	RunID        string `json:"run_id"`
+	LeaseSeconds int64  `json:"lease_seconds,omitempty"`
+}
+
+type autonomyCompleteInput struct {
+	RunID  string          `json:"run_id"`
+	Result json.RawMessage `json:"result,omitempty"`
+}
+
+type autonomyFailInput struct {
+	RunID    string          `json:"run_id"`
+	Error    string          `json:"error"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+type autonomyReleaseInput struct {
+	RunID  string `json:"run_id"`
+	Reason string `json:"reason,omitempty"`
+}
+
 func decodeNativeInput(req toolspkg.CallRequest, dst any) error {
 	raw := req.Input
 	if len(bytes.TrimSpace(raw)) == 0 {
@@ -2019,6 +2279,154 @@ func nativeRequiredInputError(id toolspkg.ToolID, field string) error {
 		toolspkg.ErrToolInvalidInput,
 		toolspkg.ReasonSchemaInvalid,
 	)
+}
+
+func autonomyActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.ActorContext, string, error) {
+	sessionID := strings.TrimSpace(scope.SessionID)
+	if sessionID == "" {
+		return taskpkg.ActorContext{}, "", toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			"autonomy tool requires a caller session",
+			fmt.Errorf("%w: session_id is required", toolspkg.ErrToolDenied),
+			toolspkg.ReasonAutonomySessionRequired,
+		)
+	}
+	actor, err := taskpkg.DeriveAgentSessionActorContext(sessionID)
+	if err != nil {
+		return taskpkg.ActorContext{}, "", nativeAutonomyToolError(id, err)
+	}
+	return actor, sessionID, nil
+}
+
+func (n *daemonNativeTools) lookupAutonomyLease(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	sessionID string,
+	runID string,
+) (taskpkg.AutonomyLeaseHandle, error) {
+	authority, ok := n.deps.Tasks.(taskpkg.AutonomyLeaseAuthority)
+	if !ok {
+		return taskpkg.AutonomyLeaseHandle{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			id,
+			"autonomy lease authority is unavailable",
+			fmt.Errorf("%w: task autonomy lease authority is unavailable", toolspkg.ErrToolUnavailable),
+			toolspkg.ReasonBackendUnhealthy,
+		)
+	}
+	handle, err := authority.LookupActiveRunForSession(ctx, sessionID, runID)
+	if err != nil {
+		return taskpkg.AutonomyLeaseHandle{}, nativeAutonomyToolError(id, err)
+	}
+	return handle, nil
+}
+
+func autonomyLeaseDuration(seconds int64) (time.Duration, error) {
+	switch {
+	case seconds < 0:
+		return 0, fmt.Errorf("%w: lease_seconds must be zero or positive: %d", taskpkg.ErrValidation, seconds)
+	case seconds == 0:
+		return 0, nil
+	case seconds > int64(taskpkg.MaxRunLeaseDuration/time.Second):
+		return 0, fmt.Errorf(
+			"%w: lease_seconds exceeds %d",
+			taskpkg.ErrValidation,
+			int64(taskpkg.MaxRunLeaseDuration/time.Second),
+		)
+	default:
+		return time.Duration(seconds) * time.Second, nil
+	}
+}
+
+func nativeAutonomyToolError(id toolspkg.ToolID, err error) error {
+	if err == nil {
+		return nil
+	}
+	if reason, ok := taskpkg.AutonomyReasonOf(err); ok {
+		code, toolReason, cause := autonomyToolErrorCodeAndReason(reason)
+		return toolspkg.NewToolError(
+			code,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", cause, err),
+			toolReason,
+		)
+	}
+	switch {
+	case errors.Is(err, taskpkg.ErrValidation),
+		errors.Is(err, taskpkg.ErrInvalidScopeBinding),
+		errors.Is(err, taskpkg.ErrImmutableField):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	case errors.Is(err, taskpkg.ErrActiveRunLease):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeConflict,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
+			toolspkg.ReasonAutonomyLeaseAlreadyHeld,
+		)
+	case errors.Is(err, taskpkg.ErrPermissionDenied):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+			toolspkg.ReasonSessionDenied,
+		)
+	case errors.Is(err, taskpkg.ErrInvalidClaimToken),
+		errors.Is(err, taskpkg.ErrLeaseExpired),
+		errors.Is(err, taskpkg.ErrInvalidStatusTransition):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeConflict,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
+			toolspkg.ReasonAutonomyLeaseExpired,
+		)
+	default:
+		return err
+	}
+}
+
+func autonomyToolErrorCodeAndReason(reason taskpkg.AutonomyReasonCode) (
+	toolspkg.ErrorCode,
+	toolspkg.ReasonCode,
+	error,
+) {
+	switch reason {
+	case taskpkg.AutonomySessionRequired:
+		return toolspkg.ErrorCodeDenied, toolspkg.ReasonAutonomySessionRequired, toolspkg.ErrToolDenied
+	case taskpkg.AutonomyForeignRun:
+		return toolspkg.ErrorCodeDenied, toolspkg.ReasonAutonomyForeignRun, toolspkg.ErrToolDenied
+	case taskpkg.AutonomyNoActiveLease:
+		return toolspkg.ErrorCodeConflict, toolspkg.ReasonAutonomyNoActiveLease, toolspkg.ErrToolConflict
+	case taskpkg.AutonomyLeaseExpired:
+		return toolspkg.ErrorCodeConflict, toolspkg.ReasonAutonomyLeaseExpired, toolspkg.ErrToolConflict
+	case taskpkg.AutonomyLeaseAlreadyHeld:
+		return toolspkg.ErrorCodeConflict, toolspkg.ReasonAutonomyLeaseAlreadyHeld, toolspkg.ErrToolConflict
+	default:
+		return toolspkg.ErrorCodeConflict, toolspkg.ReasonAutonomyLeaseExpired, toolspkg.ErrToolConflict
+	}
+}
+
+func trimNativeStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		if next := strings.TrimSpace(value); next != "" {
+			trimmed = append(trimmed, next)
+		}
+	}
+	return trimmed
 }
 
 func decodeSessionEventQueryInput(req toolspkg.CallRequest) (sessionEventQueryInput, store.EventQuery, error) {

@@ -1633,7 +1633,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 	}
 
 	var next AgentTaskNextRecord
-	var token string
 	var channelID string
 	var channelName string
 
@@ -1644,16 +1643,15 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		}
 		if !next.Claimed ||
 			next.Claim == nil ||
-			next.Claim.ClaimToken == "" ||
+			next.Claim.Lease.ClaimTokenHash == "" ||
 			next.Claim.Run.ID != enqueued.ID ||
 			next.Claim.CoordinationChannel == nil ||
 			next.Claim.CoordinationChannel.ID == "" {
-			t.Fatalf("next = %#v, want claimed run with raw token and coordination channel", next)
+			t.Fatalf("next = %#v, want claimed run with lease hash and coordination channel", next)
 		}
-		if strings.Count(nextOut, next.Claim.ClaimToken) != 1 {
-			t.Fatalf("task next output leaked token outside claim_token once: %s", nextOut)
+		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
+			t.Fatalf("task next output exposed raw claim token: %s", nextOut)
 		}
-		token = next.Claim.ClaimToken
 		channelID = next.Claim.CoordinationChannel.ID
 		channelName = firstCLIValue(next.Claim.CoordinationChannel.Channel, channelID)
 	})
@@ -1681,15 +1679,13 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"task",
 			"heartbeat",
 			enqueued.ID,
-			"--claim-token",
-			token,
 			"--lease-seconds",
 			"60",
 			"-o",
 			"json",
 		)
-		if strings.Contains(heartbeatOut, token) {
-			t.Fatalf("heartbeat output leaked raw token: %s", heartbeatOut)
+		if strings.Contains(heartbeatOut, `"claim_token"`) || strings.Contains(heartbeatOut, "agh_claim_") {
+			t.Fatalf("heartbeat output exposed raw claim token: %s", heartbeatOut)
 		}
 		var heartbeat AgentTaskLeaseRecord
 		if err := json.Unmarshal([]byte(heartbeatOut), &heartbeat); err != nil {
@@ -1738,15 +1734,13 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"task",
 			"complete",
 			enqueued.ID,
-			"--claim-token",
-			token,
 			"--result",
 			`{"ok":true}`,
 			"-o",
 			"json",
 		)
-		if strings.Contains(completeOut, token) {
-			t.Fatalf("complete output leaked raw token: %s", completeOut)
+		if strings.Contains(completeOut, `"claim_token"`) || strings.Contains(completeOut, "agh_claim_") {
+			t.Fatalf("complete output exposed raw claim token: %s", completeOut)
 		}
 		var completed AgentTaskLeaseRecord
 		if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
@@ -1762,8 +1756,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"task",
 			"complete",
 			enqueued.ID,
-			"--claim-token",
-			token,
 			"--result",
 			`{"ok":true}`,
 			"-o",
@@ -1772,7 +1764,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		if err == nil {
 			t.Fatal("second task complete error = nil, want stale token/lifecycle rejection")
 		}
-		if strings.Contains(err.Error(), token) {
+		if strings.Contains(err.Error(), "agh_claim_") {
 			t.Fatalf("second complete error leaked raw token: %v", err)
 		}
 	})
@@ -1844,7 +1836,9 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		if !staleNext.Claimed || staleNext.Claim == nil || staleNext.Claim.Run.ID != staleRun.ID {
 			t.Fatalf("staleNext = %#v, want claimed stale-test run", staleNext)
 		}
-		staleToken := staleNext.Claim.ClaimToken
+		if strings.Contains(staleNextOut, `"claim_token"`) || strings.Contains(staleNextOut, "agh_claim_") {
+			t.Fatalf("stale task next output exposed raw claim token: %s", staleNextOut)
+		}
 		if staleNext.Claim.Lease.LeaseUntil == nil {
 			t.Fatal("staleNext.Claim.Lease.LeaseUntil = nil, want bounded lease expiry")
 		}
@@ -1876,8 +1870,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 					"task",
 					"release",
 					staleRun.ID,
-					"--claim-token",
-					staleToken,
 					"--reason",
 					"stale holder",
 					"-o",
@@ -1890,8 +1882,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 					"task",
 					"fail",
 					staleRun.ID,
-					"--claim-token",
-					staleToken,
 					"--error",
 					"stale holder",
 					"-o",
@@ -1904,7 +1894,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 				if err == nil {
 					t.Fatalf("task %s after recovery error = nil, want stale token rejection", tt.name)
 				}
-				if strings.Contains(err.Error(), staleToken) {
+				if strings.Contains(err.Error(), "agh_claim_") {
 					t.Fatalf("task %s after recovery leaked stale token: %v", tt.name, err)
 				}
 			})
@@ -2088,11 +2078,11 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if got, want := firstCLIValue(next.Claim.CoordinationChannel.Channel, next.Claim.CoordinationChannel.ID), channel; got != want {
 			t.Fatalf("coordination channel = %q, want %q", got, want)
 		}
-		if next.Claim.ClaimToken == "" {
-			t.Fatal("next.Claim.ClaimToken = empty, want raw token")
+		if next.Claim.Lease.ClaimTokenHash == "" {
+			t.Fatal("next.Claim.Lease.ClaimTokenHash = empty, want observability hash")
 		}
-		if strings.Count(nextOut, next.Claim.ClaimToken) != 1 {
-			t.Fatalf("task next output leaked token outside claim_token once: %s", nextOut)
+		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
+			t.Fatalf("task next output exposed raw claim token: %s", nextOut)
 		}
 
 		completeOut := mustExecuteRoot(
@@ -2101,15 +2091,13 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			"task",
 			"complete",
 			enqueued.ID,
-			"--claim-token",
-			next.Claim.ClaimToken,
 			"--result",
 			`{"ok":true,"path":"cli-historical-restart"}`,
 			"-o",
 			"json",
 		)
-		if strings.Contains(completeOut, next.Claim.ClaimToken) {
-			t.Fatalf("task complete output leaked raw token: %s", completeOut)
+		if strings.Contains(completeOut, `"claim_token"`) || strings.Contains(completeOut, "agh_claim_") {
+			t.Fatalf("task complete output exposed raw claim token: %s", completeOut)
 		}
 		var completed AgentTaskLeaseRecord
 		if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {

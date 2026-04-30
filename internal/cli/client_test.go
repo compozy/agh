@@ -229,7 +229,6 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		AgentName:   "coder",
 		WorkspaceID: "ws-1",
 	}
-	rawToken := "agh_claim_CLIENTTOKEN123"
 	var sawClaim bool
 	var sawNoWork bool
 	var sawHeartbeat bool
@@ -263,7 +262,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"claim":{"task":{"id":"task-1","title":"Run task","status":"in_progress","scope":"workspace","workspace_id":"ws-1"},"run":{"id":"run-1","task_id":"task-1","status":"claimed","attempt":1,"session_id":"sess-1","queued_at":"2026-04-03T12:00:00Z"},"lease":{"task_id":"task-1","run_id":"run-1","status":"claimed","session_id":"sess-1","coordination_channel_id":"builders"},"claim_token":"`+rawToken+`","coordination_channel":{"id":"builders","channel":"builders","display_name":"Builders","allowed_message_kinds":["status"]}}}`,
+						`{"claim":{"task":{"id":"task-1","title":"Run task","status":"in_progress","scope":"workspace","workspace_id":"ws-1"},"run":{"id":"run-1","task_id":"task-1","status":"claimed","attempt":1,"session_id":"sess-1","queued_at":"2026-04-03T12:00:00Z"},"lease":{"task_id":"task-1","run_id":"run-1","status":"claimed","session_id":"sess-1","coordination_channel_id":"builders","claim_token_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"coordination_channel":{"id":"builders","channel":"builders","display_name":"Builders","allowed_message_kinds":["status"]}}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/heartbeat":
 					sawHeartbeat = true
@@ -271,8 +270,8 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(heartbeat body) error = %v", err)
 					}
-					if payload.ClaimToken != rawToken || payload.LeaseSeconds != 60 {
-						t.Fatalf("heartbeat body = %#v, want token and lease", payload)
+					if payload.LeaseSeconds != 60 {
+						t.Fatalf("heartbeat body = %#v, want lease duration only", payload)
 					}
 					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusClaimed), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/complete":
@@ -281,8 +280,8 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(complete body) error = %v", err)
 					}
-					if payload.ClaimToken != rawToken || string(payload.Result) != `{"ok":true}` {
-						t.Fatalf("complete body = %#v, want token and result", payload)
+					if string(payload.Result) != `{"ok":true}` {
+						t.Fatalf("complete body = %#v, want result only", payload)
 					}
 					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusCompleted), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/fail":
@@ -291,10 +290,9 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(fail body) error = %v", err)
 					}
-					if payload.ClaimToken != rawToken ||
-						payload.Error != "boom" ||
+					if payload.Error != "boom" ||
 						string(payload.Metadata) != `{"code":"E_TASK"}` {
-						t.Fatalf("fail body = %#v, want token error metadata", payload)
+						t.Fatalf("fail body = %#v, want error metadata only", payload)
 					}
 					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusFailed), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/release":
@@ -303,8 +301,8 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(release body) error = %v", err)
 					}
-					if payload.ClaimToken != rawToken || payload.Reason != "handoff" {
-						t.Fatalf("release body = %#v, want token and reason", payload)
+					if payload.Reason != "handoff" {
+						t.Fatalf("release body = %#v, want reason only", payload)
 					}
 					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusQueued), nil
 				default:
@@ -326,8 +324,8 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AgentTaskClaimNext() error = %v", err)
 		}
-		if !claim.Claimed || claim.Claim == nil || claim.Claim.ClaimToken != rawToken {
-			t.Fatalf("AgentTaskClaimNext() = %#v, want claimed raw token response", claim)
+		if !claim.Claimed || claim.Claim == nil || claim.Claim.Lease.ClaimTokenHash == "" {
+			t.Fatalf("AgentTaskClaimNext() = %#v, want claimed session-bound lease response", claim)
 		}
 	})
 	t.Run("Should return no work", func(t *testing.T) {
@@ -347,7 +345,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		lease, err := client.AgentTaskHeartbeat(
 			context.Background(),
 			"run-1",
-			AgentTaskHeartbeatRequest{ClaimToken: rawToken, LeaseSeconds: 60},
+			AgentTaskHeartbeatRequest{LeaseSeconds: 60},
 			credentials,
 		)
 		if err != nil || lease.Status != taskpkg.TaskRunStatusClaimed {
@@ -358,7 +356,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		lease, err := client.AgentTaskComplete(
 			context.Background(),
 			"run-1",
-			AgentTaskCompleteRequest{ClaimToken: rawToken, Result: json.RawMessage(`{"ok":true}`)},
+			AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
 			credentials,
 		)
 		if err != nil || lease.Status != taskpkg.TaskRunStatusCompleted {
@@ -370,9 +368,8 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 			context.Background(),
 			"run-1",
 			AgentTaskFailRequest{
-				ClaimToken: rawToken,
-				Error:      "boom",
-				Metadata:   json.RawMessage(`{"code":"E_TASK"}`),
+				Error:    "boom",
+				Metadata: json.RawMessage(`{"code":"E_TASK"}`),
 			},
 			credentials,
 		)
@@ -384,7 +381,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		lease, err := client.AgentTaskRelease(
 			context.Background(),
 			"run-1",
-			AgentTaskReleaseRequest{ClaimToken: rawToken, Reason: "handoff"},
+			AgentTaskReleaseRequest{Reason: "handoff"},
 			credentials,
 		)
 		if err != nil || lease.Status != taskpkg.TaskRunStatusQueued {
@@ -425,7 +422,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 		_, err := client.AgentTaskRelease(
 			context.Background(),
 			"run-1",
-			AgentTaskReleaseRequest{ClaimToken: rawToken},
+			AgentTaskReleaseRequest{},
 			agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"},
 		)
 		if err == nil {

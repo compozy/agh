@@ -3767,7 +3767,6 @@ export interface operations {
         content: {
           "application/json": {
             claim: {
-              claim_token: string;
               coordination_channel?: {
                 allowed_message_kinds: (
                   | "status"
@@ -4051,7 +4050,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          claim_token: string;
           result?: unknown;
         };
       };
@@ -4218,7 +4216,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          claim_token: string;
           error: string;
           metadata?: unknown;
         };
@@ -4386,7 +4383,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          claim_token: string;
           /** Format: int64 */
           lease_seconds?: number;
         };
@@ -4554,7 +4550,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          claim_token: string;
           reason?: string;
         };
       };

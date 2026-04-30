@@ -15,22 +15,20 @@ agh task fail <run-id> [flags]
 
 ```
   # Mark a claimed run failed
-  agh task fail run-123 --claim-token "$CLAIM_TOKEN" --error "tests failed"
+  agh task fail run-123 --error "tests failed"
 
-  # Include structured failure metadata
-  agh task fail run-123 \
-    --claim-token "$CLAIM_TOKEN" \
-    --error "tests failed" \
-    --metadata '{"command":"make test"}'
+	  # Include structured failure metadata
+	  agh task fail run-123 \
+	    --error "tests failed" \
+	    --metadata '{"command":"make test"}'
 ```
 
 ### Options
 
 ```
-      --claim-token string   Raw claim token returned by agh task next
-      --error string         Failure message
-  -h, --help                 help for fail
-      --metadata string      Optional failure metadata JSON
+      --error string      Failure message
+  -h, --help              help for fail
+      --metadata string   Optional failure metadata JSON
 ```
 
 ### Options inherited from parent commands

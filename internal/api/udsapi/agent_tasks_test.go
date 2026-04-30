@@ -84,19 +84,19 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if count := strings.Count(recorder.Body.String(), rawToken); count != 1 {
-		t.Fatalf("raw claim token count = %d, want exactly one; body=%s", count, recorder.Body.String())
+	if strings.Contains(recorder.Body.String(), rawToken) ||
+		strings.Contains(recorder.Body.String(), `"claim_token"`) {
+		t.Fatalf("claim response exposed raw token material: %s", recorder.Body.String())
 	}
 
 	var response contract.AgentTaskClaimResponse
 	decodeJSONResponse(t, recorder, &response)
-	if response.Claim.ClaimToken != rawToken ||
-		response.Claim.Lease.ClaimTokenHash != claimHash ||
+	if response.Claim.Lease.ClaimTokenHash != claimHash ||
 		response.Claim.Lease.CoordinationChannelID != "builders" ||
 		response.Claim.CoordinationChannel == nil ||
 		response.Claim.CoordinationChannel.DisplayName != "Builders" ||
 		response.Claim.Run.CoordinationChannel == nil {
-		t.Fatalf("claim response = %#v, want token, hash, and coordination metadata", response.Claim)
+		t.Fatalf("claim response = %#v, want hash and coordination metadata", response.Claim)
 	}
 	if seenCriteria.WorkspaceID != "ws-1" ||
 		seenCriteria.ClaimerSessionID != "sess-agent" ||
@@ -148,10 +148,17 @@ func TestAgentTaskClaimNextNoWorkReturnsNoContent(t *testing.T) {
 	}
 }
 
-func TestAgentTaskLeaseMutationsFenceTokenAndDoNotEchoIt(t *testing.T) {
+func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testing.T) {
 	t.Parallel()
 
 	rawToken := "agh_claim_MUTATIONTOKEN123"
+	lookupFn := func(
+		_ context.Context,
+		sessionID string,
+		runID string,
+	) (taskpkg.AutonomyLeaseHandle, error) {
+		return agentTaskLeaseHandleForTest(t, sessionID, runID, rawToken, time.Now().UTC().Add(time.Minute)), nil
+	}
 	for _, tt := range []struct {
 		name    string
 		path    string
@@ -162,9 +169,10 @@ func TestAgentTaskLeaseMutationsFenceTokenAndDoNotEchoIt(t *testing.T) {
 		{
 			name:   "heartbeat",
 			path:   "/api/agent/tasks/run-1/heartbeat",
-			body:   fmt.Sprintf(`{"claim_token":%q,"lease_seconds":60}`, rawToken),
+			body:   `{"lease_seconds":60}`,
 			status: taskpkg.TaskRunStatusClaimed,
 			manager: stubTaskManager{
+				LookupActiveRunForSessionFn: lookupFn,
 				HeartbeatRunLeaseFn: func(
 					_ context.Context,
 					heartbeat taskpkg.LeaseHeartbeat,
@@ -185,9 +193,10 @@ func TestAgentTaskLeaseMutationsFenceTokenAndDoNotEchoIt(t *testing.T) {
 		{
 			name:   "complete",
 			path:   "/api/agent/tasks/run-1/complete",
-			body:   fmt.Sprintf(`{"claim_token":%q,"result":{"ok":true}}`, rawToken),
+			body:   `{"result":{"ok":true}}`,
 			status: taskpkg.TaskRunStatusCompleted,
 			manager: stubTaskManager{
+				LookupActiveRunForSessionFn: lookupFn,
 				CompleteRunLeaseFn: func(
 					_ context.Context,
 					completion taskpkg.LeaseCompletion,
@@ -207,9 +216,10 @@ func TestAgentTaskLeaseMutationsFenceTokenAndDoNotEchoIt(t *testing.T) {
 		{
 			name:   "fail",
 			path:   "/api/agent/tasks/run-1/fail",
-			body:   fmt.Sprintf(`{"claim_token":%q,"error":"boom","metadata":{"code":"E_TASK"}}`, rawToken),
+			body:   `{"error":"boom","metadata":{"code":"E_TASK"}}`,
 			status: taskpkg.TaskRunStatusFailed,
 			manager: stubTaskManager{
+				LookupActiveRunForSessionFn: lookupFn,
 				FailRunLeaseFn: func(
 					_ context.Context,
 					failure taskpkg.LeaseFailure,
@@ -230,9 +240,10 @@ func TestAgentTaskLeaseMutationsFenceTokenAndDoNotEchoIt(t *testing.T) {
 		{
 			name:   "release",
 			path:   "/api/agent/tasks/run-1/release",
-			body:   fmt.Sprintf(`{"claim_token":%q,"reason":"handoff"}`, rawToken),
+			body:   `{"reason":"handoff"}`,
 			status: taskpkg.TaskRunStatusQueued,
 			manager: stubTaskManager{
+				LookupActiveRunForSessionFn: lookupFn,
 				ReleaseRunLeaseFn: func(
 					_ context.Context,
 					release taskpkg.LeaseRelease,
@@ -264,6 +275,9 @@ func TestAgentTaskLeaseMutationsFenceTokenAndDoNotEchoIt(t *testing.T) {
 			}
 			if strings.Contains(recorder.Body.String(), rawToken) {
 				t.Fatalf("response leaked raw token %q: %s", rawToken, recorder.Body.String())
+			}
+			if strings.Contains(recorder.Body.String(), `"claim_token"`) {
+				t.Fatalf("response exposed raw claim_token field: %s", recorder.Body.String())
 			}
 			var response contract.AgentTaskLeaseResponse
 			decodeJSONResponse(t, recorder, &response)
@@ -338,7 +352,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{})),
 			http.MethodPost,
 			"/api/agent/tasks/run-1/heartbeat",
-			[]byte(`{"claim_token":`),
+			[]byte(`{"lease_seconds":`),
 			agentKernelHeaders(),
 		)
 		if recorder.Code != http.StatusBadRequest {
@@ -352,17 +366,17 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 		recorder := performAgentKernelRequest(
 			t,
 			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{
-				ReleaseRunLeaseFn: func(
+				LookupActiveRunForSessionFn: func(
 					context.Context,
-					taskpkg.LeaseRelease,
-					taskpkg.ActorContext,
-				) (*taskpkg.Run, error) {
-					return nil, fmt.Errorf("%w: %s", taskpkg.ErrInvalidClaimToken, rawToken)
+					string,
+					string,
+				) (taskpkg.AutonomyLeaseHandle, error) {
+					return taskpkg.AutonomyLeaseHandle{}, fmt.Errorf("%w: %s", taskpkg.ErrInvalidClaimToken, rawToken)
 				},
 			})),
 			http.MethodPost,
 			"/api/agent/tasks/run-1/release",
-			fmt.Appendf(nil, `{"claim_token":%q}`, rawToken),
+			[]byte(`{}`),
 			agentKernelHeaders(),
 		)
 		if recorder.Code != http.StatusConflict {
@@ -386,7 +400,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 			})),
 			http.MethodPost,
 			"/api/agent/tasks/run-1/complete",
-			fmt.Appendf(nil, `{"claim_token":%q,"result":{"claim_token":"secret"}}`, rawToken),
+			[]byte(`{"result":{"claim_token":"secret"}}`),
 			agentKernelHeaders(),
 		)
 		if recorder.Code != http.StatusUnprocessableEntity {

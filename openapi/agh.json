@@ -3190,9 +3190,6 @@
                                     "properties": {
                                         "claim": {
                                             "properties": {
-                                                "claim_token": {
-                                                    "type": "string"
-                                                },
                                                 "coordination_channel": {
                                                     "nullable": true,
                                                     "properties": {
@@ -3615,7 +3612,7 @@
                                                     "type": "object"
                                                 }
                                             },
-                                            "required": ["claim_token", "lease", "run", "task"],
+                                            "required": ["lease", "run", "task"],
                                             "type": "object"
                                         }
                                     },
@@ -3753,12 +3750,8 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
-                                    "claim_token": {
-                                        "type": "string"
-                                    },
                                     "result": {}
                                 },
-                                "required": ["claim_token"],
                                 "type": "object"
                             }
                         }
@@ -4039,15 +4032,12 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
-                                    "claim_token": {
-                                        "type": "string"
-                                    },
                                     "error": {
                                         "type": "string"
                                     },
                                     "metadata": {}
                                 },
-                                "required": ["claim_token", "error"],
+                                "required": ["error"],
                                 "type": "object"
                             }
                         }
@@ -4328,15 +4318,11 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
-                                    "claim_token": {
-                                        "type": "string"
-                                    },
                                     "lease_seconds": {
                                         "format": "int64",
                                         "type": "integer"
                                     }
                                 },
-                                "required": ["claim_token"],
                                 "type": "object"
                             }
                         }
@@ -4617,14 +4603,10 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
-                                    "claim_token": {
-                                        "type": "string"
-                                    },
                                     "reason": {
                                         "type": "string"
                                     }
                                 },
-                                "required": ["claim_token"],
                                 "type": "object"
                             }
                         }

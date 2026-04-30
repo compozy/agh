@@ -20,6 +20,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		observeDescriptors(),
 		bridgeDescriptors(),
 		taskDescriptors(),
+		autonomyDescriptors(),
 		configDescriptors(),
 		hookDescriptors(),
 		automationDescriptors(),

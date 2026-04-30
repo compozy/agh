@@ -171,6 +171,151 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 	}
 }
 
+func TestManagerLookupActiveRunForSessionRejectsUnsafeLeases(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name      string
+		sessionID string
+		runID     string
+		seed      func(t *testing.T, store *inMemoryManagerStore)
+		want      AutonomyReasonCode
+		cause     error
+		rawToken  string
+	}{
+		{
+			name:      "Should reject missing session identity",
+			sessionID: " ",
+			runID:     "run-1",
+			want:      AutonomySessionRequired,
+			cause:     ErrPermissionDenied,
+		},
+		{
+			name:      "Should reject missing active lease",
+			sessionID: "sess-a",
+			runID:     "run-1",
+			want:      AutonomyNoActiveLease,
+			cause:     ErrInvalidClaimToken,
+		},
+		{
+			name:      "Should reject foreign run while session holds another lease",
+			sessionID: "sess-a",
+			runID:     "run-2",
+			rawToken:  "agh_claim_FOREIGN123",
+			seed: func(t *testing.T, store *inMemoryManagerStore) {
+				t.Helper()
+				seedAutonomyLeaseRun(t, store, "run-1", "sess-a", "agh_claim_FOREIGN123", now.Add(time.Minute))
+			},
+			want:  AutonomyForeignRun,
+			cause: ErrPermissionDenied,
+		},
+		{
+			name:      "Should reject stale lease",
+			sessionID: "sess-a",
+			runID:     "run-1",
+			rawToken:  "agh_claim_EXPIRED123",
+			seed: func(t *testing.T, store *inMemoryManagerStore) {
+				t.Helper()
+				seedAutonomyLeaseRun(t, store, "run-1", "sess-a", "agh_claim_EXPIRED123", now.Add(-time.Minute))
+			},
+			want:  AutonomyLeaseExpired,
+			cause: ErrLeaseExpired,
+		},
+		{
+			name:      "Should reject double active lease",
+			sessionID: "sess-a",
+			runID:     "run-1",
+			rawToken:  "agh_claim_DOUBLE_A123",
+			seed: func(t *testing.T, store *inMemoryManagerStore) {
+				t.Helper()
+				seedAutonomyLeaseRun(t, store, "run-1", "sess-a", "agh_claim_DOUBLE_A123", now.Add(time.Minute))
+				seedAutonomyLeaseRun(t, store, "run-2", "sess-a", "agh_claim_DOUBLE_B123", now.Add(time.Minute))
+			},
+			want:  AutonomyLeaseAlreadyHeld,
+			cause: ErrActiveRunLease,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newInMemoryManagerStore()
+			if tt.seed != nil {
+				tt.seed(t, store)
+			}
+			manager := newTaskManagerForTestWithOptions(t, store, WithManagerNow(func() time.Time {
+				return now
+			}))
+			_, err := manager.LookupActiveRunForSession(context.Background(), tt.sessionID, tt.runID)
+			if !errors.Is(err, tt.cause) {
+				t.Fatalf("LookupActiveRunForSession() error = %v, want cause %v", err, tt.cause)
+			}
+			reason, ok := AutonomyReasonOf(err)
+			if !ok || reason != tt.want {
+				t.Fatalf("AutonomyReasonOf() = %q/%v, want %q", reason, ok, tt.want)
+			}
+			if tt.rawToken != "" && strings.Contains(err.Error(), tt.rawToken) {
+				t.Fatalf("LookupActiveRunForSession() leaked raw token in error: %v", err)
+			}
+		})
+	}
+}
+
+func TestManagerLookupActiveRunForSessionReturnsInternalHandle(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	rawToken := "agh_claim_ACTIVE123"
+	store := newInMemoryManagerStore()
+	seedAutonomyLeaseRun(t, store, "run-1", "sess-a", rawToken, now.Add(time.Minute))
+	manager := newTaskManagerForTestWithOptions(t, store, WithManagerNow(func() time.Time {
+		return now
+	}))
+
+	handle, err := manager.LookupActiveRunForSession(context.Background(), " sess-a ", " run-1 ")
+	if err != nil {
+		t.Fatalf("LookupActiveRunForSession() error = %v", err)
+	}
+	if handle.RunID != "run-1" ||
+		handle.SessionID != "sess-a" ||
+		handle.ClaimToken != rawToken ||
+		!VerifyClaimToken(rawToken, handle.ClaimTokenHash) {
+		t.Fatalf("LookupActiveRunForSession() = %#v, want active internal lease handle", handle)
+	}
+}
+
+func seedAutonomyLeaseRun(
+	t *testing.T,
+	store *inMemoryManagerStore,
+	runID string,
+	sessionID string,
+	rawToken string,
+	leaseUntil time.Time,
+) {
+	t.Helper()
+
+	tokenHash, err := ClaimTokenHash(rawToken)
+	if err != nil {
+		t.Fatalf("ClaimTokenHash() error = %v", err)
+	}
+	normalizedRunID := strings.TrimSpace(runID)
+	normalizedSessionID := strings.TrimSpace(sessionID)
+	store.runs[normalizedRunID] = Run{
+		ID:             normalizedRunID,
+		TaskID:         "task-" + strings.TrimPrefix(normalizedRunID, "run-"),
+		Status:         TaskRunStatusClaimed,
+		SessionID:      normalizedSessionID,
+		ClaimedBy:      &ActorIdentity{Kind: ActorKindAgentSession, Ref: normalizedSessionID},
+		ClaimToken:     strings.TrimSpace(rawToken),
+		ClaimTokenHash: tokenHash,
+		ClaimedAt:      leaseUntil.Add(-time.Minute),
+		HeartbeatAt:    leaseUntil.Add(-time.Minute),
+		LeaseUntil:     leaseUntil,
+		QueuedAt:       leaseUntil.Add(-2 * time.Minute),
+	}
+}
+
 func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	t.Parallel()
 

@@ -499,20 +499,19 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
 }
 
 func newTaskHeartbeatCommand(deps commandDeps) *cobra.Command {
-	var claimToken string
 	var leaseSeconds int64
 
 	cmd := &cobra.Command{
 		Use:   "heartbeat <run-id>",
 		Short: "Extend a claimed task run lease for the current agent session",
 		Args:  cobra.ExactArgs(1),
-		Example: `  # Extend the lease with the raw token returned by agh task next
-  agh task heartbeat run-123 --claim-token "$CLAIM_TOKEN"
+		Example: `  # Extend the active session-bound lease
+  agh task heartbeat run-123
 
-  # Request a specific lease duration
-  agh task heartbeat run-123 --claim-token "$CLAIM_TOKEN" --lease-seconds 300`,
+	  # Request a specific lease duration
+  agh task heartbeat run-123 --lease-seconds 300`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runID, token, err := requiredAgentTaskRunToken(args[0], claimToken)
+			runID, err := requiredAgentTaskRunID(args[0])
 			if err != nil {
 				return err
 			}
@@ -520,7 +519,6 @@ func newTaskHeartbeatCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			request := AgentTaskHeartbeatRequest{
-				ClaimToken:   token,
 				LeaseSeconds: leaseSeconds,
 			}
 
@@ -544,14 +542,11 @@ func newTaskHeartbeatCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
 		},
 	}
-	cmd.Flags().StringVar(&claimToken, "claim-token", "", "Raw claim token returned by agh task next")
 	cmd.Flags().Int64Var(&leaseSeconds, "lease-seconds", 0, "Lease duration in seconds")
-	mustMarkFlagRequired(cmd, "claim-token")
 	return cmd
 }
 
 func newTaskCompleteCommand(deps commandDeps) *cobra.Command {
-	var claimToken string
 	var resultRaw string
 
 	cmd := &cobra.Command{
@@ -559,16 +554,16 @@ func newTaskCompleteCommand(deps commandDeps) *cobra.Command {
 		Short: "Complete a claimed task run for the current agent session",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Complete a claimed run
-  agh task complete run-123 --claim-token "$CLAIM_TOKEN"
+  agh task complete run-123
 
-  # Complete with structured result data
-  agh task complete run-123 --claim-token "$CLAIM_TOKEN" --result '{"summary":"tests passed"}'`,
+	  # Complete with structured result data
+  agh task complete run-123 --result '{"summary":"tests passed"}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runID, token, err := requiredAgentTaskRunToken(args[0], claimToken)
+			runID, err := requiredAgentTaskRunID(args[0])
 			if err != nil {
 				return err
 			}
-			request := AgentTaskCompleteRequest{ClaimToken: token}
+			request := AgentTaskCompleteRequest{}
 			if cmd.Flags().Changed("result") {
 				request.Result, err = parseAgentTaskJSONFlag("result", resultRaw)
 				if err != nil {
@@ -596,14 +591,11 @@ func newTaskCompleteCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
 		},
 	}
-	cmd.Flags().StringVar(&claimToken, "claim-token", "", "Raw claim token returned by agh task next")
 	cmd.Flags().StringVar(&resultRaw, "result", "", "Optional result JSON")
-	mustMarkFlagRequired(cmd, "claim-token")
 	return cmd
 }
 
 func newTaskFailCommand(deps commandDeps) *cobra.Command {
-	var claimToken string
 	var errorMessage string
 	var metadataRaw string
 
@@ -612,21 +604,19 @@ func newTaskFailCommand(deps commandDeps) *cobra.Command {
 		Short: "Fail a claimed task run for the current agent session",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Mark a claimed run failed
-  agh task fail run-123 --claim-token "$CLAIM_TOKEN" --error "tests failed"
+  agh task fail run-123 --error "tests failed"
 
-  # Include structured failure metadata
-  agh task fail run-123 \
-    --claim-token "$CLAIM_TOKEN" \
-    --error "tests failed" \
-    --metadata '{"command":"make test"}'`,
+	  # Include structured failure metadata
+	  agh task fail run-123 \
+	    --error "tests failed" \
+	    --metadata '{"command":"make test"}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runID, token, err := requiredAgentTaskRunToken(args[0], claimToken)
+			runID, err := requiredAgentTaskRunID(args[0])
 			if err != nil {
 				return err
 			}
 			request := AgentTaskFailRequest{
-				ClaimToken: token,
-				Error:      strings.TrimSpace(errorMessage),
+				Error: strings.TrimSpace(errorMessage),
 			}
 			if request.Error == "" {
 				return errors.New("cli: --error is required")
@@ -653,16 +643,13 @@ func newTaskFailCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
 		},
 	}
-	cmd.Flags().StringVar(&claimToken, "claim-token", "", "Raw claim token returned by agh task next")
 	cmd.Flags().StringVar(&errorMessage, "error", "", "Failure message")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional failure metadata JSON")
-	mustMarkFlagRequired(cmd, "claim-token")
 	mustMarkFlagRequired(cmd, "error")
 	return cmd
 }
 
 func newTaskReleaseCommand(deps commandDeps) *cobra.Command {
-	var claimToken string
 	var reason string
 
 	cmd := &cobra.Command{
@@ -670,18 +657,17 @@ func newTaskReleaseCommand(deps commandDeps) *cobra.Command {
 		Short: "Release a claimed task run for the current agent session",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Release a claim without completing the run
-  agh task release run-123 --claim-token "$CLAIM_TOKEN"
+  agh task release run-123
 
-  # Include a structured reason for observability
-  agh task release run-123 --claim-token "$CLAIM_TOKEN" --reason handoff`,
+	  # Include a structured reason for observability
+  agh task release run-123 --reason handoff`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runID, token, err := requiredAgentTaskRunToken(args[0], claimToken)
+			runID, err := requiredAgentTaskRunID(args[0])
 			if err != nil {
 				return err
 			}
 			request := AgentTaskReleaseRequest{
-				ClaimToken: token,
-				Reason:     strings.TrimSpace(reason),
+				Reason: strings.TrimSpace(reason),
 			}
 
 			client, err := clientFromDeps(deps)
@@ -704,9 +690,7 @@ func newTaskReleaseCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
 		},
 	}
-	cmd.Flags().StringVar(&claimToken, "claim-token", "", "Raw claim token returned by agh task next")
 	cmd.Flags().StringVar(&reason, "reason", "", "Optional release reason")
-	mustMarkFlagRequired(cmd, "claim-token")
 	return cmd
 }
 
@@ -1330,21 +1314,17 @@ func parseAgentTaskJSONFlag(flagName string, raw string) (json.RawMessage, error
 		return nil, err
 	}
 	if err := contract.ValidateNoRawClaimTokenField(payload); err != nil {
-		return nil, fmt.Errorf("cli: --%s must not contain raw claim_token fields: %w", flagName, err)
+		return nil, fmt.Errorf("cli: --%s must not contain raw lease credential fields: %w", flagName, err)
 	}
 	return payload, nil
 }
 
-func requiredAgentTaskRunToken(rawRunID string, rawClaimToken string) (string, string, error) {
+func requiredAgentTaskRunID(rawRunID string) (string, error) {
 	runID := strings.TrimSpace(rawRunID)
 	if runID == "" {
-		return "", "", errors.New("cli: run id is required")
+		return "", errors.New("cli: run id is required")
 	}
-	token := strings.TrimSpace(rawClaimToken)
-	if token == "" {
-		return "", "", errors.New("cli: --claim-token is required")
-	}
-	return runID, token, nil
+	return runID, nil
 }
 
 func validateAgentTaskLeaseSeconds(seconds int64) error {

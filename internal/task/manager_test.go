@@ -686,6 +686,36 @@ func (s *inMemoryManagerStore) CountActiveSessionBindings(_ context.Context, ses
 	return count, nil
 }
 
+func (s *inMemoryManagerStore) ListAutonomyLeaseHandles(
+	_ context.Context,
+	sessionID string,
+) ([]AutonomyLeaseHandle, error) {
+	normalizedSessionID := strings.TrimSpace(sessionID)
+	handles := make([]AutonomyLeaseHandle, 0)
+	for _, run := range s.runs {
+		if strings.TrimSpace(run.SessionID) != normalizedSessionID ||
+			strings.TrimSpace(run.ClaimTokenHash) == "" {
+			continue
+		}
+		handle := AutonomyLeaseHandle{
+			RunID:          strings.TrimSpace(run.ID),
+			TaskID:         strings.TrimSpace(run.TaskID),
+			SessionID:      strings.TrimSpace(run.SessionID),
+			Status:         run.Status,
+			ClaimedBy:      cloneActorIdentity(run.ClaimedBy),
+			ClaimToken:     strings.TrimSpace(run.ClaimToken),
+			ClaimTokenHash: strings.TrimSpace(run.ClaimTokenHash),
+			LeaseUntil:     run.LeaseUntil,
+			HeartbeatAt:    run.HeartbeatAt,
+		}
+		handles = append(handles, handle)
+	}
+	sort.Slice(handles, func(i int, j int) bool {
+		return handles[i].RunID < handles[j].RunID
+	})
+	return handles, nil
+}
+
 func (s *inMemoryManagerStore) ClaimNextRun(_ context.Context, criteria ClaimCriteria) (ClaimResult, error) {
 	normalized, err := criteria.Normalize(time.Now().UTC())
 	if err != nil {

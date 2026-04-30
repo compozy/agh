@@ -289,13 +289,18 @@ type StubTaskManager struct {
 		taskpkg.ClaimCriteria,
 		taskpkg.ActorContext,
 	) (*taskpkg.ClaimResult, error)
-	ClaimRunFn                func(context.Context, string, taskpkg.ClaimRun, taskpkg.ActorContext) (*taskpkg.Run, error)
-	StartRunFn                func(context.Context, string, taskpkg.StartRun, taskpkg.ActorContext) (*taskpkg.Run, error)
-	AttachRunSessionFn        func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Run, error)
-	HeartbeatRunLeaseFn       func(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
-	ReleaseRunLeaseFn         func(context.Context, taskpkg.LeaseRelease, taskpkg.ActorContext) (*taskpkg.Run, error)
-	CompleteRunLeaseFn        func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
-	FailRunLeaseFn            func(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
+	ClaimRunFn                  func(context.Context, string, taskpkg.ClaimRun, taskpkg.ActorContext) (*taskpkg.Run, error)
+	StartRunFn                  func(context.Context, string, taskpkg.StartRun, taskpkg.ActorContext) (*taskpkg.Run, error)
+	AttachRunSessionFn          func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Run, error)
+	HeartbeatRunLeaseFn         func(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
+	ReleaseRunLeaseFn           func(context.Context, taskpkg.LeaseRelease, taskpkg.ActorContext) (*taskpkg.Run, error)
+	CompleteRunLeaseFn          func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
+	FailRunLeaseFn              func(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
+	LookupActiveRunForSessionFn func(
+		context.Context,
+		string,
+		string,
+	) (taskpkg.AutonomyLeaseHandle, error)
 	CompleteRunFn             func(context.Context, string, taskpkg.RunResult, taskpkg.ActorContext) (*taskpkg.Run, error)
 	FailRunFn                 func(context.Context, string, taskpkg.RunFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
 	CancelRunFn               func(context.Context, string, taskpkg.CancelRun, taskpkg.ActorContext) (*taskpkg.Run, error)
@@ -821,6 +826,17 @@ func (s StubTaskManager) FailRunLease(
 		return s.FailRunLeaseFn(ctx, failure, actor)
 	}
 	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) LookupActiveRunForSession(
+	ctx context.Context,
+	sessionID string,
+	runID string,
+) (taskpkg.AutonomyLeaseHandle, error) {
+	if s.LookupActiveRunForSessionFn != nil {
+		return s.LookupActiveRunForSessionFn(ctx, sessionID, runID)
+	}
+	return taskpkg.AutonomyLeaseHandle{}, taskpkg.ErrTaskRunNotFound
 }
 
 func (s StubTaskManager) CompleteRun(
