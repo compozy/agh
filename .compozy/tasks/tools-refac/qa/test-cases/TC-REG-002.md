@@ -14,7 +14,7 @@ Prove `make cli-docs` regenerates the CLI reference tree under `packages/site/co
 ## Traceability
 
 - Task: task_11.
-- TechSpec: "Docs And Generated Surfaces", "Delete Targets".
+- TechSpec: "Docs And Generated Surfaces", "Post-Implementation Residual Checks".
 - ADR: ADR-001 (tool-first surface), ADR-005 (autonomy hard cut).
 - Surfaces: `Makefile` (`cli-docs`), `packages/site/content/runtime/cli-reference/`.
 

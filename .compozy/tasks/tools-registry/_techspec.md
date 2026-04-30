@@ -1102,6 +1102,10 @@ Config validation must reject:
 - `__` misuse;
 - extension attempts to publish under reserved `agh__*`;
 - transport values outside the explicit set `{stdio, http, sse}`; AGH does not silently rewrite one transport into another;
+- stdio MCP `env` entries with dangerous interpreter or dynamic-loader keys,
+  including `NODE_OPTIONS`, `PYTHONPATH`, `PYTHONHOME`, `LD_PRELOAD`, and
+  `DYLD_*`; remote HTTP/SSE MCP transports do not execute local subprocesses and
+  are not rejected by this stdio-specific filter;
 - global defaults that would expose external tools without source policy support;
 - `trusted_sources` entries that do not resolve to known extension/MCP source refs;
 - approval timeouts or hosted MCP bind nonce TTLs outside daemon min/max bounds;

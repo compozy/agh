@@ -72,7 +72,7 @@ Evidence files:
 2. `cd packages/site && bun run typecheck` (workspace-only smoke).
 3. `bun run --cwd packages/site test` to run site source tests, including `packages/site/lib/runtime-tools-canonical-docs.test.ts`.
 4. `cd packages/site && bun run build` and capture the log.
-5. Spot-check rewritten runtime pages from the `Delete Targets` section — they must no longer contain stale opt-in/CLI-first prose:
+5. Spot-check rewritten runtime pages from the `Post-Implementation Residual Checks` section — they must no longer contain stale opt-in/CLI-first prose:
    - `core/configuration/agent-md.mdx`
    - `core/configuration/config-toml.mdx`
    - `core/agents/definitions.mdx`

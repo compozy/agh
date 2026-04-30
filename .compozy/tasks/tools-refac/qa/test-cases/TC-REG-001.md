@@ -14,7 +14,7 @@ Prove `make codegen` produces no diff against the committed tree, `make codegen-
 ## Traceability
 
 - Tasks: task_09 (autonomy contract change), task_11 (docs/codegen alignment).
-- TechSpec: "Docs And Generated Surfaces", "Delete Targets".
+- TechSpec: "Docs And Generated Surfaces", "Post-Implementation Residual Checks".
 - ADR: ADR-005.
 - Surfaces: `internal/api/spec/spec.go`, `openapi/agh.json`, `web/src/generated/agh-openapi.d.ts`.
 

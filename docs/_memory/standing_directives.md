@@ -62,7 +62,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 **Required behavior:**
 
 - **Codex (`gpt-5.4` with `reasoning_effort=xhigh`)** authors TechSpecs, major Go code, autonomous-mode kernel work.
-- **Claude Opus (`xhigh`)** pressure-tests TechSpecs (cross-LLM peer review), reviews architecture decisions, writes/reviews React/E2E frontend code.
+- **Claude Opus (`xhigh`)** pressure-tests TechSpecs in user-directed cross-LLM review rounds, reviews architecture decisions, writes/reviews React/E2E frontend code.
 - **`gpt-5.4-mini` with `reasoning_effort=high`** runs as parallel subagents for breadth (codebase mapping, competitor analysis, conversation-log auditing) when explicitly delegated.
 - Do not substitute models without explicit user approval.
 - Subagents are read-only — they return analysis to the parent agent, and the parent writes any required files.

@@ -51,7 +51,7 @@ Phase-specific checks below. Run only the relevant block. Use the "before author
 3. After the draft is produced, run `python3 scripts/check-prd-implementation-leak.py <prd_path>` to surface framework/storage/error-code/file-format names. Strip every match unless the PRD is *about* the named technology.
 4. Confirm the PRD lists explicit Goals, Non-Goals, Success Metrics, and Open Questions using the canonical `cy-create-prd` template.
 5. Confirm the PRD states the agent/operator manageability outcome and extension ecosystem expectation without naming implementation details.
-6. Do not invoke `cy-spec-peer-review` for PRDs. Peer review is a TechSpec gate.
+6. Do not invoke `cy-spec-peer-review` for PRDs. Peer review is TechSpec-only and user-directed.
 
 ### Phase: `techspec`
 
@@ -65,7 +65,7 @@ Phase-specific checks below. Run only the relevant block. Use the "before author
 8. Confirm Config Lifecycle section enumerates `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests that are added/changed/removed or explicitly unaffected.
 9. Confirm Assumptions/Defaults section closes the spec.
 10. Confirm Web/Docs Impact is captured if any contract surface is touched (activate `cy-web-docs-impact`).
-11. Pre-approval: invoke `cy-spec-peer-review`.
+11. After the user approves the baseline TechSpec draft and it has been saved, offer `cy-spec-peer-review`. Invoke it only if the user explicitly opts in.
 
 ### Phase: `tasks`
 

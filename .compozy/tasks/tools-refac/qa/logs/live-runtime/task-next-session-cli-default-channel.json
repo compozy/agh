@@ -1,0 +1,107 @@
+{
+  "claimed": true,
+  "claim": {
+    "task": {
+      "id": "task-2a29dd59cdd1cd54",
+      "title": "QA delegated default channel task",
+      "status": "ready",
+      "priority": "medium",
+      "scope": "workspace",
+      "workspace_id": "ws_171b8e1b30d3a654"
+    },
+    "run": {
+      "id": "run-56240c7b5dd9c0ec",
+      "task_id": "task-2a29dd59cdd1cd54",
+      "status": "claimed",
+      "attempt": 1,
+      "claimed_by": {
+        "kind": "agent_session",
+        "ref": "sess-f50350702052cbcf"
+      },
+      "session_id": "sess-f50350702052cbcf",
+      "origin": {
+        "kind": "uds",
+        "ref": "tasks.start"
+      },
+      "idempotency_key": "task.start.task-2a29dd59cdd1cd54",
+      "network_channel": "default",
+      "claim_token_hash": "sha256:8832ee09a5ac7a9967346659b8bdbd494936f70745482ac7fa9a84dc3ef44359",
+      "lease_until": "2026-04-30T08:02:22.002272Z",
+      "heartbeat_at": "2026-04-30T07:57:22.002272Z",
+      "coordination_channel_id": "default",
+      "coordination_channel": {
+        "id": "default",
+        "channel": "default",
+        "display_name": "default",
+        "purpose": "task_run_coordination",
+        "workspace_id": "ws_171b8e1b30d3a654",
+        "task_id": "task-2a29dd59cdd1cd54",
+        "run_id": "run-56240c7b5dd9c0ec",
+        "allowed_message_kinds": [
+          "status",
+          "request",
+          "reply",
+          "blocker",
+          "handoff",
+          "result",
+          "review_request"
+        ],
+        "last_activity_at": "2026-04-30T07:57:21.987057Z"
+      },
+      "queued_at": "2026-04-30T07:57:21.987057Z",
+      "claimed_at": "2026-04-30T07:57:22.002272Z"
+    },
+    "lease": {
+      "task_id": "task-2a29dd59cdd1cd54",
+      "run_id": "run-56240c7b5dd9c0ec",
+      "status": "claimed",
+      "session_id": "sess-f50350702052cbcf",
+      "claimed_by": {
+        "kind": "agent_session",
+        "ref": "sess-f50350702052cbcf"
+      },
+      "claim_token_hash": "sha256:8832ee09a5ac7a9967346659b8bdbd494936f70745482ac7fa9a84dc3ef44359",
+      "lease_until": "2026-04-30T08:02:22.002272Z",
+      "heartbeat_at": "2026-04-30T07:57:22.002272Z",
+      "coordination_channel_id": "default",
+      "coordination_channel": {
+        "id": "default",
+        "channel": "default",
+        "display_name": "default",
+        "purpose": "task_run_coordination",
+        "workspace_id": "ws_171b8e1b30d3a654",
+        "task_id": "task-2a29dd59cdd1cd54",
+        "run_id": "run-56240c7b5dd9c0ec",
+        "allowed_message_kinds": [
+          "status",
+          "request",
+          "reply",
+          "blocker",
+          "handoff",
+          "result",
+          "review_request"
+        ],
+        "last_activity_at": "2026-04-30T07:57:21.987057Z"
+      }
+    },
+    "coordination_channel": {
+      "id": "default",
+      "channel": "default",
+      "display_name": "default",
+      "purpose": "task_run_coordination",
+      "workspace_id": "ws_171b8e1b30d3a654",
+      "task_id": "task-2a29dd59cdd1cd54",
+      "run_id": "run-56240c7b5dd9c0ec",
+      "allowed_message_kinds": [
+        "status",
+        "request",
+        "reply",
+        "blocker",
+        "handoff",
+        "result",
+        "review_request"
+      ],
+      "last_activity_at": "2026-04-30T07:57:21.987057Z"
+    }
+  }
+}

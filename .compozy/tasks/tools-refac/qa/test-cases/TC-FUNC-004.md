@@ -14,7 +14,7 @@ Prove `agh__config_show/list/get/set/unset/diff/path` reuse the existing validat
 ## Traceability
 
 - Task: task_05 (Config Mutable Tool Family).
-- TechSpec: "Mutable Surface Policy → agh__config", "Config Lifecycle", "Old vs New Effective Behavior", "Delete Targets".
+- TechSpec: "Mutable Surface Policy → agh__config", "Config Lifecycle", "Old vs New Effective Behavior", "Post-Implementation Residual Checks".
 - ADRs: ADR-002, ADR-006.
 - Surfaces: `internal/tools/builtin/config.go`, `internal/daemon/native_config_hook_tools.go`, `internal/config/{config.go,merge.go,persistence.go,tools.go}`, `internal/cli/config.go`.
 

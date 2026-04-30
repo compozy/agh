@@ -85,7 +85,7 @@ This document maps each implementation task (01-11) to the QA scenarios that pro
 | `run_id`-keyed contracts (no raw `claim_token`) | TC-AUT-001, TC-SEC-001, TC-REG-001, TC-REG-004 | CLI flag deleted, contract DTO deleted, OpenAPI no longer mentions `claim_token` for AGH-owned routes; `web/src/systems/tasks/{types,mocks}` clean. |
 | Cross-session denials | TC-AUT-002, TC-AUT-005 | `AUTONOMY_FOREIGN_RUN`, single-success heartbeat. |
 | Single-lease invariant per session | TC-AUT-003, TC-AUT-004 | `AUTONOMY_LEASE_ALREADY_HELD`, `AUTONOMY_NO_ACTIVE_LEASE`, `AUTONOMY_LEASE_EXPIRED`. |
-| Network surface raw-token rejection | TC-SEC-003 | `NETWORK_RAW_TOKEN_REJECTED`. |
+| Network surface raw-token rejection | TC-SEC-003 | `network_raw_token_rejected`. |
 
 ### Task 10 — MCP Auth Status and Hosted MCP Projection Parity
 
@@ -125,18 +125,18 @@ This document maps each implementation task (01-11) to the QA scenarios that pro
 | TC-INT-004 | "Hosted MCP → approval bridge" | ADR-002 | `internal/daemon/tool_approval_bridge.go`, `internal/mcp/hosted.go` |
 | TC-INT-005 | "Test Strategy → Unit Tests" | ADR-002 | `internal/hooks/permission.go`, `internal/tools/policy.go` |
 | TC-INT-006 | "Known Risks → cache invalidation" | ADR-002 | `internal/tools/policy.go`, `internal/daemon/native_tools.go` |
-| TC-SEC-001 | "Safety Invariants", "Monitoring and Observability", "Delete Targets" | ADR-005 | `internal/api/contract/agents.go`, `internal/api/core/agent_tasks.go`, `internal/cli/task.go`, `internal/api/spec/spec.go`, `internal/network/*`, `internal/observe/*` |
+| TC-SEC-001 | "Safety Invariants", "Monitoring and Observability", "Post-Implementation Residual Checks" | ADR-005 | `internal/api/contract/agents.go`, `internal/api/core/agent_tasks.go`, `internal/cli/task.go`, `internal/api/spec/spec.go`, `internal/network/*`, `internal/observe/*` |
 | TC-SEC-002 | "Hosted MCP", "Existing MCP Config And Auth" | ADR-004 | `internal/mcp/auth/service.go`, `internal/tools/builtin/mcp_auth.go` |
-| TC-SEC-003 | "Safety Invariants" | ADR-005 | `internal/network/send.go` (or equivalent) and `agh__network_send` handler |
+| TC-SEC-003 | "Safety Invariants" | ADR-005 | `internal/api/core/network.go`, `internal/cli/network.go`, and `agh__network_send` handler |
 | TC-SEC-004 | "Mutable Surface Policy → agh__config" | ADR-006 | `internal/config/persistence.go`, policy helpers in `internal/tools/builtin/config.go` |
 | TC-SEC-005 | "Mutable Surface Policy → agh__hooks" | ADR-006 | `internal/hooks/permission.go`, `internal/tools/builtin/hooks.go` |
 | TC-SEC-006 | "Hosted MCP → bind nonce + peer creds" | ADR-002 | `internal/daemon/hosted_mcp.go`, `internal/mcp/hosted.go` |
-| TC-AUT-001..006 | "Session-Bound Autonomy Lookup", "Bootstrap Task Tools", "Delete Targets" | ADR-003, ADR-005 | `internal/task/{lease.go,lease_manager.go}`, `internal/tools/builtin/autonomy.go`, `internal/api/core/agent_tasks.go`, `internal/cli/task.go` |
+| TC-AUT-001..006 | "Session-Bound Autonomy Lookup", "Bootstrap Task Tools", "Post-Implementation Residual Checks" | ADR-003, ADR-005 | `internal/task/{lease.go,lease_manager.go}`, `internal/tools/builtin/autonomy.go`, `internal/api/core/agent_tasks.go`, `internal/cli/task.go` |
 | TC-REG-001 | "Docs And Generated Surfaces" | ADR-005 | `internal/api/spec/spec.go`, `web/src/generated/agh-openapi.d.ts` |
 | TC-REG-002 | "Docs And Generated Surfaces" | ADR-001 | `packages/site/content/runtime/cli-reference/`, `Makefile` (`cli-docs`) |
 | TC-REG-003 | "Docs And Generated Surfaces" | ADR-001..ADR-006 | `packages/site/content/runtime/core/*`, source tests |
 | TC-REG-004 | "Web/Docs Impact" | ADR-005 | `web/src/systems/tasks/types.ts`, `web/src/systems/tasks/mocks/fixtures.ts`, generated OpenAPI |
-| TC-REG-005 | "Skills, Tools, Resources, Bundles", "Delete Targets" | ADR-001 | `internal/skills/catalog.go`, `internal/skills/bundled/skills/agh-agent-setup/SKILL.md`, `packages/site/content/runtime/core/configuration/agent-md.mdx` |
+| TC-REG-005 | "Skills, Tools, Resources, Bundles", "Post-Implementation Residual Checks" | ADR-001 | `internal/skills/catalog.go`, `internal/skills/bundled/skills/agh-agent-setup/SKILL.md`, `packages/site/content/runtime/core/configuration/agent-md.mdx` |
 | TC-UI-001 | "Web/Docs Impact" | ADR-005, ADR-006 | `web/src/systems/automation/*`, `web/src/systems/settings/*`, `web/src/systems/tasks/*` |
 
 ## Coverage Audit (Plan-Level Self-Check)

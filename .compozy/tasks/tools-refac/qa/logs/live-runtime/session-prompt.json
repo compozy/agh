@@ -1,0 +1,24 @@
+[
+  {
+    "type": "agent_message",
+    "session_id": "automation-runner-session-1",
+    "turn_id": "turn-9d82055bad90cb52",
+    "timestamp": "2026-04-30T07:54:37.002991Z",
+    "text": "Delegated task session responded.",
+    "raw": {
+      "content": {
+        "text": "Delegated task session responded.",
+        "type": "text"
+      },
+      "sessionUpdate": "agent_message_chunk"
+    }
+  },
+  {
+    "type": "done",
+    "session_id": "automation-runner-session-1",
+    "turn_id": "turn-9d82055bad90cb52",
+    "timestamp": "2026-04-30T07:54:37.029751Z",
+    "stop_reason": "end_turn",
+    "raw": null
+  }
+]

@@ -1,0 +1,216 @@
+{
+  "session_id": "sess-2b42a5944ac14134",
+  "executable": "/Users/pedronauck/Dev/compozy/agh/bin/agh",
+  "requests": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "tools-refac-qa",
+          "version": "1.0.0"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "notifications/initialized",
+      "params": {}
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/list",
+      "params": {}
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "agh__tool_search",
+        "arguments": {
+          "query": "mcp auth",
+          "limit": 3
+        },
+        "_meta": {
+          "toolCallId": "qa-hosted-mcp-call-1"
+        }
+      }
+    }
+  ],
+  "responses": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {
+          "tools": {
+            "listChanged": true
+          }
+        },
+        "serverInfo": {
+          "name": "agh-hosted-tools",
+          "version": "dev"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {
+        "tools": [
+          {
+            "annotations": {},
+            "description": "Skill List\n\nList skills through the existing skill registry.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "workspace_id": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            },
+            "name": "agh__skill_list",
+            "outputSchema": {
+              "type": "object"
+            }
+          },
+          {
+            "annotations": {},
+            "description": "Skill Search\n\nSearch skills through the existing skill registry.",
+            "inputSchema": {
+              "type": "object",
+              "required": [
+                "query"
+              ],
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "workspace_id": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            },
+            "name": "agh__skill_search",
+            "outputSchema": {
+              "type": "object"
+            }
+          },
+          {
+            "annotations": {},
+            "description": "Skill View\n\nRead one skill and its verified body through the existing skill registry.",
+            "inputSchema": {
+              "type": "object",
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "workspace_id": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "name": "agh__skill_view",
+            "outputSchema": {
+              "type": "object"
+            }
+          },
+          {
+            "annotations": {},
+            "description": "Tool Info\n\nRead one tool descriptor and effective diagnostics view.",
+            "inputSchema": {
+              "type": "object",
+              "required": [
+                "tool_id"
+              ],
+              "properties": {
+                "tool_id": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "name": "agh__tool_info",
+            "outputSchema": {
+              "type": "object"
+            }
+          },
+          {
+            "annotations": {},
+            "description": "Tool List\n\nList tools in the caller's effective registry projection.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "limit": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            },
+            "name": "agh__tool_list",
+            "outputSchema": {
+              "type": "object"
+            }
+          },
+          {
+            "annotations": {},
+            "description": "Tool Search\n\nSearch tools in the caller's effective registry projection.",
+            "inputSchema": {
+              "type": "object",
+              "required": [
+                "query"
+              ],
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "limit": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            },
+            "name": "agh__tool_search",
+            "outputSchema": {
+              "type": "object"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "0 tools"
+          }
+        ],
+        "structuredContent": {
+          "tools": []
+        }
+      }
+    }
+  ],
+  "stderr": ""
+}

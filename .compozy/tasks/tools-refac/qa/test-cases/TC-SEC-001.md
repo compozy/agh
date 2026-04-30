@@ -14,7 +14,7 @@ Prove that no AGH-owned surface — tool, CLI, HTTP, UDS, hosted MCP, SSE, daemo
 ## Traceability
 
 - Task: task_09 (and the docs/codegen alignment in task_11).
-- TechSpec: "Safety Invariants", "Delete Targets", "Monitoring and Observability".
+- TechSpec: "Safety Invariants", "Post-Implementation Residual Checks", "Monitoring and Observability".
 - ADR: ADR-005.
 - Surfaces: `internal/api/contract/agents.go`, `internal/api/core/agent_tasks.go`, `internal/cli/task.go`, `internal/api/spec/spec.go`, `internal/network/*`, `internal/observe/*`, generated artifacts.
 

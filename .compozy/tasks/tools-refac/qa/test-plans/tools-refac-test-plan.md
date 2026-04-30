@@ -32,9 +32,9 @@ Key risks the plan must contain:
 - Prove the `agh__autonomy` invariants: `AUTONOMY_SESSION_REQUIRED`, `AUTONOMY_NO_ACTIVE_LEASE`, `AUTONOMY_FOREIGN_RUN`, `AUTONOMY_LEASE_EXPIRED`, `AUTONOMY_LEASE_ALREADY_HELD`, single-success heartbeat under cross-session contention, and convergence of tool/CLI/HTTP/UDS on the same `task.Service` lease writers.
 - Prove `agh__mcp_auth_status` returns redacted status only — no tokens, codes, PKCE verifiers, callback secrets — and that `agh mcp auth login`/`logout` remain on the management surface, never tool-callable.
 - Prove hosted MCP `tools/list` equals `GET /api/sessions/{id}/tools` exactly, that the approval bridge enforces ACP `session/request_permission` (not client-supplied `approval_token`), and that bind-nonce + UDS peer-cred + AGH-binary validation fail closed for foreign processes.
-- Prove `agh__network_send` rejects raw token payloads/metadata with `NETWORK_RAW_TOKEN_REJECTED` and that no AGH-owned message surface reintroduces a token-bearing field.
+- Prove `agh__network_send` rejects raw token payloads/metadata with `network_raw_token_rejected` and that no AGH-owned message surface reintroduces a token-bearing field.
 - Prove generated artifacts (`make codegen`, `make codegen-check`, `make cli-docs`, `packages/site` build, web `bun-typecheck`/`bun-test`) all stay aligned with the runtime contract after the cut.
-- Prove the deterministic denial taxonomy is consistent across surfaces for config, hooks, automation, extensions, autonomy, and MCP auth (`CONFIG_PATH_FORBIDDEN`, `CONFIG_SECRET_PATH_FORBIDDEN`, `CONFIG_TRUST_ROOT_FORBIDDEN`, `CONFIG_SCOPE_NOT_ALLOWED`, `CONFIG_VALIDATION_FAILED`, `HOOK_SOURCE_IMMUTABLE`, `HOOK_SECRET_INPUT_FORBIDDEN`, `HOOK_VALIDATION_FAILED`, `HOOK_APPROVAL_REQUIRED`, `AUTOMATION_SCOPE_FORBIDDEN`, `AUTOMATION_SECRET_INPUT_FORBIDDEN`, `AUTOMATION_VALIDATION_FAILED`, `AUTOMATION_APPROVAL_REQUIRED`, `EXTENSION_SOURCE_FORBIDDEN`, `EXTENSION_APPROVAL_REQUIRED`, `EXTENSION_NOT_INSTALLED`, `EXTENSION_VALIDATION_FAILED`, `NETWORK_RAW_TOKEN_REJECTED`).
+- Prove the deterministic denial taxonomy is consistent across surfaces for config, hooks, automation, extensions, autonomy, and MCP auth (`CONFIG_PATH_FORBIDDEN`, `CONFIG_SECRET_PATH_FORBIDDEN`, `CONFIG_TRUST_ROOT_FORBIDDEN`, `CONFIG_SCOPE_NOT_ALLOWED`, `CONFIG_VALIDATION_FAILED`, `HOOK_SOURCE_IMMUTABLE`, `HOOK_SECRET_INPUT_FORBIDDEN`, `HOOK_VALIDATION_FAILED`, `HOOK_APPROVAL_REQUIRED`, `AUTOMATION_SCOPE_FORBIDDEN`, `AUTOMATION_SECRET_INPUT_FORBIDDEN`, `AUTOMATION_VALIDATION_FAILED`, `AUTOMATION_APPROVAL_REQUIRED`, `EXTENSION_SOURCE_FORBIDDEN`, `EXTENSION_APPROVAL_REQUIRED`, `EXTENSION_NOT_INSTALLED`, `EXTENSION_VALIDATION_FAILED`, and the canonical tool reason `network_raw_token_rejected`).
 
 ## Scope
 
@@ -129,7 +129,7 @@ Out of scope for task_12 (planning only):
 | `make codegen` / `make cli-docs` drift between runtime and committed artifacts | Medium | High | TC-REG-001 + TC-REG-002 require diff = 0 against tree after regeneration |
 | `packages/site` build breaks on rewritten runtime docs | Medium | Medium | TC-REG-003 runs `cd packages/site && bun run build` and the source-test suite |
 | Web `tasks` system fixtures/types drift from autonomy hard cut | Medium | High | TC-REG-004 runs Vitest lanes for `web/src/systems/tasks/*` and confirms fixtures contain no `claim_token` |
-| Network send accepts raw token payload/metadata | Low | Critical | TC-SEC-003 sends well-formed and `claim_token`-bearing bodies and asserts `NETWORK_RAW_TOKEN_REJECTED` |
+| Network send accepts raw token payload/metadata | Low | Critical | TC-SEC-003 sends well-formed and `claim_token`-bearing bodies and asserts `network_raw_token_rejected` |
 | Catalog text or `agh-agent-setup` regresses to CLI-first | Low | Medium | TC-FUNC-002 compares prompt assembly output and bundled-skill content against expected fixtures |
 | Two-touch rule violation in re-fix loop | Medium | Medium | Regression script recommends a redesign TechSpec for any third change to the same package within this workstream |
 
@@ -171,7 +171,7 @@ The full mapping lives in `tools-refac-traceability.md`. The summary mapping is:
 | TC-INT-006 | P1 | Daemon/registry | Cache invalidates on agent/lineage/hook/source-health/MCP-auth-health/config-overlay changes | task_01, ADR-002 |
 | TC-SEC-001 | P0 | All AGH-owned surfaces | Raw `claim_token` redaction sweep | task_09, ADR-005 |
 | TC-SEC-002 | P0 | MCP auth status tool / settings / logs | MCP auth status redaction (no token/PKCE/code/callback) | task_10, ADR-004 |
-| TC-SEC-003 | P0 | `agh__network_send` | Raw token payload/metadata rejected with `NETWORK_RAW_TOKEN_REJECTED` | task_09 |
+| TC-SEC-003 | P0 | `agh__network_send` | Raw token payload/metadata rejected with `network_raw_token_rejected` | task_09 |
 | TC-SEC-004 | P0 | Tools/CLI/HTTP/UDS | Config trust-root/secret/scope denials | task_05, ADR-006 |
 | TC-SEC-005 | P0 | Tools/CLI/HTTP/UDS | Hook secret-input denials + source-immutable hooks | task_06, ADR-006 |
 | TC-SEC-006 | P0 | Hosted MCP bind | Bind nonce + UDS peer-creds + AGH binary path validation; foreign processes fail closed | task_10 |

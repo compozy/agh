@@ -1,0 +1,98 @@
+{
+  "tool_id": "agh__tool_search",
+  "status": "completed",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "1 tools"
+      }
+    ],
+    "structured": {
+      "tools": [
+        {
+          "availability": {
+            "authorized": true,
+            "available": true,
+            "conflicted": false,
+            "enabled": true,
+            "executable": true,
+            "registered": true
+          },
+          "decision": {
+            "agent_policy_result": "denied",
+            "approval_required": false,
+            "availability_result": "allowed",
+            "callable": false,
+            "hook_result": "allowed",
+            "reason_codes": [
+              "policy_denied"
+            ],
+            "registry_policy_result": "allowed",
+            "session_policy_result": "unrestricted",
+            "source_policy_result": "allowed",
+            "system_permission_mode": "approve-all",
+            "visible_to_operator": true,
+            "visible_to_session": false
+          },
+          "descriptor": {
+            "backend": {
+              "kind": "native_go",
+              "native_name": "mcp_auth_status"
+            },
+            "concurrency_safe": true,
+            "description": "Read redacted MCP auth diagnostics for one configured server.",
+            "destructive": false,
+            "display_title": "MCP Auth Status",
+            "id": "agh__mcp_auth_status",
+            "input_schema": {
+              "additionalProperties": false,
+              "properties": {
+                "server_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "server_name"
+              ],
+              "type": "object"
+            },
+            "open_world": false,
+            "output_schema": {
+              "type": "object"
+            },
+            "read_only": true,
+            "requires_interaction": false,
+            "risk": "read",
+            "search_hints": [
+              "mcp auth status",
+              "oauth status",
+              "mcp login diagnostics"
+            ],
+            "source": {
+              "kind": "builtin",
+              "owner": "daemon",
+              "scope": "daemon"
+            },
+            "tags": [
+              "mcp",
+              "auth",
+              "status"
+            ],
+            "toolsets": [
+              "agh__mcp_auth"
+            ],
+            "visibility": "model"
+          }
+        }
+      ]
+    },
+    "preview": "1 tools",
+    "truncated": false,
+    "bytes": 1363,
+    "duration_ms": 0
+  },
+  "truncated": false,
+  "duration_ms": 0,
+  "events": []
+}

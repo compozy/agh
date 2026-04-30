@@ -1,0 +1,22 @@
+{
+  "session_id": "sess-57d45d778c2dbdb5",
+  "executable": "/Users/pedronauck/Dev/compozy/agh/bin/agh",
+  "requests": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "tools-refac-qa",
+          "version": "1.0.0"
+        }
+      }
+    }
+  ],
+  "responses": [],
+  "stderr": "error: mcp: hosted MCP binary validation failed: peer executable mismatch\n",
+  "error": "timed out waiting for MCP response 1; stderr=error: mcp: hosted MCP binary validation failed: peer executable mismatch\n"
+}

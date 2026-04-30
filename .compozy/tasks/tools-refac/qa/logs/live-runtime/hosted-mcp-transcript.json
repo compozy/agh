@@ -1,0 +1,21 @@
+{
+  "session_id": "sess-15f5e0f75fefb53f",
+  "requests": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "tools-refac-qa",
+          "version": "1.0.0"
+        }
+      }
+    }
+  ],
+  "responses": [],
+  "stderr": "error: mcp: hosted MCP binary validation failed: peer executable mismatch\n",
+  "error": "timed out waiting for MCP response 1"
+}

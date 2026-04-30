@@ -1,6 +1,6 @@
 # TechSpec Quality Markers
 
-A TechSpec is "ready for peer review" only when all six markers are present. These correlate with smooth execution (one review round) vs heavy rework (multiple rounds). Source: `docs/_memory/analysis/analysis_compozy_tasks.md` (autonomy techspec vs. release-adjustments comparison).
+When the user opts into peer review, a TechSpec is "ready for peer review" only when all six markers are present. These correlate with smooth execution (one review round) vs heavy rework (multiple rounds). Source: `docs/_memory/analysis/analysis_compozy_tasks.md` (autonomy techspec vs. release-adjustments comparison).
 
 ## Marker 1: MVP Boundary Statement
 
@@ -37,4 +37,4 @@ Concurrency- or ownership-sensitive code paths spell out invariants as a numbere
 6. Lease extension bounded by config.
 7. One active lease per session in MVP.
 
-If any of these markers is missing, abort the peer review and ask the user to amend the spec first. Opus review on incomplete specs wastes credit and produces noise.
+If any of these markers is missing, abort the requested peer review and ask the user to amend the spec first. Opus review on incomplete specs wastes credit and produces noise.

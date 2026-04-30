@@ -14,7 +14,7 @@ Prove `internal/skills/catalog.go` text references `agh__skill_view` first (with
 ## Traceability
 
 - Tasks: task_02 (guidance bundle + prompt section), task_11 (docs alignment).
-- TechSpec: "Skills, Tools, Resources, Bundles", "Delete Targets".
+- TechSpec: "Skills, Tools, Resources, Bundles", "Post-Implementation Residual Checks".
 - ADR: ADR-001.
 - Surfaces: `internal/skills/catalog.go`, `internal/skills/bundled/skills/agh-tools-guide/`, `internal/skills/bundled/skills/agh-agent-setup/SKILL.md`, `packages/site/content/runtime/core/configuration/agent-md.mdx`.
 

@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "tool_unavailable",
+    "message": "mcp authentication is unavailable",
+    "reason_codes": [
+      "mcp_auth_required"
+    ],
+    "layer": "source_policy"
+  }
+}

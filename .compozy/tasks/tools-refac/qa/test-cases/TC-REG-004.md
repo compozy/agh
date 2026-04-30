@@ -14,7 +14,7 @@ Prove the regenerated `web/src/generated/agh-openapi.d.ts`, `web/src/systems/tas
 ## Traceability
 
 - Tasks: task_09 (autonomy hard cut), task_11 (docs/codegen alignment).
-- TechSpec: "Web/Docs Impact", "Delete Targets".
+- TechSpec: "Web/Docs Impact", "Post-Implementation Residual Checks".
 - ADR: ADR-005.
 - Surfaces: `web/src/generated/agh-openapi.d.ts`, `web/src/systems/tasks/{types.ts,mocks/fixtures.ts,components,hooks}`.
 

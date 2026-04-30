@@ -1,0 +1,1652 @@
+{
+  "tools": [
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_jobs_create",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_jobs_create"
+        },
+        "display_title": "Automation Jobs Create",
+        "description": "Create one dynamic automation job through the validated automation manager writer.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "scope",
+            "name",
+            "agent_name",
+            "prompt",
+            "schedule"
+          ],
+          "properties": {
+            "scope": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "agent_name": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "schedule": {
+              "type": "object"
+            },
+            "task": {
+              "type": "object"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "retry": {
+              "type": "object"
+            },
+            "fire_limit": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "jobs",
+          "mutation"
+        ],
+        "search_hints": [
+          "create automation job",
+          "add scheduled job"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_jobs_delete",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_jobs_delete"
+        },
+        "display_title": "Automation Jobs Delete",
+        "description": "Delete one dynamic automation job through the automation manager.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "job_id"
+          ],
+          "properties": {
+            "job_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "destructive",
+        "read_only": false,
+        "destructive": true,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "jobs",
+          "mutation"
+        ],
+        "search_hints": [
+          "delete automation job",
+          "remove scheduled job"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_jobs_disable",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_jobs_disable"
+        },
+        "display_title": "Automation Jobs Disable",
+        "description": "Disable one automation job through the automation manager.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "job_id"
+          ],
+          "properties": {
+            "job_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "jobs",
+          "mutation"
+        ],
+        "search_hints": [
+          "disable automation job",
+          "pause scheduled job"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_jobs_enable",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_jobs_enable"
+        },
+        "display_title": "Automation Jobs Enable",
+        "description": "Enable one automation job through the automation manager.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "job_id"
+          ],
+          "properties": {
+            "job_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "jobs",
+          "mutation"
+        ],
+        "search_hints": [
+          "enable automation job",
+          "activate scheduled job"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_jobs_get",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_jobs_get"
+        },
+        "display_title": "Automation Jobs Get",
+        "description": "Read one automation job through the live automation manager.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "job_id"
+          ],
+          "properties": {
+            "job_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "jobs"
+        ],
+        "search_hints": [
+          "automation job details",
+          "scheduled job"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_jobs_history",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_jobs_history"
+        },
+        "display_title": "Automation Jobs History",
+        "description": "List persisted run history for one automation job.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "job_id"
+          ],
+          "properties": {
+            "job_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "since": {
+              "type": "string"
+            },
+            "until": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "jobs",
+          "runs",
+          "history"
+        ],
+        "search_hints": [
+          "automation job history",
+          "job runs"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_jobs_list",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_jobs_list"
+        },
+        "display_title": "Automation Jobs List",
+        "description": "List automation jobs through the live automation manager.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "jobs",
+          "catalog"
+        ],
+        "search_hints": [
+          "automation jobs",
+          "scheduled jobs"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_jobs_trigger",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_jobs_trigger"
+        },
+        "display_title": "Automation Jobs Trigger",
+        "description": "Trigger one immediate manual automation job run through the automation manager.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "job_id"
+          ],
+          "properties": {
+            "job_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "jobs",
+          "runs",
+          "mutation"
+        ],
+        "search_hints": [
+          "trigger automation job",
+          "manual automation run"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_jobs_update",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_jobs_update"
+        },
+        "display_title": "Automation Jobs Update",
+        "description": "Update one automation job through the validated automation manager writer.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "job_id"
+          ],
+          "properties": {
+            "job_id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "agent_name": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "schedule": {
+              "type": "object"
+            },
+            "task": {
+              "type": "object"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "retry": {
+              "type": "object"
+            },
+            "fire_limit": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "jobs",
+          "mutation"
+        ],
+        "search_hints": [
+          "update automation job",
+          "edit scheduled job"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_runs_get",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_runs_get"
+        },
+        "display_title": "Automation Runs Get",
+        "description": "Read one persisted automation run record.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "run_id"
+          ],
+          "properties": {
+            "run_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "runs"
+        ],
+        "search_hints": [
+          "automation run details",
+          "run record"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_runs_list",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_runs_list"
+        },
+        "display_title": "Automation Runs List",
+        "description": "List persisted automation run records.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "job_id": {
+              "type": "string"
+            },
+            "trigger_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "since": {
+              "type": "string"
+            },
+            "until": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "runs",
+          "history"
+        ],
+        "search_hints": [
+          "automation runs",
+          "run history"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_triggers_create",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_triggers_create"
+        },
+        "display_title": "Automation Triggers Create",
+        "description": "Create one dynamic automation trigger through the validated automation manager writer.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "scope",
+            "name",
+            "agent_name",
+            "prompt",
+            "event"
+          ],
+          "properties": {
+            "scope": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "agent_name": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "event": {
+              "type": "string"
+            },
+            "filter": {
+              "type": "object"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "retry": {
+              "type": "object"
+            },
+            "fire_limit": {
+              "type": "object"
+            },
+            "webhook_id": {
+              "type": "string"
+            },
+            "endpoint_slug": {
+              "type": "string"
+            },
+            "webhook_secret": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "triggers",
+          "mutation"
+        ],
+        "search_hints": [
+          "create automation trigger",
+          "add event trigger"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_triggers_delete",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_triggers_delete"
+        },
+        "display_title": "Automation Triggers Delete",
+        "description": "Delete one dynamic automation trigger through the automation manager.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "trigger_id"
+          ],
+          "properties": {
+            "trigger_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "destructive",
+        "read_only": false,
+        "destructive": true,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "triggers",
+          "mutation"
+        ],
+        "search_hints": [
+          "delete automation trigger",
+          "remove event trigger"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_triggers_disable",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_triggers_disable"
+        },
+        "display_title": "Automation Triggers Disable",
+        "description": "Disable one automation trigger through the automation manager.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "trigger_id"
+          ],
+          "properties": {
+            "trigger_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "triggers",
+          "mutation"
+        ],
+        "search_hints": [
+          "disable automation trigger",
+          "pause event trigger"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_triggers_enable",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_triggers_enable"
+        },
+        "display_title": "Automation Triggers Enable",
+        "description": "Enable one automation trigger through the automation manager.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "trigger_id"
+          ],
+          "properties": {
+            "trigger_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "triggers",
+          "mutation"
+        ],
+        "search_hints": [
+          "enable automation trigger",
+          "activate event trigger"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_triggers_get",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_triggers_get"
+        },
+        "display_title": "Automation Triggers Get",
+        "description": "Read one automation trigger through the live automation manager.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "trigger_id"
+          ],
+          "properties": {
+            "trigger_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "triggers"
+        ],
+        "search_hints": [
+          "automation trigger details",
+          "event trigger"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_triggers_history",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_triggers_history"
+        },
+        "display_title": "Automation Triggers History",
+        "description": "List persisted run history for one automation trigger.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "trigger_id"
+          ],
+          "properties": {
+            "trigger_id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "since": {
+              "type": "string"
+            },
+            "until": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "triggers",
+          "runs",
+          "history"
+        ],
+        "search_hints": [
+          "automation trigger history",
+          "trigger runs"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_triggers_list",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_triggers_list"
+        },
+        "display_title": "Automation Triggers List",
+        "description": "List automation triggers through the live automation manager.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "event": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "triggers",
+          "catalog"
+        ],
+        "search_hints": [
+          "automation triggers",
+          "event triggers"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    },
+    {
+      "descriptor": {
+        "tool_id": "agh__automation_triggers_update",
+        "backend": {
+          "kind": "native_go",
+          "native_name": "automation_triggers_update"
+        },
+        "display_title": "Automation Triggers Update",
+        "description": "Update one automation trigger through the validated automation manager writer.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "trigger_id"
+          ],
+          "properties": {
+            "trigger_id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "agent_name": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "event": {
+              "type": "string"
+            },
+            "filter": {
+              "type": "object"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "retry": {
+              "type": "object"
+            },
+            "fire_limit": {
+              "type": "object"
+            },
+            "webhook_id": {
+              "type": "string"
+            },
+            "endpoint_slug": {
+              "type": "string"
+            },
+            "webhook_secret": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "source": {
+          "kind": "builtin",
+          "owner": "daemon",
+          "scope": "daemon"
+        },
+        "visibility": "model",
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "requires_interaction": false,
+        "concurrency_safe": true,
+        "toolsets": [
+          "agh__automation"
+        ],
+        "tags": [
+          "automation",
+          "triggers",
+          "mutation"
+        ],
+        "search_hints": [
+          "update automation trigger",
+          "edit event trigger"
+        ]
+      },
+      "availability": {
+        "registered": true,
+        "enabled": true,
+        "available": false,
+        "authorized": false,
+        "executable": false,
+        "conflicted": false,
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      },
+      "decision": {
+        "visible_to_operator": true,
+        "visible_to_session": false,
+        "callable": false,
+        "approval_required": false,
+        "system_permission_mode": "approve-all",
+        "session_policy_result": "unrestricted",
+        "agent_policy_result": "unrestricted",
+        "registry_policy_result": "allowed",
+        "source_policy_result": "allowed",
+        "availability_result": "unavailable",
+        "hook_result": "allowed",
+        "reason_codes": [
+          "dependency_missing"
+        ]
+      }
+    }
+  ]
+}

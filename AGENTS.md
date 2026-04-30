@@ -35,7 +35,7 @@ AGH is an Agent Operating System — a Go single-binary daemon that manages AI a
 These govern how features move from idea to ship. Internalize them before opening a TechSpec or running a task.
 
 - **Multi-LLM pipeline is the default dev model.** Codex (`gpt-5.4` with `reasoning_effort=xhigh`) authors specs; Claude Opus pressure-tests them; `gpt-5.4-mini` with `reasoning_effort=high` does parallel breadth exploration when explicitly delegated. Do not substitute models without explicit user approval.
-- **Every TechSpec is peer-reviewed before approval.** Run `compozy exec --ide claude --model opus --reasoning-effort xhigh --format json --prompt-file <prompt>`; resolve every blocker before approving.
+- **TechSpec peer review is opt-in and happens after draft approval.** `cy-create-techspec` must first present the complete draft, get the user's approval on that draft, and save `_techspec.md`. Only then should the agent ask whether to run `cy-spec-peer-review`. If the user opts in, run `compozy exec --ide claude --model opus --reasoning-effort xhigh --format json --prompt-file <prompt>`, summarize blockers/nits/readiness, ask which findings to incorporate, apply only the selected findings, and ask whether to run another round or stop.
 - **Every `_tasks.md` ends with a QA pair.** `cy-create-tasks` MUST append `$qa-report` and `$qa-execution` (with e2e for UI-bearing features) following the `.compozy/tasks/hermes` template.
 - **Every backend task carries a `Web/Docs Impact` subitem.** List affected `web/` routes/components/hooks AND `packages/site` doc pages. Backend-only tasks may declare "no impact" but only after analysis.
 - **Every spec/feature carries an extensibility + agent-manageability + config lifecycle analysis.** Creating, updating, or removing a feature MUST state how it integrates with AGH extensibility surfaces (extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and whether `config.toml` keys/defaults/docs are added, changed, or removed. "No impact" is acceptable only with explicit evidence.
@@ -64,38 +64,38 @@ These govern how features move from idea to ship. Internalize them before openin
 
 Activate skills **before** writing code. Match task domain → activate all required skills:
 
-| Domain                                | Required Skills                                                                          | Conditional Skills                     |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------- |
-| Go / Runtime                          | `agh-code-guidelines` + `golang-pro`                                                     | `context7`                             |
-| Config / Logging                      | `agh-code-guidelines` + `golang-pro`                                                     |                                        |
-| TUI / CLI Bubbletea                   | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                        |
-| Bug fix                               | `systematic-debugging` + `no-workarounds`                                                | `testing-anti-patterns`                |
-| Writing Go tests                      | `agh-test-conventions` + `testing-anti-patterns` + `golang-pro`                          | `vitest` (only for test tooling docs)  |
-| Cleanup / failure paths               | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       | `deadlock-finder-and-fixer`            |
-| Schema / migration changes            | `agh-schema-migration` + `golang-pro`                                                    |                                        |
-| Contract / OpenAPI changes            | `agh-contract-codegen-coship`                                                            |                                        |
-| Task completion                       | `cy-final-verify`                                                                        |                                        |
-| Lessons learned                       | `lesson-learned`                                                                         |                                        |
-| Architecture audit                    | `architectural-analysis`                                                                 | `refactoring-analysis` + `ubs`         |
-| Concurrency / races                   | `deadlock-finder-and-fixer` + `golang-pro`                                               | `systematic-debugging`                 |
-| AGH Network (`internal/network` only) | `nats` + `agh-code-guidelines` + `golang-pro`                                            | `deadlock-finder-and-fixer`            |
-| Performance / hot paths               | `extreme-software-optimization` + `golang-pro`                                           |                                        |
-| Security review                       | `security-review`                                                                        | `ubs`                                  |
-| Creative / new features               | `brainstorming`                                                                          | `cy-idea-factory`                      |
-| Council debate (high-impact)          | `council`                                                                                | `brainstorming`                        |
-| PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                      |
-| TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec` + `cy-spec-peer-review`                       | `cy-research-competitors`              |
-| Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                        |
-| Competitor research                   | `cy-research-competitors`                                                                | `context7` + `find-docs`               |
-| Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                   |
-| Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     | `fix-coderabbit-review`                |
-| Release / scenario QA                 | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`               |
-| Git rebase / conflicts                | `git-rebase`                                                                             |                                        |
-| External docs lookup                  | `context7` + `find-docs`                                                                 | `exa-web-search-free`                  |
-| Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                     |
-| Documentation (internal)              | `documentation-writer`                                                                   | `crafting-effective-readmes`           |
-| Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                        |
-| UI / Design (any surface)             | `agh-design` + `design-taste-frontend` + `minimalist-ui`                                 | `frontend-design` + `interface-design` |
+| Domain                                | Required Skills                                                                          | Conditional Skills                                |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Go / Runtime                          | `agh-code-guidelines` + `golang-pro`                                                     | `context7`                                        |
+| Config / Logging                      | `agh-code-guidelines` + `golang-pro`                                                     |                                                   |
+| TUI / CLI Bubbletea                   | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                                   |
+| Bug fix                               | `systematic-debugging` + `no-workarounds`                                                | `testing-anti-patterns`                           |
+| Writing Go tests                      | `agh-test-conventions` + `testing-anti-patterns` + `golang-pro`                          | `vitest` (only for test tooling docs)             |
+| Cleanup / failure paths               | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       | `deadlock-finder-and-fixer`                       |
+| Schema / migration changes            | `agh-schema-migration` + `golang-pro`                                                    |                                                   |
+| Contract / OpenAPI changes            | `agh-contract-codegen-coship`                                                            |                                                   |
+| Task completion                       | `cy-final-verify`                                                                        |                                                   |
+| Lessons learned                       | `lesson-learned`                                                                         |                                                   |
+| Architecture audit                    | `architectural-analysis`                                                                 | `refactoring-analysis` + `ubs`                    |
+| Concurrency / races                   | `deadlock-finder-and-fixer` + `golang-pro`                                               | `systematic-debugging`                            |
+| AGH Network (`internal/network` only) | `nats` + `agh-code-guidelines` + `golang-pro`                                            | `deadlock-finder-and-fixer`                       |
+| Performance / hot paths               | `extreme-software-optimization` + `golang-pro`                                           |                                                   |
+| Security review                       | `security-review`                                                                        | `ubs`                                             |
+| Creative / new features               | `brainstorming`                                                                          | `cy-idea-factory`                                 |
+| Council debate (high-impact)          | `council`                                                                                | `brainstorming`                                   |
+| PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                                 |
+| TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review` + `cy-research-competitors` |
+| Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                                   |
+| Competitor research                   | `cy-research-competitors`                                                                | `context7` + `find-docs`                          |
+| Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                              |
+| Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     | `fix-coderabbit-review`                           |
+| Release / scenario QA                 | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`                          |
+| Git rebase / conflicts                | `git-rebase`                                                                             |                                                   |
+| External docs lookup                  | `context7` + `find-docs`                                                                 | `exa-web-search-free`                             |
+| Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                                |
+| Documentation (internal)              | `documentation-writer`                                                                   | `crafting-effective-readmes`                      |
+| Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                                   |
+| UI / Design (any surface)             | `agh-design` + `design-taste-frontend` + `minimalist-ui`                                 | `frontend-design` + `interface-design`            |
 
 Web-specific skill dispatch is in `web/CLAUDE.md` and `web/AGENTS.md`. Site-specific dispatch is in `packages/site/CLAUDE.md`.
 

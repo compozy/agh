@@ -92,10 +92,10 @@ The autonomy `_techspec.md` is the high-water mark. Six markers correlate with *
 - Config keys added/renamed/removed without same-change structs, defaults, merge/overlay, validation, examples, docs, and tests. → SD-011.
 - Tying execution lifetime to request lifetime. Detached work uses `context.WithoutCancel`. → `lessons/L-001`.
 
-### Validate before approval
+### Validate before exit
 
 - All six markers present (cy-spec-preflight checklist).
-- Peer review via `cy-spec-peer-review` (Opus xhigh) — every blocker resolved before approval.
+- After the user approves the baseline draft and it is saved, offer peer review via `cy-spec-peer-review` (Opus xhigh). Run it only if the user opts in, summarize the findings, let the user choose what to incorporate, and ask whether to run another round or stop.
 
 ---
 

@@ -14,7 +14,7 @@ Prove the rewritten runtime documentation builds, the source tests pass, and the
 ## Traceability
 
 - Task: task_11.
-- TechSpec: "Docs And Generated Surfaces", "Delete Targets".
+- TechSpec: "Docs And Generated Surfaces", "Post-Implementation Residual Checks".
 - ADRs: ADR-001..ADR-006.
 - Surfaces: `packages/site/`, `packages/site/lib/runtime-tools-canonical-docs.test.ts`.
 

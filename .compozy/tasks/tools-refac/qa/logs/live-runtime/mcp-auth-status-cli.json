@@ -1,0 +1,16 @@
+[
+  {
+    "server_name": "linear-qa",
+    "status": "needs_login",
+    "remote_url": "https://mcp.example.test/sse",
+    "auth_type": "oauth2_pkce",
+    "client_id": "qa-client",
+    "scopes": [
+      "read"
+    ],
+    "refreshable": false,
+    "token_present": false,
+    "diagnostic": "login required",
+    "authorization_url": "https://auth.example.test/authorize"
+  }
+]
