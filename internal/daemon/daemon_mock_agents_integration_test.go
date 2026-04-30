@@ -141,10 +141,12 @@ func TestDaemonE2EMockAgentsRemainIsolated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadDiagnostics(beta) error = %v", err)
 	}
-	if len(alphaDiagnostics) != 1 || alphaDiagnostics[0].AgentName != "alpha" {
+	alphaPromptDiagnostics := acpmock.PromptDiagnostics(alphaDiagnostics)
+	betaPromptDiagnostics := acpmock.PromptDiagnostics(betaDiagnostics)
+	if len(alphaPromptDiagnostics) != 1 || alphaPromptDiagnostics[0].AgentName != "alpha" {
 		t.Fatalf("alpha diagnostics = %#v, want one alpha record", alphaDiagnostics)
 	}
-	if len(betaDiagnostics) != 1 || betaDiagnostics[0].AgentName != "beta" {
+	if len(betaPromptDiagnostics) != 1 || betaPromptDiagnostics[0].AgentName != "beta" {
 		t.Fatalf("beta diagnostics = %#v, want one beta record", betaDiagnostics)
 	}
 }

@@ -314,10 +314,11 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 	})
 
 	t.Run("Should dispatch recalled context to the agent prompt", func(t *testing.T) {
-		if got, want := len(diagnostics), 1; got != want {
-			t.Fatalf("len(diagnostics) = %d, want %d; diagnostics=%#v", got, want, diagnostics)
+		promptDiagnostics := acpmock.PromptDiagnostics(diagnostics)
+		if got, want := len(promptDiagnostics), 1; got != want {
+			t.Fatalf("len(promptDiagnostics) = %d, want %d; diagnostics=%#v", got, want, diagnostics)
 		}
-		prompt := diagnostics[0].Prompt
+		prompt := promptDiagnostics[0].Prompt
 		if !strings.Contains(prompt, "Relevant durable memory for this turn:") {
 			t.Fatalf("mock prompt = %q, want recall preamble", prompt)
 		}

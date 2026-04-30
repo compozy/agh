@@ -422,6 +422,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 			"harness.section_selected",
 			"harness.context_resolved",
 			"harness.augmenter_applied",
+			"harness.augmenter_applied",
 		},
 		func(fetchCtx context.Context) ([]aghcontract.ObserveEventPayload, error) {
 			var response aghcontract.ObserveEventsResponse
@@ -444,6 +445,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 			"harness.section_selected",
 			"harness.context_resolved",
 			"harness.augmenter_applied",
+			"harness.augmenter_applied",
 		},
 		func(fetchCtx context.Context) ([]aghcontract.ObserveEventPayload, error) {
 			var response aghcontract.ObserveEventsResponse
@@ -465,6 +467,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 		"harness.context_resolved",
 		"harness.section_selected",
 		"harness.context_resolved",
+		"harness.augmenter_applied",
 		"harness.augmenter_applied",
 	}; !slices.Equal(got, want) {
 		t.Fatalf("harness event types = %#v, want %#v", got, want)

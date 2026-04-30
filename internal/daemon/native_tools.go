@@ -47,6 +47,7 @@ type daemonNativeToolsDeps struct {
 	HookBindings      hookBindingPublisher
 	AgentCatalog      core.AgentCatalog
 	Automation        core.AutomationManager
+	AutomationRuntime func() core.AutomationManager
 	ExtensionRegistry *extensionpkg.Registry
 	ExtensionRuntime  func() extensionRuntime
 	ExtensionMarket   aghconfig.ExtensionsMarketplaceConfig
@@ -186,6 +187,9 @@ func (d *Daemon) nativeToolsDeps(
 		HookBindings:      state.hookBindings,
 		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
 		Automation:        state.deps.Automation,
+		AutomationRuntime: func() core.AutomationManager {
+			return state.deps.Automation
+		},
 		ExtensionRegistry: extensionRegistryDependency(state.registry),
 		ExtensionRuntime:  state.currentExtensionRuntime,
 		ExtensionMarket:   state.cfg.Extensions.Marketplace,
@@ -402,7 +406,7 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		hookMutation: n.dependencyAvailability(func() bool {
 			return configReady() && n.deps.Observer != nil && n.deps.HookBindings != nil
 		}),
-		automation: n.dependencyAvailability(func() bool { return n.deps.Automation != nil }),
+		automation: n.dependencyAvailability(func() bool { return n.automationManager() != nil }),
 		extensions: n.dependencyAvailability(func() bool {
 			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
 		}),
@@ -768,6 +772,19 @@ func (n *daemonNativeTools) mcpAuthProvider() toolspkg.MCPAuthStatusProvider {
 		return nil
 	}
 	return n.deps.MCPAuth()
+}
+
+func (n *daemonNativeTools) automationManager() core.AutomationManager {
+	if n == nil || n.deps == nil {
+		return nil
+	}
+	if n.deps.Automation != nil {
+		return n.deps.Automation
+	}
+	if n.deps.AutomationRuntime == nil {
+		return nil
+	}
+	return n.deps.AutomationRuntime()
 }
 
 func (n *daemonNativeTools) toolList(

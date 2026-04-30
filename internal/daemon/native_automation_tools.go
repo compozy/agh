@@ -109,7 +109,7 @@ func (n *daemonNativeTools) automationJobsList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	jobs, err := n.deps.Automation.ListJobs(ctx, query)
+	jobs, err := n.automationManager().ListJobs(ctx, query)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -133,7 +133,7 @@ func (n *daemonNativeTools) automationJobsGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	job, err := n.deps.Automation.GetJob(ctx, jobID)
+	job, err := n.automationManager().GetJob(ctx, jobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -157,7 +157,7 @@ func (n *daemonNativeTools) automationJobsCreate(
 	if err := job.Validate("job"); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 	}
-	created, err := n.deps.Automation.CreateJob(ctx, job)
+	created, err := n.automationManager().CreateJob(ctx, job)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -185,7 +185,7 @@ func (n *daemonNativeTools) automationJobsUpdate(
 			errors.New("automation job update must include at least one field"),
 		)
 	}
-	current, err := n.deps.Automation.GetJob(ctx, jobID)
+	current, err := n.automationManager().GetJob(ctx, jobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -195,13 +195,13 @@ func (n *daemonNativeTools) automationJobsUpdate(
 		if err := core.ValidateAutomationConfigJobUpdate(patch); err != nil {
 			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 		}
-		updated, err = n.deps.Automation.SetJobEnabled(ctx, current.ID, *patch.Enabled)
+		updated, err = n.automationManager().SetJobEnabled(ctx, current.ID, *patch.Enabled)
 	default:
 		next := core.ApplyAutomationJobPatch(current, patch)
 		if err := next.Validate("job"); err != nil {
 			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 		}
-		updated, err = n.deps.Automation.UpdateJob(ctx, next)
+		updated, err = n.automationManager().UpdateJob(ctx, next)
 	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
@@ -223,14 +223,14 @@ func (n *daemonNativeTools) automationJobsDelete(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	current, err := n.deps.Automation.GetJob(ctx, jobID)
+	current, err := n.automationManager().GetJob(ctx, jobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	if current.Source != automationpkg.JobSourceDynamic {
 		return toolspkg.ToolResult{}, nativeAutomationScopeError(req.ToolID, "job", current.ID, current.Source)
 	}
-	if err := n.deps.Automation.DeleteJob(ctx, current.ID); err != nil {
+	if err := n.automationManager().DeleteJob(ctx, current.ID); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	return structuredResult(map[string]any{"job_id": current.ID, "deleted": true}, current.ID)
@@ -265,7 +265,7 @@ func (n *daemonNativeTools) automationJobsTrigger(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	run, err := n.deps.Automation.TriggerJob(ctx, jobID)
+	run, err := n.automationManager().TriggerJob(ctx, jobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -286,7 +286,7 @@ func (n *daemonNativeTools) automationJobsHistory(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	job, err := n.deps.Automation.GetJob(ctx, jobID)
+	job, err := n.automationManager().GetJob(ctx, jobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -312,7 +312,7 @@ func (n *daemonNativeTools) automationTriggersList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	triggers, err := n.deps.Automation.ListTriggers(ctx, query)
+	triggers, err := n.automationManager().ListTriggers(ctx, query)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -333,7 +333,7 @@ func (n *daemonNativeTools) automationTriggersGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	trigger, err := n.deps.Automation.GetTrigger(ctx, triggerID)
+	trigger, err := n.automationManager().GetTrigger(ctx, triggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -357,7 +357,7 @@ func (n *daemonNativeTools) automationTriggersCreate(
 	if err := trigger.Validate("trigger"); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 	}
-	created, err := n.deps.Automation.CreateTrigger(ctx, trigger, "")
+	created, err := n.automationManager().CreateTrigger(ctx, trigger, "")
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -388,7 +388,7 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 			errors.New("automation trigger update must include at least one field"),
 		)
 	}
-	current, err := n.deps.Automation.GetTrigger(ctx, triggerID)
+	current, err := n.automationManager().GetTrigger(ctx, triggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -398,13 +398,13 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 		if err := core.ValidateAutomationConfigTriggerUpdate(patch); err != nil {
 			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 		}
-		updated, err = n.deps.Automation.SetTriggerEnabled(ctx, current.ID, *patch.Enabled)
+		updated, err = n.automationManager().SetTriggerEnabled(ctx, current.ID, *patch.Enabled)
 	default:
 		next := core.ApplyAutomationTriggerPatch(current, patch)
 		if err := next.Validate("trigger"); err != nil {
 			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 		}
-		updated, err = n.deps.Automation.UpdateTrigger(ctx, next, nil)
+		updated, err = n.automationManager().UpdateTrigger(ctx, next, nil)
 	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
@@ -426,14 +426,14 @@ func (n *daemonNativeTools) automationTriggersDelete(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	current, err := n.deps.Automation.GetTrigger(ctx, triggerID)
+	current, err := n.automationManager().GetTrigger(ctx, triggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	if current.Source != automationpkg.JobSourceDynamic {
 		return toolspkg.ToolResult{}, nativeAutomationScopeError(req.ToolID, "trigger", current.ID, current.Source)
 	}
-	if err := n.deps.Automation.DeleteTrigger(ctx, current.ID); err != nil {
+	if err := n.automationManager().DeleteTrigger(ctx, current.ID); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	return structuredResult(map[string]any{"trigger_id": current.ID, "deleted": true}, current.ID)
@@ -468,7 +468,7 @@ func (n *daemonNativeTools) automationTriggersHistory(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	trigger, err := n.deps.Automation.GetTrigger(ctx, triggerID)
+	trigger, err := n.automationManager().GetTrigger(ctx, triggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -510,7 +510,7 @@ func (n *daemonNativeTools) automationRunsGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	run, err := n.deps.Automation.GetRun(ctx, runID)
+	run, err := n.automationManager().GetRun(ctx, runID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -531,7 +531,7 @@ func (n *daemonNativeTools) automationSetJobEnabled(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	updated, err := n.deps.Automation.SetJobEnabled(ctx, jobID, enabled)
+	updated, err := n.automationManager().SetJobEnabled(ctx, jobID, enabled)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -552,7 +552,7 @@ func (n *daemonNativeTools) automationSetTriggerEnabled(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	updated, err := n.deps.Automation.SetTriggerEnabled(ctx, triggerID, enabled)
+	updated, err := n.automationManager().SetTriggerEnabled(ctx, triggerID, enabled)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -565,7 +565,7 @@ func (n *daemonNativeTools) automationRunsForQuery(
 	toolID toolspkg.ToolID,
 	query automationpkg.RunQuery,
 ) (toolspkg.ToolResult, error) {
-	runs, err := n.deps.Automation.ListRuns(ctx, query)
+	runs, err := n.automationManager().ListRuns(ctx, query)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(toolID, err)
 	}
@@ -612,7 +612,7 @@ func (n *daemonNativeTools) automationJobPayloadBestEffort(
 func (n *daemonNativeTools) automationSchedulerStateByJobID(
 	ctx context.Context,
 ) (map[string]contract.AutomationSchedulerStatePayload, error) {
-	status, err := n.deps.Automation.Status(ctx)
+	status, err := n.automationManager().Status(ctx)
 	if err != nil {
 		return nil, err
 	}

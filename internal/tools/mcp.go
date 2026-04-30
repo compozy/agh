@@ -95,6 +95,9 @@ func (p *MCPProvider) List(ctx context.Context, _ Scope) ([]Descriptor, error) {
 	for _, source := range sources {
 		tools, err := p.exec.ListTools(ctx, source)
 		if err != nil {
+			if reason, ok := ReasonOf(err); ok && isMCPAuthBlockingReason(reason) {
+				continue
+			}
 			return nil, fmt.Errorf("tools: list mcp source %q: %w", mcpSourceName(source), err)
 		}
 		for i := range tools {
@@ -109,6 +112,19 @@ func (p *MCPProvider) List(ctx context.Context, _ Scope) ([]Descriptor, error) {
 		return strings.Compare(left.ID.String(), right.ID.String())
 	})
 	return descriptors, nil
+}
+
+func isMCPAuthBlockingReason(reason ReasonCode) bool {
+	switch reason {
+	case ReasonMCPAuthUnconfigured,
+		ReasonMCPAuthRequired,
+		ReasonMCPAuthExpired,
+		ReasonMCPAuthInvalid,
+		ReasonMCPAuthRefreshFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 // Resolve returns a handle for one discovered MCP tool.

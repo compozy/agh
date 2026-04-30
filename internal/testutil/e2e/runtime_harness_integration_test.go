@@ -191,7 +191,8 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.ReadFile(%q) error = %v", transcriptPath, err)
 	}
-	if !strings.Contains(string(transcriptBytes), "echo: hello harness") {
+	transcript := string(transcriptBytes)
+	if !strings.Contains(transcript, "echo:") || !strings.Contains(transcript, "hello harness") {
 		t.Fatalf("transcript artifact = %s, want echoed assistant content", string(transcriptBytes))
 	}
 

@@ -70,3 +70,18 @@ func ReadDiagnostics(path string) ([]DiagnosticsRecord, error) {
 	}
 	return records, nil
 }
+
+// PromptDiagnostics returns diagnostics emitted for prompt execution turns only.
+func PromptDiagnostics(records []DiagnosticsRecord) []DiagnosticsRecord {
+	filtered := make([]DiagnosticsRecord, 0, len(records))
+	for _, record := range records {
+		if strings.TrimSpace(record.LifecycleEvent) != "" {
+			continue
+		}
+		if record.PromptIndex <= 0 {
+			continue
+		}
+		filtered = append(filtered, record)
+	}
+	return filtered
+}

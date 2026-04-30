@@ -455,11 +455,11 @@ func (s *HostedService) validatePeer(peer PeerInfo) error {
 	if currentUID := os.Getuid(); currentUID >= 0 && peer.UID != currentUID {
 		return fmt.Errorf("%w: uid mismatch", ErrHostedPeerInvalid)
 	}
-	peerBinary, err := normalizeExecutablePath(peer.ExecutablePath)
+	matches, err := sameExecutablePath(s.expectedBinary, peer.ExecutablePath)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrHostedBinaryInvalid, err)
 	}
-	if peerBinary != s.expectedBinary {
+	if !matches {
 		return fmt.Errorf("%w: peer executable mismatch", ErrHostedBinaryInvalid)
 	}
 	return nil
@@ -506,11 +506,11 @@ func (r *hostedBindRecord) validatePeer(peer PeerInfo) error {
 	if peer.PID != r.peer.PID || peer.UID != r.peer.UID {
 		return fmt.Errorf("%w: peer credential changed", ErrHostedPeerInvalid)
 	}
-	peerBinary, err := normalizeExecutablePath(peer.ExecutablePath)
+	matches, err := sameExecutablePath(r.expectedBin, peer.ExecutablePath)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrHostedBinaryInvalid, err)
 	}
-	if peerBinary != r.expectedBin {
+	if !matches {
 		return fmt.Errorf("%w: peer executable mismatch", ErrHostedBinaryInvalid)
 	}
 	return nil
@@ -555,6 +555,29 @@ func normalizeExecutablePath(path string) (string, error) {
 		return "", err
 	}
 	return filepath.Clean(evaluated), nil
+}
+
+func sameExecutablePath(expected string, actual string) (bool, error) {
+	expectedPath, err := normalizeExecutablePath(expected)
+	if err != nil {
+		return false, err
+	}
+	actualPath, err := normalizeExecutablePath(actual)
+	if err != nil {
+		return false, err
+	}
+	if actualPath == expectedPath {
+		return true, nil
+	}
+	expectedInfo, err := os.Stat(expectedPath)
+	if err != nil {
+		return false, err
+	}
+	actualInfo, err := os.Stat(actualPath)
+	if err != nil {
+		return false, err
+	}
+	return os.SameFile(expectedInfo, actualInfo), nil
 }
 
 func cloneToolViews(src []tools.ToolView) []tools.ToolView {

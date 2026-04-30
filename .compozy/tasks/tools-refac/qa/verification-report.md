@@ -1,57 +1,90 @@
-# Verification Report (placeholder)
+# Tools Refac Real-Scenario QA Verification Report
 
 **qa-output-path:** `.compozy/tasks/tools-refac`
-**Status:** Pending — task_13 has not yet executed the dossier.
+**Status:** PASS
 **Created:** 2026-04-30
 **Last Updated:** 2026-04-30
+**Scenario:** `tools-refac-real-scenario-20260430-074748-514234`
 
-This file is a scaffold. Task_13 (Real-Scenario QA Execution) replaces it with execution evidence.
+## QA Bootstrap
 
-## Lab Coordinates
+```qa-bootstrap
+manifest: /Users/pedronauck/dev/qa-labs/agh-tools-refac-real-scenario-20260430-074748-514234-lab/qa-artifacts/qa/bootstrap-manifest.json
+repo_manifest_copy: .compozy/tasks/tools-refac/qa/bootstrap-manifest.json
+lab_root: /Users/pedronauck/dev/qa-labs/agh-tools-refac-real-scenario-20260430-074748-514234-lab
+runtime_home: /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-afda92fbd4d8/runtime
+base_url: http://127.0.0.1:57781
+uds_path: /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-afda92fbd4d8/runtime/aghd.sock
+tmux_bridge_socket: /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-afda92fbd4d8/runtime/tmux-bridge.sock
+provider_home: /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-afda92fbd4d8/provider
+provider_codex_home: /var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-afda92fbd4d8/provider/.codex
+web_api_proxy_target: http://127.0.0.1:57781
+```
 
-- `AGH_HOME`: _populated by task_13_
-- Daemon ports: _populated by task_13_
-- `tmux-bridge` socket: _populated by task_13_
-- `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`: _populated by task_13_
-- `AGH_WEB_API_PROXY_TARGET`: _populated by task_13_
-- Bootstrap manifest path: `qa/logs/<TC-ID>/bootstrap-manifest.json` _produced by `agh-qa-bootstrap`_
+The lab was fresh, not reused. `agh-qa-bootstrap` allocated short runtime/provider homes because the direct lab-local UDS paths would exceed the macOS Unix socket path limit.
 
-## Smoke Lane
+## Scope Executed
 
-| Order | Case | Result | Evidence |
-|-------|------|--------|----------|
-| 1 | TC-FUNC-001 | _pending_ | _logs path_ |
-| 2 | TC-INT-003 | _pending_ | _logs path_ |
-| 3 | TC-AUT-001 | _pending_ | _logs path_ |
-| 4 | TC-SEC-001 | _pending_ | _logs path_ |
-| 5 | TC-SEC-002 | _pending_ | _logs path_ |
-| 6 | TC-FUNC-004 | _pending_ | _logs path_ |
-| 7 | TC-REG-001 | _pending_ | _logs path_ |
+Task 13 consumed the saved QA dossier under:
 
-## Targeted Lanes
+- `.compozy/tasks/tools-refac/qa/test-plans/`
+- `.compozy/tasks/tools-refac/qa/test-cases/`
 
-| Lane | Cases | Result Summary |
-|------|-------|----------------|
-| Discovery / Policy / Prompt | TC-FUNC-001, TC-INT-001, TC-INT-006, TC-FUNC-002, TC-REG-005 | _pending_ |
-| Read Surfaces | TC-FUNC-003, TC-INT-002, TC-INT-005 | _pending_ |
-| Mutable Surfaces | TC-FUNC-004..007, TC-SEC-004, TC-SEC-005 | _pending_ |
-| Autonomy | TC-AUT-001..006, TC-SEC-001, TC-SEC-003 | _pending_ |
-| Hosted MCP / Approval | TC-INT-003, TC-INT-004, TC-FUNC-008, TC-SEC-002, TC-SEC-006 | _pending_ |
-| Codegen / Docs / Web | TC-REG-001..005, TC-UI-001 | _pending_ |
+Execution covered the required real daemon-served surfaces: CLI, HTTP, UDS, session tool projections, hosted MCP, built-in tool calls, autonomy lease flows, policy/approval denial, config mutation boundaries, hooks, automation, extensions, MCP auth status, generated contract checks, site/docs build, and runtime E2E.
 
-## Repository Gates
+## Scenario Evidence
 
-- `make verify`: _pending_
-- `make codegen-check`: _pending_
-- `make cli-docs` + format clean: _pending_
-- `bun run --cwd packages/site build`: _pending_
-- `make bun-typecheck` / `make bun-test`: _pending_
-- `make test-e2e-runtime`: _pending_
+| Lane | Result | Evidence |
+|---|---:|---|
+| Bootstrap and daemon coordinates | PASS | `qa/bootstrap-manifest.json`, `qa/bootstrap.env`, `qa/logs/bootstrap/daemon-status-cli.json`, `qa/logs/bootstrap/daemon-status-http.json`, `qa/logs/bootstrap/daemon-status-uds.json` |
+| CLI/HTTP/UDS tool discovery parity | PASS | `qa/logs/live-runtime/http-tools-list.json`, `qa/logs/live-runtime/uds-tools-list.json`, `qa/logs/live-runtime/http-session-tools-list.json`, `qa/logs/live-runtime/uds-session-tools-list.json`, `qa/logs/live-runtime/final-http-session-tools.json`, `qa/logs/live-runtime/final-uds-session-tools.json` |
+| Tool search/info/invoke parity | PASS | `qa/logs/live-runtime/http-tool-invoke-search.json`, `qa/logs/live-runtime/uds-tool-invoke-search.json`, `qa/logs/live-runtime/tool-info-search-cli.json`, `qa/logs/live-runtime/tool-invoke-search-cli.json` |
+| Hosted MCP transport | PASS | `qa/logs/live-runtime/final-hosted-mcp-transcript.json`, `qa/logs/live-runtime/final-hosted-mcp-stderr.log` |
+| Autonomy hard cut and lease flow | PASS | `qa/logs/live-runtime/task-next-session-cli-default-channel.json`, `qa/logs/live-runtime/task-heartbeat-session-cli-default-channel.json`, `qa/logs/live-runtime/task-complete-session-cli-default-channel.json`, `qa/logs/live-runtime/task-get-default-channel-after-complete.json`, `qa/logs/live-runtime/task-complete-session-cli-raw-token-denied.*` |
+| Config mutation and redaction boundary | PASS | `qa/logs/live-runtime/tool-config-set-automation.json`, `qa/logs/live-runtime/config-get-automation-cli.json`, `qa/logs/live-runtime/tool-config-set-secret-denied.*`, `qa/logs/live-runtime/mcp-auth-config-secret-env-redacted.json` |
+| Hooks, automation, extensions | PASS | `qa/logs/live-runtime/tool-info-hooks-list.json`, `qa/logs/live-runtime/tool-invoke-hooks-list.json`, `qa/logs/live-runtime/tool-info-automation-jobs-list-after-fix.json`, `qa/logs/live-runtime/tool-invoke-automation-jobs-list-after-fix.json`, `qa/logs/live-runtime/tool-info-extensions-list-after-fix.json`, `qa/logs/live-runtime/tool-invoke-extensions-list-after-fix.json` |
+| MCP auth status | PASS | `qa/logs/live-runtime/mcp-auth-status-cli.json`, `qa/logs/live-runtime/mcp-auth-status-tool-info-after-fix.json`, `qa/logs/live-runtime/mcp-auth-status-tool-after-fix.json` |
+| Runtime E2E | PASS | `qa/logs/final-test-e2e-runtime.log` |
+| Codegen and generated contract | PASS | `qa/logs/final-codegen-check.log`; final `make verify` also ran codegen-check through workspace typecheck |
+| Site/docs build | PASS | `qa/logs/final-site-build.log`; final `make verify` also ran web build/typecheck/test lanes |
+| Focused coverage | PASS | `qa/logs/focused-go-coverage.log`: `internal/mcp` 80.6%, `internal/tools` 80.8% |
+| Monorepo gate | PASS | `qa/logs/final-make-verify.log` |
 
-## Open Issues
+## Defects Captured And Fixed
 
-_Populated from `qa/issues/BUG-*.md` once task_13 records defects._
+| ID | Status | Root Cause | Fix Evidence |
+|---|---:|---|---|
+| `BUG-001` | Fixed | Hosted MCP same-binary validation compared differently cased macOS paths as different executables. | `internal/mcp/hosted.go`, `internal/mcp/hosted_test.go`, `go test ./internal/mcp`, `qa/logs/live-runtime/hosted-mcp-transcript-after-fix.json` |
+| `BUG-002` | Fixed | One auth-blocked remote MCP source made the whole registry unavailable, including builtin auth-status tools. | `internal/tools/mcp.go`, `internal/tools/mcp_test.go`, `go test ./internal/tools`, `qa/logs/live-runtime/mcp-auth-status-tool-after-fix.json` |
+| `BUG-003` | Fixed | Automation native tools captured a nil manager before daemon automation boot completed. | `internal/daemon/native_tools.go`, `internal/daemon/native_automation_tools.go`, focused daemon tests, `qa/logs/live-runtime/tool-invoke-automation-jobs-list-after-fix.json` |
+| `BUG-004` | Fixed | Runtime E2E tests counted hosted MCP `session_new` lifecycle diagnostics as prompt diagnostics. | `internal/testutil/acpmock/diagnostics.go`, daemon integration tests |
+| `BUG-005` | Fixed | UDS/HTTP observe parity expected only one turn augmenter, while current runtime emits durable-memory and situation augmenters. | `internal/api/udsapi/transport_parity_integration_test.go` |
+| `BUG-006` | Fixed | Runtime harness artifact test required exact unaugmented echo text even though the runtime now dispatches augmented context plus the user prompt. | `internal/testutil/e2e/runtime_harness_integration_test.go` |
+
+Issue records are stored under `.compozy/tasks/tools-refac/qa/issues/BUG-001.md` through `BUG-006.md`.
+
+## Verification Commands
+
+| Command | Result | Evidence Summary |
+|---|---:|---|
+| `make test-e2e-runtime` | PASS | `internal/daemon`: 22 tests; `internal/api/httpapi`: 8 tests; `internal/api/udsapi`: 14 tests; `internal/testutil/e2e`: 6 tests |
+| `go test ./internal/mcp` | PASS | Hosted MCP same-executable regression passed |
+| `go test ./internal/tools` | PASS | MCP auth-blocked source isolation regression passed |
+| `go test ./internal/daemon -run 'TestDaemonNativeAutomationTools|TestDaemonNativeTools'` | PASS | Native automation manager lookup passed |
+| `go test -race -count=1 -tags integration ./internal/daemon -run 'TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessage|TestDaemonE2EMockAgentsRemainIsolated'` | PASS | Prompt diagnostics regressions passed |
+| `go test -race -count=1 -tags integration ./internal/api/udsapi -run TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP` | PASS | Observe parity regression passed |
+| `go test -race -count=1 -tags integration ./internal/testutil/e2e -run TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts` | PASS | Artifact assertion regression passed |
+| `go test ./internal/mcp ./internal/tools -cover` | PASS | `internal/mcp` 80.6%, `internal/tools` 80.8% |
+| `make codegen-check` | PASS | No generated contract drift |
+| `make site-build` | PASS | Site build completed |
+| `make verify` | PASS | `bun-lint`: 0 warnings/0 errors; `bun-test`: 258 files, 1845 tests; Go tests: 7097 tests; package boundaries respected |
+
+## Notes
+
+- `make verify` emitted the known Node warning that `NO_COLOR` is ignored when `FORCE_COLOR` is set. This was also present in baseline logs and did not produce lint/test/build failures.
+- Web build emitted the existing Vite large chunk advisory. It did not fail the build.
+- The live daemon evidence used the isolated QA runtime, not the default user AGH home.
 
 ## Final Verdict
 
-_Populated by task_13 after the full regression lane. Acceptable values: PASS / FAIL / CONDITIONAL._
+PASS. The saved QA dossier was executed against a fresh isolated daemon-served runtime, six reproduced defects were recorded and fixed at root cause, focused coverage met the >=80% requirement for the touched tool packages, runtime E2E passed, downstream codegen/site checks passed, and the full monorepo `make verify` gate passed.

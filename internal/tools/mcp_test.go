@@ -218,6 +218,37 @@ func TestShouldBlockMCPCallsWhenAuthIsRequired(t *testing.T) {
 	})
 }
 
+func TestShouldSkipMCPSourceWhenAuthBlocksDiscovery(t *testing.T) {
+	t.Run("Should Skip MCP Source When Auth Blocks Discovery", func(t *testing.T) {
+		t.Parallel()
+
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		executor.listErr = NewToolError(
+			ErrorCodeUnavailable,
+			"mcp__github__lookup",
+			"mcp login required",
+			ErrToolUnavailable,
+			ReasonMCPAuthRequired,
+		)
+		provider := newTestMCPProvider(t, executor, []SourceRef{{
+			Kind:          SourceMCP,
+			Owner:         "github",
+			RawServerName: "github",
+		}})
+
+		descriptors, err := provider.List(context.Background(), Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("provider.List() error = %v", err)
+		}
+		if len(descriptors) != 0 {
+			t.Fatalf("provider.List() descriptors = %#v, want empty while auth blocks discovery", descriptors)
+		}
+	})
+}
+
 func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 	t.Run("Should Call MCP Provider Through Registry", func(t *testing.T) {
 		t.Parallel()
@@ -251,10 +282,11 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 }
 
 type fakeMCPExecutor struct {
-	mu     sync.Mutex
-	tools  []MCPToolDescriptor
-	status MCPAuthStatus
-	calls  []MCPToolCallRequest
+	mu      sync.Mutex
+	tools   []MCPToolDescriptor
+	status  MCPAuthStatus
+	listErr error
+	calls   []MCPToolCallRequest
 }
 
 func newFakeMCPExecutor(tools []MCPToolDescriptor) *fakeMCPExecutor {
@@ -268,6 +300,9 @@ func (f *fakeMCPExecutor) ListTools(context.Context, SourceRef) ([]MCPToolDescri
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
 	out := make([]MCPToolDescriptor, len(f.tools))
 	for i := range f.tools {
 		out[i] = f.tools[i]

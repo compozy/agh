@@ -114,6 +114,38 @@ func TestHostedServiceValidatesPeerAndBinaryFailClosed(t *testing.T) {
 			t.Fatalf("Bind(valid after failed validation) error = %v", err)
 		}
 	})
+
+	t.Run("Should accept the same executable file through an alternate filesystem path", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+		executable := hostedTestExecutable(t, "agh")
+		alternate := filepath.Join(t.TempDir(), "agh-hardlink")
+		if err := os.Link(executable, alternate); err != nil {
+			t.Fatalf("Link(%q, %q) error = %v", executable, alternate, err)
+		}
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("agh__hosted_echo")}}
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+
+		launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-1"})
+		if err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+		nonce := hostedLaunchNonce(t, launch.Args)
+		peer := hostedTestPeer(alternate)
+
+		bind, err := service.Bind(
+			t.Context(),
+			HostedBindRequest{SessionID: "sess-1", Nonce: nonce},
+			peer,
+		)
+		if err != nil {
+			t.Fatalf("Bind(peer with alternate executable path) error = %v", err)
+		}
+		if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
+			t.Fatalf("Projection(peer with alternate executable path) error = %v", err)
+		}
+	})
 }
 
 func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
