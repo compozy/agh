@@ -274,6 +274,210 @@ func TestRuntimeRegistrySearchGetAndCustomEvaluator(t *testing.T) {
 	})
 }
 
+func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
+	ctx := context.Background()
+	toolList := descriptorWithID(ToolIDToolList, "Tool List", ToolsetIDBootstrap)
+	toolInfo := descriptorWithID(ToolIDToolInfo, "Tool Info", ToolsetIDBootstrap)
+	skillView := descriptorWithID(ToolIDSkillView, "Skill View", ToolsetIDCatalog)
+	taskRead := descriptorWithID(ToolIDTaskRead, "Task Read", ToolsetIDTasks)
+	provider := providerWithDescriptors(
+		SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
+		toolList,
+		toolInfo,
+		skillView,
+		taskRead,
+	)
+	catalog := defaultDiscoveryTestCatalog(t)
+	resolver := &mutablePolicyInputResolver{
+		inputs: PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveAll,
+			ApprovalAvailable:    true,
+		},
+		defaultToolsets: []ToolsetID{ToolsetIDBootstrap, ToolsetIDCatalog},
+	}
+	registry, err := NewRegistry(
+		WithProviders(provider),
+		WithPolicyInputResolver(resolver, catalog),
+	)
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+	sessionScope := Scope{SessionID: "sess-1", AgentName: "coder"}
+
+	t.Run("Should apply default discovery until agent policy narrows the allowlist", func(t *testing.T) {
+		resolver.inputs = PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveAll,
+			ApprovalAvailable:    true,
+		}
+		views, err := registry.SessionProjection(ctx, sessionScope)
+		if err != nil {
+			t.Fatalf("SessionProjection(default discovery) error = %v", err)
+		}
+		requireToolIDs(t, views, ToolIDToolInfo, ToolIDToolList, ToolIDSkillView)
+		requireNoToolID(t, views, ToolIDTaskRead)
+
+		operatorViews, err := registry.OperatorProjection(ctx, Scope{
+			SessionID: "sess-1",
+			AgentName: "coder",
+			Operator:  true,
+		})
+		if err != nil {
+			t.Fatalf("OperatorProjection(scoped diagnostics) error = %v", err)
+		}
+		requireViewReason(t, operatorViews, ToolIDTaskRead, ReasonPolicyDenied)
+
+		resolver.inputs.Agent.Toolsets = []ToolsetID{ToolsetIDTasks}
+		views, err = registry.SessionProjection(ctx, sessionScope)
+		if err != nil {
+			t.Fatalf("SessionProjection(narrowed agent) error = %v", err)
+		}
+		requireToolIDs(t, views, ToolIDTaskRead)
+		requireNoToolID(t, views, ToolIDSkillView)
+		requireNoToolID(t, views, ToolIDToolList)
+	})
+
+	t.Run("Should let explicit denies and session lineage override default discovery", func(t *testing.T) {
+		denySkill, err := ParseToolPattern(ToolIDSkillView.String())
+		if err != nil {
+			t.Fatalf("ParseToolPattern(skill_view) error = %v", err)
+		}
+		resolver.inputs = PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveAll,
+			ApprovalAvailable:    true,
+			Agent: AgentToolPolicy{
+				DenyTools: []ToolPattern{denySkill},
+			},
+		}
+		views, err := registry.SessionProjection(ctx, sessionScope)
+		if err != nil {
+			t.Fatalf("SessionProjection(denied default) error = %v", err)
+		}
+		requireToolIDs(t, views, ToolIDToolInfo, ToolIDToolList)
+		requireNoToolID(t, views, ToolIDSkillView)
+		requireNoToolID(t, views, ToolIDTaskRead)
+
+		resolver.inputs = PolicyInputs{
+			SystemPermissionMode: PermissionModeApproveAll,
+			ApprovalAvailable:    true,
+			Session: SessionToolPolicy{
+				Enforced: true,
+				Tools:    []ToolID{ToolIDToolInfo},
+			},
+		}
+		views, err = registry.SessionProjection(ctx, sessionScope)
+		if err != nil {
+			t.Fatalf("SessionProjection(session lineage) error = %v", err)
+		}
+		requireToolIDs(t, views, ToolIDToolInfo)
+		requireNoToolID(t, views, ToolIDToolList)
+		requireNoToolID(t, views, ToolIDSkillView)
+	})
+}
+
+func TestRuntimeRegistryResolverRevalidatesProjectionAndDispatch(t *testing.T) {
+	ctx := context.Background()
+	descriptor := descriptorWithID(ToolIDSkillView, "Skill View", ToolsetIDCatalog)
+	handle := &registryTestHandle{
+		descriptor: descriptor,
+		availability: Availability{
+			Registered:  true,
+			Enabled:     true,
+			Available:   true,
+			Authorized:  true,
+			Executable:  true,
+			ReasonCodes: nil,
+		},
+	}
+	callCount := 0
+	handle.call = func(context.Context, CallRequest) (ToolResult, error) {
+		callCount++
+		return ToolResult{Content: []ToolContent{{Type: "text", Text: "ok"}}}, nil
+	}
+	provider := registryTestProvider{
+		source:      SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
+		descriptors: []Descriptor{descriptor},
+		handles: map[ToolID]Handle{
+			descriptor.ID: handle,
+		},
+		resolveErr: map[ToolID]error{},
+	}
+	resolver := &mutablePolicyInputResolver{inputs: PolicyInputs{
+		SystemPermissionMode: PermissionModeApproveAll,
+		ApprovalAvailable:    true,
+	}}
+	registry, err := NewRegistry(
+		WithProviders(provider),
+		WithPolicyInputResolver(resolver, defaultDiscoveryTestCatalog(t)),
+	)
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+
+	views, err := registry.List(ctx, Scope{})
+	if err != nil {
+		t.Fatalf("List(initial) error = %v", err)
+	}
+	requireToolIDs(t, views, descriptor.ID)
+
+	denySkill, err := ParseToolPattern(descriptor.ID.String())
+	if err != nil {
+		t.Fatalf("ParseToolPattern() error = %v", err)
+	}
+	resolver.inputs.DenyTools = []ToolPattern{denySkill}
+	searchResults, err := registry.Search(ctx, Scope{}, SearchQuery{Query: "skill"})
+	if err != nil {
+		t.Fatalf("Search(after deny) error = %v", err)
+	}
+	if len(searchResults) != 0 {
+		t.Fatalf("Search(after deny) = %#v, want no session-visible results", searchResults)
+	}
+	_, err = registry.Get(ctx, Scope{}, descriptor.ID)
+	if !errors.Is(err, ErrToolNotFound) {
+		t.Fatalf("Get(after deny) error = %v, want ErrToolNotFound", err)
+	}
+	_, err = registry.Call(ctx, Scope{}, CallRequest{ToolID: descriptor.ID})
+	if !errors.Is(err, ErrToolDenied) {
+		t.Fatalf("Call(after deny) error = %v, want ErrToolDenied", err)
+	}
+	if callCount != 0 {
+		t.Fatalf("call count after denied dispatch = %d, want 0", callCount)
+	}
+
+	resolver.inputs.DenyTools = nil
+	handle.availability = Availability{
+		Registered:  true,
+		Enabled:     true,
+		Available:   false,
+		Authorized:  true,
+		Executable:  false,
+		ReasonCodes: []ReasonCode{ReasonBackendUnhealthy},
+	}
+	operatorViews, err := registry.OperatorProjection(ctx, Scope{Operator: true})
+	if err != nil {
+		t.Fatalf("OperatorProjection(unhealthy) error = %v", err)
+	}
+	requireViewReason(t, operatorViews, descriptor.ID, ReasonBackendUnhealthy)
+
+	handle.availability = Availability{
+		Registered:  true,
+		Enabled:     true,
+		Available:   true,
+		Authorized:  true,
+		Executable:  true,
+		ReasonCodes: nil,
+	}
+	_, err = registry.Call(ctx, Scope{}, CallRequest{ToolID: descriptor.ID})
+	if err != nil {
+		t.Fatalf("Call(after policy and availability recover) error = %v", err)
+	}
+	if callCount != 1 {
+		t.Fatalf("call count after recovered dispatch = %d, want 1", callCount)
+	}
+	if resolver.resolveCalls < 4 {
+		t.Fatalf("resolver calls = %d, want recomputation across list/projection/call paths", resolver.resolveCalls)
+	}
+}
+
 func providerWithDescriptors(source SourceRef, descriptors ...Descriptor) registryTestProvider {
 	handles := make(map[ToolID]Handle, len(descriptors))
 	for _, descriptor := range descriptors {
@@ -331,6 +535,86 @@ func requireViewReason(t *testing.T, views []ToolView, id ToolID, reason ReasonC
 		return
 	}
 	t.Fatalf("view %q not found in %#v", id, views)
+}
+
+type mutablePolicyInputResolver struct {
+	inputs          PolicyInputs
+	defaultToolsets []ToolsetID
+	resolveCalls    int
+}
+
+var _ PolicyInputResolver = (*mutablePolicyInputResolver)(nil)
+
+func (r *mutablePolicyInputResolver) Resolve(_ context.Context, _ Scope) (PolicyInputs, error) {
+	r.resolveCalls++
+	return clonePolicyInputs(r.inputs), nil
+}
+
+func (r *mutablePolicyInputResolver) DefaultToolsets(_ context.Context, _ Scope) ([]ToolsetID, error) {
+	return append([]ToolsetID(nil), r.defaultToolsets...), nil
+}
+
+func descriptorWithID(id ToolID, title string, toolsets ...ToolsetID) Descriptor {
+	descriptor := validDescriptor()
+	descriptor.ID = id
+	descriptor.DisplayTitle = title
+	descriptor.Description = title
+	descriptor.Toolsets = append([]ToolsetID(nil), toolsets...)
+	return descriptor
+}
+
+func defaultDiscoveryTestCatalog(t *testing.T) ToolsetCatalog {
+	t.Helper()
+
+	catalog, err := NewToolsetCatalog(
+		Toolset{
+			ID: ToolsetIDBootstrap,
+			Tools: []string{
+				ToolIDToolInfo.String(),
+				ToolIDToolList.String(),
+			},
+		},
+		Toolset{
+			ID:       ToolsetIDCatalog,
+			Tools:    []string{ToolIDSkillView.String()},
+			Toolsets: []ToolsetID{ToolsetIDBootstrap},
+		},
+		Toolset{
+			ID:    ToolsetIDTasks,
+			Tools: []string{ToolIDTaskRead.String()},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewToolsetCatalog() error = %v", err)
+	}
+	return catalog
+}
+
+func requireToolIDs(t *testing.T, views []ToolView, ids ...ToolID) {
+	t.Helper()
+
+	got := make(map[ToolID]struct{}, len(views))
+	for i := range views {
+		got[views[i].Descriptor.ID] = struct{}{}
+	}
+	for _, id := range ids {
+		if _, ok := got[id]; !ok {
+			t.Fatalf("tool %q not found in projection %#v", id, views)
+		}
+	}
+	if len(got) != len(ids) {
+		t.Fatalf("projection ids = %#v, want exactly %#v", sortedToolIDsFromSet(got), ids)
+	}
+}
+
+func requireNoToolID(t *testing.T, views []ToolView, id ToolID) {
+	t.Helper()
+
+	for i := range views {
+		if views[i].Descriptor.ID == id {
+			t.Fatalf("projection contains %q: %#v", id, views)
+		}
+	}
 }
 
 func longASCII(length int) string {

@@ -125,7 +125,7 @@ func (r *RuntimeRegistry) resolveDispatchTarget(
 			ReasonToolUnknown,
 		)
 	}
-	evaluator, err := r.evaluatorFor(index.ids())
+	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
 	if err != nil {
 		return dispatchTarget{}, err
 	}

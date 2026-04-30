@@ -85,12 +85,7 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: create native tool provider: %w", err)
 	}
-	policyInputs, err := nativeToolPolicyInputs(&state.cfg)
-	if err != nil {
-		return fmt.Errorf("daemon: build native tool policy inputs: %w", err)
-	}
 	approvalTokens := toolspkg.NewApprovalTokenStore(state.cfg.Tools.Policy.ApprovalTimeout())
-	policyInputs.ApprovalAvailable = true
 	var approvalBridge *toolApprovalBridge
 	if _, ok := state.sessions.(sessionPermissionRequester); ok {
 		approvalBridge = newToolApprovalBridge(
@@ -111,6 +106,10 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: build native toolset catalog: %w", err)
 	}
+	policyResolver, err := newNativeToolPolicyResolverForBoot(state)
+	if err != nil {
+		return fmt.Errorf("daemon: build native tool policy resolver: %w", err)
+	}
 	providers := []toolspkg.Provider{provider}
 	extensionProvider, err := newDaemonExtensionToolProvider(state)
 	if err != nil {
@@ -128,7 +127,7 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	}
 	registry, err = toolspkg.NewRegistry(
 		toolspkg.WithProviders(providers...),
-		toolspkg.WithPolicyInputs(policyInputs, toolsets),
+		toolspkg.WithPolicyInputResolver(policyResolver, toolsets),
 		toolspkg.WithApprovalBridge(approvalBridge),
 		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
 	)

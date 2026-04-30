@@ -12,12 +12,14 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	builtintools "github.com/pedronauck/agh/internal/tools/builtin"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestDaemonNativeTools(t *testing.T) {
@@ -811,10 +813,110 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 	}
 }
 
+func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
+	ctx := t.Context()
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	sessions := &nativeToolPolicySessionStub{
+		info: &session.Info{
+			ID:        "sess-1",
+			AgentName: "coder",
+			State:     session.StateActive,
+		},
+	}
+	agents := &nativeToolPolicyAgentResolverStub{
+		agent: aghconfig.AgentDef{
+			Name:     "coder",
+			Provider: "opencode",
+			Prompt:   "Use the available tools to help the user.",
+		},
+	}
+	resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+		Config:            &cfg,
+		Sessions:          sessions,
+		AgentResolver:     agents,
+		ApprovalAvailable: true,
+		DefaultToolsets: []toolspkg.ToolsetID{
+			toolspkg.ToolsetIDBootstrap,
+			toolspkg.ToolsetIDCatalog,
+		},
+	})
+	if err != nil {
+		t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+	}
+	registry := newDaemonNativeRegistryWithPolicyResolver(t, daemonNativeToolsDeps{
+		Skills: newLoadedNativeSkillRegistry(t),
+		Tasks:  &nativeTaskManager{},
+	}, resolver)
+	scope := toolspkg.Scope{SessionID: "sess-1"}
+
+	views, err := registry.SessionProjection(ctx, scope)
+	if err != nil {
+		t.Fatalf("SessionProjection(default discovery) error = %v", err)
+	}
+	requireNativeViewContains(t, views, toolspkg.ToolIDToolList)
+	requireNativeViewContains(t, views, toolspkg.ToolIDToolInfo)
+	requireNativeViewContains(t, views, toolspkg.ToolIDSkillView)
+	requireNativeViewExcludes(t, views, toolspkg.ToolIDTaskRead)
+
+	_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDToolInfo,
+		Input:  json.RawMessage(`{"tool_id":"agh__tool_list"}`),
+	})
+	if err != nil {
+		t.Fatalf("Registry.Call(tool_info default discovery) error = %v", err)
+	}
+
+	agents.agent.Toolsets = []string{toolspkg.ToolsetIDTasks.String()}
+	views, err = registry.SessionProjection(ctx, scope)
+	if err != nil {
+		t.Fatalf("SessionProjection(agent narrowed to tasks) error = %v", err)
+	}
+	requireNativeViewContains(t, views, toolspkg.ToolIDTaskRead)
+	requireNativeViewExcludes(t, views, toolspkg.ToolIDToolInfo)
+	_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDToolInfo,
+		Input:  json.RawMessage(`{"tool_id":"agh__tool_list"}`),
+	})
+	requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonPolicyDenied)
+
+	agents.agent.Toolsets = nil
+	sessions.info.Lineage = &store.SessionLineage{
+		ParentSessionID: "parent-1",
+		RootSessionID:   "root-1",
+		SpawnDepth:      1,
+		PermissionPolicy: store.SessionPermissionPolicy{
+			Tools: []string{toolspkg.ToolIDToolInfo.String()},
+		},
+	}
+	views, err = registry.SessionProjection(ctx, scope)
+	if err != nil {
+		t.Fatalf("SessionProjection(session lineage) error = %v", err)
+	}
+	requireNativeViewContains(t, views, toolspkg.ToolIDToolInfo)
+	requireNativeViewExcludes(t, views, toolspkg.ToolIDToolList)
+	_, err = registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolList})
+	requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
+}
+
 func newDaemonNativeRegistry(
 	t *testing.T,
 	deps daemonNativeToolsDeps,
 	policyInputs toolspkg.PolicyInputs,
+) *toolspkg.RuntimeRegistry {
+	t.Helper()
+
+	return newDaemonNativeRegistryWithPolicyResolver(
+		t,
+		deps,
+		toolspkg.NewStaticPolicyInputResolver(policyInputs),
+	)
+}
+
+func newDaemonNativeRegistryWithPolicyResolver(
+	t *testing.T,
+	deps daemonNativeToolsDeps,
+	resolver toolspkg.PolicyInputResolver,
 ) *toolspkg.RuntimeRegistry {
 	t.Helper()
 
@@ -832,13 +934,43 @@ func newDaemonNativeRegistry(
 	}
 	registry, err = toolspkg.NewRegistry(
 		toolspkg.WithProviders(provider),
-		toolspkg.WithPolicyInputs(policyInputs, toolsets),
+		toolspkg.WithPolicyInputResolver(resolver, toolsets),
 		toolspkg.WithDefaultMaxResultBytes(aghconfig.DefaultToolsMaxResultBytes),
 	)
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
 	return registry
+}
+
+type nativeToolPolicySessionStub struct {
+	info *session.Info
+	err  error
+}
+
+func (s *nativeToolPolicySessionStub) Status(context.Context, string) (*session.Info, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.info, nil
+}
+
+type nativeToolPolicyAgentResolverStub struct {
+	agent aghconfig.AgentDef
+	err   error
+}
+
+func (r *nativeToolPolicyAgentResolverStub) ResolveAgent(
+	name string,
+	_ *workspacepkg.ResolvedWorkspace,
+) (aghconfig.AgentDef, error) {
+	if r.err != nil {
+		return aghconfig.AgentDef{}, r.err
+	}
+	if name != r.agent.Name {
+		return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, name)
+	}
+	return r.agent, nil
 }
 
 func nativeApproveAllPolicyInputs() toolspkg.PolicyInputs {
@@ -871,6 +1003,27 @@ func requireNativeStructuredExcludes(t *testing.T, result toolspkg.ToolResult, n
 
 	if bytes.Contains(result.Structured, needle) {
 		t.Fatalf("structured result = %s, want to exclude %s", result.Structured, needle)
+	}
+}
+
+func requireNativeViewContains(t *testing.T, views []toolspkg.ToolView, id toolspkg.ToolID) {
+	t.Helper()
+
+	for i := range views {
+		if views[i].Descriptor.ID == id {
+			return
+		}
+	}
+	t.Fatalf("projection does not contain %q: %#v", id, views)
+}
+
+func requireNativeViewExcludes(t *testing.T, views []toolspkg.ToolView, id toolspkg.ToolID) {
+	t.Helper()
+
+	for i := range views {
+		if views[i].Descriptor.ID == id {
+			t.Fatalf("projection contains %q: %#v", id, views)
+		}
 	}
 }
 

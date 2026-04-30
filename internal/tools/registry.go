@@ -15,6 +15,7 @@ type RuntimeRegistry struct {
 	providers             []Provider
 	evaluator             PolicyEvaluator
 	policyInputs          PolicyInputs
+	policyResolver        PolicyInputResolver
 	toolsets              ToolsetCatalog
 	hooks                 HookRunner
 	approvalBridge        ApprovalBridge
@@ -57,6 +58,7 @@ func WithProviders(providers ...Provider) RegistryOption {
 func WithPolicyEvaluator(evaluator PolicyEvaluator) RegistryOption {
 	return func(registry *RuntimeRegistry) {
 		registry.evaluator = evaluator
+		registry.policyResolver = nil
 		registry.usePolicyInput = false
 	}
 }
@@ -64,7 +66,17 @@ func WithPolicyEvaluator(evaluator PolicyEvaluator) RegistryOption {
 // WithPolicyInputs configures the default effective policy evaluator.
 func WithPolicyInputs(inputs PolicyInputs, toolsets ToolsetCatalog) RegistryOption {
 	return func(registry *RuntimeRegistry) {
-		registry.policyInputs = inputs
+		registry.policyInputs = clonePolicyInputs(inputs)
+		registry.policyResolver = NewStaticPolicyInputResolver(inputs)
+		registry.toolsets = toolsets
+		registry.usePolicyInput = true
+	}
+}
+
+// WithPolicyInputResolver configures a scope-aware effective policy evaluator.
+func WithPolicyInputResolver(resolver PolicyInputResolver, toolsets ToolsetCatalog) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.policyResolver = resolver
 		registry.toolsets = toolsets
 		registry.usePolicyInput = true
 	}
@@ -205,7 +217,7 @@ func (r *RuntimeRegistry) OperatorProjection(ctx context.Context, scope Scope) (
 	if err != nil {
 		return nil, err
 	}
-	evaluator, err := r.evaluatorFor(index.ids())
+	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +239,7 @@ func (r *RuntimeRegistry) SessionProjection(ctx context.Context, scope Scope) ([
 	if err != nil {
 		return nil, err
 	}
-	evaluator, err := r.evaluatorFor(index.ids())
+	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
 	if err != nil {
 		return nil, err
 	}
@@ -288,14 +300,34 @@ func (r *RuntimeRegistry) buildIndex(ctx context.Context, scope Scope) (*registr
 	return index, nil
 }
 
-func (r *RuntimeRegistry) evaluatorFor(ids []ToolID) (PolicyEvaluator, error) {
+func (r *RuntimeRegistry) evaluatorFor(ctx context.Context, scope Scope, ids []ToolID) (PolicyEvaluator, error) {
 	if r.usePolicyInput {
-		return NewEffectivePolicyEvaluator(r.policyInputs, r.toolsets, ids)
+		inputs, err := r.policyInputsFor(ctx, scope)
+		if err != nil {
+			return nil, err
+		}
+		return NewEffectivePolicyEvaluator(inputs, r.toolsets, ids)
 	}
 	if r.evaluator != nil {
 		return r.evaluator, nil
 	}
 	return NewEffectivePolicyEvaluator(DefaultPolicyInputs(), ToolsetCatalog{}, ids)
+}
+
+func (r *RuntimeRegistry) policyInputsFor(ctx context.Context, scope Scope) (PolicyInputs, error) {
+	resolver := r.policyResolver
+	if resolver == nil {
+		resolver = NewStaticPolicyInputResolver(r.policyInputs)
+	}
+	inputs, err := resolver.Resolve(ctx, scope)
+	if err != nil {
+		return PolicyInputs{}, err
+	}
+	defaultToolsets, err := resolver.DefaultToolsets(ctx, scope)
+	if err != nil {
+		return PolicyInputs{}, err
+	}
+	return applyDefaultDiscoveryOverlay(inputs, scope, defaultToolsets), nil
 }
 
 func (r *RuntimeRegistry) toolsetView(ctx context.Context, scope Scope, toolset Toolset) (ToolsetView, error) {
