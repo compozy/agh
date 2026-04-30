@@ -18,8 +18,10 @@ func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
 	handlers.Config.Network.Enabled = true
+	sendCalls := 0
 	handlers.Network = stubNetworkService{
 		SendFn: func(context.Context, network.SendRequest) (string, error) {
+			sendCalls++
 			return "", nil
 		},
 	}
@@ -39,6 +41,30 @@ func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 	}
 	if !strings.Contains(sendResp.Body.String(), "session_id is required") {
 		t.Fatalf("send body = %q, want session_id validation", sendResp.Body.String())
+	}
+
+	rawTokenResp := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/network/send",
+		[]byte(
+			`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"claim_token":"agh_claim_uds"}}`,
+		),
+	)
+	if rawTokenResp.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"raw token send status = %d, want %d; body=%s",
+			rawTokenResp.Code,
+			http.StatusBadRequest,
+			rawTokenResp.Body.String(),
+		)
+	}
+	if !strings.Contains(rawTokenResp.Body.String(), "network_raw_token_rejected") {
+		t.Fatalf("raw token send body = %q, want network_raw_token_rejected", rawTokenResp.Body.String())
+	}
+	if sendCalls != 0 {
+		t.Fatalf("Network.Send calls = %d, want 0 for invalid send requests", sendCalls)
 	}
 }
 

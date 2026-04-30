@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	memorypkg "github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
@@ -1027,6 +1029,60 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should map stale autonomy writer rejection after session lookup", func(t *testing.T) {
+		t.Parallel()
+
+		rawToken := "agh_claim_STALEWRITER123"
+		hash, err := taskpkg.ClaimTokenHash(rawToken)
+		if err != nil {
+			t.Fatalf("ClaimTokenHash() error = %v", err)
+		}
+		tasks := &nativeTaskManager{
+			lookupHandle: taskpkg.AutonomyLeaseHandle{
+				RunID:          "run-1",
+				TaskID:         "task-1",
+				WorkspaceID:    "ws-1",
+				SessionID:      "sess-agent",
+				Status:         taskpkg.TaskRunStatusClaimed,
+				ClaimToken:     rawToken,
+				ClaimTokenHash: hash,
+				LeaseUntil:     time.Now().UTC().Add(time.Minute),
+			},
+			heartbeatErr: fmt.Errorf("%w: writer rejected stale lease %s", taskpkg.ErrLeaseExpired, rawToken),
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-1", AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunHeartbeat,
+				Input:  json.RawMessage(`{"run_id":"run-1","lease_seconds":30}`),
+			},
+		)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) ||
+			toolErr.Code != toolspkg.ErrorCodeConflict ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonAutonomyLeaseExpired) ||
+			!errors.Is(err, taskpkg.ErrLeaseExpired) ||
+			!errors.Is(err, toolspkg.ErrToolConflict) {
+			t.Fatalf("Registry.Call(task_run_heartbeat) error = %#v, want autonomy lease conflict", err)
+		}
+		if bytes.Contains([]byte(err.Error()), []byte(rawToken)) {
+			t.Fatalf("Registry.Call(task_run_heartbeat) error leaked raw token: %v", err)
+		}
+		if tasks.lookupCalls != 1 || tasks.heartbeatCalls != 1 || tasks.lastHeartbeat.ClaimToken != rawToken {
+			t.Fatalf(
+				"lookup/heartbeat = %d/%d/%#v, want lookup then token-fenced writer",
+				tasks.lookupCalls,
+				tasks.heartbeatCalls,
+				tasks.lastHeartbeat,
+			)
+		}
+	})
+
 	t.Run("Should route child creation through task child-lineage service boundary", func(t *testing.T) {
 		t.Parallel()
 
@@ -1183,6 +1239,111 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("SendRequest.Body = %s, want %s", got, want)
 		}
 	})
+
+	t.Run("Should reject raw claim token fields before network send", func(t *testing.T) {
+		t.Parallel()
+
+		networkService := &nativeNetworkStub{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Network: networkService,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-scope"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkSend,
+				Input: json.RawMessage(
+					`{"session_id":"sess-scope","channel":"default","kind":"say","body":{"claim_token":"agh_claim_SECRET123"}}`,
+				),
+			},
+		)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) ||
+			toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonNetworkRawTokenRejected) {
+			t.Fatalf("Registry.Call(network_send) error = %#v, want network_raw_token_rejected", err)
+		}
+		if networkService.sendCalls != 0 {
+			t.Fatalf("Network.Send calls = %d, want 0", networkService.sendCalls)
+		}
+	})
+
+	t.Run("Should reject raw claim token fields through hosted MCP", func(t *testing.T) {
+		t.Parallel()
+
+		networkService := &nativeNetworkStub{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Network: networkService,
+		}, nativeApproveAllPolicyInputs())
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatalf("os.Executable() error = %v", err)
+		}
+		counter := byte(1)
+		service, err := mcppkg.NewHostedService(mcppkg.HostedConfig{
+			Enabled:        true,
+			BindNonceTTL:   time.Minute,
+			ExpectedBinary: executable,
+			Registry: func() toolspkg.Registry {
+				return registry
+			},
+			Now: func() time.Time {
+				return time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
+			},
+			NonceReader: func(dst []byte) error {
+				for i := range dst {
+					dst[i] = counter
+					counter++
+				}
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewHostedService() error = %v", err)
+		}
+		launch, err := service.Launch(t.Context(), mcppkg.HostedLaunchRequest{
+			SessionID:   "sess-scope",
+			WorkspaceID: "ws-1",
+			AgentName:   "coder",
+		})
+		if err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+		peer := mcppkg.PeerInfo{
+			PID:            os.Getpid(),
+			UID:            os.Getuid(),
+			GID:            os.Getgid(),
+			ExecutablePath: executable,
+			Supported:      true,
+		}
+		bind, err := service.Bind(
+			t.Context(),
+			mcppkg.HostedBindRequest{SessionID: "sess-scope", Nonce: launch.Args[len(launch.Args)-1]},
+			peer,
+		)
+		if err != nil {
+			t.Fatalf("Bind() error = %v", err)
+		}
+
+		_, err = service.Call(t.Context(), mcppkg.HostedCallRequest{
+			BindID:   bind.BindID,
+			ToolName: toolspkg.ToolIDNetworkSend.String(),
+			Input: json.RawMessage(
+				`{"session_id":"sess-scope","channel":"default","kind":"say","body":{"claim_token":"agh_claim_HOSTED123"}}`,
+			),
+		}, peer)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) ||
+			toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonNetworkRawTokenRejected) {
+			t.Fatalf("HostedService.Call(network_send) error = %#v, want network_raw_token_rejected", err)
+		}
+		if networkService.sendCalls != 0 {
+			t.Fatalf("Network.Send calls = %d, want 0", networkService.sendCalls)
+		}
+	})
+
 	t.Run("Should read session tools through the existing session manager boundary", func(t *testing.T) {
 		t.Parallel()
 
@@ -2252,12 +2413,16 @@ type nativeTaskManager struct {
 	lookupErr           error
 	heartbeatCalls      int
 	lastHeartbeat       taskpkg.LeaseHeartbeat
+	heartbeatErr        error
 	completeCalls       int
 	lastCompletion      taskpkg.LeaseCompletion
+	completeErr         error
 	failCalls           int
 	lastFailure         taskpkg.LeaseFailure
+	failErr             error
 	releaseCalls        int
 	lastRelease         taskpkg.LeaseRelease
+	releaseErr          error
 }
 
 func (m *nativeTaskManager) CreateTask(
@@ -2380,6 +2545,9 @@ func (m *nativeTaskManager) HeartbeatRunLease(
 ) (*taskpkg.Run, error) {
 	m.heartbeatCalls++
 	m.lastHeartbeat = heartbeat
+	if m.heartbeatErr != nil {
+		return nil, m.heartbeatErr
+	}
 	run := nativeLeaseRun(heartbeat.RunID, taskpkg.TaskRunStatusClaimed, m.lookupHandle)
 	run.LeaseUntil = time.Now().UTC().Add(heartbeat.LeaseDuration)
 	return &run, nil
@@ -2392,6 +2560,9 @@ func (m *nativeTaskManager) CompleteRunLease(
 ) (*taskpkg.Run, error) {
 	m.completeCalls++
 	m.lastCompletion = completion
+	if m.completeErr != nil {
+		return nil, m.completeErr
+	}
 	run := nativeLeaseRun(completion.RunID, taskpkg.TaskRunStatusCompleted, m.lookupHandle)
 	return &run, nil
 }
@@ -2403,6 +2574,9 @@ func (m *nativeTaskManager) FailRunLease(
 ) (*taskpkg.Run, error) {
 	m.failCalls++
 	m.lastFailure = failure
+	if m.failErr != nil {
+		return nil, m.failErr
+	}
 	run := nativeLeaseRun(failure.RunID, taskpkg.TaskRunStatusFailed, m.lookupHandle)
 	return &run, nil
 }
@@ -2414,6 +2588,9 @@ func (m *nativeTaskManager) ReleaseRunLease(
 ) (*taskpkg.Run, error) {
 	m.releaseCalls++
 	m.lastRelease = release
+	if m.releaseErr != nil {
+		return nil, m.releaseErr
+	}
 	run := nativeLeaseRun(release.RunID, taskpkg.TaskRunStatusQueued, m.lookupHandle)
 	return &run, nil
 }

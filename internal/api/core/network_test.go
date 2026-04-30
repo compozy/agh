@@ -110,6 +110,72 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject raw claim token fields in NetworkSendRequest", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			req  contract.NetworkSendRequest
+		}{
+			{
+				name: "Should reject body claim token",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Kind:      "say",
+					Body:      json.RawMessage(`{"nested":{"CLAIM_TOKEN":"agh_claim_secret"}}`),
+				},
+			},
+			{
+				name: "Should reject extension claim token",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Kind:      "say",
+					Body:      json.RawMessage(`{"text":"ok"}`),
+					Ext: map[string]json.RawMessage{
+						"agh.metadata": json.RawMessage(`{"claim_token":"agh_claim_secret"}`),
+					},
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := core.NetworkSendRequestFromPayload(tc.req)
+				if err == nil {
+					t.Fatal("NetworkSendRequestFromPayload() error = nil, want raw token rejection")
+				}
+				if !errors.Is(err, core.ErrNetworkValidation) ||
+					!errors.Is(err, contract.ErrRawClaimTokenMetadata) ||
+					!strings.Contains(err.Error(), "network_raw_token_rejected") {
+					t.Fatalf(
+						"NetworkSendRequestFromPayload() error = %v, want network_raw_token_rejected validation",
+						err,
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should allow claim token hash and benign claim prose in NetworkSendRequest", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := core.NetworkSendRequestFromPayload(contract.NetworkSendRequest{
+			SessionID: "sess-a",
+			Channel:   "builders",
+			Kind:      "say",
+			Body: json.RawMessage(
+				`{"claim_token_hash":"sha256:abc","description":"see agh_claim_token docs"}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("NetworkSendRequestFromPayload() error = %v, want nil", err)
+		}
+	})
+
 	t.Run("Should convert Envelope preserving metadata", func(t *testing.T) {
 		t.Parallel()
 

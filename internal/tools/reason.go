@@ -52,6 +52,8 @@ const (
 	ReasonMCPAuthInvalid ReasonCode = "mcp_auth_invalid"
 	// ReasonMCPAuthRefreshFailed reports failed MCP auth refresh.
 	ReasonMCPAuthRefreshFailed ReasonCode = "mcp_auth_refresh_failed"
+	// ReasonNetworkRawTokenRejected reports raw claim-token fields in network payloads.
+	ReasonNetworkRawTokenRejected ReasonCode = "network_raw_token_rejected"
 	// ReasonSourceDisabled reports a disabled source.
 	ReasonSourceDisabled ReasonCode = "source_disabled"
 	// ReasonPolicyDenied reports a policy denial.
@@ -157,6 +159,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonMCPAuthExpired:                 {},
 	ReasonMCPAuthInvalid:                 {},
 	ReasonMCPAuthRefreshFailed:           {},
+	ReasonNetworkRawTokenRejected:        {},
 	ReasonSourceDisabled:                 {},
 	ReasonPolicyDenied:                   {},
 	ReasonVisibilityDenied:               {},

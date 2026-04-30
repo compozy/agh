@@ -367,7 +367,29 @@ func (s MCPServer) Validate(path string) error {
 	case transport == MCPServerTransportStdio && !s.Auth.IsZero():
 		return fmt.Errorf("%s.auth is only valid for remote MCP servers", path)
 	default:
+		return validateStdioMCPEnv(path, transport, s.Env)
+	}
+}
+
+func validateStdioMCPEnv(path string, transport MCPServerTransport, env map[string]string) error {
+	if transport != MCPServerTransportStdio {
 		return nil
+	}
+	for key := range env {
+		if forbiddenStdioMCPEnvKey(key) {
+			return fmt.Errorf("%s.env.%s is forbidden for stdio MCP servers", path, strings.TrimSpace(key))
+		}
+	}
+	return nil
+}
+
+func forbiddenStdioMCPEnvKey(key string) bool {
+	normalized := strings.ToUpper(strings.TrimSpace(key))
+	switch normalized {
+	case "NODE_OPTIONS", "PYTHONPATH", "PYTHONHOME", "LD_PRELOAD":
+		return true
+	default:
+		return strings.HasPrefix(normalized, "DYLD_")
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -119,6 +120,9 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 			}
 			ext, err := parseNetworkJSONObjectMap("--ext", extRaw)
 			if err != nil {
+				return err
+			}
+			if err := validateNetworkSendNoRawClaimToken(body, ext); err != nil {
 				return err
 			}
 			expiresAt, err := parseNetworkExpiresAt(expiresAtRaw)
@@ -455,6 +459,23 @@ func parseNetworkJSONObjectMap(flagName string, raw string) (map[string]json.Raw
 		return nil, fmt.Errorf("cli: decode %s: %w", flagName, err)
 	}
 	return payload, nil
+}
+
+func validateNetworkSendNoRawClaimToken(body json.RawMessage, ext map[string]json.RawMessage) error {
+	payload := struct {
+		Body json.RawMessage            `json:"body"`
+		Ext  map[string]json.RawMessage `json:"ext,omitempty"`
+	}{
+		Body: body,
+		Ext:  ext,
+	}
+	if err := contract.ValidateNoRawClaimTokenField(payload); err != nil {
+		return fmt.Errorf(
+			"cli: network_raw_token_rejected: --body/--ext must not contain raw claim_token fields: %w",
+			err,
+		)
+	}
+	return nil
 }
 
 func parseNetworkExpiresAt(raw string) (*int64, error) {

@@ -235,6 +235,29 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 			},
 			wantErr: "--expires-at must be unix seconds or RFC3339",
 		},
+		{
+			name: "ShouldRejectRawClaimTokenBody",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--channel", "builders",
+				"--kind", "say",
+				"--body", `{"nested":{"claim_token":"agh_claim_cli"}}`,
+			},
+			wantErr: "network_raw_token_rejected",
+		},
+		{
+			name: "ShouldRejectRawClaimTokenExt",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--channel", "builders",
+				"--kind", "say",
+				"--body", `{"text":"ok"}`,
+				"--ext", `{"agh":{"claim_token":"agh_claim_cli"}}`,
+			},
+			wantErr: "network_raw_token_rejected",
+		},
 	}
 
 	for _, tc := range tests {
@@ -243,6 +266,7 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 
 			deps := newTestDeps(t, &stubClient{
 				networkSendFn: func(context.Context, NetworkSendRequest) (NetworkSendRecord, error) {
+					t.Fatal("NetworkSend() called for invalid network send flags")
 					return NetworkSendRecord{}, nil
 				},
 			})

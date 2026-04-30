@@ -1001,20 +1001,24 @@ func (n *daemonNativeTools) networkSend(
 		return toolspkg.ToolResult{}, err
 	}
 	sessionID := firstNonEmpty(input.SessionID, req.SessionID, scope.SessionID)
-	messageID, err := n.deps.Network.Send(ctx, network.SendRequest{
+	sendReq, err := core.NetworkSendRequestFromPayload(contract.NetworkSendRequest{
 		SessionID:     sessionID,
 		Channel:       strings.TrimSpace(input.Channel),
-		Kind:          network.Kind(strings.TrimSpace(input.Kind)),
-		To:            stringPtr(input.To),
+		Kind:          strings.TrimSpace(input.Kind),
+		To:            strings.TrimSpace(input.To),
 		Body:          cloneJSON(input.Body),
-		InteractionID: stringPtr(input.InteractionID),
-		ReplyTo:       stringPtr(input.ReplyTo),
-		TraceID:       stringPtr(input.TraceID),
-		CausationID:   stringPtr(input.CausationID),
+		InteractionID: strings.TrimSpace(input.InteractionID),
+		ReplyTo:       strings.TrimSpace(input.ReplyTo),
+		TraceID:       strings.TrimSpace(input.TraceID),
+		CausationID:   strings.TrimSpace(input.CausationID),
 		ExpiresAt:     input.ExpiresAt,
-		ID:            stringPtr(input.ID),
-		Ext:           cloneExtensionMap(input.Ext),
+		ID:            strings.TrimSpace(input.ID),
+		Ext:           map[string]json.RawMessage(cloneExtensionMap(input.Ext)),
 	})
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkSendToolError(req.ToolID, err)
+	}
+	messageID, err := n.deps.Network.Send(ctx, sendReq)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -2434,6 +2438,31 @@ func nativeAutonomyToolError(id toolspkg.ToolID, err error) error {
 	}
 }
 
+func nativeNetworkSendToolError(id toolspkg.ToolID, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, contract.ErrRawClaimTokenMetadata) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			"network send payload must not contain raw claim_token fields",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonNetworkRawTokenRejected,
+		)
+	}
+	if errors.Is(err, core.ErrNetworkValidation) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	return err
+}
+
 func autonomyToolErrorCodeAndReason(reason taskpkg.AutonomyReasonCode) (
 	toolspkg.ErrorCode,
 	toolspkg.ReasonCode,
@@ -2978,14 +3007,6 @@ func limitToolViews(views []toolspkg.ToolView, limit int) []toolspkg.ToolView {
 		return views
 	}
 	return views[:limit]
-}
-
-func stringPtr(value string) *string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }
 
 func cloneStringPtr(value *string) *string {

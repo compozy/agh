@@ -15,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 const (
@@ -245,6 +246,9 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 	if !json.Valid(req.Body) {
 		return network.SendRequest{}, NewNetworkValidationError(errors.New("body must be valid JSON"))
 	}
+	if err := validateNetworkSendNoRawClaimToken(req); err != nil {
+		return network.SendRequest{}, err
+	}
 
 	sendReq := network.SendRequest{
 		SessionID: strings.TrimSpace(req.SessionID),
@@ -274,6 +278,24 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 	}
 
 	return sendReq, nil
+}
+
+func validateNetworkSendNoRawClaimToken(req contract.NetworkSendRequest) error {
+	payload := struct {
+		Body json.RawMessage            `json:"body"`
+		Ext  map[string]json.RawMessage `json:"ext,omitempty"`
+	}{
+		Body: req.Body,
+		Ext:  req.Ext,
+	}
+	if err := contract.ValidateNoRawClaimTokenField(payload); err != nil {
+		return NewNetworkValidationError(fmt.Errorf(
+			"%s: raw claim_token fields are forbidden: %w",
+			toolspkg.ReasonNetworkRawTokenRejected,
+			err,
+		))
+	}
+	return nil
 }
 
 // NetworkSendPayloadFromRequest builds the shared send response payload
