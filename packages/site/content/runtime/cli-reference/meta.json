@@ -19,6 +19,8 @@
         "workspace",
         "extension",
         "skill",
+        "tool",
+        "toolsets",
         "---Runtime---",
         "daemon",
         "mcp",

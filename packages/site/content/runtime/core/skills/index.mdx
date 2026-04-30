@@ -10,7 +10,9 @@ only when it needs it.
 
 <OperatorNote>
   Skills are metadata-first. The startup prompt receives names and descriptions, not every
-  `SKILL.md` body. Full instructions are loaded explicitly with `agh skill view <name>`.
+  `SKILL.md` body. Agents load full instructions through `agh__skill_view` (or
+  `agh__skill_search` first if the exact name is not yet known); operators read the same content
+  through `agh skill view <name>`.
 </OperatorNote>
 
 <figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
@@ -62,7 +64,8 @@ only when it needs it.
 `SKILL.md` has YAML frontmatter followed by Markdown instructions. The frontmatter gives AGH the
 skill name, description, version, and optional AGH-specific metadata. The Markdown body is procedural
 guidance for the agent. Resource files stay next to the skill and are read on demand with
-`agh skill view <name> --file <path>`.
+`agh__skill_view --file <path>` from inside a session, or with `agh skill view <name> --file <path>`
+from the operator CLI.
 
 The runtime does not keep full skill bodies in list/detail payloads. This keeps prompts, APIs, and
 the web UI lightweight while preserving the full instruction set for explicit reads.
@@ -130,9 +133,15 @@ The prompt catalog has this shape:
   <skill name="agh-session-guide">Operate AGH sessions from the CLI...</skill>
 </available-skills>
 
-Use `agh skill view <name>` to load full instructions for any skill.
-Use `agh skill view <name> --file <path>` to read a specific skill resource file.
+Use `agh__skill_view <name>` to load full instructions for any skill, or
+`agh skill view <name>` from the operator CLI when the tool path is unavailable.
+Use `agh__skill_view <name> --file <path>` (or `agh skill view <name> --file <path>`) to read a
+specific skill resource file.
 ```
+
+When the runtime denies `agh__skill_view` for the active scope, agents fall back to
+`agh skill view`. The conditional guidance is part of the rendered catalog so the prompt never
+advertises a CLI fallback when the dedicated tool is callable.
 
 Important details:
 

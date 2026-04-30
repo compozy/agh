@@ -9,7 +9,17 @@ is the only authority for run ownership and terminal state.
 
 ## Claiming the next run
 
-A managed agent session claims work with `agh task next`:
+A managed agent session claims work either through the dedicated autonomy tool family or the
+parallel CLI. Both routes call the same task service writers and obey the same session-bound
+contract.
+
+Tool path:
+
+```text
+agh__task_run_claim_next  { "wait": true, "lease_seconds": 300 }
+```
+
+CLI path:
 
 ```bash
 agh task next --wait --lease-seconds 300 -o json
@@ -24,8 +34,10 @@ sets a lease deadline, and returns a synchronous claim response that includes:
 - `claim_token_hash` for observability
 - coordination channel metadata when the run has a bound channel
 
-The raw bearer lease token is internal to AGH. Public CLI, HTTP, UDS, web, stream, log, channel,
-and memory payloads use the calling session plus `run_id` and expose at most `claim_token_hash`.
+The raw bearer lease token is internal to AGH. Public CLI, HTTP, UDS, native-tool, web, stream,
+log, channel, and memory payloads use the calling session plus `run_id` and expose at most
+`claim_token_hash`. Tools belonging to the `agh__autonomy` toolset reject any input or response
+field that would carry a raw claim token.
 
 ## Lease rules
 
@@ -42,7 +54,15 @@ The MVP lease contract is intentionally narrow:
 
 ## Heartbeat
 
-Use heartbeat when work is still active and the session still owns the run:
+Use heartbeat when work is still active and the session still owns the run.
+
+Tool path:
+
+```text
+agh__task_run_heartbeat  { "run_id": "run-123", "lease_seconds": 300 }
+```
+
+CLI path:
 
 ```bash
 agh task heartbeat run-123 --lease-seconds 300
@@ -53,7 +73,15 @@ messages unless a human-readable update is useful.
 
 ## Completing a run
 
-Use `complete` for successful terminal state:
+Use `complete` for successful terminal state.
+
+Tool path:
+
+```text
+agh__task_run_complete  { "run_id": "run-123", "result": { "summary": "tests passed" } }
+```
+
+CLI path:
 
 ```bash
 agh task complete run-123 \
@@ -64,7 +92,15 @@ The optional result JSON must not contain raw lease credentials.
 
 ## Failing a run
 
-Use `fail` when the current claim cannot complete successfully:
+Use `fail` when the current claim cannot complete successfully.
+
+Tool path:
+
+```text
+agh__task_run_fail  { "run_id": "run-123", "error": "tests failed", "metadata": { "command": "make test" } }
+```
+
+CLI path:
 
 ```bash
 agh task fail run-123 \
@@ -76,7 +112,15 @@ Failure metadata must not contain raw lease credentials.
 
 ## Releasing a run
 
-Use `release` when the session should give up ownership without making the run terminal:
+Use `release` when the session should give up ownership without making the run terminal.
+
+Tool path:
+
+```text
+agh__task_run_release  { "run_id": "run-123", "reason": "handoff" }
+```
+
+CLI path:
 
 ```bash
 agh task release run-123 --reason handoff
@@ -86,15 +130,29 @@ Release is also used by daemon-owned cleanup. For example, if a spawned child re
 parent stops, AGH releases active child leases with structured reasons such as `ttl_expired` or
 `parent_stopped` before stopping the child session.
 
+## Deterministic autonomy errors
+
+Lease writers and the autonomy tool bridge return the same deterministic reason codes:
+
+| Code                          | When it fires                                                                           |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| `AUTONOMY_SESSION_REQUIRED`   | The caller had no session scope; tool/CLI/HTTP/UDS reject the call before lease lookup. |
+| `AUTONOMY_NO_ACTIVE_LEASE`    | The session does not currently own a run lease; nothing to extend or finalize.          |
+| `AUTONOMY_FOREIGN_RUN`        | The supplied `run_id` does not match the session's active lease.                        |
+| `AUTONOMY_LEASE_EXPIRED`      | The lookup found a stale or expired lease and refused to mutate it.                     |
+| `AUTONOMY_LEASE_ALREADY_HELD` | `claim_next` was called while the session already owns an active lease.                 |
+
 ## Lease credentials and channels
 
-Never send raw lease credentials through `agh ch send`, `agh ch reply`, network envelopes, logs, or
-memory. If another participant needs to know progress, send a coordination message. If a session
-needs to prove ownership, it calls `agh task heartbeat`, `complete`, `fail`, or `release` for the
-owned `run_id`; AGH resolves the internal lease server-side.
+Never send raw lease credentials through `agh ch send`, `agh ch reply`, `agh__network_send`,
+network envelopes, logs, or memory. If another participant needs to know progress, send a
+coordination message. If a session needs to prove ownership, it calls one of the `agh__autonomy`
+tools or the matching `agh task` command for the owned `run_id`; AGH resolves the internal lease
+server-side.
 
 ## Related pages
 
 - [Coordination Channels](/runtime/core/autonomy/coordination-channels) explains channel metadata and message kinds.
-- [Task CLI Reference](/runtime/cli-reference/task) lists exact command flags.
+- [Task CLI Reference](/runtime/cli-reference/task) lists exact command flags for the parallel CLI surface.
+- [Tool CLI Reference](/runtime/cli-reference/tool) lists the operator commands for inspecting the registry, including the `agh__autonomy` family.
 - [Hooks](/runtime/core/hooks/event-catalog) lists task-run hook events.

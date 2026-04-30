@@ -16,6 +16,25 @@ AGH stores installed extensions in the global registry and copies managed instal
   currently performed through the local registry path and print a restart message.
 </OperatorNote>
 
+Extension lifecycle is agent-manageable. The `agh__extensions` toolset and the parallel
+`agh extension` CLI reach the same registry, marketplace, install, update, remove, enable, and
+disable services:
+
+| Action             | Tool                                | CLI                            |
+| ------------------ | ----------------------------------- | ------------------------------ |
+| Search marketplace | `agh__extensions_search`            | `agh extension search`         |
+| List installed     | `agh__extensions_list`              | `agh extension list`           |
+| Inspect one        | `agh__extensions_info`              | `agh extension status`         |
+| Install            | `agh__extensions_install`           | `agh extension install`        |
+| Update             | `agh__extensions_update`            | `agh extension update`         |
+| Remove             | `agh__extensions_remove`            | `agh extension remove`         |
+| Enable / disable   | `agh__extensions_enable`/`_disable` | `agh extension enable/disable` |
+
+Tool mutations require approval and pass through the same source-trust filter as the CLI.
+Deterministic denials include `EXTENSION_SOURCE_FORBIDDEN`, `EXTENSION_APPROVAL_REQUIRED`,
+`EXTENSION_NOT_INSTALLED`, and `EXTENSION_VALIDATION_FAILED`. Marketplace trust roots and raw
+marketplace credentials stay on operator surfaces and are not exposed as tool inputs.
+
 ## Install From A Local Directory
 
 A local extension directory must contain `extension.toml` or `extension.json`.

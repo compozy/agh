@@ -142,6 +142,20 @@ caption="The CLI groups commands by the runtime surface they operate: daemon pro
     meta="Runtime plugins"
   />
   <RouteRow
+    href="/runtime/cli-reference/tool"
+    label="Tools"
+    title="Inspect and invoke registry tools"
+    description="Use this group to list, search, info, and invoke tools through the operator projection. Agents call the same tools through the registry directly."
+    meta="Tool registry"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/toolsets"
+    label="Toolsets"
+    title="Inspect registry toolsets"
+    description="Use this group to list and expand named toolsets such as agh__bootstrap, agh__catalog, and agh__autonomy."
+    meta="Tool registry"
+  />
+  <RouteRow
     href="/runtime/cli-reference/network"
     label="Network"
     title="Inspect peers, channels, inboxes, and send envelopes"
@@ -394,15 +408,22 @@ agh
 |   |-- update [name]
 |   `-- view <name>
 |-- task
+|   |-- approve <id>
 |   |-- cancel <id>
 |   |-- child
 |   |   `-- create <parent-id>
+|   |-- complete <run-id>
 |   |-- create
 |   |-- dependency
 |   |   |-- add <task-id> --depends-on <depends-on-id>
 |   |   `-- remove <task-id> <depends-on-id>
+|   |-- fail <run-id>
 |   |-- get <id>
+|   |-- heartbeat <run-id>
 |   |-- list
+|   |-- next
+|   |-- publish <id>
+|   |-- release <run-id>
 |   |-- run
 |   |   |-- attach-session <run-id>
 |   |   |-- cancel <run-id>
@@ -412,7 +433,16 @@ agh
 |   |   |-- fail <run-id>
 |   |   |-- list <task-id>
 |   |   `-- start <run-id>
+|   |-- start <id>
 |   `-- update <id>
+|-- tool
+|   |-- info <id>
+|   |-- invoke <id>
+|   |-- list
+|   `-- search
+|-- toolsets
+|   |-- info <id>
+|   `-- list
 |-- version
 |-- whoami
 `-- workspace

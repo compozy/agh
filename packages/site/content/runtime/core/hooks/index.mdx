@@ -35,3 +35,20 @@ patches in declaration order and records the outcome on the session event stream
     meta="Authoring"
   />
 </RouteList>
+
+## Management surfaces
+
+Hooks are agent-manageable for mutable sources. The `agh__hooks` toolset and the parallel
+`agh hooks` CLI both call the same hook normalization, validation, and persistence pipeline.
+
+| Surface     | Read tools                             | Mutation tools                                                | CLI parity                                        |
+| ----------- | -------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------- |
+| Catalog     | `agh__hooks_list`, `agh__hooks_info`   | —                                                             | `agh hooks list`, `agh hooks info`                |
+| History     | `agh__hooks_events`, `agh__hooks_runs` | —                                                             | `agh hooks events`, `agh hooks runs`              |
+| Declaration | —                                      | `agh__hooks_create`, `agh__hooks_update`, `agh__hooks_delete` | overlay edits in `config.toml` plus daemon reload |
+| Lifecycle   | —                                      | `agh__hooks_enable`, `agh__hooks_disable`                     | overlay edits plus daemon reload                  |
+
+Source-owned hooks (extension manifests, skill metadata, native daemon hooks) stay structurally
+immutable through agent tools. Mutating tools require approval and reject secret-bearing
+executor environments with deterministic codes such as `HOOK_SOURCE_IMMUTABLE`,
+`HOOK_SECRET_INPUT_FORBIDDEN`, `HOOK_VALIDATION_FAILED`, and `HOOK_APPROVAL_REQUIRED`.

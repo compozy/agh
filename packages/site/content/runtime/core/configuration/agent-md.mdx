@@ -39,7 +39,9 @@ The parser is strict. Unknown frontmatter fields fail loading.
 Even when `tools` and `toolsets` are empty, AGH adds the discovery toolsets `agh__bootstrap` and
 `agh__catalog` at runtime unless effective policy denies them. Agents should discover AGH-native
 runtime capabilities with `agh__tool_search`, inspect descriptors with `agh__tool_info`, and invoke
-dedicated tools before shelling out to equivalent `agh ...` commands.
+dedicated tools before shelling out to equivalent `agh ...` commands. Operator-only management
+flows — daemon lifecycle, MCP OAuth login/logout, raw secret writes, and trust-root config —
+remain CLI/HTTP/UDS by design and are not promoted into the tool surface.
 
 ## Discovery And Precedence
 

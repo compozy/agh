@@ -11,12 +11,13 @@ are no bundled resource folders, assets, or bundled `mcp.json` sidecars today.
 
 ## Catalog
 
-| Skill               | Description                                                                                                                    | Use when                                                                                                     |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `agh-agent-setup`   | Set up AGH agent definitions, provider defaults, permissions, and MCP server entries correctly.                                | You are creating or reviewing an `AGENT.md`, provider defaults, permission mode, or agent MCP configuration. |
-| `agh-memory-guide`  | Manage AGH persistent memory files, scopes, and manual consolidation from the CLI.                                             | You need to inspect, write, delete, or consolidate global/workspace memory.                                  |
-| `agh-network`       | Inspect channels and peers, read inbox messages, and send safe AGH network replies through the daemon-owned CLI control plane. | The session is participating in an AGH Network channel and needs safe network command guidance.              |
-| `agh-session-guide` | Operate AGH sessions from the CLI, including creation, inspection, prompting, and shutdown.                                    | You need to create, inspect, prompt, stop, resume, or monitor AGH sessions from the terminal.                |
+| Skill               | Description                                                                                                                                      | Use when                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `agh-agent-setup`   | Set up AGH agent definitions, provider defaults, permissions, and MCP server entries correctly.                                                  | You are creating or reviewing an `AGENT.md`, provider defaults, permission mode, or agent MCP configuration. |
+| `agh-memory-guide`  | Manage AGH persistent memory files, scopes, and manual consolidation from the CLI.                                                               | You need to inspect, write, delete, or consolidate global/workspace memory.                                  |
+| `agh-network`       | Inspect channels and peers, read inbox messages, and send safe AGH network replies through the daemon-owned CLI control plane.                   | The session is participating in an AGH Network channel and needs safe network command guidance.              |
+| `agh-session-guide` | Operate AGH sessions from the CLI, including creation, inspection, prompting, and shutdown.                                                      | You need to create, inspect, prompt, stop, resume, or monitor AGH sessions from the terminal.                |
+| `agh-tools-guide`   | Discover and call AGH-native tools through `agh__tool_search`, `agh__tool_info`, and dedicated tools before shelling out to equivalent commands. | You need the canonical discovery loop, the tool-vs-CLI split, and the operator-only management exceptions.   |
 
 ## How Bundled Skills Load
 
@@ -40,9 +41,10 @@ The normal prompt catalog lists bundled skills by name and description:
 </available-skills>
 ```
 
-The agent must still run `agh skill view agh-session-guide` to read the full bundled body. The
-exception is `agh-network`: if a session joins an AGH Network channel, AGH appends the full bundled
-network guidance to that session's startup prompt.
+The agent reads the full bundled body through `agh__skill_view agh-session-guide` (or
+`agh skill view agh-session-guide` from the operator CLI). The exception is `agh-network`: if a
+session joins an AGH Network channel, AGH appends the full bundled network guidance to that
+session's startup prompt.
 
 ## Individual Skills
 
@@ -111,6 +113,20 @@ Use this for session operations. It covers:
 
 This skill is the fastest way for an agent to remember the session CLI without searching generated
 reference pages first.
+
+### `agh-tools-guide`
+
+Use this when an agent needs to decide between calling a dedicated AGH tool, shelling out to the
+equivalent `agh ...` command, or treating the operation as operator-only management. It covers:
+
+- the default discovery overlay (`agh__bootstrap`, `agh__catalog`)
+- the canonical loop: `agh__tool_search` → `agh__tool_info` → invoke
+- the tool-first convention for AGH-internal runtime work
+- which flows stay on operator management surfaces (daemon lifecycle, MCP OAuth login/logout, raw
+  secrets, trust-root config)
+- how to read deterministic denial reason codes from descriptors
+
+This skill is the canonical agent-side companion to the runtime tool registry.
 
 ## Override Behavior
 

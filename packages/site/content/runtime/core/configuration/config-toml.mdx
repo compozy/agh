@@ -372,7 +372,9 @@ continues to observe runtime activity or controlled waiting heartbeats.
 
 Tool registry configuration is loaded before runtime policy and dispatch consume it. These keys only
 establish defaults and parse-time guardrails; dispatch still revalidates visibility, permission,
-availability, hooks, and approval state per call.
+availability, hooks, and approval state per call. When `enabled = true`, the runtime injects the
+`agh__bootstrap` and `agh__catalog` discovery toolsets for every agent unless effective policy
+denies them, and a startup prompt section teaches the `search → info → invoke` loop.
 
 | Field                      | Type    | Default  | Valid values            | Description                                                                |
 | -------------------------- | ------- | -------- | ----------------------- | -------------------------------------------------------------------------- |
@@ -413,8 +415,9 @@ They can point at local stdio processes or remote HTTP/SSE MCP endpoints.
 | `env`       | string map   | empty               | String keys and values.   | Literal environment values passed to the MCP server. AGH does not perform shell expansion. |
 
 OAuth-enabled remote servers store only metadata in config. Token material is kept in the AGH
-global database with private filesystem permissions and is exposed through API, settings, CLI, and
-logs only as redacted status.
+global database with private filesystem permissions and is exposed through API, settings, CLI,
+logs, and the agent-callable `agh__mcp_auth_status` tool only as redacted status. Login and logout
+remain operator-only management flows on the CLI and HTTP surfaces.
 
 | `auth` field        | Type         | Required    | Description                                                            |
 | ------------------- | ------------ | ----------- | ---------------------------------------------------------------------- |
@@ -437,6 +440,10 @@ agh mcp auth status remote-docs
 agh mcp auth status remote-docs --refresh
 agh mcp auth logout remote-docs
 ```
+
+Agents can read the same redacted status from inside a session through the
+`agh__mcp_auth_status` tool. The tool never triggers an OAuth browser flow; missing or expired
+authentication is repaired through the operator login/logout commands above.
 
 ## `[providers.<name>]`
 

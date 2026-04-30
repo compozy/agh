@@ -86,7 +86,9 @@ Tool discovery works the same way. The `tools` and `toolsets` frontmatter fields
 the effective runtime policy adds `agh__bootstrap` and `agh__catalog` by default unless a deny or
 runtime policy layer removes them. Agents should use `agh__tool_search -> agh__tool_info -> invoke`
 for AGH-native capabilities and `agh__skill_search -> agh__skill_view` for skill loading before
-falling back to equivalent `agh ...` shell commands.
+falling back to equivalent `agh ...` shell commands. Operator-only management — daemon lifecycle,
+MCP OAuth login/logout, trust-root config, raw secret writes, and cross-session terminal-state
+mutation — stays on the CLI/HTTP/UDS surfaces and is intentionally absent from the tool family.
 
 ## Frontmatter reference
 
