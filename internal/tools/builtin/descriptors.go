@@ -23,6 +23,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		configDescriptors(),
 		hookDescriptors(),
 		automationDescriptors(),
+		extensionDescriptors(),
 	}
 	total := 0
 	for _, group := range groups {

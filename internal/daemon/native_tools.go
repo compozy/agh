@@ -47,10 +47,17 @@ type daemonNativeToolsDeps struct {
 	HookBindings      hookBindingPublisher
 	AgentCatalog      core.AgentCatalog
 	Automation        core.AutomationManager
+	ExtensionRegistry *extensionpkg.Registry
+	ExtensionRuntime  func() extensionRuntime
+	ExtensionMarket   aghconfig.ExtensionsMarketplaceConfig
+	ExtensionSources  extensionMarketplaceSourceLoader
+	AgentSkills       agentSkillPublisher
+	ToolMCP           toolMCPPublisher
+	Bundles           bundleResourcePublisher
 }
 
 type daemonNativeTools struct {
-	deps daemonNativeToolsDeps
+	deps *daemonNativeToolsDeps
 }
 
 type nativeToolBinding struct {
@@ -58,7 +65,10 @@ type nativeToolBinding struct {
 	availability toolspkg.NativeAvailabilityFunc
 }
 
-func newDaemonNativeProvider(deps daemonNativeToolsDeps) (toolspkg.Provider, error) {
+func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, error) {
+	if deps == nil {
+		return nil, errors.New("daemon: native tool dependencies are required")
+	}
 	adapter := &daemonNativeTools{deps: deps}
 	bindings := adapter.bindings()
 	descriptors := builtintools.NativeDescriptors()
@@ -85,9 +95,10 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
 	}
 	var registry *toolspkg.RuntimeRegistry
-	provider, err := newDaemonNativeProvider(d.nativeToolsDeps(state, func() toolspkg.Registry {
+	deps := d.nativeToolsDeps(state, func() toolspkg.Registry {
 		return registry
-	}))
+	})
+	provider, err := newDaemonNativeProvider(&deps)
 	if err != nil {
 		return fmt.Errorf("daemon: create native tool provider: %w", err)
 	}
@@ -169,6 +180,12 @@ func (d *Daemon) nativeToolsDeps(
 		HookBindings:      state.hookBindings,
 		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
 		Automation:        state.deps.Automation,
+		ExtensionRegistry: extensionRegistryDependency(state.registry),
+		ExtensionRuntime:  state.currentExtensionRuntime,
+		ExtensionMarket:   state.cfg.Extensions.Marketplace,
+		AgentSkills:       state.agentSkillResources,
+		ToolMCP:           state.toolMCPResources,
+		Bundles:           state.bundleResources,
 	}
 }
 
@@ -322,6 +339,7 @@ type nativeToolAvailabilitySet struct {
 	hookRead         toolspkg.NativeAvailabilityFunc
 	hookMutation     toolspkg.NativeAvailabilityFunc
 	automation       toolspkg.NativeAvailabilityFunc
+	extensions       toolspkg.NativeAvailabilityFunc
 }
 
 func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
@@ -339,6 +357,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
 	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
+	addNativeToolBindings(bindings, n.extensionToolBindings(availability.extensions))
 	return bindings
 }
 
@@ -369,7 +388,21 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 			return configReady() && n.deps.Observer != nil && n.deps.HookBindings != nil
 		}),
 		automation: n.dependencyAvailability(func() bool { return n.deps.Automation != nil }),
+		extensions: n.dependencyAvailability(func() bool {
+			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
+		}),
 	}
+}
+
+func extensionRegistryDependency(registry Registry) *extensionpkg.Registry {
+	if registry == nil {
+		return nil
+	}
+	dbSource, ok := registry.(extensionDBSource)
+	if !ok || dbSource.DB() == nil {
+		return nil
+	}
+	return extensionpkg.NewRegistry(dbSource.DB())
 }
 
 func addNativeToolBindings(

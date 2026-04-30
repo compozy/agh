@@ -43,7 +43,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		var enabledTriggerValue bool
 		var listRunQuery automationpkg.RunQuery
 
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{
 				ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error) {
 					listJobQuery = query
@@ -449,7 +449,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		var updateTriggerCalls int
 		var deleteJobCalls int
 		var deleteTriggerCalls int
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{
 				CreateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
 					createJobCalls++
@@ -562,7 +562,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		var setJobEnabledValue bool
 		var setTriggerEnabledCalls int
 		var setTriggerEnabledValue bool
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{
 				GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
 					return configJob, nil
@@ -651,7 +651,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 	t.Run("Should reject blank automation resource identifiers before manager calls", func(t *testing.T) {
 		t.Parallel()
 
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{},
 		}, nativeApproveAllPolicyInputs())
 
@@ -690,7 +690,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		t.Parallel()
 
 		job := nativeAutomationJobFixture("job-1", automationpkg.JobSourceDynamic)
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{
 				ListJobsFn: func(context.Context, automationpkg.JobListQuery) ([]automationpkg.Job, error) {
 					return []automationpkg.Job{job}, nil
@@ -805,7 +805,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		t.Parallel()
 
 		var createJobCalls int
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{
 				CreateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
 					createJobCalls++

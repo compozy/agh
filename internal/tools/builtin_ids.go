@@ -146,6 +146,22 @@ const (
 	ToolIDAutomationRunsList ToolID = "agh__automation_runs_list"
 	// ToolIDAutomationRunsGet reads one automation run record through the automation manager.
 	ToolIDAutomationRunsGet ToolID = "agh__automation_runs_get"
+	// ToolIDExtensionsSearch searches configured extension marketplace sources.
+	ToolIDExtensionsSearch ToolID = "agh__extensions_search"
+	// ToolIDExtensionsList lists installed extensions through the extension registry.
+	ToolIDExtensionsList ToolID = "agh__extensions_list"
+	// ToolIDExtensionsInfo reads one installed extension status.
+	ToolIDExtensionsInfo ToolID = "agh__extensions_info"
+	// ToolIDExtensionsInstall installs one extension through a managed local or marketplace source.
+	ToolIDExtensionsInstall ToolID = "agh__extensions_install"
+	// ToolIDExtensionsUpdate updates one or more marketplace-installed extensions.
+	ToolIDExtensionsUpdate ToolID = "agh__extensions_update"
+	// ToolIDExtensionsRemove removes one managed installed extension.
+	ToolIDExtensionsRemove ToolID = "agh__extensions_remove"
+	// ToolIDExtensionsEnable enables one installed extension.
+	ToolIDExtensionsEnable ToolID = "agh__extensions_enable"
+	// ToolIDExtensionsDisable disables one installed extension.
+	ToolIDExtensionsDisable ToolID = "agh__extensions_disable"
 )
 
 const (
@@ -173,6 +189,8 @@ const (
 	ToolsetIDHooks ToolsetID = "agh__hooks"
 	// ToolsetIDAutomation groups automation lifecycle and run inspection tools.
 	ToolsetIDAutomation ToolsetID = "agh__automation"
+	// ToolsetIDExtensions groups extension discovery and lifecycle tools.
+	ToolsetIDExtensions ToolsetID = "agh__extensions"
 )
 
 // BuiltinSource returns the provenance shared by daemon-compiled AGH tools.

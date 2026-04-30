@@ -34,7 +34,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should dispatch skill catalog tools through the real skill registry", func(t *testing.T) {
 		t.Parallel()
 
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Skills: newLoadedNativeSkillRegistry(t),
 		}, nativeApproveAllPolicyInputs())
 
@@ -82,7 +82,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should expose bootstrap diagnostics and exclude non-MVP lifecycle tools", func(t *testing.T) {
 		t.Parallel()
 
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Skills:  newLoadedNativeSkillRegistry(t),
 			Network: &nativeNetworkStub{},
 			Tasks:   &nativeTaskManager{},
@@ -135,7 +135,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should keep unavailable read surfaces operator-only with deterministic reasons", func(t *testing.T) {
 		t.Parallel()
 
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{}, nativeApproveAllPolicyInputs())
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{}, nativeApproveAllPolicyInputs())
 
 		operatorViews, err := registry.List(t.Context(), toolspkg.Scope{Operator: true})
 		if err != nil {
@@ -148,6 +148,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDObserveEvents)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBridgesList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAutomationJobsList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDExtensionsList)
 
 		sessionViews, err := registry.List(t.Context(), toolspkg.Scope{SessionID: "sess-1"})
 		if err != nil {
@@ -161,6 +162,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.ToolIDObserveEvents,
 			toolspkg.ToolIDBridgesList,
 			toolspkg.ToolIDAutomationJobsList,
+			toolspkg.ToolIDExtensionsList,
 		} {
 			if nativeToolViewByID(sessionViews, id) != nil {
 				t.Fatalf("session projection leaked unavailable tool %s", id)
@@ -171,7 +173,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should mark workspace describe unavailable without hiding lighter workspace reads", func(t *testing.T) {
 		t.Parallel()
 
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Workspaces: apitest.StubWorkspaceService{},
 		}, nativeApproveAllPolicyInputs())
 
@@ -196,7 +198,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		tasks := &nativeTaskManager{}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Tasks: tasks,
 		}, nativeApproveAllPolicyInputs())
 
@@ -221,7 +223,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		tasks := &nativeTaskManager{}
 		networkService := &nativeNetworkStub{}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Skills:     newLoadedNativeSkillRegistry(t),
 			Network:    networkService,
 			Tasks:      tasks,
@@ -289,7 +291,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		tasks := &nativeTaskManager{}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Tasks: tasks,
 		}, toolspkg.PolicyInputs{
 			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
@@ -316,7 +318,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths: homePaths,
 		}, nativeApproveAllPolicyInputs())
 
@@ -383,7 +385,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths: homePaths,
 		}, toolspkg.PolicyInputs{
 			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
@@ -450,7 +452,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				PatchSchema:   "ToolCallPatch",
 			}},
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Observer: observer,
 		}, nativeApproveAllPolicyInputs())
 
@@ -518,7 +520,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		homePaths := testHomePaths(t)
 		observer := &nativeObserverStub{}
 		bindings := &nativeHookBindingsStub{}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths:    homePaths,
 			Observer:     observer,
 			HookBindings: bindings,
@@ -645,7 +647,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		homePaths := testHomePaths(t)
 		bindings := &nativeHookBindingsStub{}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths: homePaths,
 			Observer: &nativeObserverStub{
 				catalog: []hookspkg.CatalogEntry{{
@@ -704,7 +706,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		homePaths := testHomePaths(t)
 		bindings := &nativeHookBindingsStub{}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths:    homePaths,
 			Observer:     &nativeObserverStub{},
 			HookBindings: bindings,
@@ -745,7 +747,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Status: taskpkg.TaskRunStatusQueued,
 			}},
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Tasks: tasks,
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-actor", WorkspaceID: "ws-1"}
@@ -876,7 +878,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		tasks := &nativeTaskManager{
 			childErr: fmt.Errorf("%w: child parent task id is required", taskpkg.ErrValidation),
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Tasks: tasks,
 		}, nativeApproveAllPolicyInputs())
 
@@ -913,7 +915,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		networkService := &nativeNetworkStub{
 			peers: []network.PeerInfo{{PeerID: "peer-1"}},
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network: networkService,
 		}, nativeApproveAllPolicyInputs())
 
@@ -952,7 +954,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Body:    json.RawMessage(`{"text":"hello"}`),
 			}},
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network: networkService,
 		}, nativeApproveAllPolicyInputs())
 
@@ -999,7 +1001,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		networkService := &nativeNetworkStub{
 			sendErr: fmt.Errorf("%w: session=sess-missing", network.ErrLocalPeerNotFound),
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network: networkService,
 		}, nativeApproveAllPolicyInputs())
 
@@ -1082,7 +1084,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				}}, nil
 			},
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: manager,
 		}, nativeApproveAllPolicyInputs())
 
@@ -1149,7 +1151,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				}, nil
 			},
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions:   manager,
 			Workspaces: workspaces,
 		}, nativeApproveAllPolicyInputs())
@@ -1217,7 +1219,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				return workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot}, nil
 			},
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			MemoryStore: memoryStore,
 			Workspaces:  workspaces,
 		}, nativeApproveAllPolicyInputs())
@@ -1380,7 +1382,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Version: "test",
 			},
 		}
-		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Observer: observer,
 		}, nativeApproveAllPolicyInputs())
 
@@ -1510,7 +1512,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					return &next, nil
 				},
 			}
-			registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 				Bridges:  bridges,
 				Observer: observer,
 			}, nativeApproveAllPolicyInputs())
@@ -1653,7 +1655,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
 		}
-		registry := newDaemonNativeRegistryWithPolicyResolver(t, daemonNativeToolsDeps{
+		registry := newDaemonNativeRegistryWithPolicyResolver(t, &daemonNativeToolsDeps{
 			Skills: newLoadedNativeSkillRegistry(t),
 			Tasks:  &nativeTaskManager{},
 		}, resolver)
@@ -1711,7 +1713,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 
 func newDaemonNativeRegistry(
 	t *testing.T,
-	deps daemonNativeToolsDeps,
+	deps *daemonNativeToolsDeps,
 	policyInputs toolspkg.PolicyInputs,
 ) *toolspkg.RuntimeRegistry {
 	t.Helper()
@@ -1725,11 +1727,14 @@ func newDaemonNativeRegistry(
 
 func newDaemonNativeRegistryWithPolicyResolver(
 	t *testing.T,
-	deps daemonNativeToolsDeps,
+	deps *daemonNativeToolsDeps,
 	resolver toolspkg.PolicyInputResolver,
 ) *toolspkg.RuntimeRegistry {
 	t.Helper()
 
+	if deps == nil {
+		deps = &daemonNativeToolsDeps{}
+	}
 	var registry *toolspkg.RuntimeRegistry
 	deps.Registry = func() toolspkg.Registry {
 		return registry

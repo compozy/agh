@@ -28,7 +28,7 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	manager := newNativeAutomationIntegrationManager(t, ctx)
-	registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 		Automation: manager,
 	}, nativeApproveAllPolicyInputs())
 

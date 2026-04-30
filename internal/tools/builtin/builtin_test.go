@@ -93,6 +93,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDAutomationTriggersHistory,
 			toolspkg.ToolIDAutomationRunsList,
 			toolspkg.ToolIDAutomationRunsGet,
+			toolspkg.ToolIDExtensionsSearch,
+			toolspkg.ToolIDExtensionsList,
+			toolspkg.ToolIDExtensionsInfo,
+			toolspkg.ToolIDExtensionsInstall,
+			toolspkg.ToolIDExtensionsUpdate,
+			toolspkg.ToolIDExtensionsRemove,
+			toolspkg.ToolIDExtensionsEnable,
+			toolspkg.ToolIDExtensionsDisable,
 		}
 		if gotLen, wantLen := len(got), len(want); gotLen != wantLen {
 			t.Fatalf("len(NativeDescriptors()) = %d, want %d", gotLen, wantLen)
@@ -224,6 +232,49 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.RiskDestructive,
 			false,
 			true,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsSearch], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsInfo], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDExtensionsInstall],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDExtensionsUpdate],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDExtensionsRemove],
+			toolspkg.RiskDestructive,
+			false,
+			true,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDExtensionsEnable],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDExtensionsDisable],
+			toolspkg.RiskMutating,
+			false,
+			false,
 			false,
 		)
 	})
@@ -375,6 +426,16 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(automation, toolspkg.ToolIDAutomationRunsGet) ||
 			slices.Contains(automation, toolspkg.ToolID("agh__automation_webhook_secret_set")) {
 			t.Fatalf("automation toolset expansion = %#v, want bounded automation tools", automation)
+		}
+
+		extensions, err := catalog.Expand(toolspkg.ToolsetIDExtensions, universe)
+		if err != nil {
+			t.Fatalf("Expand(extensions) error = %v", err)
+		}
+		if !slices.Contains(extensions, toolspkg.ToolIDExtensionsInstall) ||
+			!slices.Contains(extensions, toolspkg.ToolIDExtensionsRemove) ||
+			slices.Contains(extensions, toolspkg.ToolID("agh__extensions_trust_root_set")) {
+			t.Fatalf("extensions toolset expansion = %#v, want bounded extension lifecycle tools", extensions)
 		}
 	})
 }

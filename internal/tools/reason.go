@@ -28,6 +28,12 @@ const (
 	ReasonExtensionRuntimeMismatch ReasonCode = "extension_runtime_mismatch"
 	// ReasonExtensionCapabilityMissing reports a missing extension capability.
 	ReasonExtensionCapabilityMissing ReasonCode = "extension_capability_missing"
+	// ReasonExtensionSourceForbidden reports a denied or unconfigured extension source.
+	ReasonExtensionSourceForbidden ReasonCode = "extension_source_forbidden"
+	// ReasonExtensionNotInstalled reports a missing installed extension.
+	ReasonExtensionNotInstalled ReasonCode = "extension_not_installed"
+	// ReasonExtensionValidationFailed reports extension lifecycle validation failure.
+	ReasonExtensionValidationFailed ReasonCode = "extension_validation_failed"
 	// ReasonRuntimeDescriptorMissing reports a missing runtime descriptor.
 	ReasonRuntimeDescriptorMissing ReasonCode = "runtime_descriptor_missing"
 	// ReasonRuntimeDescriptorMismatch reports a runtime descriptor mismatch.
@@ -129,6 +135,9 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonExtensionInactive:              {},
 	ReasonExtensionRuntimeMismatch:       {},
 	ReasonExtensionCapabilityMissing:     {},
+	ReasonExtensionSourceForbidden:       {},
+	ReasonExtensionNotInstalled:          {},
+	ReasonExtensionValidationFailed:      {},
 	ReasonRuntimeDescriptorMissing:       {},
 	ReasonRuntimeDescriptorMismatch:      {},
 	ReasonHandlerMissing:                 {},
