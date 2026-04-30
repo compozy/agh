@@ -21,8 +21,29 @@ func ToolsetCatalog() (toolspkg.ToolsetCatalog, error) {
 		toolspkg.Toolset{
 			ID: toolspkg.ToolsetIDCoordination,
 			Tools: []string{
+				toolspkg.ToolIDNetworkStatus.String(),
+				toolspkg.ToolIDNetworkChannels.String(),
+				toolspkg.ToolIDNetworkInbox.String(),
 				toolspkg.ToolIDNetworkPeers.String(),
 				toolspkg.ToolIDNetworkSend.String(),
+			},
+		},
+		toolspkg.Toolset{
+			ID: toolspkg.ToolsetIDSessions,
+			Tools: []string{
+				toolspkg.ToolIDSessionList.String(),
+				toolspkg.ToolIDSessionStatus.String(),
+				toolspkg.ToolIDSessionHistory.String(),
+				toolspkg.ToolIDSessionEvents.String(),
+				toolspkg.ToolIDSessionDescribe.String(),
+			},
+		},
+		toolspkg.Toolset{
+			ID: toolspkg.ToolsetIDWorkspace,
+			Tools: []string{
+				toolspkg.ToolIDWorkspaceList.String(),
+				toolspkg.ToolIDWorkspaceInfo.String(),
+				toolspkg.ToolIDWorkspaceDescribe.String(),
 			},
 		},
 		toolspkg.Toolset{

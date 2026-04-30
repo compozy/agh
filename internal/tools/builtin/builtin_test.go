@@ -29,8 +29,19 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDSkillList,
 			toolspkg.ToolIDSkillSearch,
 			toolspkg.ToolIDSkillView,
+			toolspkg.ToolIDNetworkStatus,
+			toolspkg.ToolIDNetworkChannels,
+			toolspkg.ToolIDNetworkInbox,
 			toolspkg.ToolIDNetworkPeers,
 			toolspkg.ToolIDNetworkSend,
+			toolspkg.ToolIDSessionList,
+			toolspkg.ToolIDSessionStatus,
+			toolspkg.ToolIDSessionHistory,
+			toolspkg.ToolIDSessionEvents,
+			toolspkg.ToolIDSessionDescribe,
+			toolspkg.ToolIDWorkspaceList,
+			toolspkg.ToolIDWorkspaceInfo,
+			toolspkg.ToolIDWorkspaceDescribe,
 			toolspkg.ToolIDTaskList,
 			toolspkg.ToolIDTaskRead,
 			toolspkg.ToolIDTaskCreate,
@@ -103,7 +114,18 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDToolList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSkillView], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkStatus], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkChannels], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkInbox], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkPeers], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionStatus], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHistory], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionEvents], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionDescribe], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceInfo], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceDescribe], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRead], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkSend], toolspkg.RiskOpenWorld, false, false, true)
@@ -182,6 +204,40 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if !slices.Contains(tasks, toolspkg.ToolIDTaskChildCreate) ||
 			slices.Contains(tasks, toolspkg.ToolID("agh__task_claim")) {
 			t.Fatalf("task toolset expansion = %#v, want bounded task scope", tasks)
+		}
+
+		coordination, err := catalog.Expand(toolspkg.ToolsetIDCoordination, universe)
+		if err != nil {
+			t.Fatalf("Expand(coordination) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDNetworkChannels,
+			toolspkg.ToolIDNetworkInbox,
+			toolspkg.ToolIDNetworkPeers,
+			toolspkg.ToolIDNetworkSend,
+			toolspkg.ToolIDNetworkStatus,
+		}; !slices.Equal(coordination, want) {
+			t.Fatalf("coordination expansion = %#v, want %#v", coordination, want)
+		}
+
+		sessions, err := catalog.Expand(toolspkg.ToolsetIDSessions, universe)
+		if err != nil {
+			t.Fatalf("Expand(sessions) error = %v", err)
+		}
+		if !slices.Contains(sessions, toolspkg.ToolIDSessionList) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionDescribe) ||
+			slices.Contains(sessions, toolspkg.ToolID("agh__session_stop")) {
+			t.Fatalf("sessions toolset expansion = %#v, want read-only session tools", sessions)
+		}
+
+		workspace, err := catalog.Expand(toolspkg.ToolsetIDWorkspace, universe)
+		if err != nil {
+			t.Fatalf("Expand(workspace) error = %v", err)
+		}
+		if !slices.Contains(workspace, toolspkg.ToolIDWorkspaceList) ||
+			!slices.Contains(workspace, toolspkg.ToolIDWorkspaceDescribe) ||
+			slices.Contains(workspace, toolspkg.ToolID("agh__workspace_remove")) {
+			t.Fatalf("workspace toolset expansion = %#v, want read-only workspace tools", workspace)
 		}
 
 		config, err := catalog.Expand(toolspkg.ToolsetIDConfig, universe)

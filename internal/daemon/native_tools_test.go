@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
+	"time"
 
+	apitest "github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/network"
@@ -124,6 +127,58 @@ func TestDaemonNativeTools(t *testing.T) {
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
 			t.Fatalf("Registry.Get(excluded task claim) error = %v, want ErrToolNotFound", err)
 		}
+	})
+
+	t.Run("Should keep unavailable read surfaces operator-only with deterministic reasons", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{}, nativeApproveAllPolicyInputs())
+
+		operatorViews, err := registry.List(t.Context(), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Registry.List(operator) error = %v", err)
+		}
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDNetworkStatus)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDWorkspaceDescribe)
+
+		sessionViews, err := registry.List(t.Context(), toolspkg.Scope{SessionID: "sess-1"})
+		if err != nil {
+			t.Fatalf("Registry.List(session) error = %v", err)
+		}
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDNetworkStatus,
+			toolspkg.ToolIDSessionList,
+			toolspkg.ToolIDWorkspaceDescribe,
+		} {
+			if nativeToolViewByID(sessionViews, id) != nil {
+				t.Fatalf("session projection leaked unavailable tool %s", id)
+			}
+		}
+	})
+
+	t.Run("Should mark workspace describe unavailable without hiding lighter workspace reads", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			Workspaces: apitest.StubWorkspaceService{},
+		}, nativeApproveAllPolicyInputs())
+
+		operatorViews, err := registry.List(t.Context(), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Registry.List(operator) error = %v", err)
+		}
+		requireNativeToolAvailable(t, operatorViews, toolspkg.ToolIDWorkspaceList)
+		requireNativeToolAvailable(t, operatorViews, toolspkg.ToolIDWorkspaceInfo)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDWorkspaceDescribe)
+
+		sessionViews, err := registry.List(t.Context(), toolspkg.Scope{SessionID: "sess-1"})
+		if err != nil {
+			t.Fatalf("Registry.List(session) error = %v", err)
+		}
+		requireNativeViewContains(t, sessionViews, toolspkg.ToolIDWorkspaceList)
+		requireNativeViewContains(t, sessionViews, toolspkg.ToolIDWorkspaceInfo)
+		requireNativeViewExcludes(t, sessionViews, toolspkg.ToolIDWorkspaceDescribe)
 	})
 
 	t.Run("Should reject schema-invalid task input before service calls", func(t *testing.T) {
@@ -738,6 +793,61 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should read network inspection tools through the existing network service boundary", func(t *testing.T) {
+		t.Parallel()
+
+		networkService := &nativeNetworkStub{
+			status:   &network.Status{Enabled: true, Status: network.StatusRunning, LocalPeers: 2},
+			channels: []network.ChannelInfo{{Channel: "builders", PeerCount: 2}},
+			inbox: []network.Envelope{{
+				ID:      "msg-1",
+				Kind:    network.KindSay,
+				Channel: "builders",
+				From:    "peer-1",
+				Body:    json.RawMessage(`{"text":"hello"}`),
+			}},
+		}
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			Network: networkService,
+		}, nativeApproveAllPolicyInputs())
+
+		statusResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkStatus},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(network_status) error = %v", err)
+		}
+		requireNativeStructuredContains(t, statusResult, []byte(`"local_peers":2`))
+
+		channelsResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkChannels},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(network_channels) error = %v", err)
+		}
+		requireNativeStructuredContains(t, channelsResult, []byte(`"channel":"builders"`))
+
+		inboxResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkInbox},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(network_inbox) error = %v", err)
+		}
+		requireNativeStructuredContains(t, inboxResult, []byte(`"msg-1"`))
+		if networkService.statusCalls != 1 ||
+			networkService.channelsCalls != 1 ||
+			networkService.inboxCalls != 1 ||
+			networkService.inboxSessionID != "sess-1" {
+			t.Fatalf("network inspection calls = %#v", networkService)
+		}
+	})
+
 	t.Run("Should send network messages through the existing network service boundary", func(t *testing.T) {
 		t.Parallel()
 
@@ -769,6 +879,156 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if got, want := string(networkService.lastSend.Body), `{"text":"hello"}`; got != want {
 			t.Fatalf("SendRequest.Body = %s, want %s", got, want)
+		}
+	})
+	t.Run("Should read session tools through the existing session manager boundary", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+		info := &session.Info{
+			ID:          "sess-1",
+			AgentName:   "coder",
+			WorkspaceID: "ws-1",
+			State:       session.StateActive,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		manager := apitest.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{info}, nil
+			},
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-1" {
+					return nil, session.ErrSessionNotFound
+				}
+				return info, nil
+			},
+			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if id != "sess-1" || query.Limit != 1 {
+					t.Fatalf("Events query = %q %#v", id, query)
+				}
+				return []store.SessionEvent{{
+					ID:        "event-1",
+					SessionID: id,
+					Sequence:  1,
+					TurnID:    "turn-1",
+					Type:      "agent_message",
+					AgentName: "coder",
+					Content:   `{"text":"hello"}`,
+					Timestamp: now,
+				}}, nil
+			},
+			HistoryFn: func(_ context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error) {
+				if id != "sess-1" || query.Limit != 1 {
+					t.Fatalf("History query = %q %#v", id, query)
+				}
+				return []store.TurnHistory{{
+					TurnID: "turn-1",
+					Events: []store.SessionEvent{{
+						ID:        "event-1",
+						SessionID: id,
+						Sequence:  1,
+						TurnID:    "turn-1",
+						Type:      "agent_message",
+						AgentName: "coder",
+						Content:   `{"text":"hello"}`,
+						Timestamp: now,
+					}},
+				}}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			Sessions: manager,
+		}, nativeApproveAllPolicyInputs())
+
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input json.RawMessage
+			want  []byte
+		}{
+			{toolspkg.ToolIDSessionList, nil, []byte(`"sess-1"`)},
+			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"session_id":"sess-1"}`), []byte(`"session"`)},
+			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"session_id":"sess-1","limit":1}`), []byte(`"event-1"`)},
+			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
+			{toolspkg.ToolIDSessionDescribe, json.RawMessage(`{"session_id":"sess-1","limit":1}`), []byte(`"history"`)},
+		} {
+			t.Run(tc.id.String(), func(t *testing.T) {
+				result, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{},
+					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
+				)
+				if err != nil {
+					t.Fatalf("Registry.Call(%s) error = %v", tc.id, err)
+				}
+				requireNativeStructuredContains(t, result, tc.want)
+			})
+		}
+	})
+
+	t.Run("Should read workspace tools through the existing workspace service boundary", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+		workspace := workspacepkg.Workspace{
+			ID:           "ws-1",
+			RootDir:      "/workspace/agh",
+			Name:         "agh",
+			DefaultAgent: "coder",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		manager := apitest.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1"}}, nil
+			},
+		}
+		workspaces := apitest.StubWorkspaceService{
+			ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+				return []workspacepkg.Workspace{workspace}, nil
+			},
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				if ref != "ws-1" {
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspace, nil
+			},
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-1" {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspace,
+					Agents:    []aghconfig.AgentDef{{Name: "coder", Provider: "codex"}},
+					Skills:    []workspacepkg.SkillPath{{Dir: "/workspace/agh/skills/review", Source: "workspace"}},
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			Sessions:   manager,
+			Workspaces: workspaces,
+		}, nativeApproveAllPolicyInputs())
+
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input json.RawMessage
+			want  []byte
+		}{
+			{toolspkg.ToolIDWorkspaceList, nil, []byte(`"workspaces"`)},
+			{toolspkg.ToolIDWorkspaceInfo, json.RawMessage(`{"workspace":"ws-1"}`), []byte(`"workspace"`)},
+			{toolspkg.ToolIDWorkspaceDescribe, json.RawMessage(`{"workspace":"ws-1"}`), []byte(`"skills"`)},
+		} {
+			t.Run(tc.id.String(), func(t *testing.T) {
+				result, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{},
+					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
+				)
+				if err != nil {
+					t.Fatalf("Registry.Call(%s) error = %v", tc.id, err)
+				}
+				requireNativeStructuredContains(t, result, tc.want)
+			})
 		}
 	})
 }
@@ -1109,12 +1369,19 @@ func (o *nativeObserverStub) QueryTaskInbox(
 }
 
 type nativeNetworkStub struct {
-	sendErr      error
-	sendCalls    int
-	lastSend     network.SendRequest
-	peers        []network.PeerInfo
-	peersCalls   int
-	peersChannel string
+	sendErr        error
+	sendCalls      int
+	lastSend       network.SendRequest
+	peers          []network.PeerInfo
+	peersCalls     int
+	peersChannel   string
+	status         *network.Status
+	statusCalls    int
+	channels       []network.ChannelInfo
+	channelsCalls  int
+	inbox          []network.Envelope
+	inboxCalls     int
+	inboxSessionID string
 }
 
 func (n *nativeNetworkStub) Send(_ context.Context, req network.SendRequest) (string, error) {
@@ -1133,19 +1400,27 @@ func (n *nativeNetworkStub) ListPeers(_ context.Context, channel string) ([]netw
 }
 
 func (n *nativeNetworkStub) totalCalls() int {
-	return n.sendCalls + n.peersCalls
+	return n.sendCalls + n.peersCalls + n.statusCalls + n.channelsCalls + n.inboxCalls
 }
 
 func (n *nativeNetworkStub) ListChannels(context.Context) ([]network.ChannelInfo, error) {
-	return nil, nil
+	n.channelsCalls++
+	return append([]network.ChannelInfo(nil), n.channels...), nil
 }
 
 func (n *nativeNetworkStub) Status(context.Context) (*network.Status, error) {
+	n.statusCalls++
+	if n.status != nil {
+		status := *n.status
+		return &status, nil
+	}
 	return &network.Status{Enabled: true, Status: network.StatusRunning}, nil
 }
 
-func (n *nativeNetworkStub) Inbox(context.Context, string) ([]network.Envelope, error) {
-	return nil, nil
+func (n *nativeNetworkStub) Inbox(_ context.Context, sessionID string) ([]network.Envelope, error) {
+	n.inboxCalls++
+	n.inboxSessionID = sessionID
+	return append([]network.Envelope(nil), n.inbox...), nil
 }
 
 func (n *nativeNetworkStub) WaitInbox(context.Context, string, string) ([]network.Envelope, error) {

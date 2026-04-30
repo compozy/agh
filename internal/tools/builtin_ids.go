@@ -20,8 +20,30 @@ const (
 	ToolIDSkillView ToolID = "agh__skill_view"
 	// ToolIDNetworkPeers lists visible network peers.
 	ToolIDNetworkPeers ToolID = "agh__network_peers"
+	// ToolIDNetworkStatus reads daemon-owned network runtime status.
+	ToolIDNetworkStatus ToolID = "agh__network_status"
+	// ToolIDNetworkChannels lists active AGH network channels.
+	ToolIDNetworkChannels ToolID = "agh__network_channels"
+	// ToolIDNetworkInbox reads queued inbound network messages for one local session.
+	ToolIDNetworkInbox ToolID = "agh__network_inbox"
 	// ToolIDNetworkSend sends one network message through the existing network manager.
 	ToolIDNetworkSend ToolID = "agh__network_send"
+	// ToolIDSessionList lists runtime sessions.
+	ToolIDSessionList ToolID = "agh__session_list"
+	// ToolIDSessionStatus reads one runtime session snapshot.
+	ToolIDSessionStatus ToolID = "agh__session_status"
+	// ToolIDSessionHistory reads grouped turn history for one session.
+	ToolIDSessionHistory ToolID = "agh__session_history"
+	// ToolIDSessionEvents reads persisted events for one session.
+	ToolIDSessionEvents ToolID = "agh__session_events"
+	// ToolIDSessionDescribe reads a composite read-only session description.
+	ToolIDSessionDescribe ToolID = "agh__session_describe"
+	// ToolIDWorkspaceList lists registered workspaces.
+	ToolIDWorkspaceList ToolID = "agh__workspace_list"
+	// ToolIDWorkspaceInfo reads one registered workspace record.
+	ToolIDWorkspaceInfo ToolID = "agh__workspace_info"
+	// ToolIDWorkspaceDescribe reads one resolved workspace detail projection.
+	ToolIDWorkspaceDescribe ToolID = "agh__workspace_describe"
 	// ToolIDTaskList lists task summaries through the task service.
 	ToolIDTaskList ToolID = "agh__task_list"
 	// ToolIDTaskRead reads one task view through the task service.
@@ -79,6 +101,10 @@ const (
 	ToolsetIDCoordination ToolsetID = "agh__coordination"
 	// ToolsetIDTasks groups bounded task tools.
 	ToolsetIDTasks ToolsetID = "agh__tasks"
+	// ToolsetIDSessions groups read-only runtime session tools.
+	ToolsetIDSessions ToolsetID = "agh__sessions"
+	// ToolsetIDWorkspace groups read-only workspace tools.
+	ToolsetIDWorkspace ToolsetID = "agh__workspace"
 	// ToolsetIDConfig groups validated config tools.
 	ToolsetIDConfig ToolsetID = "agh__config"
 	// ToolsetIDHooks groups hook introspection and mutable config-backed hook tools.

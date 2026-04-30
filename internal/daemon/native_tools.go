@@ -9,6 +9,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -16,7 +17,9 @@ import (
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	builtintools "github.com/pedronauck/agh/internal/tools/builtin"
@@ -26,12 +29,16 @@ import (
 type daemonNativeToolsDeps struct {
 	Registry          func() toolspkg.Registry
 	Skills            core.SkillsRegistry
+	Sessions          core.SessionManager
+	Workspaces        core.WorkspaceService
 	WorkspaceResolver workspacepkg.RuntimeResolver
 	Network           core.NetworkService
+	NetworkStore      core.NetworkStore
 	Tasks             taskpkg.Manager
 	HomePaths         aghconfig.HomePaths
 	Observer          core.Observer
 	HookBindings      hookBindingPublisher
+	AgentCatalog      core.AgentCatalog
 }
 
 type daemonNativeTools struct {
@@ -70,18 +77,9 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
 	}
 	var registry *toolspkg.RuntimeRegistry
-	provider, err := newDaemonNativeProvider(daemonNativeToolsDeps{
-		Registry: func() toolspkg.Registry {
-			return registry
-		},
-		Skills:            skillsRegistryAPI(state.skillsRegistry),
-		WorkspaceResolver: state.workspaceResolver,
-		Network:           state.deps.Network,
-		Tasks:             state.deps.Tasks,
-		HomePaths:         d.homePaths,
-		Observer:          state.observer,
-		HookBindings:      state.hookBindings,
-	})
+	provider, err := newDaemonNativeProvider(d.nativeToolsDeps(state, func() toolspkg.Registry {
+		return registry
+	}))
 	if err != nil {
 		return fmt.Errorf("daemon: create native tool provider: %w", err)
 	}
@@ -141,6 +139,26 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	state.deps.Toolsets = registry
 	state.deps.ToolApprovals = approvalTokens
 	return nil
+}
+
+func (d *Daemon) nativeToolsDeps(
+	state *bootState,
+	registryRef func() toolspkg.Registry,
+) daemonNativeToolsDeps {
+	return daemonNativeToolsDeps{
+		Registry:          registryRef,
+		Skills:            skillsRegistryAPI(state.skillsRegistry),
+		Sessions:          state.sessions,
+		Workspaces:        state.workspaceResolver,
+		WorkspaceResolver: state.workspaceResolver,
+		Network:           state.deps.Network,
+		NetworkStore:      state.registry,
+		Tasks:             state.deps.Tasks,
+		HomePaths:         d.homePaths,
+		Observer:          state.observer,
+		HookBindings:      state.hookBindings,
+		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
+	}
 }
 
 func (d *Daemon) newDaemonMCPToolProvider(state *bootState) (toolspkg.Provider, error) {
@@ -279,13 +297,16 @@ func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
 }
 
 type nativeToolAvailabilitySet struct {
-	registry     toolspkg.NativeAvailabilityFunc
-	skills       toolspkg.NativeAvailabilityFunc
-	network      toolspkg.NativeAvailabilityFunc
-	tasks        toolspkg.NativeAvailabilityFunc
-	config       toolspkg.NativeAvailabilityFunc
-	hookRead     toolspkg.NativeAvailabilityFunc
-	hookMutation toolspkg.NativeAvailabilityFunc
+	registry         toolspkg.NativeAvailabilityFunc
+	skills           toolspkg.NativeAvailabilityFunc
+	network          toolspkg.NativeAvailabilityFunc
+	sessions         toolspkg.NativeAvailabilityFunc
+	workspaces       toolspkg.NativeAvailabilityFunc
+	workspaceDetails toolspkg.NativeAvailabilityFunc
+	tasks            toolspkg.NativeAvailabilityFunc
+	config           toolspkg.NativeAvailabilityFunc
+	hookRead         toolspkg.NativeAvailabilityFunc
+	hookMutation     toolspkg.NativeAvailabilityFunc
 }
 
 func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
@@ -294,6 +315,8 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.registryToolBindings(availability.registry))
 	addNativeToolBindings(bindings, n.skillToolBindings(availability.skills))
 	addNativeToolBindings(bindings, n.networkToolBindings(availability.network))
+	addNativeToolBindings(bindings, n.sessionToolBindings(availability.sessions))
+	addNativeToolBindings(bindings, n.workspaceToolBindings(availability.workspaces, availability.workspaceDetails))
 	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
@@ -308,6 +331,13 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		registry: n.registryAvailability(),
 		skills:   n.dependencyAvailability(func() bool { return n.deps.Skills != nil }),
 		network:  n.dependencyAvailability(func() bool { return n.deps.Network != nil }),
+		sessions: n.dependencyAvailability(func() bool { return n.deps.Sessions != nil }),
+		workspaces: n.dependencyAvailability(func() bool {
+			return n.deps.Workspaces != nil
+		}),
+		workspaceDetails: n.dependencyAvailability(func() bool {
+			return n.deps.Workspaces != nil && n.deps.Sessions != nil
+		}),
 		tasks:    n.dependencyAvailability(func() bool { return n.deps.Tasks != nil }),
 		config:   n.dependencyAvailability(configReady),
 		hookRead: n.dependencyAvailability(func() bool { return n.deps.Observer != nil }),
@@ -366,6 +396,18 @@ func (n *daemonNativeTools) networkToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDNetworkStatus: {
+			call:         n.networkStatus,
+			availability: availability,
+		},
+		toolspkg.ToolIDNetworkChannels: {
+			call:         n.networkChannels,
+			availability: availability,
+		},
+		toolspkg.ToolIDNetworkInbox: {
+			call:         n.networkInbox,
+			availability: availability,
+		},
 		toolspkg.ToolIDNetworkPeers: {
 			call:         n.networkPeers,
 			availability: availability,
@@ -373,6 +415,53 @@ func (n *daemonNativeTools) networkToolBindings(
 		toolspkg.ToolIDNetworkSend: {
 			call:         n.networkSend,
 			availability: availability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) sessionToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDSessionList: {
+			call:         n.sessionList,
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionStatus: {
+			call:         n.sessionStatus,
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionHistory: {
+			call:         n.sessionHistory,
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionEvents: {
+			call:         n.sessionEvents,
+			availability: availability,
+		},
+		toolspkg.ToolIDSessionDescribe: {
+			call:         n.sessionDescribe,
+			availability: availability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) workspaceToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+	describeAvailability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDWorkspaceList: {
+			call:         n.workspaceList,
+			availability: availability,
+		},
+		toolspkg.ToolIDWorkspaceInfo: {
+			call:         n.workspaceInfo,
+			availability: availability,
+		},
+		toolspkg.ToolIDWorkspaceDescribe: {
+			call:         n.workspaceDescribe,
+			availability: describeAvailability,
 		},
 	}
 }
@@ -649,6 +738,77 @@ func (n *daemonNativeTools) networkPeers(
 	return structuredResult(map[string]any{"peers": peers}, fmt.Sprintf("%d peers", len(peers)))
 }
 
+func (n *daemonNativeTools) networkStatus(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input struct{}
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	status, err := n.deps.Network.Status(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := core.NetworkStatusPayloadFromStatus(status)
+	if payload == nil {
+		return toolspkg.ToolResult{}, errors.New("daemon: network status is required")
+	}
+	return structuredResult(map[string]any{"network": payload}, payload.Status)
+}
+
+func (n *daemonNativeTools) networkChannels(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input struct{}
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	var channels any
+	var count int
+	if n.deps.Sessions != nil && n.deps.NetworkStore != nil {
+		payload, err := core.NetworkChannelPayloads(ctx, n.deps.Network, n.deps.Sessions, n.deps.NetworkStore)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		channels = payload
+		count = len(payload)
+	} else {
+		infos, err := n.deps.Network.ListChannels(ctx)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		payload := core.NetworkChannelPayloadsFromInfos(infos)
+		channels = payload
+		count = len(payload)
+	}
+	return structuredResult(map[string]any{"channels": channels}, fmt.Sprintf("%d channels", count))
+}
+
+func (n *daemonNativeTools) networkInbox(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkInboxInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID := firstNonEmpty(input.SessionID, req.SessionID, scope.SessionID)
+	if sessionID == "" {
+		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "session_id")
+	}
+	messages, err := n.deps.Network.Inbox(ctx, sessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := core.NetworkEnvelopePayloadsFromEnvelopes(messages)
+	return structuredResult(map[string]any{"messages": payload}, fmt.Sprintf("%d messages", len(payload)))
+}
+
 func (n *daemonNativeTools) networkSend(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -677,6 +837,211 @@ func (n *daemonNativeTools) networkSend(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(map[string]any{"message_id": messageID}, messageID)
+}
+
+func (n *daemonNativeTools) sessionList(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input sessionListInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	infos, err := n.deps.Sessions.ListAll(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceRef := firstNonEmpty(input.Workspace, scope.WorkspaceID)
+	if workspaceRef != "" {
+		workspaceID, err := n.workspaceID(ctx, workspaceRef)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		payload := core.SessionPayloadsForWorkspace(infos, workspaceID)
+		return structuredResult(
+			map[string]any{"sessions": limitSessionPayloads(payload, input.Limit)},
+			fmt.Sprintf("%d sessions", len(payload)),
+		)
+	}
+	payload := core.SessionPayloadsFromInfos(infos)
+	return structuredResult(
+		map[string]any{"sessions": limitSessionPayloads(payload, input.Limit)},
+		fmt.Sprintf("%d sessions", len(payload)),
+	)
+}
+
+func (n *daemonNativeTools) sessionStatus(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input sessionIDInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	info, err := n.deps.Sessions.Status(ctx, sessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := core.SessionPayloadFromInfo(info)
+	return structuredResult(map[string]any{"session": payload}, payload.ID)
+}
+
+func (n *daemonNativeTools) sessionEvents(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	input, query, err := decodeSessionEventQueryInput(req)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	info, err := n.deps.Sessions.Status(ctx, input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	events, err := n.deps.Sessions.Events(ctx, input.SessionID, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := make([]any, 0, len(events))
+	for _, event := range events {
+		payload = append(payload, core.SessionEventPayloadFromEvent(event, info))
+	}
+	return structuredResult(map[string]any{"events": payload}, fmt.Sprintf("%d events", len(payload)))
+}
+
+func (n *daemonNativeTools) sessionHistory(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	input, query, err := decodeSessionEventQueryInput(req)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	info, err := n.deps.Sessions.Status(ctx, input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	history, err := n.deps.Sessions.History(ctx, input.SessionID, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := sessionHistoryPayload(history, info)
+	return structuredResult(map[string]any{"history": payload}, fmt.Sprintf("%d turns", len(payload)))
+}
+
+func (n *daemonNativeTools) sessionDescribe(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	input, query, err := decodeSessionEventQueryInput(req)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	info, err := n.deps.Sessions.Status(ctx, input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	events, err := n.deps.Sessions.Events(ctx, input.SessionID, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	history, err := n.deps.Sessions.History(ctx, input.SessionID, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	eventPayload := make([]any, 0, len(events))
+	for _, event := range events {
+		eventPayload = append(eventPayload, core.SessionEventPayloadFromEvent(event, info))
+	}
+	return structuredResult(map[string]any{
+		"session": core.SessionPayloadFromInfo(info),
+		"events":  eventPayload,
+		"history": sessionHistoryPayload(history, info),
+	}, info.ID)
+}
+
+func (n *daemonNativeTools) workspaceList(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input struct{}
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaces, err := n.deps.Workspaces.List(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := make([]any, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		payload = append(payload, core.WorkspacePayloadFromWorkspace(workspace))
+	}
+	return structuredResult(map[string]any{"workspaces": payload}, fmt.Sprintf("%d workspaces", len(payload)))
+}
+
+func (n *daemonNativeTools) workspaceInfo(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input workspaceRefInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	ref, err := requiredNativeString(req.ToolID, "workspace", input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspace, err := n.deps.Workspaces.Get(ctx, ref)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := core.WorkspacePayloadFromWorkspace(workspace)
+	return structuredResult(map[string]any{"workspace": payload}, payload.ID)
+}
+
+func (n *daemonNativeTools) workspaceDescribe(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input workspaceRefInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	ref, err := requiredNativeString(req.ToolID, "workspace", input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	resolved, err := n.deps.Workspaces.Resolve(ctx, ref)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessions, err := n.deps.Sessions.ListAll(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	agents, err := n.workspaceAgents(ctx, &resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(map[string]any{
+		"workspace": core.WorkspacePayloadFromWorkspace(resolved.Workspace),
+		"sessions":  core.SessionPayloadsForWorkspace(sessions, resolved.ID),
+		"agents":    core.AgentPayloadsFromDefs(agents),
+		"skills":    core.WorkspaceSkillPayloads(resolved.Skills),
+		"providers": core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
+	}, resolved.ID)
 }
 
 func (n *daemonNativeTools) taskList(
@@ -869,6 +1234,64 @@ func (n *daemonNativeTools) resolveSkill(
 	return nil, fmt.Errorf("daemon: skill %q not found", trimmedName)
 }
 
+func (n *daemonNativeTools) workspaceID(ctx context.Context, ref string) (string, error) {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return "", nil
+	}
+	if n.deps.Workspaces == nil {
+		return trimmed, nil
+	}
+	workspace, err := n.deps.Workspaces.Get(ctx, trimmed)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(workspace.ID), nil
+}
+
+func (n *daemonNativeTools) workspaceAgents(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+) ([]aghconfig.AgentDef, error) {
+	if resolved == nil {
+		return nil, errors.New("daemon: resolved workspace is required")
+	}
+	merged := make(map[string]aghconfig.AgentDef, len(resolved.Agents))
+	for _, agent := range resolved.Agents {
+		name := strings.TrimSpace(agent.Name)
+		if name == "" {
+			continue
+		}
+		merged[name] = agent
+	}
+	if n.deps.AgentCatalog != nil {
+		catalogAgents, err := n.deps.AgentCatalog.ListAgents(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, agent := range catalogAgents {
+			name := strings.TrimSpace(agent.Name)
+			if name == "" {
+				continue
+			}
+			if _, exists := merged[name]; exists {
+				continue
+			}
+			merged[name] = agent
+		}
+	}
+	names := make([]string, 0, len(merged))
+	for name := range merged {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	agents := make([]aghconfig.AgentDef, 0, len(names))
+	for _, name := range names {
+		agents = append(agents, merged[name])
+	}
+	return agents, nil
+}
+
 type toolListInput struct {
 	Limit int `json:"limit,omitempty"`
 }
@@ -902,6 +1325,10 @@ type networkPeersInput struct {
 	Channel string `json:"channel,omitempty"`
 }
 
+type networkInboxInput struct {
+	SessionID string `json:"session_id,omitempty"`
+}
+
 type networkSendInput struct {
 	SessionID     string               `json:"session_id,omitempty"`
 	Channel       string               `json:"channel"`
@@ -915,6 +1342,62 @@ type networkSendInput struct {
 	ExpiresAt     *int64               `json:"expires_at,omitempty"`
 	ID            string               `json:"id,omitempty"`
 	Ext           network.ExtensionMap `json:"ext,omitempty"`
+}
+
+type sessionListInput struct {
+	Workspace string `json:"workspace,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+type sessionIDInput struct {
+	SessionID string `json:"session_id"`
+}
+
+type sessionEventQueryInput struct {
+	SessionID     string `json:"session_id"`
+	Type          string `json:"type,omitempty"`
+	AgentName     string `json:"agent_name,omitempty"`
+	TurnID        string `json:"turn_id,omitempty"`
+	AfterSequence int64  `json:"after_sequence,omitempty"`
+	Limit         int    `json:"limit,omitempty"`
+	Since         string `json:"since,omitempty"`
+}
+
+func (i sessionEventQueryInput) eventQuery(id toolspkg.ToolID) (store.EventQuery, error) {
+	query := store.EventQuery{
+		Type:          strings.TrimSpace(i.Type),
+		AgentName:     strings.TrimSpace(i.AgentName),
+		TurnID:        strings.TrimSpace(i.TurnID),
+		AfterSequence: i.AfterSequence,
+		Limit:         i.Limit,
+	}
+	if rawSince := strings.TrimSpace(i.Since); rawSince != "" {
+		since, err := time.Parse(time.RFC3339, rawSince)
+		if err != nil {
+			return store.EventQuery{}, toolspkg.NewToolError(
+				toolspkg.ErrorCodeInvalidInput,
+				id,
+				"session event since must be an RFC3339 timestamp",
+				fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+				toolspkg.ReasonSchemaInvalid,
+			)
+		}
+		query.Since = since
+	}
+	if err := query.Validate(); err != nil {
+		return store.EventQuery{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			"session event query is invalid",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	return query, nil
+}
+
+type workspaceRefInput struct {
+	Workspace string `json:"workspace"`
 }
 
 type taskListInput struct {
@@ -1082,6 +1565,63 @@ func decodeNativeInput(req toolspkg.CallRequest, dst any) error {
 		)
 	}
 	return nil
+}
+
+func requiredNativeString(id toolspkg.ToolID, field string, value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", nativeRequiredInputError(id, field)
+	}
+	return trimmed, nil
+}
+
+func nativeRequiredInputError(id toolspkg.ToolID, field string) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeInvalidInput,
+		id,
+		fmt.Sprintf("%s is required", field),
+		toolspkg.ErrToolInvalidInput,
+		toolspkg.ReasonSchemaInvalid,
+	)
+}
+
+func decodeSessionEventQueryInput(req toolspkg.CallRequest) (sessionEventQueryInput, store.EventQuery, error) {
+	var input sessionEventQueryInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return sessionEventQueryInput{}, store.EventQuery{}, err
+	}
+	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	if err != nil {
+		return sessionEventQueryInput{}, store.EventQuery{}, err
+	}
+	input.SessionID = sessionID
+	query, err := input.eventQuery(req.ToolID)
+	if err != nil {
+		return sessionEventQueryInput{}, store.EventQuery{}, err
+	}
+	return input, query, nil
+}
+
+func sessionHistoryPayload(history []store.TurnHistory, info *session.Info) []any {
+	payload := make([]any, 0, len(history))
+	for _, turn := range history {
+		events := make([]any, 0, len(turn.Events))
+		for _, event := range turn.Events {
+			events = append(events, core.SessionEventPayloadFromEvent(event, info))
+		}
+		payload = append(payload, map[string]any{
+			"turn_id": turn.TurnID,
+			"events":  events,
+		})
+	}
+	return payload
+}
+
+func limitSessionPayloads[T any](items []T, limit int) []T {
+	if limit <= 0 || limit >= len(items) {
+		return items
+	}
+	return items[:limit]
 }
 
 func structuredResult(value any, preview string) (toolspkg.ToolResult, error) {

@@ -6,12 +6,16 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
+const emptyInputSchema = `{"type":"object","additionalProperties":false}`
+
 // NativeDescriptors returns the MVP native_go built-in descriptors.
 func NativeDescriptors() []toolspkg.Descriptor {
 	groups := [][]toolspkg.Descriptor{
 		catalogDescriptors(),
 		skillDescriptors(),
 		networkDescriptors(),
+		sessionDescriptors(),
+		workspaceDescriptors(),
 		taskDescriptors(),
 		configDescriptors(),
 		hookDescriptors(),

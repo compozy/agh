@@ -459,26 +459,40 @@ func (h *BaseHandlers) networkChannelPayloads(
 	ctx context.Context,
 	service NetworkService,
 ) ([]contract.NetworkChannelPayload, error) {
-	aggregates, err := h.loadNetworkChannelAggregates(ctx, service)
+	return NetworkChannelPayloads(ctx, service, h.Sessions, h.NetworkStore)
+}
+
+// NetworkChannelPayloads builds the shared runtime channel projection used by transports and tools.
+func NetworkChannelPayloads(
+	ctx context.Context,
+	service NetworkService,
+	sessionsManager SessionManager,
+	networkStore NetworkStore,
+) ([]contract.NetworkChannelPayload, error) {
+	aggregates, err := networkChannelAggregates(ctx, service, sessionsManager, networkStore)
 	if err != nil {
 		return nil, err
 	}
 	return sortedNetworkChannelPayloads(aggregates), nil
 }
 
-func (h *BaseHandlers) loadNetworkChannelAggregates(
+func networkChannelAggregates(
 	ctx context.Context,
 	service NetworkService,
+	sessionsManager SessionManager,
+	networkStore NetworkStore,
 ) (map[string]*networkChannelAggregate, error) {
-	networkStore, err := h.networkStoreRequired()
-	if err != nil {
-		return nil, err
+	if networkStore == nil {
+		return nil, errors.New("api: network store is required")
+	}
+	if sessionsManager == nil {
+		return nil, errors.New("api: sessions are required")
 	}
 	runtimePeers, err := service.ListPeers(ctx, "")
 	if err != nil {
 		return nil, err
 	}
-	sessions, err := h.Sessions.ListAll(ctx)
+	sessions, err := sessionsManager.ListAll(ctx)
 	if err != nil {
 		return nil, err
 	}

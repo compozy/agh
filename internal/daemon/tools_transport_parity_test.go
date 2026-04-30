@@ -42,6 +42,24 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 			path:   "/api/tools/agh__skill_view/invoke",
 			body:   []byte(`{"session_id":"sess-1","input":{"message":"hello"}}`),
 		},
+		{
+			name:   "ShouldInvokeNetworkStatusTool",
+			method: http.MethodPost,
+			path:   "/api/tools/agh__network_status/invoke",
+			body:   []byte(`{"session_id":"sess-1","input":{}}`),
+		},
+		{
+			name:   "ShouldInvokeSessionEventsTool",
+			method: http.MethodPost,
+			path:   "/api/tools/agh__session_events/invoke",
+			body:   []byte(`{"session_id":"sess-1","input":{"session_id":"sess-1","limit":1}}`),
+		},
+		{
+			name:   "ShouldInvokeWorkspaceDescribeTool",
+			method: http.MethodPost,
+			path:   "/api/tools/agh__workspace_describe/invoke",
+			body:   []byte(`{"session_id":"sess-1","workspace_id":"ws-1","input":{"workspace":"ws-1"}}`),
+		},
 		{name: "ShouldListSessionTools", method: http.MethodGet, path: "/api/sessions/sess-1/tools"},
 		{
 			name:   "ShouldSearchSessionTools",
@@ -114,6 +132,9 @@ type toolParityRegistry struct {
 func newToolParityRegistry() *toolParityRegistry {
 	return &toolParityRegistry{views: []toolspkg.ToolView{
 		toolParityView(toolspkg.ToolIDSkillView, toolspkg.VisibilityModel, true),
+		toolParityView(toolspkg.ToolIDNetworkStatus, toolspkg.VisibilityModel, true),
+		toolParityView(toolspkg.ToolIDSessionEvents, toolspkg.VisibilityModel, true),
+		toolParityView(toolspkg.ToolIDWorkspaceDescribe, toolspkg.VisibilityModel, true),
 		toolParityView("agh__operator_diag", toolspkg.VisibilityOperator, false),
 	}}
 }
