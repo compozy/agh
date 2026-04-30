@@ -391,6 +391,108 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should read hook introspection tools through observer without leaking secret fields", func(t *testing.T) {
+		t.Parallel()
+
+		observer := &nativeObserverStub{
+			catalog: []hookspkg.CatalogEntry{{
+				Order:        1,
+				Name:         "config-tool",
+				Event:        hookspkg.HookToolPreCall,
+				Source:       hookspkg.HookSourceConfig,
+				Mode:         hookspkg.HookModeSync,
+				Required:     true,
+				Priority:     500,
+				Timeout:      time.Second,
+				ExecutorKind: hookspkg.HookExecutorSubprocess,
+				Matcher:      hookspkg.HookMatcher{ToolID: "agh__task_read"},
+				Metadata: map[string]string{
+					"access_token": "secret-value",
+					"visible":      "ok",
+				},
+			}},
+			runs: []hookspkg.HookRunRecord{{
+				HookName:      "config-tool",
+				Event:         hookspkg.HookToolPreCall,
+				Source:        hookspkg.HookSourceConfig,
+				Mode:          hookspkg.HookModeSync,
+				Duration:      2 * time.Millisecond,
+				Outcome:       hookspkg.HookRunOutcomeApplied,
+				DispatchDepth: 1,
+				PatchApplied:  json.RawMessage(`{"password":"secret-value","visible":"ok"}`),
+				Required:      true,
+				RecordedAt:    time.Unix(100, 0).UTC(),
+			}},
+			events: []hookspkg.EventDescriptor{{
+				Event:         hookspkg.HookToolPreCall,
+				Family:        hookspkg.HookEventFamilyTool,
+				SyncEligible:  true,
+				PayloadSchema: "ToolPreCallPayload",
+				PatchSchema:   "ToolCallPatch",
+			}},
+		}
+		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
+			Observer: observer,
+		}, nativeApproveAllPolicyInputs())
+
+		listResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDHooksList},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(hooks_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, listResult, []byte(`"config-tool"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"visible":"ok"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(`secret-value`))
+
+		infoResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksInfo,
+				Input:  json.RawMessage(`{"name":"config-tool"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(hooks_info) error = %v", err)
+		}
+		requireNativeStructuredContains(t, infoResult, []byte(`"config-tool"`))
+		requireNativeStructuredExcludes(t, infoResult, []byte(`secret-value`))
+
+		eventsResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksEvents,
+				Input:  json.RawMessage(`{"family":"tool"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(hooks_events) error = %v", err)
+		}
+		requireNativeStructuredContains(t, eventsResult, []byte(`"ToolPreCallPayload"`))
+
+		runsResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksRuns,
+				Input:  json.RawMessage(`{"event":"tool.pre_call","outcome":"applied","last":1}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(hooks_runs) error = %v", err)
+		}
+		requireNativeStructuredContains(t, runsResult, []byte(`"config-tool"`))
+		requireNativeStructuredContains(t, runsResult, []byte(`"visible":"ok"`))
+		requireNativeStructuredExcludes(t, runsResult, []byte(`secret-value`))
+		if observer.catalogCall != 2 {
+			t.Fatalf("QueryHookCatalog calls = %d, want 2", observer.catalogCall)
+		}
+	})
+
 	t.Run("Should manage config backed hooks through normalized binding sync", func(t *testing.T) {
 		t.Parallel()
 
@@ -532,6 +634,11 @@ func TestDaemonNativeTools(t *testing.T) {
 					Event:  hookspkg.HookSessionPostCreate,
 					Source: hookspkg.HookSourceNative,
 					Mode:   hookspkg.HookModeAsync,
+				}, {
+					Name:   "skill-session",
+					Event:  hookspkg.HookSessionPostCreate,
+					Source: hookspkg.HookSourceSkill,
+					Mode:   hookspkg.HookModeAsync,
 				}},
 			},
 			HookBindings: bindings,
@@ -543,6 +650,16 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksUpdate,
 				Input:  json.RawMessage(`{"name":"native-session","command":"/bin/echo"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonHookSourceImmutable)
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksDelete,
+				Input:  json.RawMessage(`{"name":"skill-session"}`),
 			},
 		)
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonHookSourceImmutable)
