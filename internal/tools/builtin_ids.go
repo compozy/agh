@@ -108,6 +108,44 @@ const (
 	ToolIDHooksEnable ToolID = "agh__hooks_enable"
 	// ToolIDHooksDisable disables one config-backed hook declaration.
 	ToolIDHooksDisable ToolID = "agh__hooks_disable"
+	// ToolIDAutomationJobsList lists automation jobs through the automation manager.
+	ToolIDAutomationJobsList ToolID = "agh__automation_jobs_list"
+	// ToolIDAutomationJobsGet reads one automation job through the automation manager.
+	ToolIDAutomationJobsGet ToolID = "agh__automation_jobs_get"
+	// ToolIDAutomationJobsCreate creates one dynamic automation job through the automation manager.
+	ToolIDAutomationJobsCreate ToolID = "agh__automation_jobs_create"
+	// ToolIDAutomationJobsUpdate updates one automation job through the automation manager.
+	ToolIDAutomationJobsUpdate ToolID = "agh__automation_jobs_update"
+	// ToolIDAutomationJobsDelete deletes one dynamic automation job through the automation manager.
+	ToolIDAutomationJobsDelete ToolID = "agh__automation_jobs_delete"
+	// ToolIDAutomationJobsEnable enables one automation job through the automation manager.
+	ToolIDAutomationJobsEnable ToolID = "agh__automation_jobs_enable"
+	// ToolIDAutomationJobsDisable disables one automation job through the automation manager.
+	ToolIDAutomationJobsDisable ToolID = "agh__automation_jobs_disable"
+	// ToolIDAutomationJobsTrigger manually triggers one automation job through the automation manager.
+	ToolIDAutomationJobsTrigger ToolID = "agh__automation_jobs_trigger"
+	// ToolIDAutomationJobsHistory lists run history for one automation job.
+	ToolIDAutomationJobsHistory ToolID = "agh__automation_jobs_history"
+	// ToolIDAutomationTriggersList lists automation triggers through the automation manager.
+	ToolIDAutomationTriggersList ToolID = "agh__automation_triggers_list"
+	// ToolIDAutomationTriggersGet reads one automation trigger through the automation manager.
+	ToolIDAutomationTriggersGet ToolID = "agh__automation_triggers_get"
+	// ToolIDAutomationTriggersCreate creates one dynamic automation trigger through the automation manager.
+	ToolIDAutomationTriggersCreate ToolID = "agh__automation_triggers_create"
+	// ToolIDAutomationTriggersUpdate updates one automation trigger through the automation manager.
+	ToolIDAutomationTriggersUpdate ToolID = "agh__automation_triggers_update"
+	// ToolIDAutomationTriggersDelete deletes one dynamic automation trigger through the automation manager.
+	ToolIDAutomationTriggersDelete ToolID = "agh__automation_triggers_delete"
+	// ToolIDAutomationTriggersEnable enables one automation trigger through the automation manager.
+	ToolIDAutomationTriggersEnable ToolID = "agh__automation_triggers_enable"
+	// ToolIDAutomationTriggersDisable disables one automation trigger through the automation manager.
+	ToolIDAutomationTriggersDisable ToolID = "agh__automation_triggers_disable"
+	// ToolIDAutomationTriggersHistory lists run history for one automation trigger.
+	ToolIDAutomationTriggersHistory ToolID = "agh__automation_triggers_history"
+	// ToolIDAutomationRunsList lists automation run records through the automation manager.
+	ToolIDAutomationRunsList ToolID = "agh__automation_runs_list"
+	// ToolIDAutomationRunsGet reads one automation run record through the automation manager.
+	ToolIDAutomationRunsGet ToolID = "agh__automation_runs_get"
 )
 
 const (
@@ -133,6 +171,8 @@ const (
 	ToolsetIDConfig ToolsetID = "agh__config"
 	// ToolsetIDHooks groups hook introspection and mutable config-backed hook tools.
 	ToolsetIDHooks ToolsetID = "agh__hooks"
+	// ToolsetIDAutomation groups automation lifecycle and run inspection tools.
+	ToolsetIDAutomation ToolsetID = "agh__automation"
 )
 
 // BuiltinSource returns the provenance shared by daemon-compiled AGH tools.

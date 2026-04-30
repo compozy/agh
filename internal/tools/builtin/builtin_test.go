@@ -74,6 +74,25 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDHooksDelete,
 			toolspkg.ToolIDHooksEnable,
 			toolspkg.ToolIDHooksDisable,
+			toolspkg.ToolIDAutomationJobsList,
+			toolspkg.ToolIDAutomationJobsGet,
+			toolspkg.ToolIDAutomationJobsCreate,
+			toolspkg.ToolIDAutomationJobsUpdate,
+			toolspkg.ToolIDAutomationJobsDelete,
+			toolspkg.ToolIDAutomationJobsEnable,
+			toolspkg.ToolIDAutomationJobsDisable,
+			toolspkg.ToolIDAutomationJobsTrigger,
+			toolspkg.ToolIDAutomationJobsHistory,
+			toolspkg.ToolIDAutomationTriggersList,
+			toolspkg.ToolIDAutomationTriggersGet,
+			toolspkg.ToolIDAutomationTriggersCreate,
+			toolspkg.ToolIDAutomationTriggersUpdate,
+			toolspkg.ToolIDAutomationTriggersDelete,
+			toolspkg.ToolIDAutomationTriggersEnable,
+			toolspkg.ToolIDAutomationTriggersDisable,
+			toolspkg.ToolIDAutomationTriggersHistory,
+			toolspkg.ToolIDAutomationRunsList,
+			toolspkg.ToolIDAutomationRunsGet,
 		}
 		if gotLen, wantLen := len(got), len(want); gotLen != wantLen {
 			t.Fatalf("len(NativeDescriptors()) = %d, want %d", gotLen, wantLen)
@@ -165,6 +184,48 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksCreate], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksDelete], toolspkg.RiskDestructive, false, true, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDHooksDisable], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDAutomationJobsList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDAutomationJobsCreate],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDAutomationJobsDelete],
+			toolspkg.RiskDestructive,
+			false,
+			true,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDAutomationJobsTrigger],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDAutomationRunsGet], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDAutomationTriggersCreate],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDAutomationTriggersDelete],
+			toolspkg.RiskDestructive,
+			false,
+			true,
+			false,
+		)
 	})
 
 	t.Run("Should return cloned descriptors", func(t *testing.T) {
@@ -304,6 +365,16 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if !slices.Contains(hooks, toolspkg.ToolIDHooksCreate) ||
 			!slices.Contains(hooks, toolspkg.ToolIDHooksDisable) {
 			t.Fatalf("hooks toolset expansion = %#v, want mutable hook tools", hooks)
+		}
+
+		automation, err := catalog.Expand(toolspkg.ToolsetIDAutomation, universe)
+		if err != nil {
+			t.Fatalf("Expand(automation) error = %v", err)
+		}
+		if !slices.Contains(automation, toolspkg.ToolIDAutomationJobsCreate) ||
+			!slices.Contains(automation, toolspkg.ToolIDAutomationRunsGet) ||
+			slices.Contains(automation, toolspkg.ToolID("agh__automation_webhook_secret_set")) {
+			t.Fatalf("automation toolset expansion = %#v, want bounded automation tools", automation)
 		}
 	})
 }

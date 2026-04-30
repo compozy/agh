@@ -147,6 +147,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMemoryList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDObserveEvents)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBridgesList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAutomationJobsList)
 
 		sessionViews, err := registry.List(t.Context(), toolspkg.Scope{SessionID: "sess-1"})
 		if err != nil {
@@ -159,6 +160,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.ToolIDMemoryList,
 			toolspkg.ToolIDObserveEvents,
 			toolspkg.ToolIDBridgesList,
+			toolspkg.ToolIDAutomationJobsList,
 		} {
 			if nativeToolViewByID(sessionViews, id) != nil {
 				t.Fatalf("session projection leaked unavailable tool %s", id)
@@ -220,9 +222,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		tasks := &nativeTaskManager{}
 		networkService := &nativeNetworkStub{}
 		registry := newDaemonNativeRegistry(t, daemonNativeToolsDeps{
-			Skills:  newLoadedNativeSkillRegistry(t),
-			Network: networkService,
-			Tasks:   tasks,
+			Skills:     newLoadedNativeSkillRegistry(t),
+			Network:    networkService,
+			Tasks:      tasks,
+			Automation: apitest.StubAutomationManager{},
 		}, nativeApproveAllPolicyInputs())
 
 		cases := []struct {
@@ -244,6 +247,22 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDTaskUpdate, json.RawMessage(`{"task_id":"task","clear_owner":"no"}`)},
 			{toolspkg.ToolIDTaskCancel, json.RawMessage(`{"task_id":7}`)},
 			{toolspkg.ToolIDTaskRunList, json.RawMessage(`{"task_id":"task","limit":"bad"}`)},
+			{toolspkg.ToolIDAutomationJobsList, json.RawMessage(`{"limit":"bad"}`)},
+			{toolspkg.ToolIDAutomationJobsGet, json.RawMessage(`{"job_id":7}`)},
+			{
+				toolspkg.ToolIDAutomationJobsCreate,
+				json.RawMessage(
+					`{"scope":"global","name":"daily","agent_name":"codex","prompt":"run","schedule":"bad"}`,
+				),
+			},
+			{
+				toolspkg.ToolIDAutomationTriggersCreate,
+				json.RawMessage(
+					`{"scope":"global","name":"event","agent_name":"codex","prompt":"run","event":"session.created","filter":"bad"}`,
+				),
+			},
+			{toolspkg.ToolIDAutomationRunsList, json.RawMessage(`{"limit":"bad"}`)},
+			{toolspkg.ToolIDAutomationRunsGet, json.RawMessage(`{"run_id":7}`)},
 		}
 
 		for _, tc := range cases {

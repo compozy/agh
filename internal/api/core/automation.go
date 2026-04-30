@@ -784,6 +784,12 @@ func decodeWebhookPayloadData(payload []byte) map[string]any {
 	return data
 }
 
+// AutomationJobFromCreateRequest converts the shared create payload into the
+// canonical automation job model.
+func AutomationJobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
+	return jobFromCreateRequest(req)
+}
+
 func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 	enabled := true
 	if req.Enabled != nil {
@@ -817,6 +823,11 @@ func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 	}
 }
 
+// ApplyAutomationJobPatch applies the shared patch payload to an automation job model.
+func ApplyAutomationJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) automationpkg.Job {
+	return applyJobPatch(current, req)
+}
+
 func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) automationpkg.Job {
 	next := current
 	if req.Name != nil {
@@ -848,6 +859,11 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) aut
 		next.FireLimit = *req.FireLimit
 	}
 	return next
+}
+
+// ValidateAutomationConfigJobUpdate enforces the config-backed job mutation policy.
+func ValidateAutomationConfigJobUpdate(req contract.UpdateJobRequest) error {
+	return validateConfigJobUpdate(req)
 }
 
 func validateConfigJobUpdate(req contract.UpdateJobRequest) error {
@@ -885,6 +901,12 @@ func cloneAutomationJobTaskConfig(config *automationpkg.JobTaskConfig) *automati
 	return &cloned
 }
 
+// AutomationTriggerFromCreateRequest converts the shared create payload into
+// the canonical automation trigger model.
+func AutomationTriggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.Trigger {
+	return triggerFromCreateRequest(req)
+}
+
 func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.Trigger {
 	enabled := true
 	if req.Enabled != nil {
@@ -916,6 +938,14 @@ func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.T
 		WebhookID:    strings.TrimSpace(req.WebhookID),
 		EndpointSlug: strings.TrimSpace(req.EndpointSlug),
 	}
+}
+
+// ApplyAutomationTriggerPatch applies the shared patch payload to an automation trigger model.
+func ApplyAutomationTriggerPatch(
+	current automationpkg.Trigger,
+	req contract.UpdateTriggerRequest,
+) automationpkg.Trigger {
+	return applyTriggerPatch(current, req)
 }
 
 func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTriggerRequest) automationpkg.Trigger {
@@ -961,6 +991,11 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 	}
 
 	return next
+}
+
+// ValidateAutomationConfigTriggerUpdate enforces the config-backed trigger mutation policy.
+func ValidateAutomationConfigTriggerUpdate(req contract.UpdateTriggerRequest) error {
+	return validateConfigTriggerUpdate(req)
 }
 
 func validateConfigTriggerUpdate(req contract.UpdateTriggerRequest) error {

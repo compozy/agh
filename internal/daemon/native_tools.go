@@ -46,6 +46,7 @@ type daemonNativeToolsDeps struct {
 	Observer          core.Observer
 	HookBindings      hookBindingPublisher
 	AgentCatalog      core.AgentCatalog
+	Automation        core.AutomationManager
 }
 
 type daemonNativeTools struct {
@@ -167,6 +168,7 @@ func (d *Daemon) nativeToolsDeps(
 		Observer:          state.observer,
 		HookBindings:      state.hookBindings,
 		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
+		Automation:        state.deps.Automation,
 	}
 }
 
@@ -319,6 +321,7 @@ type nativeToolAvailabilitySet struct {
 	config           toolspkg.NativeAvailabilityFunc
 	hookRead         toolspkg.NativeAvailabilityFunc
 	hookMutation     toolspkg.NativeAvailabilityFunc
+	automation       toolspkg.NativeAvailabilityFunc
 }
 
 func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
@@ -335,6 +338,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
+	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
 	return bindings
 }
 
@@ -364,6 +368,7 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		hookMutation: n.dependencyAvailability(func() bool {
 			return configReady() && n.deps.Observer != nil && n.deps.HookBindings != nil
 		}),
+		automation: n.dependencyAvailability(func() bool { return n.deps.Automation != nil }),
 	}
 }
 
