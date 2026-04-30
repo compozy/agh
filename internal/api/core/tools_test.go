@@ -21,7 +21,7 @@ import (
 func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldExposeOperatorSessionInvokeAndToolsets", func(t *testing.T) {
+	t.Run("Should expose operator session invoke and toolset handlers", func(t *testing.T) {
 		t.Parallel()
 
 		registry := newAPITestToolRegistry(t, false)
@@ -165,7 +165,7 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldMintAndConsumeSingleUseTokens", func(t *testing.T) {
+	t.Run("Should mint and consume single-use tokens", func(t *testing.T) {
 		t.Parallel()
 
 		approvals := toolspkg.NewApprovalTokenStore(
@@ -246,6 +246,11 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 		if invokeResp.Code != http.StatusOK {
 			t.Fatalf("invoke status = %d, want %d; body=%s", invokeResp.Code, http.StatusOK, invokeResp.Body.String())
 		}
+		var invokePayload contract.ToolInvokeResponse
+		decodeToolJSON(t, invokeResp.Body.Bytes(), &invokePayload)
+		if invokePayload.ToolID != "ext__ask_tool" || invokePayload.Status != "completed" {
+			t.Fatalf("invoke payload = %#v, want completed ext__ask_tool", invokePayload)
+		}
 		if registry.callCount("ext__ask_tool") != 1 {
 			t.Fatalf("registry call count = %d, want 1", registry.callCount("ext__ask_tool"))
 		}
@@ -303,6 +308,11 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("invoke status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var invokePayload contract.ToolInvokeResponse
+		decodeToolJSON(t, resp.Body.Bytes(), &invokePayload)
+		if invokePayload.ToolID != toolspkg.ToolIDSkillView || invokePayload.Status != "completed" {
+			t.Fatalf("invoke payload = %#v, want completed skill_view", invokePayload)
 		}
 		scope, call := registry.lastCall()
 		if scope.SessionID != "sess-query" || scope.WorkspaceID != "ws-query" || scope.AgentName != "coder" {

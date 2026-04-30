@@ -683,8 +683,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
 			t.Fatalf("json.Unmarshal(task next) error = %v", err)
 		}
-		if strings.Contains(stdout, "agh_claim_") {
-			t.Fatalf("task next output leaked raw claim token pattern: %s", stdout)
+		if strings.Contains(stdout, `"claim_token"`) || strings.Contains(stdout, "agh_claim_") {
+			t.Fatal("task next output leaked raw claim token")
 		}
 		if !output.Claimed || output.Claim == nil || output.Claim.Lease.ClaimTokenHash == "" {
 			t.Fatalf("task next output = %#v, want claimed session-bound response", output)

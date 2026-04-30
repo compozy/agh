@@ -43,29 +43,31 @@ func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 		t.Fatalf("send body = %q, want session_id validation", sendResp.Body.String())
 	}
 
-	rawTokenResp := performRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/api/network/send",
-		[]byte(
-			`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"claim_token":"agh_claim_uds"}}`,
-		),
-	)
-	if rawTokenResp.Code != http.StatusBadRequest {
-		t.Fatalf(
-			"raw token send status = %d, want %d; body=%s",
-			rawTokenResp.Code,
-			http.StatusBadRequest,
-			rawTokenResp.Body.String(),
+	t.Run("Should reject raw claim tokens before sending network messages", func(t *testing.T) {
+		rawTokenResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/network/send",
+			[]byte(
+				`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"claim_token":"agh_claim_uds"}}`,
+			),
 		)
-	}
-	if !strings.Contains(rawTokenResp.Body.String(), "network_raw_token_rejected") {
-		t.Fatalf("raw token send body = %q, want network_raw_token_rejected", rawTokenResp.Body.String())
-	}
-	if sendCalls != 0 {
-		t.Fatalf("Network.Send calls = %d, want 0 for invalid send requests", sendCalls)
-	}
+		if rawTokenResp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"raw token send status = %d, want %d; body=%s",
+				rawTokenResp.Code,
+				http.StatusBadRequest,
+				rawTokenResp.Body.String(),
+			)
+		}
+		if !strings.Contains(rawTokenResp.Body.String(), "network_raw_token_rejected") {
+			t.Fatalf("raw token send body = %q, want network_raw_token_rejected", rawTokenResp.Body.String())
+		}
+		if sendCalls != 0 {
+			t.Fatalf("Network.Send calls = %d, want 0 for invalid send requests", sendCalls)
+		}
+	})
 }
 
 func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {

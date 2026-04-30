@@ -395,6 +395,23 @@ func TestNetworkStatusPayloadWrapsBundleSettingsErrors(t *testing.T) {
 	}
 }
 
+func TestNetworkChannelPayloadsRejectNilReceiver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return dependency error for nil handlers", func(t *testing.T) {
+		t.Parallel()
+
+		var handlers *BaseHandlers
+		_, err := handlers.networkChannelPayloads(context.Background(), networkServiceStub{})
+		if err == nil {
+			t.Fatal("networkChannelPayloads() error = nil, want dependency error")
+		}
+		if !strings.Contains(err.Error(), "api: handlers are required") {
+			t.Fatalf("networkChannelPayloads() error = %q, want handlers dependency error", err.Error())
+		}
+	})
+}
+
 func TestBundleHandlersRejectNilReceiverWithoutPanicking(t *testing.T) {
 	t.Parallel()
 

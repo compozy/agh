@@ -442,6 +442,12 @@ func TestUDSToolResourceCRUDRoundTripTriggersProjection(t *testing.T) {
 		waitForProjectedToolRevision(t, runtime, 2)
 
 		_, records = runtime.toolCatalog.snapshot()
+		if got, want := len(records), 1; got != want {
+			t.Fatalf("projected tool count after update = %d, want %d", got, want)
+		}
+		if got, want := records[0].Spec.ID, toolspkg.ToolID("dyn__lookup"); got != want {
+			t.Fatalf("projected tool ID after update = %q, want %q", got, want)
+		}
 		if got, want := records[0].Spec.Description, "search workspace v2"; got != want {
 			t.Fatalf("projected tool description = %q, want %q", got, want)
 		}

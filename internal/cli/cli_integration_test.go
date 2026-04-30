@@ -1650,7 +1650,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			t.Fatalf("next = %#v, want claimed run with lease hash and coordination channel", next)
 		}
 		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
-			t.Fatalf("task next output exposed raw claim token: %s", nextOut)
+			t.Fatal("task next output exposed raw claim token")
 		}
 		channelID = next.Claim.CoordinationChannel.ID
 		channelName = firstCLIValue(next.Claim.CoordinationChannel.Channel, channelID)
@@ -1685,7 +1685,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"json",
 		)
 		if strings.Contains(heartbeatOut, `"claim_token"`) || strings.Contains(heartbeatOut, "agh_claim_") {
-			t.Fatalf("heartbeat output exposed raw claim token: %s", heartbeatOut)
+			t.Fatal("heartbeat output exposed raw claim token")
 		}
 		var heartbeat AgentTaskLeaseRecord
 		if err := json.Unmarshal([]byte(heartbeatOut), &heartbeat); err != nil {
@@ -1740,7 +1740,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"json",
 		)
 		if strings.Contains(completeOut, `"claim_token"`) || strings.Contains(completeOut, "agh_claim_") {
-			t.Fatalf("complete output exposed raw claim token: %s", completeOut)
+			t.Fatal("complete output exposed raw claim token")
 		}
 		var completed AgentTaskLeaseRecord
 		if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
@@ -1765,10 +1765,10 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			t.Fatal("second task complete exit code = 0, want stale token/lifecycle rejection")
 		}
 		if !strings.Contains(stderr, "not an active lease") {
-			t.Fatalf("second complete stderr = %q, want inactive lease rejection", stderr)
+			t.Fatal("second complete stderr did not include inactive lease rejection")
 		}
-		if strings.Contains(stderr, "agh_claim_") {
-			t.Fatalf("second complete stderr leaked raw token: %s", stderr)
+		if strings.Contains(stderr, `"claim_token"`) || strings.Contains(stderr, "agh_claim_") {
+			t.Fatal("second complete stderr leaked raw claim token")
 		}
 	})
 
@@ -1840,7 +1840,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			t.Fatalf("staleNext = %#v, want claimed stale-test run", staleNext)
 		}
 		if strings.Contains(staleNextOut, `"claim_token"`) || strings.Contains(staleNextOut, "agh_claim_") {
-			t.Fatalf("stale task next output exposed raw claim token: %s", staleNextOut)
+			t.Fatal("stale task next output exposed raw claim token")
 		}
 		if staleNext.Claim.Lease.LeaseUntil == nil {
 			t.Fatal("staleNext.Claim.Lease.LeaseUntil = nil, want bounded lease expiry")
@@ -1898,10 +1898,10 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 					t.Fatalf("task %s after recovery exit code = 0, want stale token rejection", tt.name)
 				}
 				if !strings.Contains(stderr, "not an active lease") {
-					t.Fatalf("task %s after recovery stderr = %q, want inactive lease rejection", tt.name, stderr)
+					t.Fatalf("task %s after recovery stderr did not include inactive lease rejection", tt.name)
 				}
-				if strings.Contains(stderr, "agh_claim_") {
-					t.Fatalf("task %s after recovery leaked stale token: %s", tt.name, stderr)
+				if strings.Contains(stderr, `"claim_token"`) || strings.Contains(stderr, "agh_claim_") {
+					t.Fatalf("task %s after recovery leaked raw claim token", tt.name)
 				}
 			})
 		}
@@ -2088,7 +2088,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			t.Fatal("next.Claim.Lease.ClaimTokenHash = empty, want observability hash")
 		}
 		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
-			t.Fatalf("task next output exposed raw claim token: %s", nextOut)
+			t.Fatal("task next output exposed raw claim token")
 		}
 
 		completeOut := mustExecuteRoot(
@@ -2103,7 +2103,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			"json",
 		)
 		if strings.Contains(completeOut, `"claim_token"`) || strings.Contains(completeOut, "agh_claim_") {
-			t.Fatalf("task complete output exposed raw claim token: %s", completeOut)
+			t.Fatal("task complete output exposed raw claim token")
 		}
 		var completed AgentTaskLeaseRecord
 		if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {

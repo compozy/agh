@@ -287,6 +287,7 @@ func ToolsetPayloadFromView(view toolspkg.ToolsetView) contract.ToolsetPayload {
 	}
 }
 
+// toolDescriptorPayload detaches registry-owned descriptor data from transport DTOs.
 func toolDescriptorPayload(d toolspkg.Descriptor) contract.ToolDescriptorPayload {
 	return contract.ToolDescriptorPayload{
 		ToolID:              d.ID,
@@ -310,6 +311,7 @@ func toolDescriptorPayload(d toolspkg.Descriptor) contract.ToolDescriptorPayload
 	}
 }
 
+// toolBackendPayload preserves backend routing metadata without exposing registry internals.
 func toolBackendPayload(backend toolspkg.BackendRef) contract.ToolBackendRefPayload {
 	return contract.ToolBackendRefPayload{
 		Kind:                 backend.Kind,
@@ -322,6 +324,7 @@ func toolBackendPayload(backend toolspkg.BackendRef) contract.ToolBackendRefPayl
 	}
 }
 
+// toolSourcePayload carries provenance fields needed for operator audits.
 func toolSourcePayload(source toolspkg.SourceRef) contract.ToolSourceRefPayload {
 	return contract.ToolSourceRefPayload{
 		Kind:            source.Kind,
@@ -335,6 +338,7 @@ func toolSourcePayload(source toolspkg.SourceRef) contract.ToolSourceRefPayload 
 	}
 }
 
+// toolAvailabilityPayload keeps availability reasons stable across transports.
 func toolAvailabilityPayload(availability toolspkg.Availability) contract.ToolAvailabilityPayload {
 	return contract.ToolAvailabilityPayload{
 		Registered:  availability.Registered,
@@ -347,6 +351,7 @@ func toolAvailabilityPayload(availability toolspkg.Availability) contract.ToolAv
 	}
 }
 
+// toolDecisionPayload exposes policy outcomes without sharing mutable registry state.
 func toolDecisionPayload(decision toolspkg.EffectiveToolDecision) contract.ToolPolicyDecisionPayload {
 	return contract.ToolPolicyDecisionPayload{
 		VisibleToOperator:    decision.VisibleToOperator,
@@ -364,6 +369,7 @@ func toolDecisionPayload(decision toolspkg.EffectiveToolDecision) contract.ToolP
 	}
 }
 
+// bindToolSearch normalizes malformed search input into the shared tool error contract.
 func (h *BaseHandlers) bindToolSearch(c *gin.Context) (contract.ToolSearchRequest, bool) {
 	var req contract.ToolSearchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -379,6 +385,7 @@ func (h *BaseHandlers) bindToolSearch(c *gin.Context) (contract.ToolSearchReques
 	return req, true
 }
 
+// toolIDParam validates route IDs before they reach registry lookups.
 func (h *BaseHandlers) toolIDParam(c *gin.Context) (toolspkg.ToolID, bool) {
 	id := toolspkg.ToolID(strings.TrimSpace(c.Param("id")))
 	if err := id.Validate(); err != nil {
@@ -388,6 +395,7 @@ func (h *BaseHandlers) toolIDParam(c *gin.Context) (toolspkg.ToolID, bool) {
 	return id, true
 }
 
+// operatorToolScope builds privileged projections from query parameters only.
 func (h *BaseHandlers) operatorToolScope(c *gin.Context) toolspkg.Scope {
 	return toolspkg.Scope{
 		WorkspaceID: strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace"))),
@@ -397,6 +405,7 @@ func (h *BaseHandlers) operatorToolScope(c *gin.Context) toolspkg.Scope {
 	}
 }
 
+// sessionToolScope anchors session projections to the route session ID.
 func (h *BaseHandlers) sessionToolScope(c *gin.Context) toolspkg.Scope {
 	return toolspkg.Scope{
 		WorkspaceID: strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace"))),
@@ -405,6 +414,7 @@ func (h *BaseHandlers) sessionToolScope(c *gin.Context) toolspkg.Scope {
 	}
 }
 
+// toolScopeFromSearch lets request bodies narrow default scope without losing route context.
 func toolScopeFromSearch(scope toolspkg.Scope, req contract.ToolSearchRequest) toolspkg.Scope {
 	scope.WorkspaceID = firstNonEmpty(req.WorkspaceID, scope.WorkspaceID)
 	scope.SessionID = firstNonEmpty(req.SessionID, scope.SessionID)
@@ -412,6 +422,7 @@ func toolScopeFromSearch(scope toolspkg.Scope, req contract.ToolSearchRequest) t
 	return scope
 }
 
+// respondToolError serializes stable tool errors without backend error text.
 func (h *BaseHandlers) respondToolError(c *gin.Context, err error) {
 	status := StatusForToolError(err)
 	var toolErr *toolspkg.ToolError
@@ -446,6 +457,7 @@ func (h *BaseHandlers) respondToolError(c *gin.Context, err error) {
 	c.JSON(status, contract.ToolErrorResponse{Error: payload})
 }
 
+// safeToolErrorMessage maps internal failures to client-safe contract messages.
 func safeToolErrorMessage(status int, code toolspkg.ErrorCode) string {
 	switch code {
 	case toolspkg.ErrorCodeNotFound:
@@ -477,6 +489,7 @@ func safeToolErrorMessage(status int, code toolspkg.ErrorCode) string {
 	}
 }
 
+// toolErrorCodeForStatus keeps non-tool errors compatible with tool error payloads.
 func toolErrorCodeForStatus(status int) toolspkg.ErrorCode {
 	switch status {
 	case http.StatusBadRequest:
@@ -496,6 +509,7 @@ func toolErrorCodeForStatus(status int) toolspkg.ErrorCode {
 	}
 }
 
+// toolErrorLayer groups registry reasons into stable transport-facing layers.
 func toolErrorLayer(reasons []toolspkg.ReasonCode) string {
 	for _, reason := range reasons {
 		switch reason {

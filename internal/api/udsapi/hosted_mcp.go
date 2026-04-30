@@ -11,6 +11,8 @@ import (
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 )
 
+var errHostedMCPBackend = errors.New("hosted-mcp backend error")
+
 func registerHostedMCPRoutes(api gin.IRouter, handlers *Handlers) {
 	hosted := api.Group("/internal/hosted-mcp")
 	{
@@ -39,7 +41,7 @@ func (h *Handlers) bindHostedMCP(c *gin.Context) {
 	}
 	response, err := h.HostedMCP.Bind(c.Request.Context(), req, peer)
 	if err != nil {
-		core.RespondError(c, hostedMCPStatus(err), err, false)
+		core.RespondError(c, hostedMCPStatus(err), hostedMCPSafeError(), false)
 		return
 	}
 	c.JSON(http.StatusOK, response)
@@ -57,7 +59,7 @@ func (h *Handlers) hostedMCPProjection(c *gin.Context) {
 	}
 	response, err := h.HostedMCP.Projection(c.Request.Context(), c.Query("bind_id"), peer)
 	if err != nil {
-		core.RespondError(c, hostedMCPStatus(err), err, false)
+		core.RespondError(c, hostedMCPStatus(err), hostedMCPSafeError(), false)
 		return
 	}
 	c.JSON(http.StatusOK, response)
@@ -77,7 +79,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	lastDigest := strings.TrimSpace(c.Query("last_digest"))
 	response, err := h.HostedMCP.Projection(c.Request.Context(), bindID, peer)
 	if err != nil {
-		core.RespondError(c, hostedMCPStatus(err), err, false)
+		core.RespondError(c, hostedMCPStatus(err), hostedMCPSafeError(), false)
 		return
 	}
 	writer, err := core.PrepareSSE(c)
@@ -116,7 +118,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 		if err != nil {
 			status := hostedMCPStatus(err)
 			if h.Logger != nil {
-				h.Logger.Warn("udsapi: hosted MCP projection failed", "status", status, "error", err)
+				h.Logger.Warn("udsapi: hosted MCP projection failed", "status", status)
 			}
 			if writeErr := core.WriteSSE(writer, core.SSEMessage{
 				Name: "error",
@@ -156,7 +158,7 @@ func (h *Handlers) callHostedMCP(c *gin.Context) {
 	}
 	response, err := h.HostedMCP.Call(c.Request.Context(), req, peer)
 	if err != nil {
-		core.RespondError(c, hostedMCPStatus(err), err, false)
+		core.RespondError(c, hostedMCPStatus(err), hostedMCPSafeError(), false)
 		return
 	}
 	c.JSON(http.StatusOK, response)
@@ -178,10 +180,14 @@ func (h *Handlers) releaseHostedMCP(c *gin.Context) {
 		return
 	}
 	if err := h.HostedMCP.ReleaseBindForPeer(c.Request.Context(), req.BindID, peer); err != nil {
-		core.RespondError(c, hostedMCPStatus(err), err, false)
+		core.RespondError(c, hostedMCPStatus(err), hostedMCPSafeError(), false)
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func hostedMCPSafeError() error {
+	return errHostedMCPBackend
 }
 
 func hostedMCPStatus(err error) int {

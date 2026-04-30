@@ -459,6 +459,9 @@ func (h *BaseHandlers) networkChannelPayloads(
 	ctx context.Context,
 	service NetworkService,
 ) ([]contract.NetworkChannelPayload, error) {
+	if h == nil {
+		return nil, errors.New("api: handlers are required")
+	}
 	return NetworkChannelPayloads(ctx, service, h.Sessions, h.NetworkStore)
 }
 
