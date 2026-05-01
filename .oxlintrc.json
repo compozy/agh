@@ -139,7 +139,7 @@
     ],
     "settings": {
         "jsx-a11y": {
-            "polymorphicPropName": null,
+            "polymorphicPropName": "",
             "components": {}
         },
         "react": {

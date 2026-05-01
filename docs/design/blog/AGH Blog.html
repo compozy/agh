@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AGH Blog — Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  :root {
+    --color-canvas: #141312;
+    --color-canvas-deep: #0E0E0F;
+    --color-surface: #1E1C1B;
+    --color-surface-panel: #181716;
+    --color-elevated: #2E2C2B;
+    --color-divider: #3C3A39;
+    --color-hover: #353332;
+    --color-text-primary: #E5E5E7;
+    --color-text-secondary: #8E8E93;
+    --color-text-tertiary: #636366;
+    --color-text-label: #98989D;
+    --color-accent: #E8572A;
+    --tracking-mono: 0.06em;
+    --radius-diagram: 12px;
+    --site-layout-width: 1200px;
+  }
+  html, body { background: #000; color: var(--color-text-primary); font-family: 'Inter', -apple-system, sans-serif; }
+  ::selection { background: rgba(232,87,42,0.28); color: #E5E5E7; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .site-home h1, .site-home h2 { font-family: 'Playfair Display', serif; }
+  /* override tailwind preflight a bit so headings keep playfair where needed */
+  h1, h2, h3, h4 { color: var(--color-text-primary); }
+  button { cursor: pointer; }
+  a { color: inherit; text-decoration: none; }
+  input { color: var(--color-text-primary); }
+  input::placeholder { color: var(--color-text-tertiary); }
+</style>
+<script src="design-canvas.jsx" type="text/babel"></script>
+<script src="blog/shared.jsx" type="text/babel"></script>
+<script src="blog/index-page.jsx" type="text/babel"></script>
+<script src="blog/post-page.jsx" type="text/babel"></script>
+<script src="blog/category-page.jsx" type="text/babel"></script>
+<script src="blog/changelog-page.jsx" type="text/babel"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="env,react">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+
+function App() {
+  return (
+    <DesignCanvas title="AGH Blog">
+      <DCSection id="blog" title="Blog · agh.network">
+        <DCArtboard id="index" label="01 — Blog Index" width={1280} height={2300}>
+          <window.BlogIndex />
+        </DCArtboard>
+        <DCArtboard id="post" label="02 — Post Detail" width={1280} height={2900}>
+          <window.BlogPost />
+        </DCArtboard>
+        <DCArtboard id="category" label="03 — Category Archive" width={1280} height={2400}>
+          <window.BlogCategory />
+        </DCArtboard>
+        <DCArtboard id="changelog" label="04 — Changelog" width={1280} height={2600}>
+          <window.ChangelogPage />
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
