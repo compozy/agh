@@ -144,6 +144,12 @@ func (s *promptActivitySupervisor) finish(now time.Time) {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime activity clear failed", "turn_id", s.turnID, "error", err)
 	}
+	healthCtx, cancel := s.manager.detachedSessionHealthContext(s.ctx)
+	defer cancel()
+	if _, err := s.manager.persistSessionIdlePresence(healthCtx, s.session, now); err != nil {
+		s.manager.sessionLogger(s.session).
+			Warn("session: persist runtime idle health failed", "turn_id", s.turnID, "error", err)
+	}
 }
 
 func (s *promptActivitySupervisor) run() {
@@ -245,6 +251,10 @@ func (s *promptActivitySupervisor) handleTimeout(now time.Time) {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime timeout stall failed", "turn_id", s.turnID, "error", err)
 	}
+	if _, err := s.manager.persistSessionPromptActivity(s.ctx, s.session, now); err != nil {
+		s.manager.sessionLogger(s.session).
+			Warn("session: persist runtime timeout health failed", "turn_id", s.turnID, "error", err)
+	}
 	s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, s.timeoutText(now), now)
 
 	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.config.TimeoutCancelGrace)
@@ -328,6 +338,10 @@ func (s *promptActivitySupervisor) touchWithTool(
 	if err := s.manager.writeMeta(s.session); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime activity failed", "turn_id", s.turnID, "error", err)
+	}
+	if _, err := s.manager.persistSessionPromptActivity(s.ctx, s.session, lastActivityAt); err != nil {
+		s.manager.sessionLogger(s.session).
+			Warn("session: persist runtime activity health failed", "turn_id", s.turnID, "error", err)
 	}
 }
 

@@ -25,6 +25,14 @@ func soulSnapshotStoreDependency(value any) session.SoulSnapshotStore {
 	return store
 }
 
+func sessionHealthStoreDependency(value any) session.HealthStore {
+	store, ok := value.(session.HealthStore)
+	if !ok {
+		return nil
+	}
+	return store
+}
+
 func soulRunActivityCheckerDependency(value any) session.SoulRunActivityChecker {
 	store, ok := value.(soulRunStore)
 	if !ok {

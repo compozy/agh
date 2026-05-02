@@ -586,7 +586,29 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 			"error_issues", errorIssues,
 		)
 	}
+	if recoverer, ok := state.sessions.(sessionHealthRecoverer); ok {
+		result, recoveryErr := recoverer.RecoverSessionHealth(ctx)
+		if recoveryErr != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return fmt.Errorf("daemon: session health recovery canceled: %w", ctxErr)
+			}
+			state.logger.Warn("daemon: session health recovery failed", "error", recoveryErr)
+			return nil
+		}
+		if result.RefreshedActive > 0 || result.Recomputed > 0 || result.MarkedStale > 0 {
+			state.logger.Info(
+				"daemon: session health recovery complete",
+				"refreshed_active", result.RefreshedActive,
+				"recomputed", result.Recomputed,
+				"marked_stale", result.MarkedStale,
+			)
+		}
+	}
 	return nil
+}
+
+type sessionHealthRecoverer interface {
+	RecoverSessionHealth(ctx context.Context) (session.HealthRecoveryResult, error)
 }
 
 func bootShouldRepairSession(info *session.Info) bool {
@@ -642,11 +664,13 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		WorkspaceResolver:    state.workspaceResolver,
 		SandboxRegistry:      state.sandboxRegistry,
 		SessionSupervision:   state.cfg.Session.Supervision,
+		SessionHealthConfig:  state.cfg.Agents.Heartbeat,
 		ProcessRegistry:      state.processRegistry,
 		HostedMCP:            hostedMCPLauncher(state.hostedMCP),
 		ProviderSecrets:      sessionProviderVaultDependency(state.providerVault),
 		SoulStore:            soulSnapshotStoreDependency(state.registry),
 		SoulRunChecker:       soulRunActivityCheckerDependency(state.registry),
+		SessionHealthStore:   sessionHealthStoreDependency(state.registry),
 	}
 }
 

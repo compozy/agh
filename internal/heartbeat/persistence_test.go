@@ -107,6 +107,16 @@ func TestHeartbeatPersistenceValidation(t *testing.T) {
 		if !errors.Is(health.Validate(), ErrInvalidSessionHealth) {
 			t.Fatal("SessionHealth.Validate(invalid health) error does not wrap ErrInvalidSessionHealth")
 		}
+		health = heartbeatSessionHealthForPersistenceTest(createdAt)
+		health.EligibleForWake = false
+		health.IneligibilityReason = string(SessionHealthReasonHung)
+		if err := health.Validate(); err != nil {
+			t.Fatalf("SessionHealth.Validate(valid ineligibility reason) error = %v", err)
+		}
+		health.IneligibilityReason = "task_lease_renewed"
+		if !errors.Is(health.Validate(), ErrInvalidSessionHealth) {
+			t.Fatal("SessionHealth.Validate(invalid ineligibility reason) error does not wrap ErrInvalidSessionHealth")
+		}
 
 		wakeState := heartbeatWakeStateForPersistenceTest(createdAt)
 		if err := wakeState.Validate(); err != nil {
@@ -130,6 +140,7 @@ func TestHeartbeatPersistenceValidation(t *testing.T) {
 			!ValidActorKind(ActorKindSystem) ||
 			!ValidSessionHealthState(SessionHealthStatePrompting) ||
 			!ValidSessionHealthStatus(SessionHealthStale) ||
+			!ValidSessionHealthIneligibilityReason(string(SessionHealthReasonPromptActive)) ||
 			!ValidWakeSource(WakeSourceHarnessReentry) ||
 			!ValidWakeResult(WakeResultRateLimited) ||
 			!ValidWakeReason(WakeReasonSessionPromptRace) {
@@ -139,6 +150,7 @@ func TestHeartbeatPersistenceValidation(t *testing.T) {
 			ValidActorKind("bot") ||
 			ValidSessionHealthState("busy") ||
 			ValidSessionHealthStatus("paused") ||
+			ValidSessionHealthIneligibilityReason("claim_token") ||
 			ValidWakeSource("queue") ||
 			ValidWakeResult("claimed") ||
 			ValidWakeReason("claim_token") {

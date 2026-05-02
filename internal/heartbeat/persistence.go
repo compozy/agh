@@ -76,6 +76,19 @@ const (
 	SessionHealthUnknown  SessionHealthStatus = "unknown"
 )
 
+// SessionHealthIneligibilityReason is a closed reason for wake-ineligible health rows.
+type SessionHealthIneligibilityReason string
+
+const (
+	SessionHealthReasonPromptActive  SessionHealthIneligibilityReason = "session_prompt_active"
+	SessionHealthReasonNotAttachable SessionHealthIneligibilityReason = "session_not_attachable"
+	SessionHealthReasonUnhealthy     SessionHealthIneligibilityReason = "session_unhealthy"
+	SessionHealthReasonStale         SessionHealthIneligibilityReason = "session_health_stale"
+	SessionHealthReasonHung          SessionHealthIneligibilityReason = "session_health_hung"
+	SessionHealthReasonDead          SessionHealthIneligibilityReason = "session_health_dead"
+	SessionHealthReasonUnknown       SessionHealthIneligibilityReason = "session_health_unknown"
+)
+
 // WakeSource classifies who requested an advisory Heartbeat wake.
 type WakeSource string
 
@@ -500,6 +513,13 @@ func (h SessionHealth) Validate() error {
 		return fmt.Errorf("%w: invalid state %q", ErrInvalidSessionHealth, normalized.State)
 	case !ValidSessionHealthStatus(normalized.Health):
 		return fmt.Errorf("%w: invalid health %q", ErrInvalidSessionHealth, normalized.Health)
+	case normalized.IneligibilityReason != "" &&
+		!ValidSessionHealthIneligibilityReason(normalized.IneligibilityReason):
+		return fmt.Errorf(
+			"%w: invalid ineligibility reason %q",
+			ErrInvalidSessionHealth,
+			normalized.IneligibilityReason,
+		)
 	case normalized.UpdatedAt.IsZero():
 		return fmt.Errorf("%w: updated_at is required", ErrInvalidSessionHealth)
 	}
@@ -657,6 +677,22 @@ func ValidSessionHealthStatus(health SessionHealthStatus) bool {
 		SessionHealthStale,
 		SessionHealthDead,
 		SessionHealthUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// ValidSessionHealthIneligibilityReason reports whether reason is a supported session-health reason.
+func ValidSessionHealthIneligibilityReason(reason string) bool {
+	switch SessionHealthIneligibilityReason(strings.TrimSpace(reason)) {
+	case SessionHealthReasonPromptActive,
+		SessionHealthReasonNotAttachable,
+		SessionHealthReasonUnhealthy,
+		SessionHealthReasonStale,
+		SessionHealthReasonHung,
+		SessionHealthReasonDead,
+		SessionHealthReasonUnknown:
 		return true
 	default:
 		return false

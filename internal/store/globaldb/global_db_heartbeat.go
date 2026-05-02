@@ -529,9 +529,11 @@ func (g *GlobalDB) MarkSessionHealthStale(ctx context.Context, cutoff time.Time,
 		`UPDATE session_health
 		SET health = ?, eligible_for_wake = 0, ineligibility_reason = ?, updated_at = ?
 		WHERE health NOT IN ('stale', 'dead')
+			AND state = 'idle'
+			AND active_prompt = 0
 			AND (last_presence_at IS NULL OR last_presence_at < ?)`,
 		string(heartbeat.SessionHealthStale),
-		"session_health_stale",
+		string(heartbeat.SessionHealthReasonStale),
 		store.FormatTimestamp(updatedAt),
 		store.FormatTimestamp(cutoff),
 	)

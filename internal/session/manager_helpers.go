@@ -123,6 +123,9 @@ func (m *Manager) activateAndWatch(
 	if m.notifier != nil {
 		m.notifier.OnSessionCreated(ctx, session)
 	}
+	if _, err := m.persistSessionPresence(ctx, session, now); err != nil {
+		m.sessionLogger(session).Warn("session: persist health presence failed", "error", err)
+	}
 	m.watchProcess(m.lifecycleCtx, session)
 	return nil
 }

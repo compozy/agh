@@ -167,6 +167,9 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 			dispatchMessage = augmented
 		}
 	}
+	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
+		return nil, err
+	}
 	activity := newPromptActivitySupervisor(ctx, m, session, turnState, m.supervision)
 	activity.start()
 	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{

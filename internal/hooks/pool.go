@@ -176,8 +176,13 @@ func (p *asyncPool) Close() {
 		return
 	case <-drainCtx.Done():
 		p.stopWorkers()
-		discardAsyncTasks(tasks)
-		<-done
+		discarded := discardAsyncTasks(tasks)
+		p.logger.Warn(
+			"hook.dispatch.async_drain_timeout",
+			"timeout", drainTimeout,
+			"discarded_tasks", discarded,
+		)
+		return
 	}
 }
 
@@ -218,15 +223,17 @@ func (p *asyncPool) runTask(ctx context.Context, task asyncTask) {
 	task.run(ctx)
 }
 
-func discardAsyncTasks(tasks <-chan asyncTask) {
+func discardAsyncTasks(tasks <-chan asyncTask) int {
+	discarded := 0
 	for {
 		select {
 		case _, ok := <-tasks:
 			if !ok {
-				return
+				return discarded
 			}
+			discarded++
 		default:
-			return
+			return discarded
 		}
 	}
 }

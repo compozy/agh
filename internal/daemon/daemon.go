@@ -291,11 +291,13 @@ type SessionManagerDeps struct {
 	WorkspaceResolver    workspacepkg.RuntimeResolver
 	SandboxRegistry      *sandbox.Registry
 	SessionSupervision   aghconfig.SessionSupervisionConfig
+	SessionHealthConfig  aghconfig.HeartbeatConfig
 	ProcessRegistry      *toolruntime.Registry
 	HostedMCP            session.HostedMCPLauncher
 	ProviderSecrets      session.ProviderSecretResolver
 	SoulStore            session.SoulSnapshotStore
 	SoulRunChecker       session.SoulRunActivityChecker
+	SessionHealthStore   session.HealthStore
 }
 
 // Daemon is the sole AGH composition root.
@@ -552,6 +554,8 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithSandboxRegistry(deps.SandboxRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),
+			session.WithSessionHealthConfig(deps.SessionHealthConfig),
+			session.WithSessionHealthStore(deps.SessionHealthStore),
 			session.WithHostedMCPLauncher(deps.HostedMCP),
 			session.WithProviderSecretResolver(deps.ProviderSecrets),
 			session.WithSoulSnapshotStore(deps.SoulStore),

@@ -180,6 +180,9 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	if m.notifier != nil {
 		m.notifier.OnSessionStopped(ctx, session)
 	}
+	if _, healthErr := m.persistSessionStoppedHealth(ctx, session, m.now()); healthErr != nil {
+		m.sessionLogger(session).Warn("session: persist stopped health failed", "error", healthErr)
+	}
 	session.clearProviderSecretRedactions()
 
 	return errors.Join(errs...)

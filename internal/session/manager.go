@@ -93,35 +93,37 @@ type Manager struct {
 	soulLocksMu          sync.Mutex
 	soulLocks            map[string]chan struct{}
 
-	logger             *slog.Logger
-	driver             AgentDriver
-	notifier           Notifier
-	networkPeers       NetworkPeerLifecycle
-	turnEndNotifier    TurnEndNotifier
-	inputAugmenter     PromptInputAugmenter
-	startupOverlay     StartupPromptOverlay
-	hooks              HookSet
-	sandbox            *sandbox.Registry
-	agentResolver      AgentResolver
-	providerSecrets    ProviderSecretResolver
-	skillRegistry      SkillRegistry
-	mcpResolver        MCPResolver
-	hostedMCP          HostedMCPLauncher
-	soulStore          SoulSnapshotStore
-	soulRunChecker     SoulRunActivityChecker
-	homePaths          aghconfig.HomePaths
-	workspace          workspacepkg.RuntimeResolver
-	openStore          StoreOpener
-	assembler          PromptAssembler
-	supervision        aghconfig.SessionSupervisionConfig
-	lifecycleCtx       context.Context
-	now                func() time.Time
-	newSessionID       IDGenerator
-	newSandboxID       IDGenerator
-	newTurnID          IDGenerator
-	maxSessions        int
-	promptBufSize      int
-	soulRefreshTimeout time.Duration
+	logger                  *slog.Logger
+	driver                  AgentDriver
+	notifier                Notifier
+	networkPeers            NetworkPeerLifecycle
+	turnEndNotifier         TurnEndNotifier
+	inputAugmenter          PromptInputAugmenter
+	startupOverlay          StartupPromptOverlay
+	hooks                   HookSet
+	sandbox                 *sandbox.Registry
+	agentResolver           AgentResolver
+	providerSecrets         ProviderSecretResolver
+	skillRegistry           SkillRegistry
+	mcpResolver             MCPResolver
+	hostedMCP               HostedMCPLauncher
+	soulStore               SoulSnapshotStore
+	soulRunChecker          SoulRunActivityChecker
+	sessionHealthStore      HealthStore
+	homePaths               aghconfig.HomePaths
+	workspace               workspacepkg.RuntimeResolver
+	openStore               StoreOpener
+	assembler               PromptAssembler
+	supervision             aghconfig.SessionSupervisionConfig
+	sessionHealthStaleAfter time.Duration
+	lifecycleCtx            context.Context
+	now                     func() time.Time
+	newSessionID            IDGenerator
+	newSandboxID            IDGenerator
+	newTurnID               IDGenerator
+	maxSessions             int
+	promptBufSize           int
+	soulRefreshTimeout      time.Duration
 }
 
 // WithSandboxRegistry injects the runtime sandbox provider registry.
@@ -220,6 +222,20 @@ func WithSoulSnapshotStore(store SoulSnapshotStore) Option {
 func WithSoulRunActivityChecker(checker SoulRunActivityChecker) Option {
 	return func(manager *Manager) {
 		manager.soulRunChecker = checker
+	}
+}
+
+// WithSessionHealthStore injects durable metadata-only session health storage.
+func WithSessionHealthStore(store HealthStore) Option {
+	return func(manager *Manager) {
+		manager.sessionHealthStore = store
+	}
+}
+
+// WithSessionHealthConfig injects Agent Heartbeat bounds used by session health.
+func WithSessionHealthConfig(config aghconfig.HeartbeatConfig) Option {
+	return func(manager *Manager) {
+		manager.sessionHealthStaleAfter = config.SessionHealthStaleAfter
 	}
 }
 
@@ -327,8 +343,9 @@ func NewManager(opts ...Option) (*Manager, error) {
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
-		supervision:  aghconfig.DefaultSessionSupervisionConfig(),
-		lifecycleCtx: context.Background(),
+		supervision:             aghconfig.DefaultSessionSupervisionConfig(),
+		sessionHealthStaleAfter: aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
+		lifecycleCtx:            context.Background(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -411,6 +428,9 @@ func (m *Manager) applyRuntimeDefaults() error {
 	}
 	if err := m.supervision.Validate(); err != nil {
 		return fmt.Errorf("session: %w", err)
+	}
+	if m.sessionHealthStaleAfter <= 0 {
+		m.sessionHealthStaleAfter = aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter
 	}
 	return nil
 }
