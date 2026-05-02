@@ -164,6 +164,87 @@ display_name = "Slack"
 Marketplace extensions run under a stricter policy. They are constrained to read-oriented grants:
 `memory.read`, `observe.read`, `session.read`, `skills.read`, and `tool.read`.
 
+### Authored Context Host API
+
+Soul, Heartbeat, and session health are agent-manageable through the Host API behind explicit
+grants. Extensions cannot bypass managed authoring — direct file writes from extension code,
+hooks, tools, MCP sidecars, or bridge adapters are forbidden. Each method is a separate grant so
+read, validate, mutate, history, rollback, status, wake, and health can be granted independently.
+
+```toml
+[actions]
+requires = [
+  "agents/soul/get",
+  "agents/soul/validate",
+  "agents/heartbeat/get",
+  "agents/heartbeat/status",
+  "agents/heartbeat/wake",
+  "sessions/health/get",
+]
+```
+
+| Host API method             | Capability area     | Notes                                                                              |
+| --------------------------- | ------------------- | ---------------------------------------------------------------------------------- |
+| `agents/soul/get`           | Read Soul           | Returns full resolved persona for the named agent (or caller).                     |
+| `agents/soul/validate`      | Validate Soul       | Checks proposed body or current `SOUL.md` without writing.                         |
+| `agents/soul/put`           | Write Soul          | Managed write through the authoring service; requires `expected_digest`.           |
+| `agents/soul/delete`        | Delete Soul         | Managed delete with `expected_digest`.                                             |
+| `agents/soul/history`       | History             | Bounded revision history for Soul.                                                 |
+| `agents/soul/rollback`      | Rollback Soul       | Replays a prior revision through validation/CAS; cannot restore forbidden content. |
+| `agents/heartbeat/get`      | Read Heartbeat      | Returns the latest valid policy snapshot.                                          |
+| `agents/heartbeat/validate` | Validate Heartbeat  | Checks proposed body without writing.                                              |
+| `agents/heartbeat/put`      | Write Heartbeat     | Managed write with `expected_digest`. HTTP `If-Match` is rejected.                 |
+| `agents/heartbeat/delete`   | Delete Heartbeat    | Managed delete with `expected_digest`.                                             |
+| `agents/heartbeat/history`  | History             | Bounded revision history for Heartbeat.                                            |
+| `agents/heartbeat/rollback` | Rollback Heartbeat  | Replays a prior revision through validation/CAS.                                   |
+| `agents/heartbeat/status`   | Status              | Policy + wake state + session health composition.                                  |
+| `agents/heartbeat/wake`     | Manual wake         | Advisory wake for an eligible session; never claims work or renews leases.         |
+| `sessions/health/get`       | Read session health | Returns metadata-only health for one session.                                      |
+
+Write/delete/rollback/wake grants are separate from get/validate/history/status grants, so a
+read-only review extension can ship without ever requesting mutation rights. Marketplace
+extensions may only request the read-oriented grants from this list.
+
+### Authored Context Hooks
+
+Authored context fires typed call-site hooks. They are observation hooks: payloads carry compact
+provenance (snapshot ids, digests, redacted actor/origin) and never include raw `SOUL.md`/
+`HEARTBEAT.md` bodies, raw claim tokens, or full prompt transcripts. Hooks cannot mutate Soul,
+Heartbeat, or wake state.
+
+| Event                             | Sync       | Fires when                                                                                        |
+| --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------- |
+| `agent.soul.snapshot.resolved`    | async only | A session-start or refresh resolves a Soul snapshot.                                              |
+| `agent.soul.mutation.after`       | async only | A managed put/delete/rollback succeeds.                                                           |
+| `agent.heartbeat.policy.resolved` | async only | The Heartbeat resolver materializes a new snapshot.                                               |
+| `agent.heartbeat.wake.before`     | yes        | The wake service is about to send a synthetic wake; sync hooks may deny but cannot mint a token.  |
+| `agent.heartbeat.wake.after`      | async only | A wake decision is recorded (`sent`, `skipped`, `coalesced`, `rate_limited`, or `failed`).        |
+| `session.health.update.after`     | async only | Session health changes state/health/eligibility; coalesced by `session_health_hook_min_interval`. |
+
+### Authored Context Native Tools
+
+AGH exposes three native tools that run through the same managed services. They are
+agent-callable when policy permits, and they reuse the Host API authorization layer so a tool
+call and a JSON-RPC call resolve to the same grants.
+
+| Tool ID                       | Purpose                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| `agh__session_health`         | Read session health, attachability, and wake eligibility for one session.             |
+| `agh__agent_heartbeat_status` | Read Heartbeat policy and wake-state summary for an agent.                            |
+| `agh__agent_heartbeat_wake`   | Request one advisory wake for an eligible session; identical contract to manual wake. |
+
+There is intentionally no `agh__agent_soul` tool — Soul read/validate/write/delete/history/
+rollback flows happen through the dedicated CLI, HTTP, UDS, or Host API surfaces, not through a
+native tool, because Soul does not need an in-prompt invocation surface.
+
+### Authored Context SDK helpers
+
+The Go and TypeScript SDKs publish curated helpers and types for the authored-context surfaces:
+`AgentSoul*`, `AgentHeartbeat*`, `SessionHealth*`, and `AuthoredContext*` types are available
+through `@agh/extension-sdk` and the Go SDK, generated from the same OpenAPI/contract source as
+the daemon. Extensions should depend on those helpers instead of hand-rolling JSON shapes so
+contract drift is caught at typecheck time.
+
 ## Practical Example: Prompt Enhancer
 
 This example mirrors the repository's `sdk/examples/prompt-enhancer` pattern. It packages a

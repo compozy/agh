@@ -1,5 +1,5 @@
 {
     "title": "Sessions",
     "icon": "Activity",
-    "pages": ["lifecycle", "resume", "events", "permissions"]
+    "pages": ["lifecycle", "health", "resume", "events", "permissions"]
 }

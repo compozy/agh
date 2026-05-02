@@ -95,6 +95,23 @@ checks for write surfaces, and durable audit records.
 The v1 RFC adds a baseline trust profile for verified peer identity. That is a protocol direction,
 not a requirement to understand the current runtime pages.
 
+## Network presence is independent from authored context
+
+AGH Network `greet` presence and peer cards live entirely on the wire. They do not consume
+`SOUL.md`, `HEARTBEAT.md`, or `session_health`, and authored context does not propagate over the
+network in MVP.
+
+| Concern                               | Owned by                                                  | Authority over                                               |
+| ------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| Peer presence and `greet_interval`    | `[network]` config + `internal/network`                   | Network membership and discovery only.                       |
+| Authored persona                      | `SOUL.md` + `[agents.soul]`                               | Local prompt content and read models.                        |
+| Authored wake/reentry policy          | `HEARTBEAT.md` + `[agents.heartbeat]`                     | Local advisory wake decisions for already eligible sessions. |
+| Session presence and wake eligibility | `session_health` + `[agents.heartbeat]` health thresholds | Local liveness metadata for managed sessions.                |
+
+A peer being online never makes a session wake-eligible by itself. The wake service consults
+local session health and `HEARTBEAT.md`, not greet state. Persona, wake policy, and health are
+not advertised in peer cards or capability documents.
+
 ## Related pages
 
 - [Delivery and Safety](/runtime/core/network/delivery-and-safety) shows how validated envelopes

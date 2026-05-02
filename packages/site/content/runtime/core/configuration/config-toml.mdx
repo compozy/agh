@@ -32,6 +32,8 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 | `[limits]`                    | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                 |
 | `[session.limits]`            | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                  |
 | `[session.supervision]`       | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes |
+| `[agents.soul]`               | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                    |
+| `[agents.heartbeat]`          | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention |
 | `[permissions]`               | Default permission mode.                                                        | `mode = "approve-all"`                                                            |
 | `[tools]`                     | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                               |
 | `[tools.hosted_mcp]`          | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                        |
@@ -114,6 +116,40 @@ inactivity_warning_after = "15m"
 inactivity_timeout = "30m"
 # Grace period after cooperative prompt cancel before AGH stops the session as timeout.
 timeout_cancel_grace = "30s"
+
+[agents.soul]
+# Disabling pauses prompt injection but keeps inspect/validate/write/delete/history/rollback available.
+enabled = true
+# Hard cap for SOUL.md body bytes after normalization.
+max_body_bytes = 32768
+# Compact /agent/context projection budget. Must be <= max_body_bytes.
+context_projection_bytes = 2048
+
+[agents.heartbeat]
+# Disabling pauses wake decisions but keeps managed authoring available for repair.
+enabled = true
+# Bounded HEARTBEAT.md body size (snapshot uses normalized body).
+max_body_bytes = 32768
+# Compact projection budget for status surfaces.
+context_projection_bytes = 4096
+# Hard floor for authored preferences.min_interval. Files below this are clamped.
+min_interval = "5m"
+# Default cadence baseline used when authored files omit min_interval.
+default_interval = "30m"
+# Cooldown between wakes for a single session.
+wake_cooldown = "1m"
+# Maximum scheduler-cycle wakes across the daemon.
+max_wakes_per_cycle = 25
+# When true, wake only sessions in active runtime state.
+active_session_only = true
+# When true, authored active_hours/quiet_windows preferences are honored within bounds.
+allow_active_hours_preferences = true
+# Retention for agent_heartbeat_wake_events audit rows. Minimum 1h.
+wake_event_retention = "168h"
+# Idle age before metadata-only presence is treated as stale for wake eligibility.
+session_health_stale_after = "2m"
+# Minimum interval between session.health.update.after hook fires for the same session.
+session_health_hook_min_interval = "1m"
 
 [permissions]
 # Valid values: deny-all, approve-reads, approve-all.
@@ -367,6 +403,54 @@ continues to observe runtime activity or controlled waiting heartbeats.
 | `inactivity_warning_after`    | duration | `15m`   | Zero or positive Go duration. | Idle age before AGH emits one `runtime_warning`. Zero disables the warning.                   |
 | `inactivity_timeout`          | duration | `30m`   | Zero or positive Go duration. | Idle age before AGH cancels the prompt cooperatively. Zero disables inactivity timeout.       |
 | `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration.         | Grace period after timeout cancel before AGH stops the session with stop reason `timeout`.    |
+
+## `[agents.soul]`
+
+`[agents.soul]` controls the optional `SOUL.md` authored persona artifact. Config owns body
+limits, compact projection budget, and the `enabled` toggle. `SOUL.md` cannot redefine any of
+these keys, and forbidden operational fields in `SOUL.md` are rejected. See
+[Agent Soul](/runtime/core/agents/soul).
+
+| Field                      | Type    | Default | Valid values                                   | Description                                                                                                                                |
+| -------------------------- | ------- | ------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`                  | boolean | `true`  | `true` or `false`                              | When false, AGH stops injecting Soul into prompts and `/agent/context` but keeps inspect/validate/write/delete/history/rollback available. |
+| `max_body_bytes`           | integer | `32768` | Positive integer.                              | Maximum normalized `SOUL.md` body size. Files beyond this fail validation with `oversized_body`.                                           |
+| `context_projection_bytes` | integer | `2048`  | Positive integer; must be `<= max_body_bytes`. | Compact `/agent/context.soul` projection budget.                                                                                           |
+
+Workspace overlay merges scalar fields predictably; setting any key zero-clamps to the validated
+positive value or fails with a typed validation error. Disabling at runtime does not clear stored
+snapshots; managed authoring keeps working so operators can repair a broken file.
+
+## `[agents.heartbeat]`
+
+`[agents.heartbeat]` controls the optional `HEARTBEAT.md` advisory wake policy and the runtime
+health/wake-audit subsystem. Config owns cadence, rate limits, retention, and stale thresholds;
+authored files express bounded preferences only. See
+[Agent Heartbeat](/runtime/core/agents/heartbeat).
+
+| Field                              | Type     | Default | Valid values                                         | Description                                                                                                                  |
+| ---------------------------------- | -------- | ------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                          | boolean  | `true`  | `true` or `false`                                    | When false, AGH disables wake decisions but keeps managed authoring available so operators can repair a broken policy.       |
+| `max_body_bytes`                   | integer  | `32768` | Positive integer; capped at the runtime hard limit.  | Maximum normalized `HEARTBEAT.md` body size; oversized files fail validation.                                                |
+| `context_projection_bytes`         | integer  | `4096`  | Positive integer; must be `<= max_body_bytes`.       | Compact projection budget for status responses.                                                                              |
+| `min_interval`                     | duration | `5m`    | Positive Go duration; must be `<= default_interval`. | Hard floor for authored `preferences.min_interval`. Files below this are clamped with `heartbeat_preference_clamped`.        |
+| `default_interval`                 | duration | `30m`   | Positive Go duration.                                | Default cadence baseline used when authored files omit `min_interval`.                                                       |
+| `wake_cooldown`                    | duration | `1m`    | Positive Go duration.                                | Cooldown between wakes targeting the same session.                                                                           |
+| `max_wakes_per_cycle`              | integer  | `25`    | Positive integer.                                    | Daemon-wide cap on wakes per scheduler cycle. Excess wakes return `heartbeat_rate_limited`.                                  |
+| `active_session_only`              | boolean  | `true`  | `true` or `false`                                    | When true, only sessions reported as active and attachable are wake-eligible.                                                |
+| `allow_active_hours_preferences`   | boolean  | `true`  | `true` or `false`                                    | When false, authored `active_hours`/`quiet_windows` are ignored with `heartbeat_preference_ignored`.                         |
+| `wake_event_retention`             | duration | `168h`  | Positive Go duration; minimum `1h`.                  | Retention for `agent_heartbeat_wake_events` audit rows. Cleanup runs at boot and during scheduler maintenance cycles.        |
+| `session_health_stale_after`       | duration | `2m`    | Positive Go duration.                                | Idle age before metadata-only presence becomes `stale` for wake eligibility.                                                 |
+| `session_health_hook_min_interval` | duration | `1m`    | Positive Go duration.                                | Minimum interval between `session.health.update.after` hook fires for the same session; metadata-only touches are coalesced. |
+
+`[agents.heartbeat]` does not own task-run lease heartbeat (`task_runs` + `ClaimNextRun` +
+`HeartbeatRunLease`), `[session.supervision]` activity heartbeat, or AGH Network `[network]`
+greet presence. Those four authorities remain independent.
+
+`HEARTBEAT.md` snapshot digest covers the normalized body, canonical frontmatter JSON, and a
+canonical digest of the resolved `[agents.heartbeat]` config subset. Editing any field that
+affects parsing, preference resolution, eligibility, retention, or coalescing invalidates the
+digest and triggers a fresh resolution at the next wake decision.
 
 ## `[permissions]`
 

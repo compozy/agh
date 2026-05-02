@@ -95,6 +95,11 @@ Two operational details matter here:
 - Long-running prompts stay healthy through runtime activity supervision. AGH updates
   `activity.last_activity_at` on real ACP events and metadata-only waiting heartbeats, then emits
   lower-frequency `runtime_progress` and `runtime_warning` events for clients.
+- AGH also maintains a separate metadata-only [session health](/runtime/core/sessions/health)
+  record (`state`, `health`, `attachable`, `eligible_for_wake`). Activity supervision feeds
+  health, but the two are distinct authorities — supervision owns timers and persisted progress
+  events, health is consumed by `HEARTBEAT.md` wake decisions and the
+  `agh session health|status|inspect` surfaces.
 
 ### Runtime activity supervision
 
