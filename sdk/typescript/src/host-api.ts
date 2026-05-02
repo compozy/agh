@@ -1,9 +1,31 @@
 import { InvalidParamsError, NotInitializedError } from "./errors.js";
 import type {
+  AgentHeartbeatDeleteParams,
+  AgentHeartbeatGetParams,
+  AgentHeartbeatHistoryParams,
+  AgentHeartbeatPutParams,
+  AgentHeartbeatRollbackParams,
+  AgentHeartbeatStatusParams,
+  AgentHeartbeatValidateParams,
+  AgentHeartbeatWakeParams,
+  AgentSoulDeleteParams,
+  AgentSoulGetParams,
+  AgentSoulHistoryResponse,
+  AgentSoulHistoryParams,
+  AgentSoulMutationResponse,
+  AgentSoulPayload,
+  AgentSoulPutParams,
+  AgentSoulRollbackParams,
+  AgentSoulValidateParams,
   BridgeInstance,
   BridgeInstanceTargetParams,
   BridgesInstancesReportStateParams,
   BridgesMessagesIngestResult,
+  HeartbeatHistoryResponse,
+  HeartbeatMutationResponse,
+  HeartbeatPolicyPayload,
+  HeartbeatStatusResponse,
+  HeartbeatWakeResponse,
   HostAPIMethod,
   HostAPIMethodMap,
   InboundMessageEnvelope,
@@ -15,8 +37,13 @@ import type {
   ResourcesSnapshotParams,
   SessionCreateResult,
   SessionEvent,
+  SessionHealthGetParams,
+  SessionHealthResponse,
   SessionPromptResult,
+  SessionSoulRefreshParams,
   SessionStatus,
+  SessionStatusGetParams,
+  SessionStatusResponse,
   SessionSummary,
   SkillSummary,
   SkillsListParams,
@@ -64,6 +91,29 @@ export class HostAPI {
     stop: (params: SessionTargetParams) => Promise<Record<string, never>>;
     status: (params: SessionTargetParams) => Promise<SessionStatus>;
     events: (params: SessionEventsParams) => Promise<SessionEvent[]>;
+    refreshSoul: (params: SessionSoulRefreshParams) => Promise<AgentSoulPayload>;
+    health: (params: SessionHealthGetParams) => Promise<SessionHealthResponse>;
+    authoredStatus: (params: SessionStatusGetParams) => Promise<SessionStatusResponse>;
+  };
+
+  public readonly soul: {
+    get: (params: AgentSoulGetParams) => Promise<AgentSoulPayload>;
+    validate: (params: AgentSoulValidateParams) => Promise<AgentSoulPayload>;
+    put: (params: AgentSoulPutParams) => Promise<AgentSoulMutationResponse>;
+    delete: (params: AgentSoulDeleteParams) => Promise<AgentSoulMutationResponse>;
+    history: (params: AgentSoulHistoryParams) => Promise<AgentSoulHistoryResponse>;
+    rollback: (params: AgentSoulRollbackParams) => Promise<AgentSoulMutationResponse>;
+  };
+
+  public readonly heartbeat: {
+    get: (params: AgentHeartbeatGetParams) => Promise<HeartbeatPolicyPayload>;
+    validate: (params: AgentHeartbeatValidateParams) => Promise<HeartbeatPolicyPayload>;
+    put: (params: AgentHeartbeatPutParams) => Promise<HeartbeatMutationResponse>;
+    delete: (params: AgentHeartbeatDeleteParams) => Promise<HeartbeatMutationResponse>;
+    history: (params: AgentHeartbeatHistoryParams) => Promise<HeartbeatHistoryResponse>;
+    rollback: (params: AgentHeartbeatRollbackParams) => Promise<HeartbeatMutationResponse>;
+    status: (params: AgentHeartbeatStatusParams) => Promise<HeartbeatStatusResponse>;
+    wake: (params: AgentHeartbeatWakeParams) => Promise<HeartbeatWakeResponse>;
   };
 
   public readonly memory: {
@@ -107,6 +157,29 @@ export class HostAPI {
       stop: async params => await this.request("sessions/stop", params),
       status: async params => await this.request("sessions/status", params),
       events: async params => await this.request("sessions/events", params),
+      refreshSoul: async params => await this.request("sessions/soul/refresh", params),
+      health: async params => await this.request("sessions/health/get", params),
+      authoredStatus: async params => await this.request("sessions/status/get", params),
+    };
+
+    this.soul = {
+      get: async params => await this.request("agents/soul/get", params),
+      validate: async params => await this.request("agents/soul/validate", params),
+      put: async params => await this.request("agents/soul/put", params),
+      delete: async params => await this.request("agents/soul/delete", params),
+      history: async params => await this.request("agents/soul/history", params),
+      rollback: async params => await this.request("agents/soul/rollback", params),
+    };
+
+    this.heartbeat = {
+      get: async params => await this.request("agents/heartbeat/get", params),
+      validate: async params => await this.request("agents/heartbeat/validate", params),
+      put: async params => await this.request("agents/heartbeat/put", params),
+      delete: async params => await this.request("agents/heartbeat/delete", params),
+      history: async params => await this.request("agents/heartbeat/history", params),
+      rollback: async params => await this.request("agents/heartbeat/rollback", params),
+      status: async params => await this.request("agents/heartbeat/status", params),
+      wake: async params => await this.request("agents/heartbeat/wake", params),
     };
 
     this.memory = {

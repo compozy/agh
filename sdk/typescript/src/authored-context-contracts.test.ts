@@ -5,6 +5,7 @@ import type {
   AgentSoulPutRequest,
   HeartbeatStatusResponse,
   HeartbeatWakeResponse,
+  HostAPIMethodMap,
   SessionHealthPayload,
 } from "./generated/contracts.js";
 
@@ -60,5 +61,18 @@ describe("generated authored context contracts", () => {
     expectTypeOf<HeartbeatStatusResponse["session_health"]>().toMatchTypeOf<
       SessionHealthPayload | null | undefined
     >();
+  });
+
+  it("exports authored context Host API method typings", () => {
+    expectTypeOf<
+      HostAPIMethodMap["agents/soul/put"]["params"]
+    >().toMatchTypeOf<AgentSoulPutRequest>();
+    expectTypeOf<HostAPIMethodMap["agents/soul/get"]["result"]>().toMatchTypeOf<AgentSoulPayload>();
+    expectTypeOf<
+      HostAPIMethodMap["agents/heartbeat/status"]["result"]
+    >().toMatchTypeOf<HeartbeatStatusResponse>();
+    expectTypeOf<
+      HostAPIMethodMap["agents/heartbeat/wake"]["result"]
+    >().toMatchTypeOf<HeartbeatWakeResponse>();
   });
 });

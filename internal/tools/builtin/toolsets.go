@@ -39,6 +39,15 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDSessionHistory.String(),
 			toolspkg.ToolIDSessionEvents.String(),
 			toolspkg.ToolIDSessionDescribe.String(),
+			toolspkg.ToolIDSessionHealth.String(),
+		},
+	},
+	{
+		ID: toolspkg.ToolsetIDAuthoredContext,
+		Tools: []string{
+			toolspkg.ToolIDSessionHealth.String(),
+			toolspkg.ToolIDAgentHeartbeatStatus.String(),
+			toolspkg.ToolIDAgentHeartbeatWake.String(),
 		},
 	},
 	{

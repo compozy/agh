@@ -6286,6 +6286,48 @@ func (f *fakeHookRuntime) DispatchSpawnReaped(
 	return payload, nil
 }
 
+func (f *fakeHookRuntime) DispatchAgentSoulSnapshotResolved(
+	_ context.Context,
+	payload hookspkg.AgentSoulSnapshotResolvedPayload,
+) (hookspkg.AgentSoulSnapshotResolvedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAgentSoulMutationAfter(
+	_ context.Context,
+	payload hookspkg.AgentSoulMutationAfterPayload,
+) (hookspkg.AgentSoulMutationAfterPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAgentHeartbeatPolicyResolved(
+	_ context.Context,
+	payload hookspkg.AgentHeartbeatPolicyResolvedPayload,
+) (hookspkg.AgentHeartbeatPolicyResolvedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAgentHeartbeatWakeBefore(
+	_ context.Context,
+	payload hookspkg.AgentHeartbeatWakeBeforePayload,
+) (hookspkg.AgentHeartbeatWakeBeforePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchAgentHeartbeatWakeAfter(
+	_ context.Context,
+	payload hookspkg.AgentHeartbeatWakeAfterPayload,
+) (hookspkg.AgentHeartbeatWakeAfterPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionHealthUpdateAfter(
+	_ context.Context,
+	payload hookspkg.SessionHealthUpdateAfterPayload,
+) (hookspkg.SessionHealthUpdateAfterPayload, error) {
+	return payload, nil
+}
+
 func testHookExecutorResolver(native map[string]hookspkg.Executor) hookspkg.ExecutorResolver {
 	return func(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
 		if decl.ExecutorKind == hookspkg.HookExecutorNative {

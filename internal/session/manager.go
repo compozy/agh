@@ -87,43 +87,46 @@ type Manager struct {
 	finalizing map[string]chan struct{}
 	spawnMu    sync.Mutex
 
-	syntheticMu          sync.Mutex
-	syntheticQueues      map[string][]queuedSyntheticPrompt
-	syntheticDispatching map[string]bool
-	soulLocksMu          sync.Mutex
-	soulLocks            map[string]chan struct{}
+	syntheticMu           sync.Mutex
+	syntheticQueues       map[string][]queuedSyntheticPrompt
+	syntheticDispatching  map[string]bool
+	soulLocksMu           sync.Mutex
+	soulLocks             map[string]chan struct{}
+	sessionHealthHookMu   sync.Mutex
+	sessionHealthHookLast map[string]time.Time
 
-	logger                  *slog.Logger
-	driver                  AgentDriver
-	notifier                Notifier
-	networkPeers            NetworkPeerLifecycle
-	turnEndNotifier         TurnEndNotifier
-	inputAugmenter          PromptInputAugmenter
-	startupOverlay          StartupPromptOverlay
-	hooks                   HookSet
-	sandbox                 *sandbox.Registry
-	agentResolver           AgentResolver
-	providerSecrets         ProviderSecretResolver
-	skillRegistry           SkillRegistry
-	mcpResolver             MCPResolver
-	hostedMCP               HostedMCPLauncher
-	soulStore               SoulSnapshotStore
-	soulRunChecker          SoulRunActivityChecker
-	sessionHealthStore      HealthStore
-	homePaths               aghconfig.HomePaths
-	workspace               workspacepkg.RuntimeResolver
-	openStore               StoreOpener
-	assembler               PromptAssembler
-	supervision             aghconfig.SessionSupervisionConfig
-	sessionHealthStaleAfter time.Duration
-	lifecycleCtx            context.Context
-	now                     func() time.Time
-	newSessionID            IDGenerator
-	newSandboxID            IDGenerator
-	newTurnID               IDGenerator
-	maxSessions             int
-	promptBufSize           int
-	soulRefreshTimeout      time.Duration
+	logger                       *slog.Logger
+	driver                       AgentDriver
+	notifier                     Notifier
+	networkPeers                 NetworkPeerLifecycle
+	turnEndNotifier              TurnEndNotifier
+	inputAugmenter               PromptInputAugmenter
+	startupOverlay               StartupPromptOverlay
+	hooks                        HookSet
+	sandbox                      *sandbox.Registry
+	agentResolver                AgentResolver
+	providerSecrets              ProviderSecretResolver
+	skillRegistry                SkillRegistry
+	mcpResolver                  MCPResolver
+	hostedMCP                    HostedMCPLauncher
+	soulStore                    SoulSnapshotStore
+	soulRunChecker               SoulRunActivityChecker
+	sessionHealthStore           HealthStore
+	homePaths                    aghconfig.HomePaths
+	workspace                    workspacepkg.RuntimeResolver
+	openStore                    StoreOpener
+	assembler                    PromptAssembler
+	supervision                  aghconfig.SessionSupervisionConfig
+	sessionHealthStaleAfter      time.Duration
+	lifecycleCtx                 context.Context
+	now                          func() time.Time
+	newSessionID                 IDGenerator
+	newSandboxID                 IDGenerator
+	newTurnID                    IDGenerator
+	maxSessions                  int
+	promptBufSize                int
+	soulRefreshTimeout           time.Duration
+	sessionHealthHookMinInterval time.Duration
 }
 
 // WithSandboxRegistry injects the runtime sandbox provider registry.
@@ -236,6 +239,7 @@ func WithSessionHealthStore(store HealthStore) Option {
 func WithSessionHealthConfig(config aghconfig.HeartbeatConfig) Option {
 	return func(manager *Manager) {
 		manager.sessionHealthStaleAfter = config.SessionHealthStaleAfter
+		manager.sessionHealthHookMinInterval = config.SessionHealthHookMinInterval
 	}
 }
 
@@ -331,21 +335,23 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 
 	manager := &Manager{
-		sessions:             make(map[string]*Session),
-		pending:              make(map[string]struct{}),
-		finalizing:           make(map[string]chan struct{}),
-		syntheticQueues:      make(map[string][]queuedSyntheticPrompt),
-		syntheticDispatching: make(map[string]bool),
-		soulLocks:            make(map[string]chan struct{}),
-		logger:               slog.Default(),
-		driver:               NewACPDriverAdapter(acp.New()),
-		homePaths:            homePaths,
+		sessions:              make(map[string]*Session),
+		pending:               make(map[string]struct{}),
+		finalizing:            make(map[string]chan struct{}),
+		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),
+		syntheticDispatching:  make(map[string]bool),
+		soulLocks:             make(map[string]chan struct{}),
+		sessionHealthHookLast: make(map[string]time.Time),
+		logger:                slog.Default(),
+		driver:                NewACPDriverAdapter(acp.New()),
+		homePaths:             homePaths,
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
-		supervision:             aghconfig.DefaultSessionSupervisionConfig(),
-		sessionHealthStaleAfter: aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
-		lifecycleCtx:            context.Background(),
+		supervision:                  aghconfig.DefaultSessionSupervisionConfig(),
+		sessionHealthStaleAfter:      aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
+		sessionHealthHookMinInterval: aghconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval,
+		lifecycleCtx:                 context.Background(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -420,6 +426,9 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.soulLocks == nil {
 		m.soulLocks = make(map[string]chan struct{})
 	}
+	if m.sessionHealthHookLast == nil {
+		m.sessionHealthHookLast = make(map[string]time.Time)
+	}
 	if m.soulRefreshTimeout <= 0 {
 		m.soulRefreshTimeout = defaultLifecycleTimeout
 	}
@@ -431,6 +440,9 @@ func (m *Manager) applyRuntimeDefaults() error {
 	}
 	if m.sessionHealthStaleAfter <= 0 {
 		m.sessionHealthStaleAfter = aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter
+	}
+	if m.sessionHealthHookMinInterval <= 0 {
+		m.sessionHealthHookMinInterval = aghconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval
 	}
 	return nil
 }

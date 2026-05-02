@@ -353,9 +353,15 @@ func (r *spawnReaper) spawnLifecyclePayload(
 		payload.AgentName = child.AgentName
 		payload.WorkspaceID = child.WorkspaceID
 		payload.Workspace = child.Workspace
+		payload.SoulSnapshotID = child.SoulSnapshotID
+		payload.SoulDigest = child.SoulDigest
+		payload.ParentSoulDigest = child.ParentSoulDigest
 	}
 	if candidate.parent != nil && candidate.parent.Lineage != nil {
 		payload.ParentPermissions = spawnReaperPermissionSet(candidate.parent.Lineage.PermissionPolicy)
+		if strings.TrimSpace(payload.ParentSoulDigest) == "" {
+			payload.ParentSoulDigest = candidate.parent.SoulDigest
+		}
 	}
 	if reapErr != nil {
 		payload.Error = reapErr.Error()

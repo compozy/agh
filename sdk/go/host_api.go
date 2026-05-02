@@ -20,8 +20,42 @@ const (
 	HostAPIMethodSessionsStop HostAPIMethod = "sessions/stop"
 	// HostAPIMethodSessionsStatus returns session status.
 	HostAPIMethodSessionsStatus HostAPIMethod = "sessions/status"
+	// HostAPIMethodSessionsStatusGet returns authored-context session status.
+	HostAPIMethodSessionsStatusGet HostAPIMethod = "sessions/status/get"
 	// HostAPIMethodSessionsEvents returns session events.
 	HostAPIMethodSessionsEvents HostAPIMethod = "sessions/events"
+	// HostAPIMethodSessionsSoulRefresh refreshes a session's Soul snapshot through managed authoring.
+	HostAPIMethodSessionsSoulRefresh HostAPIMethod = "sessions/soul/refresh"
+	// HostAPIMethodSessionsHealthGet returns metadata-only session health.
+	HostAPIMethodSessionsHealthGet HostAPIMethod = "sessions/health/get"
+	// HostAPIMethodAgentsSoulGet returns a managed Soul read model.
+	HostAPIMethodAgentsSoulGet HostAPIMethod = "agents/soul/get"
+	// HostAPIMethodAgentsSoulValidate validates Soul content through the managed service.
+	HostAPIMethodAgentsSoulValidate HostAPIMethod = "agents/soul/validate"
+	// HostAPIMethodAgentsSoulPut writes SOUL.md through managed authoring.
+	HostAPIMethodAgentsSoulPut HostAPIMethod = "agents/soul/put"
+	// HostAPIMethodAgentsSoulDelete deletes SOUL.md through managed authoring.
+	HostAPIMethodAgentsSoulDelete HostAPIMethod = "agents/soul/delete"
+	// HostAPIMethodAgentsSoulHistory lists managed Soul authoring revisions.
+	HostAPIMethodAgentsSoulHistory HostAPIMethod = "agents/soul/history"
+	// HostAPIMethodAgentsSoulRollback rolls SOUL.md back through managed authoring.
+	HostAPIMethodAgentsSoulRollback HostAPIMethod = "agents/soul/rollback"
+	// HostAPIMethodAgentsHeartbeatGet returns a managed Heartbeat policy read model.
+	HostAPIMethodAgentsHeartbeatGet HostAPIMethod = "agents/heartbeat/get"
+	// HostAPIMethodAgentsHeartbeatValidate validates Heartbeat content through the managed service.
+	HostAPIMethodAgentsHeartbeatValidate HostAPIMethod = "agents/heartbeat/validate"
+	// HostAPIMethodAgentsHeartbeatPut writes HEARTBEAT.md through managed authoring.
+	HostAPIMethodAgentsHeartbeatPut HostAPIMethod = "agents/heartbeat/put"
+	// HostAPIMethodAgentsHeartbeatDelete deletes HEARTBEAT.md through managed authoring.
+	HostAPIMethodAgentsHeartbeatDelete HostAPIMethod = "agents/heartbeat/delete"
+	// HostAPIMethodAgentsHeartbeatHistory lists managed Heartbeat authoring revisions.
+	HostAPIMethodAgentsHeartbeatHistory HostAPIMethod = "agents/heartbeat/history"
+	// HostAPIMethodAgentsHeartbeatRollback rolls HEARTBEAT.md back through managed authoring.
+	HostAPIMethodAgentsHeartbeatRollback HostAPIMethod = "agents/heartbeat/rollback"
+	// HostAPIMethodAgentsHeartbeatStatus returns policy, session health, and wake audit status.
+	HostAPIMethodAgentsHeartbeatStatus HostAPIMethod = "agents/heartbeat/status"
+	// HostAPIMethodAgentsHeartbeatWake requests one managed advisory Heartbeat wake.
+	HostAPIMethodAgentsHeartbeatWake HostAPIMethod = "agents/heartbeat/wake"
 	// HostAPIMethodMemoryRecall recalls memory.
 	HostAPIMethodMemoryRecall HostAPIMethod = "memory/recall"
 	// HostAPIMethodMemoryStore stores memory.

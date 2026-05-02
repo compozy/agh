@@ -467,6 +467,108 @@ func (h *Hooks) DispatchAgentStopped(ctx context.Context, payload AgentStoppedPa
 	)
 }
 
+// DispatchAgentSoulSnapshotResolved runs the agent.soul.snapshot.resolved hook dispatch.
+func (h *Hooks) DispatchAgentSoulSnapshotResolved(
+	ctx context.Context,
+	payload AgentSoulSnapshotResolvedPayload,
+) (AgentSoulSnapshotResolvedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookAgentSoulSnapshotResolved,
+		payload,
+		dispatchConfig[AgentSoulSnapshotResolvedPayload, AuthoredContextObservationPatch]{
+			match: matchAgentSoulSnapshotResolved,
+			apply: applyNoop[AgentSoulSnapshotResolvedPayload, AuthoredContextObservationPatch],
+		},
+	)
+}
+
+// DispatchAgentSoulMutationAfter runs the agent.soul.mutation.after hook dispatch.
+func (h *Hooks) DispatchAgentSoulMutationAfter(
+	ctx context.Context,
+	payload AgentSoulMutationAfterPayload,
+) (AgentSoulMutationAfterPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookAgentSoulMutationAfter,
+		payload,
+		dispatchConfig[AgentSoulMutationAfterPayload, AuthoredContextObservationPatch]{
+			match: matchAgentSoulMutationAfter,
+			apply: applyNoop[AgentSoulMutationAfterPayload, AuthoredContextObservationPatch],
+		},
+	)
+}
+
+// DispatchAgentHeartbeatPolicyResolved runs the agent.heartbeat.policy.resolved hook dispatch.
+func (h *Hooks) DispatchAgentHeartbeatPolicyResolved(
+	ctx context.Context,
+	payload AgentHeartbeatPolicyResolvedPayload,
+) (AgentHeartbeatPolicyResolvedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookAgentHeartbeatPolicyResolved,
+		payload,
+		dispatchConfig[AgentHeartbeatPolicyResolvedPayload, AuthoredContextObservationPatch]{
+			match: matchAgentHeartbeatPolicyResolved,
+			apply: applyNoop[AgentHeartbeatPolicyResolvedPayload, AuthoredContextObservationPatch],
+		},
+	)
+}
+
+// DispatchAgentHeartbeatWakeBefore runs the agent.heartbeat.wake.before hook pipeline.
+func (h *Hooks) DispatchAgentHeartbeatWakeBefore(
+	ctx context.Context,
+	payload AgentHeartbeatWakeBeforePayload,
+) (AgentHeartbeatWakeBeforePayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookAgentHeartbeatWakeBefore,
+		payload,
+		dispatchConfig[AgentHeartbeatWakeBeforePayload, AuthoredContextObservationPatch]{
+			match: matchAgentHeartbeatWakeBefore,
+			apply: applyNoop[AgentHeartbeatWakeBeforePayload, AuthoredContextObservationPatch],
+		},
+	)
+}
+
+// DispatchAgentHeartbeatWakeAfter runs the agent.heartbeat.wake.after hook dispatch.
+func (h *Hooks) DispatchAgentHeartbeatWakeAfter(
+	ctx context.Context,
+	payload AgentHeartbeatWakeAfterPayload,
+) (AgentHeartbeatWakeAfterPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookAgentHeartbeatWakeAfter,
+		payload,
+		dispatchConfig[AgentHeartbeatWakeAfterPayload, AuthoredContextObservationPatch]{
+			match: matchAgentHeartbeatWakeAfter,
+			apply: applyNoop[AgentHeartbeatWakeAfterPayload, AuthoredContextObservationPatch],
+		},
+	)
+}
+
+// DispatchSessionHealthUpdateAfter runs the session.health.update.after hook dispatch.
+func (h *Hooks) DispatchSessionHealthUpdateAfter(
+	ctx context.Context,
+	payload SessionHealthUpdateAfterPayload,
+) (SessionHealthUpdateAfterPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookSessionHealthUpdateAfter,
+		payload,
+		dispatchConfig[SessionHealthUpdateAfterPayload, AuthoredContextObservationPatch]{
+			match: matchSessionHealthUpdateAfter,
+			apply: applyNoop[SessionHealthUpdateAfterPayload, AuthoredContextObservationPatch],
+		},
+	)
+}
+
 // DispatchTurnStart runs the turn.start hook pipeline.
 func (h *Hooks) DispatchTurnStart(ctx context.Context, payload TurnStartPayload) (TurnStartPayload, error) {
 	return executeDispatch(

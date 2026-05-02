@@ -85,6 +85,169 @@ describe("HostAPI", () => {
     ).resolves.toEqual({});
   });
 
+  it("authored context helpers route through managed Host API methods", async () => {
+    const pair = createMockTransportPair();
+    const host = new HostAPI(pair.extension, { isReady: () => true });
+    const soulPayload = {
+      agent_name: "coder",
+      enabled: true,
+      present: true,
+      active: true,
+      valid: true,
+      validation_status: "valid",
+      digest: "sha256:soul",
+      frontmatter: {},
+      limits: { max_body_bytes: 65536 },
+      config_provenance: {
+        digest: "sha256:cfg",
+        enabled: true,
+        max_body_bytes: 65536,
+        context_projection_bytes: 2048,
+      },
+    };
+    const heartbeatPolicy = {
+      agent_name: "coder",
+      enabled: true,
+      present: true,
+      active: true,
+      valid: true,
+      validation_status: "valid",
+      digest: "sha256:heartbeat",
+      schema_version: 1,
+      frontmatter: { version: 1, enabled: true, preferences: {}, context: {} },
+      preferences: { min_interval: "5m", context: {} },
+      config_provenance: {
+        digest: "sha256:heartbeat-cfg",
+        subset: {
+          enabled: true,
+          max_body_bytes: 65536,
+          context_projection_bytes: 2048,
+          min_interval: "5m",
+          default_interval: "15m",
+          wake_cooldown: "5m",
+          max_wakes_per_cycle: 1,
+          active_session_only: true,
+          allow_active_hours_preferences: true,
+          wake_event_retention: "24h",
+          session_health_stale_after: "5m",
+          session_health_hook_min_interval: "1m",
+        },
+      },
+      prompt: {
+        active: true,
+        digest: "sha256:heartbeat",
+        preferences: { min_interval: "5m", context: {} },
+        truncated: false,
+        max_bytes: 2048,
+        max_body_bytes: 65536,
+        context: {},
+      },
+      limits: { max_body_bytes: 65536, context_projection_bytes: 2048 },
+    };
+
+    pair.host.handle("agents/soul/get", async params => {
+      expect(params).toEqual({ workspace_id: "ws-1", agent_name: "coder" });
+      return soulPayload;
+    });
+    pair.host.handle("agents/soul/put", async params => {
+      expect(params).toMatchObject({
+        workspace_id: "ws-1",
+        agent_name: "coder",
+        expected_digest: "sha256:old",
+      });
+      return { soul: soulPayload, revision: { id: "rev-1", agent_name: "coder" } };
+    });
+    pair.host.handle("sessions/soul/refresh", async params => {
+      expect(params).toEqual({ session_id: "sess-1", expected_digest: "sha256:soul" });
+      return soulPayload;
+    });
+    pair.host.handle("sessions/health/get", async params => {
+      expect(params).toEqual({ session_id: "sess-1" });
+      return {
+        health: {
+          session_id: "sess-1",
+          workspace_id: "ws-1",
+          agent_name: "coder",
+          state: "idle",
+          health: "healthy",
+          active_prompt: false,
+          attachable: true,
+          eligible_for_wake: true,
+          updated_at: "2026-04-10T12:00:00.000Z",
+        },
+      };
+    });
+    pair.host.handle("agents/heartbeat/status", async params => {
+      expect(params).toEqual({
+        workspace_id: "ws-1",
+        agent_name: "coder",
+        session_id: "sess-1",
+        include_session_health: true,
+        include_recent_wake_events: true,
+      });
+      return {
+        agent_name: "coder",
+        enabled: true,
+        present: true,
+        active: true,
+        valid: true,
+        validation_status: "valid",
+        preferences: { min_interval: "5m", context: {} },
+      };
+    });
+    pair.host.handle("agents/heartbeat/wake", async params => {
+      expect(params).toEqual({
+        workspace_id: "ws-1",
+        agent_name: "coder",
+        session_id: "sess-1",
+        source: "manual",
+      });
+      return { decision: { result: "sent", reason: "wake_sent" } };
+    });
+    pair.host.handle("agents/heartbeat/get", async params => {
+      expect(params).toEqual({ workspace_id: "ws-1", agent_name: "coder" });
+      return heartbeatPolicy;
+    });
+
+    await expect(host.soul.get({ workspace_id: "ws-1", agent_name: "coder" })).resolves.toEqual(
+      soulPayload
+    );
+    await expect(
+      host.soul.put({
+        workspace_id: "ws-1",
+        agent_name: "coder",
+        body: "---\nrole: helper\n---\nBody.",
+        expected_digest: "sha256:old",
+      })
+    ).resolves.toMatchObject({ soul: soulPayload });
+    await expect(
+      host.sessions.refreshSoul({ session_id: "sess-1", expected_digest: "sha256:soul" })
+    ).resolves.toEqual(soulPayload);
+    await expect(host.sessions.health({ session_id: "sess-1" })).resolves.toMatchObject({
+      health: { eligible_for_wake: true },
+    });
+    await expect(
+      host.heartbeat.status({
+        workspace_id: "ws-1",
+        agent_name: "coder",
+        session_id: "sess-1",
+        include_session_health: true,
+        include_recent_wake_events: true,
+      })
+    ).resolves.toMatchObject({ agent_name: "coder", validation_status: "valid" });
+    await expect(
+      host.heartbeat.wake({
+        workspace_id: "ws-1",
+        agent_name: "coder",
+        session_id: "sess-1",
+        source: "manual",
+      })
+    ).resolves.toMatchObject({ decision: { result: "sent" } });
+    await expect(host.heartbeat.get({ workspace_id: "ws-1", agent_name: "coder" })).resolves.toBe(
+      heartbeatPolicy
+    );
+  });
+
   it("observe.events supports since parameter", async () => {
     const pair = createMockTransportPair();
     const host = new HostAPI(pair.extension, { isReady: () => true });

@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 57
+const expectedHookEventCount = 63
 
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
@@ -32,17 +32,22 @@ func TestSyncEligibleClassification(t *testing.T) {
 	t.Parallel()
 
 	asyncOnly := map[HookEvent]struct{}{
-		HookMessageDelta:              {},
-		HookEventPreRecord:            {},
-		HookEventPostRecord:           {},
-		HookAutomationJobPostFire:     {},
-		HookAutomationTriggerPostFire: {},
-		HookAutomationRunCompleted:    {},
-		HookAutomationRunFailed:       {},
-		HookSandboxReady:              {},
-		HookSandboxSyncAfter:          {},
-		HookPermissionResolved:        {},
-		HookPermissionDenied:          {},
+		HookMessageDelta:                 {},
+		HookEventPreRecord:               {},
+		HookEventPostRecord:              {},
+		HookAutomationJobPostFire:        {},
+		HookAutomationTriggerPostFire:    {},
+		HookAutomationRunCompleted:       {},
+		HookAutomationRunFailed:          {},
+		HookSandboxReady:                 {},
+		HookSandboxSyncAfter:             {},
+		HookPermissionResolved:           {},
+		HookPermissionDenied:             {},
+		HookAgentSoulSnapshotResolved:    {},
+		HookAgentSoulMutationAfter:       {},
+		HookAgentHeartbeatPolicyResolved: {},
+		HookAgentHeartbeatWakeAfter:      {},
+		HookSessionHealthUpdateAfter:     {},
 	}
 
 	if !HookSessionPreCreate.SyncEligible() {

@@ -373,11 +373,17 @@ func spawnHookContext(
 	if parent != nil {
 		ctx.WorkspaceID = strings.TrimSpace(parent.WorkspaceID)
 		ctx.Workspace = strings.TrimSpace(parent.Workspace)
+		ctx.ParentSoulDigest = strings.TrimSpace(parent.SoulDigest)
 	}
 	if child != nil {
 		ctx.ChildSessionID = strings.TrimSpace(child.ID)
 		ctx.WorkspaceID = strings.TrimSpace(child.WorkspaceID)
 		ctx.Workspace = strings.TrimSpace(child.Workspace)
+		ctx.SoulSnapshotID = strings.TrimSpace(child.SoulSnapshotID)
+		ctx.SoulDigest = strings.TrimSpace(child.SoulDigest)
+		if value := strings.TrimSpace(child.ParentSoulDigest); value != "" {
+			ctx.ParentSoulDigest = value
+		}
 	}
 	return ctx
 }

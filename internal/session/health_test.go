@@ -15,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/heartbeat"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -205,6 +206,75 @@ func TestManagerSessionHealthTransitions(t *testing.T) {
 		}
 		if got, want := healthStore.upsertCount(), upsertsBefore+1; got != want {
 			t.Fatalf("health upsert count after presence touch = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestManagerSessionHealthHooks(t *testing.T) {
+	t.Run("Should dispatch bounded health update hooks on eligible transitions", func(t *testing.T) {
+		ctx := testutil.Context(t)
+		baseAt := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		clock := newSessionHealthTestClock(baseAt)
+		healthStore := newFakeSessionHealthStore()
+		hooks := &recordingSessionHealthHooks{}
+		cfg := aghconfig.DefaultHeartbeatConfig()
+		cfg.SessionHealthHookMinInterval = time.Second
+		h := newHarness(
+			t,
+			WithNow(clock.Now),
+			WithSessionHealthStore(healthStore),
+			WithSessionHealthConfig(cfg),
+			WithHookSet(HookSet{AuthoredContext: hooks}),
+		)
+
+		idle := heartbeat.SessionHealth{
+			SessionID:       "sess-health-hook",
+			WorkspaceID:     h.workspaceID,
+			AgentName:       "coder",
+			State:           heartbeat.SessionHealthStateIdle,
+			Health:          heartbeat.SessionHealthHealthy,
+			Attachable:      true,
+			EligibleForWake: true,
+			UpdatedAt:       baseAt,
+		}
+		if _, err := h.manager.storeSessionHealth(ctx, idle); err != nil {
+			t.Fatalf("storeSessionHealth(idle) error = %v", err)
+		}
+
+		promptingAt := baseAt.Add(500 * time.Millisecond)
+		clock.Set(promptingAt)
+		prompting := idle
+		prompting.State = heartbeat.SessionHealthStatePrompting
+		prompting.ActivePrompt = true
+		prompting.EligibleForWake = false
+		prompting.IneligibilityReason = string(heartbeat.SessionHealthReasonPromptActive)
+		prompting.UpdatedAt = promptingAt
+		if _, err := h.manager.storeSessionHealth(ctx, prompting); err != nil {
+			t.Fatalf("storeSessionHealth(prompting) error = %v", err)
+		}
+
+		idleAgainAt := baseAt.Add(2 * time.Second)
+		clock.Set(idleAgainAt)
+		idleAgain := idle
+		idleAgain.UpdatedAt = idleAgainAt
+		if _, err := h.manager.storeSessionHealth(ctx, idleAgain); err != nil {
+			t.Fatalf("storeSessionHealth(idle again) error = %v", err)
+		}
+
+		payloads := hooks.snapshot()
+		if got, want := len(payloads), 2; got != want {
+			t.Fatalf("session health hook payloads = %d, want %d: %#v", got, want, payloads)
+		}
+		if payloads[0].SessionID != idle.SessionID ||
+			payloads[0].WorkspaceID != h.workspaceID ||
+			payloads[0].Health != string(heartbeat.SessionHealthHealthy) ||
+			!payloads[0].EligibleForWake {
+			t.Fatalf("initial hook payload = %#v, want redacted eligible health context", payloads[0])
+		}
+		if payloads[1].State != string(heartbeat.SessionHealthStateIdle) ||
+			!payloads[1].EligibleForWake ||
+			payloads[1].IneligibilityReason != "" {
+			t.Fatalf("idle-again hook payload = %#v, want eligible idle transition", payloads[1])
 		}
 	})
 }
@@ -996,6 +1066,27 @@ func (s *fakeSessionHealthStore) upsertCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.upserts
+}
+
+type recordingSessionHealthHooks struct {
+	mu       sync.Mutex
+	payloads []hookspkg.SessionHealthUpdateAfterPayload
+}
+
+func (h *recordingSessionHealthHooks) DispatchSessionHealthUpdateAfter(
+	_ context.Context,
+	payload hookspkg.SessionHealthUpdateAfterPayload,
+) (hookspkg.SessionHealthUpdateAfterPayload, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.payloads = append(h.payloads, payload)
+	return payload, nil
+}
+
+func (h *recordingSessionHealthHooks) snapshot() []hookspkg.SessionHealthUpdateAfterPayload {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]hookspkg.SessionHealthUpdateAfterPayload(nil), h.payloads...)
 }
 
 func fakeSessionHealthContextErr(ctx context.Context) error {

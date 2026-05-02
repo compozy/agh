@@ -25,6 +25,9 @@ const (
 	HostAPIMethodSessionsStop                = extensionprotocol.HostAPIMethodSessionsStop
 	HostAPIMethodSessionsStatus              = extensionprotocol.HostAPIMethodSessionsStatus
 	HostAPIMethodSessionsEvents              = extensionprotocol.HostAPIMethodSessionsEvents
+	HostAPIMethodSessionsSoulRefresh         = extensionprotocol.HostAPIMethodSessionsSoulRefresh
+	HostAPIMethodSessionsHealthGet           = extensionprotocol.HostAPIMethodSessionsHealthGet
+	HostAPIMethodSessionsStatusGet           = extensionprotocol.HostAPIMethodSessionsStatusGet
 	HostAPIMethodSandboxList                 = extensionprotocol.HostAPIMethodSandboxList
 	HostAPIMethodSandboxInfo                 = extensionprotocol.HostAPIMethodSandboxInfo
 	HostAPIMethodSandboxExec                 = extensionprotocol.HostAPIMethodSandboxExec
@@ -34,6 +37,20 @@ const (
 	HostAPIMethodObserveHealth               = extensionprotocol.HostAPIMethodObserveHealth
 	HostAPIMethodObserveEvents               = extensionprotocol.HostAPIMethodObserveEvents
 	HostAPIMethodSkillsList                  = extensionprotocol.HostAPIMethodSkillsList
+	HostAPIMethodAgentsSoulGet               = extensionprotocol.HostAPIMethodAgentsSoulGet
+	HostAPIMethodAgentsSoulValidate          = extensionprotocol.HostAPIMethodAgentsSoulValidate
+	HostAPIMethodAgentsSoulPut               = extensionprotocol.HostAPIMethodAgentsSoulPut
+	HostAPIMethodAgentsSoulDelete            = extensionprotocol.HostAPIMethodAgentsSoulDelete
+	HostAPIMethodAgentsSoulHistory           = extensionprotocol.HostAPIMethodAgentsSoulHistory
+	HostAPIMethodAgentsSoulRollback          = extensionprotocol.HostAPIMethodAgentsSoulRollback
+	HostAPIMethodAgentsHeartbeatGet          = extensionprotocol.HostAPIMethodAgentsHeartbeatGet
+	HostAPIMethodAgentsHeartbeatValidate     = extensionprotocol.HostAPIMethodAgentsHeartbeatValidate
+	HostAPIMethodAgentsHeartbeatPut          = extensionprotocol.HostAPIMethodAgentsHeartbeatPut
+	HostAPIMethodAgentsHeartbeatDelete       = extensionprotocol.HostAPIMethodAgentsHeartbeatDelete
+	HostAPIMethodAgentsHeartbeatHistory      = extensionprotocol.HostAPIMethodAgentsHeartbeatHistory
+	HostAPIMethodAgentsHeartbeatRollback     = extensionprotocol.HostAPIMethodAgentsHeartbeatRollback
+	HostAPIMethodAgentsHeartbeatStatus       = extensionprotocol.HostAPIMethodAgentsHeartbeatStatus
+	HostAPIMethodAgentsHeartbeatWake         = extensionprotocol.HostAPIMethodAgentsHeartbeatWake
 	HostAPIMethodAutomationJobs              = extensionprotocol.HostAPIMethodAutomationJobs
 	HostAPIMethodAutomationJobsGet           = extensionprotocol.HostAPIMethodAutomationJobsGet
 	HostAPIMethodAutomationJobsCreate        = extensionprotocol.HostAPIMethodAutomationJobsCreate
@@ -128,6 +145,18 @@ type SessionEventsParams struct {
 	Since     time.Time `json:"since"`
 }
 
+// SessionSoulRefreshParams refreshes one session's Soul snapshot through managed CAS.
+type SessionSoulRefreshParams struct {
+	SessionID string `json:"session_id"`
+	apicontract.SessionSoulRefreshRequest
+}
+
+// SessionHealthGetParams identifies one session health row.
+type SessionHealthGetParams = SessionTargetParams
+
+// SessionStatusGetParams identifies one authored-context session status row.
+type SessionStatusGetParams = SessionTargetParams
+
 // SandboxListParams filters active sandboxes.
 type SandboxListParams struct {
 	Workspace string `json:"workspace,omitempty"`
@@ -182,6 +211,54 @@ type ObserveEventsParams struct {
 type SkillsListParams struct {
 	Workspace string `json:"workspace,omitempty"`
 }
+
+// AgentSoulGetParams identifies one workspace-visible Soul read model.
+type AgentSoulGetParams struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name"`
+}
+
+// AgentSoulValidateParams validates current or proposed SOUL.md content.
+type AgentSoulValidateParams = apicontract.AgentSoulValidateRequest
+
+// AgentSoulPutParams creates or replaces SOUL.md through managed authoring.
+type AgentSoulPutParams = apicontract.AgentSoulPutRequest
+
+// AgentSoulDeleteParams deletes SOUL.md through managed authoring.
+type AgentSoulDeleteParams = apicontract.AgentSoulDeleteRequest
+
+// AgentSoulHistoryParams lists managed Soul authoring revisions.
+type AgentSoulHistoryParams = apicontract.AgentSoulHistoryRequest
+
+// AgentSoulRollbackParams restores a prior managed Soul revision.
+type AgentSoulRollbackParams = apicontract.AgentSoulRollbackRequest
+
+// AgentHeartbeatGetParams identifies one workspace-visible Heartbeat policy.
+type AgentHeartbeatGetParams struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name"`
+}
+
+// AgentHeartbeatValidateParams validates proposed HEARTBEAT.md content.
+type AgentHeartbeatValidateParams = apicontract.HeartbeatValidateRequest
+
+// AgentHeartbeatPutParams creates or replaces HEARTBEAT.md through managed authoring.
+type AgentHeartbeatPutParams = apicontract.HeartbeatPutRequest
+
+// AgentHeartbeatDeleteParams deletes HEARTBEAT.md through managed authoring.
+type AgentHeartbeatDeleteParams = apicontract.HeartbeatDeleteRequest
+
+// AgentHeartbeatHistoryParams lists managed Heartbeat authoring revisions.
+type AgentHeartbeatHistoryParams = apicontract.HeartbeatHistoryRequest
+
+// AgentHeartbeatRollbackParams restores a prior Heartbeat revision or snapshot digest.
+type AgentHeartbeatRollbackParams = apicontract.HeartbeatRollbackRequest
+
+// AgentHeartbeatStatusParams composes Heartbeat policy, wake state, health, and wake audit.
+type AgentHeartbeatStatusParams = apicontract.HeartbeatStatusRequest
+
+// AgentHeartbeatWakeParams requests one managed advisory wake decision.
+type AgentHeartbeatWakeParams = apicontract.HeartbeatWakeRequest
 
 // AutomationJobsParams filters visible automation jobs.
 type AutomationJobsParams struct {
@@ -541,6 +618,21 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Result: NamedType{Name: "SessionEvent", Value: []SessionEvent{}},
 	},
 	{
+		Method: HostAPIMethodSessionsSoulRefresh,
+		Params: NamedType{Name: "SessionSoulRefreshParams", Value: SessionSoulRefreshParams{}},
+		Result: NamedType{Name: "AgentSoulPayload", Value: apicontract.AgentSoulPayload{}},
+	},
+	{
+		Method: HostAPIMethodSessionsHealthGet,
+		Params: NamedType{Name: "SessionHealthGetParams", Value: SessionHealthGetParams{}},
+		Result: NamedType{Name: "SessionHealthResponse", Value: apicontract.SessionHealthResponse{}},
+	},
+	{
+		Method: HostAPIMethodSessionsStatusGet,
+		Params: NamedType{Name: "SessionStatusGetParams", Value: SessionStatusGetParams{}},
+		Result: NamedType{Name: "SessionStatusResponse", Value: apicontract.SessionStatusResponse{}},
+	},
+	{
 		Method:         HostAPIMethodSandboxList,
 		Params:         NamedType{Name: "SandboxListParams", Value: SandboxListParams{}},
 		Result:         NamedType{Name: "SandboxListResult", Value: SandboxListResult{}},
@@ -588,6 +680,76 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Params:         NamedType{Name: "SkillsListParams", Value: SkillsListParams{}},
 		Result:         NamedType{Name: "SkillSummary", Value: []SkillSummary{}},
 		OptionalParams: true,
+	},
+	{
+		Method: HostAPIMethodAgentsSoulGet,
+		Params: NamedType{Name: "AgentSoulGetParams", Value: AgentSoulGetParams{}},
+		Result: NamedType{Name: "AgentSoulPayload", Value: apicontract.AgentSoulPayload{}},
+	},
+	{
+		Method: HostAPIMethodAgentsSoulValidate,
+		Params: NamedType{Name: "AgentSoulValidateParams", Value: AgentSoulValidateParams{}},
+		Result: NamedType{Name: "AgentSoulPayload", Value: apicontract.AgentSoulPayload{}},
+	},
+	{
+		Method: HostAPIMethodAgentsSoulPut,
+		Params: NamedType{Name: "AgentSoulPutParams", Value: AgentSoulPutParams{}},
+		Result: NamedType{Name: "AgentSoulMutationResponse", Value: apicontract.AgentSoulMutationResponse{}},
+	},
+	{
+		Method: HostAPIMethodAgentsSoulDelete,
+		Params: NamedType{Name: "AgentSoulDeleteParams", Value: AgentSoulDeleteParams{}},
+		Result: NamedType{Name: "AgentSoulMutationResponse", Value: apicontract.AgentSoulMutationResponse{}},
+	},
+	{
+		Method: HostAPIMethodAgentsSoulHistory,
+		Params: NamedType{Name: "AgentSoulHistoryParams", Value: AgentSoulHistoryParams{}},
+		Result: NamedType{Name: "AgentSoulHistoryResponse", Value: apicontract.AgentSoulHistoryResponse{}},
+	},
+	{
+		Method: HostAPIMethodAgentsSoulRollback,
+		Params: NamedType{Name: "AgentSoulRollbackParams", Value: AgentSoulRollbackParams{}},
+		Result: NamedType{Name: "AgentSoulMutationResponse", Value: apicontract.AgentSoulMutationResponse{}},
+	},
+	{
+		Method: HostAPIMethodAgentsHeartbeatGet,
+		Params: NamedType{Name: "AgentHeartbeatGetParams", Value: AgentHeartbeatGetParams{}},
+		Result: NamedType{Name: "HeartbeatPolicyPayload", Value: apicontract.HeartbeatPolicyPayload{}},
+	},
+	{
+		Method: HostAPIMethodAgentsHeartbeatValidate,
+		Params: NamedType{Name: "AgentHeartbeatValidateParams", Value: AgentHeartbeatValidateParams{}},
+		Result: NamedType{Name: "HeartbeatPolicyPayload", Value: apicontract.HeartbeatPolicyPayload{}},
+	},
+	{
+		Method: HostAPIMethodAgentsHeartbeatPut,
+		Params: NamedType{Name: "AgentHeartbeatPutParams", Value: AgentHeartbeatPutParams{}},
+		Result: NamedType{Name: "HeartbeatMutationResponse", Value: apicontract.HeartbeatMutationResponse{}},
+	},
+	{
+		Method: HostAPIMethodAgentsHeartbeatDelete,
+		Params: NamedType{Name: "AgentHeartbeatDeleteParams", Value: AgentHeartbeatDeleteParams{}},
+		Result: NamedType{Name: "HeartbeatMutationResponse", Value: apicontract.HeartbeatMutationResponse{}},
+	},
+	{
+		Method: HostAPIMethodAgentsHeartbeatHistory,
+		Params: NamedType{Name: "AgentHeartbeatHistoryParams", Value: AgentHeartbeatHistoryParams{}},
+		Result: NamedType{Name: "HeartbeatHistoryResponse", Value: apicontract.HeartbeatHistoryResponse{}},
+	},
+	{
+		Method: HostAPIMethodAgentsHeartbeatRollback,
+		Params: NamedType{Name: "AgentHeartbeatRollbackParams", Value: AgentHeartbeatRollbackParams{}},
+		Result: NamedType{Name: "HeartbeatMutationResponse", Value: apicontract.HeartbeatMutationResponse{}},
+	},
+	{
+		Method: HostAPIMethodAgentsHeartbeatStatus,
+		Params: NamedType{Name: "AgentHeartbeatStatusParams", Value: AgentHeartbeatStatusParams{}},
+		Result: NamedType{Name: "HeartbeatStatusResponse", Value: apicontract.HeartbeatStatusResponse{}},
+	},
+	{
+		Method: HostAPIMethodAgentsHeartbeatWake,
+		Params: NamedType{Name: "AgentHeartbeatWakeParams", Value: AgentHeartbeatWakeParams{}},
+		Result: NamedType{Name: "HeartbeatWakeResponse", Value: apicontract.HeartbeatWakeResponse{}},
 	},
 	{
 		Method:         HostAPIMethodAutomationJobs,

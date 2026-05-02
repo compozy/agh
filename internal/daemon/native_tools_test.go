@@ -15,6 +15,7 @@ import (
 	apitest "github.com/pedronauck/agh/internal/api/testutil"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	memorypkg "github.com/pedronauck/agh/internal/memory"
@@ -148,6 +149,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDNetworkStatus)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionHealth)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatStatus)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatWake)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDWorkspaceDescribe)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMemoryList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDObserveEvents)
@@ -163,6 +167,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		for _, id := range []toolspkg.ToolID{
 			toolspkg.ToolIDNetworkStatus,
 			toolspkg.ToolIDSessionList,
+			toolspkg.ToolIDSessionHealth,
+			toolspkg.ToolIDAgentHeartbeatStatus,
+			toolspkg.ToolIDAgentHeartbeatWake,
 			toolspkg.ToolIDWorkspaceDescribe,
 			toolspkg.ToolIDMemoryList,
 			toolspkg.ToolIDObserveEvents,
@@ -1429,6 +1436,149 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose authored context tools only through managed services", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 29, 14, 30, 0, 0, time.UTC)
+		health := heartbeat.SessionHealth{
+			SessionID:           "sess-heartbeat",
+			WorkspaceID:         "ws-1",
+			AgentName:           "coder",
+			State:               heartbeat.SessionHealthStateIdle,
+			Health:              heartbeat.SessionHealthHealthy,
+			Attachable:          true,
+			EligibleForWake:     true,
+			IneligibilityReason: "",
+			UpdatedAt:           now,
+		}
+		workspace := apitest.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-1" {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      "ws-1",
+						RootDir: "/workspace/agh",
+						Name:    "agh",
+					},
+					Config: aghconfig.Config{
+						Agents: aghconfig.AgentsConfig{Heartbeat: aghconfig.DefaultHeartbeatConfig()},
+					},
+					Agents: []aghconfig.AgentDef{{
+						Name:       "coder",
+						SourcePath: "/workspace/agh/.agh/agents/coder/AGENT.md",
+					}},
+				}, nil
+			},
+		}
+		status := &nativeHeartbeatStatusStub{
+			result: heartbeat.StatusResult{
+				AgentName:    "coder",
+				Enabled:      true,
+				Present:      true,
+				Active:       true,
+				Valid:        true,
+				Digest:       "hb-digest",
+				ConfigDigest: "cfg-digest",
+				SnapshotID:   "hbs-1",
+				Summary:      "check in",
+				WakeState: &heartbeat.WakeState{
+					WorkspaceID:      "ws-1",
+					AgentName:        "coder",
+					SessionID:        "sess-heartbeat",
+					PolicySnapshotID: "hbs-1",
+					LastResult:       heartbeat.WakeResultSkipped,
+					LastReason:       heartbeat.WakeReasonQuietWindow,
+					UpdatedAt:        now,
+				},
+				SessionHealth: &health,
+			},
+		}
+		wake := &nativeHeartbeatWakeStub{
+			result: heartbeat.WakeDecision{
+				WakeEventID:      "hwe-tool",
+				Result:           heartbeat.WakeResultSkipped,
+				Reason:           heartbeat.WakeReasonSessionUnhealthy,
+				PolicySnapshotID: "hbs-1",
+				PolicyDigest:     "hb-digest",
+				ConfigDigest:     "cfg-digest",
+			},
+		}
+		wakeEvents := nativeHeartbeatWakeEventStub{events: []heartbeat.WakeEvent{{
+			ID:               "hwe-history",
+			WorkspaceID:      "ws-1",
+			AgentName:        "coder",
+			SessionID:        "sess-heartbeat",
+			PolicySnapshotID: "hbs-1",
+			Source:           heartbeat.WakeSourceManual,
+			Result:           heartbeat.WakeResultSkipped,
+			Reason:           heartbeat.WakeReasonQuietWindow,
+			CreatedAt:        now,
+			ExpiresAt:        now.Add(time.Hour),
+		}}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			WorkspaceResolver: workspace,
+			SessionHealth:     nativeSessionHealthStub{health: health},
+			HeartbeatStatus:   status,
+			HeartbeatWake:     wake,
+			WakeEvents:        wakeEvents,
+		}, nativeApproveAllPolicyInputs())
+
+		healthResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionHealth,
+				Input:  json.RawMessage(`{"session_id":"sess-heartbeat"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_health) error = %v", err)
+		}
+		requireNativeStructuredContains(t, healthResult, []byte(`"eligible_for_wake":true`))
+
+		statusResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-1","agent_name":"coder","session_id":"sess-heartbeat","include_session_health":true,"include_recent_wake_events":true}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(agent_heartbeat_status) error = %v", err)
+		}
+		requireNativeStructuredContains(t, statusResult, []byte(`"snapshot_id":"hbs-1"`))
+		requireNativeStructuredContains(t, statusResult, []byte(`"wake_events"`))
+
+		wakeResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentHeartbeatWake,
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-1","agent_name":"coder","session_id":"sess-heartbeat","dry_run":true}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(agent_heartbeat_wake) error = %v", err)
+		}
+		requireNativeStructuredContains(t, wakeResult, []byte(`"wake_event_id":"hwe-tool"`))
+		if status.last.Target.AgentPath != "/workspace/agh/.agh/agents/coder/AGENT.md" {
+			t.Fatalf("heartbeat status target path = %q, want managed agent path", status.last.Target.AgentPath)
+		}
+		if wake.last.SessionID != "sess-heartbeat" ||
+			wake.last.WorkspaceID != "ws-1" ||
+			wake.last.AgentName != "coder" ||
+			wake.last.Source != heartbeat.WakeSourceManual {
+			t.Fatalf("heartbeat wake request = %#v, want managed manual wake target", wake.last)
+		}
+	})
+
 	t.Run("Should read workspace tools through the existing workspace service boundary", func(t *testing.T) {
 		t.Parallel()
 
@@ -2372,6 +2522,77 @@ func (n *nativeNetworkStub) Inbox(_ context.Context, sessionID string) ([]networ
 
 func (n *nativeNetworkStub) WaitInbox(context.Context, string, string) ([]network.Envelope, error) {
 	return nil, nil
+}
+
+type nativeSessionHealthStub struct {
+	health heartbeat.SessionHealth
+	err    error
+}
+
+func (s nativeSessionHealthStub) GetSessionHealth(
+	context.Context,
+	string,
+) (heartbeat.SessionHealth, error) {
+	if s.err != nil {
+		return heartbeat.SessionHealth{}, s.err
+	}
+	return s.health, nil
+}
+
+type nativeHeartbeatStatusStub struct {
+	result heartbeat.StatusResult
+	err    error
+	last   heartbeat.StatusRequest
+}
+
+func (s *nativeHeartbeatStatusStub) Inspect(
+	context.Context,
+	heartbeat.InspectRequest,
+) (heartbeat.InspectResult, error) {
+	return heartbeat.InspectResult{}, nil
+}
+
+func (s *nativeHeartbeatStatusStub) Status(
+	_ context.Context,
+	req heartbeat.StatusRequest,
+) (heartbeat.StatusResult, error) {
+	s.last = req
+	if s.err != nil {
+		return heartbeat.StatusResult{}, s.err
+	}
+	return s.result, nil
+}
+
+type nativeHeartbeatWakeStub struct {
+	result heartbeat.WakeDecision
+	err    error
+	last   heartbeat.WakeRequest
+}
+
+func (s *nativeHeartbeatWakeStub) Wake(
+	_ context.Context,
+	req heartbeat.WakeRequest,
+) (heartbeat.WakeDecision, error) {
+	s.last = req
+	if s.err != nil {
+		return heartbeat.WakeDecision{}, s.err
+	}
+	return s.result, nil
+}
+
+type nativeHeartbeatWakeEventStub struct {
+	events []heartbeat.WakeEvent
+	err    error
+}
+
+func (s nativeHeartbeatWakeEventStub) ListHeartbeatWakeEvents(
+	context.Context,
+	heartbeat.WakeEventListQuery,
+) ([]heartbeat.WakeEvent, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return append([]heartbeat.WakeEvent(nil), s.events...), nil
 }
 
 var errUnexpectedNativeTaskCall = errors.New("unexpected native task manager call")

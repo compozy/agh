@@ -430,6 +430,30 @@ func matchAgentLifecycle(matcher HookMatcher, payload AgentLifecyclePayload) boo
 	return matcher.MatchesAgentLifecycle(payload)
 }
 
+func matchAgentSoulSnapshotResolved(matcher HookMatcher, payload AgentSoulSnapshotResolvedPayload) bool {
+	return matcher.MatchesAutomation(payload.AgentName, payload.WorkspaceID)
+}
+
+func matchAgentSoulMutationAfter(matcher HookMatcher, payload AgentSoulMutationAfterPayload) bool {
+	return matcher.MatchesAutomation(payload.AgentName, payload.WorkspaceID)
+}
+
+func matchAgentHeartbeatPolicyResolved(matcher HookMatcher, payload AgentHeartbeatPolicyResolvedPayload) bool {
+	return matcher.MatchesAutomation(payload.AgentName, payload.WorkspaceID)
+}
+
+func matchAgentHeartbeatWakeBefore(matcher HookMatcher, payload AgentHeartbeatWakeBeforePayload) bool {
+	return matcher.MatchesSession(payload.SessionContext)
+}
+
+func matchAgentHeartbeatWakeAfter(matcher HookMatcher, payload AgentHeartbeatWakeAfterPayload) bool {
+	return matcher.MatchesSession(payload.SessionContext)
+}
+
+func matchSessionHealthUpdateAfter(matcher HookMatcher, payload SessionHealthUpdateAfterPayload) bool {
+	return matcher.MatchesSession(payload.SessionContext)
+}
+
 func matchTurn(matcher HookMatcher, payload TurnPayload) bool {
 	return matcher.MatchesTurn(payload)
 }

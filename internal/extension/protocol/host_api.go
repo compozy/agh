@@ -36,6 +36,9 @@ const (
 	HostAPIMethodSessionsStop                HostAPIMethod = "sessions/stop"
 	HostAPIMethodSessionsStatus              HostAPIMethod = "sessions/status"
 	HostAPIMethodSessionsEvents              HostAPIMethod = "sessions/events"
+	HostAPIMethodSessionsSoulRefresh         HostAPIMethod = "sessions/soul/refresh"
+	HostAPIMethodSessionsHealthGet           HostAPIMethod = "sessions/health/get"
+	HostAPIMethodSessionsStatusGet           HostAPIMethod = "sessions/status/get"
 	HostAPIMethodSandboxList                 HostAPIMethod = "sandbox/list"
 	HostAPIMethodSandboxInfo                 HostAPIMethod = "sandbox/info"
 	HostAPIMethodSandboxExec                 HostAPIMethod = "sandbox/exec"
@@ -45,6 +48,20 @@ const (
 	HostAPIMethodObserveHealth               HostAPIMethod = "observe/health"
 	HostAPIMethodObserveEvents               HostAPIMethod = "observe/events"
 	HostAPIMethodSkillsList                  HostAPIMethod = "skills/list"
+	HostAPIMethodAgentsSoulGet               HostAPIMethod = "agents/soul/get"
+	HostAPIMethodAgentsSoulValidate          HostAPIMethod = "agents/soul/validate"
+	HostAPIMethodAgentsSoulPut               HostAPIMethod = "agents/soul/put"
+	HostAPIMethodAgentsSoulDelete            HostAPIMethod = "agents/soul/delete"
+	HostAPIMethodAgentsSoulHistory           HostAPIMethod = "agents/soul/history"
+	HostAPIMethodAgentsSoulRollback          HostAPIMethod = "agents/soul/rollback"
+	HostAPIMethodAgentsHeartbeatGet          HostAPIMethod = "agents/heartbeat/get"
+	HostAPIMethodAgentsHeartbeatValidate     HostAPIMethod = "agents/heartbeat/validate"
+	HostAPIMethodAgentsHeartbeatPut          HostAPIMethod = "agents/heartbeat/put"
+	HostAPIMethodAgentsHeartbeatDelete       HostAPIMethod = "agents/heartbeat/delete"
+	HostAPIMethodAgentsHeartbeatHistory      HostAPIMethod = "agents/heartbeat/history"
+	HostAPIMethodAgentsHeartbeatRollback     HostAPIMethod = "agents/heartbeat/rollback"
+	HostAPIMethodAgentsHeartbeatStatus       HostAPIMethod = "agents/heartbeat/status"
+	HostAPIMethodAgentsHeartbeatWake         HostAPIMethod = "agents/heartbeat/wake"
 	HostAPIMethodAutomationJobs              HostAPIMethod = "automation/jobs"
 	HostAPIMethodAutomationJobsGet           HostAPIMethod = "automation/jobs/get"
 	HostAPIMethodAutomationJobsCreate        HostAPIMethod = "automation/jobs/create"
@@ -96,6 +113,9 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodSessionsStop,
 		HostAPIMethodSessionsStatus,
 		HostAPIMethodSessionsEvents,
+		HostAPIMethodSessionsSoulRefresh,
+		HostAPIMethodSessionsHealthGet,
+		HostAPIMethodSessionsStatusGet,
 		HostAPIMethodSandboxList,
 		HostAPIMethodSandboxInfo,
 		HostAPIMethodSandboxExec,
@@ -105,6 +125,20 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodObserveHealth,
 		HostAPIMethodObserveEvents,
 		HostAPIMethodSkillsList,
+		HostAPIMethodAgentsSoulGet,
+		HostAPIMethodAgentsSoulValidate,
+		HostAPIMethodAgentsSoulPut,
+		HostAPIMethodAgentsSoulDelete,
+		HostAPIMethodAgentsSoulHistory,
+		HostAPIMethodAgentsSoulRollback,
+		HostAPIMethodAgentsHeartbeatGet,
+		HostAPIMethodAgentsHeartbeatValidate,
+		HostAPIMethodAgentsHeartbeatPut,
+		HostAPIMethodAgentsHeartbeatDelete,
+		HostAPIMethodAgentsHeartbeatHistory,
+		HostAPIMethodAgentsHeartbeatRollback,
+		HostAPIMethodAgentsHeartbeatStatus,
+		HostAPIMethodAgentsHeartbeatWake,
 		HostAPIMethodAutomationJobs,
 		HostAPIMethodAutomationJobsGet,
 		HostAPIMethodAutomationJobsCreate,

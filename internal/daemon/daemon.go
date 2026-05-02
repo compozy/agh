@@ -253,6 +253,13 @@ type extensionManagerDeps struct {
 	SourceSessions    resources.SourceSessionManager
 	ResourceCodecs    *resources.CodecRegistry
 	ResourceTrigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	SoulAuthoring     core.SoulAuthoringService
+	SoulRefresher     core.SoulRefresher
+	HeartbeatAuthor   core.HeartbeatAuthoringService
+	HeartbeatStatus   core.HeartbeatStatusService
+	HeartbeatWake     core.HeartbeatWakeService
+	SessionHealth     core.SessionHealthReader
+	WakeEvents        core.HeartbeatWakeEventReader
 	ProcessRegistry   *toolruntime.Registry
 	SecretResolver    extensionpkg.SecretRefResolver
 }
@@ -641,6 +648,13 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPIResourceStore(resourceStore),
 		extensionpkg.WithHostAPIResourceCodecRegistry(deps.ResourceCodecs),
 		extensionpkg.WithHostAPIResourceTrigger(deps.ResourceTrigger),
+		extensionpkg.WithHostAPISoulAuthoring(deps.SoulAuthoring),
+		extensionpkg.WithHostAPISoulRefresher(deps.SoulRefresher),
+		extensionpkg.WithHostAPIHeartbeatAuthoring(deps.HeartbeatAuthor),
+		extensionpkg.WithHostAPIHeartbeatStatus(deps.HeartbeatStatus),
+		extensionpkg.WithHostAPIHeartbeatWake(deps.HeartbeatWake),
+		extensionpkg.WithHostAPISessionHealth(deps.SessionHealth),
+		extensionpkg.WithHostAPIHeartbeatWakeEvents(deps.WakeEvents),
 	}
 	if deps.BridgeRegistry != nil {
 		opts = append(opts, extensionpkg.WithHostAPIBridgeRegistry(deps.BridgeRegistry))

@@ -111,17 +111,26 @@ type SpawnHooks interface {
 	) (hookspkg.SpawnReapedPayload, error)
 }
 
+// AuthoredContextHooks groups Soul, Heartbeat, and session-health observation hook dispatch.
+type AuthoredContextHooks interface {
+	DispatchSessionHealthUpdateAfter(
+		context.Context,
+		hookspkg.SessionHealthUpdateAfterPayload,
+	) (hookspkg.SessionHealthUpdateAfterPayload, error)
+}
+
 // HookSet collects the grouped session hook domains. Nil groups are treated as
 // no-op implementations so callers only provide the domains they exercise.
 type HookSet struct {
-	Session      LifecycleHooks
-	Sandbox      SandboxHooks
-	Prompt       PromptHooks
-	Events       EventHooks
-	Agent        AgentHooks
-	Conversation ConversationHooks
-	Compaction   CompactionHooks
-	Spawn        SpawnHooks
+	Session         LifecycleHooks
+	Sandbox         SandboxHooks
+	Prompt          PromptHooks
+	Events          EventHooks
+	Agent           AgentHooks
+	Conversation    ConversationHooks
+	Compaction      CompactionHooks
+	Spawn           SpawnHooks
+	AuthoredContext AuthoredContextHooks
 }
 
 var _ LifecycleHooks = noopSessionLifecycleHooks{}
@@ -132,6 +141,7 @@ var _ AgentHooks = noopAgentHooks{}
 var _ ConversationHooks = noopConversationHooks{}
 var _ CompactionHooks = noopCompactionHooks{}
 var _ SpawnHooks = noopSpawnHooks{}
+var _ AuthoredContextHooks = noopAuthoredContextHooks{}
 
 func (h HookSet) session() LifecycleHooks {
 	if h.Session != nil {
@@ -199,6 +209,13 @@ func (h HookSet) spawn() SpawnHooks {
 		return h.Spawn
 	}
 	return noopSpawnHooks{}
+}
+
+func (h HookSet) authoredContext() AuthoredContextHooks {
+	if h.AuthoredContext != nil {
+		return h.AuthoredContext
+	}
+	return noopAuthoredContextHooks{}
 }
 
 type noopSessionLifecycleHooks struct{}
@@ -431,5 +448,14 @@ func (noopSpawnHooks) DispatchSpawnReaped(
 	_ context.Context,
 	payload hookspkg.SpawnReapedPayload,
 ) (hookspkg.SpawnReapedPayload, error) {
+	return payload, nil
+}
+
+type noopAuthoredContextHooks struct{}
+
+func (noopAuthoredContextHooks) DispatchSessionHealthUpdateAfter(
+	_ context.Context,
+	payload hookspkg.SessionHealthUpdateAfterPayload,
+) (hookspkg.SessionHealthUpdateAfterPayload, error) {
 	return payload, nil
 }

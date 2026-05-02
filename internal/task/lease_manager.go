@@ -531,6 +531,10 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 		ActorKind:             string(actor.Actor.Kind.Normalize()),
 		ActorRef:              strings.TrimSpace(actor.Actor.Ref),
 	}
+	if criteria.Soul != nil {
+		taskContext.SoulSnapshotID = strings.TrimSpace(criteria.Soul.SnapshotID)
+		taskContext.SoulDigest = strings.TrimSpace(criteria.Soul.Digest)
+	}
 	payload := hookspkg.TaskRunPreClaimPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskRunPreClaim,

@@ -3,6 +3,7 @@ package hooks
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -19,16 +20,23 @@ type PayloadBase struct {
 
 // SessionContext carries the common session-scoped hook attributes.
 type SessionContext struct {
-	SessionID    string    `json:"session_id,omitempty"`
-	SessionName  string    `json:"session_name,omitempty"`
-	SessionType  string    `json:"session_type,omitempty"`
-	AgentName    string    `json:"agent_name,omitempty"`
-	WorkspaceID  string    `json:"workspace_id,omitempty"`
-	Workspace    string    `json:"workspace,omitempty"`
-	ACPSessionID string    `json:"acp_session_id,omitempty"`
-	State        string    `json:"state,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	SessionID    string `json:"session_id,omitempty"`
+	SessionName  string `json:"session_name,omitempty"`
+	SessionType  string `json:"session_type,omitempty"`
+	AgentName    string `json:"agent_name,omitempty"`
+	WorkspaceID  string `json:"workspace_id,omitempty"`
+	Workspace    string `json:"workspace,omitempty"`
+	ACPSessionID string `json:"acp_session_id,omitempty"`
+	State        string `json:"state,omitempty"`
+	*SessionSoulContext
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SessionSoulContext carries optional authored Soul provenance on session-scoped hooks.
+type SessionSoulContext struct {
+	SoulSnapshotID string `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string `json:"soul_digest,omitempty"`
 }
 
 // TurnContext carries the current turn identifier.
@@ -451,6 +459,94 @@ type AgentCrashedPatch = AgentLifecyclePatch
 // AgentStoppedPatch is the stopped patch surface.
 type AgentStoppedPatch = AgentLifecyclePatch
 
+// AuthoredContextProvenance carries redacted Soul/Heartbeat source identity.
+type AuthoredContextProvenance struct {
+	WorkspaceID      string `json:"workspace_id,omitempty"`
+	AgentName        string `json:"agent_name,omitempty"`
+	SourcePath       string `json:"source_path,omitempty"`
+	SnapshotID       string `json:"snapshot_id,omitempty"`
+	Digest           string `json:"digest,omitempty"`
+	ConfigDigest     string `json:"config_digest,omitempty"`
+	ValidationStatus string `json:"validation_status,omitempty"`
+	Valid            bool   `json:"valid"`
+	Active           bool   `json:"active"`
+	Reason           string `json:"reason,omitempty"`
+}
+
+// AuthoredMutationProvenance records who caused a managed authored-context mutation.
+type AuthoredMutationProvenance struct {
+	ActorKind  string `json:"actor_kind,omitempty"`
+	ActorRef   string `json:"actor_ref,omitempty"`
+	OriginKind string `json:"origin_kind,omitempty"`
+	OriginRef  string `json:"origin_ref,omitempty"`
+}
+
+// AgentSoulSnapshotResolvedPayload is delivered after Soul snapshot/read-model resolution.
+type AgentSoulSnapshotResolvedPayload struct {
+	PayloadBase
+	AuthoredContextProvenance
+}
+
+// AgentSoulMutationAfterPayload is delivered after a managed SOUL.md mutation commits.
+type AgentSoulMutationAfterPayload struct {
+	PayloadBase
+	AuthoredContextProvenance
+	AuthoredMutationProvenance
+	RevisionID     string `json:"revision_id,omitempty"`
+	Action         string `json:"action,omitempty"`
+	PreviousDigest string `json:"previous_digest,omitempty"`
+	NewDigest      string `json:"new_digest,omitempty"`
+}
+
+// AgentHeartbeatPolicyResolvedPayload is delivered after Heartbeat policy/status resolution.
+type AgentHeartbeatPolicyResolvedPayload struct {
+	PayloadBase
+	AuthoredContextProvenance
+	Summary string `json:"summary,omitempty"`
+}
+
+// AgentHeartbeatWakeBeforePayload is delivered before a managed Heartbeat wake decision.
+type AgentHeartbeatWakeBeforePayload struct {
+	PayloadBase
+	SessionContext
+	PolicySnapshotID string `json:"policy_snapshot_id,omitempty"`
+	PolicyDigest     string `json:"policy_digest,omitempty"`
+	ConfigDigest     string `json:"config_digest,omitempty"`
+	Source           string `json:"source,omitempty"`
+	DryRun           bool   `json:"dry_run,omitempty"`
+}
+
+// AgentHeartbeatWakeAfterPayload is delivered after a managed Heartbeat wake decision.
+type AgentHeartbeatWakeAfterPayload struct {
+	PayloadBase
+	SessionContext
+	WakeEventID       string `json:"wake_event_id,omitempty"`
+	Result            string `json:"result,omitempty"`
+	Reason            string `json:"reason,omitempty"`
+	PolicySnapshotID  string `json:"policy_snapshot_id,omitempty"`
+	PolicyDigest      string `json:"policy_digest,omitempty"`
+	ConfigDigest      string `json:"config_digest,omitempty"`
+	SyntheticPromptID string `json:"synthetic_prompt_id,omitempty"`
+	Source            string `json:"source,omitempty"`
+}
+
+// SessionHealthUpdateAfterPayload is delivered after metadata-only session health changes.
+type SessionHealthUpdateAfterPayload struct {
+	PayloadBase
+	SessionContext
+	Health              string    `json:"health,omitempty"`
+	ActivePrompt        bool      `json:"active_prompt,omitempty"`
+	Attachable          bool      `json:"attachable,omitempty"`
+	EligibleForWake     bool      `json:"eligible_for_wake,omitempty"`
+	IneligibilityReason string    `json:"ineligibility_reason,omitempty"`
+	LastActivityAt      time.Time `json:"last_activity_at"`
+	LastPresenceAt      time.Time `json:"last_presence_at"`
+	LastError           string    `json:"last_error,omitempty"`
+}
+
+// AuthoredContextObservationPatch is the no-op patch surface for authored-context observation hooks.
+type AuthoredContextObservationPatch = AutonomyObservationPatch
+
 // TurnPayload is shared by turn start and end events.
 type TurnPayload struct {
 	PayloadBase
@@ -733,6 +829,8 @@ type TaskRunContext struct {
 	OriginRef             string    `json:"origin_ref,omitempty"`
 	TaskStatus            string    `json:"task_status,omitempty"`
 	RunStatus             string    `json:"run_status,omitempty"`
+	SoulSnapshotID        string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest            string    `json:"soul_digest,omitempty"`
 	Attempt               int       `json:"attempt,omitempty"`
 	LeaseUntil            time.Time `json:"lease_until"`
 	ReleaseReason         string    `json:"release_reason,omitempty"`
@@ -826,6 +924,9 @@ type SpawnContext struct {
 	RunID                 string `json:"run_id,omitempty"`
 	WorkflowID            string `json:"workflow_id,omitempty"`
 	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
+	SoulSnapshotID        string `json:"soul_snapshot_id,omitempty"`
+	SoulDigest            string `json:"soul_digest,omitempty"`
+	ParentSoulDigest      string `json:"parent_soul_digest,omitempty"`
 }
 
 // SpawnPreCreatePayload is delivered before a child session is created.
@@ -921,6 +1022,18 @@ func (p AgentLifecyclePayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 
+func (p AgentHeartbeatWakeBeforePayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p AgentHeartbeatWakeAfterPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
+func (p SessionHealthUpdateAfterPayload) hookSessionContext() SessionContext {
+	return p.SessionContext
+}
+
 func (p TurnPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
@@ -997,17 +1110,31 @@ func (p SpawnLifecyclePayload) hookSessionContext() SessionContext {
 
 func taskRunSessionContext(ctx TaskRunContext) SessionContext {
 	return SessionContext{
-		SessionID:   ctx.SessionID,
-		AgentName:   ctx.AgentName,
-		WorkspaceID: ctx.WorkspaceID,
+		SessionID:          ctx.SessionID,
+		AgentName:          ctx.AgentName,
+		WorkspaceID:        ctx.WorkspaceID,
+		SessionSoulContext: optionalSessionSoulContext(ctx.SoulSnapshotID, ctx.SoulDigest),
 	}
 }
 
 func spawnSessionContext(ctx SpawnContext) SessionContext {
 	return SessionContext{
-		SessionID:   ctx.ChildSessionID,
-		AgentName:   ctx.AgentName,
-		WorkspaceID: ctx.WorkspaceID,
-		Workspace:   ctx.Workspace,
+		SessionID:          ctx.ChildSessionID,
+		AgentName:          ctx.AgentName,
+		WorkspaceID:        ctx.WorkspaceID,
+		Workspace:          ctx.Workspace,
+		SessionSoulContext: optionalSessionSoulContext(ctx.SoulSnapshotID, ctx.SoulDigest),
+	}
+}
+
+func optionalSessionSoulContext(snapshotID string, digest string) *SessionSoulContext {
+	trimmedSnapshotID := strings.TrimSpace(snapshotID)
+	trimmedDigest := strings.TrimSpace(digest)
+	if trimmedSnapshotID == "" && trimmedDigest == "" {
+		return nil
+	}
+	return &SessionSoulContext{
+		SoulSnapshotID: trimmedSnapshotID,
+		SoulDigest:     trimmedDigest,
 	}
 }

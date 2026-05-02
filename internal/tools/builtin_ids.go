@@ -38,6 +38,12 @@ const (
 	ToolIDSessionEvents ToolID = "agh__session_events"
 	// ToolIDSessionDescribe reads a composite read-only session description.
 	ToolIDSessionDescribe ToolID = "agh__session_describe"
+	// ToolIDSessionHealth reads metadata-only session health and wake eligibility.
+	ToolIDSessionHealth ToolID = "agh__session_health"
+	// ToolIDAgentHeartbeatStatus reads resolved Heartbeat policy, wake state, health, and wake audit.
+	ToolIDAgentHeartbeatStatus ToolID = "agh__agent_heartbeat_status"
+	// ToolIDAgentHeartbeatWake requests one managed advisory Heartbeat wake decision.
+	ToolIDAgentHeartbeatWake ToolID = "agh__agent_heartbeat_wake"
 	// ToolIDWorkspaceList lists registered workspaces.
 	ToolIDWorkspaceList ToolID = "agh__workspace_list"
 	// ToolIDWorkspaceInfo reads one registered workspace record.
@@ -189,6 +195,8 @@ const (
 	ToolsetIDAutonomy ToolsetID = "agh__autonomy"
 	// ToolsetIDSessions groups read-only runtime session tools.
 	ToolsetIDSessions ToolsetID = "agh__sessions"
+	// ToolsetIDAuthoredContext groups managed Soul/Heartbeat read and wake tools.
+	ToolsetIDAuthoredContext ToolsetID = "agh__authored_context"
 	// ToolsetIDWorkspace groups read-only workspace tools.
 	ToolsetIDWorkspace ToolsetID = "agh__workspace"
 	// ToolsetIDMemory groups read-only memory inspection tools.

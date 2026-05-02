@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/heartbeat"
+	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -383,9 +384,20 @@ func (m *Manager) storeSessionHealth(
 	if m.sessionHealthStore == nil {
 		return normalized, nil
 	}
+	previous, err := m.storedSessionHealth(ctx, normalized.SessionID)
+	if err != nil {
+		return heartbeat.SessionHealth{}, err
+	}
 	stored, err := m.sessionHealthStore.UpsertSessionHealth(ctx, normalized)
 	if err != nil {
 		return heartbeat.SessionHealth{}, fmt.Errorf("session: upsert health for %q: %w", normalized.SessionID, err)
+	}
+	if err := m.dispatchSessionHealthUpdateAfter(ctx, previous, stored); err != nil && m.logger != nil {
+		m.logger.Warn(
+			"session: session health hook failed",
+			"session_id", stored.SessionID,
+			"error", err,
+		)
 	}
 	return stored, nil
 }
@@ -524,6 +536,82 @@ func sessionHealthEqual(left heartbeat.SessionHealth, right heartbeat.SessionHea
 		left.LastError == right.LastError &&
 		left.LastActivityAt.UTC().Equal(right.LastActivityAt.UTC()) &&
 		left.LastPresenceAt.UTC().Equal(right.LastPresenceAt.UTC())
+}
+
+func (m *Manager) dispatchSessionHealthUpdateAfter(
+	ctx context.Context,
+	previous heartbeat.SessionHealth,
+	current heartbeat.SessionHealth,
+) error {
+	if m == nil || !sessionHealthHookTransition(previous, current) {
+		return nil
+	}
+	if !m.shouldDispatchSessionHealthHook(current) {
+		return nil
+	}
+	payload := hookspkg.SessionHealthUpdateAfterPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookSessionHealthUpdateAfter,
+			Timestamp: current.UpdatedAt.UTC(),
+		},
+		SessionContext: hookspkg.SessionContext{
+			SessionID:   current.SessionID,
+			AgentName:   current.AgentName,
+			WorkspaceID: current.WorkspaceID,
+			State:       string(current.State),
+			UpdatedAt:   current.UpdatedAt.UTC(),
+		},
+		Health:              string(current.Health),
+		ActivePrompt:        current.ActivePrompt,
+		Attachable:          current.Attachable,
+		EligibleForWake:     current.EligibleForWake,
+		IneligibilityReason: current.IneligibilityReason,
+		LastActivityAt:      current.LastActivityAt.UTC(),
+		LastPresenceAt:      current.LastPresenceAt.UTC(),
+		LastError:           current.LastError,
+	}
+	_, err := m.hooks.authoredContext().DispatchSessionHealthUpdateAfter(ctx, payload)
+	return err
+}
+
+func sessionHealthHookTransition(previous heartbeat.SessionHealth, current heartbeat.SessionHealth) bool {
+	previous = previous.Normalize()
+	current = current.Normalize()
+	if strings.TrimSpace(current.SessionID) == "" {
+		return false
+	}
+	if strings.TrimSpace(previous.SessionID) == "" {
+		return true
+	}
+	return previous.State != current.State ||
+		previous.Health != current.Health ||
+		previous.EligibleForWake != current.EligibleForWake ||
+		previous.IneligibilityReason != current.IneligibilityReason
+}
+
+func (m *Manager) shouldDispatchSessionHealthHook(current heartbeat.SessionHealth) bool {
+	if m == nil {
+		return false
+	}
+	sessionID := strings.TrimSpace(current.SessionID)
+	if sessionID == "" {
+		return false
+	}
+	now := current.UpdatedAt.UTC()
+	if now.IsZero() {
+		now = m.now()
+	}
+	m.sessionHealthHookMu.Lock()
+	defer m.sessionHealthHookMu.Unlock()
+	if m.sessionHealthHookLast == nil {
+		m.sessionHealthHookLast = make(map[string]time.Time)
+	}
+	last := m.sessionHealthHookLast[sessionID]
+	if !last.IsZero() && now.Sub(last) < m.sessionHealthHookMinInterval {
+		return false
+	}
+	m.sessionHealthHookLast[sessionID] = now
+	return true
 }
 
 func (m *Manager) detachedSessionHealthContext(ctx context.Context) (context.Context, context.CancelFunc) {

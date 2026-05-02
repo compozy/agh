@@ -280,7 +280,11 @@ func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.S
 		Workspace:    ref.Workspace,
 		ACPSessionID: strings.TrimSpace(s.acpSessionID),
 		State:        string(StateStarting),
-		CreatedAt:    s.createdAt,
+		SessionSoulContext: hookSessionSoulContext(
+			s.soulSnapshotID,
+			s.soulDigest,
+		),
+		CreatedAt: s.createdAt,
 	}
 	if s.includePromptUpdatedAt {
 		ctx.UpdatedAt = updatedAt

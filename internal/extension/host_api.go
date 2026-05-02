@@ -80,6 +80,13 @@ type HostAPIHandler struct {
 	deliveryBroker   hostAPIDeliveryBroker
 	resourceStore    resources.RawStore
 	resourceCodecs   *resources.CodecRegistry
+	soulAuthoring    hostAPISoulAuthoringService
+	soulRefresher    hostAPISoulRefresher
+	heartbeatAuthor  hostAPIHeartbeatAuthoringService
+	heartbeatStatus  hostAPIHeartbeatStatusService
+	heartbeatWake    hostAPIHeartbeatWakeService
+	sessionHealth    hostAPISessionHealthReader
+	wakeEvents       hostAPIHeartbeatWakeEventReader
 	capChecker       *CapabilityChecker
 	limiter          *hostAPIRateLimiter
 	automationGetter func() HostAPIAutomationManager
@@ -314,6 +321,55 @@ func WithHostAPIResourceTrigger(
 	}
 }
 
+// WithHostAPISoulAuthoring injects managed SOUL.md read and mutation support.
+func WithHostAPISoulAuthoring(service hostAPISoulAuthoringService) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.soulAuthoring = service
+	}
+}
+
+// WithHostAPISoulRefresher injects managed session Soul refresh support.
+func WithHostAPISoulRefresher(refresher hostAPISoulRefresher) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.soulRefresher = refresher
+	}
+}
+
+// WithHostAPIHeartbeatAuthoring injects managed HEARTBEAT.md mutation support.
+func WithHostAPIHeartbeatAuthoring(service hostAPIHeartbeatAuthoringService) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.heartbeatAuthor = service
+	}
+}
+
+// WithHostAPIHeartbeatStatus injects managed Heartbeat status support.
+func WithHostAPIHeartbeatStatus(service hostAPIHeartbeatStatusService) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.heartbeatStatus = service
+	}
+}
+
+// WithHostAPIHeartbeatWake injects managed Heartbeat wake support.
+func WithHostAPIHeartbeatWake(service hostAPIHeartbeatWakeService) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.heartbeatWake = service
+	}
+}
+
+// WithHostAPISessionHealth injects metadata-only session health reads.
+func WithHostAPISessionHealth(reader hostAPISessionHealthReader) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.sessionHealth = reader
+	}
+}
+
+// WithHostAPIHeartbeatWakeEvents injects retained wake audit reads.
+func WithHostAPIHeartbeatWakeEvents(reader hostAPIHeartbeatWakeEventReader) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.wakeEvents = reader
+	}
+}
+
 // WithHostAPIBridgeIngressConfig overrides dedup TTL and cleanup cadence for bridge ingest.
 func WithHostAPIBridgeIngressConfig(dedupTTL time.Duration, cleanupInterval time.Duration) HostAPIOption {
 	return func(handler *HostAPIHandler) {
@@ -408,61 +464,78 @@ func normalizeHostAPIHandlerDefaults(handler *HostAPIHandler) {
 
 func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc {
 	return map[string]hostAPIMethodFunc{
-		"automation/jobs":                                             handler.handleAutomationJobs,
-		"automation/jobs/get":                                         handler.handleAutomationJobsGet,
-		"automation/jobs/create":                                      handler.handleAutomationJobsCreate,
-		"automation/jobs/update":                                      handler.handleAutomationJobsUpdate,
-		"automation/jobs/delete":                                      handler.handleAutomationJobsDelete,
-		"automation/jobs/trigger":                                     handler.handleAutomationJobsTrigger,
-		"automation/jobs/runs":                                        handler.handleAutomationJobsRuns,
-		"automation/triggers":                                         handler.handleAutomationTriggers,
-		"automation/triggers/get":                                     handler.handleAutomationTriggersGet,
-		"automation/triggers/create":                                  handler.handleAutomationTriggersCreate,
-		"automation/triggers/update":                                  handler.handleAutomationTriggersUpdate,
-		"automation/triggers/delete":                                  handler.handleAutomationTriggersDelete,
-		"automation/triggers/runs":                                    handler.handleAutomationTriggersRuns,
-		"automation/triggers/fire":                                    handler.handleAutomationTriggersFire,
-		"automation/runs":                                             handler.handleAutomationRuns,
-		string(extensioncontract.HostAPIMethodTasks):                  handler.handleTasks,
-		string(extensioncontract.HostAPIMethodTasksGet):               handler.handleTasksGet,
-		string(extensioncontract.HostAPIMethodTasksTimeline):          handler.handleTasksTimeline,
-		string(extensioncontract.HostAPIMethodTasksTree):              handler.handleTasksTree,
-		string(extensioncontract.HostAPIMethodTasksDashboard):         handler.handleTasksDashboard,
-		string(extensioncontract.HostAPIMethodTasksInbox):             handler.handleTasksInbox,
-		string(extensioncontract.HostAPIMethodTasksCreate):            handler.handleTasksCreate,
-		string(extensioncontract.HostAPIMethodTasksUpdate):            handler.handleTasksUpdate,
-		string(extensioncontract.HostAPIMethodTasksCancel):            handler.handleTasksCancel,
-		string(extensioncontract.HostAPIMethodTasksRuns):              handler.handleTasksRuns,
-		string(extensioncontract.HostAPIMethodTasksRunsGet):           handler.handleTasksRunsGet,
-		string(extensioncontract.HostAPIMethodTasksRunsEnqueue):       handler.handleTasksRunsEnqueue,
-		string(extensioncontract.HostAPIMethodTasksRunsClaim):         handler.handleTasksRunsClaim,
-		string(extensioncontract.HostAPIMethodTasksRunsStart):         handler.handleTasksRunsStart,
-		string(extensioncontract.HostAPIMethodTasksRunsAttachSession): handler.handleTasksRunsAttachSession,
-		string(extensioncontract.HostAPIMethodTasksRunsComplete):      handler.handleTasksRunsComplete,
-		string(extensioncontract.HostAPIMethodTasksRunsFail):          handler.handleTasksRunsFail,
-		string(extensioncontract.HostAPIMethodTasksRunsCancel):        handler.handleTasksRunsCancel,
-		"resources/list":                                              handler.handleResourcesList,
-		"resources/get":                                               handler.handleResourcesGet,
-		"resources/snapshot":                                          handler.handleResourcesSnapshot,
-		"bridges/instances/list":                                      handler.handleBridgesInstancesList,
-		"bridges/instances/get":                                       handler.handleBridgesInstancesGet,
-		"bridges/instances/report_state":                              handler.handleBridgesInstancesReportState,
-		"bridges/messages/ingest":                                     handler.handleBridgesMessagesIngest,
-		"sandbox/exec":                                                handler.handleSandboxExec,
-		"sandbox/info":                                                handler.handleSandboxInfo,
-		"sandbox/list":                                                handler.handleSandboxList,
-		"memory/forget":                                               handler.handleMemoryForget,
-		"memory/recall":                                               handler.handleMemoryRecall,
-		"memory/store":                                                handler.handleMemoryStore,
-		"observe/events":                                              handler.handleObserveEvents,
-		"observe/health":                                              handler.handleObserveHealth,
-		"sessions/create":                                             handler.handleSessionsCreate,
-		"sessions/events":                                             handler.handleSessionsEvents,
-		"sessions/list":                                               handler.handleSessionsList,
-		"sessions/prompt":                                             handler.handleSessionsPrompt,
-		"sessions/status":                                             handler.handleSessionsStatus,
-		"sessions/stop":                                               handler.handleSessionsStop,
-		"skills/list":                                                 handler.handleSkillsList,
+		"automation/jobs":                                              handler.handleAutomationJobs,
+		"automation/jobs/get":                                          handler.handleAutomationJobsGet,
+		"automation/jobs/create":                                       handler.handleAutomationJobsCreate,
+		"automation/jobs/update":                                       handler.handleAutomationJobsUpdate,
+		"automation/jobs/delete":                                       handler.handleAutomationJobsDelete,
+		"automation/jobs/trigger":                                      handler.handleAutomationJobsTrigger,
+		"automation/jobs/runs":                                         handler.handleAutomationJobsRuns,
+		"automation/triggers":                                          handler.handleAutomationTriggers,
+		"automation/triggers/get":                                      handler.handleAutomationTriggersGet,
+		"automation/triggers/create":                                   handler.handleAutomationTriggersCreate,
+		"automation/triggers/update":                                   handler.handleAutomationTriggersUpdate,
+		"automation/triggers/delete":                                   handler.handleAutomationTriggersDelete,
+		"automation/triggers/runs":                                     handler.handleAutomationTriggersRuns,
+		"automation/triggers/fire":                                     handler.handleAutomationTriggersFire,
+		"automation/runs":                                              handler.handleAutomationRuns,
+		string(extensioncontract.HostAPIMethodTasks):                   handler.handleTasks,
+		string(extensioncontract.HostAPIMethodTasksGet):                handler.handleTasksGet,
+		string(extensioncontract.HostAPIMethodTasksTimeline):           handler.handleTasksTimeline,
+		string(extensioncontract.HostAPIMethodTasksTree):               handler.handleTasksTree,
+		string(extensioncontract.HostAPIMethodTasksDashboard):          handler.handleTasksDashboard,
+		string(extensioncontract.HostAPIMethodTasksInbox):              handler.handleTasksInbox,
+		string(extensioncontract.HostAPIMethodTasksCreate):             handler.handleTasksCreate,
+		string(extensioncontract.HostAPIMethodTasksUpdate):             handler.handleTasksUpdate,
+		string(extensioncontract.HostAPIMethodTasksCancel):             handler.handleTasksCancel,
+		string(extensioncontract.HostAPIMethodTasksRuns):               handler.handleTasksRuns,
+		string(extensioncontract.HostAPIMethodTasksRunsGet):            handler.handleTasksRunsGet,
+		string(extensioncontract.HostAPIMethodTasksRunsEnqueue):        handler.handleTasksRunsEnqueue,
+		string(extensioncontract.HostAPIMethodTasksRunsClaim):          handler.handleTasksRunsClaim,
+		string(extensioncontract.HostAPIMethodTasksRunsStart):          handler.handleTasksRunsStart,
+		string(extensioncontract.HostAPIMethodTasksRunsAttachSession):  handler.handleTasksRunsAttachSession,
+		string(extensioncontract.HostAPIMethodTasksRunsComplete):       handler.handleTasksRunsComplete,
+		string(extensioncontract.HostAPIMethodTasksRunsFail):           handler.handleTasksRunsFail,
+		string(extensioncontract.HostAPIMethodTasksRunsCancel):         handler.handleTasksRunsCancel,
+		"resources/list":                                               handler.handleResourcesList,
+		"resources/get":                                                handler.handleResourcesGet,
+		"resources/snapshot":                                           handler.handleResourcesSnapshot,
+		"bridges/instances/list":                                       handler.handleBridgesInstancesList,
+		"bridges/instances/get":                                        handler.handleBridgesInstancesGet,
+		"bridges/instances/report_state":                               handler.handleBridgesInstancesReportState,
+		"bridges/messages/ingest":                                      handler.handleBridgesMessagesIngest,
+		"sandbox/exec":                                                 handler.handleSandboxExec,
+		"sandbox/info":                                                 handler.handleSandboxInfo,
+		"sandbox/list":                                                 handler.handleSandboxList,
+		"memory/forget":                                                handler.handleMemoryForget,
+		"memory/recall":                                                handler.handleMemoryRecall,
+		"memory/store":                                                 handler.handleMemoryStore,
+		"observe/events":                                               handler.handleObserveEvents,
+		"observe/health":                                               handler.handleObserveHealth,
+		string(extensioncontract.HostAPIMethodAgentsSoulGet):           handler.handleAgentsSoulGet,
+		string(extensioncontract.HostAPIMethodAgentsSoulValidate):      handler.handleAgentsSoulValidate,
+		string(extensioncontract.HostAPIMethodAgentsSoulPut):           handler.handleAgentsSoulPut,
+		string(extensioncontract.HostAPIMethodAgentsSoulDelete):        handler.handleAgentsSoulDelete,
+		string(extensioncontract.HostAPIMethodAgentsSoulHistory):       handler.handleAgentsSoulHistory,
+		string(extensioncontract.HostAPIMethodAgentsSoulRollback):      handler.handleAgentsSoulRollback,
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatGet):      handler.handleAgentsHeartbeatGet,
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatValidate): handler.handleAgentsHeartbeatValidate,
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatPut):      handler.handleAgentsHeartbeatPut,
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatDelete):   handler.handleAgentsHeartbeatDelete,
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatHistory):  handler.handleAgentsHeartbeatHistory,
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatRollback): handler.handleAgentsHeartbeatRollback,
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatStatus):   handler.handleAgentsHeartbeatStatus,
+		string(extensioncontract.HostAPIMethodAgentsHeartbeatWake):     handler.handleAgentsHeartbeatWake,
+		"sessions/create":                                              handler.handleSessionsCreate,
+		"sessions/events":                                              handler.handleSessionsEvents,
+		string(extensioncontract.HostAPIMethodSessionsSoulRefresh):     handler.handleSessionsSoulRefresh,
+		string(extensioncontract.HostAPIMethodSessionsHealthGet):       handler.handleSessionsHealthGet,
+		"sessions/list":                                                handler.handleSessionsList,
+		"sessions/prompt":                                              handler.handleSessionsPrompt,
+		"sessions/status":                                              handler.handleSessionsStatus,
+		string(extensioncontract.HostAPIMethodSessionsStatusGet):       handler.handleSessionsStatusGet,
+		"sessions/stop":                                                handler.handleSessionsStop,
+		"skills/list":                                                  handler.handleSkillsList,
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	memorypkg "github.com/pedronauck/agh/internal/memory"
@@ -46,6 +48,10 @@ type daemonNativeToolsDeps struct {
 	Observer          core.Observer
 	HookBindings      hookBindingPublisher
 	AgentCatalog      core.AgentCatalog
+	HeartbeatStatus   core.HeartbeatStatusService
+	HeartbeatWake     core.HeartbeatWakeService
+	SessionHealth     core.SessionHealthReader
+	WakeEvents        core.HeartbeatWakeEventReader
 	Automation        core.AutomationManager
 	AutomationRuntime func() core.AutomationManager
 	ExtensionRegistry *extensionpkg.Registry
@@ -66,6 +72,8 @@ type nativeToolBinding struct {
 	call         toolspkg.NativeToolFunc
 	availability toolspkg.NativeAvailabilityFunc
 }
+
+const defaultNativeWakeEventLimit = 10
 
 func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, error) {
 	if deps == nil {
@@ -186,6 +194,10 @@ func (d *Daemon) nativeToolsDeps(
 		Observer:          state.observer,
 		HookBindings:      state.hookBindings,
 		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
+		HeartbeatStatus:   state.deps.HeartbeatStatus,
+		HeartbeatWake:     state.deps.HeartbeatWake,
+		SessionHealth:     state.deps.SessionHealth,
+		WakeEvents:        state.deps.WakeEvents,
 		Automation:        state.deps.Automation,
 		AutomationRuntime: func() core.AutomationManager {
 			return state.deps.Automation
@@ -348,6 +360,9 @@ type nativeToolAvailabilitySet struct {
 	skills           toolspkg.NativeAvailabilityFunc
 	network          toolspkg.NativeAvailabilityFunc
 	sessions         toolspkg.NativeAvailabilityFunc
+	sessionHealth    toolspkg.NativeAvailabilityFunc
+	heartbeatStatus  toolspkg.NativeAvailabilityFunc
+	heartbeatWake    toolspkg.NativeAvailabilityFunc
 	workspaces       toolspkg.NativeAvailabilityFunc
 	workspaceDetails toolspkg.NativeAvailabilityFunc
 	tasks            toolspkg.NativeAvailabilityFunc
@@ -369,6 +384,14 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.skillToolBindings(availability.skills))
 	addNativeToolBindings(bindings, n.networkToolBindings(availability.network))
 	addNativeToolBindings(bindings, n.sessionToolBindings(availability.sessions))
+	addNativeToolBindings(
+		bindings,
+		n.authoredContextToolBindings(
+			availability.sessionHealth,
+			availability.heartbeatStatus,
+			availability.heartbeatWake,
+		),
+	)
 	addNativeToolBindings(bindings, n.workspaceToolBindings(availability.workspaces, availability.workspaceDetails))
 	addNativeToolBindings(bindings, n.memoryToolBindings(availability.memory))
 	addNativeToolBindings(bindings, n.observeToolBindings(availability.observe))
@@ -392,6 +415,15 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		skills:   n.dependencyAvailability(func() bool { return n.deps.Skills != nil }),
 		network:  n.dependencyAvailability(func() bool { return n.deps.Network != nil }),
 		sessions: n.dependencyAvailability(func() bool { return n.deps.Sessions != nil }),
+		sessionHealth: n.dependencyAvailability(func() bool {
+			return n.deps.SessionHealth != nil
+		}),
+		heartbeatStatus: n.dependencyAvailability(func() bool {
+			return n.deps.HeartbeatStatus != nil && n.deps.WorkspaceResolver != nil
+		}),
+		heartbeatWake: n.dependencyAvailability(func() bool {
+			return n.deps.HeartbeatWake != nil && n.deps.WorkspaceResolver != nil
+		}),
 		workspaces: n.dependencyAvailability(func() bool {
 			return n.deps.Workspaces != nil
 		}),
@@ -523,6 +555,27 @@ func (n *daemonNativeTools) sessionToolBindings(
 		toolspkg.ToolIDSessionDescribe: {
 			call:         n.sessionDescribe,
 			availability: availability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) authoredContextToolBindings(
+	healthAvailability toolspkg.NativeAvailabilityFunc,
+	statusAvailability toolspkg.NativeAvailabilityFunc,
+	wakeAvailability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDSessionHealth: {
+			call:         n.sessionHealth,
+			availability: healthAvailability,
+		},
+		toolspkg.ToolIDAgentHeartbeatStatus: {
+			call:         n.agentHeartbeatStatus,
+			availability: statusAvailability,
+		},
+		toolspkg.ToolIDAgentHeartbeatWake: {
+			call:         n.agentHeartbeatWake,
+			availability: wakeAvailability,
 		},
 	}
 }
@@ -1079,6 +1132,125 @@ func (n *daemonNativeTools) sessionStatus(
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{"session": payload}, payload.ID)
+}
+
+func (n *daemonNativeTools) sessionHealth(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input sessionIDInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	health, err := n.deps.SessionHealth.GetSessionHealth(ctx, sessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload, err := contract.SessionHealthPayloadFromDomain(health)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := contract.ValidateAuthoredContextRedacted(payload); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(map[string]any{"health": payload}, string(payload.Health))
+}
+
+func (n *daemonNativeTools) agentHeartbeatStatus(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input agentHeartbeatStatusInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	target, err := n.authoredAgentTarget(ctx, req.ToolID, input.WorkspaceID, input.AgentName)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	status, err := n.deps.HeartbeatStatus.Status(ctx, heartbeat.StatusRequest{
+		Target:               target.heartbeatAuthoringTarget(),
+		SessionID:            strings.TrimSpace(input.SessionID),
+		IncludeSessionHealth: input.IncludeSessionHealth,
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload, err := contract.HeartbeatStatusResponseFromResult(&status)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if input.IncludeRecentWakeEvents && n.deps.WakeEvents != nil {
+		events, err := n.deps.WakeEvents.ListHeartbeatWakeEvents(ctx, heartbeat.WakeEventListQuery{
+			WorkspaceID: target.workspaceID,
+			AgentName:   target.agentName,
+			SessionID:   strings.TrimSpace(input.SessionID),
+			Limit:       defaultNativeWakeEventLimit,
+		})
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		payload.WakeEvents = make([]contract.HeartbeatWakeEventPayload, 0, len(events))
+		for _, event := range events {
+			converted, convertErr := contract.HeartbeatWakeEventPayloadFromDomain(event)
+			if convertErr != nil {
+				return toolspkg.ToolResult{}, convertErr
+			}
+			payload.WakeEvents = append(payload.WakeEvents, converted)
+		}
+	}
+	if err := contract.ValidateAuthoredContextRedacted(payload); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(map[string]any{"heartbeat": payload}, string(payload.ValidationStatus))
+}
+
+func (n *daemonNativeTools) agentHeartbeatWake(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input agentHeartbeatWakeInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	target, err := n.authoredAgentTarget(ctx, req.ToolID, input.WorkspaceID, input.AgentName)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	source := heartbeat.WakeSource(strings.TrimSpace(input.Source))
+	if source == "" {
+		source = heartbeat.WakeSourceManual
+	}
+	decision, err := n.deps.HeartbeatWake.Wake(ctx, heartbeat.WakeRequest{
+		WorkspaceID: target.workspaceID,
+		AgentName:   target.agentName,
+		SessionID:   sessionID,
+		Source:      source,
+		DryRun:      input.DryRun,
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload, err := contract.HeartbeatWakeDecisionPayloadFromDomain(decision)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	response := contract.HeartbeatWakeResponse{Decision: payload}
+	if err := contract.ValidateAuthoredContextRedacted(response); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(map[string]any{"wake": response}, string(payload.Result))
 }
 
 func (n *daemonNativeTools) sessionEvents(
@@ -1853,6 +2025,74 @@ func (n *daemonNativeTools) workspaceID(ctx context.Context, ref string) (string
 	return strings.TrimSpace(workspace.ID), nil
 }
 
+type nativeAuthoredAgentTarget struct {
+	workspaceID     string
+	workspaceRoot   string
+	agentName       string
+	agentPath       string
+	heartbeatConfig aghconfig.HeartbeatConfig
+}
+
+func (n *daemonNativeTools) authoredAgentTarget(
+	ctx context.Context,
+	toolID toolspkg.ToolID,
+	workspaceRef string,
+	agentName string,
+) (nativeAuthoredAgentTarget, error) {
+	workspaceID, err := requiredNativeString(toolID, "workspace_id", workspaceRef)
+	if err != nil {
+		return nativeAuthoredAgentTarget{}, err
+	}
+	name, err := requiredNativeString(toolID, "agent_name", agentName)
+	if err != nil {
+		return nativeAuthoredAgentTarget{}, err
+	}
+	if n.deps.WorkspaceResolver == nil {
+		return nativeAuthoredAgentTarget{}, errors.New("daemon: workspace resolver is required")
+	}
+	resolved, err := n.deps.WorkspaceResolver.Resolve(ctx, workspaceID)
+	if err != nil {
+		return nativeAuthoredAgentTarget{}, err
+	}
+	root := strings.TrimSpace(resolved.RootDir)
+	if root == "" {
+		return nativeAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
+	}
+	return nativeAuthoredAgentTarget{
+		workspaceID:     strings.TrimSpace(resolved.ID),
+		workspaceRoot:   root,
+		agentName:       name,
+		agentPath:       nativeAuthoredAgentPath(&resolved, name),
+		heartbeatConfig: resolved.Config.Agents.Heartbeat,
+	}, nil
+}
+
+func (t nativeAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
+	return heartbeat.AuthoringTarget{
+		WorkspaceID:   t.workspaceID,
+		WorkspaceRoot: t.workspaceRoot,
+		AgentName:     t.agentName,
+		AgentPath:     t.agentPath,
+		Config:        t.heartbeatConfig,
+	}
+}
+
+func nativeAuthoredAgentPath(workspace *workspacepkg.ResolvedWorkspace, agentName string) string {
+	name := strings.TrimSpace(agentName)
+	if workspace == nil {
+		return ""
+	}
+	for _, agent := range workspace.Agents {
+		if strings.TrimSpace(agent.Name) == name && strings.TrimSpace(agent.SourcePath) != "" {
+			return strings.TrimSpace(agent.SourcePath)
+		}
+	}
+	if root := strings.TrimSpace(workspace.RootDir); root != "" && name != "" {
+		return filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, name, "AGENT.md")
+	}
+	return ""
+}
+
 func (n *daemonNativeTools) workspaceAgents(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
@@ -1965,6 +2205,22 @@ type sessionEventQueryInput struct {
 	AfterSequence int64  `json:"after_sequence,omitempty"`
 	Limit         int    `json:"limit,omitempty"`
 	Since         string `json:"since,omitempty"`
+}
+
+type agentHeartbeatStatusInput struct {
+	WorkspaceID             string `json:"workspace_id"`
+	AgentName               string `json:"agent_name"`
+	SessionID               string `json:"session_id,omitempty"`
+	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
+	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
+}
+
+type agentHeartbeatWakeInput struct {
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	SessionID   string `json:"session_id"`
+	Source      string `json:"source,omitempty"`
+	DryRun      bool   `json:"dry_run,omitempty"`
 }
 
 func (i sessionEventQueryInput) eventQuery(id toolspkg.ToolID) (store.EventQuery, error) {

@@ -718,8 +718,24 @@ func hookSessionContext(session *Session) hookspkg.SessionContext {
 		Workspace:    ref.Workspace,
 		ACPSessionID: strings.TrimSpace(info.ACPSessionID),
 		State:        string(info.State),
-		CreatedAt:    info.CreatedAt,
-		UpdatedAt:    info.UpdatedAt,
+		SessionSoulContext: hookSessionSoulContext(
+			info.SoulSnapshotID,
+			info.SoulDigest,
+		),
+		CreatedAt: info.CreatedAt,
+		UpdatedAt: info.UpdatedAt,
+	}
+}
+
+func hookSessionSoulContext(snapshotID string, digest string) *hookspkg.SessionSoulContext {
+	trimmedSnapshotID := strings.TrimSpace(snapshotID)
+	trimmedDigest := strings.TrimSpace(digest)
+	if trimmedSnapshotID == "" && trimmedDigest == "" {
+		return nil
+	}
+	return &hookspkg.SessionSoulContext{
+		SoulSnapshotID: trimmedSnapshotID,
+		SoulDigest:     trimmedDigest,
 	}
 }
 

@@ -39,6 +39,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDSessionHistory,
 			toolspkg.ToolIDSessionEvents,
 			toolspkg.ToolIDSessionDescribe,
+			toolspkg.ToolIDSessionHealth,
+			toolspkg.ToolIDAgentHeartbeatStatus,
+			toolspkg.ToolIDAgentHeartbeatWake,
 			toolspkg.ToolIDWorkspaceList,
 			toolspkg.ToolIDWorkspaceInfo,
 			toolspkg.ToolIDWorkspaceDescribe,
@@ -166,6 +169,23 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHistory], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionEvents], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionDescribe], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHealth], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDAgentHeartbeatStatus],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDAgentHeartbeatWake],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceInfo], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDWorkspaceDescribe], toolspkg.RiskRead, true, false, false)
@@ -403,8 +423,21 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Contains(sessions, toolspkg.ToolIDSessionList) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionDescribe) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionHealth) ||
 			slices.Contains(sessions, toolspkg.ToolID("agh__session_stop")) {
 			t.Fatalf("sessions toolset expansion = %#v, want read-only session tools", sessions)
+		}
+
+		authoredContext, err := catalog.Expand(toolspkg.ToolsetIDAuthoredContext, universe)
+		if err != nil {
+			t.Fatalf("Expand(authored_context) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDAgentHeartbeatStatus,
+			toolspkg.ToolIDAgentHeartbeatWake,
+			toolspkg.ToolIDSessionHealth,
+		}; !slices.Equal(authoredContext, want) {
+			t.Fatalf("authored context expansion = %#v, want %#v", authoredContext, want)
 		}
 
 		workspace, err := catalog.Expand(toolspkg.ToolsetIDWorkspace, universe)

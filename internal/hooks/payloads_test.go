@@ -19,6 +19,10 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Workspace:    "/tmp/demo",
 		ACPSessionID: "acp-1",
 		State:        "active",
+		SessionSoulContext: optionalSessionSoulContext(
+			"ss-1",
+			"soul-digest",
+		),
 	}
 	sampleTurn := TurnContext{TurnID: "turn-1"}
 	samplePayloadBase := func(event HookEvent) PayloadBase {
@@ -363,6 +367,85 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	assertJSONRoundTrip(t, "AgentStoppedPatch", AgentStoppedPatch{
 		Labels: map[string]string{"state": "stopped"},
 	})
+
+	authoredProvenance := AuthoredContextProvenance{
+		WorkspaceID:      "ws-1",
+		AgentName:        "coder",
+		SourcePath:       ".agh/agents/coder/SOUL.md",
+		SnapshotID:       "ss-1",
+		Digest:           "soul-digest",
+		ConfigDigest:     "cfg-digest",
+		ValidationStatus: "valid",
+		Valid:            true,
+		Active:           true,
+		Reason:           "resolved",
+	}
+	authoredMutation := AuthoredMutationProvenance{
+		ActorKind:  "extension",
+		ActorRef:   "ext-1",
+		OriginKind: "host_api",
+		OriginRef:  "agents/soul/put",
+	}
+	assertJSONRoundTrip(t, "AgentSoulSnapshotResolvedPayload", AgentSoulSnapshotResolvedPayload{
+		PayloadBase:               samplePayloadBase(HookAgentSoulSnapshotResolved),
+		AuthoredContextProvenance: authoredProvenance,
+	})
+	assertJSONRoundTrip(t, "AgentSoulMutationAfterPayload", AgentSoulMutationAfterPayload{
+		PayloadBase:                samplePayloadBase(HookAgentSoulMutationAfter),
+		AuthoredContextProvenance:  authoredProvenance,
+		AuthoredMutationProvenance: authoredMutation,
+		RevisionID:                 "sr-1",
+		Action:                     "put",
+		PreviousDigest:             "old-digest",
+		NewDigest:                  "soul-digest",
+	})
+	assertJSONRoundTrip(t, "AgentHeartbeatPolicyResolvedPayload", AgentHeartbeatPolicyResolvedPayload{
+		PayloadBase: samplePayloadBase(HookAgentHeartbeatPolicyResolved),
+		AuthoredContextProvenance: AuthoredContextProvenance{
+			WorkspaceID:      "ws-1",
+			AgentName:        "coder",
+			SourcePath:       ".agh/agents/coder/HEARTBEAT.md",
+			SnapshotID:       "hbs-1",
+			Digest:           "hb-digest",
+			ConfigDigest:     "cfg-digest",
+			ValidationStatus: "valid",
+			Valid:            true,
+			Active:           true,
+		},
+		Summary: "check in",
+	})
+	assertJSONRoundTrip(t, "AgentHeartbeatWakeBeforePayload", AgentHeartbeatWakeBeforePayload{
+		PayloadBase:      samplePayloadBase(HookAgentHeartbeatWakeBefore),
+		SessionContext:   sampleSession,
+		PolicySnapshotID: "hbs-1",
+		PolicyDigest:     "hb-digest",
+		ConfigDigest:     "cfg-digest",
+		Source:           "manual",
+		DryRun:           true,
+	})
+	assertJSONRoundTrip(t, "AgentHeartbeatWakeAfterPayload", AgentHeartbeatWakeAfterPayload{
+		PayloadBase:       samplePayloadBase(HookAgentHeartbeatWakeAfter),
+		SessionContext:    sampleSession,
+		WakeEventID:       "hwe-1",
+		Result:            "skipped",
+		Reason:            "quiet_window",
+		PolicySnapshotID:  "hbs-1",
+		PolicyDigest:      "hb-digest",
+		ConfigDigest:      "cfg-digest",
+		SyntheticPromptID: "turn-1",
+		Source:            "manual",
+	})
+	assertJSONRoundTrip(t, "SessionHealthUpdateAfterPayload", SessionHealthUpdateAfterPayload{
+		PayloadBase:         samplePayloadBase(HookSessionHealthUpdateAfter),
+		SessionContext:      sampleSession,
+		Health:              "healthy",
+		Attachable:          true,
+		EligibleForWake:     true,
+		LastActivityAt:      time.Date(2026, time.April, 9, 11, 59, 0, 0, time.UTC),
+		LastPresenceAt:      time.Date(2026, time.April, 9, 12, 0, 0, 0, time.UTC),
+		IneligibilityReason: "",
+	})
+	assertJSONRoundTrip(t, "AuthoredContextObservationPatch", AuthoredContextObservationPatch{})
 
 	assertJSONRoundTrip(t, "TurnStartPayload", TurnStartPayload{
 		PayloadBase:    samplePayloadBase(HookTurnStart),

@@ -78,10 +78,16 @@ const (
 	HookAutomationRunCompleted    HookEvent = "automation.run.completed"
 	HookAutomationRunFailed       HookEvent = "automation.run.failed"
 
-	HookAgentPreStart HookEvent = "agent.pre_start"
-	HookAgentSpawned  HookEvent = "agent.spawned"
-	HookAgentCrashed  HookEvent = "agent.crashed"
-	HookAgentStopped  HookEvent = "agent.stopped"
+	HookAgentPreStart                HookEvent = "agent.pre_start"
+	HookAgentSpawned                 HookEvent = "agent.spawned"
+	HookAgentCrashed                 HookEvent = "agent.crashed"
+	HookAgentStopped                 HookEvent = "agent.stopped"
+	HookAgentSoulSnapshotResolved    HookEvent = "agent.soul.snapshot.resolved"
+	HookAgentSoulMutationAfter       HookEvent = "agent.soul.mutation.after"
+	HookAgentHeartbeatPolicyResolved HookEvent = "agent.heartbeat.policy.resolved"
+	HookAgentHeartbeatWakeBefore     HookEvent = "agent.heartbeat.wake.before"
+	HookAgentHeartbeatWakeAfter      HookEvent = "agent.heartbeat.wake.after"
+	HookSessionHealthUpdateAfter     HookEvent = "session.health.update.after"
 
 	HookTurnStart HookEvent = "turn.start"
 	HookTurnEnd   HookEvent = "turn.end"
@@ -191,6 +197,30 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 	HookAgentSpawned:  {family: HookEventFamilyAgent, syncEligible: true},
 	HookAgentCrashed:  {family: HookEventFamilyAgent, syncEligible: true},
 	HookAgentStopped:  {family: HookEventFamilyAgent, syncEligible: true},
+	HookAgentSoulSnapshotResolved: {
+		family:       HookEventFamilyAgent,
+		syncEligible: false,
+	},
+	HookAgentSoulMutationAfter: {
+		family:       HookEventFamilyAgent,
+		syncEligible: false,
+	},
+	HookAgentHeartbeatPolicyResolved: {
+		family:       HookEventFamilyAgent,
+		syncEligible: false,
+	},
+	HookAgentHeartbeatWakeBefore: {
+		family:       HookEventFamilyAgent,
+		syncEligible: true,
+	},
+	HookAgentHeartbeatWakeAfter: {
+		family:       HookEventFamilyAgent,
+		syncEligible: false,
+	},
+	HookSessionHealthUpdateAfter: {
+		family:       HookEventFamilySession,
+		syncEligible: false,
+	},
 	HookTurnStart:     {family: HookEventFamilyTurn, syncEligible: true},
 	HookTurnEnd:       {family: HookEventFamilyTurn, syncEligible: true},
 	HookMessageStart:  {family: HookEventFamilyMessage, syncEligible: true},
@@ -317,6 +347,12 @@ var allHookEvents = []HookEvent{
 	HookAgentSpawned,
 	HookAgentCrashed,
 	HookAgentStopped,
+	HookAgentSoulSnapshotResolved,
+	HookAgentSoulMutationAfter,
+	HookAgentHeartbeatPolicyResolved,
+	HookAgentHeartbeatWakeBefore,
+	HookAgentHeartbeatWakeAfter,
+	HookSessionHealthUpdateAfter,
 	HookTurnStart,
 	HookTurnEnd,
 	HookMessageStart,

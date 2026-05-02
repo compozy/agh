@@ -2091,6 +2091,7 @@ func (m *Service) dispatchTaskRunLeaseRecovered(
 
 func (m *Service) taskRunHookContext(run Run, taskRecord Task, actor ActorContext) hookspkg.TaskRunContext {
 	coordinationChannelID := taskRunCoordinationChannelID(run)
+	soulSnapshotID, soulDigest := taskRunSoulMetadata(run.Metadata)
 	return hookspkg.TaskRunContext{
 		TaskID:                strings.TrimSpace(run.TaskID),
 		RunID:                 strings.TrimSpace(run.ID),
@@ -2106,10 +2107,28 @@ func (m *Service) taskRunHookContext(run Run, taskRecord Task, actor ActorContex
 		OriginRef:             strings.TrimSpace(actor.Origin.Ref),
 		TaskStatus:            string(taskRecord.Status.Normalize()),
 		RunStatus:             string(run.Status.Normalize()),
+		SoulSnapshotID:        soulSnapshotID,
+		SoulDigest:            soulDigest,
 		Attempt:               run.Attempt,
 		LeaseUntil:            run.LeaseUntil,
 		Error:                 strings.TrimSpace(run.Error),
 	}
+}
+
+func taskRunSoulMetadata(metadata json.RawMessage) (string, string) {
+	if len(metadata) == 0 {
+		return "", ""
+	}
+	var envelope struct {
+		Soul *struct {
+			SnapshotID string `json:"snapshot_id"`
+			Digest     string `json:"digest"`
+		} `json:"soul"`
+	}
+	if err := json.Unmarshal(metadata, &envelope); err != nil || envelope.Soul == nil {
+		return "", ""
+	}
+	return strings.TrimSpace(envelope.Soul.SnapshotID), strings.TrimSpace(envelope.Soul.Digest)
 }
 
 func taskRunCoordinationChannelID(run Run) string {
