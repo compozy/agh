@@ -117,10 +117,7 @@ func newAgentSoulWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			digest, err := changedStringFlag(cmd, "expected-digest", expectedDigest)
-			if err != nil {
-				return err
-			}
+			digest := optionalStringFlag(cmd, "expected-digest", expectedDigest)
 			record, err := client.PutAgentSoul(cmd.Context(), args[0], AgentSoulPutRequest{
 				WorkspaceID:    workspace,
 				AgentName:      args[0],
@@ -364,10 +361,7 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			digest, err := changedStringFlag(cmd, "if-match", expectedDigest)
-			if err != nil {
-				return err
-			}
+			digest := optionalStringFlag(cmd, "if-match", expectedDigest)
 			record, err := client.PutAgentHeartbeat(cmd.Context(), args[0], AgentHeartbeatPutRequest{
 				WorkspaceID:    workspace,
 				AgentName:      args[0],
@@ -753,6 +747,13 @@ func changedStringFlag(cmd *cobra.Command, name string, value string) (string, e
 		return "", fmt.Errorf("cli: --%s is required", name)
 	}
 	return strings.TrimSpace(value), nil
+}
+
+func optionalStringFlag(cmd *cobra.Command, name string, value string) string {
+	if !cmd.Flags().Changed(name) {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
 func changedNonEmptyStringFlag(cmd *cobra.Command, name string, value string) (string, error) {

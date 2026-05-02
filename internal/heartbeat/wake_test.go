@@ -60,6 +60,45 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		assertLastWakeEvent(t, store, WakeResultSent, WakeReasonSent, "hb-latest")
 	})
 
+	t.Run("Should evaluate dry run without prompt or persisted wake identifiers", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		cfg := aghconfig.DefaultHeartbeatConfig()
+		store := newFakeWakeStore(t)
+		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
+		health := newFakeWakeHealth()
+		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
+		prompter := &fakeWakePrompter{}
+		service := newTestWakeService(t, store, health, prompter, cfg, base)
+
+		decision, err := service.Wake(context.Background(), WakeRequest{
+			WorkspaceID: "ws-1",
+			AgentName:   "coder",
+			SessionID:   "sess-1",
+			Source:      WakeSourceManual,
+			DryRun:      true,
+		})
+		if err != nil {
+			t.Fatalf("Wake(dry run) error = %v", err)
+		}
+		if decision.Result != WakeResultSent || decision.Reason != WakeReasonSent {
+			t.Fatalf("Wake(dry run) = %#v, want would-send decision", decision)
+		}
+		if strings.TrimSpace(decision.WakeEventID) != "" || strings.TrimSpace(decision.SyntheticPromptID) != "" {
+			t.Fatalf("Wake(dry run) = %#v, want no non-persisted identifiers", decision)
+		}
+		if got := len(prompter.requestsSnapshot()); got != 0 {
+			t.Fatalf("prompt requests = %d, want 0", got)
+		}
+		if got := len(store.eventsSnapshot()); got != 0 {
+			t.Fatalf("wake events = %d, want 0", got)
+		}
+		if state := store.stateSnapshot("ws-1/coder/sess-1"); state.WorkspaceID != "" {
+			t.Fatalf("wake state = %#v, want no persisted dry-run state", state)
+		}
+	})
+
 	t.Run("Should skip ineligible session health with a closed audit reason", func(t *testing.T) {
 		t.Parallel()
 

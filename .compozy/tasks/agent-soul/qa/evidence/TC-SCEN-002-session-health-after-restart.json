@@ -1,0 +1,15 @@
+{
+  "session_id": "sess-ef05dae653635e1b",
+  "workspace_id": "ws_5af9e9da188869c7",
+  "agent_name": "ops",
+  "state": "stopped",
+  "health": "dead",
+  "active_prompt": false,
+  "attachable": false,
+  "eligible_for_wake": false,
+  "ineligibility_reason": "session_health_dead",
+  "last_presence_at": "2026-05-02T17:02:36.809679Z",
+  "updated_at": "2026-05-02T17:03:02.285418Z"
+}
+
+exit_code=0

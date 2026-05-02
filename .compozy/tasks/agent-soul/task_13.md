@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add Extension Host API, Hooks, Tools, Resources, and SDK Support
 type: backend
 complexity: high
@@ -35,12 +35,12 @@ Integrate Soul, Heartbeat, session health, and wake audit/status with AGH's exte
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Add Host API methods, grants, and permission checks for Soul, Heartbeat, session health, and wake audit.
-- [ ] 13.2 Add hook payloads/events for snapshot resolution, authoring mutation, wake decision, and session health changes as specified.
-- [ ] 13.3 Add or update built-in tools/resources for read/status and approved managed mutation operations.
-- [ ] 13.4 Update TypeScript SDK host API helpers and generated contract usage.
-- [ ] 13.5 Add extension, hook, tool/resource, and SDK tests.
-- [ ] 13.6 Verify extensions cannot bypass managed authoring, session health, scheduler, or task claim authorities.
+- [x] 13.1 Add Host API methods, grants, and permission checks for Soul, Heartbeat, session health, and wake audit.
+- [x] 13.2 Add hook payloads/events for snapshot resolution, authoring mutation, wake decision, and session health changes as specified.
+- [x] 13.3 Add or update built-in tools/resources for read/status and approved managed mutation operations.
+- [x] 13.4 Update TypeScript SDK host API helpers and generated contract usage.
+- [x] 13.5 Add extension, hook, tool/resource, and SDK tests.
+- [x] 13.6 Verify extensions cannot bypass managed authoring, session health, scheduler, or task claim authorities.
 
 ## Implementation Details
 
@@ -90,18 +90,27 @@ Use the existing extension protocol and host API patterns. This feature is a goo
 
 ## Tests
 - Unit tests:
-  - [ ] Host API reads return redacted Soul and Heartbeat read models with required grants.
-  - [ ] Host API managed writes require action grants and body-level `expected_digest`.
-  - [ ] Extension attempts to bypass services or write files directly are denied or impossible through exposed API.
-  - [ ] Hook payloads contain stable digest, status, reason, and provenance fields without raw secrets.
-  - [ ] Tools/resources return the same redacted status data as HTTP/UDS routes.
-  - [ ] TypeScript SDK helpers typecheck against generated contracts.
+  - [x] Host API reads return redacted Soul and Heartbeat read models with required grants.
+  - [x] Host API managed writes require action grants and body-level `expected_digest`.
+  - [x] Extension attempts to bypass services or write files directly are denied or impossible through exposed API.
+  - [x] Hook payloads contain stable digest, status, reason, and provenance fields without raw secrets.
+  - [x] Tools/resources return the same redacted status data as HTTP/UDS routes.
+  - [x] TypeScript SDK helpers typecheck against generated contracts.
 - Integration tests:
-  - [ ] A test extension can inspect Soul, Heartbeat, session health, and wake audit through granted Host API methods.
-  - [ ] A test extension without grants receives deterministic denied errors.
-  - [ ] Built-in tools/resources operate through managed services and match route semantics.
+  - [x] A test extension can inspect Soul, Heartbeat, session health, and wake audit through granted Host API methods.
+  - [x] A test extension without grants receives deterministic denied errors.
+  - [x] Built-in tools/resources operate through managed services and match route semantics.
 - Test coverage target: >=80%.
 - All tests must pass.
+
+## Validation Evidence
+
+- `go test ./internal/hooks ./internal/extension/contract ./internal/extension/protocol ./internal/extension ./internal/session ./internal/daemon ./internal/tools/builtin ./sdk/go -count=1`
+- `bun test sdk/typescript/src/host-api.test.ts sdk/typescript/src/authored-context-contracts.test.ts`
+- `bun run --cwd sdk/typescript typecheck`
+- `make codegen-check`
+- `make lint`
+- `make verify` (passed; Bun lint/typecheck/test/build, Go fmt/lint/test/build, package boundaries; 7706 Go tests)
 
 ## References
 - `_techspec.md` - SD-011 extensibility matrix and shared surface requirements.

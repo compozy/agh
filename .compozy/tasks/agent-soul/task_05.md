@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add Heartbeat Config and Policy Resolver Foundation
 type: backend
 complexity: high
@@ -32,12 +32,12 @@ Create the backend foundation for optional `HEARTBEAT.md` wake-policy files. Thi
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Add `[agents.heartbeat]` config structs, defaults, validation, and config tests.
-- [ ] 5.2 Implement `HEARTBEAT.md` parser and strict allowed-field validation.
-- [ ] 5.3 Implement policy resolution for prompt contribution, active-hours preferences, and config-bound cadence hints.
-- [ ] 5.4 Add deterministic digest and redacted diagnostics.
-- [ ] 5.5 Add tests for invalid authority claims, config bounds, missing files, and oversized content.
-- [ ] 5.6 Confirm no session health, scheduler wake, task lease, or network greet behavior changes in this task.
+- [x] 5.1 Add `[agents.heartbeat]` config structs, defaults, validation, and config tests.
+- [x] 5.2 Implement `HEARTBEAT.md` parser and strict allowed-field validation.
+- [x] 5.3 Implement policy resolution for prompt contribution, active-hours preferences, and config-bound cadence hints.
+- [x] 5.4 Add deterministic digest and redacted diagnostics.
+- [x] 5.5 Add tests for invalid authority claims, config bounds, missing files, and oversized content.
+- [x] 5.6 Confirm no session health, scheduler wake, task lease, or network greet behavior changes in this task.
 
 ## Implementation Details
 
@@ -80,14 +80,14 @@ Keep the policy resolver isolated so later tasks can use the same resolved repre
 
 ## Tests
 - Unit tests:
-  - [ ] Valid `HEARTBEAT.md` resolves to a deterministic policy and digest.
-  - [ ] Active-hours and cadence preferences are clamped or rejected according to config bounds.
-  - [ ] Attempts to declare queues, leases, liveness, `ClaimNextRun`, or network presence fail closed.
-  - [ ] Missing optional `HEARTBEAT.md` resolves according to enabled/default config.
-  - [ ] Oversized content and unsupported frontmatter produce redacted diagnostics.
+  - [x] Valid `HEARTBEAT.md` resolves to a deterministic policy and digest.
+  - [x] Active-hours and cadence preferences are clamped or rejected according to config bounds.
+  - [x] Attempts to declare queues, leases, liveness, `ClaimNextRun`, or network presence fail closed.
+  - [x] Missing optional `HEARTBEAT.md` resolves according to enabled/default config.
+  - [x] Oversized content and unsupported frontmatter produce redacted diagnostics.
 - Integration tests:
-  - [ ] Agent fixture loading can resolve heartbeat policy without mutating scheduler, sessions, task runs, or network state.
-  - [ ] Config overlays produce deterministic effective policy digests.
+  - [x] Agent fixture loading can resolve heartbeat policy without mutating scheduler, sessions, task runs, or network state.
+  - [x] Config overlays produce deterministic effective policy digests.
 - Test coverage target: >=80%.
 - All tests must pass.
 

@@ -1,0 +1,3 @@
+TC-REG-001 cross-feature evidence
+valid_heartbeat_after_invalid_soul=true
+valid_soul_after_invalid_heartbeat=true

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement Managed Soul Authoring Service
 type: backend
 complexity: high
@@ -34,12 +34,12 @@ Implement the internal service that validates and mutates `SOUL.md` through mana
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Define the authoring service interface and request/response models used by later transports.
-- [ ] 3.2 Implement validate, write, delete, history, and rollback operations.
-- [ ] 3.3 Add atomic file writes and managed-path safety checks.
-- [ ] 3.4 Persist revision rows and resolve new snapshot state after successful mutations.
-- [ ] 3.5 Add exhaustive service tests for success, conflicts, invalid content, rollback, and delete.
-- [ ] 3.6 Confirm service calls do not refresh active sessions or alter task-run ownership.
+- [x] 3.1 Define the authoring service interface and request/response models used by later transports.
+- [x] 3.2 Implement validate, write, delete, history, and rollback operations.
+- [x] 3.3 Add atomic file writes and managed-path safety checks.
+- [x] 3.4 Persist revision rows and resolve new snapshot state after successful mutations.
+- [x] 3.5 Add exhaustive service tests for success, conflicts, invalid content, rollback, and delete.
+- [x] 3.6 Confirm service calls do not refresh active sessions or alter task-run ownership.
 
 ## Implementation Details
 
@@ -82,15 +82,15 @@ Keep the authoring service transport-agnostic. Later tasks should adapt CLI, HTT
 
 ## Tests
 - Unit tests:
-  - [ ] Valid write creates/updates `SOUL.md`, appends a revision, and returns the new digest.
-  - [ ] Invalid content fails closed and does not modify the file or append a success revision.
-  - [ ] Stale `expected_digest` fails with a deterministic conflict error.
-  - [ ] Delete appends a revision and removes only the managed file.
-  - [ ] Rollback restores the selected revision through the same validation path.
-  - [ ] Path traversal, symlink, and unsupported agent paths are rejected.
+  - [x] Valid write creates/updates `SOUL.md`, appends a revision, and returns the new digest.
+  - [x] Invalid content fails closed and does not modify the file or append a success revision.
+  - [x] Stale `expected_digest` fails with a deterministic conflict error.
+  - [x] Delete appends a revision and removes only the managed file.
+  - [x] Rollback restores the selected revision through the same validation path.
+  - [x] Path traversal, symlink, and unsupported agent paths are rejected.
 - Integration tests:
-  - [ ] Authoring service persists revision history in the global DB and survives reopen.
-  - [ ] Repeated writes preserve digest ordering and do not refresh an active session implicitly.
+  - [x] Authoring service persists revision history in the global DB and survives reopen.
+  - [x] Repeated writes preserve digest ordering and do not refresh an active session implicitly.
 - Test coverage target: >=80%.
 - All tests must pass.
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add Agent-Operable CLI Commands
 type: backend
 complexity: high
@@ -34,12 +34,12 @@ Add CLI commands that let agents and operators inspect and manage Soul, Heartbea
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Add CLI command tree for `agh agent soul` and `agh session soul refresh`.
-- [ ] 12.2 Add CLI command tree for `agh agent heartbeat`.
-- [ ] 12.3 Add CLI commands for `agh session health`, `agh session status`, and `agh session inspect`.
-- [ ] 12.4 Wire commands through existing clients to UDS/API routes without duplicating service logic.
-- [ ] 12.5 Add CLI tests for JSON/human output, workspace scoping, errors, and CAS conflicts.
-- [ ] 12.6 Regenerate CLI docs metadata if required by the existing CLI doc pipeline.
+- [x] 12.1 Add CLI command tree for `agh agent soul` and `agh session soul refresh`.
+- [x] 12.2 Add CLI command tree for `agh agent heartbeat`.
+- [x] 12.3 Add CLI commands for `agh session health`, `agh session status`, and `agh session inspect`.
+- [x] 12.4 Wire commands through existing clients to UDS/API routes without duplicating service logic.
+- [x] 12.5 Add CLI tests for JSON/human output, workspace scoping, errors, and CAS conflicts.
+- [x] 12.6 Regenerate CLI docs metadata if required by the existing CLI doc pipeline.
 
 ## Implementation Details
 
@@ -83,16 +83,16 @@ Preserve existing CLI conventions for command construction, client access, `--js
 
 ## Tests
 - Unit tests:
-  - [ ] `agh agent soul inspect --json` returns contract-shaped redacted data.
-  - [ ] `agh agent soul write` sends `expected_digest` and reports stale conflicts deterministically.
-  - [ ] `agh agent heartbeat status --json` includes policy, config digest, wake status, and session health where applicable.
-  - [ ] `agh session health --json` and `agh session inspect --json` use closed state/reason values.
-  - [ ] No `agh session heartbeat` command exists in command help or docs metadata.
-  - [ ] `--workspace` scopes every command consistently.
+  - [x] `agh agent soul inspect --json` returns contract-shaped redacted data.
+  - [x] `agh agent soul write` sends `expected_digest` and reports stale conflicts deterministically.
+  - [x] `agh agent heartbeat status --json` includes policy, config digest, wake status, and session health where applicable.
+  - [x] `agh session health --json` and `agh session inspect --json` use closed state/reason values.
+  - [x] No `agh session heartbeat` command exists in command help or docs metadata.
+  - [x] `--workspace` scopes every command consistently.
 - Integration tests:
-  - [ ] CLI commands work against an isolated daemon through UDS.
-  - [ ] Human and JSON outputs are redacted and stable for automation.
-  - [ ] CLI routes return the same semantic errors as HTTP/UDS tests from task_11.
+  - [x] CLI commands work against an isolated daemon through UDS.
+  - [x] Human and JSON outputs are redacted and stable for automation.
+  - [x] CLI routes return the same semantic errors as HTTP/UDS tests from task_11.
 - Test coverage target: >=80%.
 - All tests must pass.
 

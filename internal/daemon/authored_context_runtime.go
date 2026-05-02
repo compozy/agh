@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -29,6 +30,10 @@ type apiHeartbeatWakePrompter struct {
 	ctx      context.Context
 	sessions SessionManager
 	logger   *slog.Logger
+}
+
+type heartbeatWakeHealthReader struct {
+	reader heartbeat.SessionHealthReader
 }
 
 func authoredContextRuntimeDeps(ctx context.Context, state *bootState, sessions SessionManager) authoredContextDeps {
@@ -128,7 +133,7 @@ func heartbeatWakeServiceDependency(
 	}
 	service, err := heartbeat.NewManagedWakeService(
 		wakeStore,
-		healthReader,
+		heartbeatWakeHealthReader{reader: healthReader},
 		&apiHeartbeatWakePrompter{ctx: authoredContextLifecycle(ctx), sessions: sessions, logger: logger},
 		config,
 	)
@@ -152,6 +157,23 @@ func sessionHealthReaderDependency(sessions SessionManager) core.SessionHealthRe
 		return nil
 	}
 	return reader
+}
+
+func (r heartbeatWakeHealthReader) GetSessionHealth(
+	ctx context.Context,
+	sessionID string,
+) (heartbeat.SessionHealth, error) {
+	if r.reader == nil {
+		return heartbeat.SessionHealth{}, heartbeat.ErrSessionHealthNotFound
+	}
+	health, err := r.reader.GetSessionHealth(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, session.ErrSessionNotFound) {
+			return heartbeat.SessionHealth{}, fmt.Errorf("%w: %s", heartbeat.ErrSessionHealthNotFound, sessionID)
+		}
+		return heartbeat.SessionHealth{}, err
+	}
+	return health, nil
 }
 
 func heartbeatWakeEventReaderDependency(store any) core.HeartbeatWakeEventReader {

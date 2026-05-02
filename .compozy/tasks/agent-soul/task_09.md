@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement Heartbeat Wake Service and Scheduler Integration
 type: backend
 complexity: critical
@@ -36,12 +36,12 @@ Implement the runtime service that uses valid `HEARTBEAT.md` policy and session 
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Define wake decision inputs, outputs, reason enum, and audit event shape.
-- [ ] 9.2 Implement wake eligibility evaluation using latest policy, session health, config, and wake state.
-- [ ] 9.3 Integrate with the existing scheduler and synthetic prompt entrypoints.
-- [ ] 9.4 Handle prompt-gate races, active prompts, coalescing, cooldowns, and active-hours boundaries.
-- [ ] 9.5 Record wake state and audit events for every decision.
-- [ ] 9.6 Add concurrency, scheduler, prompt, and no-claim-token tests.
+- [x] 9.1 Define wake decision inputs, outputs, reason enum, and audit event shape.
+- [x] 9.2 Implement wake eligibility evaluation using latest policy, session health, config, and wake state.
+- [x] 9.3 Integrate with the existing scheduler and synthetic prompt entrypoints.
+- [x] 9.4 Handle prompt-gate races, active prompts, coalescing, cooldowns, and active-hours boundaries.
+- [x] 9.5 Record wake state and audit events for every decision.
+- [x] 9.6 Add concurrency, scheduler, prompt, and no-claim-token tests.
 
 ## Implementation Details
 
@@ -90,18 +90,24 @@ The wake service should operate as a policy consumer. It may ask an existing eli
 
 ## Tests
 - Unit tests:
-  - [ ] Wake decision uses the latest valid policy snapshot at decision time.
-  - [ ] Invalid, disabled, stale, detached, active, or ineligible sessions are skipped with closed reasons.
-  - [ ] Cooldown, coalescing, active-hours, and max-wake rules produce deterministic results.
-  - [ ] Prompt-gate race between eligibility check and prompt dispatch is handled without duplicate wakes.
-  - [ ] Wake prompt text contains no claim token, task lease token, or queue semantics.
-  - [ ] Every decision writes the correct audit event and updates wake state only when appropriate.
+  - [x] Wake decision uses the latest valid policy snapshot at decision time.
+  - [x] Invalid, disabled, stale, detached, active, or ineligible sessions are skipped with closed reasons.
+  - [x] Cooldown, coalescing, active-hours, and max-wake rules produce deterministic results.
+  - [x] Prompt-gate race between eligibility check and prompt dispatch is handled without duplicate wakes.
+  - [x] Wake prompt text contains no claim token, task lease token, or queue semantics.
+  - [x] Every decision writes the correct audit event and updates wake state only when appropriate.
 - Integration tests:
-  - [ ] Scheduler tick can wake an eligible idle session through the synthetic prompt path.
-  - [ ] Manual/harness reentry uses the same service and audit path.
-  - [ ] Task-run lease heartbeat and `ClaimNextRun` behavior remain unchanged while wake policy runs.
+  - [x] Scheduler tick can wake an eligible idle session through the synthetic prompt path.
+  - [x] Manual/harness reentry uses the same service and audit path.
+  - [x] Task-run lease heartbeat and `ClaimNextRun` behavior remain unchanged while wake policy runs.
 - Test coverage target: >=80%.
 - All tests must pass.
+
+## Completion Evidence
+- `go test ./internal/heartbeat -cover -count=1` passed with 80.3% statement coverage.
+- `go test -race ./internal/heartbeat ./internal/session ./internal/daemon ./internal/scheduler -run 'TestManagedWakeServiceDecision|TestManagedWakeServiceClosedSkipsAndValidation|TestPromptSyntheticHeartbeatWakeOptions|TestSchedulerHeartbeatWakeIntegration|TestHarnessHeartbeatWakeIntegration|TestRunOnceDispatchesSelectedTargetsAsBatch|TestRunOnce' -count=1` passed.
+- `make verify` passed before marking the task complete.
+- Self-review search found no new Heartbeat task-run creation, claim-token handling, lease renewal, session creation, or AGH Network greet integration.
 
 ## References
 - `_techspec_heartbeat.md` - wake service and scheduler integration requirements.

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -16,6 +17,20 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
+
+func TestHeartbeatWakeHealthReader(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should translate missing sessions into heartbeat wake decisions", func(t *testing.T) {
+		t.Parallel()
+
+		reader := heartbeatWakeHealthReader{reader: sessionMissingHealthReader{}}
+		_, err := reader.GetSessionHealth(testutil.Context(t), "sess-missing")
+		if !errors.Is(err, heartbeat.ErrSessionHealthNotFound) {
+			t.Fatalf("GetSessionHealth() error = %v, want ErrSessionHealthNotFound", err)
+		}
+	})
+}
 
 func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 	t.Parallel()
@@ -236,6 +251,15 @@ func (f *fakeSessionManager) GetSessionHealth(
 		return heartbeat.SessionHealth{}, fmt.Errorf("fake: session health: %w", heartbeat.ErrSessionHealthNotFound)
 	}
 	return health, nil
+}
+
+type sessionMissingHealthReader struct{}
+
+func (sessionMissingHealthReader) GetSessionHealth(
+	context.Context,
+	string,
+) (heartbeat.SessionHealth, error) {
+	return heartbeat.SessionHealth{}, fmt.Errorf("fake: %w", session.ErrSessionNotFound)
 }
 
 func seedDaemonHeartbeatWakePolicy(

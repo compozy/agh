@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Persist Soul Snapshots and Authoring Revisions
 type: backend
 complexity: high
@@ -33,12 +33,12 @@ Add durable storage for resolved Soul snapshots and managed authoring history. T
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Add the Soul schema migration and register it in the global DB migration registry.
-- [ ] 2.2 Add store methods for inserting, reading, and listing soul snapshots.
-- [ ] 2.3 Add store methods for append-only authoring revisions and rollback lookup.
-- [ ] 2.4 Add constraints, indexes, and retention behavior required by the TechSpec.
-- [ ] 2.5 Add fresh-DB, reopen, failed-migration, and constraint tests.
-- [ ] 2.6 Confirm Heartbeat migration numbering remains reserved for task_06 and does not conflict.
+- [x] 2.1 Add the Soul schema migration and register it in the global DB migration registry.
+- [x] 2.2 Add store methods for inserting, reading, and listing soul snapshots.
+- [x] 2.3 Add store methods for append-only authoring revisions and rollback lookup.
+- [x] 2.4 Add constraints, indexes, and retention behavior required by the TechSpec.
+- [x] 2.5 Add fresh-DB, reopen, failed-migration, and constraint tests.
+- [x] 2.6 Confirm Heartbeat migration numbering remains reserved for task_06 and does not conflict.
 
 ## Implementation Details
 
@@ -81,14 +81,14 @@ Follow the existing SQLite migration conventions and keep schema ownership insid
 
 ## Tests
 - Unit tests:
-  - [ ] Migration creates all Soul tables, constraints, and indexes on a fresh DB.
-  - [ ] Reopening an initialized DB does not reapply migrations or lose rows.
-  - [ ] Store rejects duplicate or malformed snapshot/revision records according to constraints.
-  - [ ] Revision history is append-only and rollback lookup returns the intended prior version.
-  - [ ] Redacted diagnostics and config provenance persist without leaking raw prompt-only data.
+  - [x] Migration creates all Soul tables, constraints, and indexes on a fresh DB.
+  - [x] Reopening an initialized DB does not reapply migrations or lose rows.
+  - [x] Store rejects duplicate or malformed snapshot/revision records according to constraints.
+  - [x] Revision history is append-only and rollback lookup returns the intended prior version.
+  - [x] Redacted diagnostics and config provenance persist without leaking raw prompt-only data.
 - Integration tests:
-  - [ ] Resolver output from task_01 can be persisted and read back with the same digest.
-  - [ ] Failed migration leaves schema state consistent and returns a wrapped error.
+  - [x] Resolver output from task_01 can be persisted and read back with the same digest.
+  - [x] Failed migration leaves schema state consistent and returns a wrapped error.
 - Test coverage target: >=80%.
 - All tests must pass.
 

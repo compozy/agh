@@ -1,0 +1,353 @@
+Search: web unsupported authored-context UI controls
+web/src/generated/compozy-openapi.d.ts:650:      type: "snapshot" | "event" | "heartbeat" | "overflow";
+web/src/hooks/routes/use-network-page.ts:434:        ? "Presence episodes are hidden from the default timeline. Use the Presence toggle to inspect channel heartbeat history."
+web/src/systems/network/index.ts:91:  getPeerHeartbeatLabel,
+web/src/systems/network/lib/network-formatters.ts:493:export function getPeerHeartbeatLabel(peer: Pick<NetworkPeerDetail, "last_seen">): string {
+web/src/systems/network/lib/network-formatters.ts:495:    return "Last heartbeat unavailable";
+web/src/systems/network/lib/network-formatters.ts:499:  return relative === "Unavailable" ? "Last heartbeat unavailable" : `Last heartbeat: ${relative}`;
+web/src/generated/agh-openapi.d.ts:126:  "/api/agent/soul": {
+web/src/generated/agh-openapi.d.ts:133:    /** Inspect the resolved Soul read model for the calling agent */
+web/src/generated/agh-openapi.d.ts:134:    get: operations["getAgentSoul"];
+web/src/generated/agh-openapi.d.ts:143:  "/api/agent/soul/validate": {
+web/src/generated/agh-openapi.d.ts:152:    /** Validate a proposed Soul body or the calling agent's current Soul */
+web/src/generated/agh-openapi.d.ts:153:    post: operations["validateAgentSoul"];
+web/src/generated/agh-openapi.d.ts:228:  "/api/agent/tasks/{run_id}/heartbeat": {
+web/src/generated/agh-openapi.d.ts:238:    post: operations["heartbeatAgentTaskRun"];
+web/src/generated/agh-openapi.d.ts:279:  "/api/agents/{agent_name}/heartbeat": {
+web/src/generated/agh-openapi.d.ts:286:    /** Inspect the resolved Heartbeat policy for an agent definition */
+web/src/generated/agh-openapi.d.ts:287:    get: operations["getAgentHeartbeat"];
+web/src/generated/agh-openapi.d.ts:288:    /** Create or replace HEARTBEAT.md through managed authoring */
+web/src/generated/agh-openapi.d.ts:289:    put: operations["putAgentHeartbeat"];
+web/src/generated/agh-openapi.d.ts:291:    /** Delete HEARTBEAT.md through managed authoring */
+web/src/generated/agh-openapi.d.ts:292:    delete: operations["deleteAgentHeartbeat"];
+web/src/generated/agh-openapi.d.ts:298:  "/api/agents/{agent_name}/heartbeat/history": {
+web/src/generated/agh-openapi.d.ts:305:    /** List managed HEARTBEAT.md authoring revisions */
+web/src/generated/agh-openapi.d.ts:306:    get: operations["listAgentHeartbeatHistory"];
+web/src/generated/agh-openapi.d.ts:315:  "/api/agents/{agent_name}/heartbeat/rollback": {
+web/src/generated/agh-openapi.d.ts:324:    /** Rollback HEARTBEAT.md through managed authoring */
+web/src/generated/agh-openapi.d.ts:325:    post: operations["rollbackAgentHeartbeat"];
+web/src/generated/agh-openapi.d.ts:332:  "/api/agents/{agent_name}/heartbeat/status": {
+web/src/generated/agh-openapi.d.ts:339:    /** Read Heartbeat policy status, wake state, and optional session health */
+web/src/generated/agh-openapi.d.ts:340:    get: operations["getAgentHeartbeatStatus"];
+web/src/generated/agh-openapi.d.ts:349:  "/api/agents/{agent_name}/heartbeat/validate": {
+web/src/generated/agh-openapi.d.ts:358:    /** Validate a proposed HEARTBEAT.md body */
+web/src/generated/agh-openapi.d.ts:359:    post: operations["validateAgentHeartbeat"];
+web/src/generated/agh-openapi.d.ts:366:  "/api/agents/{agent_name}/heartbeat/wake": {
+web/src/generated/agh-openapi.d.ts:375:    /** Request one advisory Heartbeat wake for an eligible session */
+web/src/generated/agh-openapi.d.ts:376:    post: operations["wakeAgentHeartbeat"];
+web/src/generated/agh-openapi.d.ts:383:  "/api/agents/{agent_name}/soul": {
+web/src/generated/agh-openapi.d.ts:390:    /** Inspect the resolved Soul read model for an agent definition */
+web/src/generated/agh-openapi.d.ts:391:    get: operations["getAgentDefinitionSoul"];
+web/src/generated/agh-openapi.d.ts:392:    /** Create or replace SOUL.md through managed authoring */
+web/src/generated/agh-openapi.d.ts:393:    put: operations["putAgentSoul"];
+web/src/generated/agh-openapi.d.ts:395:    /** Delete SOUL.md through managed authoring */
+web/src/generated/agh-openapi.d.ts:396:    delete: operations["deleteAgentSoul"];
+web/src/generated/agh-openapi.d.ts:402:  "/api/agents/{agent_name}/soul/history": {
+web/src/generated/agh-openapi.d.ts:409:    /** List managed SOUL.md authoring revisions */
+web/src/generated/agh-openapi.d.ts:410:    get: operations["listAgentSoulHistory"];
+web/src/generated/agh-openapi.d.ts:419:  "/api/agents/{agent_name}/soul/rollback": {
+web/src/generated/agh-openapi.d.ts:428:    /** Rollback SOUL.md through managed authoring */
+web/src/generated/agh-openapi.d.ts:429:    post: operations["rollbackAgentSoul"];
+web/src/generated/agh-openapi.d.ts:436:  "/api/agents/{agent_name}/soul/validate": {
+web/src/generated/agh-openapi.d.ts:445:    /** Validate a proposed Soul body for an agent definition */
+web/src/generated/agh-openapi.d.ts:446:    post: operations["validateAgentDefinitionSoul"];
+web/src/generated/agh-openapi.d.ts:1497:    /** Read metadata-only session health and wake eligibility */
+web/src/generated/agh-openapi.d.ts:1514:    /** Inspect session health, wake audit, and policy correlation metadata */
+web/src/generated/agh-openapi.d.ts:1524:  "/api/sessions/{session_id}/soul/refresh": {
+web/src/generated/agh-openapi.d.ts:1533:    /** Refresh an idle session's Soul snapshot through body-level CAS */
+web/src/generated/agh-openapi.d.ts:1534:    post: operations["refreshSessionSoul"];
+web/src/generated/agh-openapi.d.ts:1548:    /** Read compact session status and wake eligibility */
+web/src/generated/agh-openapi.d.ts:3324:              soul: {
+web/src/generated/agh-openapi.d.ts:3382:                  heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:3507:        /** @description Include metadata-only session health when available */
+web/src/generated/agh-openapi.d.ts:3655:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:3830:  getAgentSoul: {
+web/src/generated/agh-openapi.d.ts:3936:      /** @description Soul is invalid */
+web/src/generated/agh-openapi.d.ts:3966:  validateAgentSoul: {
+web/src/generated/agh-openapi.d.ts:4081:      /** @description Soul validation failed */
+web/src/generated/agh-openapi.d.ts:4277:                  eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:4523:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:4581:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:4797:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:4964:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:5068:  heartbeatAgentTaskRun: {
+web/src/generated/agh-openapi.d.ts:5131:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:5194:      /** @description Invalid heartbeat request */
+web/src/generated/agh-openapi.d.ts:5297:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:5477:  getAgentHeartbeat: {
+web/src/generated/agh-openapi.d.ts:5513:                max_wakes_per_cycle: number;
+web/src/generated/agh-openapi.d.ts:5517:                wake_cooldown: string;
+web/src/generated/agh-openapi.d.ts:5518:                wake_event_retention: string;
+web/src/generated/agh-openapi.d.ts:5660:      /** @description Heartbeat policy is invalid */
+web/src/generated/agh-openapi.d.ts:5681:                max_wakes_per_cycle: number;
+web/src/generated/agh-openapi.d.ts:5685:                wake_cooldown: string;
+web/src/generated/agh-openapi.d.ts:5686:                wake_event_retention: string;
+web/src/generated/agh-openapi.d.ts:5825:  putAgentHeartbeat: {
+web/src/generated/agh-openapi.d.ts:5855:            heartbeat: {
+web/src/generated/agh-openapi.d.ts:5870:                  max_wakes_per_cycle: number;
+web/src/generated/agh-openapi.d.ts:5874:                  wake_cooldown: string;
+web/src/generated/agh-openapi.d.ts:5875:                  wake_event_retention: string;
+web/src/generated/agh-openapi.d.ts:6035:      /** @description Heartbeat authoring conflict */
+web/src/generated/agh-openapi.d.ts:6046:      /** @description Heartbeat validation failed */
+web/src/generated/agh-openapi.d.ts:6067:                max_wakes_per_cycle: number;
+web/src/generated/agh-openapi.d.ts:6071:                wake_cooldown: string;
+web/src/generated/agh-openapi.d.ts:6072:                wake_event_retention: string;
+web/src/generated/agh-openapi.d.ts:6211:  deleteAgentHeartbeat: {
+web/src/generated/agh-openapi.d.ts:6239:            heartbeat: {
+web/src/generated/agh-openapi.d.ts:6254:                  max_wakes_per_cycle: number;
+web/src/generated/agh-openapi.d.ts:6258:                  wake_cooldown: string;
+web/src/generated/agh-openapi.d.ts:6259:                  wake_event_retention: string;
+web/src/generated/agh-openapi.d.ts:6419:      /** @description Heartbeat authoring conflict */
+web/src/generated/agh-openapi.d.ts:6430:      /** @description Invalid Heartbeat delete request */
+web/src/generated/agh-openapi.d.ts:6460:  listAgentHeartbeatHistory: {
+web/src/generated/agh-openapi.d.ts:6529:      /** @description Invalid Heartbeat history request */
+web/src/generated/agh-openapi.d.ts:6559:  rollbackAgentHeartbeat: {
+web/src/generated/agh-openapi.d.ts:6590:            heartbeat: {
+web/src/generated/agh-openapi.d.ts:6605:                  max_wakes_per_cycle: number;
+web/src/generated/agh-openapi.d.ts:6609:                  wake_cooldown: string;
+web/src/generated/agh-openapi.d.ts:6610:                  wake_event_retention: string;
+web/src/generated/agh-openapi.d.ts:6770:      /** @description Heartbeat authoring conflict */
+web/src/generated/agh-openapi.d.ts:6781:      /** @description Heartbeat validation failed */
+web/src/generated/agh-openapi.d.ts:6802:                max_wakes_per_cycle: number;
+web/src/generated/agh-openapi.d.ts:6806:                wake_cooldown: string;
+web/src/generated/agh-openapi.d.ts:6807:                wake_event_retention: string;
+web/src/generated/agh-openapi.d.ts:6946:  getAgentHeartbeatStatus: {
+web/src/generated/agh-openapi.d.ts:6951:        /** @description Session id for wake state and health */
+web/src/generated/agh-openapi.d.ts:6953:        /** @description Include session health when a session id is supplied */
+web/src/generated/agh-openapi.d.ts:6955:        /** @description Include recent wake audit rows */
+web/src/generated/agh-openapi.d.ts:6956:        include_recent_wake_events?: boolean;
+web/src/generated/agh-openapi.d.ts:7013:              eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:7043:            wake_events?: {
+web/src/generated/agh-openapi.d.ts:7053:                | "wake_sent"
+web/src/generated/agh-openapi.d.ts:7054:                | "heartbeat_disabled"
+web/src/generated/agh-openapi.d.ts:7055:                | "heartbeat_invalid"
+web/src/generated/agh-openapi.d.ts:7056:                | "heartbeat_no_policy"
+web/src/generated/agh-openapi.d.ts:7057:                | "heartbeat_rate_limited"
+web/src/generated/agh-openapi.d.ts:7058:                | "heartbeat_no_eligible_session"
+web/src/generated/agh-openapi.d.ts:7067:                | "wake_coalesced";
+web/src/generated/agh-openapi.d.ts:7076:            wake_state?: {
+web/src/generated/agh-openapi.d.ts:7081:                | "wake_sent"
+web/src/generated/agh-openapi.d.ts:7082:                | "heartbeat_disabled"
+web/src/generated/agh-openapi.d.ts:7083:                | "heartbeat_invalid"
+web/src/generated/agh-openapi.d.ts:7084:                | "heartbeat_no_policy"
+web/src/generated/agh-openapi.d.ts:7085:                | "heartbeat_rate_limited"
+web/src/generated/agh-openapi.d.ts:7086:                | "heartbeat_no_eligible_session"
+web/src/generated/agh-openapi.d.ts:7095:                | "wake_coalesced";
+web/src/generated/agh-openapi.d.ts:7099:              last_wake_at?: string | null;
+web/src/generated/agh-openapi.d.ts:7133:      /** @description Heartbeat status request is invalid */
+web/src/generated/agh-openapi.d.ts:7163:  validateAgentHeartbeat: {
+web/src/generated/agh-openapi.d.ts:7205:                max_wakes_per_cycle: number;
+web/src/generated/agh-openapi.d.ts:7209:                wake_cooldown: string;
+web/src/generated/agh-openapi.d.ts:7210:                wake_event_retention: string;
+web/src/generated/agh-openapi.d.ts:7352:      /** @description Heartbeat validation failed */
+web/src/generated/agh-openapi.d.ts:7373:                max_wakes_per_cycle: number;
+web/src/generated/agh-openapi.d.ts:7377:                wake_cooldown: string;
+web/src/generated/agh-openapi.d.ts:7378:                wake_event_retention: string;
+web/src/generated/agh-openapi.d.ts:7517:  wakeAgentHeartbeat: {
+web/src/generated/agh-openapi.d.ts:7567:                | "wake_sent"
+web/src/generated/agh-openapi.d.ts:7568:                | "heartbeat_disabled"
+web/src/generated/agh-openapi.d.ts:7569:                | "heartbeat_invalid"
+web/src/generated/agh-openapi.d.ts:7570:                | "heartbeat_no_policy"
+web/src/generated/agh-openapi.d.ts:7571:                | "heartbeat_rate_limited"
+web/src/generated/agh-openapi.d.ts:7572:                | "heartbeat_no_eligible_session"
+web/src/generated/agh-openapi.d.ts:7581:                | "wake_coalesced";
+web/src/generated/agh-openapi.d.ts:7585:              wake_event_id?: string;
+web/src/generated/agh-openapi.d.ts:7612:      /** @description Wake skipped or coalesced by policy and health gates */
+web/src/generated/agh-openapi.d.ts:7637:                | "wake_sent"
+web/src/generated/agh-openapi.d.ts:7638:                | "heartbeat_disabled"
+web/src/generated/agh-openapi.d.ts:7639:                | "heartbeat_invalid"
+web/src/generated/agh-openapi.d.ts:7640:                | "heartbeat_no_policy"
+web/src/generated/agh-openapi.d.ts:7641:                | "heartbeat_rate_limited"
+web/src/generated/agh-openapi.d.ts:7642:                | "heartbeat_no_eligible_session"
+web/src/generated/agh-openapi.d.ts:7651:                | "wake_coalesced";
+web/src/generated/agh-openapi.d.ts:7655:              wake_event_id?: string;
+web/src/generated/agh-openapi.d.ts:7660:      /** @description Invalid Heartbeat wake request */
+web/src/generated/agh-openapi.d.ts:7690:  getAgentDefinitionSoul: {
+web/src/generated/agh-openapi.d.ts:7791:      /** @description Soul is invalid */
+web/src/generated/agh-openapi.d.ts:7821:  putAgentSoul: {
+web/src/generated/agh-openapi.d.ts:7882:            soul: {
+web/src/generated/agh-openapi.d.ts:7963:      /** @description Soul authoring conflict */
+web/src/generated/agh-openapi.d.ts:7974:      /** @description Soul validation failed */
+web/src/generated/agh-openapi.d.ts:8057:  deleteAgentSoul: {
+web/src/generated/agh-openapi.d.ts:8116:            soul: {
+web/src/generated/agh-openapi.d.ts:8186:      /** @description Agent, workspace, or Soul file not found */
+web/src/generated/agh-openapi.d.ts:8197:      /** @description Soul authoring conflict */
+web/src/generated/agh-openapi.d.ts:8208:      /** @description Invalid Soul delete request */
+web/src/generated/agh-openapi.d.ts:8238:  listAgentSoulHistory: {
+web/src/generated/agh-openapi.d.ts:8321:      /** @description Invalid Soul history request */
+web/src/generated/agh-openapi.d.ts:8351:  rollbackAgentSoul: {
+web/src/generated/agh-openapi.d.ts:8412:            soul: {
+web/src/generated/agh-openapi.d.ts:8493:      /** @description Soul authoring conflict */
+web/src/generated/agh-openapi.d.ts:8504:      /** @description Soul validation failed */
+web/src/generated/agh-openapi.d.ts:8587:  validateAgentDefinitionSoul: {
+web/src/generated/agh-openapi.d.ts:8694:      /** @description Soul validation failed */
+web/src/generated/agh-openapi.d.ts:12797:          | "agent.soul.snapshot.resolved"
+web/src/generated/agh-openapi.d.ts:12798:          | "agent.soul.mutation.after"
+web/src/generated/agh-openapi.d.ts:12799:          | "agent.heartbeat.policy.resolved"
+web/src/generated/agh-openapi.d.ts:12800:          | "agent.heartbeat.wake.before"
+web/src/generated/agh-openapi.d.ts:12801:          | "agent.heartbeat.wake.after"
+web/src/generated/agh-openapi.d.ts:13050:          | "agent.soul.snapshot.resolved"
+web/src/generated/agh-openapi.d.ts:13051:          | "agent.soul.mutation.after"
+web/src/generated/agh-openapi.d.ts:13052:          | "agent.heartbeat.policy.resolved"
+web/src/generated/agh-openapi.d.ts:13053:          | "agent.heartbeat.wake.before"
+web/src/generated/agh-openapi.d.ts:13054:          | "agent.heartbeat.wake.after"
+web/src/generated/agh-openapi.d.ts:13850:                  eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:14096:                  eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:15590:                    heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:16307:        /** @description Include metadata-only session health when available */
+web/src/generated/agh-openapi.d.ts:16363:                eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:16545:                eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:16684:        /** @description Include metadata-only session health when available */
+web/src/generated/agh-openapi.d.ts:16743:                eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:17344:                eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:18244:              eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:18315:        /** @description Include recent wake audit rows */
+web/src/generated/agh-openapi.d.ts:18316:        include_recent_wake_events?: boolean;
+web/src/generated/agh-openapi.d.ts:18351:              eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:18377:            wake_events?: {
+web/src/generated/agh-openapi.d.ts:18387:                | "wake_sent"
+web/src/generated/agh-openapi.d.ts:18388:                | "heartbeat_disabled"
+web/src/generated/agh-openapi.d.ts:18389:                | "heartbeat_invalid"
+web/src/generated/agh-openapi.d.ts:18390:                | "heartbeat_no_policy"
+web/src/generated/agh-openapi.d.ts:18391:                | "heartbeat_rate_limited"
+web/src/generated/agh-openapi.d.ts:18392:                | "heartbeat_no_eligible_session"
+web/src/generated/agh-openapi.d.ts:18401:                | "wake_coalesced";
+web/src/generated/agh-openapi.d.ts:18410:            wake_state?: {
+web/src/generated/agh-openapi.d.ts:18415:                | "wake_sent"
+web/src/generated/agh-openapi.d.ts:18416:                | "heartbeat_disabled"
+web/src/generated/agh-openapi.d.ts:18417:                | "heartbeat_invalid"
+web/src/generated/agh-openapi.d.ts:18418:                | "heartbeat_no_policy"
+web/src/generated/agh-openapi.d.ts:18419:                | "heartbeat_rate_limited"
+web/src/generated/agh-openapi.d.ts:18420:                | "heartbeat_no_eligible_session"
+web/src/generated/agh-openapi.d.ts:18429:                | "wake_coalesced";
+web/src/generated/agh-openapi.d.ts:18433:              last_wake_at?: string | null;
+web/src/generated/agh-openapi.d.ts:18486:  refreshSessionSoul: {
+web/src/generated/agh-openapi.d.ts:18592:      /** @description Session is not idle or Soul digest is stale */
+web/src/generated/agh-openapi.d.ts:18603:      /** @description Soul validation failed */
+web/src/generated/agh-openapi.d.ts:18708:            eligible_for_wake: boolean;
+web/src/generated/agh-openapi.d.ts:18725:            wake_state?: {
+web/src/generated/agh-openapi.d.ts:18730:                | "wake_sent"
+web/src/generated/agh-openapi.d.ts:18731:                | "heartbeat_disabled"
+web/src/generated/agh-openapi.d.ts:18732:                | "heartbeat_invalid"
+web/src/generated/agh-openapi.d.ts:18733:                | "heartbeat_no_policy"
+web/src/generated/agh-openapi.d.ts:18734:                | "heartbeat_rate_limited"
+web/src/generated/agh-openapi.d.ts:18735:                | "heartbeat_no_eligible_session"
+web/src/generated/agh-openapi.d.ts:18744:                | "wake_coalesced";
+web/src/generated/agh-openapi.d.ts:18748:              last_wake_at?: string | null;
+web/src/generated/agh-openapi.d.ts:19393:                  | "agent.soul.snapshot.resolved"
+web/src/generated/agh-openapi.d.ts:19394:                  | "agent.soul.mutation.after"
+web/src/generated/agh-openapi.d.ts:19395:                  | "agent.heartbeat.policy.resolved"
+web/src/generated/agh-openapi.d.ts:19396:                  | "agent.heartbeat.wake.before"
+web/src/generated/agh-openapi.d.ts:19397:                  | "agent.heartbeat.wake.after"
+web/src/generated/agh-openapi.d.ts:19611:                  | "agent.soul.snapshot.resolved"
+web/src/generated/agh-openapi.d.ts:19612:                  | "agent.soul.mutation.after"
+web/src/generated/agh-openapi.d.ts:19613:                  | "agent.heartbeat.policy.resolved"
+web/src/generated/agh-openapi.d.ts:19614:                  | "agent.heartbeat.wake.before"
+web/src/generated/agh-openapi.d.ts:19615:                  | "agent.heartbeat.wake.after"
+web/src/generated/agh-openapi.d.ts:19953:              | "agent.soul.snapshot.resolved"
+web/src/generated/agh-openapi.d.ts:19954:              | "agent.soul.mutation.after"
+web/src/generated/agh-openapi.d.ts:19955:              | "agent.heartbeat.policy.resolved"
+web/src/generated/agh-openapi.d.ts:19956:              | "agent.heartbeat.wake.before"
+web/src/generated/agh-openapi.d.ts:19957:              | "agent.heartbeat.wake.after"
+web/src/generated/agh-openapi.d.ts:22840:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:23063:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:23236:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:23408:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:23580:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:23753:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:23925:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:24127:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:24569:                  heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:24825:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:24906:                  heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:25486:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:26093:                  heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:26349:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:26430:                  heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:26767:                  heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:27023:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:27104:                  heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:27435:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:27843:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:28006:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:28180:              heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:28451:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:28659:                heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:28834:                  heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:28935:                  heartbeat_at?: string | null;
+web/src/generated/agh-openapi.d.ts:33029:                eligible_for_wake: boolean;
+web/src/systems/network/components/network-workspace-shell.tsx:337:                {message.presence_count} heartbeats
+web/src/lib/agent-authored-context-contract.test.ts:6:  it("keeps Soul contracts aligned with generated OpenAPI types", () => {
+web/src/lib/agent-authored-context-contract.test.ts:7:    type SoulPut = OperationRequestBody<"putAgentSoul">;
+web/src/lib/agent-authored-context-contract.test.ts:8:    type SoulPayload = OperationResponse<"getAgentSoul", 200>;
+web/src/lib/agent-authored-context-contract.test.ts:11:    expectTypeOf<SoulPut>().toMatchTypeOf<{
+web/src/lib/agent-authored-context-contract.test.ts:18:    expectTypeOf<SoulPayload["validation_status"]>().toEqualTypeOf<
+web/src/lib/agent-authored-context-contract.test.ts:21:    expectTypeOf<SoulPayload>().toMatchTypeOf<{
+web/src/lib/agent-authored-context-contract.test.ts:27:    expectTypeOf<AgentContext["soul"]>().toMatchTypeOf<{
+web/src/lib/agent-authored-context-contract.test.ts:28:      validation_status?: SoulPayload["validation_status"];
+web/src/lib/agent-authored-context-contract.test.ts:49:      eligible_for_wake: boolean;
+web/src/lib/agent-authored-context-contract.test.ts:53:  it("keeps Heartbeat health and wake contracts aligned with generated OpenAPI types", () => {
+web/src/lib/agent-authored-context-contract.test.ts:54:    type HeartbeatPut = OperationRequestBody<"putAgentHeartbeat">;
+web/src/lib/agent-authored-context-contract.test.ts:55:    type HeartbeatStatus = OperationResponse<"getAgentHeartbeatStatus", 200>;
+web/src/lib/agent-authored-context-contract.test.ts:57:    type WakeDecision = OperationResponse<"wakeAgentHeartbeat", 200>["decision"];
+web/src/lib/agent-authored-context-contract.test.ts:59:    expectTypeOf<HeartbeatPut>().toMatchTypeOf<{
+web/src/lib/agent-authored-context-contract.test.ts:72:    expectTypeOf<WakeDecision["result"]>().toEqualTypeOf<
+web/src/lib/agent-authored-context-contract.test.ts:75:    expectTypeOf<WakeDecision["reason"]>().toEqualTypeOf<
+web/src/lib/agent-authored-context-contract.test.ts:76:      | "wake_sent"
+web/src/lib/agent-authored-context-contract.test.ts:77:      | "heartbeat_disabled"
+web/src/lib/agent-authored-context-contract.test.ts:78:      | "heartbeat_invalid"
+web/src/lib/agent-authored-context-contract.test.ts:79:      | "heartbeat_no_policy"
+web/src/lib/agent-authored-context-contract.test.ts:80:      | "heartbeat_rate_limited"
+web/src/lib/agent-authored-context-contract.test.ts:81:      | "heartbeat_no_eligible_session"
+web/src/lib/agent-authored-context-contract.test.ts:90:      | "wake_coalesced"
+web/src/lib/agent-authored-context-contract.test.ts:92:    expectTypeOf<HeartbeatStatus["wake_state"]>().toMatchTypeOf<
+web/src/lib/agent-authored-context-contract.test.ts:94:          last_result: WakeDecision["result"];
+web/src/lib/agent-authored-context-contract.test.ts:95:          last_reason?: WakeDecision["reason"];
+web/src/lib/daemon-api-contract.test.ts:43:      "snapshot" | "event" | "heartbeat" | "overflow"
+web/src/lib/agent-authored-context-no-ui.test.ts:8:  /\b(?:Soul|Heartbeat|SessionHealth|HeartbeatStatus|HeartbeatWake)(?:Editor|Form|Composer|Settings|Panel|Inspector|Workbench|Builder)\b/;
+web/src/lib/agent-authored-context-no-ui.test.ts:11:  /(?:soul|heartbeat|session-health)-(?:editor|form|composer|settings|panel|inspector|workbench|builder)\.(?:tsx|ts)$/i;
+web/src/lib/agent-authored-context-no-ui.test.ts:42:  it("does not introduce Soul/Heartbeat editor or fake status control components", () => {
+web/src/systems/tasks/components/tasks-detail-runs-panel.tsx:108:                          title="Coordination channel is bound to this run. Channel messages support coordination only — claim, heartbeat, and terminal status stay in the task service."
+web/src/systems/tasks/components/tasks-detail-overview-panel.tsx:95:                  title="Coordination channel is bound to the active run. Channel messages support coordination only — claim, heartbeat, and terminal status stay in the task service."
+
+Search: generated types present
+134:    get: operations["getAgentSoul"];
+153:    post: operations["validateAgentSoul"];
+286:    /** Inspect the resolved Heartbeat policy for an agent definition */
+287:    get: operations["getAgentHeartbeat"];
+289:    put: operations["putAgentHeartbeat"];
+292:    delete: operations["deleteAgentHeartbeat"];
+306:    get: operations["listAgentHeartbeatHistory"];
+325:    post: operations["rollbackAgentHeartbeat"];
+339:    /** Read Heartbeat policy status, wake state, and optional session health */
+340:    get: operations["getAgentHeartbeatStatus"];
+359:    post: operations["validateAgentHeartbeat"];
+375:    /** Request one advisory Heartbeat wake for an eligible session */
+376:    post: operations["wakeAgentHeartbeat"];
+393:    put: operations["putAgentSoul"];
+396:    delete: operations["deleteAgentSoul"];
+410:    get: operations["listAgentSoulHistory"];
+429:    post: operations["rollbackAgentSoul"];
+3830:  getAgentSoul: {
+3966:  validateAgentSoul: {
+5477:  getAgentHeartbeat: {
+5660:      /** @description Heartbeat policy is invalid */
+5825:  putAgentHeartbeat: {
+6035:      /** @description Heartbeat authoring conflict */
+6046:      /** @description Heartbeat validation failed */
+6211:  deleteAgentHeartbeat: {
+6419:      /** @description Heartbeat authoring conflict */
+6430:      /** @description Invalid Heartbeat delete request */
+6460:  listAgentHeartbeatHistory: {
+6529:      /** @description Invalid Heartbeat history request */
+6559:  rollbackAgentHeartbeat: {
+6770:      /** @description Heartbeat authoring conflict */
+6781:      /** @description Heartbeat validation failed */
+6946:  getAgentHeartbeatStatus: {
+7133:      /** @description Heartbeat status request is invalid */
+7163:  validateAgentHeartbeat: {
+7352:      /** @description Heartbeat validation failed */
+7517:  wakeAgentHeartbeat: {
+7660:      /** @description Invalid Heartbeat wake request */
+7821:  putAgentSoul: {
+8057:  deleteAgentSoul: {

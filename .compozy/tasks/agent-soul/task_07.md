@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement Metadata-Only Session Health
 type: backend
 complexity: critical
@@ -33,12 +33,12 @@ Implement the runtime primitive for normal session health and presence. This tas
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Define session health state and reason enums with closed values.
-- [ ] 7.2 Integrate active prompt activity updates with existing session supervision.
-- [ ] 7.3 Add idle presence/health updates for attachable normal sessions.
-- [ ] 7.4 Add restart recovery and stale/hung/detached detection.
-- [ ] 7.5 Add internal read models consumed by routes, scheduler, Host API, and tools later.
-- [ ] 7.6 Add unit and integration tests proving metadata-only behavior and wake eligibility.
+- [x] 7.1 Define session health state and reason enums with closed values.
+- [x] 7.2 Integrate active prompt activity updates with existing session supervision.
+- [x] 7.3 Add idle presence/health updates for attachable normal sessions.
+- [x] 7.4 Add restart recovery and stale/hung/detached detection.
+- [x] 7.5 Add internal read models consumed by routes, scheduler, Host API, and tools later.
+- [x] 7.6 Add unit and integration tests proving metadata-only behavior and wake eligibility.
 
 ## Implementation Details
 
@@ -84,15 +84,15 @@ This task should reinforce or add the `session.health` primitive that Heartbeat 
 
 ## Tests
 - Unit tests:
-  - [ ] Active prompt transitions update activity without renewing task leases.
-  - [ ] Idle attached sessions update presence/health without model calls.
-  - [ ] Detached, stale, hung, dead, and ineligible states produce deterministic reasons.
-  - [ ] Restart recovery marks stale rows or recomputes health according to the TechSpec.
-  - [ ] Health updates do not emit heavy ACP prompt events or network greet messages.
+  - [x] Active prompt transitions update activity without renewing task leases.
+  - [x] Idle attached sessions update presence/health without model calls.
+  - [x] Detached, stale, hung, dead, and ineligible states produce deterministic reasons.
+  - [x] Restart recovery marks stale rows or recomputes health according to the TechSpec.
+  - [x] Health updates do not emit heavy ACP prompt events or network greet messages.
 - Integration tests:
-  - [ ] A normal session can move idle -> active -> idle with persisted health evidence.
-  - [ ] Scheduler-facing eligibility reads return false for busy, stale, detached, or dead sessions.
-  - [ ] Task-run lease heartbeat remains unchanged during normal session health updates.
+  - [x] A normal session can move idle -> active -> idle with persisted health evidence.
+  - [x] Scheduler-facing eligibility reads return false for busy, stale, detached, or dead sessions.
+  - [x] Task-run lease heartbeat remains unchanged during normal session health updates.
 - Test coverage target: >=80%.
 - All tests must pass.
 

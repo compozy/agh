@@ -1,0 +1,59 @@
+{
+  "commands": {
+    "build": [
+      "make build",
+      "make web-build",
+      "bun run build",
+      "go build ./..."
+    ],
+    "install": [
+      "make deps",
+      "bun install --frozen-lockfile",
+      "go mod download"
+    ],
+    "lint": [
+      "make lint",
+      "make web-lint",
+      "make fmt",
+      "bun run lint",
+      "bun run typecheck",
+      "bun run format:check"
+    ],
+    "start": [
+      "make web-dev",
+      "bun run dev"
+    ],
+    "test": [
+      "make test",
+      "make web-test",
+      "make test-e2e-runtime",
+      "make test-e2e-web",
+      "bun run test",
+      "bun run test:e2e",
+      "go test ./..."
+    ],
+    "verify": [
+      "make verify"
+    ]
+  },
+  "notes": [
+    "Prefer repository-defined umbrella commands over ecosystem defaults.",
+    "Treat every discovered command as a candidate until repository instructions or CI confirm ownership."
+  ],
+  "root": "/Users/pedronauck/Dev/compozy/agh",
+  "signals": [
+    "Makefile",
+    "package.json",
+    "go.mod",
+    ".github/workflows"
+  ],
+  "web_ui": {
+    "detected": true,
+    "entry_points": [
+      "web/index.html",
+      "web/src/main.tsx"
+    ],
+    "framework_config": "web/vite.config.ts",
+    "has_start_command": true
+  }
+}

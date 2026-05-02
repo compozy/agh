@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement Managed Heartbeat Authoring and Status Services
 type: backend
 complexity: high
@@ -36,12 +36,12 @@ Implement the internal services for managed `HEARTBEAT.md` validation, mutation,
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Define Heartbeat authoring and status service interfaces and DTO-adjacent models.
-- [ ] 8.2 Implement validate, write, delete, history, and rollback with atomic file operations.
-- [ ] 8.3 Implement inspect/status reads combining policy, diagnostics, config provenance, wake state, and session health.
-- [ ] 8.4 Persist revisions and latest valid snapshots through task_06 storage.
-- [ ] 8.5 Add service tests for all mutation, status, and failure paths.
-- [ ] 8.6 Confirm authoring does not schedule wakes, prompt sessions, create tasks, or renew leases.
+- [x] 8.1 Define Heartbeat authoring and status service interfaces and DTO-adjacent models.
+- [x] 8.2 Implement validate, write, delete, history, and rollback with atomic file operations.
+- [x] 8.3 Implement inspect/status reads combining policy, diagnostics, config provenance, wake state, and session health.
+- [x] 8.4 Persist revisions and latest valid snapshots through task_06 storage.
+- [x] 8.5 Add service tests for all mutation, status, and failure paths.
+- [x] 8.6 Confirm authoring does not schedule wakes, prompt sessions, create tasks, or renew leases.
 
 ## Implementation Details
 
@@ -88,15 +88,15 @@ Keep the service boundary transport-neutral so HTTP, UDS, CLI, Host API, tools, 
 
 ## Tests
 - Unit tests:
-  - [ ] Valid write creates/updates `HEARTBEAT.md`, appends a revision, and returns the new digest.
-  - [ ] Invalid policy fails closed without file mutation or successful revision rows.
-  - [ ] Stale `expected_digest` returns a deterministic conflict.
-  - [ ] Delete and rollback use the same validation and revision paths as write.
-  - [ ] Status reports policy digest, config digest, diagnostics, wake state, and session health without leaking raw data.
-  - [ ] Authoring does not enqueue wake events or update session health.
+  - [x] Valid write creates/updates `HEARTBEAT.md`, appends a revision, and returns the new digest.
+  - [x] Invalid policy fails closed without file mutation or successful revision rows.
+  - [x] Stale `expected_digest` returns a deterministic conflict.
+  - [x] Delete and rollback use the same validation and revision paths as write.
+  - [x] Status reports policy digest, config digest, diagnostics, wake state, and session health without leaking raw data.
+  - [x] Authoring does not enqueue wake events or update session health.
 - Integration tests:
-  - [ ] Heartbeat authoring persists and reloads revisions across DB reopen.
-  - [ ] Status composition handles missing policy, invalid policy, stale session health, and disabled config states.
+  - [x] Heartbeat authoring persists and reloads revisions across DB reopen.
+  - [x] Status composition handles missing policy, invalid policy, stale session health, and disabled config states.
 - Test coverage target: >=80%.
 - All tests must pass.
 

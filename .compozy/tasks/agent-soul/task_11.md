@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Expose HTTP and UDS Routes Through Shared Core Handlers
 type: backend
 complexity: high
@@ -33,12 +33,12 @@ Expose Soul, Heartbeat, session health, and wake status through HTTP and UDS by 
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Add shared core handlers that adapt Soul services to contract DTOs.
-- [ ] 11.2 Add shared core handlers that adapt Heartbeat, wake status, and session health services to contract DTOs.
-- [ ] 11.3 Register HTTP routes and route metadata.
-- [ ] 11.4 Register UDS routes with parity to HTTP.
-- [ ] 11.5 Add handler, route, and transport parity tests.
-- [ ] 11.6 Verify generated OpenAPI still matches implemented HTTP routes.
+- [x] 11.1 Add shared core handlers that adapt Soul services to contract DTOs.
+- [x] 11.2 Add shared core handlers that adapt Heartbeat, wake status, and session health services to contract DTOs.
+- [x] 11.3 Register HTTP routes and route metadata.
+- [x] 11.4 Register UDS routes with parity to HTTP.
+- [x] 11.5 Add handler, route, and transport parity tests.
+- [x] 11.6 Verify generated OpenAPI still matches implemented HTTP routes.
 
 ## Implementation Details
 
@@ -85,17 +85,23 @@ Business behavior should stay in the Soul, Heartbeat, and session services. Core
 
 ## Tests
 - Unit tests:
-  - [ ] Core handlers map valid service responses to contract DTOs.
-  - [ ] Core handlers map validation, conflict, not-found, disabled, and ineligible errors deterministically.
-  - [ ] Redaction tests prove forbidden raw content is absent.
-  - [ ] Session health handlers return closed state and reason values.
+  - [x] Core handlers map valid service responses to contract DTOs.
+  - [x] Core handlers map validation, conflict, not-found, disabled, and ineligible errors deterministically.
+  - [x] Redaction tests prove forbidden raw content is absent.
+  - [x] Session health handlers return closed state and reason values.
 - Integration tests:
-  - [ ] HTTP and UDS routes return equivalent payloads for the same Soul read/status request.
-  - [ ] HTTP and UDS routes return equivalent errors for stale `expected_digest`.
-  - [ ] `GET /agent/context` or equivalent route includes compact Soul projection when expected.
-  - [ ] OpenAPI route definitions match implemented HTTP routes.
+  - [x] HTTP and UDS routes return equivalent payloads for the same Soul read/status request.
+  - [x] HTTP and UDS routes return equivalent errors for stale `expected_digest`.
+  - [x] `GET /agent/context` or equivalent route includes compact Soul projection when expected.
+  - [x] OpenAPI route definitions match implemented HTTP routes.
 - Test coverage target: >=80%.
 - All tests must pass.
+
+## Completion Evidence
+- Shared authored-context route behavior lives in `internal/api/core` and is bound by thin HTTP/UDS route registrations.
+- HTTP/UDS parity is covered from `internal/daemon`, the composition root allowed to exercise both transports.
+- Verification passed with `go test ./internal/api/core ./internal/api/httpapi ./internal/api/udsapi ./internal/daemon ./internal/session -count=1`.
+- Verification passed with `make verify`, including codegen/OpenAPI drift checks and package-boundary checks.
 
 ## References
 - `_techspec.md` - route parity and shared core boundary.

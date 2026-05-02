@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Persist Heartbeat Snapshots, Revisions, Session Health, and Wake Audit
 type: backend
 complexity: critical
@@ -35,12 +35,12 @@ Add durable storage for Heartbeat policy snapshots, authoring revisions, metadat
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Add the Heartbeat migration and register it after Soul storage migrations.
-- [ ] 6.2 Add store methods for Heartbeat snapshots and authoring revisions.
-- [ ] 6.3 Add store methods for `session_health` upserts, reads, stale marking, and restart recovery inputs.
-- [ ] 6.4 Add store methods for wake state and wake event audit rows with retention.
-- [ ] 6.5 Add migration, store, constraint, retention, and no-queue tests.
-- [ ] 6.6 Verify storage does not touch task-run lease heartbeat, scheduler claim state, or network greet rows.
+- [x] 6.1 Add the Heartbeat migration and register it after Soul storage migrations.
+- [x] 6.2 Add store methods for Heartbeat snapshots and authoring revisions.
+- [x] 6.3 Add store methods for `session_health` upserts, reads, stale marking, and restart recovery inputs.
+- [x] 6.4 Add store methods for wake state and wake event audit rows with retention.
+- [x] 6.5 Add migration, store, constraint, retention, and no-queue tests.
+- [x] 6.6 Verify storage does not touch task-run lease heartbeat, scheduler claim state, or network greet rows.
 
 ## Implementation Details
 
@@ -83,15 +83,15 @@ Use side tables for queryable runtime state and provenance. Arbitrary metadata J
 
 ## Tests
 - Unit tests:
-  - [ ] Fresh DB migration creates every Heartbeat and session health table with expected indexes.
-  - [ ] Reopen preserves Heartbeat snapshots, revisions, session health, wake state, and wake events.
-  - [ ] Wake reason enum accepts only closed values from the TechSpec.
-  - [ ] Retention deletes or compacts only eligible wake audit rows.
-  - [ ] Session health rows can be marked stale without deleting authored policy snapshots.
-  - [ ] Schema has no queue ownership, claim token, or task-run lease columns for Heartbeat wake policy.
+  - [x] Fresh DB migration creates every Heartbeat and session health table with expected indexes.
+  - [x] Reopen preserves Heartbeat snapshots, revisions, session health, wake state, and wake events.
+  - [x] Wake reason enum accepts only closed values from the TechSpec.
+  - [x] Retention deletes or compacts only eligible wake audit rows.
+  - [x] Session health rows can be marked stale without deleting authored policy snapshots.
+  - [x] Schema has no queue ownership, claim token, or task-run lease columns for Heartbeat wake policy.
 - Integration tests:
-  - [ ] Resolved Heartbeat policy from task_05 persists and reads back with the same digest and config provenance.
-  - [ ] Failed migration returns a wrapped error and does not mark migration success.
+  - [x] Resolved Heartbeat policy from task_05 persists and reads back with the same digest and config provenance.
+  - [x] Failed migration returns a wrapped error and does not mark migration success.
 - Test coverage target: >=80%.
 - All tests must pass.
 

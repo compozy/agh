@@ -1,0 +1,17 @@
+{
+  "session_id": "sess-4bdb2421fae24af9",
+  "health": {
+    "session_id": "sess-4bdb2421fae24af9",
+    "workspace_id": "ws_5af9e9da188869c7",
+    "agent_name": "ops",
+    "state": "idle",
+    "health": "healthy",
+    "active_prompt": false,
+    "attachable": true,
+    "eligible_for_wake": true,
+    "last_presence_at": "2026-05-02T17:40:38.303955Z",
+    "updated_at": "2026-05-02T17:40:38.303955Z"
+  },
+  "policy_digest": "sha256:4e1f4705f0b51c9d7ef2c8364e00593970ab752aa750a408d54307b68f95c9f9",
+  "config_digest": "sha256:aa14478e90a69249213146b75b37edf2ff2d27aff3418fea1b0f66143029a68b"
+}

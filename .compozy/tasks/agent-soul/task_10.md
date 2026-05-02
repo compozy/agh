@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add Shared API Contracts and Codegen Surface
 type: backend
 complexity: high
@@ -35,12 +35,12 @@ Define the public contract types for Soul, Heartbeat, session health, wake audit
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Add Go contract DTOs and closed enums for Soul, Heartbeat, session health, and wake audit.
-- [ ] 10.2 Add OpenAPI annotations/spec registration for the new DTOs and payloads.
-- [ ] 10.3 Add redaction and conversion tests for contract payloads.
-- [ ] 10.4 Run codegen and commit generated OpenAPI, web, and SDK type outputs.
-- [ ] 10.5 Add TypeScript contract smoke tests where generated consumers already have coverage.
-- [ ] 10.6 Verify HTTP and UDS can share these DTOs without transport-specific divergence.
+- [x] 10.1 Add Go contract DTOs and closed enums for Soul, Heartbeat, session health, and wake audit.
+- [x] 10.2 Add OpenAPI annotations/spec registration for the new DTOs and payloads.
+- [x] 10.3 Add redaction and conversion tests for contract payloads.
+- [x] 10.4 Run codegen and commit generated OpenAPI, web, and SDK type outputs.
+- [x] 10.5 Add TypeScript contract smoke tests where generated consumers already have coverage.
+- [x] 10.6 Verify HTTP and UDS can share these DTOs without transport-specific divergence.
 
 ## Implementation Details
 
@@ -88,14 +88,14 @@ Keep contract types under the existing `internal/api/contract` and OpenAPI gener
 
 ## Tests
 - Unit tests:
-  - [ ] DTO serialization includes required fields and omits forbidden raw data.
-  - [ ] Closed enums reject or fail conversion for unknown health/wake/diagnostic states.
-  - [ ] CAS mutation payloads require `expected_digest` in request bodies.
-  - [ ] Config provenance and digest fields serialize deterministically.
-  - [ ] OpenAPI schema contains all new request and response types.
+  - [x] DTO serialization includes required fields and omits forbidden raw data.
+  - [x] Closed enums reject or fail conversion for unknown health/wake/diagnostic states.
+  - [x] CAS mutation payloads require `expected_digest` in request bodies.
+  - [x] Config provenance and digest fields serialize deterministically.
+  - [x] OpenAPI schema contains all new request and response types.
 - Integration tests:
-  - [ ] `make codegen-check` passes after generated files are updated.
-  - [ ] Generated TypeScript contracts compile in the workspace typecheck lane.
+  - [x] `make codegen-check` passes after generated files are updated.
+  - [x] Generated TypeScript contracts compile in the workspace typecheck lane.
 - Test coverage target: >=80%.
 - All tests must pass.
 

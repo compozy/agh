@@ -1,0 +1,34 @@
+{
+  "agent_name": "ops",
+  "source_path": ".agh/agents/ops/HEARTBEAT.md",
+  "enabled": true,
+  "present": true,
+  "active": true,
+  "valid": true,
+  "validation_status": "valid",
+  "digest": "sha256:cfacf8eba8a5bd20f0823c2e6d7225c6d676258f69fb9e1008d61b7812d9a0ae",
+  "config_digest": "sha256:aa14478e90a69249213146b75b37edf2ff2d27aff3418fea1b0f66143029a68b",
+  "snapshot_id": "hb-1d71a88698831cc5",
+  "summary": "Inspect launch state before advisory wake.",
+  "preferences": {
+    "min_interval": "30m0s",
+    "context": {
+      "include": [
+        "self",
+        "session_health"
+      ]
+    }
+  },
+  "session_health": {
+    "session_id": "sess-4bdb2421fae24af9",
+    "workspace_id": "ws_5af9e9da188869c7",
+    "agent_name": "ops",
+    "state": "idle",
+    "health": "healthy",
+    "active_prompt": false,
+    "attachable": true,
+    "eligible_for_wake": true,
+    "last_presence_at": "2026-05-02T17:05:47.454106Z",
+    "updated_at": "2026-05-02T17:05:47.454106Z"
+  }
+}

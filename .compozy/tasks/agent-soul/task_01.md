@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add Soul Config and Resolver Foundation
 type: backend
 complexity: high
@@ -32,12 +32,12 @@ Create the backend foundation for optional `SOUL.md` files as authored agent ide
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Add `[agents.soul]` config structs, defaults, validation, merge behavior, and config tests.
-- [ ] 1.2 Implement the `SOUL.md` parser and strict frontmatter validator.
-- [ ] 1.3 Add deterministic digest, normalized profile, compact projection, and full read-model structures.
-- [ ] 1.4 Add closed diagnostic errors with redaction and source-location metadata where available.
-- [ ] 1.5 Add unit tests for valid, invalid, oversized, missing, and authority-conflicting files.
-- [ ] 1.6 Confirm no session, task, heartbeat, or network behavior changes in this task.
+- [x] 1.1 Add `[agents.soul]` config structs, defaults, validation, merge behavior, and config tests.
+- [x] 1.2 Implement the `SOUL.md` parser and strict frontmatter validator.
+- [x] 1.3 Add deterministic digest, normalized profile, compact projection, and full read-model structures.
+- [x] 1.4 Add closed diagnostic errors with redaction and source-location metadata where available.
+- [x] 1.5 Add unit tests for valid, invalid, oversized, missing, and authority-conflicting files.
+- [x] 1.6 Confirm no session, task, heartbeat, or network behavior changes in this task.
 
 ## Implementation Details
 
@@ -82,15 +82,15 @@ Keep the resolver isolated so later tasks can call it from agent load, authoring
 
 ## Tests
 - Unit tests:
-  - [ ] Valid Markdown-only `SOUL.md` resolves to a deterministic profile and digest.
-  - [ ] Valid strict frontmatter plus body resolves with expected allowlisted fields.
-  - [ ] Unsupported authority fields fail closed with redacted diagnostic messages.
-  - [ ] Oversized body/frontmatter inputs fail according to config limits.
-  - [ ] Missing optional `SOUL.md` returns an enabled-but-empty or disabled result exactly as the TechSpec specifies.
-  - [ ] Config overrides update limits and defaults deterministically.
+  - [x] Valid Markdown-only `SOUL.md` resolves to a deterministic profile and digest.
+  - [x] Valid strict frontmatter plus body resolves with expected allowlisted fields.
+  - [x] Unsupported authority fields fail closed with redacted diagnostic messages.
+  - [x] Oversized body/frontmatter inputs fail according to config limits.
+  - [x] Missing optional `SOUL.md` returns an enabled-but-empty or disabled result exactly as the TechSpec specifies.
+  - [x] Config overrides update limits and defaults deterministically.
 - Integration tests:
-  - [ ] Agent fixture loading can call the resolver without mutating sessions, task runs, or network state.
-  - [ ] Diagnostics preserve file path and safe location metadata without leaking disallowed content.
+  - [x] Agent fixture loading can call the resolver without mutating sessions, task runs, or network state.
+  - [x] Diagnostics preserve file path and safe location metadata without leaking disallowed content.
 - Test coverage target: >=80%.
 - All tests must pass.
 

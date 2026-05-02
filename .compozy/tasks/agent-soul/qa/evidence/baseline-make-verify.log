@@ -1,0 +1,1156 @@
+AGH installer
+  release: compozy/agh latest
+  platform: darwin/arm64
+  archive: https://github.com/compozy/agh/releases/latest/download/agh_darwin_arm64.tar.gz
+  target: /Users/pedronauck/.local/bin/agh
+  bootstrap: skipped
+dry run complete
+[0m[2m[35m$[0m [2m[1mbun run format && bunx oxlint[0m
+[0m[2m[35m$[0m [2m[1mbunx oxfmt[0m
+(node:397) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:416) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:407) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:409) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:415) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:410) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:411) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:401) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:406) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:412) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:421) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:400) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:414) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:418) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:405) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:403) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:417) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Finished in 1003ms on 1626 files using 16 threads.
+(node:445) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Found 0 warnings and 0 errors.
+Finished in 190ms on 987 files with 92 rules using 16 threads.
+[0m[2m[35m$[0m [2m[1mturbo run typecheck[0m
+[2m• turbo 2.9.6[0m
+
+   • Packages in scope: @agh/create-extension, @agh/example-prompt-enhancer, @agh/extension-sdk, @agh/site, @agh/ui, agh-web
+   • Running typecheck in 6 packages
+   • Remote caching disabled
+
+[36m@agh/create-extension:typecheck: [0mcache hit, replaying logs [2m9494eddf774e35e4[0m
+[32m@agh/ui:typecheck: [0mcache hit, replaying logs [2md8af50853f5d4128[0m
+[32m@agh/ui:typecheck: [0m[0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+[36m@agh/create-extension:typecheck: [0m[0m[2m[35m$[0m [2m[1mtsc -p tsconfig.json --noEmit[0m
+[35m@agh/extension-sdk:typecheck: [0mcache hit, replaying logs [2m3262beb5b6848125[0m
+[35m@agh/extension-sdk:typecheck: [0m[0m[2m[35m$[0m [2m[1mbun run codegen-check && tsc -p tsconfig.json --noEmit[0m
+[35m@agh/extension-sdk:typecheck: [0m[0m[2m[35m$[0m [2m[1mbun run --cwd ../.. codegen-check[0m
+[35m@agh/extension-sdk:typecheck: [0m[0m[2m[35m$[0m [2m[1mmake codegen-check[0m
+[33m@agh/site:typecheck: [0mcache hit, replaying logs [2m0550a0ded7e425ad[0m
+[33m@agh/site:typecheck: [0m[0m[2m[35m$[0m [2m[1mbun run source:generate && bun run content:generate[0m
+[33m@agh/site:typecheck: [0m[0m[2m[35m$[0m [2m[1mfumadocs-mdx source.config.ts .source[0m
+[33m@agh/site:typecheck: [0m[MDX] generated files in 9.081625000000003ms
+[33m@agh/site:typecheck: [0m[0m[2m[35m$[0m [2m[1mvelite build[0m
+[33m@agh/site:typecheck: [0m[32m[VELITE][0m build finished in 265.45ms
+[33m@agh/site:typecheck: [0m[0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+[34magh-web:typecheck: [0mcache hit, replaying logs [2m500e4a64b34e5121[0m
+[34magh-web:typecheck: [0m[0m[2m[35m$[0m [2m[1mbun run codegen-check && bun run typecheck:raw[0m
+[34magh-web:typecheck: [0m[0m[2m[35m$[0m [2m[1mbun run --cwd .. codegen-check[0m
+[34magh-web:typecheck: [0m[0m[2m[35m$[0m [2m[1mmake codegen-check[0m
+[34magh-web:typecheck: [0m[0m[2m[35m$[0m [2m[1mtsgo --noEmit[0m
+
+[1m Tasks:    [32m[1m5 successful[0m, 5 total[0m
+[1mCached:    [1m5 cached[0m, 5 total[0m
+[1m  Time:    [1m80ms[0m [1m[38;2;18;45;128m>[0m[0;1m[1m[38;2;4;45;162m>[0m[0;1m[1m[38;2;1;45;194m>[0m[0;1m[1m[38;2;6;45;221m [0m[0;1m[1m[38;2;21;45;241mF[0m[0;1m[1m[38;2;44;45;252mU[0m[0;1m[1m[38;2;73;45;254mL[0m[0;1m[1m[38;2;106;45;247mL[0m[0;1m[1m[38;2;141;45;230m [0m[0;1m[1m[38;2;175;45;206mT[0m[0;1m[1m[38;2;205;45;176mU[0m[0;1m[1m[38;2;229;45;142mR[0m[0;1m[1m[38;2;246;45;107mB[0m[0;1m[1m[38;2;254;45;74mO[0m[0;1m[0m[0m
+
+[0m[2m[35m$[0m [2m[1mbun run test[0m
+[0m[2m[35m$[0m [2m[1mbunx vitest run[0m
+(node:475) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v4.1.4 /Users/pedronauck/Dev/compozy/agh
+
+(node:478) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:490) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:484) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:482) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:486) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:488) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:479) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:476) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:492) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:477) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:480) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:489) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:483) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:481) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:485) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:678) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:679) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:682) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:681) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:691) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:694) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:693) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:729) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:730) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:731) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:732) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:733) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:758) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:759) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:760) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:761) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:762) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:763) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:765) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:766) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:767) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:769) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:771) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:772) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:800) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:801) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:802) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:803) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:804) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:806) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:805) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:807) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:808) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:809) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:810) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:811) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:813) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:812) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:837) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:839) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:840) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:843) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:844) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:847) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:848) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:849) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:850) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:854) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:855) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:857) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:858) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:862) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:864) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:893) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:894) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:895) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:929) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:940) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:942) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:943) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:945) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:946) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:947) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:948) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:973) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:974) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:975) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:976) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:977) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:980) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:981) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:982) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:983) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1007) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1008) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1009) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1010) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1037) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1038) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1039) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1040) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1041) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1042) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1043) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1065) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1064) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1066) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1067) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1068) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1069) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1090) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1091) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1092) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1093) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1098) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1099) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1100) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1101) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1102) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1103) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1128) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1129) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1130) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1131) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1132) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1133) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1157) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1159) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1158) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1160) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1161) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1162) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1163) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1164) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1165) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1166) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1187) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1188) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1189) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1190) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1191) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1192) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1213) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1214) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1215) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1216) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1217) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1218) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1219) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1220) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1221) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1222) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1243) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1244) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1245) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1246) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1247) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1249) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1250) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1272) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1274) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1273) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1275) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1276) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1277) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1278) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1285) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1302) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1303) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1304) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1306) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1307) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1308) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1329) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1330) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1332) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1331) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1333) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1334) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1357) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1358) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1360) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1361) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1362) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1363) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1364) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1365) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1386) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1387) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1388) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1389) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1390) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1391) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1392) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1413) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1414) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1415) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1416) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1417) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1418) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1419) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1420) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1421) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1422) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1423) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1424) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1425) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1426) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1447) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1448) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1449) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1453) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1454) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1456) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1458) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1457) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1459) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1460) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1461) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1462) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1463) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1484) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1485) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1486) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1487) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1488) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1489) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1490) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1491) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1492) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1493) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1494) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1495) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1497) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1496) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1498) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1499) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1506) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1521) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1522) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1523) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1524) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1525) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1526) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1527) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1528) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1529) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1531) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1530) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1532) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1533) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1534) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1555) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1556) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1557) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1558) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1559) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1561) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1560) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1562) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1563) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1612) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1606) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1610) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1608) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1611) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1607) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1609) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  266 passed (266)
+      Tests  1886 passed (1886)
+   Start at  13:49:44
+   Duration  25.00s (transform 13.11s, setup 15.25s, import 143.70s, tests 40.49s, environment 132.03s)
+
+[0m[2m[35m$[0m [2m[1mvite build && tsgo --noEmit[0m
+(node:1617) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+vite v8.0.8 building client environment for production...
+[2Ktransforming...[32m✓[39m 4902 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[0m[32mindex.html                                                 [39m[2m[1m  4.07 kB[0m[0m[2m │ gzip:   1.00 kB[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-greek-500-normal-JpySY46c.woff2      [39m[2m[1m  4.28 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-greek-600-normal-H7WoG9Et.woff2      [39m[2m[1m  4.30 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-cyrillic-500-normal-DmUKJPL_.woff2   [39m[2m[1m  5.35 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-cyrillic-600-normal-EVf6-Yzo.woff2   [39m[2m[1m  5.38 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-vietnamese-500-normal-DNRqzVM1.woff  [39m[2m[1m  5.47 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-vietnamese-600-normal-OWROknRo.woff  [39m[2m[1m  5.47 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-greek-600-normal-mc2nkWzM.woff       [39m[2m[1m  5.70 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-greek-500-normal-D7SFKleX.woff       [39m[2m[1m  5.72 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-cyrillic-600-normal-8K4wrrwR.woff    [39m[2m[1m  7.02 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-cyrillic-500-normal-DJqRU3vO.woff    [39m[2m[1m  7.02 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-latin-ext-600-normal-BfB_LPfz.woff2  [39m[2m[1m  7.51 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-latin-ext-500-normal-Cut-4mMH.woff2  [39m[2m[1m  7.52 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32minter-vietnamese-wght-normal-CBcvBZtf.woff2         [39m[2m[1m 10.25 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-latin-ext-600-normal-DObL3zCW.woff   [39m[2m[1m 10.31 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-latin-ext-500-normal-ckzbgY84.woff   [39m[2m[1m 10.33 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32minter-greek-ext-wght-normal-DlzME5K_.woff2          [39m[2m[1m 11.23 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32minter-cyrillic-wght-normal-DqGufNeO.woff2           [39m[2m[1m 18.74 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32minter-greek-wght-normal-CkhJZR-_.woff2              [39m[2m[1m 18.99 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-latin-500-normal-BWZEU5yA.woff2      [39m[2m[1m 21.83 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-latin-600-normal-C8RAYTDA.woff2      [39m[2m[1m 21.86 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32minter-cyrillic-ext-wght-normal-BOeWTOD4.woff2       [39m[2m[1m 25.96 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-latin-600-normal-BfsvjouI.woff       [39m[2m[1m 28.18 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32mjetbrains-mono-latin-500-normal-CJOVTJB7.woff       [39m[2m[1m 28.20 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32minter-latin-wght-normal-Dx4kXJAl.woff2              [39m[2m[1m 48.25 kB[0m[0m
+[2mdist/[0m[2massets/[0m[32minter-latin-ext-wght-normal-DO1Apj_S.woff2          [39m[2m[1m 85.06 kB[0m[0m
+[2mdist/[0m[2massets/[0m[35mindex-ZzktBr9b.css                                  [39m[2m[1m164.80 kB[0m[0m[2m │ gzip:  37.29 kB[0m
+[2mdist/[0m[2massets/[0m[36mutils-Cg4e0Xef.js                                   [39m[2m[1m  0.02 kB[0m[0m[2m │ gzip:   0.04 kB[0m
+[2mdist/[0m[2massets/[0m[36msettings-unzmKwNu.js                                [39m[2m[1m  0.04 kB[0m[0m[2m │ gzip:   0.06 kB[0m
+[2mdist/[0m[2massets/[0m[36mcsv-CmMnzzw4.js                                     [39m[2m[1m  0.14 kB[0m[0m[2m │ gzip:   0.14 kB[0m
+[2mdist/[0m[2massets/[0m[36mplus-BiTd0cMU.js                                    [39m[2m[1m  0.14 kB[0m[0m[2m │ gzip:   0.14 kB[0m
+[2mdist/[0m[2massets/[0m[36mclock-3-D0JQ2HiB.js                                 [39m[2m[1m  0.15 kB[0m[0m[2m │ gzip:   0.15 kB[0m
+[2mdist/[0m[2massets/[0m[36mplay-CjxKHtut.js                                    [39m[2m[1m  0.17 kB[0m[0m[2m │ gzip:   0.16 kB[0m
+[2mdist/[0m[2massets/[0m[36mhsts-BPA6hj4C.js                                    [39m[2m[1m  0.20 kB[0m[0m[2m │ gzip:   0.18 kB[0m
+[2mdist/[0m[2massets/[0m[36mgit-branch-C0Qvq2sL.js                              [39m[2m[1m  0.21 kB[0m[0m[2m │ gzip:   0.18 kB[0m
+[2mdist/[0m[2massets/[0m[36mactivity-C0P7i5Gr.js                                [39m[2m[1m  0.22 kB[0m[0m[2m │ gzip:   0.18 kB[0m
+[2mdist/[0m[2massets/[0m[36mcompass-x8K3Crj0.js                                 [39m[2m[1m  0.23 kB[0m[0m[2m │ gzip:   0.19 kB[0m
+[2mdist/[0m[2massets/[0m[36mexternal-link-Oki0xT3o.js                           [39m[2m[1m  0.23 kB[0m[0m[2m │ gzip:   0.18 kB[0m
+[2mdist/[0m[2massets/[0m[36mt4-vb-CiGeV13a.js                                   [39m[2m[1m  0.24 kB[0m[0m[2m │ gzip:   0.19 kB[0m
+[2mdist/[0m[2massets/[0m[36mhpkp-BYvIFSj9.js                                    [39m[2m[1m  0.24 kB[0m[0m[2m │ gzip:   0.21 kB[0m
+[2mdist/[0m[2massets/[0m[36mzap-mFB-kBXM.js                                     [39m[2m[1m  0.25 kB[0m[0m[2m │ gzip:   0.19 kB[0m
+[2mdist/[0m[2massets/[0m[36mworkflow-JrR_jzjC.js                                [39m[2m[1m  0.25 kB[0m[0m[2m │ gzip:   0.19 kB[0m
+[2mdist/[0m[2massets/[0m[36marff-C5Zah8yD.js                                    [39m[2m[1m  0.25 kB[0m[0m[2m │ gzip:   0.22 kB[0m
+[2mdist/[0m[2massets/[0m[36mpencil-uE1XT6mo.js                                  [39m[2m[1m  0.26 kB[0m[0m[2m │ gzip:   0.21 kB[0m
+[2mdist/[0m[2massets/[0m[36mt4-cs-C-7AQBp3.js                                   [39m[2m[1m  0.26 kB[0m[0m[2m │ gzip:   0.19 kB[0m
+[2mdist/[0m[2massets/[0m[36museNavigate-L-yxOvvk.js                             [39m[2m[1m  0.26 kB[0m[0m[2m │ gzip:   0.21 kB[0m
+[2mdist/[0m[2massets/[0m[36msend-horizontal-DL1Aj2I3.js                         [39m[2m[1m  0.27 kB[0m[0m[2m │ gzip:   0.21 kB[0m
+[2mdist/[0m[2massets/[0m[36m_app-vlLDJ74n.js                                    [39m[2m[1m  0.28 kB[0m[0m[2m │ gzip:   0.23 kB[0m
+[2mdist/[0m[2massets/[0m[36mgcode-DZP4x249.js                                   [39m[2m[1m  0.28 kB[0m[0m[2m │ gzip:   0.24 kB[0m
+[2mdist/[0m[2massets/[0m[36mwrench-BZHYV3VC.js                                  [39m[2m[1m  0.29 kB[0m[0m[2m │ gzip:   0.22 kB[0m
+[2mdist/[0m[2massets/[0m[36musers-BiZY2gmY.js                                   [39m[2m[1m  0.29 kB[0m[0m[2m │ gzip:   0.21 kB[0m
+[2mdist/[0m[2massets/[0m[36mbrainfuck-6XYjVvcY.js                               [39m[2m[1m  0.29 kB[0m[0m[2m │ gzip:   0.20 kB[0m
+[2mdist/[0m[2massets/[0m[36mgit-BzxwFLRV.js                                     [39m[2m[1m  0.29 kB[0m[0m[2m │ gzip:   0.25 kB[0m
+[2mdist/[0m[2massets/[0m[36mrefresh-cw-DoIHkabu.js                              [39m[2m[1m  0.30 kB[0m[0m[2m │ gzip:   0.21 kB[0m
+[2mdist/[0m[2massets/[0m[36mjobs-bKYhpIWt.js                                    [39m[2m[1m  0.31 kB[0m[0m[2m │ gzip:   0.23 kB[0m
+[2mdist/[0m[2massets/[0m[36mtrash-2-BsdjysU9.js                                 [39m[2m[1m  0.31 kB[0m[0m[2m │ gzip:   0.20 kB[0m
+[2mdist/[0m[2massets/[0m[36mcilkc-BfJokMry.js                                   [39m[2m[1m  0.32 kB[0m[0m[2m │ gzip:   0.23 kB[0m
+[2mdist/[0m[2massets/[0m[36mjsonp-Bc4YCWO2.js                                   [39m[2m[1m  0.32 kB[0m[0m[2m │ gzip:   0.24 kB[0m
+[2mdist/[0m[2massets/[0m[36mtriggers-Cmi2A8Pe.js                                [39m[2m[1m  0.33 kB[0m[0m[2m │ gzip:   0.24 kB[0m
+[2mdist/[0m[2massets/[0m[36mnand2tetris-hdl-rohvNQ1U.js                         [39m[2m[1m  0.33 kB[0m[0m[2m │ gzip:   0.27 kB[0m
+[2mdist/[0m[2massets/[0m[36msettings-Ukml0Dvw.js                                [39m[2m[1m  0.34 kB[0m[0m[2m │ gzip:   0.25 kB[0m
+[2mdist/[0m[2massets/[0m[36mbnf-BS12Pc6O.js                                     [39m[2m[1m  0.36 kB[0m[0m[2m │ gzip:   0.24 kB[0m
+[2mdist/[0m[2massets/[0m[36myang-CzEJj8y8.js                                    [39m[2m[1m  0.36 kB[0m[0m[2m │ gzip:   0.27 kB[0m
+[2mdist/[0m[2massets/[0m[36mnetwork-CobQrijU.js                                 [39m[2m[1m  0.37 kB[0m[0m[2m │ gzip:   0.22 kB[0m
+[2mdist/[0m[2massets/[0m[36mcilkcpp-CvisQUAS.js                                 [39m[2m[1m  0.37 kB[0m[0m[2m │ gzip:   0.25 kB[0m
+[2mdist/[0m[2massets/[0m[36mproperties-CIYNK-5b.js                              [39m[2m[1m  0.37 kB[0m[0m[2m │ gzip:   0.24 kB[0m
+[2mdist/[0m[2massets/[0m[36mracket-BlqkMTNu.js                                  [39m[2m[1m  0.39 kB[0m[0m[2m │ gzip:   0.27 kB[0m
+[2mdist/[0m[2massets/[0m[36mwaypoints-Cmeu-6Es.js                               [39m[2m[1m  0.40 kB[0m[0m[2m │ gzip:   0.23 kB[0m
+[2mdist/[0m[2massets/[0m[36mprolog-BF5iaMgD.js                                  [39m[2m[1m  0.41 kB[0m[0m[2m │ gzip:   0.31 kB[0m
+[2mdist/[0m[2massets/[0m[36meditorconfig-48tXrxVI.js                            [39m[2m[1m  0.42 kB[0m[0m[2m │ gzip:   0.27 kB[0m
+[2mdist/[0m[2massets/[0m[36mxml-doc-C4lSv7gE.js                                 [39m[2m[1m  0.42 kB[0m[0m[2m │ gzip:   0.27 kB[0m
+[2mdist/[0m[2massets/[0m[36msidebar-nav-classes-ACHvpx4H.js                     [39m[2m[1m  0.43 kB[0m[0m[2m │ gzip:   0.23 kB[0m
+[2mdist/[0m[2massets/[0m[36mfalse-CENgAxGO.js                                   [39m[2m[1m  0.43 kB[0m[0m[2m │ gzip:   0.32 kB[0m
+[2mdist/[0m[2massets/[0m[36mebnf-DrK4P0U0.js                                    [39m[2m[1m  0.44 kB[0m[0m[2m │ gzip:   0.31 kB[0m
+[2mdist/[0m[2massets/[0m[36mignore-BAA_-wrz.js                                  [39m[2m[1m  0.44 kB[0m[0m[2m │ gzip:   0.27 kB[0m
+[2mdist/[0m[2massets/[0m[36mphp-extras-BSDhyX0E.js                              [39m[2m[1m  0.44 kB[0m[0m[2m │ gzip:   0.36 kB[0m
+[2mdist/[0m[2massets/[0m[36msettings-ak9eUaQr.js                                [39m[2m[1m  0.47 kB[0m[0m[2m │ gzip:   0.25 kB[0m
+[2mdist/[0m[2massets/[0m[36mgo-module-DqitpNnj.js                               [39m[2m[1m  0.49 kB[0m[0m[2m │ gzip:   0.31 kB[0m
+[2mdist/[0m[2massets/[0m[36mtap-DHNkoPSb.js                                     [39m[2m[1m  0.49 kB[0m[0m[2m │ gzip:   0.35 kB[0m
+[2mdist/[0m[2massets/[0m[36mmatlab-BBwrt3D_.js                                  [39m[2m[1m  0.49 kB[0m[0m[2m │ gzip:   0.37 kB[0m
+[2mdist/[0m[2massets/[0m[36mroboconf-C7-xgn5r.js                                [39m[2m[1m  0.51 kB[0m[0m[2m │ gzip:   0.32 kB[0m
+[2mdist/[0m[2massets/[0m[36mbbcode-BF7LOufd.js                                  [39m[2m[1m  0.52 kB[0m[0m[2m │ gzip:   0.28 kB[0m
+[2mdist/[0m[2massets/[0m[36mjson5-BJfNsX40.js                                   [39m[2m[1m  0.52 kB[0m[0m[2m │ gzip:   0.38 kB[0m
+[2mdist/[0m[2massets/[0m[36mhoon-BSHBepqg.js                                    [39m[2m[1m  0.55 kB[0m[0m[2m │ gzip:   0.37 kB[0m
+[2mdist/[0m[2massets/[0m[36mtsx-CIV9m36N.js                                     [39m[2m[1m  0.55 kB[0m[0m[2m │ gzip:   0.35 kB[0m
+[2mdist/[0m[2massets/[0m[36metlua-BSQh56Iu.js                                   [39m[2m[1m  0.56 kB[0m[0m[2m │ gzip:   0.33 kB[0m
+[2mdist/[0m[2massets/[0m[36mlinker-script-CTiF33eW.js                           [39m[2m[1m  0.56 kB[0m[0m[2m │ gzip:   0.38 kB[0m
+[2mdist/[0m[2massets/[0m[36mlist-checks-CRznJ0dg.js                             [39m[2m[1m  0.56 kB[0m[0m[2m │ gzip:   0.31 kB[0m
+[2mdist/[0m[2massets/[0m[36mgedcom-D-uQx1W2.js                                  [39m[2m[1m  0.58 kB[0m[0m[2m │ gzip:   0.28 kB[0m
+[2mdist/[0m[2massets/[0m[36mr-BtfLpr4i.js                                       [39m[2m[1m  0.58 kB[0m[0m[2m │ gzip:   0.43 kB[0m
+[2mdist/[0m[2massets/[0m[36mjson-LTcG97XA.js                                    [39m[2m[1m  0.59 kB[0m[0m[2m │ gzip:   0.37 kB[0m
+[2mdist/[0m[2massets/[0m[36mgettext-BHG6YY6l.js                                 [39m[2m[1m  0.59 kB[0m[0m[2m │ gzip:   0.31 kB[0m
+[2mdist/[0m[2massets/[0m[36mjexl-CSIQJvr2.js                                    [39m[2m[1m  0.60 kB[0m[0m[2m │ gzip:   0.36 kB[0m
+[2mdist/[0m[2massets/[0m[36m_app-D7j8RJl7.js                                    [39m[2m[1m  0.60 kB[0m[0m[2m │ gzip:   0.38 kB[0m
+[2mdist/[0m[2massets/[0m[36mllvm-CHKUatpB.js                                    [39m[2m[1m  0.61 kB[0m[0m[2m │ gzip:   0.42 kB[0m
+[2mdist/[0m[2massets/[0m[36mprocessing-DJOyCHqo.js                              [39m[2m[1m  0.61 kB[0m[0m[2m │ gzip:   0.43 kB[0m
+[2mdist/[0m[2massets/[0m[36mejs-CmVbkbi2.js                                     [39m[2m[1m  0.64 kB[0m[0m[2m │ gzip:   0.36 kB[0m
+[2mdist/[0m[2massets/[0m[36mrego-CMXFrNBA.js                                    [39m[2m[1m  0.64 kB[0m[0m[2m │ gzip:   0.40 kB[0m
+[2mdist/[0m[2massets/[0m[36mlua-DGqsw3Ev.js                                     [39m[2m[1m  0.66 kB[0m[0m[2m │ gzip:   0.45 kB[0m
+[2mdist/[0m[2massets/[0m[36merb-C1lMv8gV.js                                     [39m[2m[1m  0.66 kB[0m[0m[2m │ gzip:   0.38 kB[0m
+[2mdist/[0m[2massets/[0m[36mini-C1NioYUj.js                                     [39m[2m[1m  0.67 kB[0m[0m[2m │ gzip:   0.31 kB[0m
+[2mdist/[0m[2massets/[0m[36mmatchContext-CR_HHzUQ.js                            [39m[2m[1m  0.67 kB[0m[0m[2m │ gzip:   0.40 kB[0m
+[2mdist/[0m[2massets/[0m[36msparkles-s8qu3R4d.js                                [39m[2m[1m  0.67 kB[0m[0m[2m │ gzip:   0.34 kB[0m
+[2mdist/[0m[2massets/[0m[36mbison-B7116frO.js                                   [39m[2m[1m  0.69 kB[0m[0m[2m │ gzip:   0.43 kB[0m
+[2mdist/[0m[2massets/[0m[36mwarpscript-C_NM0DJl.js                              [39m[2m[1m  0.69 kB[0m[0m[2m │ gzip:   0.51 kB[0m
+[2mdist/[0m[2massets/[0m[36mbirb-DaCoymYP.js                                    [39m[2m[1m  0.69 kB[0m[0m[2m │ gzip:   0.48 kB[0m
+[2mdist/[0m[2massets/[0m[36mn4js-CLblQ1xT.js                                    [39m[2m[1m  0.69 kB[0m[0m[2m │ gzip:   0.44 kB[0m
+[2mdist/[0m[2massets/[0m[36mreact-CLkKCWHd.js                                   [39m[2m[1m  0.69 kB[0m[0m[2m │ gzip:   0.42 kB[0m
+[2mdist/[0m[2massets/[0m[36mt4-templating-jHzZtOku.js                           [39m[2m[1m  0.70 kB[0m[0m[2m │ gzip:   0.44 kB[0m
+[2mdist/[0m[2massets/[0m[36msmalltalk-DmOtUhgX.js                               [39m[2m[1m  0.71 kB[0m[0m[2m │ gzip:   0.45 kB[0m
+[2mdist/[0m[2massets/[0m[36msettings-hW4bNQNP.js                                [39m[2m[1m  0.73 kB[0m[0m[2m │ gzip:   0.43 kB[0m
+[2mdist/[0m[2massets/[0m[36mdiff-lGpCXE_Y.js                                    [39m[2m[1m  0.74 kB[0m[0m[2m │ gzip:   0.49 kB[0m
+[2mdist/[0m[2massets/[0m[36mawk-DPzml_7G.js                                     [39m[2m[1m  0.76 kB[0m[0m[2m │ gzip:   0.49 kB[0m
+[2mdist/[0m[2massets/[0m[36midris-CarCu75s.js                                   [39m[2m[1m  0.76 kB[0m[0m[2m │ gzip:   0.49 kB[0m
+[2mdist/[0m[2massets/[0m[36mnasm-CkWIu-U8.js                                    [39m[2m[1m  0.76 kB[0m[0m[2m │ gzip:   0.51 kB[0m
+[2mdist/[0m[2massets/[0m[36msolution-file-CyOzZfjt.js                           [39m[2m[1m  0.77 kB[0m[0m[2m │ gzip:   0.43 kB[0m
+[2mdist/[0m[2massets/[0m[36mless-CCB1jENl.js                                    [39m[2m[1m  0.78 kB[0m[0m[2m │ gzip:   0.44 kB[0m
+[2mdist/[0m[2massets/[0m[36mnginx-BjEvKo-C.js                                   [39m[2m[1m  0.79 kB[0m[0m[2m │ gzip:   0.43 kB[0m
+[2mdist/[0m[2massets/[0m[36mobjectivec-D0yDIPZ6.js                              [39m[2m[1m  0.79 kB[0m[0m[2m │ gzip:   0.52 kB[0m
+[2mdist/[0m[2massets/[0m[36msystemd-CKdnlg7K.js                                 [39m[2m[1m  0.79 kB[0m[0m[2m │ gzip:   0.45 kB[0m
+[2mdist/[0m[2massets/[0m[36magda-ZUg34XJz.js                                    [39m[2m[1m  0.80 kB[0m[0m[2m │ gzip:   0.53 kB[0m
+[2mdist/[0m[2massets/[0m[36mconnection-indicator-CzMr_kHF.js                    [39m[2m[1m  0.80 kB[0m[0m[2m │ gzip:   0.45 kB[0m
+[2mdist/[0m[2massets/[0m[36mphpdoc-BXCu4BGM.js                                  [39m[2m[1m  0.81 kB[0m[0m[2m │ gzip:   0.49 kB[0m
+[2mdist/[0m[2massets/[0m[36mrolldown-runtime-COnpUsM8.js                        [39m[2m[1m  0.81 kB[0m[0m[2m │ gzip:   0.46 kB[0m
+[2mdist/[0m[2massets/[0m[36michigojam-B9O_HtiE.js                               [39m[2m[1m  0.82 kB[0m[0m[2m │ gzip:   0.62 kB[0m
+[2mdist/[0m[2massets/[0m[36mjsstacktrace-CGWwuBwB.js                            [39m[2m[1m  0.83 kB[0m[0m[2m │ gzip:   0.45 kB[0m
+[2mdist/[0m[2massets/[0m[36merlang-4zcq5r8O.js                                  [39m[2m[1m  0.83 kB[0m[0m[2m │ gzip:   0.50 kB[0m
+[2mdist/[0m[2massets/[0m[36mrip-Dzfi7-1v.js                                     [39m[2m[1m  0.83 kB[0m[0m[2m │ gzip:   0.46 kB[0m
+[2mdist/[0m[2massets/[0m[36mapl-CVWQwOmW.js                                     [39m[2m[1m  0.83 kB[0m[0m[2m │ gzip:   0.59 kB[0m
+[2mdist/[0m[2massets/[0m[36mboxes-Bw9jb_jY.js                                   [39m[2m[1m  0.83 kB[0m[0m[2m │ gzip:   0.38 kB[0m
+[2mdist/[0m[2massets/[0m[36mclike-5cjaCjGV.js                                   [39m[2m[1m  0.85 kB[0m[0m[2m │ gzip:   0.55 kB[0m
+[2mdist/[0m[2massets/[0m[36mopenqasm-CUxcy6W_.js                                [39m[2m[1m  0.86 kB[0m[0m[2m │ gzip:   0.60 kB[0m
+[2mdist/[0m[2massets/[0m[36mkey-round-YJv-Sdax.js                               [39m[2m[1m  0.86 kB[0m[0m[2m │ gzip:   0.44 kB[0m
+[2mdist/[0m[2massets/[0m[36mpcaxis-DIP7Shss.js                                  [39m[2m[1m  0.86 kB[0m[0m[2m │ gzip:   0.44 kB[0m
+[2mdist/[0m[2massets/[0m[36mj-D2ByrqfX.js                                       [39m[2m[1m  0.88 kB[0m[0m[2m │ gzip:   0.56 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks._id.runs._runId-Bn0ESfqw.js                   [39m[2m[1m  0.88 kB[0m[0m[2m │ gzip:   0.52 kB[0m
+[2mdist/[0m[2massets/[0m[36moz-DY9hQ8yT.js                                      [39m[2m[1m  0.88 kB[0m[0m[2m │ gzip:   0.58 kB[0m
+[2mdist/[0m[2massets/[0m[36mskills-CUx4WFda.js                                  [39m[2m[1m  0.89 kB[0m[0m[2m │ gzip:   0.54 kB[0m
+[2mdist/[0m[2massets/[0m[36mautoit-B4gaBVgY.js                                  [39m[2m[1m  0.89 kB[0m[0m[2m │ gzip:   0.58 kB[0m
+[2mdist/[0m[2massets/[0m[36mfirestore-security-rules-UCqYEF-H.js                [39m[2m[1m  0.90 kB[0m[0m[2m │ gzip:   0.49 kB[0m
+[2mdist/[0m[2massets/[0m[36mdns-zone-file-DgdCi2gG.js                           [39m[2m[1m  0.90 kB[0m[0m[2m │ gzip:   0.55 kB[0m
+[2mdist/[0m[2massets/[0m[36mparigp-D92pGMPj.js                                  [39m[2m[1m  0.91 kB[0m[0m[2m │ gzip:   0.55 kB[0m
+[2mdist/[0m[2massets/[0m[36mjavadoclike-xMosV4bb.js                             [39m[2m[1m  0.91 kB[0m[0m[2m │ gzip:   0.53 kB[0m
+[2mdist/[0m[2massets/[0m[36mdataweave-8fUcGb0l.js                               [39m[2m[1m  0.92 kB[0m[0m[2m │ gzip:   0.56 kB[0m
+[2mdist/[0m[2massets/[0m[36mmel-Bb3eDhzG.js                                     [39m[2m[1m  0.92 kB[0m[0m[2m │ gzip:   0.54 kB[0m
+[2mdist/[0m[2massets/[0m[36mreason-D2pYqKVB.js                                  [39m[2m[1m  0.92 kB[0m[0m[2m │ gzip:   0.60 kB[0m
+[2mdist/[0m[2massets/[0m[36msupercollider-CTpor3WF.js                           [39m[2m[1m  0.92 kB[0m[0m[2m │ gzip:   0.55 kB[0m
+[2mdist/[0m[2massets/[0m[36mwolfram-Bg1aY-2L.js                                 [39m[2m[1m  0.93 kB[0m[0m[2m │ gzip:   0.58 kB[0m
+[2mdist/[0m[2massets/[0m[36masm6502-tANnTxn8.js                                 [39m[2m[1m  0.93 kB[0m[0m[2m │ gzip:   0.63 kB[0m
+[2mdist/[0m[2massets/[0m[36mbbj-Dp3NKzjB.js                                     [39m[2m[1m  0.93 kB[0m[0m[2m │ gzip:   0.61 kB[0m
+[2mdist/[0m[2massets/[0m[36mmonkey-2WKgPOO6.js                                  [39m[2m[1m  0.94 kB[0m[0m[2m │ gzip:   0.64 kB[0m
+[2mdist/[0m[2massets/[0m[36mactionscript-Bkgy_iWX.js                            [39m[2m[1m  0.95 kB[0m[0m[2m │ gzip:   0.58 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks._id-skFwQ-PT.js                               [39m[2m[1m  0.95 kB[0m[0m[2m │ gzip:   0.55 kB[0m
+[2mdist/[0m[2massets/[0m[36mabnf--uXwUjZQ.js                                    [39m[2m[1m  0.96 kB[0m[0m[2m │ gzip:   0.53 kB[0m
+[2mdist/[0m[2massets/[0m[36mada-DCeJZvP7.js                                     [39m[2m[1m  0.97 kB[0m[0m[2m │ gzip:   0.61 kB[0m
+[2mdist/[0m[2massets/[0m[36mturtle-Bgv-a-xE.js                                  [39m[2m[1m  0.97 kB[0m[0m[2m │ gzip:   0.54 kB[0m
+[2mdist/[0m[2massets/[0m[36mgdscript-BxBXpgsh.js                                [39m[2m[1m  0.98 kB[0m[0m[2m │ gzip:   0.63 kB[0m
+[2mdist/[0m[2massets/[0m[36micon-DUkgtP8O.js                                    [39m[2m[1m  0.99 kB[0m[0m[2m │ gzip:   0.65 kB[0m
+[2mdist/[0m[2massets/[0m[36mtwig-BCoivWtj.js                                    [39m[2m[1m  0.99 kB[0m[0m[2m │ gzip:   0.60 kB[0m
+[2mdist/[0m[2massets/[0m[36mmakefile-NKvynZYC.js                                [39m[2m[1m  1.00 kB[0m[0m[2m │ gzip:   0.60 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks._id.edit-om8l-60I.js                          [39m[2m[1m  1.01 kB[0m[0m[2m │ gzip:   0.57 kB[0m
+[2mdist/[0m[2massets/[0m[36meiffel-CrHX5_t4.js                                  [39m[2m[1m  1.01 kB[0m[0m[2m │ gzip:   0.64 kB[0m
+[2mdist/[0m[2massets/[0m[36m_app-CxC7dNlz.js                                    [39m[2m[1m  1.01 kB[0m[0m[2m │ gzip:   0.58 kB[0m
+[2mdist/[0m[2massets/[0m[36msession._id-wnElm0fU.js                             [39m[2m[1m  1.03 kB[0m[0m[2m │ gzip:   0.59 kB[0m
+[2mdist/[0m[2massets/[0m[36mtoml-2k6YPXb2.js                                    [39m[2m[1m  1.03 kB[0m[0m[2m │ gzip:   0.55 kB[0m
+[2mdist/[0m[2massets/[0m[36mflow-Ccj6EyIY.js                                    [39m[2m[1m  1.04 kB[0m[0m[2m │ gzip:   0.56 kB[0m
+[2mdist/[0m[2massets/[0m[36mhandlebars-C5__0OLk.js                              [39m[2m[1m  1.04 kB[0m[0m[2m │ gzip:   0.57 kB[0m
+[2mdist/[0m[2massets/[0m[36mexcel-formula-qSg53AVX.js                           [39m[2m[1m  1.06 kB[0m[0m[2m │ gzip:   0.56 kB[0m
+[2mdist/[0m[2massets/[0m[36msparql-BdsLGDN3.js                                  [39m[2m[1m  1.06 kB[0m[0m[2m │ gzip:   0.72 kB[0m
+[2mdist/[0m[2massets/[0m[36mavro-idl-C1xsPLxe.js                                [39m[2m[1m  1.06 kB[0m[0m[2m │ gzip:   0.58 kB[0m
+[2mdist/[0m[2massets/[0m[36mkeyman-DIb7OcbR.js                                  [39m[2m[1m  1.07 kB[0m[0m[2m │ gzip:   0.61 kB[0m
+[2mdist/[0m[2massets/[0m[36mneon-BQDAJOdA.js                                    [39m[2m[1m  1.07 kB[0m[0m[2m │ gzip:   0.52 kB[0m
+[2mdist/[0m[2massets/[0m[36melm-BW2mN9Gh.js                                     [39m[2m[1m  1.07 kB[0m[0m[2m │ gzip:   0.65 kB[0m
+[2mdist/[0m[2massets/[0m[36mjulia-Cj4_IhJF.js                                   [39m[2m[1m  1.07 kB[0m[0m[2m │ gzip:   0.70 kB[0m
+[2mdist/[0m[2massets/[0m[36mgap-CeXRf6pQ.js                                     [39m[2m[1m  1.08 kB[0m[0m[2m │ gzip:   0.60 kB[0m
+[2mdist/[0m[2massets/[0m[36mshell-session-Sth27Pwm.js                           [39m[2m[1m  1.08 kB[0m[0m[2m │ gzip:   0.62 kB[0m
+[2mdist/[0m[2massets/[0m[36mcypher--GE3WgrE.js                                  [39m[2m[1m  1.10 kB[0m[0m[2m │ gzip:   0.72 kB[0m
+[2mdist/[0m[2massets/[0m[36mlatex-Yb4-GE1a.js                                   [39m[2m[1m  1.10 kB[0m[0m[2m │ gzip:   0.52 kB[0m
+[2mdist/[0m[2massets/[0m[36mprotobuf-CeBQzIve.js                                [39m[2m[1m  1.10 kB[0m[0m[2m │ gzip:   0.58 kB[0m
+[2mdist/[0m[2massets/[0m[36mmizar-CZBe_vvL.js                                   [39m[2m[1m  1.11 kB[0m[0m[2m │ gzip:   0.67 kB[0m
+[2mdist/[0m[2massets/[0m[36maql-NVGs3ETU.js                                     [39m[2m[1m  1.11 kB[0m[0m[2m │ gzip:   0.70 kB[0m
+[2mdist/[0m[2massets/[0m[36mgn-iBo5_aWA.js                                      [39m[2m[1m  1.11 kB[0m[0m[2m │ gzip:   0.59 kB[0m
+[2mdist/[0m[2massets/[0m[36mqore-x01NPnhR.js                                    [39m[2m[1m  1.11 kB[0m[0m[2m │ gzip:   0.69 kB[0m
+[2mdist/[0m[2massets/[0m[36msettings-Cnw6vdv5.js                                [39m[2m[1m  1.13 kB[0m[0m[2m │ gzip:   0.62 kB[0m
+[2mdist/[0m[2massets/[0m[36magents._name-Q2Y4-CLd.js                            [39m[2m[1m  1.13 kB[0m[0m[2m │ gzip:   0.64 kB[0m
+[2mdist/[0m[2massets/[0m[36mgo-DTeAH6EO.js                                      [39m[2m[1m  1.14 kB[0m[0m[2m │ gzip:   0.74 kB[0m
+[2mdist/[0m[2massets/[0m[36mbrightscript-Do-lmvQl.js                            [39m[2m[1m  1.14 kB[0m[0m[2m │ gzip:   0.63 kB[0m
+[2mdist/[0m[2massets/[0m[36mvhdl-WR2llCqs.js                                    [39m[2m[1m  1.14 kB[0m[0m[2m │ gzip:   0.72 kB[0m
+[2mdist/[0m[2massets/[0m[36mbro-CGq1PTAS.js                                     [39m[2m[1m  1.17 kB[0m[0m[2m │ gzip:   0.75 kB[0m
+[2mdist/[0m[2massets/[0m[36msolidity-DigX38Mg.js                                [39m[2m[1m  1.18 kB[0m[0m[2m │ gzip:   0.73 kB[0m
+[2mdist/[0m[2massets/[0m[36mxojo-DdY_0Zzi.js                                    [39m[2m[1m  1.18 kB[0m[0m[2m │ gzip:   0.79 kB[0m
+[2mdist/[0m[2massets/[0m[36mmagma-BjtpbXgF.js                                   [39m[2m[1m  1.19 kB[0m[0m[2m │ gzip:   0.68 kB[0m
+[2mdist/[0m[2massets/[0m[36msass-BTXDzLAY.js                                    [39m[2m[1m  1.19 kB[0m[0m[2m │ gzip:   0.54 kB[0m
+[2mdist/[0m[2massets/[0m[36msquirrel-C4lGE2ze.js                                [39m[2m[1m  1.20 kB[0m[0m[2m │ gzip:   0.68 kB[0m
+[2mdist/[0m[2massets/[0m[36mnim-Ci6TKtRQ.js                                     [39m[2m[1m  1.20 kB[0m[0m[2m │ gzip:   0.72 kB[0m
+[2mdist/[0m[2massets/[0m[36mglsl-ByLaXL9U.js                                    [39m[2m[1m  1.20 kB[0m[0m[2m │ gzip:   0.63 kB[0m
+[2mdist/[0m[2massets/[0m[36msession._id-nmmOYmTe.js                             [39m[2m[1m  1.21 kB[0m[0m[2m │ gzip:   0.58 kB[0m
+[2mdist/[0m[2massets/[0m[36mcsp-CKcDI5ua.js                                     [39m[2m[1m  1.21 kB[0m[0m[2m │ gzip:   0.64 kB[0m
+[2mdist/[0m[2massets/[0m[36maspnet-VDR93IVd.js                                  [39m[2m[1m  1.21 kB[0m[0m[2m │ gzip:   0.60 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks.new-CKmAmntl.js                               [39m[2m[1m  1.22 kB[0m[0m[2m │ gzip:   0.70 kB[0m
+[2mdist/[0m[2massets/[0m[36mmata-ob0dy0d7.js                                    [39m[2m[1m  1.23 kB[0m[0m[2m │ gzip:   0.72 kB[0m
+[2mdist/[0m[2massets/[0m[36mlolcode-BrSAmbfu.js                                 [39m[2m[1m  1.23 kB[0m[0m[2m │ gzip:   0.72 kB[0m
+[2mdist/[0m[2massets/[0m[36mocaml-DniXQnzr.js                                   [39m[2m[1m  1.23 kB[0m[0m[2m │ gzip:   0.72 kB[0m
+[2mdist/[0m[2massets/[0m[36mjq-YVrchRyK.js                                      [39m[2m[1m  1.23 kB[0m[0m[2m │ gzip:   0.68 kB[0m
+[2mdist/[0m[2massets/[0m[36muri-Dsu0Xg9E.js                                     [39m[2m[1m  1.25 kB[0m[0m[2m │ gzip:   0.57 kB[0m
+[2mdist/[0m[2massets/[0m[36mdot-DM6L8j1b.js                                     [39m[2m[1m  1.25 kB[0m[0m[2m │ gzip:   0.65 kB[0m
+[2mdist/[0m[2massets/[0m[36mmarkup-templating-j4smZCgu.js                       [39m[2m[1m  1.26 kB[0m[0m[2m │ gzip:   0.67 kB[0m
+[2mdist/[0m[2massets/[0m[36mantlr4-DGNYgqaK.js                                  [39m[2m[1m  1.26 kB[0m[0m[2m │ gzip:   0.67 kB[0m
+[2mdist/[0m[2massets/[0m[36mwasm-B_8BUZpZ.js                                    [39m[2m[1m  1.27 kB[0m[0m[2m │ gzip:   0.72 kB[0m
+[2mdist/[0m[2massets/[0m[36mwiki-CXqNt07q.js                                    [39m[2m[1m  1.27 kB[0m[0m[2m │ gzip:   0.67 kB[0m
+[2mdist/[0m[2massets/[0m[36mdjango-1xJq8ogG.js                                  [39m[2m[1m  1.27 kB[0m[0m[2m │ gzip:   0.66 kB[0m
+[2mdist/[0m[2massets/[0m[36mlatte-BqQgoZYB.js                                   [39m[2m[1m  1.28 kB[0m[0m[2m │ gzip:   0.68 kB[0m
+[2mdist/[0m[2massets/[0m[36mpromql-CM7zoS2t.js                                  [39m[2m[1m  1.29 kB[0m[0m[2m │ gzip:   0.69 kB[0m
+[2mdist/[0m[2massets/[0m[36mcss-BUPtX2ZJ.js                                     [39m[2m[1m  1.30 kB[0m[0m[2m │ gzip:   0.65 kB[0m
+[2mdist/[0m[2massets/[0m[36mdhall-5ehwnKl2.js                                   [39m[2m[1m  1.30 kB[0m[0m[2m │ gzip:   0.73 kB[0m
+[2mdist/[0m[2massets/[0m[36mpeoplecode-CQn2yvuN.js                              [39m[2m[1m  1.31 kB[0m[0m[2m │ gzip:   0.74 kB[0m
+[2mdist/[0m[2massets/[0m[36mfortran-B5RTVNoN.js                                 [39m[2m[1m  1.33 kB[0m[0m[2m │ gzip:   0.85 kB[0m
+[2mdist/[0m[2massets/[0m[36mcfscript-B2bdc4Z5.js                                [39m[2m[1m  1.33 kB[0m[0m[2m │ gzip:   0.77 kB[0m
+[2mdist/[0m[2massets/[0m[36mnix-HitFxlz8.js                                     [39m[2m[1m  1.33 kB[0m[0m[2m │ gzip:   0.81 kB[0m
+[2mdist/[0m[2massets/[0m[36mchaiscript-DFkL3g4A.js                              [39m[2m[1m  1.33 kB[0m[0m[2m │ gzip:   0.67 kB[0m
+[2mdist/[0m[2massets/[0m[36marmasm-BjzcBjVb.js                                  [39m[2m[1m  1.34 kB[0m[0m[2m │ gzip:   0.84 kB[0m
+[2mdist/[0m[2massets/[0m[36mbicep-BSu4Mful.js                                   [39m[2m[1m  1.34 kB[0m[0m[2m │ gzip:   0.64 kB[0m
+[2mdist/[0m[2massets/[0m[36mlilypond-DOBqYxM-.js                                [39m[2m[1m  1.34 kB[0m[0m[2m │ gzip:   0.69 kB[0m
+[2mdist/[0m[2massets/[0m[36mtt2-g7cLMhJx.js                                     [39m[2m[1m  1.35 kB[0m[0m[2m │ gzip:   0.76 kB[0m
+[2mdist/[0m[2massets/[0m[36mvelocity-MKVgmd0l.js                                [39m[2m[1m  1.35 kB[0m[0m[2m │ gzip:   0.64 kB[0m
+[2mdist/[0m[2massets/[0m[36mregex-BqdssZ25.js                                   [39m[2m[1m  1.36 kB[0m[0m[2m │ gzip:   0.65 kB[0m
+[2mdist/[0m[2massets/[0m[36miecst-CM7hltXt.js                                   [39m[2m[1m  1.38 kB[0m[0m[2m │ gzip:   0.91 kB[0m
+[2mdist/[0m[2massets/[0m[36mbqn-BdXsUdDl.js                                     [39m[2m[1m  1.39 kB[0m[0m[2m │ gzip:   0.77 kB[0m
+[2mdist/[0m[2massets/[0m[36mpascaligo-CXYqOmK6.js                               [39m[2m[1m  1.39 kB[0m[0m[2m │ gzip:   0.72 kB[0m
+[2mdist/[0m[2massets/[0m[36mwren-DVRj-elR.js                                    [39m[2m[1m  1.41 kB[0m[0m[2m │ gzip:   0.71 kB[0m
+[2mdist/[0m[2massets/[0m[36mscss-6wCrnImf.js                                    [39m[2m[1m  1.42 kB[0m[0m[2m │ gzip:   0.71 kB[0m
+[2mdist/[0m[2massets/[0m[36mcrystal-DI-eGsXX.js                                 [39m[2m[1m  1.42 kB[0m[0m[2m │ gzip:   0.83 kB[0m
+[2mdist/[0m[2massets/[0m[36msmali-BCju_Clx.js                                   [39m[2m[1m  1.42 kB[0m[0m[2m │ gzip:   0.67 kB[0m
+[2mdist/[0m[2massets/[0m[36mhcl-BL3msd1h.js                                     [39m[2m[1m  1.45 kB[0m[0m[2m │ gzip:   0.64 kB[0m
+[2mdist/[0m[2massets/[0m[36mscala-ajDXlWIW.js                                   [39m[2m[1m  1.45 kB[0m[0m[2m │ gzip:   0.79 kB[0m
+[2mdist/[0m[2massets/[0m[36mtyposcript-7rl3oyTr.js                              [39m[2m[1m  1.46 kB[0m[0m[2m │ gzip:   0.77 kB[0m
+[2mdist/[0m[2massets/[0m[36mshield-alert-Bp4APy0c.js                            [39m[2m[1m  1.46 kB[0m[0m[2m │ gzip:   0.67 kB[0m
+[2mdist/[0m[2massets/[0m[36mtypescript-DkSTZOb8.js                              [39m[2m[1m  1.49 kB[0m[0m[2m │ gzip:   0.70 kB[0m
+[2mdist/[0m[2massets/[0m[36mgradle-CB2dfsor.js                                  [39m[2m[1m  1.49 kB[0m[0m[2m │ gzip:   0.81 kB[0m
+[2mdist/[0m[2massets/[0m[36modin-ClUywYO9.js                                    [39m[2m[1m  1.51 kB[0m[0m[2m │ gzip:   0.83 kB[0m
+[2mdist/[0m[2massets/[0m[36mparser-zOXWna2u.js                                  [39m[2m[1m  1.55 kB[0m[0m[2m │ gzip:   0.74 kB[0m
+[2mdist/[0m[2massets/[0m[36mcoffeescript-CiRIlu7H.js                            [39m[2m[1m  1.56 kB[0m[0m[2m │ gzip:   0.73 kB[0m
+[2mdist/[0m[2massets/[0m[36mrobotframework-BX4RwhO2.js                          [39m[2m[1m  1.57 kB[0m[0m[2m │ gzip:   0.65 kB[0m
+[2mdist/[0m[2massets/[0m[36mtcl-Bsyxr7dV.js                                     [39m[2m[1m  1.57 kB[0m[0m[2m │ gzip:   0.89 kB[0m
+[2mdist/[0m[2massets/[0m[36mqml-BUaEH5K0.js                                     [39m[2m[1m  1.57 kB[0m[0m[2m │ gzip:   0.70 kB[0m
+[2mdist/[0m[2massets/[0m[36mstan-DB5eC7Xu.js                                    [39m[2m[1m  1.57 kB[0m[0m[2m │ gzip:   0.88 kB[0m
+[2mdist/[0m[2massets/[0m[36mjolie-B3D4F1oy.js                                   [39m[2m[1m  1.58 kB[0m[0m[2m │ gzip:   0.88 kB[0m
+[2mdist/[0m[2massets/[0m[36msml-BNZxr-4O.js                                     [39m[2m[1m  1.59 kB[0m[0m[2m │ gzip:   0.82 kB[0m
+[2mdist/[0m[2massets/[0m[36mkusto-C1nPDHMR.js                                   [39m[2m[1m  1.60 kB[0m[0m[2m │ gzip:   0.95 kB[0m
+[2mdist/[0m[2massets/[0m[36mcue-p57WiWxx.js                                     [39m[2m[1m  1.61 kB[0m[0m[2m │ gzip:   0.79 kB[0m
+[2mdist/[0m[2massets/[0m[36magents._name.sessions._id-BtRKnQuk.js               [39m[2m[1m  1.61 kB[0m[0m[2m │ gzip:   0.85 kB[0m
+[2mdist/[0m[2massets/[0m[36mjavastacktrace-Ci9yfz-c.js                          [39m[2m[1m  1.61 kB[0m[0m[2m │ gzip:   0.66 kB[0m
+[2mdist/[0m[2massets/[0m[36mrescript-DP1Bzi1n.js                                [39m[2m[1m  1.62 kB[0m[0m[2m │ gzip:   0.85 kB[0m
+[2mdist/[0m[2massets/[0m[36mjavadoc-BKn4ONVt.js                                 [39m[2m[1m  1.62 kB[0m[0m[2m │ gzip:   0.73 kB[0m
+[2mdist/[0m[2massets/[0m[36mdocker-BliZ0IcV.js                                  [39m[2m[1m  1.62 kB[0m[0m[2m │ gzip:   0.76 kB[0m
+[2mdist/[0m[2massets/[0m[36mcooklang-DvFQg605.js                                [39m[2m[1m  1.64 kB[0m[0m[2m │ gzip:   0.67 kB[0m
+[2mdist/[0m[2massets/[0m[36mjsdoc-C1zmbfmI.js                                   [39m[2m[1m  1.64 kB[0m[0m[2m │ gzip:   0.78 kB[0m
+[2mdist/[0m[2massets/[0m[36mmaxscript-CtNsrHvw.js                               [39m[2m[1m  1.65 kB[0m[0m[2m │ gzip:   0.90 kB[0m
+[2mdist/[0m[2massets/[0m[36mtremor-Ccl9IJ_W.js                                  [39m[2m[1m  1.66 kB[0m[0m[2m │ gzip:   0.88 kB[0m
+[2mdist/[0m[2massets/[0m[36mhaxe-CelLXf9v.js                                    [39m[2m[1m  1.67 kB[0m[0m[2m │ gzip:   0.86 kB[0m
+[2mdist/[0m[2massets/[0m[36mkumir-BDjTxZnN.js                                   [39m[2m[1m  1.69 kB[0m[0m[2m │ gzip:   0.85 kB[0m
+[2mdist/[0m[2massets/[0m[36mdart-Beh0fdZU.js                                    [39m[2m[1m  1.70 kB[0m[0m[2m │ gzip:   0.90 kB[0m
+[2mdist/[0m[2massets/[0m[36mgroovy-ChGdjcjR.js                                  [39m[2m[1m  1.73 kB[0m[0m[2m │ gzip:   0.96 kB[0m
+[2mdist/[0m[2massets/[0m[36msoy-PbZlHzFg.js                                     [39m[2m[1m  1.73 kB[0m[0m[2m │ gzip:   0.90 kB[0m
+[2mdist/[0m[2massets/[0m[36mbatch-DjAE9Y_z.js                                   [39m[2m[1m  1.74 kB[0m[0m[2m │ gzip:   0.70 kB[0m
+[2mdist/[0m[2massets/[0m[36mbsl-Dut9dSqY.js                                     [39m[2m[1m  1.74 kB[0m[0m[2m │ gzip:   0.81 kB[0m
+[2mdist/[0m[2massets/[0m[36mhlsl-DEXgSK-v.js                                    [39m[2m[1m  1.76 kB[0m[0m[2m │ gzip:   0.96 kB[0m
+[2mdist/[0m[2massets/[0m[36msplunk-spl-DoVNBM7O.js                              [39m[2m[1m  1.77 kB[0m[0m[2m │ gzip:   0.95 kB[0m
+[2mdist/[0m[2massets/[0m[36mq-CHimQqyz.js                                       [39m[2m[1m  1.77 kB[0m[0m[2m │ gzip:   1.05 kB[0m
+[2mdist/[0m[2massets/[0m[36mio-iiBEXC8Q.js                                      [39m[2m[1m  1.77 kB[0m[0m[2m │ gzip:   1.10 kB[0m
+[2mdist/[0m[2massets/[0m[36masmatmel-DZsWfhI7.js                                [39m[2m[1m  1.80 kB[0m[0m[2m │ gzip:   1.07 kB[0m
+[2mdist/[0m[2massets/[0m[36mstata-B4wWZ9v9.js                                   [39m[2m[1m  1.83 kB[0m[0m[2m │ gzip:   0.82 kB[0m
+[2mdist/[0m[2massets/[0m[36mvbnet-C2C6fQ8o.js                                   [39m[2m[1m  1.84 kB[0m[0m[2m │ gzip:   1.11 kB[0m
+[2mdist/[0m[2massets/[0m[36mapplescript-B5LtJaq5.js                             [39m[2m[1m  1.84 kB[0m[0m[2m │ gzip:   1.01 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks._id.edit-9e7r08Xu.js                          [39m[2m[1m  1.84 kB[0m[0m[2m │ gzip:   0.91 kB[0m
+[2mdist/[0m[2massets/[0m[36mnaniscript-CHJyOB4y.js                              [39m[2m[1m  1.85 kB[0m[0m[2m │ gzip:   0.82 kB[0m
+[2mdist/[0m[2massets/[0m[36mn1ql-DRfI4jeN.js                                    [39m[2m[1m  1.86 kB[0m[0m[2m │ gzip:   1.15 kB[0m
+[2mdist/[0m[2massets/[0m[36munrealscript-BC77GeO5.js                            [39m[2m[1m  1.86 kB[0m[0m[2m │ gzip:   0.98 kB[0m
+[2mdist/[0m[2massets/[0m[36melixir-B1AKz6qE.js                                  [39m[2m[1m  1.90 kB[0m[0m[2m │ gzip:   0.91 kB[0m
+[2mdist/[0m[2massets/[0m[36mftl-B0W8It4l.js                                     [39m[2m[1m  1.94 kB[0m[0m[2m │ gzip:   0.89 kB[0m
+[2mdist/[0m[2massets/[0m[36mhttp-YYcm5qJ4.js                                    [39m[2m[1m  1.94 kB[0m[0m[2m │ gzip:   0.91 kB[0m
+[2mdist/[0m[2massets/[0m[36mconcurnas-aN1aBjSQ.js                               [39m[2m[1m  1.95 kB[0m[0m[2m │ gzip:   0.99 kB[0m
+[2mdist/[0m[2massets/[0m[36mvisual-basic-C5jf2E-5.js                            [39m[2m[1m  1.96 kB[0m[0m[2m │ gzip:   1.13 kB[0m
+[2mdist/[0m[2massets/[0m[36mbasic-Vr-7ksOp.js                                   [39m[2m[1m  1.97 kB[0m[0m[2m │ gzip:   1.25 kB[0m
+[2mdist/[0m[2massets/[0m[36mpascal-CQwwIc6U.js                                  [39m[2m[1m  1.97 kB[0m[0m[2m │ gzip:   1.03 kB[0m
+[2mdist/[0m[2massets/[0m[36mv-CXiLtLoD.js                                       [39m[2m[1m  1.99 kB[0m[0m[2m │ gzip:   1.07 kB[0m
+[2mdist/[0m[2massets/[0m[36msettings-BbZx4KEw.js                                [39m[2m[1m  2.01 kB[0m[0m[2m │ gzip:   0.87 kB[0m
+[2mdist/[0m[2massets/[0m[36mpowerquery-BLsQyGVx.js                              [39m[2m[1m  2.02 kB[0m[0m[2m │ gzip:   1.07 kB[0m
+[2mdist/[0m[2massets/[0m[36mlivescript-DSLXYCXy.js                              [39m[2m[1m  2.02 kB[0m[0m[2m │ gzip:   0.98 kB[0m
+[2mdist/[0m[2massets/[0m[36mxeora-DwSobWvl.js                                   [39m[2m[1m  2.02 kB[0m[0m[2m │ gzip:   0.66 kB[0m
+[2mdist/[0m[2massets/[0m[36mnevod-XdP-dQwx.js                                   [39m[2m[1m  2.03 kB[0m[0m[2m │ gzip:   0.79 kB[0m
+[2mdist/[0m[2massets/[0m[36mc-DBP95fvd.js                                       [39m[2m[1m  2.04 kB[0m[0m[2m │ gzip:   1.08 kB[0m
+[2mdist/[0m[2massets/[0m[36mkotlin-D3XTcIs0.js                                  [39m[2m[1m  2.05 kB[0m[0m[2m │ gzip:   1.03 kB[0m
+[2mdist/[0m[2massets/[0m[36mvala-zLi6v-4h.js                                    [39m[2m[1m  2.10 kB[0m[0m[2m │ gzip:   1.07 kB[0m
+[2mdist/[0m[2massets/[0m[36mmoonscript-Bm7Ms7-F.js                              [39m[2m[1m  2.11 kB[0m[0m[2m │ gzip:   1.13 kB[0m
+[2mdist/[0m[2massets/[0m[36msmarty-pClxMZD7.js                                  [39m[2m[1m  2.11 kB[0m[0m[2m │ gzip:   0.98 kB[0m
+[2mdist/[0m[2massets/[0m[36mqsharp-D99EqetA.js                                  [39m[2m[1m  2.11 kB[0m[0m[2m │ gzip:   1.13 kB[0m
+[2mdist/[0m[2massets/[0m[36myaml-Sz-_ofm7.js                                    [39m[2m[1m  2.12 kB[0m[0m[2m │ gzip:   0.96 kB[0m
+[2mdist/[0m[2massets/[0m[36micu-message-format-DqBTccgR.js                      [39m[2m[1m  2.13 kB[0m[0m[2m │ gzip:   0.87 kB[0m
+[2mdist/[0m[2massets/[0m[36mmermaid-BONM_FHP.js                                 [39m[2m[1m  2.14 kB[0m[0m[2m │ gzip:   0.96 kB[0m
+[2mdist/[0m[2massets/[0m[36mverilog-ChsgbNiI.js                                 [39m[2m[1m  2.16 kB[0m[0m[2m │ gzip:   1.14 kB[0m
+[2mdist/[0m[2massets/[0m[36mcil-DPSMZVJ9.js                                     [39m[2m[1m  2.17 kB[0m[0m[2m │ gzip:   1.17 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks.new-D4fRIzLd.js                               [39m[2m[1m  2.18 kB[0m[0m[2m │ gzip:   1.02 kB[0m
+[2mdist/[0m[2massets/[0m[36mweb-idl-DQgGnUBM.js                                 [39m[2m[1m  2.19 kB[0m[0m[2m │ gzip:   1.00 kB[0m
+[2mdist/[0m[2massets/[0m[36mliquid-CdIhWAR9.js                                  [39m[2m[1m  2.21 kB[0m[0m[2m │ gzip:   1.15 kB[0m
+[2mdist/[0m[2massets/[0m[36mpowershell-D1WBHtu2.js                              [39m[2m[1m  2.21 kB[0m[0m[2m │ gzip:   1.31 kB[0m
+[2mdist/[0m[2massets/[0m[36mfsharp-C4isJDZI.js                                  [39m[2m[1m  2.21 kB[0m[0m[2m │ gzip:   1.20 kB[0m
+[2mdist/[0m[2massets/[0m[36mapex-CReOhJmt.js                                    [39m[2m[1m  2.24 kB[0m[0m[2m │ gzip:   1.23 kB[0m
+[2mdist/[0m[2massets/[0m[36mpython-B349Z1HW.js                                  [39m[2m[1m  2.24 kB[0m[0m[2m │ gzip:   1.19 kB[0m
+[2mdist/[0m[2massets/[0m[36mperl-DnE4tMvx.js                                    [39m[2m[1m  2.30 kB[0m[0m[2m │ gzip:   1.06 kB[0m
+[2mdist/[0m[2massets/[0m[36md-_wRnezgI.js                                       [39m[2m[1m  2.34 kB[0m[0m[2m │ gzip:   1.35 kB[0m
+[2mdist/[0m[2massets/[0m[36mplant-uml-BAprWqnl.js                               [39m[2m[1m  2.34 kB[0m[0m[2m │ gzip:   1.20 kB[0m
+[2mdist/[0m[2massets/[0m[36mhaml-Ba4dOjY9.js                                    [39m[2m[1m  2.34 kB[0m[0m[2m │ gzip:   0.90 kB[0m
+[2mdist/[0m[2massets/[0m[36mzig-CIV40r9S.js                                     [39m[2m[1m  2.38 kB[0m[0m[2m │ gzip:   1.24 kB[0m
+[2mdist/[0m[2massets/[0m[36mpurescript-BgHx-DAv.js                              [39m[2m[1m  2.41 kB[0m[0m[2m │ gzip:   1.29 kB[0m
+[2mdist/[0m[2massets/[0m[36muorazor-BowIb2nI.js                                 [39m[2m[1m  2.45 kB[0m[0m[2m │ gzip:   1.25 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks._id.runs._runId-DqDQJenB.js                   [39m[2m[1m  2.54 kB[0m[0m[2m │ gzip:   1.07 kB[0m
+[2mdist/[0m[2massets/[0m[36mrust-B_XIpJ0E.js                                    [39m[2m[1m  2.54 kB[0m[0m[2m │ gzip:   1.22 kB[0m
+[2mdist/[0m[2massets/[0m[36mlog-C_4oOWZD.js                                     [39m[2m[1m  2.56 kB[0m[0m[2m │ gzip:   1.20 kB[0m
+[2mdist/[0m[2massets/[0m[36mpurebasic-DESmKEZW.js                               [39m[2m[1m  2.57 kB[0m[0m[2m │ gzip:   1.23 kB[0m
+[2mdist/[0m[2massets/[0m[36mgraphql-DdsGB-_Z.js                                 [39m[2m[1m  2.59 kB[0m[0m[2m │ gzip:   1.19 kB[0m
+[2mdist/[0m[2massets/[0m[36mjs-extras-BUz9ZXCt.js                               [39m[2m[1m  2.59 kB[0m[0m[2m │ gzip:   1.09 kB[0m
+[2mdist/[0m[2massets/[0m[36mpuppet-DqvOkwx8.js                                  [39m[2m[1m  2.60 kB[0m[0m[2m │ gzip:   1.13 kB[0m
+[2mdist/[0m[2massets/[0m[36mtask-editor-Bmle0WLK.js                             [39m[2m[1m  2.61 kB[0m[0m[2m │ gzip:   0.75 kB[0m
+[2mdist/[0m[2massets/[0m[36mlisp-Cm-ll4uE.js                                    [39m[2m[1m  2.64 kB[0m[0m[2m │ gzip:   1.07 kB[0m
+[2mdist/[0m[2massets/[0m[36mjsx-zeiiLSZ7.js                                     [39m[2m[1m  2.66 kB[0m[0m[2m │ gzip:   1.12 kB[0m
+[2mdist/[0m[2massets/[0m[36mal-C91u8zjz.js                                      [39m[2m[1m  2.68 kB[0m[0m[2m │ gzip:   1.34 kB[0m
+[2mdist/[0m[2massets/[0m[36mnetwork-CyKX9xNQ.js                                 [39m[2m[1m  2.70 kB[0m[0m[2m │ gzip:   1.06 kB[0m
+[2mdist/[0m[2massets/[0m[36mcpp-LOnD_yRS.js                                     [39m[2m[1m  2.71 kB[0m[0m[2m │ gzip:   1.29 kB[0m
+[2mdist/[0m[2massets/[0m[36mjs-templates-DcHpQm7H.js                            [39m[2m[1m  2.73 kB[0m[0m[2m │ gzip:   1.27 kB[0m
+[2mdist/[0m[2massets/[0m[36mcshtml-Dy9IXnY1.js                                  [39m[2m[1m  2.83 kB[0m[0m[2m │ gzip:   1.30 kB[0m
+[2mdist/[0m[2massets/[0m[36mplsql-BQu3kofT.js                                   [39m[2m[1m  2.84 kB[0m[0m[2m │ gzip:   1.59 kB[0m
+[2mdist/[0m[2massets/[0m[36mjava-BXd1pY2I.js                                    [39m[2m[1m  2.88 kB[0m[0m[2m │ gzip:   1.31 kB[0m
+[2mdist/[0m[2massets/[0m[36mmarkup-CsSrXt-I.js                                  [39m[2m[1m  2.94 kB[0m[0m[2m │ gzip:   1.19 kB[0m
+[2mdist/[0m[2massets/[0m[36mswift-CM8xyZBn.js                                   [39m[2m[1m  3.00 kB[0m[0m[2m │ gzip:   1.35 kB[0m
+[2mdist/[0m[2massets/[0m[36mpug-rHn9Q7_y.js                                     [39m[2m[1m  3.00 kB[0m[0m[2m │ gzip:   1.10 kB[0m
+[2mdist/[0m[2massets/[0m[36mhaskell-RoIVqwvv.js                                 [39m[2m[1m  3.03 kB[0m[0m[2m │ gzip:   1.60 kB[0m
+[2mdist/[0m[2massets/[0m[36mmongodb-BP83l5oC.js                                 [39m[2m[1m  3.08 kB[0m[0m[2m │ gzip:   1.62 kB[0m
+[2mdist/[0m[2massets/[0m[36mcoq-D78jy4KY.js                                     [39m[2m[1m  3.10 kB[0m[0m[2m │ gzip:   1.68 kB[0m
+[2mdist/[0m[2massets/[0m[36mclojure-PRKU1jLq.js                                 [39m[2m[1m  3.11 kB[0m[0m[2m │ gzip:   1.55 kB[0m
+[2mdist/[0m[2massets/[0m[36marturo-YW37f5Rw.js                                  [39m[2m[1m  3.20 kB[0m[0m[2m │ gzip:   1.66 kB[0m
+[2mdist/[0m[2massets/[0m[36mpsl-DUS6lvHN.js                                     [39m[2m[1m  3.24 kB[0m[0m[2m │ gzip:   1.70 kB[0m
+[2mdist/[0m[2massets/[0m[36magents._name-Do2ghkMB.js                            [39m[2m[1m  3.24 kB[0m[0m[2m │ gzip:   1.34 kB[0m
+[2mdist/[0m[2massets/[0m[36mcss-extras-GN5xvTQv.js                              [39m[2m[1m  3.37 kB[0m[0m[2m │ gzip:   1.58 kB[0m
+[2mdist/[0m[2massets/[0m[36msql-BsDJZ7kI.js                                     [39m[2m[1m  3.40 kB[0m[0m[2m │ gzip:   1.98 kB[0m
+[2mdist/[0m[2massets/[0m[36minform7-CNXDqg2y.js                                 [39m[2m[1m  3.40 kB[0m[0m[2m │ gzip:   1.54 kB[0m
+[2mdist/[0m[2massets/[0m[36mdax-C9R0POrL.js                                     [39m[2m[1m  3.49 kB[0m[0m[2m │ gzip:   1.70 kB[0m
+[2mdist/[0m[2massets/[0m[36mpure-CAvgvICL.js                                    [39m[2m[1m  3.51 kB[0m[0m[2m │ gzip:   1.74 kB[0m
+[2mdist/[0m[2massets/[0m[36mwgsl-CqSbfUwt.js                                    [39m[2m[1m  3.51 kB[0m[0m[2m │ gzip:   1.54 kB[0m
+[2mdist/[0m[2massets/[0m[36mtextile-B7v-QaD9.js                                 [39m[2m[1m  3.55 kB[0m[0m[2m │ gzip:   1.26 kB[0m
+[2mdist/[0m[2massets/[0m[36mknowledge-6W_6vbPR.js                               [39m[2m[1m  3.58 kB[0m[0m[2m │ gzip:   1.52 kB[0m
+[2mdist/[0m[2massets/[0m[36mrest-NSV_iQKh.js                                    [39m[2m[1m  3.60 kB[0m[0m[2m │ gzip:   1.12 kB[0m
+[2mdist/[0m[2massets/[0m[36mruby-DSZUbLg-.js                                    [39m[2m[1m  3.68 kB[0m[0m[2m │ gzip:   1.57 kB[0m
+[2mdist/[0m[2massets/[0m[36mstylus-BnuCM_6X.js                                  [39m[2m[1m  3.80 kB[0m[0m[2m │ gzip:   1.67 kB[0m
+[2mdist/[0m[2massets/[0m[36mnsis-0Yx_1ctJ.js                                    [39m[2m[1m  3.83 kB[0m[0m[2m │ gzip:   2.12 kB[0m
+[2mdist/[0m[2massets/[0m[36marduino-C5vvjiMq.js                                 [39m[2m[1m  4.03 kB[0m[0m[2m │ gzip:   1.99 kB[0m
+[2mdist/[0m[2massets/[0m[36mscheme-DuckiPe0.js                                  [39m[2m[1m  4.03 kB[0m[0m[2m │ gzip:   1.68 kB[0m
+[2mdist/[0m[2massets/[0m[36mxquery-CuSHzixB.js                                  [39m[2m[1m  4.03 kB[0m[0m[2m │ gzip:   1.75 kB[0m
+[2mdist/[0m[2massets/[0m[36mrenpy-Dsh0UC8V.js                                   [39m[2m[1m  4.35 kB[0m[0m[2m │ gzip:   2.03 kB[0m
+[2mdist/[0m[2massets/[0m[36mlink-OSSAPhhu.js                                    [39m[2m[1m  4.39 kB[0m[0m[2m │ gzip:   2.15 kB[0m
+[2mdist/[0m[2massets/[0m[36masciidoc-CHbTPDj0.js                                [39m[2m[1m  4.51 kB[0m[0m[2m │ gzip:   1.67 kB[0m
+[2mdist/[0m[2massets/[0m[36mmetafont-DVuvLTBt.js                                [39m[2m[1m  4.57 kB[0m[0m[2m │ gzip:   2.08 kB[0m
+[2mdist/[0m[2massets/[0m[36mjavascript-DpWngonj.js                              [39m[2m[1m  4.76 kB[0m[0m[2m │ gzip:   1.77 kB[0m
+[2mdist/[0m[2massets/[0m[36mmarkdown-KeTLYtoI.js                                [39m[2m[1m  5.10 kB[0m[0m[2m │ gzip:   1.97 kB[0m
+[2mdist/[0m[2massets/[0m[36mavisynth-Bm_y5ZRz.js                                [39m[2m[1m  5.15 kB[0m[0m[2m │ gzip:   2.71 kB[0m
+[2mdist/[0m[2massets/[0m[36mcobol-CAsGuXFf.js                                   [39m[2m[1m  5.15 kB[0m[0m[2m │ gzip:   2.46 kB[0m
+[2mdist/[0m[2massets/[0m[36mpreload-helper-D8N4wH3_.js                          [39m[2m[1m  5.72 kB[0m[0m[2m │ gzip:   2.15 kB[0m
+[2mdist/[0m[2massets/[0m[36mkeepalived-B-cJgXnr.js                              [39m[2m[1m  5.74 kB[0m[0m[2m │ gzip:   2.27 kB[0m
+[2mdist/[0m[2massets/[0m[36mvault-CXlUYxFD.js                                   [39m[2m[1m  6.20 kB[0m[0m[2m │ gzip:   2.16 kB[0m
+[2mdist/[0m[2massets/[0m[36mbash-CHCd-UsF.js                                    [39m[2m[1m  6.29 kB[0m[0m[2m │ gzip:   3.14 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks._id-C4kQTGB6.js                               [39m[2m[1m  6.40 kB[0m[0m[2m │ gzip:   2.32 kB[0m
+[2mdist/[0m[2massets/[0m[36mphp-DcNu4Go4.js                                     [39m[2m[1m  6.45 kB[0m[0m[2m │ gzip:   2.08 kB[0m
+[2mdist/[0m[2massets/[0m[36mcsharp-a0FzGbmQ.js                                  [39m[2m[1m  6.49 kB[0m[0m[2m │ gzip:   2.57 kB[0m
+[2mdist/[0m[2massets/[0m[36mgeneral-2k7rFYiw.js                                 [39m[2m[1m  6.82 kB[0m[0m[2m │ gzip:   2.50 kB[0m
+[2mdist/[0m[2massets/[0m[36m_app-Hj-77iTV.js                                    [39m[2m[1m  7.32 kB[0m[0m[2m │ gzip:   2.41 kB[0m
+[2mdist/[0m[2massets/[0m[36mmemory-BzZG19ab.js                                  [39m[2m[1m  7.32 kB[0m[0m[2m │ gzip:   2.46 kB[0m
+[2mdist/[0m[2massets/[0m[36msas-YoLpdJP_.js                                     [39m[2m[1m  7.54 kB[0m[0m[2m │ gzip:   3.10 kB[0m
+[2mdist/[0m[2massets/[0m[36mautomation-BSuZh4u0.js                              [39m[2m[1m  7.61 kB[0m[0m[2m │ gzip:   2.45 kB[0m
+[2mdist/[0m[2massets/[0m[36mabap-CA6CYraQ.js                                    [39m[2m[1m  7.98 kB[0m[0m[2m │ gzip:   3.61 kB[0m
+[2mdist/[0m[2massets/[0m[36mnetwork-Cj3KgYVg.js                                 [39m[2m[1m  8.15 kB[0m[0m[2m │ gzip:   2.65 kB[0m
+[2mdist/[0m[2massets/[0m[36mapacheconf-BtJYHcsX.js                              [39m[2m[1m  8.25 kB[0m[0m[2m │ gzip:   3.59 kB[0m
+[2mdist/[0m[2massets/[0m[36mgml-ChNvk1Gf.js                                     [39m[2m[1m  8.29 kB[0m[0m[2m │ gzip:   3.82 kB[0m
+[2mdist/[0m[2massets/[0m[36mautohotkey-6cr3wYMd.js                              [39m[2m[1m  8.82 kB[0m[0m[2m │ gzip:   4.07 kB[0m
+[2mdist/[0m[2massets/[0m[36mfactor-CFUFyJbx.js                                  [39m[2m[1m  9.03 kB[0m[0m[2m │ gzip:   3.52 kB[0m
+[2mdist/[0m[2massets/[0m[36mvault-CpQCM7xx.js                                   [39m[2m[1m  9.19 kB[0m[0m[2m │ gzip:   3.12 kB[0m
+[2mdist/[0m[2massets/[0m[36mgherkin-Ce_uI0d7.js                                 [39m[2m[1m  9.89 kB[0m[0m[2m │ gzip:   5.40 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks-Du918dFY.js                                   [39m[2m[1m  9.89 kB[0m[0m[2m │ gzip:   3.52 kB[0m
+[2mdist/[0m[2massets/[0m[36mopencl-DxMXjGmF.js                                  [39m[2m[1m 10.02 kB[0m[0m[2m │ gzip:   4.29 kB[0m
+[2mdist/[0m[2massets/[0m[36mobservability-C-ZcdAq1.js                           [39m[2m[1m 10.20 kB[0m[0m[2m │ gzip:   3.08 kB[0m
+[2mdist/[0m[2massets/[0m[36m_app-C7mJqLfq.js                                    [39m[2m[1m 10.39 kB[0m[0m[2m │ gzip:   3.08 kB[0m
+[2mdist/[0m[2massets/[0m[36mcmake-BEdyk9ow.js                                   [39m[2m[1m 10.54 kB[0m[0m[2m │ gzip:   4.15 kB[0m
+[2mdist/[0m[2massets/[0m[36mskills-B-1m3Uk9.js                                  [39m[2m[1m 11.22 kB[0m[0m[2m │ gzip:   3.30 kB[0m
+[2mdist/[0m[2massets/[0m[36mcore-CevaDDGj.js                                    [39m[2m[1m 11.88 kB[0m[0m[2m │ gzip:   5.20 kB[0m
+[2mdist/[0m[2massets/[0m[36mworkspace-mhOf1gGy.js                               [39m[2m[1m 12.21 kB[0m[0m[2m │ gzip:   4.09 kB[0m
+[2mdist/[0m[2massets/[0m[36mtask-editor-surface-CNCsHyOZ.js                     [39m[2m[1m 13.26 kB[0m[0m[2m │ gzip:   3.40 kB[0m
+[2mdist/[0m[2massets/[0m[36mknowledge-C6hd7T82.js                               [39m[2m[1m 13.61 kB[0m[0m[2m │ gzip:   4.15 kB[0m
+[2mdist/[0m[2massets/[0m[36mvim-Cax9n2ga.js                                     [39m[2m[1m 14.27 kB[0m[0m[2m │ gzip:   5.96 kB[0m
+[2mdist/[0m[2massets/[0m[36mnetwork-CM6hTy_o.js                                 [39m[2m[1m 14.35 kB[0m[0m[2m │ gzip:   5.19 kB[0m
+[2mdist/[0m[2massets/[0m[36msandbox-B4JkTCFG.js                                 [39m[2m[1m 15.01 kB[0m[0m[2m │ gzip:   4.51 kB[0m
+[2mdist/[0m[2massets/[0m[36mproviders-DOa1NGE7.js                               [39m[2m[1m 17.78 kB[0m[0m[2m │ gzip:   5.25 kB[0m
+[2mdist/[0m[2massets/[0m[36museStore-D7BBH1dx.js                                [39m[2m[1m 18.02 kB[0m[0m[2m │ gzip:   6.40 kB[0m
+[2mdist/[0m[2massets/[0m[36mindex.dom-DcoO2puL.js                               [39m[2m[1m 18.71 kB[0m[0m[2m │ gzip:   6.34 kB[0m
+[2mdist/[0m[2massets/[0m[36msettings-wFFJROkY.js                                [39m[2m[1m 19.82 kB[0m[0m[2m │ gzip:   4.85 kB[0m
+[2mdist/[0m[2massets/[0m[36mhooks-extensions-4UYtZ7mD.js                        [39m[2m[1m 21.47 kB[0m[0m[2m │ gzip:   5.84 kB[0m
+[2mdist/[0m[2massets/[0m[36mindex-BWBd_CZI.js                                   [39m[2m[1m 21.71 kB[0m[0m[2m │ gzip:   6.90 kB[0m
+[2mdist/[0m[2massets/[0m[36mmcp-servers-CvfqHCIy.js                             [39m[2m[1m 22.32 kB[0m[0m[2m │ gzip:   6.06 kB[0m
+[2mdist/[0m[2massets/[0m[36mskills-B5cCbav5.js                                  [39m[2m[1m 23.44 kB[0m[0m[2m │ gzip:   6.30 kB[0m
+[2mdist/[0m[2massets/[0m[36mdesign-system-CLYweIqB.js                           [39m[2m[1m 31.44 kB[0m[0m[2m │ gzip:   8.28 kB[0m
+[2mdist/[0m[2massets/[0m[36msqf-C8kiKfPs.js                                     [39m[2m[1m 33.49 kB[0m[0m[2m │ gzip:  11.17 kB[0m
+[2mdist/[0m[2massets/[0m[36museMutation-DMSUfUs0.js                             [39m[2m[1m 34.91 kB[0m[0m[2m │ gzip:  11.01 kB[0m
+[2mdist/[0m[2massets/[0m[36mcomponents-dy7P7KY1.js                              [39m[2m[1m 37.22 kB[0m[0m[2m │ gzip:  11.22 kB[0m
+[2mdist/[0m[2massets/[0m[36mnetwork-D9gutRFM.js                                 [39m[2m[1m 37.67 kB[0m[0m[2m │ gzip:   9.22 kB[0m
+[2mdist/[0m[2massets/[0m[36mMatches-D4UU2Aq_.js                                 [39m[2m[1m 55.52 kB[0m[0m[2m │ gzip:  17.93 kB[0m
+[2mdist/[0m[2massets/[0m[36muse-automation-page-BgGnteQG.js                     [39m[2m[1m 58.55 kB[0m[0m[2m │ gzip:  12.59 kB[0m
+[2mdist/[0m[2massets/[0m[36mbridges-9iHXvoLu.js                                 [39m[2m[1m 63.22 kB[0m[0m[2m │ gzip:  13.83 kB[0m
+[2mdist/[0m[2massets/[0m[36mtasks-Czn6Vvic.js                                   [39m[2m[1m104.10 kB[0m[0m[2m │ gzip:  22.81 kB[0m
+[2mdist/[0m[2massets/[0m[36mreact-runtime-DQaCdmo0.js                           [39m[2m[1m191.21 kB[0m[0m[2m │ gzip:  60.12 kB[0m
+[2mdist/[0m[2massets/[0m[36magents._name.sessions._id-C0SguB0N.js               [39m[2m[1m244.57 kB[0m[0m[2m │ gzip:  70.99 kB[0m
+[2mdist/[0m[2massets/[0m[36msession-DILxbkox.js                                 [39m[2m[1m442.25 kB[0m[0m[2m │ gzip: 114.15 kB[0m
+[2mdist/[0m[2massets/[0m[36msrc-oIzy_zcz.js                                     [39m[33m[1m512.81 kB[0m[39m[2m │ gzip: 159.68 kB[0m
+
+[plugin builtin:vite-reporter] [33m[1m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[0m[39m
+✓ built in 869ms
+# github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+ld: warning: -bind_at_load is deprecated on macOS
+0 issues.
+✓  cmd/agh (cached)
+✓  extensions/bridges/discord (cached)
+✓  extensions/bridges/gchat (cached)
+✓  extensions/bridges/github (cached)
+✓  extensions/bridges/linear (cached)
+✓  extensions/bridges/slack (cached)
+✓  extensions/bridges/telegram (cached)
+✓  extensions/bridges/whatsapp (cached)
+✓  extensions/bridges/teams (cached)
+✓  internal/agentidentity (cached)
+✓  internal/api/contract (cached)
+✓  internal/api/core (cached)
+✓  internal/api/httpapi (cached)
+✓  internal/api/testutil (cached)
+✓  internal/api/spec (cached)
+∅  internal/automation/model
+✓  internal/bridges (cached)
+✓  internal/bridgesdk (cached)
+✓  internal/bundles (cached)
+∅  internal/bundles/model
+✓  internal/api/udsapi (cached)
+✓  internal/automation (cached)
+✓  internal/coordinator (cached)
+✓  internal/codegen/sdkts (cached)
+✓  internal/cli/docpost (cached)
+✓  internal/config (cached)
+✓  internal/extension/contract (cached)
+✓  internal/diagnostics (cached)
+✓  internal/extensiontest (cached)
+✓  internal/extension/protocol (cached)
+✓  internal/filesnap (cached)
+✓  internal/fileutil (cached)
+✓  internal/logger (cached)
+✓  internal/extension/surfaces (cached)
+∅  internal/network/rules
+✓  internal/memory/consolidation (cached)
+✓  internal/frontmatter (cached)
+✓  internal/mcp/auth (cached)
+✓  internal/mcp (cached)
+✓  internal/observe (cached)
+✓  internal/heartbeat (cached)
+✓  internal/resources (cached)
+✓  internal/retry (cached)
+✓  internal/sandbox (cached)
+∅  internal/sandbox/daytona/cmd/agh-daytona-sidecar
+✓  internal/registry/github (cached)
+✓  internal/sandbox/providertest (cached)
+✓  internal/sandbox/local (cached)
+✓  internal/memory (cached)
+✓  internal/scheduler (cached)
+✓  internal/registry/clawhub (cached)
+✓  internal/sandbox/daytona (cached)
+✓  internal/skills/bundled (cached)
+✓  internal/settings (cached)
+✓  internal/sse (cached)
+✓  internal/situation (cached)
+✓  internal/network (cached)
+✓  internal/store/sessiondb (cached)
+✓  internal/soul (cached)
+✓  internal/subprocess (cached)
+✓  internal/registry (cached)
+✓  internal/session (cached)
+✓  internal/testutil (cached)
+∅  internal/testutil/acpmock/cmd/acpmock-driver
+✓  internal/toolruntime (cached)
+✓  internal/store/globaldb (cached)
+✓  internal/tools/builtin (cached)
+✓  internal/transcript (cached)
+✓  internal/vault (cached)
+✓  internal/version (cached)
+✓  internal/workref (cached)
+✓  internal/workspace (cached)
+✓  internal/store (cached)
+✓  sdk/examples/telegram-reference (cached)
+∅  sdk/examples/secret-guard
+∅  web
+✓  internal/task (cached)
+✓  internal/procutil (1.054s)
+✓  internal/e2elane (1.241s)
+✓  internal/tools (1.125s)
+✓  sdk/go (1.192s)
+✓  internal/hooks (1.647s)
+✓  internal/skills (2.198s)
+✓  internal/codegen/openapits (2.389s)
+✓  internal/acp (5.437s)
+✓  internal/testutil/acpmock (3.329s)
+✓  cmd/agh-codegen (7.073s)
+✓  internal/cli (9.418s)
+✓  internal/testutil/e2e (10.176s)
+✓  internal/extension (27.902s)
+✓  internal/daemon (52.97s)
+
+DONE 7706 tests in 56.048s
+OK: all package boundaries respected

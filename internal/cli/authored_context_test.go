@@ -147,6 +147,67 @@ func TestAgentSoulCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should create soul without expected digest when file is absent", func(t *testing.T) {
+		t.Parallel()
+
+		bodyPath := filepath.Join(t.TempDir(), "SOUL.md")
+		if err := os.WriteFile(bodyPath, []byte("# Soul\n\nCreate me.\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(SOUL.md) error = %v", err)
+		}
+		client := &stubClient{
+			putAgentSoulFn: func(_ context.Context, name string, request AgentSoulPutRequest) (AgentSoulMutationRecord, error) {
+				if name != "coder" || request.AgentName != "coder" {
+					t.Fatalf("PutAgentSoul() agent = %q/%q, want coder", name, request.AgentName)
+				}
+				if request.ExpectedDigest != "" {
+					t.Fatalf("PutAgentSoul() expected_digest = %q, want empty create digest", request.ExpectedDigest)
+				}
+				if request.WorkspaceID != "checkout-api" || request.Body != "# Soul\n\nCreate me.\n" {
+					t.Fatalf("PutAgentSoul() request = %#v", request)
+				}
+				return AgentSoulMutationRecord{
+					Soul: AgentSoulRecord{
+						AgentName:        "coder",
+						Valid:            true,
+						ValidationStatus: contract.AuthoredValidationValid,
+						Digest:           "sha256:created",
+					},
+					Revision: AgentSoulRevisionRecord{
+						ID:        "rev-create",
+						AgentName: "coder",
+						Action:    contract.AgentSoulRevisionPut,
+						NewDigest: "sha256:created",
+						CreatedAt: fixedTestNow,
+					},
+				}, nil
+			},
+		}
+
+		stdout, stderr, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"agent",
+			"soul",
+			"write",
+			"coder",
+			"--file",
+			bodyPath,
+			"--workspace",
+			"checkout-api",
+			"--json",
+		)
+		if err != nil {
+			t.Fatalf("agent soul create error = %v; stderr=%s; stdout=%s", err, stderr, stdout)
+		}
+		var payload AgentSoulMutationRecord
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(agent soul create) error = %v", err)
+		}
+		if payload.Revision.ID != "rev-create" || payload.Soul.Digest != "sha256:created" {
+			t.Fatalf("payload = %#v, want created soul mutation", payload)
+		}
+	})
+
 	t.Run("Should report stale soul conflicts deterministically", func(t *testing.T) {
 		t.Parallel()
 
@@ -307,6 +368,74 @@ func TestAgentHeartbeatCommands(t *testing.T) {
 		}
 		if payload.Revision.ID != "rev-hb-1" || payload.Heartbeat.Digest != "sha256:new" {
 			t.Fatalf("payload = %#v, want heartbeat mutation", payload)
+		}
+	})
+
+	t.Run("Should create heartbeat without if match when file is absent", func(t *testing.T) {
+		t.Parallel()
+
+		bodyPath := filepath.Join(t.TempDir(), "HEARTBEAT.md")
+		if err := os.WriteFile(bodyPath, []byte("# Heartbeat\n\nCreate policy.\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(HEARTBEAT.md) error = %v", err)
+		}
+		client := &stubClient{
+			putAgentHeartbeatFn: func(
+				_ context.Context,
+				name string,
+				request AgentHeartbeatPutRequest,
+			) (AgentHeartbeatMutationRecord, error) {
+				if name != "coder" || request.AgentName != "coder" {
+					t.Fatalf("PutAgentHeartbeat() agent = %q/%q, want coder", name, request.AgentName)
+				}
+				if request.ExpectedDigest != "" {
+					t.Fatalf(
+						"PutAgentHeartbeat() expected_digest = %q, want empty create digest",
+						request.ExpectedDigest,
+					)
+				}
+				if request.WorkspaceID != "checkout-api" || request.Body != "# Heartbeat\n\nCreate policy.\n" {
+					t.Fatalf("PutAgentHeartbeat() request = %#v", request)
+				}
+				return AgentHeartbeatMutationRecord{
+					Heartbeat: AgentHeartbeatRecord{
+						AgentName:        "coder",
+						Valid:            true,
+						ValidationStatus: contract.AuthoredValidationValid,
+						Digest:           "sha256:heartbeat-created",
+					},
+					Revision: AgentHeartbeatRevisionRecord{
+						ID:        "rev-hb-create",
+						AgentName: "coder",
+						Operation: contract.HeartbeatRevisionWrite,
+						NewDigest: "sha256:heartbeat-created",
+						CreatedAt: fixedTestNow,
+					},
+				}, nil
+			},
+		}
+
+		stdout, stderr, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"agent",
+			"heartbeat",
+			"write",
+			"coder",
+			"--file",
+			bodyPath,
+			"--workspace",
+			"checkout-api",
+			"--json",
+		)
+		if err != nil {
+			t.Fatalf("agent heartbeat create error = %v; stderr=%s; stdout=%s", err, stderr, stdout)
+		}
+		var payload AgentHeartbeatMutationRecord
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(agent heartbeat create) error = %v", err)
+		}
+		if payload.Revision.ID != "rev-hb-create" || payload.Heartbeat.Digest != "sha256:heartbeat-created" {
+			t.Fatalf("payload = %#v, want heartbeat create mutation", payload)
 		}
 	})
 }

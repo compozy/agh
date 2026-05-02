@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Update Runtime, Config, Extension, and CLI Documentation
 type: docs
 complexity: high
@@ -36,12 +36,12 @@ Update AGH documentation for authored context after implementation surfaces exis
 </requirements>
 
 ## Subtasks
-- [ ] 15.1 Update runtime authored-context docs for `SOUL.md` and `HEARTBEAT.md`.
-- [ ] 15.2 Update config docs for `[agents.soul]` and `[agents.heartbeat]`.
-- [ ] 15.3 Update session docs for health/status/inspect and wake eligibility.
-- [ ] 15.4 Update CLI/API/UDS docs and regenerate CLI reference if required.
-- [ ] 15.5 Update extension, Host API, hooks, tools/resources, SDK, bundle, and registry docs.
-- [ ] 15.6 Run site/docs validation and fix root-cause failures.
+- [x] 15.1 Update runtime authored-context docs for `SOUL.md` and `HEARTBEAT.md`.
+- [x] 15.2 Update config docs for `[agents.soul]` and `[agents.heartbeat]`.
+- [x] 15.3 Update session docs for health/status/inspect and wake eligibility.
+- [x] 15.4 Update CLI/API/UDS docs and regenerate CLI reference if required.
+- [x] 15.5 Update extension, Host API, hooks, tools/resources, SDK, bundle, and registry docs.
+- [x] 15.6 Run site/docs validation and fix root-cause failures.
 
 ## Implementation Details
 

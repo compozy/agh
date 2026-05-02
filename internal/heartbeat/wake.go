@@ -358,7 +358,7 @@ func (s *ManagedWakeService) dispatchWakePrompt(
 ) (WakeDecision, error) {
 	decision := s.newDecision(WakeResultSent, WakeReasonSent, snapshot.ID, snapshot.Digest, snapshot.ConfigDigest)
 	if req.DryRun {
-		return decision, nil
+		return dryRunDecision(decision), nil
 	}
 	promptResult, promptErr := s.prompter.PromptHeartbeatWake(ctx, SyntheticWakePromptRequest{
 		SessionID:        req.SessionID,
@@ -494,7 +494,7 @@ func (s *ManagedWakeService) recordDecision(
 	now time.Time,
 ) (WakeDecision, error) {
 	if req.DryRun {
-		return decision, nil
+		return dryRunDecision(decision), nil
 	}
 	if strings.TrimSpace(decision.WakeEventID) == "" {
 		decision.WakeEventID = s.newID("hwe")
@@ -523,6 +523,12 @@ func (s *ManagedWakeService) recordDecision(
 		return WakeDecision{}, fmt.Errorf("heartbeat: upsert wake state for %q: %w", req.SessionID, err)
 	}
 	return decision, nil
+}
+
+func dryRunDecision(decision WakeDecision) WakeDecision {
+	decision.WakeEventID = ""
+	decision.SyntheticPromptID = ""
+	return decision
 }
 
 func nextWakeState(

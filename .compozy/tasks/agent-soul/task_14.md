@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Regenerate Web and SDK Contract Consumers
 type: frontend
 complexity: high
@@ -35,12 +35,12 @@ Update frontend and SDK contract consumers after Soul, Heartbeat, session health
 </requirements>
 
 ## Subtasks
-- [ ] 14.1 Inspect generated contract changes and identify affected web and SDK consumers.
-- [ ] 14.2 Update web type adapters, fixtures, and tests for Soul, Heartbeat, and session health contracts.
-- [ ] 14.3 Update SDK helper tests and TypeScript exports affected by Host API changes.
-- [ ] 14.4 Add assertions that no MVP UI editor or fake status control was introduced.
-- [ ] 14.5 Run Bun typecheck/test lanes and fix root-cause contract issues.
-- [ ] 14.6 Record any docs follow-up needed for task_15.
+- [x] 14.1 Inspect generated contract changes and identify affected web and SDK consumers.
+- [x] 14.2 Update web type adapters, fixtures, and tests for Soul, Heartbeat, and session health contracts.
+- [x] 14.3 Update SDK helper tests and TypeScript exports affected by Host API changes.
+- [x] 14.4 Add assertions that no MVP UI editor or fake status control was introduced.
+- [x] 14.5 Run Bun typecheck/test lanes and fix root-cause contract issues.
+- [x] 14.6 Record any docs follow-up needed for task_15.
 
 ## Implementation Details
 
