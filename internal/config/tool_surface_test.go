@@ -42,6 +42,66 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueInt64,
 		},
 		{
+			name: "Should allow heartbeat enabled mutation",
+			path: "agents.heartbeat.enabled",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow heartbeat max body limit mutation",
+			path: "agents.heartbeat.max_body_bytes",
+			kind: ConfigValueInt64,
+		},
+		{
+			name: "Should allow heartbeat context projection mutation",
+			path: "agents.heartbeat.context_projection_bytes",
+			kind: ConfigValueInt64,
+		},
+		{
+			name: "Should allow heartbeat min interval mutation",
+			path: "agents.heartbeat.min_interval",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow heartbeat default interval mutation",
+			path: "agents.heartbeat.default_interval",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow heartbeat wake cooldown mutation",
+			path: "agents.heartbeat.wake_cooldown",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow heartbeat max wakes mutation",
+			path: "agents.heartbeat.max_wakes_per_cycle",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow heartbeat active session only mutation",
+			path: "agents.heartbeat.active_session_only",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow heartbeat active hours preference mutation",
+			path: "agents.heartbeat.allow_active_hours_preferences",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow heartbeat wake event retention mutation",
+			path: "agents.heartbeat.wake_event_retention",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow heartbeat stale health mutation",
+			path: "agents.heartbeat.session_health_stale_after",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow heartbeat health hook interval mutation",
+			path: "agents.heartbeat.session_health_hook_min_interval",
+			kind: ConfigValueDuration,
+		},
+		{
 			name:   "Should reject daemon socket trust root",
 			path:   "daemon.socket",
 			denial: ConfigPathTrustForbidden,
@@ -214,6 +274,22 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 	soulMaxBody, ok := EntryByPath(entries, "agents.soul.max_body_bytes")
 	if !ok || soulMaxBody.Value != int64(32768) {
 		t.Fatalf("EntryByPath(agents.soul.max_body_bytes) = %#v/%v, want 32768", soulMaxBody, ok)
+	}
+	heartbeatMinInterval, ok := EntryByPath(entries, "agents.heartbeat.min_interval")
+	if !ok || heartbeatMinInterval.Value != "5m0s" {
+		t.Fatalf(
+			"EntryByPath(agents.heartbeat.min_interval) = %#v/%v, want 5m0s",
+			heartbeatMinInterval,
+			ok,
+		)
+	}
+	heartbeatMaxWakes, ok := EntryByPath(entries, "agents.heartbeat.max_wakes_per_cycle")
+	if !ok || heartbeatMaxWakes.Value != int64(25) {
+		t.Fatalf(
+			"EntryByPath(agents.heartbeat.max_wakes_per_cycle) = %#v/%v, want 25",
+			heartbeatMaxWakes,
+			ok,
+		)
 	}
 	env, ok := EntryByPath(entries, "sandboxes.dev.env.TOKEN")
 	if !ok || env.Value != RedactedValue() || !env.Redacted {

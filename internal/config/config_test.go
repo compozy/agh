@@ -45,6 +45,20 @@ enabled = false
 max_body_bytes = 16384
 context_projection_bytes = 1024
 
+[agents.heartbeat]
+enabled = true
+max_body_bytes = 24576
+context_projection_bytes = 2048
+min_interval = "10m"
+default_interval = "45m"
+wake_cooldown = "2m"
+max_wakes_per_cycle = 8
+active_session_only = false
+allow_active_hours_preferences = false
+wake_event_retention = "72h"
+session_health_stale_after = "3m"
+session_health_hook_min_interval = "90s"
+
 [limits]
 max_sessions = 11
 max_concurrent_agents = 22
@@ -161,6 +175,42 @@ max_queue_depth = 250
 	}
 	if got, want := cfg.Agents.Soul.ContextProjectionBytes, int64(1024); got != want {
 		t.Fatalf("Load() Agents.Soul.ContextProjectionBytes = %d, want %d", got, want)
+	}
+	if !cfg.Agents.Heartbeat.Enabled {
+		t.Fatal("Load() Agents.Heartbeat.Enabled = false, want true")
+	}
+	if got, want := cfg.Agents.Heartbeat.MaxBodyBytes, int64(24576); got != want {
+		t.Fatalf("Load() Agents.Heartbeat.MaxBodyBytes = %d, want %d", got, want)
+	}
+	if got, want := cfg.Agents.Heartbeat.ContextProjectionBytes, int64(2048); got != want {
+		t.Fatalf("Load() Agents.Heartbeat.ContextProjectionBytes = %d, want %d", got, want)
+	}
+	if got, want := cfg.Agents.Heartbeat.MinInterval, 10*time.Minute; got != want {
+		t.Fatalf("Load() Agents.Heartbeat.MinInterval = %s, want %s", got, want)
+	}
+	if got, want := cfg.Agents.Heartbeat.DefaultInterval, 45*time.Minute; got != want {
+		t.Fatalf("Load() Agents.Heartbeat.DefaultInterval = %s, want %s", got, want)
+	}
+	if got, want := cfg.Agents.Heartbeat.WakeCooldown, 2*time.Minute; got != want {
+		t.Fatalf("Load() Agents.Heartbeat.WakeCooldown = %s, want %s", got, want)
+	}
+	if got, want := cfg.Agents.Heartbeat.MaxWakesPerCycle, 8; got != want {
+		t.Fatalf("Load() Agents.Heartbeat.MaxWakesPerCycle = %d, want %d", got, want)
+	}
+	if cfg.Agents.Heartbeat.ActiveSessionOnly {
+		t.Fatal("Load() Agents.Heartbeat.ActiveSessionOnly = true, want false")
+	}
+	if cfg.Agents.Heartbeat.AllowActiveHoursPreferences {
+		t.Fatal("Load() Agents.Heartbeat.AllowActiveHoursPreferences = true, want false")
+	}
+	if got, want := cfg.Agents.Heartbeat.WakeEventRetention, 72*time.Hour; got != want {
+		t.Fatalf("Load() Agents.Heartbeat.WakeEventRetention = %s, want %s", got, want)
+	}
+	if got, want := cfg.Agents.Heartbeat.SessionHealthStaleAfter, 3*time.Minute; got != want {
+		t.Fatalf("Load() Agents.Heartbeat.SessionHealthStaleAfter = %s, want %s", got, want)
+	}
+	if got, want := cfg.Agents.Heartbeat.SessionHealthHookMinInterval, 90*time.Second; got != want {
+		t.Fatalf("Load() Agents.Heartbeat.SessionHealthHookMinInterval = %s, want %s", got, want)
 	}
 	if cfg.Limits.MaxSessions != 11 || cfg.Limits.MaxConcurrentAgents != 22 {
 		t.Fatalf("Load() Limits = %#v", cfg.Limits)
@@ -505,6 +555,152 @@ func TestSoulConfigValidation(t *testing.T) {
 	}
 }
 
+func TestHeartbeatConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include built in heartbeat defaults", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		cfg := DefaultWithHome(homePaths)
+		if !cfg.Agents.Heartbeat.Enabled {
+			t.Fatal("DefaultWithHome() Agents.Heartbeat.Enabled = false, want true")
+		}
+		if got, want := cfg.Agents.Heartbeat.MaxBodyBytes, int64(32768); got != want {
+			t.Fatalf("DefaultWithHome() Agents.Heartbeat.MaxBodyBytes = %d, want %d", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.ContextProjectionBytes, int64(4096); got != want {
+			t.Fatalf("DefaultWithHome() Agents.Heartbeat.ContextProjectionBytes = %d, want %d", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.MinInterval, 5*time.Minute; got != want {
+			t.Fatalf("DefaultWithHome() Agents.Heartbeat.MinInterval = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.DefaultInterval, 30*time.Minute; got != want {
+			t.Fatalf("DefaultWithHome() Agents.Heartbeat.DefaultInterval = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.WakeCooldown, time.Minute; got != want {
+			t.Fatalf("DefaultWithHome() Agents.Heartbeat.WakeCooldown = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.MaxWakesPerCycle, 25; got != want {
+			t.Fatalf("DefaultWithHome() Agents.Heartbeat.MaxWakesPerCycle = %d, want %d", got, want)
+		}
+		if !cfg.Agents.Heartbeat.ActiveSessionOnly {
+			t.Fatal("DefaultWithHome() Agents.Heartbeat.ActiveSessionOnly = false, want true")
+		}
+		if !cfg.Agents.Heartbeat.AllowActiveHoursPreferences {
+			t.Fatal("DefaultWithHome() Agents.Heartbeat.AllowActiveHoursPreferences = false, want true")
+		}
+		if got, want := cfg.Agents.Heartbeat.WakeEventRetention, 168*time.Hour; got != want {
+			t.Fatalf("DefaultWithHome() Agents.Heartbeat.WakeEventRetention = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.SessionHealthStaleAfter, 2*time.Minute; got != want {
+			t.Fatalf("DefaultWithHome() Agents.Heartbeat.SessionHealthStaleAfter = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.SessionHealthHookMinInterval, time.Minute; got != want {
+			t.Fatalf("DefaultWithHome() Agents.Heartbeat.SessionHealthHookMinInterval = %s, want %s", got, want)
+		}
+	})
+
+	base := DefaultHeartbeatConfig()
+	tests := []struct {
+		name    string
+		mutate  func(*HeartbeatConfig)
+		wantErr string
+	}{
+		{
+			name:    "Should reject zero max body bytes",
+			mutate:  func(cfg *HeartbeatConfig) { cfg.MaxBodyBytes = 0 },
+			wantErr: "agents.heartbeat.max_body_bytes",
+		},
+		{
+			name:    "Should reject unbounded max body bytes",
+			mutate:  func(cfg *HeartbeatConfig) { cfg.MaxBodyBytes = 2 << 20 },
+			wantErr: "agents.heartbeat.max_body_bytes must be <=",
+		},
+		{
+			name:    "Should reject zero context projection bytes",
+			mutate:  func(cfg *HeartbeatConfig) { cfg.ContextProjectionBytes = 0 },
+			wantErr: "agents.heartbeat.context_projection_bytes",
+		},
+		{
+			name: "Should reject context projection above max body bytes",
+			mutate: func(cfg *HeartbeatConfig) {
+				cfg.MaxBodyBytes = 128
+				cfg.ContextProjectionBytes = 256
+			},
+			wantErr: "agents.heartbeat.context_projection_bytes must be <=",
+		},
+		{
+			name:    "Should reject zero min interval",
+			mutate:  func(cfg *HeartbeatConfig) { cfg.MinInterval = 0 },
+			wantErr: "agents.heartbeat.min_interval",
+		},
+		{
+			name: "Should reject min interval above default interval",
+			mutate: func(cfg *HeartbeatConfig) {
+				cfg.MinInterval = time.Hour
+				cfg.DefaultInterval = time.Minute
+			},
+			wantErr: "agents.heartbeat.min_interval must be <=",
+		},
+		{
+			name:    "Should reject zero wake cooldown",
+			mutate:  func(cfg *HeartbeatConfig) { cfg.WakeCooldown = 0 },
+			wantErr: "agents.heartbeat.wake_cooldown",
+		},
+		{
+			name:    "Should reject zero max wakes per cycle",
+			mutate:  func(cfg *HeartbeatConfig) { cfg.MaxWakesPerCycle = 0 },
+			wantErr: "agents.heartbeat.max_wakes_per_cycle",
+		},
+		{
+			name:    "Should reject wake event retention below one hour",
+			mutate:  func(cfg *HeartbeatConfig) { cfg.WakeEventRetention = 59 * time.Minute },
+			wantErr: "agents.heartbeat.wake_event_retention",
+		},
+		{
+			name:    "Should reject zero session health stale interval",
+			mutate:  func(cfg *HeartbeatConfig) { cfg.SessionHealthStaleAfter = 0 },
+			wantErr: "agents.heartbeat.session_health_stale_after",
+		},
+		{
+			name:    "Should reject zero session health hook interval",
+			mutate:  func(cfg *HeartbeatConfig) { cfg.SessionHealthHookMinInterval = 0 },
+			wantErr: "agents.heartbeat.session_health_hook_min_interval",
+		},
+		{
+			name:   "Should accept disabled heartbeat with valid limits",
+			mutate: func(cfg *HeartbeatConfig) { cfg.Enabled = false },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := base
+			tt.mutate(&cfg)
+			err := cfg.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("Validate() error = nil, want non-nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestLoadDreamAgentInheritsCustomizedDefaultAgentWhenUnspecified(t *testing.T) {
 	homeRoot := filepath.Join(t.TempDir(), "home")
 	t.Setenv("AGH_HOME", homeRoot)
@@ -761,6 +957,87 @@ context_projection_bytes = 4096
 	if got, want := cfg.Agents.Soul.ContextProjectionBytes, int64(4096); got != want {
 		t.Fatalf("LoadForHome() Agents.Soul.ContextProjectionBytes = %d, want %d", got, want)
 	}
+}
+
+func TestLoadWorkspaceOverridesAgentsHeartbeatConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should merge global and workspace heartbeat overlays", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+
+		writeFile(t, homePaths.ConfigFile, `
+[agents.heartbeat]
+enabled = false
+max_body_bytes = 60000
+context_projection_bytes = 3000
+min_interval = "15m"
+default_interval = "45m"
+wake_cooldown = "3m"
+max_wakes_per_cycle = 4
+active_session_only = true
+allow_active_hours_preferences = true
+wake_event_retention = "48h"
+session_health_stale_after = "4m"
+session_health_hook_min_interval = "2m"
+`)
+		writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[agents.heartbeat]
+context_projection_bytes = 4096
+default_interval = "1h"
+allow_active_hours_preferences = false
+`)
+
+		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+
+		if cfg.Agents.Heartbeat.Enabled {
+			t.Fatal("LoadForHome() Agents.Heartbeat.Enabled = true, want global false")
+		}
+		if got, want := cfg.Agents.Heartbeat.MaxBodyBytes, int64(60000); got != want {
+			t.Fatalf("LoadForHome() Agents.Heartbeat.MaxBodyBytes = %d, want %d", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.ContextProjectionBytes, int64(4096); got != want {
+			t.Fatalf("LoadForHome() Agents.Heartbeat.ContextProjectionBytes = %d, want %d", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.MinInterval, 15*time.Minute; got != want {
+			t.Fatalf("LoadForHome() Agents.Heartbeat.MinInterval = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.DefaultInterval, time.Hour; got != want {
+			t.Fatalf("LoadForHome() Agents.Heartbeat.DefaultInterval = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.WakeCooldown, 3*time.Minute; got != want {
+			t.Fatalf("LoadForHome() Agents.Heartbeat.WakeCooldown = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.MaxWakesPerCycle, 4; got != want {
+			t.Fatalf("LoadForHome() Agents.Heartbeat.MaxWakesPerCycle = %d, want %d", got, want)
+		}
+		if !cfg.Agents.Heartbeat.ActiveSessionOnly {
+			t.Fatal("LoadForHome() Agents.Heartbeat.ActiveSessionOnly = false, want true")
+		}
+		if cfg.Agents.Heartbeat.AllowActiveHoursPreferences {
+			t.Fatal("LoadForHome() Agents.Heartbeat.AllowActiveHoursPreferences = true, want workspace false")
+		}
+		if got, want := cfg.Agents.Heartbeat.WakeEventRetention, 48*time.Hour; got != want {
+			t.Fatalf("LoadForHome() Agents.Heartbeat.WakeEventRetention = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.SessionHealthStaleAfter, 4*time.Minute; got != want {
+			t.Fatalf("LoadForHome() Agents.Heartbeat.SessionHealthStaleAfter = %s, want %s", got, want)
+		}
+		if got, want := cfg.Agents.Heartbeat.SessionHealthHookMinInterval, 2*time.Minute; got != want {
+			t.Fatalf("LoadForHome() Agents.Heartbeat.SessionHealthHookMinInterval = %s, want %s", got, want)
+		}
+	})
 }
 
 func TestLoadMergesTopLevelMCPServersAcrossConfigAndJSONSidecars(t *testing.T) {

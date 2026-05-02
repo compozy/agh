@@ -52,13 +52,29 @@ type defaultsOverlay struct {
 }
 
 type agentsOverlay struct {
-	Soul soulOverlay `toml:"soul"`
+	Soul      soulOverlay      `toml:"soul"`
+	Heartbeat heartbeatOverlay `toml:"heartbeat"`
 }
 
 type soulOverlay struct {
 	Enabled                *bool  `toml:"enabled"`
 	MaxBodyBytes           *int64 `toml:"max_body_bytes"`
 	ContextProjectionBytes *int64 `toml:"context_projection_bytes"`
+}
+
+type heartbeatOverlay struct {
+	Enabled                      *bool          `toml:"enabled"`
+	MaxBodyBytes                 *int64         `toml:"max_body_bytes"`
+	ContextProjectionBytes       *int64         `toml:"context_projection_bytes"`
+	MinInterval                  *time.Duration `toml:"min_interval"`
+	DefaultInterval              *time.Duration `toml:"default_interval"`
+	WakeCooldown                 *time.Duration `toml:"wake_cooldown"`
+	MaxWakesPerCycle             *int           `toml:"max_wakes_per_cycle"`
+	ActiveSessionOnly            *bool          `toml:"active_session_only"`
+	AllowActiveHoursPreferences  *bool          `toml:"allow_active_hours_preferences"`
+	WakeEventRetention           *time.Duration `toml:"wake_event_retention"`
+	SessionHealthStaleAfter      *time.Duration `toml:"session_health_stale_after"`
+	SessionHealthHookMinInterval *time.Duration `toml:"session_health_hook_min_interval"`
 }
 
 type limitsOverlay struct {
@@ -387,6 +403,7 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 
 func (o agentsOverlay) Apply(dst *AgentsConfig) {
 	o.Soul.Apply(&dst.Soul)
+	o.Heartbeat.Apply(&dst.Heartbeat)
 }
 
 func (o soulOverlay) Apply(dst *SoulConfig) {
@@ -398,6 +415,45 @@ func (o soulOverlay) Apply(dst *SoulConfig) {
 	}
 	if o.ContextProjectionBytes != nil {
 		dst.ContextProjectionBytes = *o.ContextProjectionBytes
+	}
+}
+
+func (o heartbeatOverlay) Apply(dst *HeartbeatConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.MaxBodyBytes != nil {
+		dst.MaxBodyBytes = *o.MaxBodyBytes
+	}
+	if o.ContextProjectionBytes != nil {
+		dst.ContextProjectionBytes = *o.ContextProjectionBytes
+	}
+	if o.MinInterval != nil {
+		dst.MinInterval = *o.MinInterval
+	}
+	if o.DefaultInterval != nil {
+		dst.DefaultInterval = *o.DefaultInterval
+	}
+	if o.WakeCooldown != nil {
+		dst.WakeCooldown = *o.WakeCooldown
+	}
+	if o.MaxWakesPerCycle != nil {
+		dst.MaxWakesPerCycle = *o.MaxWakesPerCycle
+	}
+	if o.ActiveSessionOnly != nil {
+		dst.ActiveSessionOnly = *o.ActiveSessionOnly
+	}
+	if o.AllowActiveHoursPreferences != nil {
+		dst.AllowActiveHoursPreferences = *o.AllowActiveHoursPreferences
+	}
+	if o.WakeEventRetention != nil {
+		dst.WakeEventRetention = *o.WakeEventRetention
+	}
+	if o.SessionHealthStaleAfter != nil {
+		dst.SessionHealthStaleAfter = *o.SessionHealthStaleAfter
+	}
+	if o.SessionHealthHookMinInterval != nil {
+		dst.SessionHealthHookMinInterval = *o.SessionHealthHookMinInterval
 	}
 }
 
