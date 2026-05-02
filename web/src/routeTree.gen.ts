@@ -24,6 +24,7 @@ import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
+import { Route as AppSettingsVaultRouteImport } from './routes/_app/settings/vault'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
@@ -112,6 +113,11 @@ const AppTasksIdRoute = AppTasksIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => AppTasksRoute,
+} as any)
+const AppSettingsVaultRoute = AppSettingsVaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
+  getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
   id: '/skills',
@@ -209,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
+  '/settings/vault': typeof AppSettingsVaultRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings/': typeof AppSettingsIndexRoute
@@ -238,6 +245,7 @@ export interface FileRoutesByTo {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
+  '/settings/vault': typeof AppSettingsVaultRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings': typeof AppSettingsIndexRoute
@@ -270,6 +278,7 @@ export interface FileRoutesById {
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
+  '/_app/settings/vault': typeof AppSettingsVaultRoute
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/tasks/new': typeof AppTasksNewRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/providers'
     | '/settings/skills'
+    | '/settings/vault'
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings/'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/providers'
     | '/settings/skills'
+    | '/settings/vault'
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/_app/settings/observability'
     | '/_app/settings/providers'
     | '/_app/settings/skills'
+    | '/_app/settings/vault'
     | '/_app/tasks/$id'
     | '/_app/tasks/new'
     | '/_app/settings/'
@@ -482,6 +494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksIdRouteImport
       parentRoute: typeof AppTasksRoute
     }
+    '/_app/settings/vault': {
+      id: '/_app/settings/vault'
+      path: '/vault'
+      fullPath: '/settings/vault'
+      preLoaderRoute: typeof AppSettingsVaultRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/settings/skills': {
       id: '/_app/settings/skills'
       path: '/skills'
@@ -593,6 +612,7 @@ interface AppSettingsRouteChildren {
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
   AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
   AppSettingsSkillsRoute: typeof AppSettingsSkillsRoute
+  AppSettingsVaultRoute: typeof AppSettingsVaultRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
 }
 
@@ -606,6 +626,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
   AppSettingsProvidersRoute: AppSettingsProvidersRoute,
   AppSettingsSkillsRoute: AppSettingsSkillsRoute,
+  AppSettingsVaultRoute: AppSettingsVaultRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
 }
 

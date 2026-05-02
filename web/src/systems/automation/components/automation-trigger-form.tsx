@@ -187,7 +187,7 @@ export function AutomationTriggerForm({
               <FieldDescription>One key=value pair per line.</FieldDescription>
             </Field>
             {draft.event === "webhook" ? (
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="trigger-endpoint-slug">Endpoint slug</FieldLabel>
                   <Input
@@ -209,13 +209,29 @@ export function AutomationTriggerForm({
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="trigger-webhook-secret">Webhook secret</FieldLabel>
+                  <FieldLabel htmlFor="trigger-webhook-secret-ref">Webhook secret ref</FieldLabel>
                   <Input
-                    data-testid="trigger-webhook-secret-input"
-                    id="trigger-webhook-secret"
-                    onChange={event => onChange({ ...draft, webhook_secret: event.target.value })}
-                    placeholder="shared-secret"
-                    value={draft.webhook_secret ?? ""}
+                    data-testid="trigger-webhook-secret-ref-input"
+                    id="trigger-webhook-secret-ref"
+                    onChange={event =>
+                      onChange({ ...draft, webhook_secret_ref: event.target.value })
+                    }
+                    placeholder="vault:automation/triggers/repo-push/webhook-secret"
+                    value={draft.webhook_secret_ref ?? ""}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="trigger-webhook-secret-value">
+                    Webhook secret value
+                  </FieldLabel>
+                  <Input
+                    data-testid="trigger-webhook-secret-value-input"
+                    id="trigger-webhook-secret-value"
+                    onChange={event =>
+                      onChange({ ...draft, webhook_secret_value: event.target.value })
+                    }
+                    placeholder="write-only secret value"
+                    value={draft.webhook_secret_value ?? ""}
                   />
                 </Field>
               </div>

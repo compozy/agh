@@ -141,6 +141,7 @@ type SandboxProfilePayload struct {
 	RuntimeRootDir string            `json:"runtime_root,omitempty"`
 	DestroyOnStop  bool              `json:"destroy_on_stop,omitempty"`
 	Env            map[string]string `json:"env,omitempty"`
+	SecretEnv      map[string]string `json:"secret_env,omitempty"`
 }
 
 // SandboxPreparePayload is delivered before a session sandbox is prepared.

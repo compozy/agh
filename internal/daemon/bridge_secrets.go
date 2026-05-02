@@ -4,35 +4,44 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
-const bridgeSecretEnvRefPrefix = "env:"
-
-var bridgeSecretEnvNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+const bridgeSecretNamespace = "bridges"
 
 type bridgeSecretBindingValidator interface {
 	ValidateBridgeSecretBinding(binding bridgepkg.BridgeSecretBinding) error
 }
 
-type envBridgeSecretResolver struct {
-	getenv func(string) string
+type bridgeSecretRefResolver interface {
+	ResolveRef(ctx context.Context, ref string) (string, error)
 }
 
-var _ BridgeSecretResolver = envBridgeSecretResolver{}
-var _ bridgeSecretBindingValidator = envBridgeSecretResolver{}
+type bridgeSecretRefStore interface {
+	bridgeSecretRefResolver
+	PutSecret(ctx context.Context, ref string, kind string, plaintext string) (vault.Metadata, error)
+}
 
-func (r envBridgeSecretResolver) ValidateBridgeSecretBinding(binding bridgepkg.BridgeSecretBinding) error {
-	if _, err := parseEnvBridgeSecretRef(binding.VaultRef); err != nil {
+type vaultBridgeSecretResolver struct {
+	service bridgeSecretRefStore
+}
+
+var _ BridgeSecretResolver = vaultBridgeSecretResolver{}
+var _ bridgeSecretBindingValidator = vaultBridgeSecretResolver{}
+var _ bridgeSecretValueWriter = vaultBridgeSecretResolver{}
+
+func (r vaultBridgeSecretResolver) ValidateBridgeSecretBinding(binding bridgepkg.BridgeSecretBinding) error {
+	if err := vault.ValidateSecretRefNamespace(binding.SecretRef, bridgeSecretNamespace); err != nil {
 		return fmt.Errorf("%w: %w", bridgepkg.ErrInvalidBridgeSecretBinding, err)
 	}
 	return nil
 }
 
-func (r envBridgeSecretResolver) ResolveBridgeSecret(
+func (r vaultBridgeSecretResolver) ResolveBridgeSecret(
 	ctx context.Context,
 	binding bridgepkg.BridgeSecretBinding,
 ) (string, error) {
@@ -42,43 +51,53 @@ func (r envBridgeSecretResolver) ResolveBridgeSecret(
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	if r.getenv == nil {
-		return "", errors.New("daemon: bridge secret env source is not configured")
+	if r.service == nil {
+		return "", errors.New("daemon: bridge secret vault source is not configured")
 	}
-
-	envName, err := parseEnvBridgeSecretRef(binding.VaultRef)
-	if err != nil {
+	if err := vault.ValidateSecretRefNamespace(binding.SecretRef, bridgeSecretNamespace); err != nil {
 		return "", fmt.Errorf("%w: %w", bridgepkg.ErrInvalidBridgeSecretBinding, err)
 	}
 
-	value := strings.TrimSpace(r.getenv(envName))
+	value, err := r.service.ResolveRef(ctx, binding.SecretRef)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", bridgepkg.ErrInvalidBridgeSecretBinding, err)
+	}
+	value = strings.TrimSpace(value)
 	if value == "" {
 		return "", fmt.Errorf(
-			"%w: bridge secret env %q is not set or empty",
+			"%w: bridge secret %q is empty",
 			bridgepkg.ErrInvalidBridgeSecretBinding,
-			envName,
+			binding.SecretRef,
 		)
 	}
+	diagnostics.RegisterDynamicSecret(value)
 
 	return value, nil
 }
 
-func parseEnvBridgeSecretRef(vaultRef string) (string, error) {
-	trimmed := strings.TrimSpace(vaultRef)
-	if trimmed == "" {
-		return "", errors.New("stock daemon bridge secret refs must use env:NAME")
+func (r vaultBridgeSecretResolver) PutBridgeSecretValue(
+	ctx context.Context,
+	binding bridgepkg.BridgeSecretBinding,
+	plaintext string,
+) error {
+	if ctx == nil {
+		return errors.New("daemon: put bridge secret value context is required")
 	}
-	if !strings.HasPrefix(trimmed, bridgeSecretEnvRefPrefix) {
-		return "", fmt.Errorf("stock daemon bridge secret refs must use env:NAME, got %q", trimmed)
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-
-	envName := strings.TrimSpace(strings.TrimPrefix(trimmed, bridgeSecretEnvRefPrefix))
-	if envName == "" {
-		return "", errors.New("stock daemon bridge secret refs must include an env var name after env")
+	if r.service == nil {
+		return errors.New("daemon: bridge secret vault source is not configured")
 	}
-	if !bridgeSecretEnvNamePattern.MatchString(envName) {
-		return "", fmt.Errorf("stock daemon bridge secret env %q is invalid", envName)
+	if err := r.ValidateBridgeSecretBinding(binding); err != nil {
+		return err
 	}
-
-	return envName, nil
+	if strings.TrimSpace(plaintext) == "" {
+		return fmt.Errorf("%w: bridge secret value is required", bridgepkg.ErrInvalidBridgeSecretBinding)
+	}
+	if _, err := r.service.PutSecret(ctx, binding.SecretRef, binding.Kind, plaintext); err != nil {
+		return fmt.Errorf("%w: %w", bridgepkg.ErrInvalidBridgeSecretBinding, err)
+	}
+	diagnostics.RegisterDynamicSecret(plaintext)
+	return nil
 }

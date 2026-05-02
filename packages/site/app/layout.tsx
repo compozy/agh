@@ -2,6 +2,7 @@ import "./global.css";
 import { Inter, JetBrains_Mono, Playfair_Display } from "next/font/google";
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
+import { SiteFooter } from "@/components/site/site-footer";
 import { siteConfig } from "@/lib/site-config";
 
 const inter = Inter({
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <body className="flex min-h-screen flex-col bg-fd-background font-sans text-fd-foreground antialiased">
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

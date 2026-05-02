@@ -224,7 +224,7 @@ function ListenerSection({
       <SettingsFieldRow
         data-testid="settings-page-network-enabled"
         label="Embedded network"
-        description="Enable agent-to-agent coordination inside this daemon"
+        description="Enable the open agent network protocol inside this daemon"
         control={
           <Switch
             aria-label="Embedded network"

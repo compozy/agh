@@ -60,7 +60,7 @@ func newHooksInfoCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "info <name>",
 		Short: "Show detailed information for one or more hooks by name",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

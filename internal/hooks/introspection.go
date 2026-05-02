@@ -21,7 +21,7 @@ type CatalogEntry struct {
 	SkillSource  HookSkillSource
 	Mode         HookMode
 	Required     bool
-	Priority     int
+	Priority     int32
 	Timeout      time.Duration
 	ExecutorKind HookExecutorKind
 	Matcher      HookMatcher

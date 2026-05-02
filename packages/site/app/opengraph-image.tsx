@@ -47,7 +47,7 @@ export default function Image() {
         >
           <span>AGH</span>
           <span style={{ width: "96px", height: "1px", background: "#3C3A39" }} />
-          <span style={{ color: "#8E8E93" }}>Agent Operating System</span>
+          <span style={{ color: "#8E8E93" }}>Artificial General Hivemind</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
           <div
@@ -58,7 +58,7 @@ export default function Image() {
               letterSpacing: "-0.055em",
             }}
           >
-            An agent runtime with a network built in.
+            An open workplace for AI agents.
           </div>
           <div
             style={{

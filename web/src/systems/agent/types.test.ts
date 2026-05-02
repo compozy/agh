@@ -22,7 +22,7 @@ describe("agent contract types", () => {
       auth?: {
         authorization_url?: string;
         client_id?: string;
-        client_secret_env?: string;
+        client_secret_ref?: string;
         issuer_url?: string;
         metadata_url?: string;
         revocation_url?: string;

@@ -138,7 +138,7 @@ func TestUpdateAutomationTriggerConfigBackedRejectsDefinitionEditsButAllowsEnabl
 			next.Enabled = false
 			return next, nil
 		},
-		UpdateTriggerFn: func(context.Context, automationpkg.Trigger, *string) (automationpkg.Trigger, error) {
+		UpdateTriggerFn: func(context.Context, automationpkg.Trigger, *automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error) {
 			t.Fatal("UpdateTrigger() should not be called for config-backed trigger validation")
 			return automationpkg.Trigger{}, nil
 		},
@@ -179,7 +179,7 @@ func TestCreateAutomationTriggerRejectsInvalidWebhookID(t *testing.T) {
 	t.Parallel()
 
 	router := newAutomationCoreTestRouter(t, stubAutomationManager{
-		CreateTriggerFn: func(context.Context, automationpkg.Trigger, string) (automationpkg.Trigger, error) {
+		CreateTriggerFn: func(context.Context, automationpkg.Trigger, automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error) {
 			t.Fatal("CreateTrigger() should not be called for invalid webhook id")
 			return automationpkg.Trigger{}, nil
 		},
@@ -191,7 +191,7 @@ func TestCreateAutomationTriggerRejectsInvalidWebhookID(t *testing.T) {
 		http.MethodPost,
 		"/automation/triggers",
 		[]byte(
-			`{"scope":"global","name":"deploy-review","agent_name":"coder","prompt":"review {{ .Kind }}","event":"webhook","endpoint_slug":"deploy-review","webhook_id":"qa-webhook-id","webhook_secret":"shared-secret"}`,
+			`{"scope":"global","name":"deploy-review","agent_name":"coder","prompt":"review {{ .Kind }}","event":"webhook","endpoint_slug":"deploy-review","webhook_id":"qa-webhook-id","webhook_secret_value":"shared-secret"}`,
 		),
 		nil,
 	)
@@ -487,9 +487,9 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 			}
 			return trigger, nil
 		},
-		CreateTriggerFn: func(_ context.Context, created automationpkg.Trigger, secret string) (automationpkg.Trigger, error) {
-			if secret != "shared-secret" {
-				t.Fatalf("CreateTrigger() secret = %q, want %q", secret, "shared-secret")
+		CreateTriggerFn: func(_ context.Context, created automationpkg.Trigger, secret automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error) {
+			if secret.Value == nil || *secret.Value != "shared-secret" {
+				t.Fatalf("CreateTrigger() secret = %#v, want shared-secret write", secret)
 			}
 			if created.Scope != automationpkg.AutomationScopeWorkspace || created.WorkspaceID != "ws-alpha" {
 				t.Fatalf("CreateTrigger() scope/workspace = %#v", created)
@@ -664,7 +664,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		http.MethodPost,
 		"/automation/triggers",
 		[]byte(
-			`{"scope":"workspace","workspace_id":" ws-alpha ","name":" deploy-review ","agent_name":" coder ","prompt":" review {{ index .Data \"payload\" }} ","event":"webhook","filter":{"data.branch":"main"},"webhook_id":" wbh_123 ","endpoint_slug":" deploy-review ","webhook_secret":"shared-secret"}`,
+			`{"scope":"workspace","workspace_id":" ws-alpha ","name":" deploy-review ","agent_name":" coder ","prompt":" review {{ index .Data \"payload\" }} ","event":"webhook","filter":{"data.branch":"main"},"webhook_id":" wbh_123 ","endpoint_slug":" deploy-review ","webhook_secret_value":"shared-secret"}`,
 		),
 		nil,
 	)
@@ -1352,8 +1352,8 @@ type stubAutomationManager struct {
 	TriggerJobFn        func(context.Context, string) (automationpkg.Run, error)
 	ListTriggersFn      func(context.Context, automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
 	GetTriggerFn        func(context.Context, string) (automationpkg.Trigger, error)
-	CreateTriggerFn     func(context.Context, automationpkg.Trigger, string) (automationpkg.Trigger, error)
-	UpdateTriggerFn     func(context.Context, automationpkg.Trigger, *string) (automationpkg.Trigger, error)
+	CreateTriggerFn     func(context.Context, automationpkg.Trigger, automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error)
+	UpdateTriggerFn     func(context.Context, automationpkg.Trigger, *automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error)
 	DeleteTriggerFn     func(context.Context, string) error
 	ListRunsFn          func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error)
 	GetRunFn            func(context.Context, string) (automationpkg.Run, error)
@@ -1432,7 +1432,7 @@ func (s stubAutomationManager) GetTrigger(ctx context.Context, id string) (autom
 func (s stubAutomationManager) CreateTrigger(
 	ctx context.Context,
 	trigger automationpkg.Trigger,
-	secret string,
+	secret automationpkg.WebhookSecretWrite,
 ) (automationpkg.Trigger, error) {
 	if s.CreateTriggerFn == nil {
 		return automationpkg.Trigger{}, nil
@@ -1443,7 +1443,7 @@ func (s stubAutomationManager) CreateTrigger(
 func (s stubAutomationManager) UpdateTrigger(
 	ctx context.Context,
 	trigger automationpkg.Trigger,
-	secret *string,
+	secret *automationpkg.WebhookSecretWrite,
 ) (automationpkg.Trigger, error) {
 	if s.UpdateTriggerFn == nil {
 		return automationpkg.Trigger{}, nil

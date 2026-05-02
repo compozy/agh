@@ -264,7 +264,10 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 						Command: "./bin/mcp-git",
 						Args:    []string{"--config", "{{config_dir}}/git.toml"},
 						Env: map[string]string{
-							"TOKEN": "{{env:GIT_TOKEN}}",
+							"GIT_MODE": "{{env:GIT_MODE}}",
+						},
+						SecretEnv: map[string]string{
+							"GIT_TOKEN": "env:GIT_TOKEN",
 						},
 					},
 				},
@@ -272,8 +275,8 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 		}
 
 		servers, err := ResolveManifestMCPServerResources(rootDir, manifest, func(key string) string {
-			if key == "GIT_TOKEN" {
-				return "secret-token"
+			if key == "GIT_MODE" {
+				return "readonly"
 			}
 			return ""
 		})
@@ -295,8 +298,11 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 		) {
 			t.Fatalf("servers[0].Args = %#v, want %#v", got, want)
 		}
-		if got, want := servers[0].Env["TOKEN"], "secret-token"; got != want {
-			t.Fatalf("servers[0].Env[TOKEN] = %q, want %q", got, want)
+		if got, want := servers[0].Env["GIT_MODE"], "readonly"; got != want {
+			t.Fatalf("servers[0].Env[GIT_MODE] = %q, want %q", got, want)
+		}
+		if got, want := servers[0].SecretEnv["GIT_TOKEN"], "env:GIT_TOKEN"; got != want {
+			t.Fatalf("servers[0].SecretEnv[GIT_TOKEN] = %q, want %q", got, want)
 		}
 	})
 }

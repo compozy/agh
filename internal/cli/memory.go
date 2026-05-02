@@ -233,7 +233,7 @@ func newMemoryReadCommand(deps commandDeps) *cobra.Command {
 
   # Read a global memory file as JSON
   agh memory read review-style.md --scope global -o json`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -328,7 +328,7 @@ func newMemoryWriteCommand(deps commandDeps) *cobra.Command {
 		Use:     "write <filename> --type <type> --description <description>",
 		Short:   "Write or update a persistent memory file",
 		Example: memoryWriteExample,
-		Args:    cobra.ExactArgs(1),
+		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -400,7 +400,7 @@ func newMemoryDeleteCommand(deps commandDeps) *cobra.Command {
 		Short: "Delete a persistent memory file",
 		Example: `  # Delete a workspace memory file
   agh memory delete runtime-notes.md --scope workspace`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

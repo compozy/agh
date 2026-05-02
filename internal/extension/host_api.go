@@ -133,12 +133,12 @@ type HostAPIAutomationManager interface {
 	CreateTrigger(
 		ctx context.Context,
 		trigger automationpkg.Trigger,
-		webhookSecret string,
+		webhookSecret automationpkg.WebhookSecretWrite,
 	) (automationpkg.Trigger, error)
 	UpdateTrigger(
 		ctx context.Context,
 		trigger automationpkg.Trigger,
-		webhookSecret *string,
+		webhookSecret *automationpkg.WebhookSecretWrite,
 	) (automationpkg.Trigger, error)
 	DeleteTrigger(ctx context.Context, id string) error
 	ListRuns(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)
@@ -1472,9 +1472,6 @@ func (h *HostAPIHandler) handleAutomationTriggersCreate(ctx context.Context, raw
 	if err != nil {
 		return nil, err
 	}
-	if err := trigger.Validate("trigger"); err != nil {
-		return nil, invalidParamsRPCError(err)
-	}
 
 	return automation.CreateTrigger(ctx, trigger, webhookSecret)
 }
@@ -1511,9 +1508,6 @@ func (h *HostAPIHandler) handleAutomationTriggersUpdate(ctx context.Context, raw
 	next, webhookSecret, err := h.applyTriggerUpdateParams(ctx, current, params.UpdateTriggerRequest)
 	if err != nil {
 		return nil, err
-	}
-	if err := next.Validate("trigger"); err != nil {
-		return nil, invalidParamsRPCError(err)
 	}
 
 	return automation.UpdateTrigger(ctx, next, webhookSecret)
@@ -1967,10 +1961,10 @@ func validateHostAPIConfigJobUpdate(req apicontract.UpdateJobRequest) error {
 func (h *HostAPIHandler) triggerFromCreateParams(
 	ctx context.Context,
 	req hostAPIAutomationTriggerCreateParams,
-) (automationpkg.Trigger, string, error) {
+) (automationpkg.Trigger, automationpkg.WebhookSecretWrite, error) {
 	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, req.WorkspaceID)
 	if err != nil {
-		return automationpkg.Trigger{}, "", err
+		return automationpkg.Trigger{}, automationpkg.WebhookSecretWrite{}, err
 	}
 
 	enabled := true
@@ -1989,28 +1983,34 @@ func (h *HostAPIHandler) triggerFromCreateParams(
 	}
 
 	trigger := automationpkg.Trigger{
-		Scope:        req.Scope,
-		Name:         strings.TrimSpace(req.Name),
-		AgentName:    strings.TrimSpace(req.AgentName),
-		WorkspaceID:  workspaceID,
-		Prompt:       strings.TrimSpace(req.Prompt),
-		Event:        strings.TrimSpace(req.Event),
-		Filter:       cloneHostAPIStringMap(req.Filter),
-		Enabled:      enabled,
-		Retry:        retry,
-		FireLimit:    fireLimit,
-		Source:       automationpkg.JobSourceDynamic,
-		WebhookID:    strings.TrimSpace(req.WebhookID),
-		EndpointSlug: strings.TrimSpace(req.EndpointSlug),
+		Scope:            req.Scope,
+		Name:             strings.TrimSpace(req.Name),
+		AgentName:        strings.TrimSpace(req.AgentName),
+		WorkspaceID:      workspaceID,
+		Prompt:           strings.TrimSpace(req.Prompt),
+		Event:            strings.TrimSpace(req.Event),
+		Filter:           cloneHostAPIStringMap(req.Filter),
+		Enabled:          enabled,
+		Retry:            retry,
+		FireLimit:        fireLimit,
+		Source:           automationpkg.JobSourceDynamic,
+		WebhookID:        strings.TrimSpace(req.WebhookID),
+		EndpointSlug:     strings.TrimSpace(req.EndpointSlug),
+		WebhookSecretRef: strings.TrimSpace(req.WebhookSecretRef),
 	}
-	return trigger, strings.TrimSpace(req.WebhookSecret), nil
+	write := automationpkg.WebhookSecretWrite{Ref: strings.TrimSpace(req.WebhookSecretRef)}
+	if strings.TrimSpace(req.WebhookSecretValue) != "" {
+		value := strings.TrimSpace(req.WebhookSecretValue)
+		write.Value = &value
+	}
+	return trigger, write, nil
 }
 
 func (h *HostAPIHandler) applyTriggerUpdateParams(
 	ctx context.Context,
 	current automationpkg.Trigger,
 	req apicontract.UpdateTriggerRequest,
-) (automationpkg.Trigger, *string, error) {
+) (automationpkg.Trigger, *automationpkg.WebhookSecretWrite, error) {
 	next := current
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
@@ -2044,6 +2044,14 @@ func (h *HostAPIHandler) applyTriggerUpdateParams(
 		next.FireLimit = *req.FireLimit
 	}
 
+	webhookSecret := applyTriggerWebhookUpdateParams(&next, req)
+	return next, webhookSecret, nil
+}
+
+func applyTriggerWebhookUpdateParams(
+	next *automationpkg.Trigger,
+	req apicontract.UpdateTriggerRequest,
+) *automationpkg.WebhookSecretWrite {
 	event := strings.TrimSpace(next.Event)
 	if req.WebhookID != nil {
 		next.WebhookID = strings.TrimSpace(*req.WebhookID)
@@ -2055,13 +2063,24 @@ func (h *HostAPIHandler) applyTriggerUpdateParams(
 	} else if !strings.EqualFold(event, "webhook") {
 		next.EndpointSlug = ""
 	}
-
-	var webhookSecret *string
-	if req.WebhookSecret != nil {
-		secret := strings.TrimSpace(*req.WebhookSecret)
-		webhookSecret = &secret
+	if req.WebhookSecretRef != nil {
+		next.WebhookSecretRef = strings.TrimSpace(*req.WebhookSecretRef)
+	} else if !strings.EqualFold(event, "webhook") {
+		next.WebhookSecretRef = ""
 	}
-	return next, webhookSecret, nil
+
+	if req.WebhookSecretRef == nil && req.WebhookSecretValue == nil {
+		return nil
+	}
+	write := automationpkg.WebhookSecretWrite{}
+	if req.WebhookSecretRef != nil {
+		write.Ref = strings.TrimSpace(*req.WebhookSecretRef)
+	}
+	if req.WebhookSecretValue != nil {
+		value := strings.TrimSpace(*req.WebhookSecretValue)
+		write.Value = &value
+	}
+	return &write
 }
 
 func validateHostAPIConfigTriggerUpdate(req apicontract.UpdateTriggerRequest) error {
@@ -2482,7 +2501,8 @@ func hostAPITriggerUpdateTouchesImmutableConfigFields(req apicontract.UpdateTrig
 		req.FireLimit != nil ||
 		req.WebhookID != nil ||
 		req.EndpointSlug != nil ||
-		req.WebhookSecret != nil
+		req.WebhookSecretRef != nil ||
+		req.WebhookSecretValue != nil
 }
 
 func minFloat(left, right float64) float64 {

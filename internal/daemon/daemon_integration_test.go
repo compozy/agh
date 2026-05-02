@@ -34,6 +34,7 @@ import (
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -2713,7 +2714,7 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 	if err := registry.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
 		BridgeInstanceID: instance.ID,
 		BindingName:      "bot_token",
-		VaultRef:         "vault://bridges/ext-bridge-daemon/bot-token",
+		SecretRef:        "vault:bridges/ext-bridge-daemon/bot-token",
 		Kind:             "bot_token",
 		CreatedAt:        time.Date(2026, 4, 11, 13, 30, 0, 0, time.UTC),
 		UpdatedAt:        time.Date(2026, 4, 11, 13, 30, 0, 0, time.UTC),
@@ -2779,15 +2780,13 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 	}
 }
 
-func TestBootStartsBridgeExtensionWithDefaultEnvSecretResolver(t *testing.T) {
+func TestBootStartsBridgeExtensionWithDefaultVaultSecretResolver(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
-	t.Setenv("AGH_BRIDGE_DEFAULT_TOKEN", "token-from-env")
-
-	markerPath := filepath.Join(t.TempDir(), "bridge-init-default-env.jsonl")
-	extensionName := "ext-bridge-daemon-default-env"
-	instanceID := "brg-daemon-default-env"
+	markerPath := filepath.Join(t.TempDir(), "bridge-init-default-vault.jsonl")
+	extensionName := "ext-bridge-daemon-default-vault"
+	instanceID := "brg-daemon-default-vault"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
 		runtimeCommand:    daemonExtensionHelperCommand(t),
 		runtimeArgs:       daemonExtensionHelperArgs(),
@@ -2809,15 +2808,26 @@ func TestBootStartsBridgeExtensionWithDefaultEnvSecretResolver(t *testing.T) {
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
 		ExtensionName: extensionName,
-		DisplayName:   "Daemon Bridge Default Env",
+		DisplayName:   "Daemon Bridge Default Vault",
 		Enabled:       true,
 		Status:        bridgepkg.BridgeStatusReady,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
+	secretRef := "vault:bridges/" + instance.ID + "/bot_token"
+	secretStore, err := vault.NewService(
+		registry,
+		vault.NewFileKeyProvider(homePaths.HomeDir, nil),
+	)
+	if err != nil {
+		t.Fatalf("vault.NewService() error = %v", err)
+	}
+	if _, err := secretStore.PutSecret(testutil.Context(t), secretRef, "bot_token", "token-from-vault"); err != nil {
+		t.Fatalf("PutSecret(%q) error = %v", secretRef, err)
+	}
 	if err := registry.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
 		BridgeInstanceID: instance.ID,
 		BindingName:      "bot_token",
-		VaultRef:         "env:AGH_BRIDGE_DEFAULT_TOKEN",
+		SecretRef:        secretRef,
 		Kind:             "bot_token",
 		CreatedAt:        time.Date(2026, 4, 11, 13, 32, 0, 0, time.UTC),
 		UpdatedAt:        time.Date(2026, 4, 11, 13, 32, 0, 0, time.UTC),
@@ -2859,18 +2869,18 @@ func TestBootStartsBridgeExtensionWithDefaultEnvSecretResolver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request.Runtime.Bridge.SingleManagedInstance() error = %v", err)
 	}
-	if got, want := managed.BoundSecrets[0].Value, "token-from-env"; got != want {
-		t.Fatalf("initialize runtime bridge bound secrets = %#v, want env-resolved bot_token binding", managed.BoundSecrets)
+	if got, want := managed.BoundSecrets[0].Value, "token-from-vault"; got != want {
+		t.Fatalf("initialize runtime bridge bound secrets = %#v, want vault-resolved bot_token binding", managed.BoundSecrets)
 	}
 }
 
-func TestBootFailsWhenDefaultBridgeSecretEnvIsMissing(t *testing.T) {
+func TestBootFailsWhenDefaultBridgeSecretVaultValueIsMissing(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
-	markerPath := filepath.Join(t.TempDir(), "bridge-init-missing-env.jsonl")
-	extensionName := "ext-bridge-daemon-missing-env"
-	instanceID := "brg-daemon-missing-env"
+	markerPath := filepath.Join(t.TempDir(), "bridge-init-missing-vault.jsonl")
+	extensionName := "ext-bridge-daemon-missing-vault"
+	instanceID := "brg-daemon-missing-vault"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
 		runtimeCommand:    daemonExtensionHelperCommand(t),
 		runtimeArgs:       daemonExtensionHelperArgs(),
@@ -2892,7 +2902,7 @@ func TestBootFailsWhenDefaultBridgeSecretEnvIsMissing(t *testing.T) {
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
 		ExtensionName: extensionName,
-		DisplayName:   "Daemon Bridge Missing Env",
+		DisplayName:   "Daemon Bridge Missing Vault",
 		Enabled:       true,
 		Status:        bridgepkg.BridgeStatusReady,
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -2900,7 +2910,7 @@ func TestBootFailsWhenDefaultBridgeSecretEnvIsMissing(t *testing.T) {
 	if err := registry.PutBridgeSecretBinding(testutil.Context(t), bridgepkg.BridgeSecretBinding{
 		BridgeInstanceID: instance.ID,
 		BindingName:      "bot_token",
-		VaultRef:         "env:AGH_BRIDGE_UNSET_TOKEN",
+		SecretRef:        "vault:bridges/" + instance.ID + "/bot_token",
 		Kind:             "bot_token",
 		CreatedAt:        time.Date(2026, 4, 11, 13, 33, 0, 0, time.UTC),
 		UpdatedAt:        time.Date(2026, 4, 11, 13, 33, 0, 0, time.UTC),
@@ -2933,14 +2943,14 @@ func TestBootFailsWhenDefaultBridgeSecretEnvIsMissing(t *testing.T) {
 	if ext == nil {
 		t.Fatalf("extensions.Get(%q) = nil, want extension snapshot", extensionName)
 	}
-	if !strings.Contains(ext.Status.LastError, `AGH_BRIDGE_UNSET_TOKEN`) || !strings.Contains(ext.Status.LastError, "not set or empty") {
-		t.Fatalf("extension last error = %q, want missing env name and actionable message", ext.Status.LastError)
+	if !strings.Contains(ext.Status.LastError, `vault: secret not found`) {
+		t.Fatalf("extension last error = %q, want missing vault secret message", ext.Status.LastError)
 	}
 	if strings.Contains(ext.Status.LastError, errBridgeSecretResolverRequired.Error()) {
-		t.Fatalf("extension last error = %q, want missing env failure instead of missing resolver", ext.Status.LastError)
+		t.Fatalf("extension last error = %q, want missing vault failure instead of missing resolver", ext.Status.LastError)
 	}
 	if ext.Status.Active {
-		t.Fatalf("extension active = %v, want false after missing env secret", ext.Status.Active)
+		t.Fatalf("extension active = %v, want false after missing vault secret", ext.Status.Active)
 	}
 }
 
@@ -2996,7 +3006,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 		{
 			BridgeInstanceID: firstID,
 			BindingName:      "bot_token",
-			VaultRef:         "vault://bridges/ext-bridge-daemon-multi/bot-token",
+			SecretRef:        "vault:bridges/ext-bridge-daemon-multi/bot-token",
 			Kind:             "bot_token",
 			CreatedAt:        time.Date(2026, 4, 11, 13, 35, 0, 0, time.UTC),
 			UpdatedAt:        time.Date(2026, 4, 11, 13, 35, 0, 0, time.UTC),
@@ -3004,7 +3014,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 		{
 			BridgeInstanceID: secondID,
 			BindingName:      "webhook_secret",
-			VaultRef:         "vault://bridges/ext-bridge-daemon-multi/webhook-secret",
+			SecretRef:        "vault:bridges/ext-bridge-daemon-multi/webhook-secret",
 			Kind:             "webhook_secret",
 			CreatedAt:        time.Date(2026, 4, 11, 13, 35, 0, 0, time.UTC),
 			UpdatedAt:        time.Date(2026, 4, 11, 13, 35, 0, 0, time.UTC),

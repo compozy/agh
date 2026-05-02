@@ -449,10 +449,10 @@ func TestOverlayEditorSetTableMutations(t *testing.T) {
 		t.Parallel()
 
 		editor, err := newOverlayEditor(ConfigName, []byte(`
-# provider block
-[providers.openai]
-default_model = "gpt-4o"
-api_key_env = "OPENAI_API_KEY"
+	# provider block
+	[providers.openai]
+	default_model = "gpt-4o"
+	command = "openai"
 
 [defaults]
 agent = "general"
@@ -463,7 +463,7 @@ agent = "general"
 
 		err = editor.SetTable([]string{"providers", "openai"}, map[string]any{
 			"default_model": "gpt-5",
-			"api_key_env":   "OPENAI_API_KEY",
+			"command":       "openai-next",
 		})
 		if err != nil {
 			t.Fatalf("editor.SetTable() error = %v", err)
@@ -478,7 +478,7 @@ agent = "general"
 		for _, want := range []string{
 			"[providers.openai]",
 			`default_model = "gpt-5"`,
-			`api_key_env = "OPENAI_API_KEY"`,
+			`command = "openai-next"`,
 			"[defaults]",
 			`agent = "general"`,
 		} {
@@ -675,10 +675,10 @@ func TestOverlayEditorDeleteAndHasPath(t *testing.T) {
 agent = "general"
 provider = "openai"
 
-[providers.openai]
-default_model = "gpt-4o"
-api_key_env = "OPENAI_API_KEY"
-`))
+	[providers.openai]
+	default_model = "gpt-4o"
+	command = "openai"
+	`))
 	if err != nil {
 		t.Fatalf("newOverlayEditor() error = %v", err)
 	}
@@ -729,7 +729,7 @@ api_key_env = "OPENAI_API_KEY"
 		`provider = "openai"`,
 		"[providers.openai]",
 		`default_model = "gpt-4o"`,
-		`api_key_env = "OPENAI_API_KEY"`,
+		`command = "openai"`,
 	} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("rendered config still contains %q\n%s", unwanted, text)

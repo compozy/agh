@@ -21,9 +21,20 @@ const workspace: WorkspacePayload = {
 };
 
 const providerOptions: SessionProviderOption[] = [
-  { name: "claude" },
+  {
+    name: "claude",
+    display_name: "Claude Code",
+    harness: "acp",
+    runtime_provider: "claude",
+    default_model: "claude-sonnet-4-6",
+  },
   { name: "codex" },
-  { name: "gemini" },
+  {
+    name: "openrouter",
+    display_name: "OpenRouter",
+    harness: "pi_acp",
+    runtime_provider: "openrouter",
+  },
 ];
 
 function getDialogBackdrop(): HTMLElement {
@@ -65,7 +76,9 @@ describe("SessionCreateDialog", () => {
     expect(picker).toBeEnabled();
     expect(picker.value).toBe("claude");
     const values = Array.from(picker.options).map(option => option.value);
-    expect(values).toEqual(["claude", "codex", "gemini"]);
+    expect(values).toEqual(["claude", "codex", "openrouter"]);
+    expect(picker).toHaveTextContent("Claude Code · claude-sonnet-4-6");
+    expect(screen.getByTestId("session-create-provider-runtime")).toHaveTextContent("acp");
   });
 
   it("preselects the incoming agent name in the agent picker", () => {

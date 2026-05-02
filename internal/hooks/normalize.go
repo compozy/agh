@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 // ErrExecutorResolverRequired reports that full normalization needs an executor
@@ -139,6 +141,7 @@ func sanitizedHookDecl(decl HookDecl) (HookDecl, error) {
 		Args:         append([]string(nil), decl.Args...),
 		WorkingDir:   strings.TrimSpace(decl.WorkingDir),
 		Env:          cloneStringMap(decl.Env),
+		SecretEnv:    cloneStringMap(decl.SecretEnv),
 		Metadata:     cloneStringMap(decl.Metadata),
 		SkillSource:  decl.SkillSource,
 	}
@@ -197,6 +200,9 @@ func sanitizedHookDecl(decl HookDecl) (HookDecl, error) {
 	if err := ValidateMatcherForEvent(normalized.Event, normalized.Matcher); err != nil {
 		return HookDecl{}, err
 	}
+	if err := validateHookEnv(normalized); err != nil {
+		return HookDecl{}, err
+	}
 
 	return normalized, nil
 }
@@ -205,7 +211,7 @@ func defaultHookMode(_ HookSource) HookMode {
 	return HookModeAsync
 }
 
-func resolveHookPriority(decl HookDecl) (int, error) {
+func resolveHookPriority(decl HookDecl) (int32, error) {
 	if decl.Priority != 0 || decl.PrioritySet {
 		return decl.Priority, nil
 	}
@@ -236,11 +242,26 @@ func resolveHookExecutorKind(decl HookDecl) (HookExecutorKind, error) {
 	if kind == HookExecutorSubprocess && decl.Command == "" {
 		return "", fmt.Errorf("hooks: hook %q subprocess executor requires a command", decl.Name)
 	}
-	if kind != HookExecutorSubprocess && (decl.Command != "" || len(decl.Args) > 0 || len(decl.Env) > 0) {
+	if kind != HookExecutorSubprocess && hasSubprocessFields(decl) {
 		return "", fmt.Errorf("hooks: hook %q shell command fields require a subprocess executor", decl.Name)
 	}
 
 	return kind, nil
+}
+
+func hasSubprocessFields(decl HookDecl) bool {
+	return decl.Command != "" || len(decl.Args) > 0 || len(decl.Env) > 0 || len(decl.SecretEnv) > 0
+}
+
+func validateHookEnv(decl HookDecl) error {
+	path := fmt.Sprintf("hooks: hook %q", decl.Name)
+	if err := vault.ValidateNonSecretEnvMap(path, decl.Env); err != nil {
+		return err
+	}
+	if err := vault.ValidateSecretEnvMap(path, "hooks", decl.SecretEnv); err != nil {
+		return err
+	}
+	return nil
 }
 
 func cloneStringMap(src map[string]string) map[string]string {

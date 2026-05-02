@@ -1999,15 +1999,15 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 
 	t.Run("Should create automation triggers", func(t *testing.T) {
 		createdTrigger, err := client.CreateAutomationTrigger(ctx, AutomationTriggerCreateRequest{
-			Scope:         automationpkg.AutomationScopeWorkspace,
-			WorkspaceID:   "ws-alpha",
-			Name:          "deploy-review",
-			AgentName:     "coder",
-			Prompt:        `review {{ index .Data "payload" }}`,
-			Event:         "webhook",
-			Filter:        map[string]string{"data.branch": "main"},
-			EndpointSlug:  "deploy-review",
-			WebhookSecret: "shared-secret",
+			Scope:              automationpkg.AutomationScopeWorkspace,
+			WorkspaceID:        "ws-alpha",
+			Name:               "deploy-review",
+			AgentName:          "coder",
+			Prompt:             `review {{ index .Data "payload" }}`,
+			Event:              "webhook",
+			Filter:             map[string]string{"data.branch": "main"},
+			EndpointSlug:       "deploy-review",
+			WebhookSecretValue: "shared-secret",
 		})
 		if err != nil || createdTrigger.ID != "trg-created" {
 			t.Fatalf("CreateAutomationTrigger() = %#v, %v", createdTrigger, err)

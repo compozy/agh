@@ -6,6 +6,10 @@ description: The durable runtime unit AGH creates, resumes, audits, and governs.
 A session is the unit AGH actually manages. It binds one agent subprocess to a workspace,
 permission policy, event store, and resume record under one stable AGH session ID.
 
+Session-scoped Vault refs use `vault:sessions/<session_id>/<name>`. They are ordinary encrypted
+Vault records filtered by the session prefix, and the session inspector shows only redacted metadata
+for those refs.
+
 <OperatorNote>
   Reach for this section when you need the operational contract around one live session: how it
   starts, what gets stored, how replay works, and how approvals are enforced while the agent runs.
@@ -51,5 +55,12 @@ permission policy, event store, and resume record under one stable AGH session I
     title="Static modes, workspace boundaries, and approval flow"
     description="Use this page to understand what `deny-all`, `approve-reads`, and `approve-all` actually permit and how interactive approvals work."
     meta="Governance"
+  />
+  <RouteRow
+    href="/runtime/core/configuration/vault"
+    label="Vault"
+    title="Session-scoped secret metadata"
+    description="Use this page when a session needs write-only encrypted refs such as `vault:sessions/<session_id>/<name>`."
+    meta="Secrets"
   />
 </RouteList>

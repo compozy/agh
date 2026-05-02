@@ -36,6 +36,7 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/toolruntime"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -63,6 +64,7 @@ type bootState struct {
 	workspaceResolver   *workspacepkg.Resolver
 	sessions            SessionManager
 	hostedMCP           *mcppkg.HostedService
+	providerVault       *vault.Service
 	tasks               *taskRuntime
 	spawnReaper         *spawnReaper
 	scheduler           *schedulerRuntime
@@ -475,6 +477,11 @@ func (d *Daemon) bootRuntimeServices(
 		return err
 	}
 	state.sandboxRegistry = sandboxRegistry
+	providerVault, err := d.buildProviderVault(state)
+	if err != nil {
+		return err
+	}
+	state.providerVault = providerVault
 	state.bridges = d.composeBridgeRuntime(state, cleanup)
 	hostedMCP, err := d.buildHostedMCPService(state)
 	if err != nil {
@@ -634,7 +641,55 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionSupervision:   state.cfg.Session.Supervision,
 		ProcessRegistry:      state.processRegistry,
 		HostedMCP:            hostedMCPLauncher(state.hostedMCP),
+		ProviderSecrets:      sessionProviderVaultDependency(state.providerVault),
 	}
+}
+
+func (d *Daemon) buildProviderVault(state *bootState) (*vault.Service, error) {
+	if state == nil || state.registry == nil {
+		return nil, errors.New("daemon: provider vault registry is required")
+	}
+	vaultStore, ok := state.registry.(vault.Store)
+	if !ok {
+		if state.logger != nil {
+			state.logger.Warn(
+				"daemon.provider_vault.disabled",
+				"reason",
+				"registry_missing_vault_store",
+				"registry_type",
+				fmt.Sprintf("%T", state.registry),
+			)
+		}
+		return nil, nil
+	}
+	lookupEnv := func(key string) (string, bool) {
+		value := d.getenv(key)
+		return value, strings.TrimSpace(value) != ""
+	}
+	service, err := vault.NewService(
+		vaultStore,
+		vault.NewFileKeyProvider(d.homePaths.HomeDir, lookupEnv),
+		vault.WithLookupEnv(lookupEnv),
+		vault.WithNow(d.now),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: create provider vault: %w", err)
+	}
+	return service, nil
+}
+
+func sessionProviderVaultDependency(service *vault.Service) session.ProviderSecretResolver {
+	if service == nil {
+		return nil
+	}
+	return service
+}
+
+func settingsProviderVaultDependency(service *vault.Service) settingspkg.ProviderSecretStore {
+	if service == nil {
+		return nil
+	}
+	return service
 }
 
 func (d *Daemon) bootProcessRegistry(ctx context.Context, state *bootState) error {
@@ -755,6 +810,7 @@ func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeD
 		ToolApprovals:  state.toolApprovals,
 		HostedMCP:      state.hostedMCP,
 		DreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
+		Vault:          state.providerVault,
 		StartedAt:      state.startedAt,
 	}
 }
@@ -1076,7 +1132,11 @@ func (d *Daemon) hookRuntimeOptions(
 		hookspkg.WithLogger(state.logger),
 		hookspkg.WithNow(d.now),
 		hookspkg.WithDebugPatchAudit(strings.EqualFold(state.cfg.Log.Level, "debug")),
-		hookspkg.WithExecutorResolver(daemonExecutorResolver(nativeExecutors, state.processRegistry)),
+		hookspkg.WithExecutorResolver(daemonExecutorResolverWithSecrets(
+			nativeExecutors,
+			state.providerVault,
+			state.processRegistry,
+		)),
 		hookspkg.WithTelemetrySink(state.hookTelemetrySinks),
 	}
 }
@@ -1153,6 +1213,7 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 		WorkspaceResolver:   state.workspaceResolver,
 		Config:              state.cfg.Automation,
 		Hooks:               state.hooks,
+		WebhookSecrets:      state.providerVault,
 		Logger:              state.logger.With("component", "automation"),
 		GlobalWorkspacePath: d.homePaths.HomeDir,
 		ResourceStore:       resourceRawStore(state.resourceKernel),
@@ -1358,6 +1419,7 @@ func (d *Daemon) extensionManagerDeps(
 			return state.resourceReconcile.Trigger(ctx, kind, reason)
 		},
 		ProcessRegistry: state.processRegistry,
+		SecretResolver:  state.providerVault,
 	}
 }
 
@@ -1521,6 +1583,7 @@ func (d *Daemon) bootSettings(_ context.Context, state *bootState) error {
 		Extensions:                 surface,
 		TransportParity:            surface,
 		MCPAuth:                    surface,
+		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
 		RestartActionAvailable:     true,
 		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
 		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",
@@ -1711,7 +1774,11 @@ func (d *Daemon) composeBridgeRuntime(state *bootState, cleanup *bootCleanup) *b
 		return nil
 	}
 
-	runtime := newBridgeRuntime(store, state.logger, d.now, d.bridgeSecretResolver)
+	resolver := d.bridgeSecretResolver
+	if !d.bridgeSecretResolverExplicit && state.providerVault != nil {
+		resolver = vaultBridgeSecretResolver{service: state.providerVault}
+	}
+	runtime := newBridgeRuntime(store, state.logger, d.now, resolver)
 	if runtime == nil {
 		return nil
 	}

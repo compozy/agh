@@ -41,7 +41,7 @@ func HookCatalogPayloadsFromEntries(entries []hookspkg.CatalogEntry) []contract.
 			Source:       entry.Source.String(),
 			Mode:         string(entry.Mode),
 			Required:     entry.Required,
-			Priority:     entry.Priority,
+			Priority:     int(entry.Priority),
 			ExecutorKind: string(entry.ExecutorKind),
 			Matcher:      entry.Matcher,
 			Metadata:     cloneCatalogMetadata(entry.Metadata),

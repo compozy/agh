@@ -18,5 +18,7 @@ export const baseOptions: BaseLayoutProps = {
     { text: "Home", url: "/", active: "url" },
     { text: "Runtime", url: "/runtime", active: "nested-url" },
     { text: "AGH Network", url: "/protocol", active: "nested-url" },
+    { text: "Blog", url: "/blog", active: "nested-url" },
+    { text: "Changelog", url: "/changelog", active: "nested-url" },
   ],
 };

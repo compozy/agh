@@ -570,11 +570,29 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					Settings: settingspkg.ProviderSettings{
 						Command:      "codex",
 						DefaultModel: "gpt-5.4",
-						APIKeyEnv:    "OPENAI_API_KEY",
+						CredentialSlots: []aghconfig.ProviderCredentialSlot{
+							{
+								Name:      "api_key",
+								TargetEnv: "OPENAI_API_KEY",
+								SecretRef: "env:OPENAI_API_KEY",
+								Kind:      "api_key",
+								Required:  true,
+							},
+						},
 					},
 					Default:          true,
 					CommandAvailable: true,
-					APIKeyEnvPresent: true,
+					Credentials: []settingspkg.ProviderCredentialStatus{
+						{
+							Name:      "api_key",
+							TargetEnv: "OPENAI_API_KEY",
+							SecretRef: "env:OPENAI_API_KEY",
+							Kind:      "api_key",
+							Required:  true,
+							Present:   true,
+							Source:    "env",
+						},
+					},
 					SourceMetadata: settingspkg.SourceMetadata{
 						EffectiveSource: settingspkg.SourceRef{
 							Kind:  settingspkg.SourceKindGlobalConfig,
@@ -1065,7 +1083,15 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				Settings: contract.SettingsProviderSettingsPayload{
 					Command:      "codex",
 					DefaultModel: "gpt-5.4",
-					APIKeyEnv:    "OPENAI_API_KEY",
+					CredentialSlots: []contract.SettingsProviderCredentialSlotPayload{
+						{
+							Name:      "api_key",
+							TargetEnv: "OPENAI_API_KEY",
+							SecretRef: "env:OPENAI_API_KEY",
+							Kind:      "api_key",
+							Required:  true,
+						},
+					},
 				},
 			},
 			assert: func(t *testing.T, service *stubSettingsService) {
@@ -1146,7 +1172,15 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 								Settings: settingspkg.ProviderSettings{
 									Command:      "codex",
 									DefaultModel: "gpt-5.4",
-									APIKeyEnv:    "OPENAI_API_KEY",
+									CredentialSlots: []aghconfig.ProviderCredentialSlot{
+										{
+											Name:      "api_key",
+											TargetEnv: "OPENAI_API_KEY",
+											SecretRef: "env:OPENAI_API_KEY",
+											Kind:      "api_key",
+											Required:  true,
+										},
+									},
 								},
 								CommandAvailable: true,
 								SourceMetadata: settingspkg.SourceMetadata{
@@ -1699,7 +1733,12 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 			Name:    "server-a",
 			Command: "mcpd",
 			Args:    []string{"serve"},
-			Env:     map[string]string{"TOKEN": "abc"},
+			SecretEnv: map[string]string{
+				"TOKEN": "vault:mcp/server-a/env/TOKEN",
+			},
+		},
+		SecretValues: &contract.SettingsMCPSecretValuesPayload{
+			SecretEnv: map[string]string{"TOKEN": "server-token"},
 		},
 	})
 	putResp := performRequest(
@@ -1727,6 +1766,9 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 			"LastPutCollectionRequest.MCPServer = %#v, want populated request payload",
 			service.LastPutCollectionRequest.MCPServer,
 		)
+	}
+	if got, want := service.LastPutCollectionRequest.MCPSecrets.SecretEnv["TOKEN"], "server-token"; got != want {
+		t.Fatalf("LastPutCollectionRequest.MCPSecrets.SecretEnv[TOKEN] = %q, want %q", got, want)
 	}
 
 	var putPayload contract.MutationResult

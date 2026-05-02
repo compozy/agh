@@ -15,8 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pedronauck/agh/internal/diagnostics"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 var (
@@ -70,8 +72,7 @@ type TriggerResult struct {
 
 // TriggerRegistration stores one runtime trigger definition plus write-only webhook auth material.
 type TriggerRegistration struct {
-	Trigger       Trigger `json:"trigger"`
-	WebhookSecret string  `json:"-"`
+	Trigger Trigger `json:"trigger"`
 }
 
 // Validate ensures the runtime registration is internally consistent.
@@ -80,16 +81,7 @@ func (r TriggerRegistration) Validate(path string) error {
 		return err
 	}
 
-	trimmedSecret := strings.TrimSpace(r.WebhookSecret)
 	if strings.TrimSpace(r.Trigger.Event) != triggerEventWebhook {
-		if trimmedSecret != "" {
-			return fmt.Errorf(
-				"%s must be empty when %s.trigger.event is %q",
-				nestedPath(path, "webhook_secret"),
-				path,
-				strings.TrimSpace(r.Trigger.Event),
-			)
-		}
 		return nil
 	}
 	if strings.TrimSpace(r.Trigger.WebhookID) == "" {
@@ -99,14 +91,6 @@ func (r TriggerRegistration) Validate(path string) error {
 			triggerEventWebhook,
 		)
 	}
-	if trimmedSecret == "" {
-		return fmt.Errorf(
-			"%s is required when trigger.event is %q",
-			nestedPath(path, "webhook_secret"),
-			triggerEventWebhook,
-		)
-	}
-
 	return nil
 }
 
@@ -168,6 +152,7 @@ type TriggerEngine struct {
 
 	webhookFreshnessWindow time.Duration
 	hookSessions           HookSessionResolver
+	webhookSecrets         WebhookSecretResolver
 
 	mu            sync.RWMutex
 	stopped       bool
@@ -245,6 +230,13 @@ func WithTriggerEngineWebhookFreshnessWindow(window time.Duration) TriggerEngine
 func WithTriggerEngineHookSessionResolver(resolver HookSessionResolver) TriggerEngineOption {
 	return func(engine *TriggerEngine) {
 		engine.hookSessions = resolver
+	}
+}
+
+// WithTriggerEngineWebhookSecretResolver injects the vault-backed resolver for webhook auth refs.
+func WithTriggerEngineWebhookSecretResolver(resolver WebhookSecretResolver) TriggerEngineOption {
+	return func(engine *TriggerEngine) {
+		engine.webhookSecrets = resolver
 	}
 }
 
@@ -436,8 +428,13 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 	if err := ValidateWebhookTimestamp(request.Timestamp, e.now(), e.webhookFreshnessWindow); err != nil {
 		return TriggerResult{}, err
 	}
+	webhookSecret, cleanup, err := e.resolveWebhookSecret(ctx, registration.Trigger)
+	if err != nil {
+		return TriggerResult{}, err
+	}
+	defer cleanup()
 	if err := ValidateWebhookSignature(
-		registration.WebhookSecret,
+		webhookSecret,
 		request.Timestamp,
 		request.Payload,
 		request.Signature,
@@ -658,6 +655,31 @@ func (e *TriggerEngine) webhookRegistration(
 	return cloneTriggerRegistration(registration), nil
 }
 
+func (e *TriggerEngine) resolveWebhookSecret(ctx context.Context, trigger Trigger) (string, func(), error) {
+	ref := strings.TrimSpace(trigger.WebhookSecretRef)
+	if ref == "" {
+		return "", func() {}, ErrWebhookSecretRequired
+	}
+	if err := vault.ValidateRefNamespace(ref, "automation"); err != nil {
+		return "", func() {}, fmt.Errorf("%w: %w", ErrWebhookSecretRequired, err)
+	}
+	if e.webhookSecrets == nil {
+		return "", func() {}, ErrWebhookSecretRequired
+	}
+	value, err := e.webhookSecrets.ResolveRef(ctx, ref)
+	if err != nil {
+		if errors.Is(err, vault.ErrSecretNotFound) || errors.Is(err, vault.ErrMissingSecret) {
+			return "", func() {}, ErrWebhookSecretRequired
+		}
+		return "", func() {}, err
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", func() {}, ErrWebhookSecretRequired
+	}
+	return value, diagnostics.RegisterDynamicSecret(value), nil
+}
+
 func (e *TriggerEngine) ensureUniqueWebhookLocked(registration TriggerRegistration, allowTriggerID string) error {
 	webhookID := strings.TrimSpace(registration.Trigger.WebhookID)
 	if webhookID == "" {
@@ -784,24 +806,24 @@ func (e *TriggerEngine) hookCompletionEnvelope(
 func normalizeTriggerRegistration(registration TriggerRegistration) (TriggerRegistration, error) {
 	normalized := TriggerRegistration{
 		Trigger: Trigger{
-			ID:           strings.TrimSpace(registration.Trigger.ID),
-			Scope:        registration.Trigger.Scope,
-			Name:         strings.TrimSpace(registration.Trigger.Name),
-			AgentName:    strings.TrimSpace(registration.Trigger.AgentName),
-			WorkspaceID:  strings.TrimSpace(registration.Trigger.WorkspaceID),
-			Prompt:       strings.TrimSpace(registration.Trigger.Prompt),
-			Event:        strings.TrimSpace(registration.Trigger.Event),
-			Filter:       cloneStringMap(registration.Trigger.Filter),
-			Enabled:      registration.Trigger.Enabled,
-			Retry:        registration.Trigger.Retry,
-			FireLimit:    registration.Trigger.FireLimit,
-			Source:       registration.Trigger.Source,
-			WebhookID:    strings.TrimSpace(registration.Trigger.WebhookID),
-			EndpointSlug: strings.TrimSpace(registration.Trigger.EndpointSlug),
-			CreatedAt:    registration.Trigger.CreatedAt,
-			UpdatedAt:    registration.Trigger.UpdatedAt,
+			ID:               strings.TrimSpace(registration.Trigger.ID),
+			Scope:            registration.Trigger.Scope,
+			Name:             strings.TrimSpace(registration.Trigger.Name),
+			AgentName:        strings.TrimSpace(registration.Trigger.AgentName),
+			WorkspaceID:      strings.TrimSpace(registration.Trigger.WorkspaceID),
+			Prompt:           strings.TrimSpace(registration.Trigger.Prompt),
+			Event:            strings.TrimSpace(registration.Trigger.Event),
+			Filter:           cloneStringMap(registration.Trigger.Filter),
+			Enabled:          registration.Trigger.Enabled,
+			Retry:            registration.Trigger.Retry,
+			FireLimit:        registration.Trigger.FireLimit,
+			Source:           registration.Trigger.Source,
+			WebhookID:        strings.TrimSpace(registration.Trigger.WebhookID),
+			EndpointSlug:     strings.TrimSpace(registration.Trigger.EndpointSlug),
+			WebhookSecretRef: strings.TrimSpace(registration.Trigger.WebhookSecretRef),
+			CreatedAt:        registration.Trigger.CreatedAt,
+			UpdatedAt:        registration.Trigger.UpdatedAt,
 		},
-		WebhookSecret: strings.TrimSpace(registration.WebhookSecret),
 	}
 	if err := normalized.Validate("trigger_registration"); err != nil {
 		return TriggerRegistration{}, err
@@ -1049,24 +1071,24 @@ func decodeWebhookSignature(signature string) ([]byte, error) {
 func cloneTriggerRegistration(src TriggerRegistration) TriggerRegistration {
 	return TriggerRegistration{
 		Trigger: Trigger{
-			ID:           src.Trigger.ID,
-			Scope:        src.Trigger.Scope,
-			Name:         src.Trigger.Name,
-			AgentName:    src.Trigger.AgentName,
-			WorkspaceID:  src.Trigger.WorkspaceID,
-			Prompt:       src.Trigger.Prompt,
-			Event:        src.Trigger.Event,
-			Filter:       cloneStringMap(src.Trigger.Filter),
-			Enabled:      src.Trigger.Enabled,
-			Retry:        src.Trigger.Retry,
-			FireLimit:    src.Trigger.FireLimit,
-			Source:       src.Trigger.Source,
-			WebhookID:    src.Trigger.WebhookID,
-			EndpointSlug: src.Trigger.EndpointSlug,
-			CreatedAt:    src.Trigger.CreatedAt,
-			UpdatedAt:    src.Trigger.UpdatedAt,
+			ID:               src.Trigger.ID,
+			Scope:            src.Trigger.Scope,
+			Name:             src.Trigger.Name,
+			AgentName:        src.Trigger.AgentName,
+			WorkspaceID:      src.Trigger.WorkspaceID,
+			Prompt:           src.Trigger.Prompt,
+			Event:            src.Trigger.Event,
+			Filter:           cloneStringMap(src.Trigger.Filter),
+			Enabled:          src.Trigger.Enabled,
+			Retry:            src.Trigger.Retry,
+			FireLimit:        src.Trigger.FireLimit,
+			Source:           src.Trigger.Source,
+			WebhookID:        src.Trigger.WebhookID,
+			EndpointSlug:     src.Trigger.EndpointSlug,
+			WebhookSecretRef: src.Trigger.WebhookSecretRef,
+			CreatedAt:        src.Trigger.CreatedAt,
+			UpdatedAt:        src.Trigger.UpdatedAt,
 		},
-		WebhookSecret: src.WebhookSecret,
 	}
 }
 

@@ -5,7 +5,8 @@ Fumadocs documentation site at `agh.network`. Built with Next.js 16, Fumadocs 16
 ## Critical Rules
 
 - **Pull tokens from `DESIGN.md` (repo root).** No invented colors, type, radii, spacing, or motion. Site obeys the same warm-dark palette as runtime + web.
-- **Hero positioning is locked**: "Your agents can finally talk to each other." Network-protocol-first. Do not propose alternative hero copy without explicit user approval.
+- **Pull product language from `COPY.md` (repo root).** Landing copy, blog/changelog, runtime/protocol narrative docs, site config, OpenGraph metadata, SEO descriptions, and public CTAs MUST follow the copy system before inventing new wording.
+- **Hero positioning is locked**: headline "An open workplace for AI agents." with subhead "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts." Open-workplace-first. Do not propose alternative hero copy without explicit user approval.
 - **`packages/site` ships in same PR as backend contract changes** that affect documented APIs/CLI verbs (per `internal/api/contract` co-ship rule in root CLAUDE.md).
 
 ## Build Commands
@@ -26,7 +27,7 @@ make cli-docs                                   # regenerate CLI reference from 
 | Domain                          | Required Skills                                          | Conditional Skills                          |
 | ------------------------------- | -------------------------------------------------------- | ------------------------------------------- |
 | Fumadocs page authoring         | `documentation-writer` + `crafting-effective-readmes`    | `find-docs` + `context7`                    |
-| Marketing / landing copy        | `copywriting`                                            | `seo-audit`                                 |
+| Marketing / landing copy        | `copywriting` + `documentation-writer`                   | `seo-audit`                                 |
 | Site UI / components            | `agh-design` + `design-taste-frontend` + `minimalist-ui` | `frontend-design` + `interface-design`      |
 | Remotion / video / protocol viz | `remotion-best-practices`                                | `architecture-diagram` + `mermaid-diagrams` |
 | Diagrams (architecture, flow)   | `mermaid-diagrams` + `architecture-diagram`              |                                             |
@@ -60,4 +61,5 @@ make cli-docs                                   # regenerate CLI reference from 
 - Root rules and architecture: `/CLAUDE.md`, `/AGENTS.md`.
 - Web runtime UI rules: `/web/CLAUDE.md`.
 - Design tokens: `/DESIGN.md`.
+- Copy system: `/COPY.md`.
 - Lessons / glossary / standing directives: `/docs/_memory/`.

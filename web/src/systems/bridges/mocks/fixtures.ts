@@ -98,7 +98,7 @@ export const bridgeSecretBindingsFixture: BridgeSecretBinding[] = [
     created_at: "2026-04-13T12:05:00Z",
     kind: "env",
     updated_at: "2026-04-13T12:05:00Z",
-    vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+    secret_ref: "vault:bridges/brg_support/bot_token",
   },
 ];
 

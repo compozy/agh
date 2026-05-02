@@ -149,12 +149,14 @@ type CollectionRequest struct {
 // CollectionItemPutRequest identifies one collection upsert.
 type CollectionItemPutRequest struct {
 	CollectionRequest
-	Name      string
-	Target    TargetSelector
-	Provider  *ProviderSettings
-	MCPServer *aghconfig.MCPServer
-	Sandbox   *aghconfig.SandboxProfile
-	Hook      *hookspkg.HookDecl
+	Name            string
+	Target          TargetSelector
+	Provider        *ProviderSettings
+	ProviderSecrets []ProviderSecretWrite
+	MCPServer       *aghconfig.MCPServer
+	MCPSecrets      MCPSecretValues
+	Sandbox         *aghconfig.SandboxProfile
+	Hook            *hookspkg.HookDecl
 }
 
 // CollectionItemDeleteRequest identifies one collection delete.
@@ -428,9 +430,43 @@ type SourceMetadata struct {
 
 // ProviderSettings is the editable provider overlay payload.
 type ProviderSettings struct {
-	Command      string
-	DefaultModel string
-	APIKeyEnv    string
+	Command         string
+	DisplayName     string
+	DefaultModel    string
+	Harness         aghconfig.ProviderHarness
+	RuntimeProvider string
+	Transport       string
+	BaseURL         string
+	CredentialSlots []aghconfig.ProviderCredentialSlot
+}
+
+// ProviderCredentialStatus is a redacted launch credential status.
+type ProviderCredentialStatus struct {
+	Name      string
+	TargetEnv string
+	SecretRef string
+	Kind      string
+	Required  bool
+	Present   bool
+	Source    string
+}
+
+// ProviderSecretWrite is one write-only provider secret mutation.
+type ProviderSecretWrite struct {
+	Name      string
+	SecretRef string
+	Kind      string
+	Value     string
+}
+
+// MCPSecretValues is the write-only secret material submitted with an MCP server mutation.
+type MCPSecretValues struct {
+	SecretEnv         map[string]string
+	OAuthClientSecret *string
+}
+
+func (v MCPSecretValues) Empty() bool {
+	return len(v.SecretEnv) == 0 && v.OAuthClientSecret == nil
 }
 
 // MCPAuthStatus is a redacted remote MCP authentication status.
@@ -448,7 +484,7 @@ type ProviderItem struct {
 	Settings         ProviderSettings
 	Default          bool
 	CommandAvailable bool
-	APIKeyEnvPresent bool
+	Credentials      []ProviderCredentialStatus
 	SourceMetadata   SourceMetadata
 	Fallback         *ProviderFallback
 }
@@ -460,6 +496,7 @@ type MCPServerItem struct {
 	Command        string
 	Args           []string
 	Env            map[string]string
+	SecretEnv      map[string]string
 	URL            string
 	Auth           aghconfig.MCPAuthConfig
 	AuthStatus     *mcpauth.Status
@@ -538,10 +575,13 @@ func cloneSourceMetadata(value SourceMetadata) SourceMetadata {
 }
 
 func cloneProviderSettings(value ProviderSettings) ProviderSettings {
+	value.CredentialSlots = append([]aghconfig.ProviderCredentialSlot(nil), value.CredentialSlots...)
 	return value
 }
 
 func cloneProviderItem(value ProviderItem) ProviderItem {
+	value.Settings = cloneProviderSettings(value.Settings)
+	value.Credentials = append([]ProviderCredentialStatus(nil), value.Credentials...)
 	value.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
 	if value.Fallback != nil {
 		fallback := *value.Fallback
@@ -557,6 +597,11 @@ func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
 		cloned := make(map[string]string, len(value.Env))
 		maps.Copy(cloned, value.Env)
 		value.Env = cloned
+	}
+	if len(value.SecretEnv) > 0 {
+		cloned := make(map[string]string, len(value.SecretEnv))
+		maps.Copy(cloned, value.SecretEnv)
+		value.SecretEnv = cloned
 	}
 	value.Auth.Scopes = append([]string(nil), value.Auth.Scopes...)
 	if value.AuthStatus != nil {
@@ -583,6 +628,7 @@ func cloneSandboxItem(value SandboxItem) SandboxItem {
 		Persistence: value.Profile.Persistence,
 		RuntimeRoot: value.Profile.RuntimeRoot,
 		Env:         cloneStringMap(value.Profile.Env),
+		SecretEnv:   cloneStringMap(value.Profile.SecretEnv),
 		Network: aghconfig.NetworkProfile{
 			AllowPublicIngress: value.Profile.Network.AllowPublicIngress,
 			AllowOutbound:      value.Profile.Network.AllowOutbound,
@@ -615,6 +661,7 @@ func cloneHookDecl(value hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := value
 	cloned.Args = append([]string(nil), value.Args...)
 	cloned.Env = cloneStringMap(value.Env)
+	cloned.SecretEnv = cloneStringMap(value.SecretEnv)
 	cloned.Metadata = cloneStringMap(value.Metadata)
 	if value.Matcher.ToolReadOnly != nil {
 		toolReadOnly := *value.Matcher.ToolReadOnly

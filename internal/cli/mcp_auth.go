@@ -13,8 +13,10 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/pedronauck/agh/internal/vault"
 	"github.com/spf13/cobra"
 )
 
@@ -92,7 +94,7 @@ func newMCPAuthLoginCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "login <server>",
 		Short: "Run OAuth login for a remote MCP server",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) (runErr error) {
 			runtime, client, cleanup, err := mcpAuthRuntime(cmd.Context(), deps)
 			if err != nil {
@@ -102,7 +104,7 @@ func newMCPAuthLoginCommand(deps commandDeps) *cobra.Command {
 				cleanupMCPAuthRuntime(cmd.Context(), cleanup, &runErr)
 			}()
 
-			cfg, err := resolveMCPAuthTarget(&runtime.Config, args[0], deps.getenv)
+			cfg, err := resolveMCPAuthTarget(cmd.Context(), &runtime.Config, runtime.HomePaths, args[0], deps.getenv)
 			if err != nil {
 				return err
 			}
@@ -139,12 +141,18 @@ func newMCPAuthStatusCommand(deps commandDeps) *cobra.Command {
 				cleanupMCPAuthRuntime(cmd.Context(), cleanup, &runErr)
 			}()
 
-			configs, err := listMCPAuthTargets(&runtime.Config, deps.getenv)
+			configs, err := listMCPAuthTargets(cmd.Context(), &runtime.Config, runtime.HomePaths, deps.getenv)
 			if err != nil {
 				return err
 			}
 			if len(args) == 1 {
-				cfg, err := resolveMCPAuthTarget(&runtime.Config, args[0], deps.getenv)
+				cfg, err := resolveMCPAuthTarget(
+					cmd.Context(),
+					&runtime.Config,
+					runtime.HomePaths,
+					args[0],
+					deps.getenv,
+				)
 				if err != nil {
 					return err
 				}
@@ -175,7 +183,7 @@ func newMCPAuthLogoutCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout <server>",
 		Short: "Revoke or delete remote MCP auth tokens",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) (runErr error) {
 			runtime, client, cleanup, err := mcpAuthRuntime(cmd.Context(), deps)
 			if err != nil {
@@ -185,7 +193,7 @@ func newMCPAuthLogoutCommand(deps commandDeps) *cobra.Command {
 				cleanupMCPAuthRuntime(cmd.Context(), cleanup, &runErr)
 			}()
 
-			cfg, err := resolveMCPAuthTarget(&runtime.Config, args[0], deps.getenv)
+			cfg, err := resolveMCPAuthTarget(cmd.Context(), &runtime.Config, runtime.HomePaths, args[0], deps.getenv)
 			if err != nil {
 				return err
 			}
@@ -306,7 +314,9 @@ func runMCPAuthLogin(
 }
 
 func resolveMCPAuthTarget(
+	ctx context.Context,
 	cfg *aghconfig.Config,
+	homePaths aghconfig.HomePaths,
 	name string,
 	getenv func(string) string,
 ) (mcpauth.ServerConfig, error) {
@@ -314,7 +324,7 @@ func resolveMCPAuthTarget(
 	if target == "" {
 		return mcpauth.ServerConfig{}, errors.New("cli: MCP server name is required")
 	}
-	configs, err := listMCPAuthTargets(cfg, getenv)
+	configs, err := listMCPAuthTargets(ctx, cfg, homePaths, getenv)
 	if err != nil {
 		return mcpauth.ServerConfig{}, err
 	}
@@ -327,7 +337,9 @@ func resolveMCPAuthTarget(
 }
 
 func listMCPAuthTargets(
+	ctx context.Context,
 	cfg *aghconfig.Config,
+	homePaths aghconfig.HomePaths,
 	getenv func(string) string,
 ) ([]mcpauth.ServerConfig, error) {
 	if cfg == nil {
@@ -343,13 +355,61 @@ func listMCPAuthTargets(
 		servers = aghconfig.MergeMCPServers(servers, cfg.Providers[name].MCPServers)
 	}
 
-	lookupSecret := func(key string) string {
+	return mcpauth.ServerConfigsFromMCP(ctx, servers, mcpAuthSecretResolver(homePaths, getenv))
+}
+
+func mcpAuthSecretResolver(homePaths aghconfig.HomePaths, getenv func(string) string) mcpauth.SecretRefResolver {
+	lookupEnv := func(key string) (string, bool) {
 		if getenv == nil {
-			return ""
+			return "", false
 		}
-		return getenv(key)
+		value := getenv(key)
+		return value, strings.TrimSpace(value) != ""
 	}
-	return mcpauth.ServerConfigsFromMCP(servers, lookupSecret)
+	return func(ctx context.Context, ref string) (string, error) {
+		normalized := vault.NormalizeRef(ref)
+		if vault.IsEnvRef(normalized) {
+			envName, err := vault.EnvNameFromRef(normalized)
+			if err != nil {
+				return "", err
+			}
+			value, ok := lookupEnv(envName)
+			if !ok {
+				return "", fmt.Errorf("%w: env:%s", vault.ErrMissingSecret, envName)
+			}
+			diagnostics.RegisterDynamicSecret(value)
+			return value, nil
+		}
+		if !vault.IsSecretRef(normalized) {
+			return "", fmt.Errorf("%w: %s", vault.ErrUnsupportedSecretRef, normalized)
+		}
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			return "", fmt.Errorf("cli: open global DB for MCP auth secret: %w", err)
+		}
+		service, err := vault.NewService(
+			db,
+			vault.NewFileKeyProvider(homePaths.HomeDir, lookupEnv),
+			vault.WithLookupEnv(lookupEnv),
+		)
+		if err != nil {
+			closeErr := db.Close(ctx)
+			return "", errors.Join(fmt.Errorf("cli: initialize MCP auth secret resolver: %w", err), closeErr)
+		}
+		value, resolveErr := service.ResolveRef(ctx, normalized)
+		closeErr := db.Close(ctx)
+		if resolveErr != nil {
+			return "", errors.Join(
+				fmt.Errorf("cli: resolve MCP auth secret ref %q: %w", normalized, resolveErr),
+				closeErr,
+			)
+		}
+		if closeErr != nil {
+			return "", fmt.Errorf("cli: close MCP auth secret store: %w", closeErr)
+		}
+		diagnostics.RegisterDynamicSecret(value)
+		return value, nil
+	}
 }
 
 func listenForMCPAuthCallback(ctx context.Context, redirectURL string) (net.Listener, string, error) {

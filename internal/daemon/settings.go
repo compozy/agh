@@ -11,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
@@ -18,16 +19,17 @@ import (
 )
 
 type settingsRuntimeSurface struct {
-	config       aghconfig.Config
-	startedAt    time.Time
-	sessions     SessionManager
-	observer     Observer
-	memoryStore  *memory.Store
-	dreamTrigger DreamTrigger
-	automation   automationRuntime
-	network      networkRuntime
-	mcpAuthStore mcpauth.TokenStore
-	extensions   interface {
+	config         aghconfig.Config
+	startedAt      time.Time
+	sessions       SessionManager
+	observer       Observer
+	memoryStore    *memory.Store
+	dreamTrigger   DreamTrigger
+	automation     automationRuntime
+	network        networkRuntime
+	mcpAuthStore   mcpauth.TokenStore
+	secretResolver mcpauth.SecretRefResolver
+	extensions     interface {
 		List(context.Context) ([]contract.ExtensionPayload, error)
 	}
 	now  func() time.Time
@@ -66,21 +68,33 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurf
 	if store, ok := state.registry.(mcpauth.TokenStore); ok {
 		mcpAuthStore = store
 	}
+	var secretResolver mcpauth.SecretRefResolver
+	if state.providerVault != nil {
+		secretResolver = func(ctx context.Context, ref string) (string, error) {
+			value, err := state.providerVault.ResolveRef(ctx, ref)
+			if err != nil {
+				return "", err
+			}
+			diagnostics.RegisterDynamicSecret(value)
+			return value, nil
+		}
+	}
 
 	return &settingsRuntimeSurface{
-		config:       state.cfg,
-		startedAt:    state.startedAt,
-		sessions:     state.sessions,
-		observer:     state.observer,
-		memoryStore:  state.memoryStore,
-		dreamTrigger: dreamTriggerFromRuntime(state.dreamRuntime),
-		automation:   state.automation,
-		network:      state.network,
-		mcpAuthStore: mcpAuthStore,
-		extensions:   state.deps.Extensions,
-		now:          now,
-		pid:          pid,
-		info:         info,
+		config:         state.cfg,
+		startedAt:      state.startedAt,
+		sessions:       state.sessions,
+		observer:       state.observer,
+		memoryStore:    state.memoryStore,
+		dreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
+		automation:     state.automation,
+		network:        state.network,
+		mcpAuthStore:   mcpAuthStore,
+		secretResolver: secretResolver,
+		extensions:     state.deps.Extensions,
+		now:            now,
+		pid:            pid,
+		info:           info,
 	}
 }
 
@@ -303,7 +317,7 @@ func (s *settingsRuntimeSurface) MCPAuthStatus(
 	ctx context.Context,
 	server aghconfig.MCPServer,
 ) (mcpauth.Status, error) {
-	cfg, err := mcpauth.ServerConfigFromMCP(server, nil)
+	cfg, err := mcpauth.ServerConfigFromMCP(ctx, server, s.secretResolver)
 	if err != nil {
 		return mcpauth.Status{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
 	}

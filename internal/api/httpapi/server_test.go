@@ -316,6 +316,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 		WithSettingsService(settingsService),
 		WithSettingsRestartController(restartController),
 		WithExtensionService(extensionService),
+		WithVaultService(stubVaultService{}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -728,6 +729,23 @@ func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *te
 		decodeServerJSON(t, resp, &payload)
 		if got, want := payload.Error, errLoopbackMutationRequired.Error(); got != want {
 			t.Fatalf("payload.Error = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should block vault metadata reads on non-loopback HTTP", func(t *testing.T) {
+		resp := doServerRequest(
+			t,
+			http.DefaultClient,
+			http.MethodGet,
+			mustURL("127.0.0.1", server.Port(), "/api/vault/secrets?namespace=sessions"),
+			nil,
+		)
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+		if got, want := resp.StatusCode, http.StatusForbidden; got != want {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("GET /api/vault/secrets status = %d, want %d; body=%s", got, want, string(body))
 		}
 	})
 

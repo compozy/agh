@@ -36,12 +36,19 @@ import { useSettingsProvidersPage } from "./use-settings-providers-page";
 const claudeEntry: SettingsProviderCollection["providers"][number] = {
   name: "claude",
   default: true,
-  api_key_env_present: true,
   command_available: true,
   settings: {
-    command: "npx claude",
-    default_model: "claude-opus",
-    api_key_env: "ANTHROPIC_API_KEY",
+    command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+    default_model: "claude-sonnet-4-6",
+    credential_slots: [
+      {
+        name: "api_key",
+        target_env: "ANTHROPIC_API_KEY",
+        secret_ref: "env:ANTHROPIC_API_KEY",
+        kind: "api_key",
+        required: false,
+      },
+    ],
   },
   source_metadata: {
     available_targets: ["global-config"],
@@ -49,7 +56,10 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
     shadowed_sources: [{ kind: "builtin-provider", scope: "global" }],
   },
   fallback: {
-    settings: { command: "npx claude", default_model: "claude-sonnet" },
+    settings: {
+      command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+      default_model: "claude-sonnet-4-6",
+    },
     source: { kind: "builtin-provider", scope: "global" },
   },
 };
@@ -57,12 +67,31 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
 const codexEntry: SettingsProviderCollection["providers"][number] = {
   name: "codex",
   default: false,
-  api_key_env_present: false,
   command_available: true,
   settings: {
-    command: "npx codex",
-    api_key_env: "OPENAI_API_KEY",
+    command: "npx -y @zed-industries/codex-acp@latest",
+    default_model: "gpt-5.4",
+    credential_slots: [
+      {
+        name: "api_key",
+        target_env: "OPENAI_API_KEY",
+        secret_ref: "env:OPENAI_API_KEY",
+        kind: "api_key",
+        required: true,
+      },
+    ],
   },
+  credentials: [
+    {
+      name: "api_key",
+      target_env: "OPENAI_API_KEY",
+      secret_ref: "env:OPENAI_API_KEY",
+      kind: "api_key",
+      required: true,
+      present: false,
+      source: "env",
+    },
+  ],
   source_metadata: {
     available_targets: ["global-config"],
     effective_source: { kind: "builtin-provider", scope: "global" },
@@ -132,7 +161,7 @@ describe("useSettingsProvidersPage", () => {
 
     expect(result.current.editor).toMatchObject({
       mode: "create",
-      draft: { name: "", command: "", default_model: "", api_key_env: "" },
+      draft: { name: "", command: "", default_model: "", target_env: "" },
     });
   });
 
@@ -164,9 +193,9 @@ describe("useSettingsProvidersPage", () => {
       mode: "edit",
       name: "claude",
       draft: expect.objectContaining({
-        command: "npx claude",
-        default_model: "claude-opus",
-        api_key_env: "ANTHROPIC_API_KEY",
+        command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+        default_model: "claude-sonnet-4-6",
+        target_env: "ANTHROPIC_API_KEY",
       }),
     });
   });
@@ -202,17 +231,206 @@ describe("useSettingsProvidersPage", () => {
 
     expect(putSettingsProvider).toHaveBeenCalledWith("claude", {
       settings: {
-        command: "npx claude",
+        command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
         default_model: "claude-haiku",
-        api_key_env: "ANTHROPIC_API_KEY",
+        harness: "acp",
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "ANTHROPIC_API_KEY",
+            secret_ref: "env:ANTHROPIC_API_KEY",
+            kind: "api_key",
+            required: false,
+          },
+        ],
       },
     });
     expect(result.current.editor.mode).toBe("closed");
   });
 
+  it("preserves additional credential slots when editing provider metadata", async () => {
+    vi.mocked(putSettingsProvider).mockResolvedValue({
+      section: "general",
+      scope: "global",
+      behavior: "restart_required",
+      applied: true,
+      restart_required: true,
+      write_target: "global-config",
+    });
+    const providerWithMultipleCredentials: SettingsProviderCollection["providers"][number] = {
+      ...claudeEntry,
+      name: "openrouter",
+      settings: {
+        command: "npx -y pi-acp@latest",
+        default_model: "openai/gpt-5.4",
+        harness: "pi_acp",
+        runtime_provider: "openrouter",
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "OPENROUTER_API_KEY",
+            secret_ref: "vault:providers/openrouter/api-key",
+            kind: "api_key",
+            required: false,
+          },
+          {
+            name: "organization",
+            target_env: "OPENROUTER_ORG_ID",
+            secret_ref: "env:OPENROUTER_ORG_ID",
+            kind: "organization",
+            required: true,
+          },
+        ],
+      },
+      credentials: [
+        {
+          name: "api_key",
+          target_env: "OPENROUTER_API_KEY",
+          secret_ref: "vault:providers/openrouter/api-key",
+          present: true,
+          required: false,
+        },
+        {
+          name: "organization",
+          target_env: "OPENROUTER_ORG_ID",
+          secret_ref: "env:OPENROUTER_ORG_ID",
+          present: true,
+          required: true,
+        },
+      ],
+    };
+    vi.mocked(listSettingsProviders).mockResolvedValue({
+      ...collection,
+      providers: [providerWithMultipleCredentials],
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.providers).toHaveLength(1));
+
+    act(() => {
+      result.current.openEdit(providerWithMultipleCredentials);
+    });
+    act(() => {
+      result.current.updateDraft(draft => ({
+        ...draft,
+        default_model: "anthropic/claude-sonnet",
+        credential_slots: draft.credential_slots.map((slot, index) =>
+          index === 1 ? { ...slot, secret_ref: "vault:providers/openrouter/organization" } : slot
+        ),
+        credential_secret_values: ["", "org-secret"],
+      }));
+    });
+    act(() => {
+      result.current.saveEditor();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastAction?.kind).toBe("saved");
+    });
+
+    expect(putSettingsProvider).toHaveBeenCalledWith("openrouter", {
+      settings: {
+        command: "npx -y pi-acp@latest",
+        default_model: "anthropic/claude-sonnet",
+        harness: "pi_acp",
+        runtime_provider: "openrouter",
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "OPENROUTER_API_KEY",
+            secret_ref: "vault:providers/openrouter/api-key",
+            kind: "api_key",
+            required: false,
+          },
+          {
+            name: "organization",
+            target_env: "OPENROUTER_ORG_ID",
+            secret_ref: "vault:providers/openrouter/organization",
+            kind: "organization",
+            required: true,
+          },
+        ],
+      },
+      secrets: [
+        {
+          name: "organization",
+          secret_ref: "vault:providers/openrouter/organization",
+          kind: "organization",
+          value: "org-secret",
+        },
+      ],
+    });
+  });
+
+  it("submits vault-backed provider secrets without reading them back", async () => {
+    vi.mocked(putSettingsProvider).mockResolvedValue({
+      section: "general",
+      scope: "global",
+      behavior: "restart_required",
+      applied: true,
+      restart_required: true,
+      write_target: "global-config",
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.providers).toHaveLength(2));
+
+    act(() => {
+      result.current.openCreate();
+      result.current.updateDraft(draft => ({
+        ...draft,
+        name: "openrouter",
+        command: "npx -y pi-acp@latest",
+        default_model: "openai/gpt-5.4",
+        target_env: "OPENROUTER_API_KEY",
+        harness: "pi_acp",
+        runtime_provider: "openrouter",
+        secret_ref: "vault:providers/openrouter/api-key",
+        secret_value: "sk-live",
+      }));
+    });
+    act(() => {
+      result.current.saveEditor();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastAction?.kind).toBe("saved");
+    });
+
+    expect(putSettingsProvider).toHaveBeenCalledWith("openrouter", {
+      settings: {
+        command: "npx -y pi-acp@latest",
+        default_model: "openai/gpt-5.4",
+        harness: "pi_acp",
+        runtime_provider: "openrouter",
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "OPENROUTER_API_KEY",
+            secret_ref: "vault:providers/openrouter/api-key",
+            kind: "api_key",
+            required: true,
+          },
+        ],
+      },
+      secrets: [
+        {
+          name: "api_key",
+          secret_ref: "vault:providers/openrouter/api-key",
+          kind: "api_key",
+          value: "sk-live",
+        },
+      ],
+    });
+  });
+
   it("surfaces validation errors from the adapter without closing the editor", async () => {
     vi.mocked(putSettingsProvider).mockRejectedValue(
-      new SettingsApiError("invalid api_key_env", 400)
+      new SettingsApiError("invalid credential_slots[0].secret_ref", 400)
     );
 
     const { wrapper } = createWrapper();
@@ -228,7 +446,7 @@ describe("useSettingsProvidersPage", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.editorError).toBe("invalid api_key_env");
+      expect(result.current.editorError).toBe("invalid credential_slots[0].secret_ref");
     });
     expect(result.current.editor.mode).toBe("edit");
     expect(result.current.lastAction).toBeNull();

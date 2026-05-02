@@ -45,11 +45,27 @@ describe("AgentIcon", () => {
   });
 
   it("has known providers in providerIconMap", () => {
-    expect(providerIconMap).toHaveProperty("claude");
-    expect(providerIconMap).toHaveProperty("codex");
-    expect(providerIconMap).toHaveProperty("gemini");
-    expect(providerIconMap).toHaveProperty("openai");
-    expect(providerIconMap).toHaveProperty("ollama");
+    const expected = [
+      "blackbox",
+      "claude",
+      "cline",
+      "codex",
+      "gemini",
+      "goose",
+      "hermes",
+      "junie",
+      "kimi-cli",
+      "openai",
+      "openclaw",
+      "openhands",
+      "ollama",
+      "qoder",
+      "qwen-code",
+    ];
+
+    for (const provider of expected) {
+      expect(providerIconMap).toHaveProperty(provider);
+    }
   });
 
   it("applies custom className on top of the tone class", () => {

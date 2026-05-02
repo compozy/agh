@@ -77,10 +77,24 @@ type permissionsOverlay struct {
 }
 
 type providerOverlay struct {
-	Command      *string            `toml:"command"`
-	DefaultModel *string            `toml:"default_model"`
-	APIKeyEnv    *string            `toml:"api_key_env"`
-	MCPServers   []mcpServerOverlay `toml:"mcp_servers"`
+	Command         *string                     `toml:"command"`
+	DisplayName     *string                     `toml:"display_name"`
+	DefaultModel    *string                     `toml:"default_model"`
+	Harness         *ProviderHarness            `toml:"harness"`
+	RuntimeProvider *string                     `toml:"runtime_provider"`
+	Transport       *string                     `toml:"transport"`
+	BaseURL         *string                     `toml:"base_url"`
+	Aliases         *[]string                   `toml:"aliases"`
+	CredentialSlots []providerCredentialOverlay `toml:"credential_slots"`
+	MCPServers      []mcpServerOverlay          `toml:"mcp_servers"`
+}
+
+type providerCredentialOverlay struct {
+	Name      *string `toml:"name"`
+	TargetEnv *string `toml:"target_env"`
+	SecretRef *string `toml:"secret_ref"`
+	Kind      *string `toml:"kind"`
+	Required  *bool   `toml:"required"`
 }
 
 type sandboxOverlay struct {
@@ -89,6 +103,7 @@ type sandboxOverlay struct {
 	Persistence *string               `toml:"persistence"`
 	RuntimeRoot *string               `toml:"runtime_root"`
 	Env         *map[string]string    `toml:"env"`
+	SecretEnv   *map[string]string    `toml:"secret_env"`
 	Network     networkProfileOverlay `toml:"network"`
 	Daytona     daytonaProfileOverlay `toml:"daytona"`
 }
@@ -232,6 +247,7 @@ type mcpServerOverlay struct {
 	Command   *string             `toml:"command"`
 	Args      *[]string           `toml:"args"`
 	Env       *map[string]string  `toml:"env"`
+	SecretEnv *map[string]string  `toml:"secret_env"`
 	URL       *string             `toml:"url"`
 	Auth      mcpAuthOverlay      `toml:"auth"`
 }
@@ -244,7 +260,7 @@ type mcpAuthOverlay struct {
 	TokenURL         *string      `toml:"token_url"`
 	RevocationURL    *string      `toml:"revocation_url"`
 	ClientID         *string      `toml:"client_id"`
-	ClientSecretEnv  *string      `toml:"client_secret_env"`
+	ClientSecretRef  *string      `toml:"client_secret_ref"`
 	Scopes           *[]string    `toml:"scopes"`
 }
 
@@ -405,15 +421,57 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	if o.Command != nil {
 		dst.Command = *o.Command
 	}
+	if o.DisplayName != nil {
+		dst.DisplayName = *o.DisplayName
+	}
 	if o.DefaultModel != nil {
 		dst.DefaultModel = *o.DefaultModel
 	}
-	if o.APIKeyEnv != nil {
-		dst.APIKeyEnv = *o.APIKeyEnv
+	if o.Harness != nil {
+		dst.Harness = *o.Harness
+	}
+	if o.RuntimeProvider != nil {
+		dst.RuntimeProvider = *o.RuntimeProvider
+	}
+	if o.Transport != nil {
+		dst.Transport = *o.Transport
+	}
+	if o.BaseURL != nil {
+		dst.BaseURL = *o.BaseURL
+	}
+	if o.Aliases != nil {
+		dst.Aliases = append([]string(nil), (*o.Aliases)...)
+	}
+	if len(o.CredentialSlots) > 0 {
+		dst.CredentialSlots = applyProviderCredentialOverlays(o.CredentialSlots)
 	}
 	if len(o.MCPServers) > 0 {
 		dst.MCPServers = applyMCPServerOverlays(dst.MCPServers, o.MCPServers)
 	}
+}
+
+func applyProviderCredentialOverlays(overlays []providerCredentialOverlay) []ProviderCredentialSlot {
+	slots := make([]ProviderCredentialSlot, 0, len(overlays))
+	for _, overlay := range overlays {
+		var slot ProviderCredentialSlot
+		if overlay.Name != nil {
+			slot.Name = *overlay.Name
+		}
+		if overlay.TargetEnv != nil {
+			slot.TargetEnv = *overlay.TargetEnv
+		}
+		if overlay.SecretRef != nil {
+			slot.SecretRef = *overlay.SecretRef
+		}
+		if overlay.Kind != nil {
+			slot.Kind = *overlay.Kind
+		}
+		if overlay.Required != nil {
+			slot.Required = *overlay.Required
+		}
+		slots = append(slots, slot)
+	}
+	return slots
 }
 
 func (o sandboxOverlay) Apply(dst *SandboxProfile) {
@@ -431,6 +489,9 @@ func (o sandboxOverlay) Apply(dst *SandboxProfile) {
 	}
 	if o.Env != nil {
 		dst.Env = mergeStringMaps(dst.Env, *o.Env)
+	}
+	if o.SecretEnv != nil {
+		dst.SecretEnv = mergeStringMaps(dst.SecretEnv, *o.SecretEnv)
 	}
 	o.Network.Apply(&dst.Network)
 	o.Daytona.Apply(&dst.Daytona)
@@ -740,6 +801,9 @@ func (o mcpServerOverlay) Apply(dst *MCPServer) {
 	if o.Env != nil {
 		dst.Env = mergeStringMaps(dst.Env, *o.Env)
 	}
+	if o.SecretEnv != nil {
+		dst.SecretEnv = mergeStringMaps(dst.SecretEnv, *o.SecretEnv)
+	}
 	if o.URL != nil {
 		dst.URL = *o.URL
 	}
@@ -768,8 +832,8 @@ func (o mcpAuthOverlay) Apply(dst *MCPAuthConfig) {
 	if o.ClientID != nil {
 		dst.ClientID = *o.ClientID
 	}
-	if o.ClientSecretEnv != nil {
-		dst.ClientSecretEnv = *o.ClientSecretEnv
+	if o.ClientSecretRef != nil {
+		dst.ClientSecretRef = *o.ClientSecretRef
 	}
 	if o.Scopes != nil {
 		dst.Scopes = append([]string(nil), (*o.Scopes)...)
@@ -785,9 +849,13 @@ func applyProviderOverlays(dst *Config, overlays map[string]providerOverlay) {
 	}
 
 	for name, overlay := range overlays {
-		provider := dst.Providers[name]
+		providerName := CanonicalProviderName(name)
+		if providerName == "" {
+			continue
+		}
+		provider := dst.Providers[providerName]
 		overlay.Apply(&provider)
-		dst.Providers[name] = provider
+		dst.Providers[providerName] = provider
 	}
 }
 

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -36,7 +37,7 @@ type ServerConfig struct {
 	RevocationURL    string
 	ClientID         string
 	ClientSecret     string
-	ClientSecretEnv  string
+	ClientSecretRef  string
 	Scopes           []string
 }
 
@@ -91,12 +92,16 @@ type TokenStore interface {
 	DeleteMCPAuthToken(ctx context.Context, serverName string) error
 }
 
+// SecretRefResolver resolves configured env: or vault: refs to plaintext for OAuth token requests.
+type SecretRefResolver func(ctx context.Context, ref string) (string, error)
+
 // ServerConfigFromMCP converts a config MCP server into token-free auth
-// service input. lookupSecret receives the configured client_secret_env and
+// service input. resolveSecret receives the configured client_secret_ref and
 // returns the actual secret value when present.
 func ServerConfigFromMCP(
+	ctx context.Context,
 	server aghconfig.MCPServer,
-	lookupSecret func(string) string,
+	resolveSecret SecretRefResolver,
 ) (ServerConfig, error) {
 	if err := server.Validate("mcp_server"); err != nil {
 		return ServerConfig{}, err
@@ -109,10 +114,14 @@ func ServerConfigFromMCP(
 		}, nil
 	}
 
-	secretEnv := strings.TrimSpace(server.Auth.ClientSecretEnv)
+	secretRef := strings.TrimSpace(server.Auth.ClientSecretRef)
 	secret := ""
-	if secretEnv != "" && lookupSecret != nil {
-		secret = lookupSecret(secretEnv)
+	if secretRef != "" && resolveSecret != nil {
+		resolved, err := resolveSecret(ctx, secretRef)
+		if err != nil {
+			return ServerConfig{}, fmt.Errorf("mcp auth: resolve client secret ref %q: %w", secretRef, err)
+		}
+		secret = resolved
 	}
 
 	return ServerConfig{
@@ -127,7 +136,7 @@ func ServerConfigFromMCP(
 		RevocationURL:    strings.TrimSpace(server.Auth.RevocationURL),
 		ClientID:         strings.TrimSpace(server.Auth.ClientID),
 		ClientSecret:     secret,
-		ClientSecretEnv:  secretEnv,
+		ClientSecretRef:  secretRef,
 		Scopes:           trimStrings(server.Auth.Scopes),
 	}, nil
 }
@@ -135,15 +144,16 @@ func ServerConfigFromMCP(
 // ServerConfigsFromMCP returns auth service configs for every auth-enabled MCP
 // server in the supplied list.
 func ServerConfigsFromMCP(
+	ctx context.Context,
 	servers []aghconfig.MCPServer,
-	lookupSecret func(string) string,
+	resolveSecret SecretRefResolver,
 ) ([]ServerConfig, error) {
 	configs := make([]ServerConfig, 0, len(servers))
 	for _, server := range servers {
 		if server.Auth.IsZero() {
 			continue
 		}
-		cfg, err := ServerConfigFromMCP(server, lookupSecret)
+		cfg, err := ServerConfigFromMCP(ctx, server, resolveSecret)
 		if err != nil {
 			return nil, err
 		}

@@ -276,8 +276,9 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		"brg-1",
 		"bot_token",
 		aghcontract.PutBridgeSecretBindingRequest{
-			VaultRef: "env:AGH_TEST_TELEGRAM_TOKEN",
-			Kind:     "token",
+			SecretRef:   "vault:bridges/brg-1/bot_token",
+			SecretValue: stringPtr("telegram-bot-token"),
+			Kind:        "token",
 		},
 	)
 	if err != nil {
@@ -527,7 +528,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.ReadFile(%q) error = %v", bridgeBindingsPath, err)
 	}
-	if !strings.Contains(string(bridgeBindingsBytes), `"vault_ref": "env:AGH_TEST_TELEGRAM_TOKEN"`) {
+	if !strings.Contains(string(bridgeBindingsBytes), `"secret_ref": "vault:bridges/brg-1/bot_token"`) {
 		t.Fatalf("bridge secret bindings artifact = %s, want stable binding snapshot", string(bridgeBindingsBytes))
 	}
 
@@ -624,8 +625,9 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 		"brg-1",
 		"bot_token",
 		aghcontract.PutBridgeSecretBindingRequest{
-			VaultRef: "env:AGH_TEST_TELEGRAM_TOKEN",
-			Kind:     "token",
+			SecretRef:   "vault:bridges/brg-1/bot_token",
+			SecretValue: stringPtr("telegram-bot-token"),
+			Kind:        "token",
 		},
 	); err != nil {
 		assertErrorContains(t, err, "/api/bridges/brg-1/secret-bindings/bot_token status 500: boom")
@@ -1337,7 +1339,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			Bindings: []bridgepkg.BridgeSecretBinding{{
 				BridgeInstanceID: "brg-1",
 				BindingName:      "bot_token",
-				VaultRef:         "env:AGH_TEST_TELEGRAM_TOKEN",
+				SecretRef:        "vault:bridges/brg-1/bot_token",
 				Kind:             "token",
 				CreatedAt:        now,
 				UpdatedAt:        routeTime,
@@ -1356,14 +1358,24 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			)
 			return
 		}
-		if got, want := request.VaultRef, "env:AGH_TEST_TELEGRAM_TOKEN"; got != want {
+		if got, want := request.SecretRef, "vault:bridges/brg-1/bot_token"; got != want {
 			reportHarnessHandlerError(
 				w,
 				handlerErrs,
 				http.StatusBadRequest,
-				"secret binding vault_ref = %q, want %q",
+				"secret binding secret_ref = %q, want %q",
 				got,
 				want,
+			)
+			return
+		}
+		if request.SecretValue == nil || *request.SecretValue != "telegram-bot-token" {
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"secret binding secret_value = %v, want write-only token",
+				request.SecretValue,
 			)
 			return
 		}
@@ -1382,7 +1394,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			Binding: bridgepkg.BridgeSecretBinding{
 				BridgeInstanceID: "brg-1",
 				BindingName:      "bot_token",
-				VaultRef:         request.VaultRef,
+				SecretRef:        request.SecretRef,
 				Kind:             request.Kind,
 				CreatedAt:        now,
 				UpdatedAt:        routeTime,

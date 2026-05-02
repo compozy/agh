@@ -281,7 +281,7 @@ func (h *BaseHandlers) PutBridgeSecretBinding(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	if err := bridges.PutSecretBinding(c.Request.Context(), binding); err != nil {
+	if err := bridges.PutSecretBinding(c.Request.Context(), binding, req.SecretValue); err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}

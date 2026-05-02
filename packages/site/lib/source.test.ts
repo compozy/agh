@@ -3,7 +3,7 @@ import { getLayoutTabs } from "fumadocs-ui/layouts/shared";
 import { describe, expect, it } from "vitest";
 import { createRuntimeLayoutTree, resolveSidebarRoot } from "./runtime-navigation";
 
-function getNodeName(node: { name: unknown }): string {
+function getNodeName(node: { name?: unknown }): string {
   return typeof node.name === "string" ? node.name : "";
 }
 
@@ -136,5 +136,19 @@ describe("runtime navigation tree", () => {
       url: "/runtime/core",
     });
     expect(layoutTree.fallback).toBeDefined();
+  });
+
+  it("keeps the sandbox index as the folder target instead of a duplicate child page", async () => {
+    const metadata = (await import("../content/runtime/core/sandbox/meta.json")) as {
+      default: {
+        icon?: unknown;
+        pages?: unknown;
+      };
+    };
+    const pages = metadata.default.pages;
+
+    expect(metadata.default.icon).toBe("Terminal");
+    expect(pages).toEqual(["profiles", "daytona"]);
+    expect(Array.isArray(pages) && pages.includes("index")).toBe(false);
   });
 });

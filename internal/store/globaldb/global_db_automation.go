@@ -208,7 +208,7 @@ func (g *GlobalDB) UpdateTrigger(ctx context.Context, trigger automation.Trigger
 		`UPDATE automation_triggers
 		 SET scope = ?, name = ?, agent_name = ?, workspace_id = ?, prompt = ?,
 		     event = ?, filter = ?, enabled = ?, retry = ?, fire_limit = ?,
-		     source = ?, webhook_id = ?, endpoint_slug = ?, updated_at = ?
+		     source = ?, webhook_id = ?, endpoint_slug = ?, webhook_secret_ref = ?, updated_at = ?
 		 WHERE id = ?`,
 		normalized.Scope,
 		normalized.Name,
@@ -223,6 +223,7 @@ func (g *GlobalDB) UpdateTrigger(ctx context.Context, trigger automation.Trigger
 		normalized.Source,
 		store.NullableString(normalized.WebhookID),
 		store.NullableString(normalized.EndpointSlug),
+		store.NullableString(normalized.WebhookSecretRef),
 		store.FormatTimestamp(normalized.UpdatedAt),
 		normalized.ID,
 	)
@@ -283,11 +284,11 @@ func (g *GlobalDB) GetTrigger(ctx context.Context, id string) (automation.Trigge
 	return g.getTriggerByQuery(
 		ctx,
 		`SELECT
-			id, scope, name, agent_name, workspace_id, prompt, event, filter,
-			enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
-			created_at, updated_at
-		 FROM automation_triggers
-		 WHERE id = ?`,
+				id, scope, name, agent_name, workspace_id, prompt, event, filter,
+				enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
+				webhook_secret_ref, created_at, updated_at
+			 FROM automation_triggers
+			 WHERE id = ?`,
 		trimmedID,
 	)
 }
@@ -306,11 +307,11 @@ func (g *GlobalDB) GetTriggerByWebhookID(ctx context.Context, webhookID string) 
 	return g.getTriggerByQuery(
 		ctx,
 		`SELECT
-			id, scope, name, agent_name, workspace_id, prompt, event, filter,
-			enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
-			created_at, updated_at
-		 FROM automation_triggers
-		 WHERE webhook_id = ?`,
+				id, scope, name, agent_name, workspace_id, prompt, event, filter,
+				enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
+				webhook_secret_ref, created_at, updated_at
+			 FROM automation_triggers
+			 WHERE webhook_id = ?`,
 		trimmedWebhookID,
 	)
 }
@@ -324,7 +325,7 @@ func (g *GlobalDB) ListTriggers(ctx context.Context, query automation.TriggerLis
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, scope, name, agent_name, workspace_id, prompt, event, filter, enabled, retry, fire_limit, source, webhook_id, endpoint_slug, created_at, updated_at FROM automation_triggers`
+	sqlQuery := `SELECT id, scope, name, agent_name, workspace_id, prompt, event, filter, enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref, created_at, updated_at FROM automation_triggers`
 	where, args := store.BuildClauses(
 		store.StringClause("scope", string(query.Scope)),
 		store.StringClause("workspace_id", query.WorkspaceID),
@@ -796,88 +797,6 @@ func (g *GlobalDB) DeleteTriggerEnabledOverlay(ctx context.Context, triggerID st
 	return nil
 }
 
-// SetTriggerWebhookSecret upserts the persisted write-only webhook secret for one trigger.
-func (g *GlobalDB) SetTriggerWebhookSecret(ctx context.Context, triggerID string, secret string) error {
-	if err := g.checkReady(ctx, "set automation trigger webhook secret"); err != nil {
-		return err
-	}
-
-	trimmedID, err := requireAutomationID(triggerID, "automation trigger webhook secret id")
-	if err != nil {
-		return err
-	}
-	trimmedSecret := strings.TrimSpace(secret)
-	if trimmedSecret == "" {
-		return errors.New("store: automation trigger webhook secret is required")
-	}
-
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO automation_trigger_webhook_secrets (trigger_id, secret, updated_at)
-		 VALUES (?, ?, ?)
-		 ON CONFLICT(trigger_id) DO UPDATE SET
-			secret = excluded.secret,
-			updated_at = excluded.updated_at`,
-		trimmedID,
-		trimmedSecret,
-		store.FormatTimestamp(g.now().UTC()),
-	); err != nil {
-		return fmt.Errorf("store: set automation trigger webhook secret %q: %w", trimmedID, err)
-	}
-
-	return nil
-}
-
-// GetTriggerWebhookSecret loads one persisted write-only webhook secret by trigger id.
-func (g *GlobalDB) GetTriggerWebhookSecret(ctx context.Context, triggerID string) (string, error) {
-	if err := g.checkReady(ctx, "get automation trigger webhook secret"); err != nil {
-		return "", err
-	}
-
-	trimmedID, err := requireAutomationID(triggerID, "automation trigger webhook secret id")
-	if err != nil {
-		return "", err
-	}
-
-	var secret string
-	if err := g.db.QueryRowContext(
-		ctx,
-		`SELECT secret
-		 FROM automation_trigger_webhook_secrets
-		 WHERE trigger_id = ?`,
-		trimmedID,
-	).Scan(&secret); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", automation.ErrTriggerWebhookSecretNotFound
-		}
-		return "", fmt.Errorf("store: get automation trigger webhook secret %q: %w", trimmedID, err)
-	}
-
-	return secret, nil
-}
-
-// DeleteTriggerWebhookSecret clears a persisted trigger webhook secret if it exists.
-func (g *GlobalDB) DeleteTriggerWebhookSecret(ctx context.Context, triggerID string) error {
-	if err := g.checkReady(ctx, "delete automation trigger webhook secret"); err != nil {
-		return err
-	}
-
-	trimmedID, err := requireAutomationID(triggerID, "automation trigger webhook secret id")
-	if err != nil {
-		return err
-	}
-
-	if _, err := g.db.ExecContext(
-		ctx,
-		`DELETE FROM automation_trigger_webhook_secrets WHERE trigger_id = ?`,
-		trimmedID,
-	); err != nil {
-		return fmt.Errorf("store: delete automation trigger webhook secret %q: %w", trimmedID, err)
-	}
-
-	return nil
-}
-
 func (g *GlobalDB) insertJob(ctx context.Context, exec sqlExecutor, job automation.Job) error {
 	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, err := encodeJobRecord(job)
 	if err != nil {
@@ -921,9 +840,9 @@ func (g *GlobalDB) insertTrigger(ctx context.Context, exec sqlExecutor, trigger 
 		ctx,
 		`INSERT INTO automation_triggers (
 			id, scope, name, agent_name, workspace_id, prompt, event, filter,
-			enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
+			enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		trigger.ID,
 		trigger.Scope,
 		trigger.Name,
@@ -938,6 +857,7 @@ func (g *GlobalDB) insertTrigger(ctx context.Context, exec sqlExecutor, trigger 
 		trigger.Source,
 		store.NullableString(trigger.WebhookID),
 		store.NullableString(trigger.EndpointSlug),
+		store.NullableString(trigger.WebhookSecretRef),
 		store.FormatTimestamp(trigger.CreatedAt),
 		store.FormatTimestamp(trigger.UpdatedAt),
 	); err != nil {
@@ -1132,17 +1052,18 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 
 func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 	var (
-		trigger      automation.Trigger
-		scope        string
-		workspaceID  sql.NullString
-		filterRaw    sql.NullString
-		retryRaw     string
-		fireLimitRaw string
-		source       string
-		webhookID    sql.NullString
-		endpointSlug sql.NullString
-		createdAt    string
-		updatedAt    string
+		trigger          automation.Trigger
+		scope            string
+		workspaceID      sql.NullString
+		filterRaw        sql.NullString
+		retryRaw         string
+		fireLimitRaw     string
+		source           string
+		webhookID        sql.NullString
+		endpointSlug     sql.NullString
+		webhookSecretRef sql.NullString
+		createdAt        string
+		updatedAt        string
 	)
 	if err := scanner.Scan(
 		&trigger.ID,
@@ -1159,6 +1080,7 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 		&source,
 		&webhookID,
 		&endpointSlug,
+		&webhookSecretRef,
 		&createdAt,
 		&updatedAt,
 	); err != nil {
@@ -1170,6 +1092,7 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 	trigger.Source = automation.JobSource(strings.TrimSpace(source))
 	trigger.WebhookID = automationNullStringValue(webhookID)
 	trigger.EndpointSlug = automationNullStringValue(endpointSlug)
+	trigger.WebhookSecretRef = automationNullStringValue(webhookSecretRef)
 
 	if err := decodeAutomationFilter(filterRaw, &trigger.Filter); err != nil {
 		return automation.Trigger{}, err
@@ -1537,6 +1460,7 @@ func normalizeAutomationTrigger(trigger automation.Trigger) automation.Trigger {
 	trigger.Source = automation.JobSource(strings.TrimSpace(string(trigger.Source)))
 	trigger.WebhookID = strings.TrimSpace(trigger.WebhookID)
 	trigger.EndpointSlug = strings.TrimSpace(trigger.EndpointSlug)
+	trigger.WebhookSecretRef = strings.TrimSpace(trigger.WebhookSecretRef)
 	trigger.Retry.BaseDelay = strings.TrimSpace(trigger.Retry.BaseDelay)
 	trigger.Retry.Strategy = automation.RetryStrategy(strings.TrimSpace(string(trigger.Retry.Strategy)))
 	trigger.FireLimit.Window = strings.TrimSpace(trigger.FireLimit.Window)

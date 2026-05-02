@@ -1231,13 +1231,13 @@ func (h *RuntimeHarness) waitForReady(ctx context.Context, pollInterval time.Dur
 	defer ticker.Stop()
 
 	for {
+		if exited, err := h.pollExit(); exited {
+			return daemonExitedBeforeReadinessError(err)
+		}
 		select {
 		case <-ctx.Done():
 			if exited, err := h.pollExit(); exited {
-				if err != nil {
-					return fmt.Errorf("%w: %w", errDaemonExitedBeforeReadiness, err)
-				}
-				return errDaemonExitedBeforeReadiness
+				return daemonExitedBeforeReadinessError(err)
 			}
 			return errors.New("daemon did not become ready before timeout")
 		case err, ok := <-h.waitCh:
@@ -1248,16 +1248,20 @@ func (h *RuntimeHarness) waitForReady(ctx context.Context, pollInterval time.Dur
 			}
 			storedErr := h.processErr
 			h.processWaitMu.Unlock()
-			if storedErr != nil {
-				return fmt.Errorf("%w: %w", errDaemonExitedBeforeReadiness, storedErr)
-			}
-			return errDaemonExitedBeforeReadiness
+			return daemonExitedBeforeReadinessError(storedErr)
 		case <-ticker.C:
 			if err := h.probeReady(ctx); err == nil {
 				return nil
 			}
 		}
 	}
+}
+
+func daemonExitedBeforeReadinessError(err error) error {
+	if err != nil {
+		return fmt.Errorf("%w: %w", errDaemonExitedBeforeReadiness, err)
+	}
+	return errDaemonExitedBeforeReadiness
 }
 
 func (h *RuntimeHarness) probeReady(ctx context.Context) error {
@@ -1368,6 +1372,9 @@ func doRequest(
 	method string,
 	body any,
 ) (*http.Response, error) {
+	if client == nil {
+		return nil, errors.New("runtime harness http client is required")
+	}
 	reader, err := requestBody(body)
 	if err != nil {
 		return nil, err

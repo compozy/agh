@@ -12,26 +12,292 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 	t.Parallel()
 
 	providers := BuiltinProviders()
-	tests := map[string]string{
-		"claude":   "npx -y @agentclientprotocol/claude-agent-acp@0.24.2",
-		"codex":    "npx @zed-industries/codex-acp@0.10.0",
-		"gemini":   "gemini --acp",
-		"opencode": "npx -y opencode-ai acp",
-		"copilot":  "copilot --acp --stdio",
-		"cursor":   "cursor-agent acp",
-		"kiro":     "kiro-cli-chat acp",
-		"pi":       "npx pi-acp@0.0.22",
+	tests := []struct {
+		name            string
+		command         string
+		harness         ProviderHarness
+		runtimeProvider string
+		defaultModel    string
+		apiKeyEnv       string
+		required        bool
+	}{
+		{
+			name:      "blackbox",
+			command:   "blackbox --experimental-acp",
+			harness:   ProviderHarnessACP,
+			apiKeyEnv: "BLACKBOX_API_KEY",
+			required:  false,
+		},
+		{
+			name:         "claude",
+			command:      "npx -y @agentclientprotocol/claude-agent-acp@latest",
+			harness:      ProviderHarnessACP,
+			defaultModel: "claude-sonnet-4-6",
+			apiKeyEnv:    "ANTHROPIC_API_KEY",
+			required:     false,
+		},
+		{name: "cline", command: "npx -y cline@latest --acp", harness: ProviderHarnessACP},
+		{
+			name:         "codex",
+			command:      "npx -y @zed-industries/codex-acp@latest",
+			harness:      ProviderHarnessACP,
+			defaultModel: "gpt-5.4",
+			apiKeyEnv:    "OPENAI_API_KEY",
+			required:     false,
+		},
+		{name: "copilot", command: "copilot --acp --stdio", harness: ProviderHarnessACP},
+		{name: "cursor", command: "cursor-agent acp", harness: ProviderHarnessACP},
+		{
+			name:         "gemini",
+			command:      "gemini --acp",
+			harness:      ProviderHarnessACP,
+			defaultModel: "gemini-3.1-pro-preview",
+			apiKeyEnv:    "GEMINI_API_KEY",
+			required:     false,
+		},
+		{name: "goose", command: "goose acp", harness: ProviderHarnessACP},
+		{name: "hermes", command: "hermes acp", harness: ProviderHarnessACP},
+		{name: "junie", command: "junie --acp true", harness: ProviderHarnessACP},
+		{
+			name:      "kimi-cli",
+			command:   "kimi acp",
+			harness:   ProviderHarnessACP,
+			apiKeyEnv: "KIMI_API_KEY",
+			required:  false,
+		},
+		{name: "kiro", command: "kiro-cli-chat acp", harness: ProviderHarnessACP},
+		{name: "opencode", command: "npx -y opencode-ai@latest acp", harness: ProviderHarnessACP},
+		{name: "openclaw", command: "openclaw acp", harness: ProviderHarnessACP},
+		{name: "openhands", command: "openhands acp", harness: ProviderHarnessACP},
+		{
+			name:      "qoder",
+			command:   "npx -y @qoder-ai/qodercli@latest --acp",
+			harness:   ProviderHarnessACP,
+			apiKeyEnv: "QODER_PERSONAL_ACCESS_TOKEN",
+			required:  false,
+		},
+		{
+			name:         "qwen-code",
+			command:      "npx -y @qwen-code/qwen-code@latest --acp --experimental-skills",
+			harness:      ProviderHarnessACP,
+			defaultModel: "qwen3.6-plus",
+		},
+		{
+			name:            "pi",
+			command:         "npx -y pi-acp@latest",
+			harness:         ProviderHarnessPiACP,
+			runtimeProvider: "anthropic",
+			defaultModel:    "claude-opus-4-7",
+			apiKeyEnv:       "ANTHROPIC_API_KEY",
+			required:        true,
+		},
+		{
+			name:            "openrouter",
+			command:         "npx -y pi-acp@latest",
+			harness:         ProviderHarnessPiACP,
+			runtimeProvider: "openrouter",
+			defaultModel:    "openai/gpt-5.4",
+			apiKeyEnv:       "OPENROUTER_API_KEY",
+			required:        true,
+		},
+		{
+			name:            "zai",
+			command:         "npx -y pi-acp@latest",
+			harness:         ProviderHarnessPiACP,
+			runtimeProvider: "zai",
+			defaultModel:    "glm-4.6",
+			apiKeyEnv:       "ZAI_API_KEY",
+			required:        true,
+		},
+		{
+			name:            "moonshot",
+			command:         "npx -y pi-acp@latest",
+			harness:         ProviderHarnessPiACP,
+			runtimeProvider: "kimi-coding",
+			defaultModel:    "kimi-k2-thinking",
+			apiKeyEnv:       "KIMI_API_KEY",
+			required:        true,
+		},
+		{
+			name:            "vercel-ai-gateway",
+			command:         "npx -y pi-acp@latest",
+			harness:         ProviderHarnessPiACP,
+			runtimeProvider: "vercel-ai-gateway",
+			defaultModel:    "anthropic/claude-opus-4-7",
+			apiKeyEnv:       "AI_GATEWAY_API_KEY",
+			required:        true,
+		},
+		{
+			name:            "xai",
+			command:         "npx -y pi-acp@latest",
+			harness:         ProviderHarnessPiACP,
+			runtimeProvider: "xai",
+			defaultModel:    "grok-4-fast-non-reasoning",
+			apiKeyEnv:       "XAI_API_KEY",
+			required:        true,
+		},
+		{
+			name:            "minimax",
+			command:         "npx -y pi-acp@latest",
+			harness:         ProviderHarnessPiACP,
+			runtimeProvider: "minimax",
+			defaultModel:    "MiniMax-M2.1",
+			apiKeyEnv:       "MINIMAX_API_KEY",
+			required:        true,
+		},
+		{
+			name:            "mistral",
+			command:         "npx -y pi-acp@latest",
+			harness:         ProviderHarnessPiACP,
+			runtimeProvider: "mistral",
+			defaultModel:    "devstral-medium-latest",
+			apiKeyEnv:       "MISTRAL_API_KEY",
+			required:        true,
+		},
+		{
+			name:            "groq",
+			command:         "npx -y pi-acp@latest",
+			harness:         ProviderHarnessPiACP,
+			runtimeProvider: "groq",
+			defaultModel:    "openai/gpt-oss-120b",
+			apiKeyEnv:       "GROQ_API_KEY",
+			required:        true,
+		},
 	}
 
-	for name, want := range tests {
-		got, ok := providers[name]
-		if !ok {
-			t.Fatalf("BuiltinProviders() missing %q", name)
-		}
-		if got.Command != want {
-			t.Fatalf("BuiltinProviders()[%q].Command = %q, want %q", name, got.Command, want)
+	for _, tc := range tests {
+		t.Run("Should expose builtin provider "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := providers[tc.name]
+			if !ok {
+				t.Fatalf("BuiltinProviders() missing %q", tc.name)
+			}
+			if got.Command != tc.command {
+				t.Fatalf("BuiltinProviders()[%q].Command = %q, want %q", tc.name, got.Command, tc.command)
+			}
+			if got.EffectiveHarness() != tc.harness {
+				t.Fatalf("BuiltinProviders()[%q].Harness = %q, want %q", tc.name, got.EffectiveHarness(), tc.harness)
+			}
+			if got.RuntimeProviderName(tc.name) != firstNonEmpty(tc.runtimeProvider, tc.name) {
+				t.Fatalf(
+					"BuiltinProviders()[%q].RuntimeProvider = %q, want %q",
+					tc.name,
+					got.RuntimeProviderName(tc.name),
+					firstNonEmpty(tc.runtimeProvider, tc.name),
+				)
+			}
+			if got.DefaultModel != tc.defaultModel {
+				t.Fatalf(
+					"BuiltinProviders()[%q].DefaultModel = %q, want %q",
+					tc.name,
+					got.DefaultModel,
+					tc.defaultModel,
+				)
+			}
+			slots := got.EffectiveCredentialSlots()
+			if tc.apiKeyEnv == "" {
+				if len(slots) != 0 {
+					t.Fatalf("BuiltinProviders()[%q].CredentialSlots = %#v, want none", tc.name, slots)
+				}
+				return
+			}
+			if len(slots) != 1 {
+				t.Fatalf("BuiltinProviders()[%q].CredentialSlots = %#v, want one slot", tc.name, slots)
+			}
+			slot := slots[0]
+			if slot.Name != "api_key" || slot.Kind != "api_key" || slot.TargetEnv != tc.apiKeyEnv ||
+				slot.SecretRef != "env:"+tc.apiKeyEnv || slot.Required != tc.required {
+				t.Fatalf(
+					"BuiltinProviders()[%q].CredentialSlots[0] = %#v, want api_key env slot required=%t",
+					tc.name,
+					slot,
+					tc.required,
+				)
+			}
+		})
+	}
+}
+
+func TestBuiltinProviderCommandsUseLatestDriverPackages(t *testing.T) {
+	t.Parallel()
+
+	packagePrefixes := []string{
+		"@agentclientprotocol/claude-agent-acp@",
+		"@zed-industries/codex-acp@",
+		"pi-acp@",
+		"opencode-ai@",
+		"cline@",
+		"@qoder-ai/qodercli@",
+		"@qwen-code/qwen-code@",
+	}
+
+	for name, provider := range BuiltinProviders() {
+		t.Run("Should not pin driver package for "+name, func(t *testing.T) {
+			t.Parallel()
+
+			fields := strings.FieldsSeq(provider.Command)
+			for field := range fields {
+				for _, prefix := range packagePrefixes {
+					if !strings.HasPrefix(field, prefix) {
+						continue
+					}
+					version := strings.TrimPrefix(field, prefix)
+					if version != "latest" {
+						t.Fatalf(
+							"BuiltinProviders()[%q].Command = %q pins %s%s, want @latest",
+							name,
+							provider.Command,
+							prefix,
+							version,
+						)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestCanonicalProviderNameResolvesNewDriverAliases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "blackbox-ai", want: "blackbox"},
+		{name: "cline-cli", want: "cline"},
+		{name: "goose-cli", want: "goose"},
+		{name: "hermes-agent", want: "hermes"},
+		{name: "junie-cli", want: "junie"},
+		{name: "kimi", want: "moonshot"},
+		{name: "kimi cli", want: "kimi-cli"},
+		{name: "kimi-code", want: "kimi-cli"},
+		{name: "open-hands", want: "openhands"},
+		{name: "openclaw-cli", want: "openclaw"},
+		{name: "qoder-cli", want: "qoder"},
+		{name: "qwen", want: "qwen-code"},
+		{name: "qwen code", want: "qwen-code"},
+	}
+
+	for _, tc := range tests {
+		t.Run("Should resolve "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := CanonicalProviderName(tc.name); got != tc.want {
+				t.Fatalf("CanonicalProviderName(%q) = %q, want %q", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
 		}
 	}
+	return ""
 }
 
 func TestProviderConfigOverrideMergesWithBuiltins(t *testing.T) {
@@ -55,8 +321,183 @@ func TestProviderConfigOverrideMergesWithBuiltins(t *testing.T) {
 	if provider.DefaultModel != "claude-opus-override" {
 		t.Fatalf("ResolveProvider() DefaultModel = %q, want %q", provider.DefaultModel, "claude-opus-override")
 	}
-	if provider.APIKeyEnv != "ANTHROPIC_API_KEY" {
-		t.Fatalf("ResolveProvider() APIKeyEnv = %q, want %q", provider.APIKeyEnv, "ANTHROPIC_API_KEY")
+	slots := provider.EffectiveCredentialSlots()
+	if len(slots) != 1 || slots[0].TargetEnv != "ANTHROPIC_API_KEY" || slots[0].SecretRef != "env:ANTHROPIC_API_KEY" {
+		t.Fatalf("ResolveProvider() CredentialSlots = %#v, want builtin Anthropic API key slot", slots)
+	}
+}
+
+func TestProviderCredentialSlotOverridePreservesSecretRefSemantics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve existing slot required kind and secret ref", func(t *testing.T) {
+		t.Parallel()
+
+		provider := mergeProvider(
+			ProviderConfig{
+				Command: "custom-agent --acp",
+				CredentialSlots: []ProviderCredentialSlot{
+					{
+						Name:      "api_key",
+						TargetEnv: "OPENROUTER_API_KEY",
+						SecretRef: "vault:providers/openrouter/api-key",
+						Kind:      "api_key",
+						Required:  false,
+					},
+				},
+			},
+			ProviderConfig{
+				CredentialSlots: []ProviderCredentialSlot{
+					{
+						Name:      "api_key",
+						TargetEnv: "OPENROUTER_RUNTIME_KEY",
+						SecretRef: "vault:providers/openrouter/api-key",
+						Kind:      "api_key",
+						Required:  false,
+					},
+				},
+			},
+		)
+		slots := provider.EffectiveCredentialSlots()
+		if len(slots) != 1 {
+			t.Fatalf("EffectiveCredentialSlots() = %#v, want one slot", slots)
+		}
+		slot := slots[0]
+		if slot.TargetEnv != "OPENROUTER_RUNTIME_KEY" {
+			t.Fatalf("slot.TargetEnv = %q, want override env", slot.TargetEnv)
+		}
+		if slot.SecretRef != "vault:providers/openrouter/api-key" {
+			t.Fatalf("slot.SecretRef = %q, want preserved secret ref", slot.SecretRef)
+		}
+		if slot.Required {
+			t.Fatalf("slot.Required = true, want preserved optional slot")
+		}
+		if slot.Kind != "api_key" || slot.Name != "api_key" {
+			t.Fatalf("slot identity = %#v, want preserved api_key identity", slot)
+		}
+	})
+
+	t.Run("Should not synthesize compatibility slots for custom providers", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"custom": {
+					Command: "custom-agent --acp",
+				},
+			},
+		}
+
+		provider, err := cfg.ResolveProvider("custom")
+		if err != nil {
+			t.Fatalf("ResolveProvider(custom) error = %v", err)
+		}
+		slots := provider.EffectiveCredentialSlots()
+		if len(slots) != 0 {
+			t.Fatalf("EffectiveCredentialSlots() = %#v, want no synthesized slots", slots)
+		}
+	})
+}
+
+func TestProviderOverlayCredentialSlotsReplaceExistingSlots(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should replace credential slots from overlay", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"custom": {
+					Command: "custom-agent --acp",
+					CredentialSlots: []ProviderCredentialSlot{
+						{
+							Name:      "api_key",
+							TargetEnv: "CUSTOM_API_KEY",
+							SecretRef: "env:CUSTOM_API_KEY",
+							Kind:      "api_key",
+							Required:  false,
+						},
+					},
+				},
+			},
+		}
+		overlay, err := loadConfigOverlayBytes([]byte(`
+	[providers.custom]
+	[[providers.custom.credential_slots]]
+	name = "api_key"
+	target_env = "CUSTOM_RUNTIME_KEY"
+	secret_ref = "env:CUSTOM_RUNTIME_KEY"
+	kind = "api_key"
+	required = false
+	`), "inline")
+		if err != nil {
+			t.Fatalf("loadConfigOverlayBytes() error = %v", err)
+		}
+		if err := overlay.Apply(&cfg); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+
+		slots := cfg.Providers["custom"].CredentialSlots
+		if len(slots) != 1 {
+			t.Fatalf("CredentialSlots = %#v, want one slot", slots)
+		}
+		if slots[0].TargetEnv != "CUSTOM_RUNTIME_KEY" || slots[0].SecretRef != "env:CUSTOM_RUNTIME_KEY" {
+			t.Fatalf("CredentialSlots[0] = %#v, want overlay credential slot", slots[0])
+		}
+		if slots[0].Required {
+			t.Fatalf("CredentialSlots[0].Required = true, want preserved false")
+		}
+	})
+}
+
+func TestProviderCredentialSlotValidateRestrictsSecretRefs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		ref     string
+		wantErr bool
+	}{
+		{name: "Should accept env ref", ref: "env:OPENROUTER_API_KEY"},
+		{name: "Should accept provider secret ref", ref: "vault:providers/openrouter/api-key"},
+		{
+			name: "Should accept provider secret ref with underscore slot",
+			ref:  "vault:providers/vercel-ai-gateway/api_key",
+		},
+		{name: "Should reject arbitrary vault suffix", ref: "vault:anything", wantErr: true},
+		{name: "Should reject provider secret ref without slot", ref: "vault:providers/openrouter", wantErr: true},
+		{
+			name:    "Should reject provider secret ref with uppercase provider",
+			ref:     "vault:providers/OpenRouter/api-key",
+			wantErr: true,
+		},
+		{
+			name:    "Should reject provider secret ref with uppercase slot",
+			ref:     "vault:providers/openrouter/API-key",
+			wantErr: true,
+		},
+		{name: "Should reject malformed env ref", ref: "env:OPENROUTER API KEY", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			slot := ProviderCredentialSlot{
+				Name:      "api_key",
+				TargetEnv: "OPENROUTER_API_KEY",
+				SecretRef: tc.ref,
+				Kind:      "api_key",
+				Required:  true,
+			}
+			err := slot.Validate("providers.openrouter.credential_slots[0]")
+			if tc.wantErr && err == nil {
+				t.Fatalf("Validate(%q) error = nil, want validation failure", tc.ref)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("Validate(%q) error = %v, want nil", tc.ref, err)
+			}
+		})
 	}
 }
 
@@ -80,6 +521,65 @@ func TestResolveAgentModelOverridesProviderDefault(t *testing.T) {
 	}
 	if resolved.Model != "agent-model" {
 		t.Fatalf("ResolveAgent() Model = %q, want %q", resolved.Model, "agent-model")
+	}
+}
+
+func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{"blackbox", "cline"}
+	for _, provider := range tests {
+		t.Run("Should allow "+provider+" without resolved model", func(t *testing.T) {
+			t.Parallel()
+
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+
+			cfg := DefaultWithHome(homePaths)
+			agent := AgentDef{
+				Name:     "coder",
+				Provider: provider,
+				Prompt:   "prompt",
+			}
+
+			resolved, err := cfg.ResolveAgent(agent)
+			if err != nil {
+				t.Fatalf("ResolveAgent() error = %v", err)
+			}
+			if resolved.Model != "" {
+				t.Fatalf("ResolveAgent() Model = %q, want provider-managed empty model", resolved.Model)
+			}
+		})
+	}
+}
+
+func TestResolveAgentRejectsPiProviderWithoutModel(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+	cfg.Providers["custom-pi"] = ProviderConfig{
+		Command:         "npx -y pi-acp@latest",
+		Harness:         ProviderHarnessPiACP,
+		RuntimeProvider: "custom",
+	}
+	_, err = cfg.ResolveAgent(AgentDef{
+		Name:     "coder",
+		Provider: "custom-pi",
+		Prompt:   "prompt",
+	})
+	if err == nil {
+		t.Fatal("ResolveAgent() error = nil, want model required error")
+	}
+	wantErr := `agent model is required when provider "custom-pi" has no default model`
+	if err.Error() != wantErr {
+		t.Fatalf("ResolveAgent() error = %q, want %q", err.Error(), wantErr)
 	}
 }
 
@@ -122,7 +622,7 @@ func TestMergeMCPServersSameNameOverlaysFields(t *testing.T) {
 	t.Parallel()
 
 	merged := MergeMCPServers(
-		[]MCPServer{{Name: "github", Command: "npx", Env: map[string]string{"TOKEN": "base"}}},
+		[]MCPServer{{Name: "github", Command: "npx", SecretEnv: map[string]string{"TOKEN": "env:GITHUB_TOKEN"}}},
 		[]MCPServer{{Name: "github", Args: []string{"-y"}, Env: map[string]string{"OTHER": "1"}}},
 	)
 
@@ -138,8 +638,8 @@ func TestMergeMCPServersSameNameOverlaysFields(t *testing.T) {
 	if got, want := merged[0].Args[0], "-y"; got != want {
 		t.Fatalf("MergeMCPServers() Args = %#v", merged[0].Args)
 	}
-	if merged[0].Env["TOKEN"] != "base" || merged[0].Env["OTHER"] != "1" {
-		t.Fatalf("MergeMCPServers() Env = %#v", merged[0].Env)
+	if merged[0].Env["OTHER"] != "1" || merged[0].SecretEnv["TOKEN"] != "env:GITHUB_TOKEN" {
+		t.Fatalf("MergeMCPServers() Env = %#v SecretEnv = %#v", merged[0].Env, merged[0].SecretEnv)
 	}
 }
 
@@ -180,6 +680,7 @@ func TestMCPServerValidateRejectsUnsafeStdioEnv(t *testing.T) {
 		{name: "Should reject Python home", key: "PYTHONHOME"},
 		{name: "Should reject preload", key: "LD_PRELOAD"},
 		{name: "Should reject Darwin dynamic loader variables", key: "DYLD_INSERT_LIBRARIES"},
+		{name: "Should reject secret-like token variables", key: "GITHUB_TOKEN"},
 	}
 
 	for _, tc := range tests {
@@ -192,8 +693,8 @@ func TestMCPServerValidateRejectsUnsafeStdioEnv(t *testing.T) {
 				Env:     map[string]string{tc.key: "value"},
 			}
 			err := server.Validate("mcp_servers[0]")
-			if err == nil || !strings.Contains(err.Error(), "forbidden for stdio MCP servers") {
-				t.Fatalf("Validate(%s) error = %v, want forbidden env validation", tc.key, err)
+			if err == nil {
+				t.Fatalf("Validate(%s) error = nil, want env validation failure", tc.key)
 			}
 		})
 	}
@@ -225,16 +726,16 @@ func TestRedactedMCPServerDoesNotExposeEnvSecretValues(t *testing.T) {
 	server := MCPServer{
 		Name:    "github",
 		Command: "npx",
-		Env: map[string]string{
-			"GITHUB_TOKEN": "secret-token",
+		SecretEnv: map[string]string{
+			"GITHUB_TOKEN": "env:GITHUB_TOKEN",
 		},
 	}
 	redacted := RedactedMCPServer(server)
-	if got := redacted.Env["GITHUB_TOKEN"]; got != RedactedValue() {
-		t.Fatalf("redacted env = %q, want placeholder", got)
+	if got := redacted.SecretEnv["GITHUB_TOKEN"]; got != RedactedValue() {
+		t.Fatalf("redacted secret env = %q, want placeholder", got)
 	}
-	if server.Env["GITHUB_TOKEN"] != "secret-token" {
-		t.Fatalf("source env mutated = %#v", server.Env)
+	if server.SecretEnv["GITHUB_TOKEN"] != "env:GITHUB_TOKEN" {
+		t.Fatalf("source secret env mutated = %#v", server.SecretEnv)
 	}
 }
 
@@ -264,7 +765,14 @@ func TestOverrideMCPServersSameNameReplacesObject(t *testing.T) {
 	t.Parallel()
 
 	merged := OverrideMCPServers(
-		[]MCPServer{{Name: "github", Command: "npx", Args: []string{"-y"}, Env: map[string]string{"TOKEN": "base"}}},
+		[]MCPServer{
+			{
+				Name:      "github",
+				Command:   "npx",
+				Args:      []string{"-y"},
+				SecretEnv: map[string]string{"TOKEN": "env:GITHUB_TOKEN"},
+			},
+		},
 		[]MCPServer{{Name: "github", Command: "node"}},
 	)
 
@@ -584,8 +1092,10 @@ func TestResolveSessionAgent(t *testing.T) {
 				resolved.Model,
 			)
 		}
-		if got, want := resolved.APIKeyEnv, "OPENAI_API_KEY"; got != want {
-			t.Fatalf("ResolveSessionAgent() APIKeyEnv = %q, want %q", got, want)
+		if len(resolved.CredentialSlots) != 1 ||
+			resolved.CredentialSlots[0].TargetEnv != "OPENAI_API_KEY" ||
+			resolved.CredentialSlots[0].SecretRef != "env:OPENAI_API_KEY" {
+			t.Fatalf("ResolveSessionAgent() CredentialSlots = %#v, want OpenAI API key slot", resolved.CredentialSlots)
 		}
 
 		if got, want := len(resolved.MCPServers), 4; got != want {

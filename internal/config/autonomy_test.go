@@ -117,10 +117,14 @@ model = "model"
 			wantErr: "autonomy.coordinator.provider",
 		},
 		{
-			name: "provider without default model",
+			name: "pi provider without default model",
 			config: `
+[providers.custom-pi]
+command = "npx -y pi-acp@latest"
+harness = "pi_acp"
+
 [autonomy.coordinator]
-provider = "opencode"
+provider = "custom-pi"
 `,
 			wantErr: "autonomy.coordinator.model",
 		},
@@ -180,6 +184,27 @@ max_active_per_workspace = 2
 			}
 		})
 	}
+}
+
+func TestLoadAllowsDirectACPAutonomyProviderWithoutDefaultModel(t *testing.T) {
+	t.Run("Should accept provider-managed model for direct ACP provider", func(t *testing.T) {
+		workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
+		writeFile(t, homePaths.ConfigFile, `
+[autonomy.coordinator]
+provider = "opencode"
+`)
+
+		cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		if got, want := cfg.Autonomy.Coordinator.Provider, "opencode"; got != want {
+			t.Fatalf("Load() coordinator Provider = %q, want %q", got, want)
+		}
+		if got := cfg.Autonomy.Coordinator.Model; got != "" {
+			t.Fatalf("Load() coordinator Model = %q, want empty", got)
+		}
+	})
 }
 
 func TestLoadRejectsUnknownAutonomyConfigKeys(t *testing.T) {
@@ -263,13 +288,44 @@ func TestResolveCoordinatorConfigUsesProviderModelPrecedence(t *testing.T) {
 	}
 }
 
+func TestResolveCoordinatorConfigAllowsDirectACPProviderManagedModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve without model for direct ACP provider", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Defaults.Provider = "opencode"
+
+		resolved, err := cfg.ResolveCoordinatorConfig(AgentDef{Name: DefaultCoordinatorAgentName})
+		if err != nil {
+			t.Fatalf("ResolveCoordinatorConfig() error = %v", err)
+		}
+		if got, want := resolved.Provider, "opencode"; got != want {
+			t.Fatalf("ResolveCoordinatorConfig() Provider = %q, want %q", got, want)
+		}
+		if got := resolved.Model; got != "" {
+			t.Fatalf("ResolveCoordinatorConfig() Model = %q, want empty", got)
+		}
+	})
+}
+
 func TestLoadAutonomyOverlayPreservesOtherConfigSections(t *testing.T) {
 	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
 
 	writeFile(t, homePaths.ConfigFile, `
-[providers.claude]
-default_model = "global-model"
-api_key_env = "GLOBAL_KEY"
+	[providers.claude]
+	default_model = "global-model"
+	[[providers.claude.credential_slots]]
+	name = "api_key"
+	target_env = "GLOBAL_KEY"
+	secret_ref = "env:GLOBAL_KEY"
+	kind = "api_key"
+	required = true
 
 [[hooks.declarations]]
 name = "shared"
@@ -317,12 +373,17 @@ model = "global-coordinator"
 default_ttl = "2h"
 max_children = 5
 max_active_per_workspace = 1
-`)
+	`)
 	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
-[providers.claude]
-api_key_env = "WORKSPACE_KEY"
+	[providers.claude]
+	[[providers.claude.credential_slots]]
+	name = "api_key"
+	target_env = "WORKSPACE_KEY"
+	secret_ref = "env:WORKSPACE_KEY"
+	kind = "api_key"
+	required = true
 
-[[hooks.declarations]]
+	[[hooks.declarations]]
 name = "workspace-only"
 event = "tool.pre_call"
 mode = "sync"
@@ -354,8 +415,13 @@ max_children = 2
 	if err != nil {
 		t.Fatalf("ResolveProvider(claude) error = %v", err)
 	}
-	if claude.DefaultModel != "global-model" || claude.APIKeyEnv != "WORKSPACE_KEY" {
+	if claude.DefaultModel != "global-model" {
 		t.Fatalf("ResolveProvider(claude) = %#v, want merged provider fields", claude)
+	}
+	if slots := claude.EffectiveCredentialSlots(); len(slots) != 1 ||
+		slots[0].TargetEnv != "WORKSPACE_KEY" ||
+		slots[0].SecretRef != "env:WORKSPACE_KEY" {
+		t.Fatalf("ResolveProvider(claude) CredentialSlots = %#v, want workspace slot", slots)
 	}
 	decls, err := HookDeclarations(cfg.Hooks, nil)
 	if err != nil {

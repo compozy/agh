@@ -1099,13 +1099,14 @@ func TestManagerResolveEnvMapUsesSafeBaselineOnly(t *testing.T) {
 		}
 	}))
 
-	env, err := manager.resolveEnvMap(t.TempDir(), map[string]string{
+	env, cleanups, err := manager.resolveEnvMap(context.Background(), t.TempDir(), map[string]string{
 		"APP_MODE": "sandbox",
 		"PATH":     "/custom/bin",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("resolveEnvMap() error = %v", err)
 	}
+	t.Cleanup(func() { runExtensionRedactionCleanups(cleanups) })
 
 	decoded := envListToMap(t, env)
 	if decoded["PATH"] != "/custom/bin" {
@@ -1179,9 +1180,10 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 				},
 			},
 			Hooks: []hookspkg.HookDecl{{
-				Name: "snapshot-hook",
-				Args: []string{"cleanup"},
-				Env:  map[string]string{"PHASE": "stop"},
+				Name:      "snapshot-hook",
+				Args:      []string{"cleanup"},
+				Env:       map[string]string{"PHASE": "stop"},
+				SecretEnv: map[string]string{"TOKEN": "vault:hooks/snapshot-hook/token"},
 			}},
 			MCPServers: []skillspkg.MCPServerDecl{{
 				Name:    "snapshot-server",
@@ -1250,6 +1252,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	clone.Skills[0].Meta.Metadata["list"].([]any)[0] = "changed"
 	clone.Skills[0].Meta.Metadata["list"].([]any)[1].(map[string]any)["child"] = "changed"
 	clone.Skills[0].Hooks[0].Args[0] = "changed"
+	clone.Skills[0].Hooks[0].SecretEnv["TOKEN"] = "vault:hooks/snapshot-hook/changed"
 	clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
 	clone.Skills[0].Provenance.Hash = "hash-changed"
 	clone.Bundles[0].Profiles[0].Jobs[0].Task.Title = "changed"
@@ -1285,6 +1288,9 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	}
 	if ext.skills[0].Hooks[0].Args[0] != "cleanup" {
 		t.Fatalf("original skill hook args mutated to %#v", ext.skills[0].Hooks[0].Args)
+	}
+	if got, want := ext.skills[0].Hooks[0].SecretEnv["TOKEN"], "vault:hooks/snapshot-hook/token"; got != want {
+		t.Fatalf("original skill hook secret env mutated to %q, want %q", got, want)
 	}
 	if ext.skills[0].MCPServers[0].Env["ROOT"] != "/tmp/original" {
 		t.Fatalf("original skill MCP env mutated to %#v", ext.skills[0].MCPServers[0].Env)
@@ -1344,8 +1350,8 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 
 	withDaemonVersion(t, "0.5.0")
 	manager := NewManager(nil, WithGetenv(func(key string) string {
-		if key == "EXT_TOKEN" {
-			return "resolved-token"
+		if key == "EXT_MODE" {
+			return "resolved-mode"
 		}
 		return ""
 	}))
@@ -1359,11 +1365,11 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 		t.Fatal("discoverExtension() error = nil, want invalid relative manifest path")
 	}
 
-	resolved, err := manager.resolveString("/tmp/ext", "{{config_dir}}/{{env:EXT_TOKEN}}")
+	resolved, err := manager.resolveString("/tmp/ext", "{{config_dir}}/{{env:EXT_MODE}}")
 	if err != nil {
 		t.Fatalf("resolveString() error = %v", err)
 	}
-	if got, want := resolved, "/tmp/ext/resolved-token"; got != want {
+	if got, want := resolved, "/tmp/ext/resolved-mode"; got != want {
 		t.Fatalf("resolveString() = %q, want %q", got, want)
 	}
 	if _, err := manager.resolveString("/tmp/ext", "{{env:EXT_TOKEN"); err == nil {

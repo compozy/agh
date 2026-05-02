@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SettingsProviderEntry } from "@/systems/settings";
+import { settingsProviderFixtures } from "@/systems/settings/mocks/fixtures";
 
 type RestartBanner = {
   isVisible: boolean;
@@ -23,20 +24,38 @@ type RestartBanner = {
 const claudeEntry: SettingsProviderEntry = {
   name: "claude",
   default: true,
-  api_key_env_present: true,
   command_available: true,
   settings: {
-    command: "npx claude",
-    default_model: "claude-opus",
-    api_key_env: "ANTHROPIC_API_KEY",
+    command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+    default_model: "claude-sonnet-4-6",
+    credential_slots: [
+      {
+        name: "api_key",
+        target_env: "ANTHROPIC_API_KEY",
+        secret_ref: "env:ANTHROPIC_API_KEY",
+        kind: "api_key",
+        required: false,
+      },
+    ],
   },
+  credentials: [
+    {
+      name: "api_key",
+      target_env: "ANTHROPIC_API_KEY",
+      secret_ref: "env:ANTHROPIC_API_KEY",
+      kind: "api_key",
+      required: false,
+      present: true,
+      source: "env",
+    },
+  ],
   source_metadata: {
     available_targets: ["global-config"],
     effective_source: { kind: "global-config", scope: "global" },
     shadowed_sources: [{ kind: "builtin-provider", scope: "global" }],
   },
   fallback: {
-    settings: { command: "npx claude" },
+    settings: { command: "npx -y @agentclientprotocol/claude-agent-acp@latest" },
     source: { kind: "builtin-provider", scope: "global" },
   },
 };
@@ -44,12 +63,31 @@ const claudeEntry: SettingsProviderEntry = {
 const builtinEntry: SettingsProviderEntry = {
   name: "codex",
   default: false,
-  api_key_env_present: false,
   command_available: true,
   settings: {
-    command: "npx codex",
-    api_key_env: "OPENAI_API_KEY",
+    command: "npx -y @zed-industries/codex-acp@latest",
+    default_model: "gpt-5.4",
+    credential_slots: [
+      {
+        name: "api_key",
+        target_env: "OPENAI_API_KEY",
+        secret_ref: "env:OPENAI_API_KEY",
+        kind: "api_key",
+        required: true,
+      },
+    ],
   },
+  credentials: [
+    {
+      name: "api_key",
+      target_env: "OPENAI_API_KEY",
+      secret_ref: "env:OPENAI_API_KEY",
+      kind: "api_key",
+      required: true,
+      present: false,
+      source: "env",
+    },
+  ],
   source_metadata: {
     available_targets: ["global-config"],
     effective_source: { kind: "builtin-provider", scope: "global" },
@@ -197,11 +235,11 @@ describe("ProvidersSettingsPage", () => {
     render(<ProvidersSettingsPage />);
     expect(screen.getByTestId("settings-page-providers-card-claude")).toBeInTheDocument();
     expect(screen.getByTestId("settings-page-providers-card-claude-command")).toHaveTextContent(
-      "npx claude"
+      "npx -y @agentclientprotocol/claude-agent-acp@latest"
     );
     expect(
-      screen.getByTestId("settings-page-providers-card-claude-api-key-state")
-    ).toHaveTextContent("SET");
+      screen.getByTestId("settings-page-providers-card-claude-credential-state")
+    ).toHaveTextContent("BOUND");
     expect(
       screen.getByTestId("settings-page-providers-card-claude-source-effective")
     ).toHaveTextContent("CONFIG");
@@ -209,8 +247,39 @@ describe("ProvidersSettingsPage", () => {
       screen.getByTestId("settings-page-providers-card-codex-source-effective")
     ).toHaveTextContent("BUILTIN");
     expect(
-      screen.getByTestId("settings-page-providers-card-codex-api-key-state")
+      screen.getByTestId("settings-page-providers-card-codex-credential-state")
     ).toHaveTextContent("MISSING");
+  });
+
+  it("renders the newly supported ACP provider cards from the catalog", () => {
+    pageState = makeState({
+      envelope: { providers: settingsProviderFixtures },
+      providers: settingsProviderFixtures,
+      counts: {
+        total: settingsProviderFixtures.length,
+        installed: 0,
+        binaryMissing: 0,
+        unconfigured: 0,
+      },
+    });
+
+    render(<ProvidersSettingsPage />);
+
+    const expectedProviders = [
+      "blackbox",
+      "cline",
+      "goose",
+      "hermes",
+      "junie",
+      "kimi-cli",
+      "openclaw",
+      "openhands",
+      "qoder",
+      "qwen-code",
+    ];
+    for (const provider of expectedProviders) {
+      expect(screen.getByTestId(`settings-page-providers-card-${provider}`)).toBeInTheDocument();
+    }
   });
 
   it("disables delete for builtin-only providers", () => {
@@ -248,9 +317,26 @@ describe("ProvidersSettingsPage", () => {
         name: "claude",
         draft: {
           name: "claude",
-          command: "npx claude",
-          default_model: "claude-opus",
-          api_key_env: "ANTHROPIC_API_KEY",
+          command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+          display_name: "Claude",
+          default_model: "claude-sonnet-4-6",
+          target_env: "ANTHROPIC_API_KEY",
+          harness: "acp",
+          runtime_provider: "",
+          transport: "",
+          base_url: "",
+          secret_ref: "env:ANTHROPIC_API_KEY",
+          secret_value: "",
+          credential_slots: [
+            {
+              name: "api_key",
+              target_env: "ANTHROPIC_API_KEY",
+              secret_ref: "env:ANTHROPIC_API_KEY",
+              kind: "api_key",
+              required: false,
+            },
+          ],
+          credential_secret_values: [""],
         },
         entry: claudeEntry,
       },
@@ -261,7 +347,9 @@ describe("ProvidersSettingsPage", () => {
       "Edit provider"
     );
     expect(screen.getByTestId("settings-providers-editor-name-input")).toBeDisabled();
-    expect(screen.getByTestId("settings-providers-editor-command-input")).toHaveValue("npx claude");
+    expect(screen.getByTestId("settings-providers-editor-command-input")).toHaveValue(
+      "npx -y @agentclientprotocol/claude-agent-acp@latest"
+    );
     expect(screen.getByTestId("settings-providers-editor-source-effective")).toHaveTextContent(
       "CONFIG"
     );
@@ -274,9 +362,26 @@ describe("ProvidersSettingsPage", () => {
         name: "claude",
         draft: {
           name: "claude",
-          command: "npx claude",
+          command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+          display_name: "",
           default_model: "",
-          api_key_env: "ANTHROPIC_API_KEY",
+          target_env: "ANTHROPIC_API_KEY",
+          harness: "acp",
+          runtime_provider: "",
+          transport: "",
+          base_url: "",
+          secret_ref: "env:ANTHROPIC_API_KEY",
+          secret_value: "",
+          credential_slots: [
+            {
+              name: "api_key",
+              target_env: "ANTHROPIC_API_KEY",
+              secret_ref: "env:ANTHROPIC_API_KEY",
+              kind: "api_key",
+              required: false,
+            },
+          ],
+          credential_secret_values: [""],
         },
         entry: claudeEntry,
       },

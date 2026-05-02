@@ -108,13 +108,16 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 		t.Fatalf("created bridge enabled = %v, want false before explicit start", createdBridge.Bridge.Enabled)
 	}
 
+	secretValue := "telegram-bot-token"
+	secretRef := "vault:bridges/" + bridgeID + "/bot_token"
 	binding, err := harness.PutBridgeSecretBinding(
 		ctx,
 		bridgeID,
 		"bot_token",
 		aghcontract.PutBridgeSecretBindingRequest{
-			VaultRef: "env:AGH_TEST_TELEGRAM_TOKEN",
-			Kind:     "token",
+			SecretRef:   secretRef,
+			Kind:        "token",
+			SecretValue: &secretValue,
 		},
 	)
 	if err != nil {
@@ -267,8 +270,8 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 	if got, want := len(bindings), 1; got != want {
 		t.Fatalf("len(bindings) = %d, want %d", got, want)
 	}
-	if got, want := bindings[0].VaultRef, "env:AGH_TEST_TELEGRAM_TOKEN"; got != want {
-		t.Fatalf("bindings[0].VaultRef = %q, want %q", got, want)
+	if got, want := bindings[0].SecretRef, secretRef; got != want {
+		t.Fatalf("bindings[0].SecretRef = %q, want %q", got, want)
 	}
 
 	bridge, err := harness.GetBridge(ctx, bridgeID)

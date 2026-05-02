@@ -172,10 +172,11 @@ func marketplaceConsentKeys(skill *Skill) []string {
 
 func toConfigMCPServer(decl MCPServerDecl) aghconfig.MCPServer {
 	return aghconfig.MCPServer{
-		Name:    decl.Name,
-		Command: decl.Command,
-		Args:    append([]string(nil), decl.Args...),
-		Env:     cloneStringMap(decl.Env),
+		Name:      decl.Name,
+		Command:   decl.Command,
+		Args:      append([]string(nil), decl.Args...),
+		Env:       cloneStringMap(decl.Env),
+		SecretEnv: cloneStringMap(decl.SecretEnv),
 	}
 }
 

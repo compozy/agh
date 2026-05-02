@@ -99,6 +99,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/sessions/:id",
 		"DELETE /api/tasks/:id",
 		"DELETE /api/tasks/:id/dependencies/:depends_on_id",
+		"DELETE /api/vault/secrets",
 		"DELETE /api/workspaces/:id",
 		"GET /api/agents",
 		"GET /api/agents/:name",
@@ -190,6 +191,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/tools/:id",
 		"GET /api/toolsets",
 		"GET /api/toolsets/:id",
+		"GET /api/vault/secrets",
+		"GET /api/vault/secrets/metadata",
 		"GET /api/workspaces",
 		"GET /api/workspaces/:id",
 		"PATCH /api/automation/jobs/:id",
@@ -275,6 +278,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PUT /api/settings/mcp-servers/:name",
 		"PUT /api/settings/providers/:name",
 		"PUT /api/resources/:kind/:id",
+		"PUT /api/vault/secrets",
 	}
 	sort.Strings(want)
 

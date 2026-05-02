@@ -37,7 +37,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		var enabledJobValue bool
 		var listTriggerQuery automationpkg.TriggerListQuery
 		var updateTrigger automationpkg.Trigger
-		var updatedTriggerSecret *string
+		var updatedTriggerSecret *automationpkg.WebhookSecretWrite
 		var deletedTriggerID string
 		var enabledTriggerID string
 		var enabledTriggerValue bool
@@ -96,10 +96,10 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 				CreateTriggerFn: func(
 					_ context.Context,
 					created automationpkg.Trigger,
-					secret string,
+					secret automationpkg.WebhookSecretWrite,
 				) (automationpkg.Trigger, error) {
-					if secret != "" {
-						t.Fatalf("CreateTrigger secret = %q, want empty tool-managed secret", secret)
+					if secret.Value != nil || secret.Ref != "" {
+						t.Fatalf("CreateTrigger secret = %#v, want empty tool-managed secret", secret)
 					}
 					created.ID = trigger.ID
 					created.CreatedAt = now
@@ -109,7 +109,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 				UpdateTriggerFn: func(
 					_ context.Context,
 					updated automationpkg.Trigger,
-					secret *string,
+					secret *automationpkg.WebhookSecretWrite,
 				) (automationpkg.Trigger, error) {
 					updateTrigger = updated
 					updatedTriggerSecret = secret
@@ -455,11 +455,11 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					createJobCalls++
 					return automationpkg.Job{}, nil
 				},
-				CreateTriggerFn: func(context.Context, automationpkg.Trigger, string) (automationpkg.Trigger, error) {
+				CreateTriggerFn: func(context.Context, automationpkg.Trigger, automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error) {
 					createTriggerCalls++
 					return automationpkg.Trigger{}, nil
 				},
-				UpdateTriggerFn: func(context.Context, automationpkg.Trigger, *string) (automationpkg.Trigger, error) {
+				UpdateTriggerFn: func(context.Context, automationpkg.Trigger, *automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error) {
 					updateTriggerCalls++
 					return automationpkg.Trigger{}, nil
 				},
@@ -508,7 +508,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 				),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonAutomationSecretInputForbidden)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 		if createTriggerCalls != 0 {
 			t.Fatalf("CreateTrigger calls = %d, want 0 after secret denial", createTriggerCalls)
 		}
@@ -521,7 +521,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 				Input:  json.RawMessage(`{"trigger_id":"trigger-config","webhook_secret":"raw-secret"}`),
 			},
 		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonAutomationSecretInputForbidden)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 		if updateTriggerCalls != 0 {
 			t.Fatalf("UpdateTrigger calls = %d, want 0 after secret denial", updateTriggerCalls)
 		}
@@ -698,7 +698,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 				CreateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
 					return automationpkg.Job{}, automationpkg.ErrJobNameTaken
 				},
-				CreateTriggerFn: func(context.Context, automationpkg.Trigger, string) (automationpkg.Trigger, error) {
+				CreateTriggerFn: func(context.Context, automationpkg.Trigger, automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error) {
 					return automationpkg.Trigger{}, automationpkg.ErrTriggerNameTaken
 				},
 				GetJobFn: func(context.Context, string) (automationpkg.Job, error) {

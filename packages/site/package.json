@@ -5,10 +5,11 @@
     "type": "module",
     "scripts": {
         "source:generate": "fumadocs-mdx source.config.ts .source",
-        "predev": "bun run source:generate",
-        "prebuild": "bun run source:generate",
-        "pretypecheck": "bun run source:generate",
-        "pretest": "bun run source:generate",
+        "content:generate": "velite build",
+        "predev": "bun run source:generate && bun run content:generate",
+        "prebuild": "bun run source:generate && bun run content:generate",
+        "pretypecheck": "bun run source:generate && bun run content:generate",
+        "pretest": "bun run source:generate && bun run content:generate",
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
@@ -27,7 +28,11 @@
         "next": "^16.2.4",
         "react": "^19.2.5",
         "react-dom": "^19.2.5",
-        "remotion": "^4.0.448"
+        "reading-time": "^1.5.0",
+        "rehype-pretty-code": "^0.14.3",
+        "remotion": "^4.0.448",
+        "shiki": "^4.0.2",
+        "velite": "^0.3.1"
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4.2.2",

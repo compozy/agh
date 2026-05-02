@@ -75,6 +75,7 @@ type Server struct {
 	toolApprovals     core.ToolApprovalIssuer
 	settings          core.SettingsService
 	settingsRestart   core.SettingsRestartController
+	vault             core.VaultService
 	workspaces        core.WorkspaceService
 	agentCatalog      core.AgentCatalog
 	agentContext      core.AgentContextService
@@ -111,6 +112,7 @@ type handlerConfig struct {
 	toolApprovals     core.ToolApprovalIssuer
 	settings          core.SettingsService
 	settingsRestart   core.SettingsRestartController
+	vault             core.VaultService
 	workspaces        core.WorkspaceService
 	agentCatalog      core.AgentCatalog
 	agentContext      core.AgentContextService
@@ -287,6 +289,13 @@ func WithSettingsService(service core.SettingsService) Option {
 func WithSettingsRestartController(controller core.SettingsRestartController) Option {
 	return func(server *Server) {
 		server.settingsRestart = controller
+	}
+}
+
+// WithVaultService injects the daemon-owned vault control surface.
+func WithVaultService(service core.VaultService) Option {
+	return func(server *Server) {
+		server.vault = service
 	}
 }
 
@@ -498,6 +507,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		toolApprovals:     s.toolApprovals,
 		settings:          s.settings,
 		settingsRestart:   s.settingsRestart,
+		vault:             s.vault,
 		workspaces:        s.workspaces,
 		agentCatalog:      s.agentCatalog,
 		agentContext:      s.agentContext,
@@ -735,6 +745,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			ToolApprovals:                cfg.toolApprovals,
 			Settings:                     cfg.settings,
 			SettingsRestart:              cfg.settingsRestart,
+			Vault:                        cfg.vault,
 			Workspaces:                   cfg.workspaces,
 			AgentCatalog:                 cfg.agentCatalog,
 			AgentContextService:          cfg.agentContext,

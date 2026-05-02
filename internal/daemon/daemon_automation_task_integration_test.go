@@ -36,13 +36,13 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
 		Triggers: []aghcontract.CreateTriggerRequest{{
-			Scope:         automationpkg.AutomationScopeGlobal,
-			Name:          "deploy-review",
-			AgentName:     automationTaskFixtureAgentName,
-			Prompt:        `Review payload {{ index .Data "payload" }} for {{ index .Data "branch" }}`,
-			Event:         "webhook",
-			EndpointSlug:  "deploy-review",
-			WebhookSecret: "shared-secret",
+			Scope:              automationpkg.AutomationScopeGlobal,
+			Name:               "deploy-review",
+			AgentName:          automationTaskFixtureAgentName,
+			Prompt:             `Review payload {{ index .Data "payload" }} for {{ index .Data "branch" }}`,
+			Event:              "webhook",
+			EndpointSlug:       "deploy-review",
+			WebhookSecretValue: "shared-secret",
 		}},
 	})
 	if err != nil {

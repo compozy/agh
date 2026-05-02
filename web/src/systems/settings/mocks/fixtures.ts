@@ -257,31 +257,291 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
   {
     name: "claude",
     default: true,
-    api_key_env_present: true,
     command_available: true,
     settings: {
-      command: "npx claude",
-      default_model: "claude-opus",
-      api_key_env: "ANTHROPIC_API_KEY",
+      command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+      display_name: "Claude Code",
+      default_model: "claude-sonnet-4-6",
+      harness: "acp",
+      credential_slots: [
+        {
+          name: "api_key",
+          target_env: "ANTHROPIC_API_KEY",
+          secret_ref: "env:ANTHROPIC_API_KEY",
+          kind: "api_key",
+          required: false,
+        },
+      ],
     },
+    credentials: [
+      {
+        name: "api_key",
+        target_env: "ANTHROPIC_API_KEY",
+        secret_ref: "env:ANTHROPIC_API_KEY",
+        kind: "api_key",
+        required: false,
+        present: true,
+        source: "env",
+      },
+    ],
     source_metadata: {
       available_targets: ["global-config"],
       effective_source: { kind: "global-config", scope: "global" },
       shadowed_sources: [{ kind: "builtin-provider", scope: "global" }],
     },
     fallback: {
-      settings: { command: "npx claude" },
+      settings: {
+        command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+        default_model: "claude-sonnet-4-6",
+      },
       source: { kind: "builtin-provider", scope: "global" },
     },
   },
   {
     name: "codex",
     default: false,
-    api_key_env_present: false,
     command_available: true,
     settings: {
-      command: "npx codex",
-      api_key_env: "OPENAI_API_KEY",
+      command: "npx -y @zed-industries/codex-acp@latest",
+      default_model: "gpt-5.4",
+      harness: "acp",
+      credential_slots: [
+        {
+          name: "api_key",
+          target_env: "OPENAI_API_KEY",
+          secret_ref: "env:OPENAI_API_KEY",
+          kind: "api_key",
+          required: false,
+        },
+      ],
+    },
+    credentials: [
+      {
+        name: "api_key",
+        target_env: "OPENAI_API_KEY",
+        secret_ref: "env:OPENAI_API_KEY",
+        kind: "api_key",
+        required: false,
+        present: false,
+        source: "env",
+      },
+    ],
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "openrouter",
+    default: false,
+    command_available: true,
+    settings: {
+      command: "npx -y pi-acp@latest",
+      display_name: "OpenRouter",
+      default_model: "openai/gpt-5.4",
+      harness: "pi_acp",
+      runtime_provider: "openrouter",
+      credential_slots: [
+        {
+          name: "api_key",
+          target_env: "OPENROUTER_API_KEY",
+          secret_ref: "vault:providers/openrouter/api-key",
+          kind: "api_key",
+          required: true,
+        },
+      ],
+    },
+    credentials: [
+      {
+        name: "api_key",
+        target_env: "OPENROUTER_API_KEY",
+        secret_ref: "vault:providers/openrouter/api-key",
+        kind: "api_key",
+        required: true,
+        present: false,
+        source: "vault",
+      },
+    ],
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "blackbox",
+    default: false,
+    command_available: true,
+    settings: {
+      command: "blackbox --experimental-acp",
+      display_name: "BLACKBOX AI",
+      harness: "acp",
+      credential_slots: [
+        {
+          name: "api_key",
+          target_env: "BLACKBOX_API_KEY",
+          secret_ref: "env:BLACKBOX_API_KEY",
+          kind: "api_key",
+          required: false,
+        },
+      ],
+    },
+    credentials: [
+      {
+        name: "api_key",
+        target_env: "BLACKBOX_API_KEY",
+        secret_ref: "env:BLACKBOX_API_KEY",
+        kind: "api_key",
+        required: false,
+        present: false,
+        source: "env",
+      },
+    ],
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "cline",
+    default: false,
+    command_available: true,
+    settings: { command: "npx -y cline@latest --acp", display_name: "Cline", harness: "acp" },
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "goose",
+    default: false,
+    command_available: true,
+    settings: { command: "goose acp", display_name: "Goose", harness: "acp" },
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "hermes",
+    default: false,
+    command_available: true,
+    settings: { command: "hermes acp", display_name: "Hermes", harness: "acp" },
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "junie",
+    default: false,
+    command_available: true,
+    settings: {
+      command: "junie --acp true",
+      display_name: "Junie",
+      harness: "acp",
+    },
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "kimi-cli",
+    default: false,
+    command_available: true,
+    settings: {
+      command: "kimi acp",
+      display_name: "Kimi CLI",
+      harness: "acp",
+      credential_slots: [
+        {
+          name: "api_key",
+          target_env: "KIMI_API_KEY",
+          secret_ref: "env:KIMI_API_KEY",
+          kind: "api_key",
+          required: false,
+        },
+      ],
+    },
+    credentials: [
+      {
+        name: "api_key",
+        target_env: "KIMI_API_KEY",
+        secret_ref: "env:KIMI_API_KEY",
+        kind: "api_key",
+        required: false,
+        present: false,
+        source: "env",
+      },
+    ],
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "openclaw",
+    default: false,
+    command_available: true,
+    settings: { command: "openclaw acp", display_name: "OpenClaw", harness: "acp" },
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "openhands",
+    default: false,
+    command_available: true,
+    settings: { command: "openhands acp", display_name: "OpenHands", harness: "acp" },
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "qoder",
+    default: false,
+    command_available: true,
+    settings: {
+      command: "npx -y @qoder-ai/qodercli@latest --acp",
+      display_name: "Qoder CLI",
+      harness: "acp",
+      credential_slots: [
+        {
+          name: "api_key",
+          target_env: "QODER_PERSONAL_ACCESS_TOKEN",
+          secret_ref: "env:QODER_PERSONAL_ACCESS_TOKEN",
+          kind: "api_key",
+          required: false,
+        },
+      ],
+    },
+    credentials: [
+      {
+        name: "api_key",
+        target_env: "QODER_PERSONAL_ACCESS_TOKEN",
+        secret_ref: "env:QODER_PERSONAL_ACCESS_TOKEN",
+        kind: "api_key",
+        required: false,
+        present: false,
+        source: "env",
+      },
+    ],
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "builtin-provider", scope: "global" },
+    },
+  },
+  {
+    name: "qwen-code",
+    default: false,
+    command_available: true,
+    settings: {
+      command: "npx -y @qwen-code/qwen-code@latest --acp --experimental-skills",
+      display_name: "Qwen Code",
+      default_model: "qwen3.6-plus",
+      harness: "acp",
     },
     source_metadata: {
       available_targets: ["global-config"],

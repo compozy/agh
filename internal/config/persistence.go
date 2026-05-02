@@ -776,11 +776,7 @@ func deletePathInOverlayDocument(source []byte, path []string) ([]byte, bool, er
 	if existing := document.findKeyValue(path); existing != nil {
 		return replaceOffsets(source, rangeStart(existing.raw), rangeEnd(existing.raw), nil), true, nil
 	}
-	block, ok, err := document.tableBlock(path)
-	if err != nil {
-		return nil, false, err
-	}
-	if ok {
+	if block, ok := document.tableBlockIncludingNested(path); ok {
 		return replaceOffsets(source, block.start, block.end, nil), true, nil
 	}
 
@@ -1034,6 +1030,45 @@ func (d *overlayDocument) tableBlock(path []string) (overlayBlock, bool, error) 
 	}
 
 	return overlayBlock{}, false, nil
+}
+
+func (d *overlayDocument) tableBlockIncludingNested(path []string) (overlayBlock, bool) {
+	for idx := range d.expressions {
+		expr := d.expressions[idx]
+		if expr.kind != tomlast.Table || !pathsEqual(expr.path, path) {
+			continue
+		}
+
+		block := overlayBlock{
+			path:     clonePath(path),
+			startIdx: idx,
+			endIdx:   idx,
+			start:    rangeStart(expr.raw),
+			end:      rangeEnd(expr.raw),
+		}
+
+		for nextIdx := idx + 1; nextIdx < len(d.expressions); nextIdx++ {
+			next := d.expressions[nextIdx]
+			switch next.kind {
+			case tomlast.KeyValue, tomlast.Comment:
+				if pathsEqual(next.containerPath, path) || pathHasPrefix(next.containerPath, path) {
+					block.endIdx = nextIdx
+					block.end = lineEndOffset(d.source, next.raw)
+					continue
+				}
+				return block, true
+			case tomlast.Table, tomlast.ArrayTable:
+				if pathHasPrefix(next.path, path) && len(next.path) > len(path) {
+					block.endIdx = nextIdx
+					block.end = lineEndOffset(d.source, next.raw)
+					continue
+				}
+				return block, true
+			}
+		}
+		return block, true
+	}
+	return overlayBlock{}, false
 }
 
 func (d *overlayDocument) arrayTableBlocks(path []string) []overlayBlock {

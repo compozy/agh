@@ -103,7 +103,7 @@ func newSkillViewCommand(deps commandDeps) *cobra.Command {
 
   # Read a resource file inside a skill directory
   agh skill view code-review --file references/checklist.md`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSkillViewCommand(cmd, deps, args[0], filePath)
 		},
@@ -234,7 +234,7 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 		Short: "Show detailed metadata for one skill",
 		Example: `  # Inspect a skill's metadata and resource list
   agh skill info code-review`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workspaceRef, err := commandWorkspaceFlag(cmd)
 			if err != nil {
@@ -356,7 +356,7 @@ func newSkillSearchCommand(deps commandDeps) *cobra.Command {
 
   # Limit marketplace results
   agh skill search testing --limit 5`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			results, err := searchMarketplaceSkills(cmd.Context(), deps, args[0], limit)
 			if err != nil {
@@ -375,7 +375,7 @@ func newSkillInstallCommand(deps commandDeps) *cobra.Command {
 		Short: "Install a marketplace skill",
 		Example: `  # Install the latest marketplace version of a skill
   agh skill install @acme/code-review`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			slug, err := normalizeSkillSlug(args[0])
 			if err != nil {
@@ -406,7 +406,7 @@ func newSkillRemoveCommand(deps commandDeps) *cobra.Command {
 		Short: "Remove an installed marketplace skill",
 		Example: `  # Remove a marketplace-installed skill by local name
   agh skill remove code-review`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, err := normalizeSkillName(args[0])
 			if err != nil {

@@ -267,6 +267,7 @@ func redactToolMetadata(metadata map[string]json.RawMessage) map[string]json.Raw
 
 func sensitiveToolFieldName(key string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	const tokenField = "token"
 	for _, marker := range []string{
 		"api_key",
 		"authorization",
@@ -282,13 +283,13 @@ func sensitiveToolFieldName(key string) bool {
 		return (r < 'a' || r > 'z') && (r < '0' || r > '9')
 	})
 	if len(parts) == 1 {
-		return parts[0] == "token"
+		return parts[0] == tokenField
 	}
 	if len(parts) == 0 || benignTokenMetric(parts) {
 		return false
 	}
 	last := parts[len(parts)-1]
-	return last == "token" || last == "tokens"
+	return last == tokenField || last == "tokens"
 }
 
 func benignTokenMetric(parts []string) bool {

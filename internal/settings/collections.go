@@ -10,6 +10,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -38,7 +39,7 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 	switch req.Collection {
 	case CollectionProviders:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal}
-		items, buildErr := s.buildProviderItems(&cfg)
+		items, buildErr := s.buildProviderItems(ctx, &cfg)
 		if buildErr != nil {
 			return CollectionEnvelope{}, buildErr
 		}
@@ -85,12 +86,12 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 		if req.Provider == nil {
 			return MutationResult{}, validationError(errors.New("settings: provider payload is required"))
 		}
-		return s.putProvider(name, *req.Provider)
+		return s.putProvider(ctx, name, *req.Provider, req.ProviderSecrets)
 	case CollectionMCPServers:
 		if req.MCPServer == nil {
 			return MutationResult{}, validationError(errors.New("settings: MCP server payload is required"))
 		}
-		return s.putMCPServer(ctx, scope, workspaceID, name, req.Target, *req.MCPServer)
+		return s.putMCPServer(ctx, scope, workspaceID, name, req.Target, *req.MCPServer, req.MCPSecrets)
 	case CollectionSandboxes:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(
@@ -149,7 +150,7 @@ func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDe
 	}
 }
 
-func (s *service) buildProviderItems(cfg *aghconfig.Config) ([]ProviderItem, error) {
+func (s *service) buildProviderItems(ctx context.Context, cfg *aghconfig.Config) ([]ProviderItem, error) {
 	builtins := aghconfig.BuiltinProviders()
 	names := make([]string, 0, len(builtins)+len(cfg.Providers))
 	seen := make(map[string]struct{}, len(builtins)+len(cfg.Providers))
@@ -172,17 +173,17 @@ func (s *service) buildProviderItems(cfg *aghconfig.Config) ([]ProviderItem, err
 			return nil, fmt.Errorf("settings: resolve provider %q: %w", name, err)
 		}
 
-		settings := ProviderSettings{
-			Command:      resolved.Command,
-			DefaultModel: resolved.DefaultModel,
-			APIKeyEnv:    resolved.APIKeyEnv,
+		settings := providerSettingsFromConfig(name, resolved)
+		credentials, err := s.providerCredentialStatuses(ctx, resolved)
+		if err != nil {
+			return nil, fmt.Errorf("settings: provider %q credential status: %w", name, err)
 		}
 		item := ProviderItem{
 			Name:             name,
 			Settings:         settings,
 			Default:          strings.TrimSpace(cfg.Defaults.Provider) == name,
 			CommandAvailable: s.commandAvailable(resolved.Command),
-			APIKeyEnvPresent: s.envPresent(resolved.APIKeyEnv),
+			Credentials:      credentials,
 		}
 
 		if overlay, ok := cfg.Providers[name]; ok {
@@ -192,14 +193,7 @@ func (s *service) buildProviderItems(cfg *aghconfig.Config) ([]ProviderItem, err
 			}
 			if builtin, builtinOK := builtins[name]; builtinOK {
 				item.SourceMetadata.ShadowedSources = []SourceRef{builtinProviderSource()}
-				item.Fallback = &ProviderFallback{
-					Source: builtinProviderSource(),
-					Settings: ProviderSettings{
-						Command:      builtin.Command,
-						DefaultModel: builtin.DefaultModel,
-						APIKeyEnv:    builtin.APIKeyEnv,
-					},
-				}
+				item.Fallback = providerFallbackFromBuiltin(name, builtin)
 			}
 			if strings.TrimSpace(overlay.Command) == "" && item.Settings.Command == "" {
 				item.CommandAvailable = false
@@ -214,6 +208,82 @@ func (s *service) buildProviderItems(cfg *aghconfig.Config) ([]ProviderItem, err
 		items = append(items, cloneProviderItem(item))
 	}
 	return items, nil
+}
+
+func providerSettingsFromConfig(name string, provider aghconfig.ProviderConfig) ProviderSettings {
+	return ProviderSettings{
+		Command:         provider.Command,
+		DisplayName:     provider.DisplayName,
+		DefaultModel:    provider.DefaultModel,
+		Harness:         provider.EffectiveHarness(),
+		RuntimeProvider: provider.RuntimeProviderName(name),
+		Transport:       strings.TrimSpace(provider.Transport),
+		BaseURL:         strings.TrimSpace(provider.BaseURL),
+		CredentialSlots: provider.EffectiveCredentialSlots(),
+	}
+}
+
+func providerFallbackFromBuiltin(name string, builtin aghconfig.ProviderConfig) *ProviderFallback {
+	return &ProviderFallback{
+		Source:   builtinProviderSource(),
+		Settings: providerSettingsFromConfig(name, builtin),
+	}
+}
+
+func (s *service) providerCredentialStatuses(
+	ctx context.Context,
+	provider aghconfig.ProviderConfig,
+) ([]ProviderCredentialStatus, error) {
+	slots := provider.EffectiveCredentialSlots()
+	if len(slots) == 0 {
+		return nil, nil
+	}
+	statuses := make([]ProviderCredentialStatus, 0, len(slots))
+	for _, slot := range slots {
+		status, err := s.providerCredentialStatus(ctx, slot)
+		if err != nil {
+			return nil, err
+		}
+		statuses = append(statuses, status)
+	}
+	return statuses, nil
+}
+
+func (s *service) providerCredentialStatus(
+	ctx context.Context,
+	slot aghconfig.ProviderCredentialSlot,
+) (ProviderCredentialStatus, error) {
+	secretRef := vault.NormalizeRef(slot.SecretRef)
+	status := ProviderCredentialStatus{
+		Name:      strings.TrimSpace(slot.Name),
+		TargetEnv: strings.TrimSpace(slot.TargetEnv),
+		SecretRef: secretRef,
+		Kind:      strings.TrimSpace(slot.Kind),
+		Required:  slot.Required,
+	}
+	switch {
+	case vault.IsEnvRef(secretRef):
+		status.Source = "env"
+		status.Present = s.envPresent(strings.TrimSpace(strings.TrimPrefix(secretRef, "env:")))
+		return status, nil
+	case vault.IsSecretRef(secretRef):
+		status.Source = "vault"
+		if s.providerSecrets == nil {
+			return status, nil
+		}
+		metadata, err := s.providerSecrets.GetMetadata(ctx, secretRef)
+		if err != nil {
+			if errors.Is(err, vault.ErrSecretNotFound) {
+				return status, nil
+			}
+			return ProviderCredentialStatus{}, err
+		}
+		status.Present = metadata.Present
+		return status, nil
+	default:
+		status.Source = "unsupported"
+		return status, nil
+	}
 }
 
 func (s *service) buildSandboxItems(
@@ -309,6 +379,7 @@ func (s *service) buildMCPServerItems(
 			Command:     effective.Server.Command,
 			Args:        append([]string(nil), effective.Server.Args...),
 			Env:         aghconfig.RedactStringMap(effective.Server.Env),
+			SecretEnv:   aghconfig.RedactStringMap(effective.Server.SecretEnv),
 			URL:         strings.TrimSpace(effective.Server.URL),
 			Auth:        effective.Server.Auth,
 			Scope:       scope,
@@ -331,10 +402,21 @@ func (s *service) buildMCPServerItems(
 	return items, nil
 }
 
-func (s *service) putProvider(name string, settings ProviderSettings) (MutationResult, error) {
+func (s *service) putProvider(
+	ctx context.Context,
+	name string,
+	settings ProviderSettings,
+	secrets []ProviderSecretWrite,
+) (MutationResult, error) {
 	values := providerSettingsMap(settings)
-	if len(values) == 0 {
+	if len(values) == 0 && len(secrets) == 0 {
 		return MutationResult{}, validationError(errors.New("settings: provider overlay requires at least one field"))
+	}
+	if err := s.putProviderSecrets(ctx, name, secrets); err != nil {
+		return MutationResult{}, err
+	}
+	if len(values) == 0 {
+		return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", WriteTargetGlobalConfig), nil
 	}
 
 	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
@@ -349,6 +431,60 @@ func (s *service) putProvider(name string, settings ProviderSettings) (MutationR
 	}
 
 	return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", target.Kind()), nil
+}
+
+func (s *service) putProviderSecrets(ctx context.Context, providerName string, secrets []ProviderSecretWrite) error {
+	if len(secrets) == 0 {
+		return nil
+	}
+	if s.providerSecrets == nil {
+		return validationError(errors.New("settings: secret store is not available"))
+	}
+	prefix, err := vaultSecretOwnerPrefix("providers", providerName)
+	if err != nil {
+		return validationError(err)
+	}
+	for _, secret := range secrets {
+		ref := vault.NormalizeRef(secret.SecretRef)
+		if ref == "" {
+			return validationError(errors.New("settings: provider secret ref is required"))
+		}
+		if err := vault.ValidateSecretRefNamespace(ref, "providers"); err != nil {
+			return validationError(
+				fmt.Errorf("%w: provider secret refs must use vault:providers/<provider>/<slot>", err),
+			)
+		}
+		if !strings.HasPrefix(ref, prefix) {
+			return validationError(fmt.Errorf(
+				"settings: provider secret ref %q must be scoped under %s",
+				ref,
+				strings.TrimSuffix(prefix, "/"),
+			))
+		}
+		if strings.TrimSpace(secret.Value) == "" {
+			return validationError(errors.New("settings: provider secret value is required"))
+		}
+		if _, err := s.providerSecrets.PutSecret(ctx, ref, strings.TrimSpace(secret.Kind), secret.Value); err != nil {
+			return fmt.Errorf("settings: store provider secret %q: %w", strings.TrimSpace(secret.Name), err)
+		}
+	}
+	return nil
+}
+
+func vaultSecretOwnerPrefix(namespace string, owner string) (string, error) {
+	normalizedNamespace := strings.Trim(strings.TrimSpace(namespace), "/")
+	normalizedOwner := strings.Trim(strings.TrimSpace(owner), "/")
+	if normalizedNamespace == "" {
+		return "", errors.New("settings: secret namespace is required")
+	}
+	if normalizedOwner == "" {
+		return "", errors.New("settings: secret owner is required")
+	}
+	prefix := "vault:" + normalizedNamespace + "/" + normalizedOwner + "/"
+	if err := vault.ValidateSecretRef(prefix + "value"); err != nil {
+		return "", fmt.Errorf("settings: invalid secret owner %q: %w", normalizedOwner, err)
+	}
+	return prefix, nil
 }
 
 func (s *service) deleteProvider(name string) (MutationResult, error) {
@@ -459,6 +595,7 @@ func (s *service) putMCPServer(
 	name string,
 	selector TargetSelector,
 	server aghconfig.MCPServer,
+	secrets MCPSecretValues,
 ) (MutationResult, error) {
 	root, sources, err := s.resolveMCPTargetContext(ctx, scope, workspaceID)
 	if err != nil {
@@ -481,6 +618,9 @@ func (s *service) putMCPServer(
 			name,
 		))
 	}
+	if err := s.putMCPSecrets(ctx, name, normalized, secrets); err != nil {
+		return MutationResult{}, err
+	}
 
 	if target.Kind() == WriteTargetGlobalMCPSidecar || target.Kind() == WriteTargetWorkspaceMCPSidecar {
 		if _, err := aghconfig.PutMCPSidecarServer(s.homePaths, root, target, normalized); err != nil {
@@ -500,6 +640,117 @@ func (s *service) putMCPServer(
 	}
 
 	return mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind()), nil
+}
+
+func (s *service) putMCPSecrets(
+	ctx context.Context,
+	serverName string,
+	server aghconfig.MCPServer,
+	secrets MCPSecretValues,
+) error {
+	if secrets.Empty() {
+		return nil
+	}
+	if s.providerSecrets == nil {
+		return validationError(errors.New("settings: secret store is not available"))
+	}
+	prefix, err := vaultSecretOwnerPrefix("mcp", serverName)
+	if err != nil {
+		return validationError(err)
+	}
+	if err := s.putMCPSecretEnvValues(ctx, prefix, server, secrets.SecretEnv); err != nil {
+		return err
+	}
+	if err := s.putMCPAuthClientSecretValue(ctx, prefix, server, secrets.OAuthClientSecret); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *service) putMCPSecretEnvValues(
+	ctx context.Context,
+	prefix string,
+	server aghconfig.MCPServer,
+	values map[string]string,
+) error {
+	if len(values) == 0 {
+		return nil
+	}
+	if server.EffectiveTransport() != aghconfig.MCPServerTransportStdio {
+		return validationError(errors.New("settings: MCP secret_env values require stdio transport"))
+	}
+	for key, value := range values {
+		envName := strings.TrimSpace(key)
+		if !vault.EnvNamePattern.MatchString(envName) {
+			return validationError(fmt.Errorf("settings: MCP secret_env key %q is invalid", envName))
+		}
+		ref, ok := declaredSecretEnvRef(server.SecretEnv, envName)
+		if !ok {
+			return validationError(
+				fmt.Errorf(
+					"settings: MCP secret_env value %q has no matching server.secret_env ref",
+					envName,
+				),
+			)
+		}
+		expectedRef := prefix + "env/" + envName
+		if ref != expectedRef {
+			return validationError(fmt.Errorf(
+				"settings: MCP secret_env ref %q must be scoped under %s",
+				ref,
+				expectedRef,
+			))
+		}
+		if strings.TrimSpace(value) == "" {
+			return validationError(fmt.Errorf("settings: MCP secret_env value %q is required", envName))
+		}
+		if _, err := s.providerSecrets.PutSecret(ctx, ref, "mcp_env", value); err != nil {
+			return fmt.Errorf("settings: store MCP secret_env %q: %w", envName, err)
+		}
+	}
+	return nil
+}
+
+func (s *service) putMCPAuthClientSecretValue(
+	ctx context.Context,
+	prefix string,
+	server aghconfig.MCPServer,
+	value *string,
+) error {
+	if value == nil {
+		return nil
+	}
+	ref := vault.NormalizeRef(server.Auth.ClientSecretRef)
+	expectedRef := prefix + "oauth/client-secret"
+	if ref == "" {
+		return validationError(errors.New("settings: MCP OAuth client_secret_ref is required for oauth_client_secret"))
+	}
+	if ref != expectedRef {
+		return validationError(fmt.Errorf(
+			"settings: MCP OAuth client_secret_ref %q must be %s",
+			ref,
+			expectedRef,
+		))
+	}
+	if err := vault.ValidateSecretRefNamespace(ref, "mcp"); err != nil {
+		return validationError(fmt.Errorf("settings: MCP OAuth client_secret_ref is invalid: %w", err))
+	}
+	if strings.TrimSpace(*value) == "" {
+		return validationError(errors.New("settings: MCP OAuth client secret value is required"))
+	}
+	if _, err := s.providerSecrets.PutSecret(ctx, ref, "mcp_oauth_client_secret", *value); err != nil {
+		return fmt.Errorf("settings: store MCP OAuth client secret: %w", err)
+	}
+	return nil
+}
+
+func declaredSecretEnvRef(secretEnv map[string]string, envName string) (string, bool) {
+	for key, ref := range secretEnv {
+		if strings.TrimSpace(key) == envName {
+			return vault.NormalizeRef(ref), true
+		}
+	}
+	return "", false
 }
 
 func (s *service) deleteMCPServer(
@@ -771,11 +1022,50 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 	if strings.TrimSpace(settings.Command) != "" {
 		values["command"] = strings.TrimSpace(settings.Command)
 	}
+	if strings.TrimSpace(settings.DisplayName) != "" {
+		values["display_name"] = strings.TrimSpace(settings.DisplayName)
+	}
 	if strings.TrimSpace(settings.DefaultModel) != "" {
 		values["default_model"] = strings.TrimSpace(settings.DefaultModel)
 	}
-	if strings.TrimSpace(settings.APIKeyEnv) != "" {
-		values["api_key_env"] = strings.TrimSpace(settings.APIKeyEnv)
+	if settings.Harness != "" {
+		values["harness"] = string(settings.Harness)
+	}
+	if strings.TrimSpace(settings.RuntimeProvider) != "" {
+		values["runtime_provider"] = strings.TrimSpace(settings.RuntimeProvider)
+	}
+	if strings.TrimSpace(settings.Transport) != "" {
+		values["transport"] = strings.TrimSpace(settings.Transport)
+	}
+	if strings.TrimSpace(settings.BaseURL) != "" {
+		values["base_url"] = strings.TrimSpace(settings.BaseURL)
+	}
+	if len(settings.CredentialSlots) > 0 {
+		values["credential_slots"] = providerCredentialSlotMaps(settings.CredentialSlots)
+	}
+	return values
+}
+
+func providerCredentialSlotMaps(slots []aghconfig.ProviderCredentialSlot) []map[string]any {
+	values := make([]map[string]any, 0, len(slots))
+	for _, slot := range slots {
+		value := make(map[string]any)
+		if strings.TrimSpace(slot.Name) != "" {
+			value["name"] = strings.TrimSpace(slot.Name)
+		}
+		if strings.TrimSpace(slot.TargetEnv) != "" {
+			value["target_env"] = strings.TrimSpace(slot.TargetEnv)
+		}
+		if strings.TrimSpace(slot.SecretRef) != "" {
+			value["secret_ref"] = strings.TrimSpace(slot.SecretRef)
+		}
+		if strings.TrimSpace(slot.Kind) != "" {
+			value["kind"] = strings.TrimSpace(slot.Kind)
+		}
+		value["required"] = slot.Required
+		if len(value) > 1 {
+			values = append(values, value)
+		}
 	}
 	return values
 }
@@ -795,6 +1085,9 @@ func sandboxProfileMap(profile aghconfig.SandboxProfile) map[string]any {
 	}
 	if len(profile.Env) > 0 {
 		values["env"] = cloneStringMap(profile.Env)
+	}
+	if len(profile.SecretEnv) > 0 {
+		values["secret_env"] = cloneStringMap(profile.SecretEnv)
 	}
 	if network := networkProfileMap(profile.Network); len(network) > 0 {
 		values["network"] = network
@@ -904,6 +1197,9 @@ func hookDeclarationMap(declaration hookspkg.HookDecl) map[string]any {
 		if len(declaration.Env) > 0 {
 			values["env"] = cloneStringMap(declaration.Env)
 		}
+		if len(declaration.SecretEnv) > 0 {
+			values["secret_env"] = cloneStringMap(declaration.SecretEnv)
+		}
 	}
 	return values
 }
@@ -975,6 +1271,9 @@ func hookExecutorMap(declaration hookspkg.HookDecl) map[string]any {
 	if len(declaration.Env) > 0 {
 		values["env"] = cloneStringMap(declaration.Env)
 	}
+	if len(declaration.SecretEnv) > 0 {
+		values["secret_env"] = cloneStringMap(declaration.SecretEnv)
+	}
 	return values
 }
 
@@ -991,6 +1290,9 @@ func mcpServerMap(server aghconfig.MCPServer) map[string]any {
 	}
 	if len(server.Env) > 0 {
 		values["env"] = cloneStringMap(server.Env)
+	}
+	if len(server.SecretEnv) > 0 {
+		values["secret_env"] = cloneStringMap(server.SecretEnv)
 	}
 	if strings.TrimSpace(server.URL) != "" {
 		values["url"] = strings.TrimSpace(server.URL)
@@ -1024,8 +1326,8 @@ func mcpAuthMap(auth aghconfig.MCPAuthConfig) map[string]any {
 	if strings.TrimSpace(auth.ClientID) != "" {
 		values["client_id"] = strings.TrimSpace(auth.ClientID)
 	}
-	if strings.TrimSpace(auth.ClientSecretEnv) != "" {
-		values["client_secret_env"] = strings.TrimSpace(auth.ClientSecretEnv)
+	if strings.TrimSpace(auth.ClientSecretRef) != "" {
+		values["client_secret_ref"] = strings.TrimSpace(auth.ClientSecretRef)
 	}
 	if len(auth.Scopes) > 0 {
 		values["scopes"] = append([]string(nil), auth.Scopes...)

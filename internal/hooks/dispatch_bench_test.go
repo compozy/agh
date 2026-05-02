@@ -171,7 +171,7 @@ func benchmarkSyncInputDecls(count int) []HookDecl {
 			Name:     fmt.Sprintf("bench-sync-%02d", i),
 			Event:    HookInputPreSubmit,
 			Mode:     HookModeSync,
-			Priority: count - i,
+			Priority: int32(count - i),
 			Matcher: HookMatcher{
 				AgentName:   "codex",
 				WorkspaceID: "workspace-bench",

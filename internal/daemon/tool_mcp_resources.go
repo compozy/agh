@@ -745,6 +745,7 @@ func cloneDaemonMCPServer(src aghconfig.MCPServer) aghconfig.MCPServer {
 		Command:   src.Command,
 		Args:      slices.Clone(src.Args),
 		Env:       cloneStringMap(src.Env),
+		SecretEnv: cloneStringMap(src.SecretEnv),
 		URL:       src.URL,
 		Auth: aghconfig.MCPAuthConfig{
 			Type:             src.Auth.Type,
@@ -754,7 +755,7 @@ func cloneDaemonMCPServer(src aghconfig.MCPServer) aghconfig.MCPServer {
 			TokenURL:         src.Auth.TokenURL,
 			RevocationURL:    src.Auth.RevocationURL,
 			ClientID:         src.Auth.ClientID,
-			ClientSecretEnv:  src.Auth.ClientSecretEnv,
+			ClientSecretRef:  src.Auth.ClientSecretRef,
 			Scopes:           slices.Clone(src.Auth.Scopes),
 		},
 	}

@@ -57,5 +57,5 @@ Automation lifecycle is agent-manageable. The `agh__automation` toolset and the 
 Mutations require approval, run through the same domain validators as CLI/HTTP, and reject raw
 webhook secrets with deterministic codes including `AUTOMATION_SCOPE_FORBIDDEN`,
 `AUTOMATION_SECRET_INPUT_FORBIDDEN`, `AUTOMATION_VALIDATION_FAILED`, and
-`AUTOMATION_APPROVAL_REQUIRED`. Webhook secret material stays on operator surfaces and is
-referenced through `webhook_secret_env` only.
+`AUTOMATION_APPROVAL_REQUIRED`. Webhook secret material stays write-only on mutation surfaces and is
+referenced through `webhook_secret_ref`.

@@ -4,11 +4,21 @@ import type { ComponentProps } from "react";
 import { cn } from "@agh/ui";
 
 const providerIconMap: Record<string, LucideIcon> = {
+  blackbox: Bot,
   claude: BrainCircuit,
+  cline: Code,
   codex: Code,
   gemini: Sparkles,
+  goose: Terminal,
+  hermes: BrainCircuit,
+  junie: Sparkles,
+  "kimi-cli": Terminal,
+  openclaw: Bot,
+  openhands: Code,
   openai: Bot,
   ollama: Terminal,
+  qoder: Code,
+  "qwen-code": Sparkles,
 };
 
 type AgentIconTone = "default" | "muted" | "accent";

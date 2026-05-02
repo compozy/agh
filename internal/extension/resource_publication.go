@@ -10,6 +10,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 var defaultManifestToolInputSchema = json.RawMessage(`{"type":"object"}`)
@@ -437,10 +438,11 @@ func ResolveManifestMCPServerResources(
 			return nil, err
 		}
 		server := aghconfig.MCPServer{
-			Name:    strings.TrimSpace(name),
-			Command: command,
-			Args:    args,
-			Env:     env,
+			Name:      strings.TrimSpace(name),
+			Command:   command,
+			Args:      args,
+			Env:       env,
+			SecretEnv: normalizeStringMap(decl.SecretEnv),
 		}
 		if err := server.Validate("extension.resources.mcp_servers[" + name + "]"); err != nil {
 			return nil, err
@@ -521,6 +523,9 @@ func resolveManifestString(rootDir string, value string, getenv func(string) str
 		}
 		end += start
 		key := strings.TrimSpace(strings.TrimPrefix(resolved[start:end], "{{env:"))
+		if vault.SecretLikeEnvName(key) {
+			return "", fmt.Errorf("env template %q must use secret_env", key)
+		}
 		resolved = resolved[:start] + getenvValue(getenv, key) + resolved[end+2:]
 	}
 	return resolved, nil

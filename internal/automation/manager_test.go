@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -654,7 +655,7 @@ func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 			func() aghconfig.AutomationTrigger {
 				trigger := managerConfigTrigger(AutomationScopeWorkspace, "webhook-trigger", h.workspaceRoot, "webhook")
 				trigger.EndpointSlug = "deploy-review"
-				trigger.WebhookSecretEnv = "AGH_TEST_WEBHOOK_SECRET"
+				trigger.WebhookSecretRef = "env:AGH_TEST_WEBHOOK_SECRET"
 				trigger.Filter = map[string]string{"data.payload": "deploy"}
 				return trigger
 			}(),
@@ -662,11 +663,7 @@ func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 	}
 
 	const webhookSecret = "super-secret"
-	manager := h.newManager(
-		t,
-		cfg,
-		WithWebhookSecretResolver(staticWebhookSecretResolver{secret: webhookSecret}),
-	)
+	manager := h.newManager(t, cfg)
 	if err := manager.Start(h.ctx); err != nil {
 		t.Fatalf("manager.Start() error = %v", err)
 	}
@@ -732,7 +729,7 @@ func TestManagerHandleWebhookWithConfigSecretEnv(t *testing.T) {
 					"webhook",
 				)
 				trigger.EndpointSlug = "config-deploy-review"
-				trigger.WebhookSecretEnv = "AGH_TEST_CONFIG_WEBHOOK_SECRET"
+				trigger.WebhookSecretRef = "env:AGH_TEST_CONFIG_WEBHOOK_SECRET"
 				trigger.Filter = map[string]string{"data.payload": "deploy"}
 				return trigger
 			}(),
@@ -1019,7 +1016,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 		Source:       JobSourceDynamic,
 		EndpointSlug: "deploy-review",
 	}
-	createdWebhook, err := manager.CreateTrigger(h.ctx, webhookTrigger, "secret-v1")
+	createdWebhook, err := manager.CreateTrigger(h.ctx, webhookTrigger, webhookSecretWrite("secret-v1"))
 	if err != nil {
 		t.Fatalf("manager.CreateTrigger(webhook) error = %v", err)
 	}
@@ -1047,10 +1044,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 		t.Fatalf("len(manager.ListTriggers(webhook)) = %d, want %d", got, want)
 	}
 
-	storedSecret, err := h.db.GetTriggerWebhookSecret(h.ctx, createdWebhook.ID)
-	if err != nil {
-		t.Fatalf("GetTriggerWebhookSecret(created) error = %v", err)
-	}
+	storedSecret := h.resolveWebhookSecret(t, createdWebhook.WebhookSecretRef)
 	if got, want := storedSecret, "secret-v1"; got != want {
 		t.Fatalf("stored webhook secret = %q, want %q", got, want)
 	}
@@ -1058,17 +1052,14 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 	webhookUpdate := createdWebhook
 	webhookUpdate.Prompt = `Updated payload {{ index .Data "payload" }}`
 	webhookUpdate.EndpointSlug = "deploy-review-updated"
-	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, stringPointer("secret-v2"))
+	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, webhookSecretWritePtr("secret-v2"))
 	if err != nil {
 		t.Fatalf("manager.UpdateTrigger(webhook) error = %v", err)
 	}
 	if got, want := updatedWebhook.EndpointSlug, "deploy-review-updated"; got != want {
 		t.Fatalf("updated webhook endpoint_slug = %q, want %q", got, want)
 	}
-	storedSecret, err = h.db.GetTriggerWebhookSecret(h.ctx, createdWebhook.ID)
-	if err != nil {
-		t.Fatalf("GetTriggerWebhookSecret(updated) error = %v", err)
-	}
+	storedSecret = h.resolveWebhookSecret(t, updatedWebhook.WebhookSecretRef)
 	if got, want := storedSecret, "secret-v2"; got != want {
 		t.Fatalf("updated webhook secret = %q, want %q", got, want)
 	}
@@ -1105,15 +1096,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 	if err := manager.DeleteTrigger(h.ctx, updatedWebhook.ID); err != nil {
 		t.Fatalf("manager.DeleteTrigger(webhook) error = %v", err)
 	}
-	if _, err := h.db.GetTriggerWebhookSecret(
-		h.ctx,
-		updatedWebhook.ID,
-	); !errors.Is(
-		err,
-		ErrTriggerWebhookSecretNotFound,
-	) {
-		t.Fatalf("GetTriggerWebhookSecret(deleted) error = %v, want ErrTriggerWebhookSecretNotFound", err)
-	}
+	h.assertWebhookSecretMissing(t, updatedWebhook.WebhookSecretRef)
 
 	extensionTrigger := Trigger{
 		ID:          "trigger-extension-crud",
@@ -1129,7 +1112,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 		FireLimit:   DefaultFireLimitConfig(),
 		Source:      JobSourceDynamic,
 	}
-	createdExtension, err := manager.CreateTrigger(h.ctx, extensionTrigger, "")
+	createdExtension, err := manager.CreateTrigger(h.ctx, extensionTrigger, WebhookSecretWrite{})
 	if err != nil {
 		t.Fatalf("manager.CreateTrigger(extension) error = %v", err)
 	}
@@ -1229,7 +1212,7 @@ func TestManagerCRUDRejectsNilContextAndReadOnlyDefinitions(t *testing.T) {
 	_, err = manager.SetJobEnabled(nilCtx, configJob.ID, false)
 	assertContextError("manager.SetJobEnabled(nil)", err, "automation: set job enabled context is required")
 
-	_, err = manager.CreateTrigger(nilCtx, configTrigger, "secret")
+	_, err = manager.CreateTrigger(nilCtx, configTrigger, webhookSecretWrite("secret"))
 	assertContextError("manager.CreateTrigger(nil)", err, "automation: create trigger context is required")
 	_, err = manager.ListTriggers(nilCtx, TriggerListQuery{})
 	assertContextError("manager.ListTriggers(nil)", err, "automation: list triggers context is required")
@@ -1259,7 +1242,14 @@ func TestManagerCRUDRejectsNilContextAndReadOnlyDefinitions(t *testing.T) {
 		t.Fatalf("manager.DeleteJob(config) error = %v, want ErrDefinitionReadOnly", err)
 	}
 
-	if _, err := manager.CreateTrigger(h.ctx, configTrigger, "secret"); !errors.Is(err, ErrDefinitionReadOnly) {
+	if _, err := manager.CreateTrigger(
+		h.ctx,
+		configTrigger,
+		webhookSecretWrite("secret"),
+	); !errors.Is(
+		err,
+		ErrDefinitionReadOnly,
+	) {
 		t.Fatalf("manager.CreateTrigger(config) error = %v, want ErrDefinitionReadOnly", err)
 	}
 	if _, err := manager.UpdateTrigger(h.ctx, configTrigger, nil); !errors.Is(err, ErrDefinitionReadOnly) {
@@ -1283,7 +1273,14 @@ func TestManagerCRUDRejectsNilContextAndReadOnlyDefinitions(t *testing.T) {
 		Source:       JobSourceDynamic,
 		EndpointSlug: "missing-secret",
 	}
-	if _, err := manager.CreateTrigger(h.ctx, webhookTrigger, ""); !errors.Is(err, ErrWebhookSecretRequired) {
+	if _, err := manager.CreateTrigger(
+		h.ctx,
+		webhookTrigger,
+		WebhookSecretWrite{},
+	); !errors.Is(
+		err,
+		ErrWebhookSecretRequired,
+	) {
 		t.Fatalf("manager.CreateTrigger(webhook missing secret) error = %v, want ErrWebhookSecretRequired", err)
 	}
 }
@@ -1300,26 +1297,25 @@ func TestManagerWebhookSecretHelpers(t *testing.T) {
 	})
 
 	webhookTrigger := Trigger{
-		ID:           "trigger-secret-helpers",
-		Scope:        AutomationScopeWorkspace,
-		Name:         "secret-helpers",
-		AgentName:    "reviewer",
-		WorkspaceID:  h.workspace.ID,
-		Prompt:       `Review {{ index .Data "payload" }}`,
-		Event:        "webhook",
-		Enabled:      true,
-		Retry:        DefaultRetryConfig(),
-		FireLimit:    DefaultFireLimitConfig(),
-		Source:       JobSourceDynamic,
-		EndpointSlug: "secret-helpers",
-		WebhookID:    "wbh_secret-helpers",
+		ID:               "trigger-secret-helpers",
+		Scope:            AutomationScopeWorkspace,
+		Name:             "secret-helpers",
+		AgentName:        "reviewer",
+		WorkspaceID:      h.workspace.ID,
+		Prompt:           `Review {{ index .Data "payload" }}`,
+		Event:            "webhook",
+		Enabled:          true,
+		Retry:            DefaultRetryConfig(),
+		FireLimit:        DefaultFireLimitConfig(),
+		Source:           JobSourceDynamic,
+		EndpointSlug:     "secret-helpers",
+		WebhookID:        "wbh_secret-helpers",
+		WebhookSecretRef: defaultAutomationWebhookSecretRef("trigger-secret-helpers"),
 	}
 	if _, err := h.db.CreateTrigger(h.ctx, webhookTrigger); err != nil {
 		t.Fatalf("CreateTrigger(webhook) error = %v", err)
 	}
-	if err := h.db.SetTriggerWebhookSecret(h.ctx, webhookTrigger.ID, "stored-secret"); err != nil {
-		t.Fatalf("SetTriggerWebhookSecret() error = %v", err)
-	}
+	h.putWebhookSecret(t, webhookTrigger.WebhookSecretRef, "stored-secret")
 
 	currentSecret, err := manager.currentWebhookSecret(h.ctx, webhookTrigger)
 	if err != nil {
@@ -1329,34 +1325,10 @@ func TestManagerWebhookSecretHelpers(t *testing.T) {
 		t.Fatalf("currentWebhookSecret() = %q, want %q", got, want)
 	}
 
-	desiredSecret, err := manager.desiredWebhookSecret(h.ctx, webhookTrigger, webhookTrigger, nil)
-	if err != nil {
-		t.Fatalf("desiredWebhookSecret(stored) error = %v", err)
-	}
-	if got, want := desiredSecret, "stored-secret"; got != want {
-		t.Fatalf("desiredWebhookSecret(stored) = %q, want %q", got, want)
-	}
-
-	explicitSecret, err := manager.desiredWebhookSecret(
-		h.ctx,
-		webhookTrigger,
-		webhookTrigger,
-		stringPointer("explicit-secret"),
-	)
-	if err != nil {
-		t.Fatalf("desiredWebhookSecret(explicit) error = %v", err)
-	}
-	if got, want := explicitSecret, "explicit-secret"; got != want {
-		t.Fatalf("desiredWebhookSecret(explicit) = %q, want %q", got, want)
-	}
-
 	if err := manager.restoreWebhookSecret(h.ctx, webhookTrigger, "restored-secret"); err != nil {
 		t.Fatalf("restoreWebhookSecret(set) error = %v", err)
 	}
-	restored, err := h.db.GetTriggerWebhookSecret(h.ctx, webhookTrigger.ID)
-	if err != nil {
-		t.Fatalf("GetTriggerWebhookSecret(restored) error = %v", err)
-	}
+	restored := h.resolveWebhookSecret(t, webhookTrigger.WebhookSecretRef)
 	if got, want := restored, "restored-secret"; got != want {
 		t.Fatalf("restored webhook secret = %q, want %q", got, want)
 	}
@@ -1364,24 +1336,7 @@ func TestManagerWebhookSecretHelpers(t *testing.T) {
 	if err := manager.restoreWebhookSecret(h.ctx, webhookTrigger, ""); err != nil {
 		t.Fatalf("restoreWebhookSecret(delete) error = %v", err)
 	}
-	if _, err := h.db.GetTriggerWebhookSecret(
-		h.ctx,
-		webhookTrigger.ID,
-	); !errors.Is(
-		err,
-		ErrTriggerWebhookSecretNotFound,
-	) {
-		t.Fatalf("GetTriggerWebhookSecret(deleted) error = %v, want ErrTriggerWebhookSecretNotFound", err)
-	}
-
-	resolver := storeWebhookSecretResolver{store: h.db}
-	resolvedSecret, err := resolver.SecretForTrigger(h.ctx, webhookTrigger)
-	if !errors.Is(err, ErrTriggerWebhookSecretNotFound) && err != nil {
-		t.Fatalf("storeWebhookSecretResolver.SecretForTrigger() error = %v", err)
-	}
-	if resolvedSecret != "" {
-		t.Fatalf("storeWebhookSecretResolver.SecretForTrigger() = %q, want empty after delete", resolvedSecret)
-	}
+	h.assertWebhookSecretMissing(t, webhookTrigger.WebhookSecretRef)
 
 	(&triggerSessionObserver{}).OnAgentEvent(h.ctx, "sess-ignored", acp.AgentEvent{})
 }
@@ -1419,7 +1374,7 @@ func TestManagerUpdateTriggerTransitionsWebhookSecretLifecycle(t *testing.T) {
 		FireLimit:   DefaultFireLimitConfig(),
 		Source:      JobSourceDynamic,
 	}
-	created, err := manager.CreateTrigger(h.ctx, trigger, "")
+	created, err := manager.CreateTrigger(h.ctx, trigger, WebhookSecretWrite{})
 	if err != nil {
 		t.Fatalf("manager.CreateTrigger() error = %v", err)
 	}
@@ -1445,7 +1400,7 @@ func TestManagerUpdateTriggerTransitionsWebhookSecretLifecycle(t *testing.T) {
 	webhookUpdate.Filter = map[string]string{"data.payload": "deploy"}
 	webhookUpdate.EndpointSlug = "transition-trigger"
 	webhookUpdate.Prompt = `Webhook {{ index .Data "payload" }}`
-	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, stringPointer("transition-secret"))
+	updatedWebhook, err := manager.UpdateTrigger(h.ctx, webhookUpdate, webhookSecretWritePtr("transition-secret"))
 	if err != nil {
 		t.Fatalf("manager.UpdateTrigger(webhook) error = %v", err)
 	}
@@ -1453,10 +1408,7 @@ func TestManagerUpdateTriggerTransitionsWebhookSecretLifecycle(t *testing.T) {
 		t.Fatal("updated webhook trigger webhook_id = empty, want non-empty")
 	}
 
-	secret, err := h.db.GetTriggerWebhookSecret(h.ctx, created.ID)
-	if err != nil {
-		t.Fatalf("GetTriggerWebhookSecret(webhook) error = %v", err)
-	}
+	secret := h.resolveWebhookSecret(t, updatedWebhook.WebhookSecretRef)
 	if got, want := secret, "transition-secret"; got != want {
 		t.Fatalf("stored webhook secret = %q, want %q", got, want)
 	}
@@ -1473,9 +1425,7 @@ func TestManagerUpdateTriggerTransitionsWebhookSecretLifecycle(t *testing.T) {
 	if got, want := updatedExtension.Event, "ext.github.release"; got != want {
 		t.Fatalf("updated extension trigger event = %q, want %q", got, want)
 	}
-	if _, err := h.db.GetTriggerWebhookSecret(h.ctx, created.ID); !errors.Is(err, ErrTriggerWebhookSecretNotFound) {
-		t.Fatalf("GetTriggerWebhookSecret(extension) error = %v, want ErrTriggerWebhookSecretNotFound", err)
-	}
+	h.assertWebhookSecretMissing(t, updatedWebhook.WebhookSecretRef)
 }
 
 func TestResolveConfigDefinitionsWrapValidationErrors(t *testing.T) {
@@ -1512,42 +1462,6 @@ func TestResolveConfigDefinitionsWrapValidationErrors(t *testing.T) {
 		!strings.Contains(err.Error(), `automation: resolve config trigger "invalid-trigger":`) ||
 		!strings.Contains(err.Error(), "trigger.agent_name is required") {
 		t.Fatalf("resolveConfigTrigger(invalid) error = %v, want wrapped validation context", err)
-	}
-}
-
-func TestSyncManagedTriggerWebhookSecretIgnoresMissingSecretForNonWebhookTriggers(t *testing.T) {
-	t.Parallel()
-
-	h := newManagerHarness(t)
-	store := &deleteTriggerWebhookSecretStore{
-		Store:     h.db,
-		deleteErr: ErrTriggerWebhookSecretNotFound,
-	}
-	manager := h.newManager(t, aghconfig.AutomationConfig{
-		Enabled:           true,
-		Timezone:          DefaultTimezone,
-		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
-		DefaultFireLimit:  DefaultFireLimitConfig(),
-	}, WithStore(store))
-
-	trigger := Trigger{
-		ID:          "trigger-managed-extension",
-		Scope:       AutomationScopeWorkspace,
-		Name:        "managed-extension",
-		AgentName:   "reviewer",
-		WorkspaceID: h.workspace.ID,
-		Prompt:      `Review {{ index .Data "repo" }}`,
-		Event:       "ext.github.push",
-		Enabled:     true,
-		Retry:       DefaultRetryConfig(),
-		FireLimit:   DefaultFireLimitConfig(),
-		Source:      JobSourceConfig,
-	}
-	if err := manager.syncManagedTriggerWebhookSecret(h.ctx, Trigger{}, trigger, ""); err != nil {
-		t.Fatalf("syncManagedTriggerWebhookSecret(non-webhook) error = %v, want nil", err)
-	}
-	if got, want := store.deleteCalls, 1; got != want {
-		t.Fatalf("delete webhook secret calls = %d, want %d", got, want)
 	}
 }
 
@@ -1611,7 +1525,7 @@ func TestManagerDynamicCRUDHandlesBlankSourcesAndDuplicateNames(t *testing.T) {
 		Retry:       DefaultRetryConfig(),
 		FireLimit:   DefaultFireLimitConfig(),
 	}
-	createdTriggerA, err := manager.CreateTrigger(h.ctx, triggerA, "")
+	createdTriggerA, err := manager.CreateTrigger(h.ctx, triggerA, WebhookSecretWrite{})
 	if err != nil {
 		t.Fatalf("manager.CreateTrigger(triggerA) error = %v", err)
 	}
@@ -1621,7 +1535,7 @@ func TestManagerDynamicCRUDHandlesBlankSourcesAndDuplicateNames(t *testing.T) {
 
 	triggerB := createdTriggerA
 	triggerB.ID = "trigger-duplicate-b"
-	if _, err := manager.CreateTrigger(h.ctx, triggerB, ""); !errors.Is(err, ErrTriggerNameTaken) {
+	if _, err := manager.CreateTrigger(h.ctx, triggerB, WebhookSecretWrite{}); !errors.Is(err, ErrTriggerNameTaken) {
 		t.Fatalf("manager.CreateTrigger(duplicate) error = %v, want ErrTriggerNameTaken", err)
 	}
 
@@ -1629,7 +1543,7 @@ func TestManagerDynamicCRUDHandlesBlankSourcesAndDuplicateNames(t *testing.T) {
 	triggerC.ID = "trigger-duplicate-c"
 	triggerC.Name = "unique-trigger"
 	triggerC.Filter = map[string]string{"data.repo": "acme/other"}
-	createdTriggerC, err := manager.CreateTrigger(h.ctx, triggerC, "")
+	createdTriggerC, err := manager.CreateTrigger(h.ctx, triggerC, WebhookSecretWrite{})
 	if err != nil {
 		t.Fatalf("manager.CreateTrigger(triggerC) error = %v", err)
 	}
@@ -1682,7 +1596,7 @@ func TestManagerCRUDBeforeStartUsesPersistenceWithoutRuntime(t *testing.T) {
 		Retry:       DefaultRetryConfig(),
 		FireLimit:   DefaultFireLimitConfig(),
 	}
-	createdTrigger, err := manager.CreateTrigger(h.ctx, trigger, "")
+	createdTrigger, err := manager.CreateTrigger(h.ctx, trigger, WebhookSecretWrite{})
 	if err != nil {
 		t.Fatalf("manager.CreateTrigger(pre-start) error = %v", err)
 	}
@@ -1804,7 +1718,7 @@ func TestManagerSetEnabledBeforeStartUsesPersistenceOnly(t *testing.T) {
 		Enabled:     true,
 		Retry:       DefaultRetryConfig(),
 		FireLimit:   DefaultFireLimitConfig(),
-	}, "")
+	}, WebhookSecretWrite{})
 	if err != nil {
 		t.Fatalf("manager.CreateTrigger() error = %v", err)
 	}
@@ -1985,20 +1899,6 @@ type managerHarness struct {
 	sessions      *managerSessionStub
 }
 
-type deleteTriggerWebhookSecretStore struct {
-	Store
-	deleteErr   error
-	deleteCalls int
-}
-
-func (s *deleteTriggerWebhookSecretStore) DeleteTriggerWebhookSecret(ctx context.Context, triggerID string) error {
-	s.deleteCalls++
-	if s.deleteErr != nil {
-		return s.deleteErr
-	}
-	return s.Store.DeleteTriggerWebhookSecret(ctx, triggerID)
-}
-
 func newManagerHarness(t *testing.T) *managerHarness {
 	t.Helper()
 
@@ -2063,6 +1963,7 @@ func (h *managerHarness) newManager(t *testing.T, cfg aghconfig.AutomationConfig
 		WithConfig(cfg),
 		WithLogger(discardAutomationLogger()),
 		WithGlobalWorkspacePath(h.homePaths.HomeDir),
+		WithWebhookSecretStore(h.webhookSecretStore(t)),
 	}
 	baseOpts = append(baseOpts, opts...)
 
@@ -2071,6 +1972,51 @@ func (h *managerHarness) newManager(t *testing.T, cfg aghconfig.AutomationConfig
 		t.Fatalf("automation.New() error = %v", err)
 	}
 	return manager
+}
+
+func (h *managerHarness) webhookSecretStore(t testing.TB) WebhookSecretStore {
+	t.Helper()
+
+	lookup := func(key string) (string, bool) {
+		value, ok := os.LookupEnv(key)
+		return value, ok && strings.TrimSpace(value) != ""
+	}
+	service, err := vault.NewService(
+		h.db,
+		vault.NewFileKeyProvider(h.homePaths.HomeDir, lookup),
+		vault.WithLookupEnv(lookup),
+	)
+	if err != nil {
+		t.Fatalf("vault.NewService() error = %v", err)
+	}
+	return service
+}
+
+func (h *managerHarness) putWebhookSecret(t testing.TB, ref string, value string) {
+	t.Helper()
+
+	if _, err := h.webhookSecretStore(t).PutSecret(h.ctx, ref, "webhook_secret", value); err != nil {
+		t.Fatalf("PutSecret(%q) error = %v", ref, err)
+	}
+}
+
+func (h *managerHarness) resolveWebhookSecret(t testing.TB, ref string) string {
+	t.Helper()
+
+	value, err := h.webhookSecretStore(t).ResolveRef(h.ctx, ref)
+	if err != nil {
+		t.Fatalf("ResolveRef(%q) error = %v", ref, err)
+	}
+	return value
+}
+
+func (h *managerHarness) assertWebhookSecretMissing(t testing.TB, ref string) {
+	t.Helper()
+
+	_, err := h.webhookSecretStore(t).ResolveRef(h.ctx, ref)
+	if !errors.Is(err, vault.ErrSecretNotFound) && !errors.Is(err, vault.ErrMissingSecret) {
+		t.Fatalf("ResolveRef(%q) error = %v, want vault missing secret error", ref, err)
+	}
 }
 
 type managerSessionStub struct {
@@ -2220,6 +2166,16 @@ func managerConfigTrigger(
 	return trigger
 }
 
+func webhookSecretWrite(value string) WebhookSecretWrite {
+	trimmed := strings.TrimSpace(value)
+	return WebhookSecretWrite{Value: &trimmed}
+}
+
+func webhookSecretWritePtr(value string) *WebhookSecretWrite {
+	write := webhookSecretWrite(value)
+	return &write
+}
+
 func findJobByID(jobs []Job, id string) *Job {
 	for idx := range jobs {
 		if jobs[idx].ID == id {
@@ -2236,12 +2192,4 @@ func findTriggerByID(triggers []Trigger, id string) *Trigger {
 		}
 	}
 	return nil
-}
-
-type staticWebhookSecretResolver struct {
-	secret string
-}
-
-func (r staticWebhookSecretResolver) SecretForTrigger(context.Context, Trigger) (string, error) {
-	return r.secret, nil
 }

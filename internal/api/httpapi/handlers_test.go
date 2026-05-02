@@ -52,6 +52,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/sessions/:id",
 		"DELETE /api/tasks/:id",
 		"DELETE /api/tasks/:id/dependencies/:depends_on_id",
+		"DELETE /api/vault/secrets",
 		"DELETE /api/workspaces/:id",
 		"GET /api/agents",
 		"GET /api/agents/:name",
@@ -133,6 +134,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/tools/:id",
 		"GET /api/toolsets",
 		"GET /api/toolsets/:id",
+		"GET /api/vault/secrets",
+		"GET /api/vault/secrets/metadata",
 		"GET /api/workspaces",
 		"GET /api/workspaces/:id",
 		"PATCH /api/automation/jobs/:id",
@@ -208,6 +211,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
 		"PUT /api/settings/providers/:name",
+		"PUT /api/vault/secrets",
 	}
 	sort.Strings(want)
 
@@ -957,7 +961,35 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	for _, provider := range response.Providers {
 		providerNames = append(providerNames, provider.Name)
 	}
-	expectedNames := []string{"alpha", "claude", "codex", "copilot", "cursor", "gemini", "kiro", "opencode", "pi"}
+	expectedNames := []string{
+		"alpha",
+		"blackbox",
+		"claude",
+		"cline",
+		"codex",
+		"copilot",
+		"cursor",
+		"gemini",
+		"goose",
+		"groq",
+		"hermes",
+		"junie",
+		"kimi-cli",
+		"kiro",
+		"minimax",
+		"mistral",
+		"moonshot",
+		"openclaw",
+		"opencode",
+		"openhands",
+		"openrouter",
+		"pi",
+		"qoder",
+		"qwen-code",
+		"vercel-ai-gateway",
+		"xai",
+		"zai",
+	}
 	if !slices.Equal(providerNames, expectedNames) {
 		t.Fatalf("provider names = %#v, want %#v", providerNames, expectedNames)
 	}

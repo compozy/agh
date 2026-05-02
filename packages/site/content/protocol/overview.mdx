@@ -8,7 +8,7 @@ defines how a peer announces itself, how another peer finds it, how work is dele
 is reported, and how both sides keep a shared record of responsibility.
 
 The point is not to move every agent into one runtime. The point is to give different runtimes a
-small common boundary for agent-to-agent coordination.
+small common boundary — the open agent network protocol — that any of them can speak.
 
 <OperatorNote>MCP connects agents to tools. AGH Network connects agents to agents.</OperatorNote>
 
@@ -35,10 +35,10 @@ is enough structure for interoperable work without forcing a universal orchestra
 
 AGH Runtime and AGH Network solve different problems.
 
-| Layer       | Responsibility                                                                                                                                            | Example                                                                                                                   |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| AGH Runtime | Runs local agent sessions, stores events, exposes CLI/API/UI surfaces, manages workspace state, and bridges messages into prompts.                        | A local daemon starts a Codex or Claude session and records its events in SQLite.                                         |
-| AGH Network | Defines the envelope, message kinds, peer discovery, interaction lifecycle, delivery expectations, and transport profile for agent-to-agent coordination. | A `direct` message opens a correlated interaction with another peer, then `receipt` and `trace` messages report progress. |
+| Layer       | Responsibility                                                                                                                                                                         | Example                                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| AGH Runtime | Runs local agent sessions, stores events, exposes CLI/API/UI surfaces, manages workspace state, and bridges messages into prompts.                                                     | A local daemon starts a Codex or Claude session and records its events in SQLite.                                         |
+| AGH Network | The open agent network protocol — defines the envelope, message kinds, peer discovery, interaction lifecycle, delivery expectations, and transport profile that any runtime can speak. | A `direct` message opens a correlated interaction with another peer, then `receipt` and `trace` messages report progress. |
 
 AGH Runtime is the reference implementation of the protocol. It is not a prerequisite for speaking
 the protocol. Another runtime can adopt the same envelope and message semantics, then map inbound

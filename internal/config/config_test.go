@@ -67,14 +67,19 @@ external_default = "ask"
 approval_timeout_seconds = 90
 trusted_sources = ["mcp:linear", "extension:linear"]
 
-[providers.claude]
-default_model = "claude-opus"
-api_key_env = "ANTHROPIC_KEY"
-[[providers.claude.mcp_servers]]
-name = "github"
+	[providers.claude]
+	default_model = "claude-opus"
+	[[providers.claude.credential_slots]]
+	name = "api_key"
+	target_env = "ANTHROPIC_KEY"
+	secret_ref = "env:ANTHROPIC_KEY"
+	kind = "api_key"
+	required = true
+	[[providers.claude.mcp_servers]]
+	name = "github"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
-env = { GITHUB_TOKEN = "x" }
+secret_env = { GITHUB_TOKEN = "env:GITHUB_TOKEN" }
 
 [observability]
 enabled = true
@@ -273,8 +278,13 @@ max_queue_depth = 250
 	if err != nil {
 		t.Fatalf("ResolveProvider() error = %v", err)
 	}
-	if claude.Command == "" || claude.DefaultModel != "claude-opus" || claude.APIKeyEnv != "ANTHROPIC_KEY" {
+	if claude.Command == "" || claude.DefaultModel != "claude-opus" {
 		t.Fatalf("ResolveProvider() = %#v", claude)
+	}
+	if slots := claude.EffectiveCredentialSlots(); len(slots) != 1 ||
+		slots[0].TargetEnv != "ANTHROPIC_KEY" ||
+		slots[0].SecretRef != "env:ANTHROPIC_KEY" {
+		t.Fatalf("ResolveProvider() CredentialSlots = %#v, want ANTHROPIC_KEY slot", slots)
 	}
 	if len(claude.MCPServers) != 1 || claude.MCPServers[0].Name != "github" {
 		t.Fatalf("ResolveProvider() MCPServers = %#v", claude.MCPServers)
@@ -538,9 +548,14 @@ func TestLoadWorkspaceOverridesGlobalValues(t *testing.T) {
 host = "localhost"
 port = 2123
 
-[providers.claude]
-default_model = "global-model"
-api_key_env = "GLOBAL_KEY"
+	[providers.claude]
+	default_model = "global-model"
+	[[providers.claude.credential_slots]]
+	name = "api_key"
+	target_env = "GLOBAL_KEY"
+	secret_ref = "env:GLOBAL_KEY"
+	kind = "api_key"
+	required = true
 
 [session.limits]
 timeout = "20m"
@@ -597,8 +612,10 @@ base_url = "https://workspace.example.test/api/v1"
 	if claude.DefaultModel != "workspace-model" {
 		t.Fatalf("ResolveProvider() DefaultModel = %q, want %q", claude.DefaultModel, "workspace-model")
 	}
-	if claude.APIKeyEnv != "GLOBAL_KEY" {
-		t.Fatalf("ResolveProvider() APIKeyEnv = %q, want %q", claude.APIKeyEnv, "GLOBAL_KEY")
+	if slots := claude.EffectiveCredentialSlots(); len(slots) != 1 ||
+		slots[0].TargetEnv != "GLOBAL_KEY" ||
+		slots[0].SecretRef != "env:GLOBAL_KEY" {
+		t.Fatalf("ResolveProvider() CredentialSlots = %#v, want GLOBAL_KEY slot", slots)
 	}
 	if cfg.Skills.Enabled {
 		t.Fatal("Load() Skills.Enabled = true, want false")
@@ -739,7 +756,7 @@ type = "oauth2_pkce"
 authorization_url = "https://auth.example/authorize"
 token_url = "https://auth.example/token"
 client_id = "client-id"
-client_secret_env = "LINEAR_CLIENT_SECRET"
+client_secret_ref = "env:LINEAR_CLIENT_SECRET"
 scopes = ["read"]
 
 [[providers.codex.mcp_servers]]
@@ -778,8 +795,8 @@ scopes = ["tools"]
 	if got, want := linear.Auth.TokenURL, "https://auth.example/token"; got != want {
 		t.Fatalf("Load() linear.Auth.TokenURL = %q, want %q", got, want)
 	}
-	if got, want := linear.Auth.ClientSecretEnv, "LINEAR_CLIENT_SECRET"; got != want {
-		t.Fatalf("Load() linear.Auth.ClientSecretEnv = %q, want %q", got, want)
+	if got, want := linear.Auth.ClientSecretRef, "env:LINEAR_CLIENT_SECRET"; got != want {
+		t.Fatalf("Load() linear.Auth.ClientSecretRef = %q, want %q", got, want)
 	}
 	if got, want := linear.Auth.Scopes, []string{"read"}; !slices.Equal(got, want) {
 		t.Fatalf("Load() linear.Auth.Scopes = %#v, want %#v", got, want)
@@ -924,9 +941,14 @@ default_model = "global-model"
 [observability.transcripts]
 segment_bytes = 256
 
-[providers.claude]
-api_key_env = "WORKSPACE_KEY"
-`)
+	[providers.claude]
+	[[providers.claude.credential_slots]]
+	name = "api_key"
+	target_env = "WORKSPACE_KEY"
+	secret_ref = "env:WORKSPACE_KEY"
+	kind = "api_key"
+	required = true
+	`)
 
 	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
 	if err != nil {
@@ -945,8 +967,13 @@ api_key_env = "WORKSPACE_KEY"
 	if err != nil {
 		t.Fatalf("ResolveProvider() error = %v", err)
 	}
-	if claude.DefaultModel != "global-model" || claude.APIKeyEnv != "WORKSPACE_KEY" {
+	if claude.DefaultModel != "global-model" {
 		t.Fatalf("ResolveProvider() = %#v", claude)
+	}
+	if slots := claude.EffectiveCredentialSlots(); len(slots) != 1 ||
+		slots[0].TargetEnv != "WORKSPACE_KEY" ||
+		slots[0].SecretRef != "env:WORKSPACE_KEY" {
+		t.Fatalf("ResolveProvider() CredentialSlots = %#v, want WORKSPACE_KEY slot", slots)
 	}
 }
 
@@ -1625,7 +1652,7 @@ agent = "dotenv-agent"
 	}
 }
 
-func TestLoadForHomeDoesNotLeakDotEnvSecretsAcrossWorkspaceLoads(t *testing.T) {
+func TestLoadForHomeKeepsWebhookSecretRefsUnresolvedAcrossWorkspaceLoads(t *testing.T) {
 	const secretEnv = "AGH_CONFIG_TASK09_WEBHOOK_SECRET"
 
 	unsetEnvForTest(t, secretEnv)
@@ -1651,25 +1678,27 @@ event = "webhook"
 endpoint_slug = "deploy-review"
 agent = "summarizer"
 prompt = "Review {{ index .Data \"payload\" }}"
-webhook_secret_env = "`+secretEnv+`"
-`)
+	webhook_secret_ref = "env:`+secretEnv+`"
+	`)
 
 	workspaceWithEnv := t.TempDir()
 	writeFile(t, filepath.Join(workspaceWithEnv, ".env"), secretEnv+"=workspace-only-secret\n")
 
-	if _, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceWithEnv)); err != nil {
+	cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceWithEnv))
+	if err != nil {
 		t.Fatalf("LoadForHome(workspaceWithEnv) error = %v", err)
+	}
+	if got, want := cfg.Automation.Triggers[0].WebhookSecretRef, "env:"+secretEnv; got != want {
+		t.Fatalf("LoadForHome(workspaceWithEnv) WebhookSecretRef = %q, want %q", got, want)
 	}
 
 	workspaceWithoutEnv := t.TempDir()
-	_, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceWithoutEnv))
-	if err == nil {
-		t.Fatal(
-			"LoadForHome(workspaceWithoutEnv) error = nil, want missing webhook secret env after isolated dotenv load",
-		)
+	cfg, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceWithoutEnv))
+	if err != nil {
+		t.Fatalf("LoadForHome(workspaceWithoutEnv) error = %v", err)
 	}
-	if got := err.Error(); !strings.Contains(got, "webhook_secret_env") {
-		t.Fatalf("LoadForHome(workspaceWithoutEnv) error = %q, want webhook_secret_env detail", got)
+	if got, want := cfg.Automation.Triggers[0].WebhookSecretRef, "env:"+secretEnv; got != want {
+		t.Fatalf("LoadForHome(workspaceWithoutEnv) WebhookSecretRef = %q, want %q", got, want)
 	}
 }
 

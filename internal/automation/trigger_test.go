@@ -136,10 +136,7 @@ func TestTriggerEngineRejectsInvalidWebhookSignatureBeforeDispatch(t *testing.T)
 	engine := newTestTriggerEngine(t, dispatcher, WithTriggerEngineNow(func() time.Time { return now }))
 
 	trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-invalid-signature", "")
-	if err := engine.Register(TriggerRegistration{
-		Trigger:       trigger,
-		WebhookSecret: "shared-secret",
-	}); err != nil {
+	if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
 
@@ -177,10 +174,7 @@ func TestTriggerEngineRejectsStaleWebhookTimestampBeforeDispatch(t *testing.T) {
 	)
 
 	trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-stale", "")
-	if err := engine.Register(TriggerRegistration{
-		Trigger:       trigger,
-		WebhookSecret: "shared-secret",
-	}); err != nil {
+	if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
 
@@ -344,10 +338,7 @@ func TestTriggerEngineHandleWebhookDispatchesValidRequest(t *testing.T) {
 	engine := newTestTriggerEngine(t, dispatcher, WithTriggerEngineNow(func() time.Time { return now }))
 
 	trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-valid", "")
-	if err := engine.Register(TriggerRegistration{
-		Trigger:       trigger,
-		WebhookSecret: "shared-secret",
-	}); err != nil {
+	if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
 
@@ -397,10 +388,7 @@ func TestTriggerEngineRejectsReplayedWebhookDeliveriesWithinFreshnessWindow(t *t
 	)
 
 	trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-replay", "")
-	if err := engine.Register(TriggerRegistration{
-		Trigger:       trigger,
-		WebhookSecret: "shared-secret",
-	}); err != nil {
+	if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
 
@@ -490,10 +478,7 @@ func TestTriggerEngineAllowsWebhookRetryAfterDispatchFailsWithoutPersistingARun(
 	)
 
 	trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-retry-after-failure", "")
-	if err := engine.Register(TriggerRegistration{
-		Trigger:       trigger,
-		WebhookSecret: "shared-secret",
-	}); err != nil {
+	if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
 
@@ -577,25 +562,16 @@ func TestTriggerEngineRegisterUpdateUnregisterAndLifecycle(t *testing.T) {
 	}
 
 	trigger := testWebhookTrigger(AutomationScopeGlobal, "register-update", "")
-	if err := engine.Register(TriggerRegistration{
-		Trigger:       trigger,
-		WebhookSecret: "secret-a",
-	}); err != nil {
+	if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
-	if err := engine.Register(TriggerRegistration{
-		Trigger:       trigger,
-		WebhookSecret: "secret-a",
-	}); !errors.Is(err, ErrTriggerAlreadyRegistered) {
+	if err := engine.Register(TriggerRegistration{Trigger: trigger}); !errors.Is(err, ErrTriggerAlreadyRegistered) {
 		t.Fatalf("Register(duplicate) error = %v, want ErrTriggerAlreadyRegistered", err)
 	}
 
 	updated := trigger
 	updated.EndpointSlug = "deploy-updated"
-	if err := engine.Update(TriggerRegistration{
-		Trigger:       updated,
-		WebhookSecret: "secret-b",
-	}); err != nil {
+	if err := engine.Update(TriggerRegistration{Trigger: updated}); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
 	if err := engine.Unregister(trigger.ID); err != nil {
@@ -612,7 +588,7 @@ func TestTriggerEngineRegisterUpdateUnregisterAndLifecycle(t *testing.T) {
 		t.Fatalf("Start(after shutdown) error = %v, want ErrTriggerEngineStopped", err)
 	}
 	if err := engine.Register(
-		TriggerRegistration{Trigger: trigger, WebhookSecret: "secret-a"},
+		TriggerRegistration{Trigger: trigger},
 	); !errors.Is(
 		err,
 		ErrTriggerEngineStopped,
@@ -624,17 +600,16 @@ func TestTriggerEngineRegisterUpdateUnregisterAndLifecycle(t *testing.T) {
 func TestTriggerRegistrationAndWebhookRequestValidation(t *testing.T) {
 	t.Parallel()
 
-	err := (TriggerRegistration{
-		Trigger:       testEventTrigger(AutomationScopeGlobal, "bad-secret", "", "session.stopped"),
-		WebhookSecret: "unexpected",
-	}).Validate("registration")
+	eventTrigger := testEventTrigger(AutomationScopeGlobal, "bad-secret", "", "session.stopped")
+	eventTrigger.WebhookSecretRef = "env:UNEXPECTED_WEBHOOK_SECRET"
+	err := (TriggerRegistration{Trigger: eventTrigger}).Validate("registration")
 	if err == nil {
 		t.Fatal("TriggerRegistration.Validate(non-webhook secret) error = nil, want non-nil")
 	}
 
-	err = (TriggerRegistration{
-		Trigger: testWebhookTrigger(AutomationScopeGlobal, "missing-secret", ""),
-	}).Validate("registration")
+	webhookTrigger := testWebhookTrigger(AutomationScopeGlobal, "missing-secret", "")
+	webhookTrigger.WebhookSecretRef = ""
+	err = (TriggerRegistration{Trigger: webhookTrigger}).Validate("registration")
 	if err == nil {
 		t.Fatal("TriggerRegistration.Validate(missing secret) error = nil, want non-nil")
 	}
@@ -797,11 +772,11 @@ func TestTriggerEngineRejectsWebhookScopeMismatchAndDuplicateWebhookID(t *testin
 	second := testWebhookTrigger(AutomationScopeGlobal, "second-webhook", "")
 	second.WebhookID = "wbh_duplicate"
 
-	if err := engine.Register(TriggerRegistration{Trigger: first, WebhookSecret: "secret"}); err != nil {
+	if err := engine.Register(TriggerRegistration{Trigger: first}); err != nil {
 		t.Fatalf("Register(first) error = %v", err)
 	}
 	if err := engine.Register(
-		TriggerRegistration{Trigger: second, WebhookSecret: "secret"},
+		TriggerRegistration{Trigger: second},
 	); !errors.Is(
 		err,
 		ErrTriggerWebhookIDTaken,
@@ -831,6 +806,12 @@ func TestTriggerEngineRejectsWebhookScopeMismatchAndDuplicateWebhookID(t *testin
 func newTestTriggerEngine(t *testing.T, dispatcher TriggerDispatcher, opts ...TriggerEngineOption) *TriggerEngine {
 	t.Helper()
 
+	opts = append(
+		[]TriggerEngineOption{
+			WithTriggerEngineWebhookSecretResolver(staticTriggerWebhookSecretResolver{secret: "shared-secret"}),
+		},
+		opts...,
+	)
 	engine, err := NewTriggerEngine(dispatcher, opts...)
 	if err != nil {
 		t.Fatalf("NewTriggerEngine() error = %v", err)
@@ -843,6 +824,7 @@ func testEventTrigger(scope Scope, name string, workspaceID string, event string
 	trigger.Event = event
 	trigger.WebhookID = ""
 	trigger.EndpointSlug = ""
+	trigger.WebhookSecretRef = ""
 	trigger.Prompt = `Handle {{ .Data.session_id }}`
 	return trigger
 }
@@ -851,7 +833,16 @@ func testWebhookTrigger(scope Scope, name string, workspaceID string) Trigger {
 	trigger := testTrigger(scope, name, workspaceID)
 	trigger.WebhookID = "wbh_" + name
 	trigger.EndpointSlug = "deploy-review"
+	trigger.WebhookSecretRef = "env:AGH_TEST_WEBHOOK_SECRET"
 	return trigger
+}
+
+type staticTriggerWebhookSecretResolver struct {
+	secret string
+}
+
+func (r staticTriggerWebhookSecretResolver) ResolveRef(context.Context, string) (string, error) {
+	return r.secret, nil
 }
 
 type stubHookSessionResolver struct {

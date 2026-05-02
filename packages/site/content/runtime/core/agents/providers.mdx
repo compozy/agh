@@ -29,36 +29,64 @@ provider = "claude"
 
 The built-in registry lives in `internal/config/provider.go`.
 
-| Provider ID | Runtime                     | Command                                               | Default model              | API key env         |
-| ----------- | --------------------------- | ----------------------------------------------------- | -------------------------- | ------------------- |
-| `claude`    | Claude Code via ACP adapter | `npx -y @agentclientprotocol/claude-agent-acp@0.24.2` | `claude-sonnet-4-20250514` | `ANTHROPIC_API_KEY` |
-| `codex`     | Codex ACP adapter           | `npx @zed-industries/codex-acp@0.10.0`                | `gpt-4o`                   | `OPENAI_API_KEY`    |
-| `gemini`    | Gemini CLI                  | `gemini --acp`                                        | `gemini-2.5-pro`           | `GEMINI_API_KEY`    |
-| `opencode`  | OpenCode                    | `npx -y opencode-ai acp`                              | none                       | none                |
-| `copilot`   | GitHub Copilot CLI          | `copilot --acp --stdio`                               | none                       | none                |
-| `cursor`    | Cursor Agent                | `cursor-agent acp`                                    | none                       | none                |
-| `kiro`      | Kiro CLI                    | `kiro-cli-chat acp`                                   | none                       | none                |
-| `pi`        | Pi ACP adapter              | `npx pi-acp@0.0.22`                                   | none                       | none                |
+| Provider ID         | Harness  | Runtime provider    | Command                                                          | Default model               | Credential target             |
+| ------------------- | -------- | ------------------- | ---------------------------------------------------------------- | --------------------------- | ----------------------------- |
+| `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`            | `claude-sonnet-4-6`         | `ANTHROPIC_API_KEY`           |
+| `codex`             | `acp`    | `codex`             | `npx -y @zed-industries/codex-acp@latest`                        | `gpt-5.4`                   | `OPENAI_API_KEY`              |
+| `gemini`            | `acp`    | `gemini`            | `gemini --acp`                                                   | `gemini-3.1-pro-preview`    | `GEMINI_API_KEY`              |
+| `opencode`          | `acp`    | `opencode`          | `npx -y opencode-ai@latest acp`                                  | none                        | none                          |
+| `copilot`           | `acp`    | `copilot`           | `copilot --acp --stdio`                                          | none                        | none                          |
+| `cursor`            | `acp`    | `cursor`            | `cursor-agent acp`                                               | none                        | none                          |
+| `kiro`              | `acp`    | `kiro`              | `kiro-cli-chat acp`                                              | none                        | none                          |
+| `blackbox`          | `acp`    | `blackbox`          | `blackbox --experimental-acp`                                    | none                        | `BLACKBOX_API_KEY`            |
+| `cline`             | `acp`    | `cline`             | `npx -y cline@latest --acp`                                      | none                        | none                          |
+| `goose`             | `acp`    | `goose`             | `goose acp`                                                      | none                        | none                          |
+| `hermes`            | `acp`    | `hermes`            | `hermes acp`                                                     | none                        | none                          |
+| `junie`             | `acp`    | `junie`             | `junie --acp true`                                               | none                        | none                          |
+| `kimi-cli`          | `acp`    | `kimi-cli`          | `kimi acp`                                                       | none                        | `KIMI_API_KEY`                |
+| `openclaw`          | `acp`    | `openclaw`          | `openclaw acp`                                                   | none                        | none                          |
+| `openhands`         | `acp`    | `openhands`         | `openhands acp`                                                  | none                        | none                          |
+| `qoder`             | `acp`    | `qoder`             | `npx -y @qoder-ai/qodercli@latest --acp`                         | none                        | `QODER_PERSONAL_ACCESS_TOKEN` |
+| `qwen-code`         | `acp`    | `qwen-code`         | `npx -y @qwen-code/qwen-code@latest --acp --experimental-skills` | `qwen3.6-plus`              | none                          |
+| `pi`                | `pi_acp` | `anthropic`         | `npx -y pi-acp@latest`                                           | `claude-opus-4-7`           | `ANTHROPIC_API_KEY`           |
+| `openrouter`        | `pi_acp` | `openrouter`        | `npx -y pi-acp@latest`                                           | `openai/gpt-5.4`            | `OPENROUTER_API_KEY`          |
+| `zai`               | `pi_acp` | `zai`               | `npx -y pi-acp@latest`                                           | `glm-4.6`                   | `ZAI_API_KEY`                 |
+| `moonshot`          | `pi_acp` | `kimi-coding`       | `npx -y pi-acp@latest`                                           | `kimi-k2-thinking`          | `KIMI_API_KEY`                |
+| `vercel-ai-gateway` | `pi_acp` | `vercel-ai-gateway` | `npx -y pi-acp@latest`                                           | `anthropic/claude-opus-4-7` | `AI_GATEWAY_API_KEY`          |
+| `xai`               | `pi_acp` | `xai`               | `npx -y pi-acp@latest`                                           | `grok-4-fast-non-reasoning` | `XAI_API_KEY`                 |
+| `minimax`           | `pi_acp` | `minimax`           | `npx -y pi-acp@latest`                                           | `MiniMax-M2.1`              | `MINIMAX_API_KEY`             |
+| `mistral`           | `pi_acp` | `mistral`           | `npx -y pi-acp@latest`                                           | `devstral-medium-latest`    | `MISTRAL_API_KEY`             |
+| `groq`              | `pi_acp` | `groq`              | `npx -y pi-acp@latest`                                           | `openai/gpt-oss-120b`       | `GROQ_API_KEY`                |
 
 <OperatorNote>
-  `api_key_env` names the environment variable a provider normally expects. AGH does not read a
-  secret store or inject that value for you in the current spawn flow. Start the daemon with the
-  needed environment already present.
+  `pi_acp` providers are first-class AGH providers, but AGH launches them through the Pi ACP
+  adapter. AGH materializes an isolated Pi config for the session, injects only the bound provider
+  credential, and sets `PI_CODING_AGENT_DIR` for that subprocess.
 </OperatorNote>
 
 ## Provider config fields
 
 Provider overrides and custom providers are configured in `config.toml`.
 
-| Field           | Type   | Required                 | Runtime behavior                                                                                           |
-| --------------- | ------ | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `command`       | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                              |
-| `default_model` | string | no                       | Used when an `AGENT.md` omits `model`. Empty is allowed.                                                   |
-| `api_key_env`   | string | no                       | Metadata for the provider's expected environment variable. The subprocess inherits the daemon environment. |
-| `mcp_servers`   | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                          |
+| Field              | Type   | Required                 | Runtime behavior                                                                               |
+| ------------------ | ------ | ------------------------ | ---------------------------------------------------------------------------------------------- |
+| `command`          | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                  |
+| `display_name`     | string | no                       | Operator-facing label shown in settings and provider pickers.                                  |
+| `default_model`    | string | no                       | Used when an `AGENT.md` omits `model`. Pi-backed providers receive it in their runtime config. |
+| `harness`          | string | no                       | `acp` for direct ACP launch or `pi_acp` for Pi-backed API-key providers. Defaults to `acp`.    |
+| `runtime_provider` | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the AGH provider id.          |
+| `transport`        | string | no                       | Optional Pi model-provider API family hint for custom providers.                               |
+| `base_url`         | string | no                       | Optional Pi model-provider base URL for custom gateways.                                       |
+| `credential_slots` | array  | no                       | Bound launch-time secrets. Each slot maps a `secret_ref` into a target environment variable.   |
+| `mcp_servers`      | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                              |
 
 AGH overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
+
+Direct ACP built-ins such as `claude`, `codex`, and `gemini` expose their API-key env name as an
+optional slot because those CLIs can authenticate through their own login flows. Pi-backed API-key
+providers mark the built-in API-key slot required so missing credentials fail before the subprocess
+starts. Custom providers should set `required` to match the runtime's real authentication contract.
 
 ## Override a built-in provider
 
@@ -67,17 +95,61 @@ agents that omit `model`.
 
 ```toml
 [providers.claude]
-default_model = "claude-sonnet-4-20250514"
-api_key_env = "ANTHROPIC_API_KEY"
+default_model = "claude-sonnet-4-6"
+
+[[providers.claude.credential_slots]]
+name = "api_key"
+target_env = "ANTHROPIC_API_KEY"
+secret_ref = "env:ANTHROPIC_API_KEY"
+kind = "api_key"
+required = false
 
 [[providers.claude.mcp_servers]]
 name = "github"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
-env = { GITHUB_TOKEN = "replace-with-token" }
+secret_env = { GITHUB_TOKEN = "env:GITHUB_TOKEN" }
 ```
 
 Only non-empty scalar fields replace the built-in values. MCP servers merge by `name`.
+
+## Configure an API-key provider
+
+Most secondary providers use the Pi harness. The provider is still selected as an AGH provider in
+agents, CLI flags, the web session dialog, and settings APIs.
+
+```toml
+[providers.openrouter]
+display_name = "OpenRouter"
+harness = "pi_acp"
+runtime_provider = "openrouter"
+command = "npx -y pi-acp@latest"
+default_model = "openai/gpt-5.4"
+
+[[providers.openrouter.credential_slots]]
+name = "api_key"
+target_env = "OPENROUTER_API_KEY"
+secret_ref = "env:OPENROUTER_API_KEY"
+kind = "api_key"
+required = true
+```
+
+For AGH-managed encrypted storage, use a `vault:providers/<provider>/<slot>` ref and save the value
+through the settings API or web provider editor. The `<provider>` and `<slot>` segments are lowercase
+provider/slot identifiers using letters, numbers, hyphens, underscores, or dots; path traversal,
+whitespace, and arbitrary vault paths are rejected.
+
+```toml
+[[providers.openrouter.credential_slots]]
+name = "api_key"
+target_env = "OPENROUTER_API_KEY"
+secret_ref = "vault:providers/openrouter/api-key"
+kind = "api_key"
+required = true
+```
+
+AGH never exposes provider secret values through settings reads. Status surfaces report only
+whether the bound credential is present.
 
 ## Add a custom provider
 
@@ -88,7 +160,13 @@ built-ins.
 [providers.local-agent]
 command = "local-agent --acp --stdio"
 default_model = "local-default"
-api_key_env = "LOCAL_AGENT_API_KEY"
+
+[[providers.local-agent.credential_slots]]
+name = "api_key"
+target_env = "LOCAL_AGENT_API_KEY"
+secret_ref = "env:LOCAL_AGENT_API_KEY"
+kind = "api_key"
+required = false
 
 [[providers.local-agent.mcp_servers]]
 name = "filesystem-index"
@@ -135,16 +213,17 @@ Set environment variables before starting the daemon instead.
 
 ## Models and API keys
 
-`model` and `default_model` are resolved and exposed as runtime metadata. The current ACP startup
-payload does not send a model field to `session/new` or `session/load`.
+`model` and `default_model` are resolved and exposed as runtime metadata. Direct `acp` providers
+receive the normal ACP startup flow; Pi-backed providers also receive a session-local Pi
+`settings.json` and `models.json` with the resolved `runtime_provider` and model.
 
 The practical rule is:
 
 - use `model` in `AGENT.md` when you want AGH metadata and provider-specific wrappers to agree on
   the intended model
-- use provider-specific environment/config files when that ACP runtime requires model selection
-  outside the AGH contract
-- start the daemon with API key environment variables already set
+- use `credential_slots` when AGH should inject a specific API key into the subprocess
+- use `env:` refs for operator-managed process environment and `vault:providers/<provider>/<slot>`
+  refs for AGH-managed encrypted provider credentials
 
 ## MCP server merge order
 
@@ -157,18 +236,39 @@ MCP servers can be declared at several levels. Startup uses this order:
 
 Config/provider/agent merges are field overlays by server name. Agent-local `mcp.json` sidecars
 replace same-name inline servers as whole objects before that cross-scope merge happens.
-Configured MCP `env` values are passed through as literal strings.
+Configured MCP `env` values are passed through as literal strings. Pi-backed providers are launched
+through `pi-acp`; current Pi ACP support does not wire AGH MCP server declarations into Pi's own MCP
+configuration.
 
 ## Choosing a provider
 
 Use the provider that already owns your credentials and preferred workflow:
 
-| If you use                  | Start with        |
-| --------------------------- | ----------------- |
-| Claude Code                 | `claude`          |
-| Codex                       | `codex`           |
-| Gemini CLI                  | `gemini`          |
-| A local or team ACP wrapper | a custom provider |
+| If you use                  | Start with          |
+| --------------------------- | ------------------- |
+| Claude Code                 | `claude`            |
+| Codex                       | `codex`             |
+| Gemini CLI                  | `gemini`            |
+| OpenCode                    | `opencode`          |
+| GitHub Copilot CLI          | `copilot`           |
+| Cursor Agent                | `cursor`            |
+| Kiro CLI                    | `kiro`              |
+| BLACKBOX AI                 | `blackbox`          |
+| Cline                       | `cline`             |
+| Goose                       | `goose`             |
+| Hermes                      | `hermes`            |
+| Junie                       | `junie`             |
+| Kimi CLI                    | `kimi-cli`          |
+| OpenClaw                    | `openclaw`          |
+| OpenHands                   | `openhands`         |
+| Qoder CLI                   | `qoder`             |
+| Qwen Code                   | `qwen-code`         |
+| Pi with an Anthropic key    | `pi`                |
+| OpenRouter                  | `openrouter`        |
+| z.ai / GLM                  | `zai`               |
+| Moonshot / Kimi API         | `moonshot`          |
+| Vercel AI Gateway           | `vercel-ai-gateway` |
+| A local or team ACP wrapper | a custom provider   |
 
 Then keep provider-specific behavior in the provider command or provider config, and keep the
 agent's role, permissions, MCP servers, and startup prompt in `AGENT.md`.

@@ -282,6 +282,7 @@ func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
 			Command:   redacted.Command,
 			Args:      append([]string(nil), redacted.Args...),
 			Env:       redacted.Env,
+			SecretEnv: redacted.SecretEnv,
 			URL:       redacted.URL,
 			Auth:      settingsMCPAuthConfigPayload(redacted.Auth),
 		})
@@ -633,22 +634,23 @@ func schedulerNextRun(state *contract.AutomationSchedulerStatePayload) *time.Tim
 // response payload.
 func TriggerPayloadFromTrigger(trigger automationpkg.Trigger) contract.TriggerPayload {
 	return contract.TriggerPayload{
-		ID:           trigger.ID,
-		Scope:        trigger.Scope,
-		Name:         trigger.Name,
-		AgentName:    trigger.AgentName,
-		WorkspaceID:  trigger.WorkspaceID,
-		Prompt:       trigger.Prompt,
-		Event:        trigger.Event,
-		Filter:       cloneFilter(trigger.Filter),
-		Enabled:      trigger.Enabled,
-		Retry:        trigger.Retry,
-		FireLimit:    trigger.FireLimit,
-		Source:       trigger.Source,
-		WebhookID:    trigger.WebhookID,
-		EndpointSlug: trigger.EndpointSlug,
-		CreatedAt:    trigger.CreatedAt,
-		UpdatedAt:    trigger.UpdatedAt,
+		ID:               trigger.ID,
+		Scope:            trigger.Scope,
+		Name:             trigger.Name,
+		AgentName:        trigger.AgentName,
+		WorkspaceID:      trigger.WorkspaceID,
+		Prompt:           trigger.Prompt,
+		Event:            trigger.Event,
+		Filter:           cloneFilter(trigger.Filter),
+		Enabled:          trigger.Enabled,
+		Retry:            trigger.Retry,
+		FireLimit:        trigger.FireLimit,
+		Source:           trigger.Source,
+		WebhookID:        trigger.WebhookID,
+		EndpointSlug:     trigger.EndpointSlug,
+		WebhookSecretRef: trigger.WebhookSecretRef,
+		CreatedAt:        trigger.CreatedAt,
+		UpdatedAt:        trigger.UpdatedAt,
 	}
 }
 
@@ -835,54 +837,78 @@ func WorkspaceSkillPayloads(skills []workspacepkg.SkillPath) []contract.Workspac
 // SessionProviderOptionPayloadsFromConfig converts the merged workspace config
 // into a stable, UI-ready list of visible provider options.
 func SessionProviderOptionPayloadsFromConfig(cfg *aghconfig.Config) []contract.SessionProviderOptionPayload {
-	names := make([]string, 0, len(aghconfig.BuiltinProviders()))
+	payloadsByName := make(map[string]contract.SessionProviderOptionPayload, len(aghconfig.BuiltinProviders()))
 	for name := range aghconfig.BuiltinProviders() {
-		trimmed := strings.TrimSpace(name)
-		if trimmed == "" {
+		payload, ok := sessionProviderOptionPayloadFromConfig(cfg, name)
+		if !ok {
 			continue
 		}
-		if cfg != nil {
-			if _, err := cfg.ResolveProvider(trimmed); err != nil {
-				continue
-			}
-		}
-		names = append(names, trimmed)
+		payloadsByName[payload.Name] = payload
 	}
 	if cfg != nil {
 		for name := range cfg.Providers {
-			trimmed := strings.TrimSpace(name)
-			if trimmed == "" {
+			payload, ok := sessionProviderOptionPayloadFromConfig(cfg, name)
+			if !ok {
 				continue
 			}
-			if _, err := cfg.ResolveProvider(trimmed); err != nil {
-				continue
-			}
-			names = append(names, trimmed)
+			payloadsByName[payload.Name] = payload
 		}
 	}
 
-	return sessionProviderOptionPayloads(names)
+	return sortSessionProviderOptionPayloads(payloadsByName)
+}
+
+func sessionProviderOptionPayloadFromConfig(
+	cfg *aghconfig.Config,
+	name string,
+) (contract.SessionProviderOptionPayload, bool) {
+	providerName := aghconfig.CanonicalProviderName(name)
+	if providerName == "" {
+		return contract.SessionProviderOptionPayload{}, false
+	}
+	var resolved aghconfig.ProviderConfig
+	var err error
+	if cfg == nil {
+		var empty aghconfig.Config
+		resolved, err = empty.ResolveProvider(providerName)
+	} else {
+		resolved, err = cfg.ResolveProvider(providerName)
+	}
+	if err != nil {
+		return contract.SessionProviderOptionPayload{}, false
+	}
+	return contract.SessionProviderOptionPayload{
+		Name:            providerName,
+		DisplayName:     strings.TrimSpace(resolved.DisplayName),
+		Harness:         string(resolved.EffectiveHarness()),
+		RuntimeProvider: strings.TrimSpace(resolved.RuntimeProviderName(providerName)),
+		DefaultModel:    strings.TrimSpace(resolved.DefaultModel),
+	}, true
 }
 
 func sessionProviderOptionPayloads(names []string) []contract.SessionProviderOptionPayload {
-	sortedNames := make([]string, 0, len(names))
-	seen := make(map[string]struct{}, len(names))
+	values := make(map[string]contract.SessionProviderOptionPayload, len(names))
 	for _, name := range names {
 		trimmed := strings.TrimSpace(name)
 		if trimmed == "" {
 			continue
 		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		sortedNames = append(sortedNames, trimmed)
+		values[trimmed] = contract.SessionProviderOptionPayload{Name: trimmed}
 	}
-	sort.Strings(sortedNames)
+	return sortSessionProviderOptionPayloads(values)
+}
 
-	payloads := make([]contract.SessionProviderOptionPayload, 0, len(sortedNames))
-	for _, name := range sortedNames {
-		payloads = append(payloads, contract.SessionProviderOptionPayload{Name: name})
+func sortSessionProviderOptionPayloads(
+	values map[string]contract.SessionProviderOptionPayload,
+) []contract.SessionProviderOptionPayload {
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	payloads := make([]contract.SessionProviderOptionPayload, 0, len(names))
+	for _, name := range names {
+		payloads = append(payloads, values[name])
 	}
 	return payloads
 }
@@ -1483,7 +1509,7 @@ func settingsProviderItemPayload(value settingspkg.ProviderItem) contract.Settin
 		Settings:         settingsProviderSettingsPayload(value.Settings),
 		Default:          value.Default,
 		CommandAvailable: value.CommandAvailable,
-		APIKeyEnvPresent: value.APIKeyEnvPresent,
+		Credentials:      settingsProviderCredentialStatusPayloads(value.Credentials),
 		SourceMetadata:   settingsSourceMetadataPayload(value.SourceMetadata),
 	}
 	if value.Fallback != nil {
@@ -1497,10 +1523,55 @@ func settingsProviderItemPayload(value settingspkg.ProviderItem) contract.Settin
 
 func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contract.SettingsProviderSettingsPayload {
 	return contract.SettingsProviderSettingsPayload{
-		Command:      strings.TrimSpace(value.Command),
-		DefaultModel: strings.TrimSpace(value.DefaultModel),
-		APIKeyEnv:    strings.TrimSpace(value.APIKeyEnv),
+		Command:         strings.TrimSpace(value.Command),
+		DisplayName:     strings.TrimSpace(value.DisplayName),
+		DefaultModel:    strings.TrimSpace(value.DefaultModel),
+		Harness:         string(value.Harness),
+		RuntimeProvider: strings.TrimSpace(value.RuntimeProvider),
+		Transport:       strings.TrimSpace(value.Transport),
+		BaseURL:         strings.TrimSpace(value.BaseURL),
+		CredentialSlots: settingsProviderCredentialSlotPayloads(value.CredentialSlots),
 	}
+}
+
+func settingsProviderCredentialSlotPayloads(
+	values []aghconfig.ProviderCredentialSlot,
+) []contract.SettingsProviderCredentialSlotPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsProviderCredentialSlotPayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SettingsProviderCredentialSlotPayload{
+			Name:      strings.TrimSpace(value.Name),
+			TargetEnv: strings.TrimSpace(value.TargetEnv),
+			SecretRef: strings.TrimSpace(value.SecretRef),
+			Kind:      strings.TrimSpace(value.Kind),
+			Required:  value.Required,
+		})
+	}
+	return payloads
+}
+
+func settingsProviderCredentialStatusPayloads(
+	values []settingspkg.ProviderCredentialStatus,
+) []contract.SettingsProviderCredentialStatusPayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsProviderCredentialStatusPayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SettingsProviderCredentialStatusPayload{
+			Name:      strings.TrimSpace(value.Name),
+			TargetEnv: strings.TrimSpace(value.TargetEnv),
+			SecretRef: strings.TrimSpace(value.SecretRef),
+			Kind:      strings.TrimSpace(value.Kind),
+			Required:  value.Required,
+			Present:   value.Present,
+			Source:    strings.TrimSpace(value.Source),
+		})
+	}
+	return payloads
 }
 
 func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contract.SettingsMCPServerItemPayload {
@@ -1515,6 +1586,7 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 			Command:        strings.TrimSpace(value.Command),
 			Args:           cloneStrings(value.Args),
 			Env:            cloneStringMap(value.Env),
+			SecretEnv:      cloneStringMap(value.SecretEnv),
 			URL:            strings.TrimSpace(value.URL),
 			Auth:           settingsMCPAuthConfigPayload(value.Auth),
 			AuthStatus:     settingsMCPAuthStatusPayload(value.AuthStatus),
@@ -1538,7 +1610,7 @@ func settingsMCPAuthConfigPayload(value aghconfig.MCPAuthConfig) *contract.Setti
 		TokenURL:         strings.TrimSpace(value.TokenURL),
 		RevocationURL:    strings.TrimSpace(value.RevocationURL),
 		ClientID:         strings.TrimSpace(value.ClientID),
-		ClientSecretEnv:  strings.TrimSpace(value.ClientSecretEnv),
+		ClientSecretRef:  strings.TrimSpace(value.ClientSecretRef),
 		Scopes:           cloneStrings(value.Scopes),
 	}
 }
@@ -1588,6 +1660,7 @@ func settingsSandboxProfilePayload(value aghconfig.SandboxProfile) contract.Sett
 		Persistence: strings.TrimSpace(value.Persistence),
 		RuntimeRoot: strings.TrimSpace(value.RuntimeRoot),
 		Env:         cloneStringMap(value.Env),
+		SecretEnv:   cloneStringMap(value.SecretEnv),
 	}
 	if network := settingsSandboxNetworkPayload(value.Network); network != nil {
 		payload.Network = network
@@ -1662,13 +1735,14 @@ func settingsHookDeclarationPayload(value hookspkg.HookDecl) contract.SettingsHo
 		Event:        value.Event,
 		Mode:         value.Mode,
 		Required:     value.Required,
-		Priority:     value.Priority,
+		Priority:     int(value.Priority),
 		Timeout:      durationString(value.Timeout),
 		Matcher:      value.Matcher,
 		ExecutorKind: value.ExecutorKind,
 		Command:      strings.TrimSpace(value.Command),
 		Args:         cloneStrings(value.Args),
 		Env:          cloneStringMap(value.Env),
+		SecretEnv:    cloneStringMap(value.SecretEnv),
 		Metadata:     cloneStringMap(value.Metadata),
 	}
 }

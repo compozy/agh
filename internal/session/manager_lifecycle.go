@@ -180,6 +180,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	if m.notifier != nil {
 		m.notifier.OnSessionStopped(ctx, session)
 	}
+	session.clearProviderSecretRedactions()
 
 	return errors.Join(errs...)
 }

@@ -11,32 +11,159 @@ import {
   type SettingsProviderRequest,
 } from "@/systems/settings";
 
+type ProviderCredentialSlotDraft = NonNullable<
+  NonNullable<SettingsProviderRequest["settings"]>["credential_slots"]
+>[number];
+
 export type ProviderDraft = {
   name: string;
   command: string;
+  display_name: string;
   default_model: string;
-  api_key_env: string;
+  target_env: string;
+  harness: string;
+  runtime_provider: string;
+  transport: string;
+  base_url: string;
+  secret_ref: string;
+  secret_value: string;
+  credential_slots: ProviderCredentialSlotDraft[];
+  credential_secret_values: string[];
 };
 
+function providerCredentialsConfigured(provider: SettingsProviderEntry): boolean {
+  const credentials = provider.credentials ?? [];
+  if (credentials.length === 0) {
+    return true;
+  }
+  return credentials.every(credential => !credential.required || credential.present);
+}
+
 function emptyDraft(): ProviderDraft {
-  return { name: "", command: "", default_model: "", api_key_env: "" };
+  return {
+    name: "",
+    command: "",
+    display_name: "",
+    default_model: "",
+    target_env: "",
+    harness: "acp",
+    runtime_provider: "",
+    transport: "",
+    base_url: "",
+    secret_ref: "",
+    secret_value: "",
+    credential_slots: [],
+    credential_secret_values: [],
+  };
 }
 
 function toDraft(entry: SettingsProviderEntry): ProviderDraft {
+  const credentialSlots = credentialSlotsForDraft(entry.settings.credential_slots ?? []);
+  const credentialSlot = credentialSlots[0];
   return {
     name: entry.name,
     command: entry.settings.command ?? "",
+    display_name: entry.settings.display_name ?? "",
     default_model: entry.settings.default_model ?? "",
-    api_key_env: entry.settings.api_key_env ?? "",
+    target_env: credentialSlot?.target_env ?? "",
+    harness: entry.settings.harness ?? "acp",
+    runtime_provider: entry.settings.runtime_provider ?? "",
+    transport: entry.settings.transport ?? "",
+    base_url: entry.settings.base_url ?? "",
+    secret_ref: credentialSlot?.secret_ref ?? envSecretRef(credentialSlot?.target_env),
+    secret_value: "",
+    credential_slots: credentialSlots,
+    credential_secret_values: credentialSlots.map(() => ""),
   };
 }
 
 function toRequest(draft: ProviderDraft): SettingsProviderRequest {
   const settings: SettingsProviderRequest["settings"] = {};
   if (draft.command.trim()) settings.command = draft.command.trim();
+  if (draft.display_name.trim()) settings.display_name = draft.display_name.trim();
   if (draft.default_model.trim()) settings.default_model = draft.default_model.trim();
-  if (draft.api_key_env.trim()) settings.api_key_env = draft.api_key_env.trim();
-  return { settings };
+  if (draft.harness.trim()) settings.harness = draft.harness.trim();
+  if (draft.runtime_provider.trim()) settings.runtime_provider = draft.runtime_provider.trim();
+  if (draft.transport.trim()) settings.transport = draft.transport.trim();
+  if (draft.base_url.trim()) settings.base_url = draft.base_url.trim();
+
+  const credentialSlots = buildCredentialSlots(draft);
+  if (credentialSlots.length > 0) {
+    settings.credential_slots = credentialSlots;
+  }
+
+  const secrets: SettingsProviderRequest["secrets"] = [];
+  for (const [index, credential] of credentialSlots.entries()) {
+    const value = index === 0 ? draft.secret_value : (draft.credential_secret_values[index] ?? "");
+    if (!value.trim() || !credential.secret_ref.startsWith("vault:")) {
+      continue;
+    }
+    secrets.push({
+      name: credential.name,
+      secret_ref: credential.secret_ref,
+      kind: credential.kind ?? "api_key",
+      value,
+    });
+  }
+
+  return secrets.length > 0 ? { settings, secrets } : { settings };
+}
+
+function envSecretRef(apiKeyEnv?: string): string {
+  const envName = apiKeyEnv?.trim();
+  return envName ? `env:${envName}` : "";
+}
+
+function credentialSlotsForDraft(
+  slots: ProviderCredentialSlotDraft[]
+): ProviderCredentialSlotDraft[] {
+  return slots.map(slot => ({ ...slot }));
+}
+
+function buildCredentialSlots(draft: ProviderDraft): ProviderCredentialSlotDraft[] {
+  const primarySlot = normalizeCredentialSlot(draft.credential_slots[0]);
+  const additionalSlots = draft.credential_slots
+    .slice(1)
+    .map(normalizeCredentialSlot)
+    .filter(slot => slot !== null);
+  const targetEnv = draft.target_env.trim();
+  const secretRef = draft.secret_ref.trim() || envSecretRef(targetEnv);
+  if (!targetEnv || !secretRef) {
+    return additionalSlots;
+  }
+
+  return [
+    {
+      name: primarySlot?.name.trim() || "api_key",
+      target_env: targetEnv,
+      secret_ref: secretRef,
+      kind: primarySlot?.kind?.trim() || "api_key",
+      required: primarySlot?.required ?? true,
+    },
+    ...additionalSlots,
+  ];
+}
+
+function normalizeCredentialSlot(
+  slot: ProviderCredentialSlotDraft | undefined
+): ProviderCredentialSlotDraft | null {
+  if (!slot) {
+    return null;
+  }
+  const name = slot.name.trim();
+  const targetEnv = slot.target_env.trim();
+  const secretRef = slot.secret_ref.trim();
+  if (!name || !targetEnv || !secretRef) {
+    return null;
+  }
+  const kind = slot.kind?.trim();
+  return {
+    name,
+    target_env: targetEnv,
+    secret_ref: secretRef,
+    ...(kind ? { kind } : {}),
+    required: slot.required,
+  };
 }
 
 function errorMessage(error: unknown): string | null {
@@ -73,11 +200,11 @@ export function useSettingsProvidersPage() {
 
   const counts = useMemo(() => {
     const installed = providers.filter(
-      provider => provider.command_available && provider.api_key_env_present
+      provider => provider.command_available && providerCredentialsConfigured(provider)
     ).length;
     const binaryMissing = providers.filter(provider => !provider.command_available).length;
     const unconfigured = providers.filter(
-      provider => provider.command_available && !provider.api_key_env_present
+      provider => provider.command_available && !providerCredentialsConfigured(provider)
     ).length;
     return { total: providers.length, installed, binaryMissing, unconfigured };
   }, [providers]);
@@ -111,6 +238,9 @@ export function useSettingsProvidersPage() {
     if (editor.mode === "closed") return false;
     const name = editor.draft.name.trim();
     if (name.length === 0) return false;
+    if (editor.draft.secret_value.trim() && !editor.draft.secret_ref.trim().startsWith("vault:")) {
+      return false;
+    }
     if (editor.mode === "create") {
       return !providers.some(provider => provider.name.toLowerCase() === name.toLowerCase());
     }

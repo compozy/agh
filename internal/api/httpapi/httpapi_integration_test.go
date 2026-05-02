@@ -910,7 +910,7 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/automation/triggers"), []byte(`{"scope":"global","name":"deploy-review","agent_name":"coder","prompt":"review {{ index .Data \"payload\" }}","event":"webhook","endpoint_slug":"deploy-review","webhook_secret":"shared-secret"}`), nil)
+	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/automation/triggers"), []byte(`{"scope":"global","name":"deploy-review","agent_name":"coder","prompt":"review {{ index .Data \"payload\" }}","event":"webhook","endpoint_slug":"deploy-review","webhook_secret_value":"shared-secret"}`), nil)
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
@@ -1827,7 +1827,11 @@ func (s *integrationBridgeService) ListSecretBindings(ctx context.Context, bridg
 	return s.store.ListBridgeSecretBindings(ctx, bridgeInstanceID)
 }
 
-func (s *integrationBridgeService) PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
+func (s *integrationBridgeService) PutSecretBinding(
+	ctx context.Context,
+	binding bridgepkg.BridgeSecretBinding,
+	_ *string,
+) error {
 	if s == nil || s.store == nil {
 		return errors.New("integration bridge secret store is not configured")
 	}

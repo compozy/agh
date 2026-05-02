@@ -27,5 +27,6 @@ func RedactStringMap(values map[string]string) map[string]string {
 func RedactedMCPServer(server MCPServer) MCPServer {
 	redacted := cloneMCPServer(server)
 	redacted.Env = RedactStringMap(server.Env)
+	redacted.SecretEnv = RedactStringMap(server.SecretEnv)
 	return redacted
 }

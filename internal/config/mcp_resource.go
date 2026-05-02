@@ -59,6 +59,26 @@ func validateMCPServerSpec(
 			normalized.Env = canonicalEnv
 		}
 	}
+	if len(normalized.SecretEnv) > 0 {
+		keys := make([]string, 0, len(normalized.SecretEnv))
+		for key := range normalized.SecretEnv {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		canonicalSecretEnv := make(map[string]string, len(keys))
+		for _, key := range keys {
+			trimmedKey := strings.TrimSpace(key)
+			if trimmedKey == "" {
+				continue
+			}
+			canonicalSecretEnv[trimmedKey] = strings.TrimSpace(normalized.SecretEnv[key])
+		}
+		if len(canonicalSecretEnv) == 0 {
+			normalized.SecretEnv = nil
+		} else {
+			normalized.SecretEnv = canonicalSecretEnv
+		}
+	}
 
 	if err := normalized.Validate("mcp_server"); err != nil {
 		return MCPServer{}, fmt.Errorf("config: validate mcp resource spec: %w", err)
@@ -74,7 +94,7 @@ func normalizeMCPAuthConfig(auth MCPAuthConfig) MCPAuthConfig {
 	auth.TokenURL = strings.TrimSpace(auth.TokenURL)
 	auth.RevocationURL = strings.TrimSpace(auth.RevocationURL)
 	auth.ClientID = strings.TrimSpace(auth.ClientID)
-	auth.ClientSecretEnv = strings.TrimSpace(auth.ClientSecretEnv)
+	auth.ClientSecretRef = strings.TrimSpace(auth.ClientSecretRef)
 	for idx, scope := range auth.Scopes {
 		auth.Scopes[idx] = strings.TrimSpace(scope)
 	}

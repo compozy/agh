@@ -257,7 +257,7 @@ describe("bridge mutations", () => {
       created_at: "2026-04-13T12:00:00Z",
       kind: "bot_token",
       updated_at: "2026-04-13T12:10:00Z",
-      vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+      secret_ref: "vault:bridges/brg_support/bot_token",
     });
     vi.mocked(deleteBridgeSecretBinding).mockResolvedValue(undefined);
 
@@ -270,7 +270,8 @@ describe("bridge mutations", () => {
         bindingName: "bot_token",
         data: {
           kind: "bot_token",
-          vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+          secret_ref: "vault:bridges/brg_support/bot_token",
+          secret_value: "telegram-token",
         },
         id: "brg_support",
       });
@@ -294,7 +295,8 @@ describe("bridge mutations", () => {
 
     expect(putBridgeSecretBinding).toHaveBeenCalledWith("brg_support", "bot_token", {
       kind: "bot_token",
-      vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+      secret_ref: "vault:bridges/brg_support/bot_token",
+      secret_value: "telegram-token",
     });
     expect(deleteBridgeSecretBinding).toHaveBeenCalledWith("brg_support", "bot_token");
     expect(invalidateSpy).toHaveBeenCalledWith({

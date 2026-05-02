@@ -78,7 +78,7 @@ name: reviewer
 provider: claude
 
 # Optional. Defaults to the provider default_model.
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 
 # Optional. Add only extra ToolIDs beyond default discovery.
 tools:
@@ -100,8 +100,8 @@ mcp_servers:
   - name: github
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
-    env:
-      GITHUB_TOKEN: "replace-with-real-token"
+    secret_env:
+      GITHUB_TOKEN: "env:GITHUB_TOKEN"
 
 # Optional. Agent-scoped hooks automatically match this agent name.
 hooks:
@@ -239,8 +239,9 @@ this agent.
 
 ## Provider Examples
 
-These snippets show the minimal shape for every built-in provider. Provider commands and default
-models can also be configured in `config.toml`.
+These snippets show the minimal agent shape for the core built-in providers. API-key providers such
+as OpenRouter, z.ai, Moonshot/Kimi, and Vercel AI Gateway use the same `provider` and `model`
+frontmatter once their credential slots are configured in `config.toml` or settings.
 
 ### Claude
 
@@ -248,7 +249,7 @@ models can also be configured in `config.toml`.
 ---
 name: claude-reviewer
 provider: claude
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 permissions: approve-reads
 ---
 
@@ -261,7 +262,7 @@ Review the requested change for correctness and missing tests.
 ---
 name: codex-builder
 provider: codex
-model: gpt-4o
+model: gpt-5.4
 permissions: approve-all
 ---
 
@@ -274,7 +275,7 @@ Implement scoped code changes, run verification, and summarize the diff.
 ---
 name: gemini-researcher
 provider: gemini
-model: gemini-2.5-pro
+model: gemini-3.1-pro-preview
 permissions: approve-reads
 ---
 
@@ -370,8 +371,8 @@ JSON.
     "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_TOKEN": "replace-with-real-token"
+      "secret_env": {
+        "GITHUB_TOKEN": "env:GITHUB_TOKEN"
       }
     }
   }

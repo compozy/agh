@@ -12,7 +12,7 @@ type dispatchConfig[P any, R any] struct {
 	match   matcherFunc[P]
 	apply   func(P, R) P
 	denied  denyDetector[R]
-	denyErr func(P) error
+	denyErr func(P, dispatchReport) error
 	guard   patchGuard[P, R]
 }
 
@@ -30,8 +30,8 @@ func (h *Hooks) DispatchSessionPreCreate(
 			match:  matchSessionPreCreate,
 			apply:  applySessionCreatePatch,
 			denied: sessionCreatePatchDenied,
-			denyErr: func(SessionPreCreatePayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookSessionPreCreate)
+			denyErr: func(_ SessionPreCreatePayload, report dispatchReport) error {
+				return hookDeniedError(HookSessionPreCreate, report.DenyReason)
 			},
 		},
 	)
@@ -69,8 +69,8 @@ func (h *Hooks) DispatchSessionPreResume(
 			match:  matchSessionLifecycle,
 			apply:  applySessionLifecyclePatch,
 			denied: sessionCreatePatchDenied,
-			denyErr: func(SessionPreResumePayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookSessionPreResume)
+			denyErr: func(_ SessionPreResumePayload, report dispatchReport) error {
+				return hookDeniedError(HookSessionPreResume, report.DenyReason)
 			},
 		},
 	)
@@ -108,8 +108,8 @@ func (h *Hooks) DispatchSessionPreStop(
 			match:  matchSessionLifecycle,
 			apply:  applySessionLifecyclePatch,
 			denied: sessionCreatePatchDenied,
-			denyErr: func(SessionPreStopPayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookSessionPreStop)
+			denyErr: func(_ SessionPreStopPayload, report dispatchReport) error {
+				return hookDeniedError(HookSessionPreStop, report.DenyReason)
 			},
 		},
 	)
@@ -147,8 +147,8 @@ func (h *Hooks) DispatchSandboxPrepare(
 			match:  matchSandboxPrepare,
 			apply:  applySandboxPreparePatch,
 			denied: sandboxPreparePatchDenied,
-			denyErr: func(SandboxPreparePayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookSandboxPrepare)
+			denyErr: func(_ SandboxPreparePayload, report dispatchReport) error {
+				return hookDeniedError(HookSandboxPrepare, report.DenyReason)
 			},
 		},
 	)
@@ -238,8 +238,8 @@ func (h *Hooks) DispatchInputPreSubmit(
 			match:  matchInputPreSubmit,
 			apply:  applyInputPreSubmitPatch,
 			denied: inputPreSubmitPatchDenied,
-			denyErr: func(InputPreSubmitPayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookInputPreSubmit)
+			denyErr: func(_ InputPreSubmitPayload, report dispatchReport) error {
+				return hookDeniedError(HookInputPreSubmit, report.DenyReason)
 			},
 		},
 	)
@@ -256,8 +256,8 @@ func (h *Hooks) DispatchPromptPostAssemble(ctx context.Context, payload PromptPa
 			match:  matchPrompt,
 			apply:  applyPromptPatch,
 			denied: promptPatchDenied,
-			denyErr: func(PromptPayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookPromptPostAssemble)
+			denyErr: func(_ PromptPayload, report dispatchReport) error {
+				return hookDeniedError(HookPromptPostAssemble, report.DenyReason)
 			},
 		},
 	)
@@ -311,7 +311,7 @@ func (h *Hooks) DispatchAutomationJobPreFire(
 			match:  matchAutomationJobPreFire,
 			apply:  applyAutomationJobPreFirePatch,
 			denied: automationFirePatchDenied,
-			denyErr: func(AutomationJobPreFirePayload) error {
+			denyErr: func(AutomationJobPreFirePayload, dispatchReport) error {
 				return fmt.Errorf("%w: %s", ErrAutomationFireCancelled, HookAutomationJobPreFire)
 			},
 		},
@@ -349,7 +349,7 @@ func (h *Hooks) DispatchAutomationTriggerPreFire(
 			match:  matchAutomationTriggerPreFire,
 			apply:  applyAutomationTriggerPreFirePatch,
 			denied: automationFirePatchDenied,
-			denyErr: func(AutomationTriggerPreFirePayload) error {
+			denyErr: func(AutomationTriggerPreFirePayload, dispatchReport) error {
 				return fmt.Errorf("%w: %s", ErrAutomationFireCancelled, HookAutomationTriggerPreFire)
 			},
 		},
@@ -418,8 +418,8 @@ func (h *Hooks) DispatchAgentPreStart(ctx context.Context, payload AgentPreStart
 			match:  matchAgentPreStart,
 			apply:  applyAgentStartPatch,
 			denied: agentStartPatchDenied,
-			denyErr: func(AgentPreStartPayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookAgentPreStart)
+			denyErr: func(_ AgentPreStartPayload, report dispatchReport) error {
+				return hookDeniedError(HookAgentPreStart, report.DenyReason)
 			},
 		},
 	)
@@ -690,8 +690,8 @@ func (h *Hooks) DispatchCoordinatorPreSpawn(
 			match:  matchCoordinatorPreSpawn,
 			apply:  applyCoordinatorSpawnPatch,
 			denied: coordinatorSpawnPatchDenied,
-			denyErr: func(CoordinatorPreSpawnPayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookCoordinatorPreSpawn)
+			denyErr: func(_ CoordinatorPreSpawnPayload, report dispatchReport) error {
+				return hookDeniedError(HookCoordinatorPreSpawn, report.DenyReason)
 			},
 		},
 	)
@@ -796,8 +796,8 @@ func (h *Hooks) DispatchTaskRunPreClaim(
 			match:  matchTaskRunPreClaim,
 			apply:  applyTaskRunPreClaimPatch,
 			denied: taskRunPreClaimPatchDenied,
-			denyErr: func(TaskRunPreClaimPayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookTaskRunPreClaim)
+			denyErr: func(_ TaskRunPreClaimPayload, report dispatchReport) error {
+				return hookDeniedError(HookTaskRunPreClaim, report.DenyReason)
 			},
 			guard: guardTaskRunPreClaimPatch,
 		},
@@ -937,8 +937,8 @@ func (h *Hooks) DispatchSpawnPreCreate(
 			match:  matchSpawnPreCreate,
 			apply:  applySpawnCreatePatch,
 			denied: spawnCreatePatchDenied,
-			denyErr: func(SpawnPreCreatePayload) error {
-				return fmt.Errorf("hooks: event %q denied", HookSpawnPreCreate)
+			denyErr: func(_ SpawnPreCreatePayload, report dispatchReport) error {
+				return hookDeniedError(HookSpawnPreCreate, report.DenyReason)
 			},
 			guard: guardSpawnCreatePatch,
 		},
@@ -1062,7 +1062,7 @@ func executeDispatch[P any, R any](
 	if len(syncHooks) > 0 {
 		result, report, dispatchErr = pipe.executeWithDisposition(ctx, payload)
 		if dispatchErr == nil && report.Denied && cfg.denyErr != nil {
-			dispatchErr = cfg.denyErr(result)
+			dispatchErr = cfg.denyErr(result, report)
 		}
 	}
 
@@ -1109,6 +1109,7 @@ func reportDispatchResult(
 			"event", event.String(),
 			"dispatch_depth", dispatchDepth,
 			"deny_source", report.DenySource,
+			"deny_reason", report.DenyReason,
 			"pipeline_trace", traceStrings(report.Trace),
 		)
 	case dispatchErr != nil:
@@ -1132,6 +1133,14 @@ func reportDispatchResult(
 			"async_hooks", asyncHookCount,
 		)
 	}
+}
+
+func hookDeniedError(event HookEvent, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return fmt.Errorf("hooks: event %q denied", event)
+	}
+	return fmt.Errorf("hooks: event %q denied: %s", event, reason)
 }
 
 func applyNoop[P any, R any](payload P, _ R) P {

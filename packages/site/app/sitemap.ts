@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { BLOG_CATEGORIES, allPosts } from "@/lib/blog";
 import { protocolDocs, runtimeDocs } from "@/lib/source";
 import { absoluteUrl, canonicalPath } from "@/lib/site-config";
 
@@ -14,7 +15,11 @@ function pageEntry(path: string): MetadataRoute.Sitemap[number] {
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const docsPaths = [...runtimeDocs.getPages(), ...protocolDocs.getPages()].map(page => page.url);
-  const paths = Array.from(new Set(["/", ...docsPaths])).sort();
+  const blogPaths = allPosts().map(post => post.permalink);
+  const categoryPaths = BLOG_CATEGORIES.map(category => `/blog/categories/${category}`);
+  const paths = Array.from(
+    new Set(["/", "/blog", "/changelog", ...docsPaths, ...blogPaths, ...categoryPaths])
+  ).sort();
 
   return paths.map(pageEntry);
 }

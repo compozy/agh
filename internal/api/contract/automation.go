@@ -63,22 +63,23 @@ type JobPayload struct {
 
 // TriggerPayload is the shared automation trigger response payload.
 type TriggerPayload struct {
-	ID           string                        `json:"id"`
-	Scope        automationpkg.Scope           `json:"scope"`
-	Name         string                        `json:"name"`
-	AgentName    string                        `json:"agent_name"`
-	WorkspaceID  string                        `json:"workspace_id,omitempty"`
-	Prompt       string                        `json:"prompt"`
-	Event        string                        `json:"event"`
-	Filter       map[string]string             `json:"filter,omitempty"`
-	Enabled      bool                          `json:"enabled"`
-	Retry        automationpkg.RetryConfig     `json:"retry"`
-	FireLimit    automationpkg.FireLimitConfig `json:"fire_limit"`
-	Source       automationpkg.JobSource       `json:"source"`
-	WebhookID    string                        `json:"webhook_id,omitempty"`
-	EndpointSlug string                        `json:"endpoint_slug,omitempty"`
-	CreatedAt    time.Time                     `json:"created_at"`
-	UpdatedAt    time.Time                     `json:"updated_at"`
+	ID               string                        `json:"id"`
+	Scope            automationpkg.Scope           `json:"scope"`
+	Name             string                        `json:"name"`
+	AgentName        string                        `json:"agent_name"`
+	WorkspaceID      string                        `json:"workspace_id,omitempty"`
+	Prompt           string                        `json:"prompt"`
+	Event            string                        `json:"event"`
+	Filter           map[string]string             `json:"filter,omitempty"`
+	Enabled          bool                          `json:"enabled"`
+	Retry            automationpkg.RetryConfig     `json:"retry"`
+	FireLimit        automationpkg.FireLimitConfig `json:"fire_limit"`
+	Source           automationpkg.JobSource       `json:"source"`
+	WebhookID        string                        `json:"webhook_id,omitempty"`
+	EndpointSlug     string                        `json:"endpoint_slug,omitempty"`
+	WebhookSecretRef string                        `json:"webhook_secret_ref,omitempty"`
+	CreatedAt        time.Time                     `json:"created_at"`
+	UpdatedAt        time.Time                     `json:"updated_at"`
 }
 
 // RunPayload is the shared automation run response payload.
@@ -148,35 +149,37 @@ func (r UpdateJobRequest) HasChanges() bool {
 
 // CreateTriggerRequest is the shared automation trigger create payload.
 type CreateTriggerRequest struct {
-	Scope         automationpkg.Scope            `json:"scope"`
-	Name          string                         `json:"name"`
-	AgentName     string                         `json:"agent_name"`
-	WorkspaceID   string                         `json:"workspace_id,omitempty"`
-	Prompt        string                         `json:"prompt"`
-	Event         string                         `json:"event"`
-	Filter        map[string]string              `json:"filter,omitempty"`
-	Enabled       *bool                          `json:"enabled,omitempty"`
-	Retry         *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit     *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
-	WebhookID     string                         `json:"webhook_id,omitempty"`
-	EndpointSlug  string                         `json:"endpoint_slug,omitempty"`
-	WebhookSecret string                         `json:"webhook_secret,omitempty"`
+	Scope              automationpkg.Scope            `json:"scope"`
+	Name               string                         `json:"name"`
+	AgentName          string                         `json:"agent_name"`
+	WorkspaceID        string                         `json:"workspace_id,omitempty"`
+	Prompt             string                         `json:"prompt"`
+	Event              string                         `json:"event"`
+	Filter             map[string]string              `json:"filter,omitempty"`
+	Enabled            *bool                          `json:"enabled,omitempty"`
+	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	WebhookID          string                         `json:"webhook_id,omitempty"`
+	EndpointSlug       string                         `json:"endpoint_slug,omitempty"`
+	WebhookSecretRef   string                         `json:"webhook_secret_ref,omitempty"`
+	WebhookSecretValue string                         `json:"webhook_secret_value,omitempty"`
 }
 
 // UpdateTriggerRequest is the shared automation trigger patch payload.
 type UpdateTriggerRequest struct {
-	Name          *string                        `json:"name,omitempty"`
-	AgentName     *string                        `json:"agent_name,omitempty"`
-	WorkspaceID   *string                        `json:"workspace_id,omitempty"`
-	Prompt        *string                        `json:"prompt,omitempty"`
-	Event         *string                        `json:"event,omitempty"`
-	Filter        map[string]string              `json:"filter,omitempty"`
-	Enabled       *bool                          `json:"enabled,omitempty"`
-	Retry         *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit     *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
-	WebhookID     *string                        `json:"webhook_id,omitempty"`
-	EndpointSlug  *string                        `json:"endpoint_slug,omitempty"`
-	WebhookSecret *string                        `json:"webhook_secret,omitempty"`
+	Name               *string                        `json:"name,omitempty"`
+	AgentName          *string                        `json:"agent_name,omitempty"`
+	WorkspaceID        *string                        `json:"workspace_id,omitempty"`
+	Prompt             *string                        `json:"prompt,omitempty"`
+	Event              *string                        `json:"event,omitempty"`
+	Filter             map[string]string              `json:"filter,omitempty"`
+	Enabled            *bool                          `json:"enabled,omitempty"`
+	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	WebhookID          *string                        `json:"webhook_id,omitempty"`
+	EndpointSlug       *string                        `json:"endpoint_slug,omitempty"`
+	WebhookSecretRef   *string                        `json:"webhook_secret_ref,omitempty"`
+	WebhookSecretValue *string                        `json:"webhook_secret_value,omitempty"`
 }
 
 // HasChanges reports whether the patch includes any mutable field.
@@ -192,5 +195,6 @@ func (r UpdateTriggerRequest) HasChanges() bool {
 		r.FireLimit != nil ||
 		r.WebhookID != nil ||
 		r.EndpointSlug != nil ||
-		r.WebhookSecret != nil
+		r.WebhookSecretRef != nil ||
+		r.WebhookSecretValue != nil
 }

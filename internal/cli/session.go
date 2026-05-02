@@ -133,7 +133,7 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 		Short: "Stop a session",
 		Example: `  # Stop a running session
   agh session stop sess_1234`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -161,7 +161,7 @@ func newSessionStatusCommand(deps commandDeps) *cobra.Command {
 
   # Read status as JSON for scripts
   agh session status sess_1234 -o json`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -183,7 +183,7 @@ func newSessionResumeCommand(deps commandDeps) *cobra.Command {
 		Short: "Resume a stopped session",
 		Example: `  # Resume a stopped session by ID
   agh session resume sess_1234`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -213,7 +213,7 @@ func newSessionRepairCommand(deps commandDeps) *cobra.Command {
 
   # Force repair for a stopped session whose stop reason is not crash or error
   agh session repair sess_1234 --force`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -241,7 +241,7 @@ func newSessionWaitCommand(deps commandDeps) *cobra.Command {
 		Short: "Block until a session stops",
 		Example: `  # Block until a session emits its stopped event
   agh session wait sess_1234`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -317,7 +317,7 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 
   # Follow new events until interrupted
   agh session events sess_1234 --follow`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -358,7 +358,7 @@ func newSessionHistoryCommand(deps commandDeps) *cobra.Command {
 		Short: "Show session history grouped by turn",
 		Example: `  # Show replayable turn history for one session
   agh session history sess_1234`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

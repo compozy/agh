@@ -31,7 +31,7 @@ uses the same dispatcher and run history model that scheduled jobs use.
 | `retry`                      | No                      | Same retry policy as jobs. Defaults to `none`.                                               |
 | `fire_limit`                 | No                      | Same rolling fire limit as jobs. Defaults to `12/1h` unless changed.                         |
 | `endpoint_slug`              | Webhook triggers        | Human-readable webhook endpoint segment.                                                     |
-| `webhook_secret_env`         | Config webhook triggers | Environment variable that contains the webhook signing secret.                               |
+| `webhook_secret_ref`         | Webhook triggers        | `env:NAME` or `vault:automation/...` ref for the webhook signing secret.                     |
 
 ## Event types
 

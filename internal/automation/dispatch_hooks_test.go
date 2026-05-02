@@ -90,6 +90,7 @@ func TestDispatchAutomationTriggerPreFireHookCanCancelBeforeDispatch(t *testing.
 	trigger.Prompt = `Review repo {{ index .Data "repo" }}`
 	trigger.WebhookID = ""
 	trigger.EndpointSlug = ""
+	trigger.WebhookSecretRef = ""
 
 	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
 		Kind:    DispatchKindExtension,

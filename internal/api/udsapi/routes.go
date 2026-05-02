@@ -25,6 +25,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerBundleRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
+	registerVaultRoutes(api, handlers)
 	registerHostedMCPRoutes(api, handlers)
 }
 
@@ -352,4 +353,14 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	actions := settings.Group("/actions")
 	actions.POST("/restart", handlers.TriggerSettingsRestart)
 	actions.GET("/restart/:operation_id", handlers.GetSettingsRestartStatus)
+}
+
+func registerVaultRoutes(api gin.IRouter, handlers *Handlers) {
+	vaultGroup := api.Group("/vault")
+	{
+		vaultGroup.GET("/secrets", handlers.ListVaultSecrets)
+		vaultGroup.GET("/secrets/metadata", handlers.GetVaultSecretMetadata)
+		vaultGroup.PUT("/secrets", handlers.PutVaultSecret)
+		vaultGroup.DELETE("/secrets", handlers.DeleteVaultSecret)
+	}
 }

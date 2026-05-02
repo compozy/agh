@@ -14,11 +14,21 @@ const BRAND_LOGO_KIND: Record<string, LogoKind> = {
 };
 
 const FALLBACK_ICON: Record<string, LucideIcon> = {
-  ollama: Terminal,
+  blackbox: Bot,
   claude: BrainCircuit,
+  cline: Code,
   codex: Code,
-  openai: Bot,
   gemini: Sparkles,
+  goose: Terminal,
+  hermes: BrainCircuit,
+  junie: Sparkles,
+  "kimi-cli": Terminal,
+  ollama: Terminal,
+  openai: Bot,
+  openclaw: Bot,
+  openhands: Code,
+  qoder: Code,
+  "qwen-code": Sparkles,
 };
 
 interface ProviderLogoProps {

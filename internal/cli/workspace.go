@@ -39,7 +39,7 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 
   # Include an additional directory and set a workspace default agent
   agh workspace add "$PWD" --name platform --add-dir "$PWD/docs" --default-agent architect`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -103,7 +103,7 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 
   # Emit resolved workspace details as JSON
   agh workspace info ws_1234 -o json`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -144,7 +144,7 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 
   # Clear the workspace default agent
   agh workspace edit checkout-api --default-agent ""`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -214,7 +214,7 @@ func newWorkspaceRemoveCommand(deps commandDeps) *cobra.Command {
 		Short: "Remove a workspace registration",
 		Example: `  # Remove a workspace registration by name
   agh workspace remove checkout-api`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

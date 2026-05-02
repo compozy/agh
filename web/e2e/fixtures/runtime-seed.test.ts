@@ -847,7 +847,7 @@ describe("browser runtime seed helpers", () => {
           binding: {
             binding_name: "bot_token",
             kind: "bot_token",
-            vault_ref: `env:${browserBridgeOperatorFlowScenario.secretBinding.envName}`,
+            secret_ref: `vault:bridges/brg_browser_01/${browserBridgeOperatorFlowScenario.secretBinding.name}`,
           },
         };
       }
@@ -879,7 +879,8 @@ describe("browser runtime seed helpers", () => {
         method: "PUT",
         body: JSON.stringify({
           kind: "bot_token",
-          vault_ref: `env:${browserBridgeOperatorFlowScenario.secretBinding.envName}`,
+          secret_ref: `vault:bridges/brg_browser_01/${browserBridgeOperatorFlowScenario.secretBinding.name}`,
+          secret_value: browserBridgeOperatorFlowScenario.secretBinding.value,
         }),
       })
     );
@@ -1048,7 +1049,7 @@ describe("browser runtime seed helpers", () => {
             name: "browser-provider",
             settings: {
               command: "browser-provider",
-              default_model: "gpt-5.4-mini",
+              default_model: "gpt-5.4",
             },
           },
         ],

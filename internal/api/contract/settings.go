@@ -343,9 +343,39 @@ type SettingsSourceMetadataPayload struct {
 }
 
 type SettingsProviderSettingsPayload struct {
-	Command      string `json:"command,omitempty"`
-	DefaultModel string `json:"default_model,omitempty"`
-	APIKeyEnv    string `json:"api_key_env,omitempty"`
+	Command         string                                  `json:"command,omitempty"`
+	DisplayName     string                                  `json:"display_name,omitempty"`
+	DefaultModel    string                                  `json:"default_model,omitempty"`
+	Harness         string                                  `json:"harness,omitempty"`
+	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
+	Transport       string                                  `json:"transport,omitempty"`
+	BaseURL         string                                  `json:"base_url,omitempty"`
+	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+}
+
+type SettingsProviderCredentialSlotPayload struct {
+	Name      string `json:"name"`
+	TargetEnv string `json:"target_env"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Required  bool   `json:"required"`
+}
+
+type SettingsProviderCredentialStatusPayload struct {
+	Name      string `json:"name"`
+	TargetEnv string `json:"target_env"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Required  bool   `json:"required"`
+	Present   bool   `json:"present"`
+	Source    string `json:"source,omitempty"`
+}
+
+type SettingsProviderSecretWritePayload struct {
+	Name      string `json:"name,omitempty"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Value     string `json:"value"`
 }
 
 type SettingsProviderFallbackPayload struct {
@@ -354,13 +384,13 @@ type SettingsProviderFallbackPayload struct {
 }
 
 type SettingsProviderItemPayload struct {
-	Name             string                           `json:"name"`
-	Settings         SettingsProviderSettingsPayload  `json:"settings"`
-	Default          bool                             `json:"default"`
-	CommandAvailable bool                             `json:"command_available"`
-	APIKeyEnvPresent bool                             `json:"api_key_env_present"`
-	SourceMetadata   SettingsSourceMetadataPayload    `json:"source_metadata"`
-	Fallback         *SettingsProviderFallbackPayload `json:"fallback,omitempty"`
+	Name             string                                    `json:"name"`
+	Settings         SettingsProviderSettingsPayload           `json:"settings"`
+	Default          bool                                      `json:"default"`
+	CommandAvailable bool                                      `json:"command_available"`
+	Credentials      []SettingsProviderCredentialStatusPayload `json:"credentials,omitempty"`
+	SourceMetadata   SettingsSourceMetadataPayload             `json:"source_metadata"`
+	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitempty"`
 }
 
 type SettingsMCPServerPayload struct {
@@ -369,6 +399,7 @@ type SettingsMCPServerPayload struct {
 	Command   string                        `json:"command,omitempty"`
 	Args      []string                      `json:"args,omitempty"`
 	Env       map[string]string             `json:"env,omitempty"`
+	SecretEnv map[string]string             `json:"secret_env,omitempty"`
 	URL       string                        `json:"url,omitempty"`
 	Auth      *SettingsMCPAuthConfigPayload `json:"auth,omitempty"`
 }
@@ -381,8 +412,13 @@ type SettingsMCPAuthConfigPayload struct {
 	TokenURL         string   `json:"token_url,omitempty"`
 	RevocationURL    string   `json:"revocation_url,omitempty"`
 	ClientID         string   `json:"client_id,omitempty"`
-	ClientSecretEnv  string   `json:"client_secret_env,omitempty"`
+	ClientSecretRef  string   `json:"client_secret_ref,omitempty"`
 	Scopes           []string `json:"scopes,omitempty"`
+}
+
+type SettingsMCPSecretValuesPayload struct {
+	SecretEnv         map[string]string `json:"secret_env,omitempty"`
+	OAuthClientSecret *string           `json:"oauth_client_secret,omitempty"`
 }
 
 type SettingsMCPAuthStatusPayload struct {
@@ -408,6 +444,7 @@ type SettingsMCPServerItemPayload struct {
 	Command        string                        `json:"command,omitempty"`
 	Args           []string                      `json:"args,omitempty"`
 	Env            map[string]string             `json:"env,omitempty"`
+	SecretEnv      map[string]string             `json:"secret_env,omitempty"`
 	URL            string                        `json:"url,omitempty"`
 	Auth           *SettingsMCPAuthConfigPayload `json:"auth,omitempty"`
 	AuthStatus     *SettingsMCPAuthStatusPayload `json:"auth_status,omitempty"`
@@ -422,6 +459,7 @@ type SettingsSandboxProfilePayload struct {
 	Persistence string                         `json:"persistence,omitempty"`
 	RuntimeRoot string                         `json:"runtime_root,omitempty"`
 	Env         map[string]string              `json:"env,omitempty"`
+	SecretEnv   map[string]string              `json:"secret_env,omitempty"`
 	Network     *SettingsSandboxNetworkPayload `json:"network,omitempty"`
 	Daytona     *SettingsSandboxDaytonaPayload `json:"daytona,omitempty"`
 }
@@ -463,6 +501,7 @@ type SettingsHookDeclarationPayload struct {
 	Command      string                    `json:"command,omitempty"`
 	Args         []string                  `json:"args,omitempty"`
 	Env          map[string]string         `json:"env,omitempty"`
+	SecretEnv    map[string]string         `json:"secret_env,omitempty"`
 	Metadata     map[string]string         `json:"metadata,omitempty"`
 }
 
@@ -501,11 +540,13 @@ type UpdateSettingsHooksExtensionsRequest struct {
 }
 
 type PutSettingsProviderRequest struct {
-	Settings SettingsProviderSettingsPayload `json:"settings"`
+	Settings SettingsProviderSettingsPayload      `json:"settings"`
+	Secrets  []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
 }
 
 type PutSettingsMCPServerRequest struct {
-	Server SettingsMCPServerPayload `json:"server"`
+	Server       SettingsMCPServerPayload        `json:"server"`
+	SecretValues *SettingsMCPSecretValuesPayload `json:"secret_values,omitempty"`
 }
 
 type PutSettingsSandboxRequest struct {

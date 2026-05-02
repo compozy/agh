@@ -327,7 +327,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			},
 		}
 		server := authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
-		server.Auth.ClientSecretEnv = "MCP_CLIENT_SECRET"
+		server.Auth.ClientSecretRef = "env:MCP_CLIENT_SECRET"
 		executor := newTestMCPExecutor(
 			t,
 			server,

@@ -89,6 +89,44 @@ func TestSkillResourceCodecRejectsInvalidSpecs(t *testing.T) {
 	}
 }
 
+func TestSkillResourceCodecRejectsSecretLikeLiteralMCPEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject secret-like MCP env values at resource validation time", func(t *testing.T) {
+		t.Parallel()
+
+		codec, err := NewResourceCodec()
+		if err != nil {
+			t.Fatalf("NewResourceCodec() error = %v", err)
+		}
+		raw, err := codec.Encode(SkillResourceSpec{
+			Name:        "review",
+			Description: "desc",
+			Source:      "user",
+			Enabled:     true,
+			MCPServers: []MCPServerDecl{{
+				Name:    "github",
+				Command: "npx",
+				Env:     map[string]string{"GITHUB_TOKEN": "ghp-secret"},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("Encode() error = %v", err)
+		}
+		_, err = codec.DecodeAndValidate(
+			context.Background(),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			raw,
+		)
+		if err == nil {
+			t.Fatal("DecodeAndValidate() error = nil, want secret-like env validation error")
+		}
+		if !strings.Contains(err.Error(), "must move secret-like values to secret_env") {
+			t.Fatalf("DecodeAndValidate() error = %v, want secret_env validation", err)
+		}
+	})
+}
+
 func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +144,7 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
     "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {"GITHUB_TOKEN": "token"}
+	      "secret_env": {"GITHUB_TOKEN": "env:GITHUB_TOKEN"}
     }
   }
 }`)
@@ -163,6 +201,9 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 	}
 	if got, want := projected.MCPServers[0].Command, "npx"; got != want {
 		t.Fatalf("MCP command = %q, want %q", got, want)
+	}
+	if got, want := projected.MCPServers[0].SecretEnv["GITHUB_TOKEN"], "env:GITHUB_TOKEN"; got != want {
+		t.Fatalf("MCP secret env = %q, want %q", got, want)
 	}
 }
 

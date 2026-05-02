@@ -75,7 +75,10 @@ describe("AutomationTriggerForm", () => {
     fireEvent.change(screen.getByTestId("trigger-webhook-id-input"), {
       target: { value: "wbh_repo_push" },
     });
-    fireEvent.change(screen.getByTestId("trigger-webhook-secret-input"), {
+    fireEvent.change(screen.getByTestId("trigger-webhook-secret-ref-input"), {
+      target: { value: "vault:automation/triggers/push-review/webhook-secret" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-webhook-secret-value-input"), {
       target: { value: "shared-secret" },
     });
 
@@ -113,7 +116,8 @@ describe("AutomationTriggerForm", () => {
         enabled: false,
         endpoint_slug: "repo-push",
         webhook_id: "wbh_repo_push",
-        webhook_secret: "shared-secret",
+        webhook_secret_ref: "vault:automation/triggers/push-review/webhook-secret",
+        webhook_secret_value: "shared-secret",
         filter: { "data.branch": "main", "raw-line": "" },
         retry: { strategy: "backoff", max_retries: 6, base_delay: "9s" },
         fire_limit: { max: 11, window: "3h" },
@@ -134,7 +138,8 @@ describe("AutomationTriggerForm", () => {
 
     expect(screen.queryByTestId("trigger-endpoint-slug-input")).not.toBeInTheDocument();
     expect(screen.queryByTestId("trigger-webhook-id-input")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("trigger-webhook-secret-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("trigger-webhook-secret-ref-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("trigger-webhook-secret-value-input")).not.toBeInTheDocument();
   });
 
   it("resets trigger retry values when switching back to none", () => {

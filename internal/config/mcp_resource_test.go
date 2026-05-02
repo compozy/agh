@@ -90,8 +90,8 @@ func TestMCPServerResourceStoreRoundTripReturnsTypedRecords(t *testing.T) {
 			Name:    " git ",
 			Command: " npx ",
 			Args:    []string{" --stdio "},
-			Env: map[string]string{
-				" TOKEN ": " secret ",
+			SecretEnv: map[string]string{
+				" TOKEN ": " env:GIT_TOKEN ",
 			},
 		},
 	})
@@ -111,8 +111,8 @@ func TestMCPServerResourceStoreRoundTripReturnsTypedRecords(t *testing.T) {
 	if got, want := record.Spec.Args[0], "--stdio"; got != want {
 		t.Fatalf("record.Spec.Args[0] = %q, want %q", got, want)
 	}
-	if got, want := record.Spec.Env["TOKEN"], "secret"; got != want {
-		t.Fatalf("record.Spec.Env[TOKEN] = %q, want %q", got, want)
+	if got, want := record.Spec.SecretEnv["TOKEN"], "env:GIT_TOKEN"; got != want {
+		t.Fatalf("record.Spec.SecretEnv[TOKEN] = %q, want %q", got, want)
 	}
 
 	listed, err := store.List(testutil.Context(t), actor, resources.ResourceFilter{})
@@ -141,19 +141,19 @@ func TestMCPServerResourceCodecCanonicalizesCollidingEnvKeysDeterministically(t 
 		[]byte(`{
 			"name":"git",
 			"command":"npx",
-			"env":{
-				" TOKEN ":" first ",
-				"TOKEN":" second "
-			}
-		}`),
+				"secret_env":{
+					" TOKEN ":" env:FIRST_TOKEN ",
+					"TOKEN":" env:SECOND_TOKEN "
+				}
+			}`),
 	)
 	if err != nil {
 		t.Fatalf("codec.DecodeAndValidate() error = %v", err)
 	}
-	if got, want := len(record.Env), 1; got != want {
-		t.Fatalf("len(record.Env) = %d, want %d", got, want)
+	if got, want := len(record.SecretEnv), 1; got != want {
+		t.Fatalf("len(record.SecretEnv) = %d, want %d", got, want)
 	}
-	if got, want := record.Env["TOKEN"], "second"; got != want {
-		t.Fatalf("record.Env[TOKEN] = %q, want %q", got, want)
+	if got, want := record.SecretEnv["TOKEN"], "env:SECOND_TOKEN"; got != want {
+		t.Fatalf("record.SecretEnv[TOKEN] = %q, want %q", got, want)
 	}
 }

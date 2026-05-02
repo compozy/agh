@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -52,6 +53,44 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		assertSBOMArtifact(t, sboms, "archive")
 		assertSBOMArtifact(t, sboms, "package")
 		assertSBOMArtifact(t, sboms, "source")
+	})
+
+	t.Run("Should publish stable archives and curl installer asset", func(t *testing.T) {
+		t.Parallel()
+
+		archives := sliceAt(t, cfg, "archives")
+		if len(archives) != 1 {
+			t.Fatalf("archives len = %d, want 1", len(archives))
+		}
+		archive := asMap(t, archives[0], "archives[0]")
+		if got, want := stringAt(t, archive, "id"), "agh-archive"; got != want {
+			t.Fatalf("archives[0].id = %q, want %q", got, want)
+		}
+		nameTemplate := stringAt(t, archive, "name_template")
+		for _, want := range []string{
+			"{{ .ProjectName }}_{{ .Os }}_",
+			`{{- if eq .Arch "amd64" }}x86_64`,
+			`{{- else }}{{ .Arch }}{{ end }}`,
+		} {
+			if !strings.Contains(nameTemplate, want) {
+				t.Fatalf("archives[0].name_template = %q, want to contain %q", nameTemplate, want)
+			}
+		}
+		if strings.Contains(nameTemplate, "{{ .Version }}") {
+			t.Fatalf("archives[0].name_template = %q, want stable name without version", nameTemplate)
+		}
+
+		release := mapAt(t, cfg, "release")
+		github := mapAt(t, release, "github")
+		if got, want := stringAt(t, github, "owner"), "compozy"; got != want {
+			t.Fatalf("release.github.owner = %q, want %q", got, want)
+		}
+		if got, want := stringAt(t, github, "name"), "agh"; got != want {
+			t.Fatalf("release.github.name = %q, want %q", got, want)
+		}
+
+		extraFiles := sliceAt(t, release, "extra_files")
+		assertReleaseExtraFile(t, extraFiles, "./packages/site/public/install.sh", "install.sh")
 	})
 
 	t.Run("Should configure Homebrew and Linux package targets", func(t *testing.T) {
@@ -176,4 +215,17 @@ func assertSBOMArtifact(t *testing.T, sboms []any, artifact string) {
 		}
 	}
 	t.Fatalf("sboms = %#v, want artifacts %q", sboms, artifact)
+}
+
+func assertReleaseExtraFile(t *testing.T, extraFiles []any, glob string, nameTemplate string) {
+	t.Helper()
+
+	for _, entry := range extraFiles {
+		extraFile := asMap(t, entry, "release.extra_files[]")
+		if stringAt(t, extraFile, "glob") == glob &&
+			stringAt(t, extraFile, "name_template") == nameTemplate {
+			return
+		}
+	}
+	t.Fatalf("release.extra_files = %#v, want glob %q with name_template %q", extraFiles, glob, nameTemplate)
 }

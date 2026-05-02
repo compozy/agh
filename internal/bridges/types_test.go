@@ -115,7 +115,7 @@ func TestBridgeSecretBindingValidation(t *testing.T) {
 	valid := BridgeSecretBinding{
 		BridgeInstanceID: "brg-1",
 		BindingName:      "bot_token",
-		VaultRef:         "vault://bot-token",
+		SecretRef:        "vault:bridges/brg-1/bot-token",
 		Kind:             "token",
 	}
 	if err := valid.Validate(); err != nil {
@@ -129,9 +129,15 @@ func TestBridgeSecretBindingValidation(t *testing.T) {
 	}
 
 	invalidVault := valid
-	invalidVault.VaultRef = ""
+	invalidVault.SecretRef = ""
 	if err := invalidVault.Validate(); err == nil {
-		t.Fatal("BridgeSecretBinding.Validate(empty vault ref) error = nil, want non-nil")
+		t.Fatal("BridgeSecretBinding.Validate(empty secret ref) error = nil, want non-nil")
+	}
+
+	envRef := valid
+	envRef.SecretRef = "env:TG_TOKEN"
+	if err := envRef.Validate(); err == nil {
+		t.Fatal("BridgeSecretBinding.Validate(env ref) error = nil, want non-nil")
 	}
 }
 

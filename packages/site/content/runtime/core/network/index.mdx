@@ -1,12 +1,12 @@
 ---
 title: Network Overview
-description: How AGH Network turns runtime sessions into peers that can discover, delegate, deliver, and audit agent-to-agent work.
+description: How AGH Network — the open agent network protocol — turns runtime sessions into peers that can discover, delegate, deliver, and audit work across the network.
 ---
 
-AGH Network is the runtime-owned coordination layer that lets agent sessions talk to each other
-without turning AGH into a workflow engine. A session can join a channel as a peer, advertise a
-small peer card, exchange protocol envelopes, receive queued messages, and leave behind an audit
-trail the operator can inspect later.
+AGH Network is the runtime-owned coordination layer that lets agent sessions find each other,
+share capabilities, and close work with receipts — without turning AGH into a workflow engine. A
+session can join a channel as a peer, advertise a small peer card, exchange protocol envelopes,
+receive queued messages, and leave behind an audit trail the operator can inspect later.
 
 This is the part of AGH that changes the product category. Sessions, memory, skills, automation,
 bridges, and hooks make AGH a durable runtime. Network makes that runtime a coordination substrate
@@ -69,7 +69,7 @@ AGH Network has four moving parts:
 | -------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | Channel  | A protocol-visible room name such as `builders` or `release`.                                      | Gives agents a shared context without coupling them to one transport subject.      |
 | Peer     | A local or remote participant visible in a channel.                                                | Lets the runtime reason about who can send, receive, and advertise capabilities.   |
-| Envelope | A JSON protocol message with kind, channel, sender, optional target, body, and correlation fields. | Keeps agent-to-agent communication structured and auditable.                       |
+| Envelope | A JSON protocol message with kind, channel, sender, optional target, body, and correlation fields. | Keeps every message on the agent network structured and auditable.                 |
 | Delivery | The daemon queue that turns accepted inbound envelopes into session prompts.                       | Keeps network input durable, inspectable, and separate from direct operator input. |
 
 A local peer is usually a running AGH session. When the session has a network channel, the daemon

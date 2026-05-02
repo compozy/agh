@@ -25,27 +25,46 @@ subprocesses, and lets some extension providers use process-level overrides.
 | `AGH_DEV_VERIFY_BOUNDARIES` | boolean string | unset        | `1`, `true`, or `yes` enable boundary verification. | Development-only daemon boundary import verification toggle.                                                                                                    |
 | `GITHUB_TOKEN`              | token string   | unset        | Non-empty token.                                    | Used by the GitHub registry client for private repositories and higher rate limits.                                                                             |
 
-## Provider API Key Metadata
+## Provider credential variables
 
-AGH stores provider API key environment variable names in provider configuration, but the core
-config loader does not read the secret values. The provider subprocess inherits the daemon
-environment, so the provider command may read these variables itself.
+Provider config binds launch-time credentials through `credential_slots`. Each slot names a target
+environment variable and resolves its value from either `env:NAME` or an encrypted AGH secret ref
+such as `vault:providers/openrouter/api-key`. AGH injects only the bound value into the provider
+subprocess.
 
-| Variable             | Default provider | Default | Valid values                                                              | Description                                      |
-| -------------------- | ---------------- | ------- | ------------------------------------------------------------------------- | ------------------------------------------------ |
-| `ANTHROPIC_API_KEY`  | `claude`         | unset   | Provider-specific token.                                                  | Built-in Claude provider `api_key_env` metadata. |
-| `OPENAI_API_KEY`     | `codex`          | unset   | Provider-specific token.                                                  | Built-in Codex provider `api_key_env` metadata.  |
-| `GEMINI_API_KEY`     | `gemini`         | unset   | Provider-specific token.                                                  | Built-in Gemini provider `api_key_env` metadata. |
-| Custom `api_key_env` | Custom providers | unset   | Environment variable name configured in `[providers.<name>].api_key_env`. | Metadata for custom provider commands.           |
+| Variable                      | Default provider       | Default | Valid values             | Description                                          |
+| ----------------------------- | ---------------------- | ------- | ------------------------ | ---------------------------------------------------- |
+| `ANTHROPIC_API_KEY`           | `claude`, `pi`         | unset   | Provider-specific token. | Anthropic-compatible API key target.                 |
+| `OPENAI_API_KEY`              | `codex`                | unset   | Provider-specific token. | OpenAI API key target.                               |
+| `GEMINI_API_KEY`              | `gemini`               | unset   | Provider-specific token. | Gemini API key target.                               |
+| `BLACKBOX_API_KEY`            | `blackbox`             | unset   | Provider-specific token. | BLACKBOX AI key target.                              |
+| `KIMI_API_KEY`                | `kimi-cli`, `moonshot` | unset   | Provider-specific token. | Kimi CLI and Moonshot/Kimi API key target.           |
+| `QODER_PERSONAL_ACCESS_TOKEN` | `qoder`                | unset   | Provider-specific token. | Qoder CLI personal access token target.              |
+| `OPENROUTER_API_KEY`          | `openrouter`           | unset   | Provider-specific token. | OpenRouter API key target for the Pi harness.        |
+| `ZAI_API_KEY`                 | `zai`                  | unset   | Provider-specific token. | z.ai API key target for the Pi harness.              |
+| `AI_GATEWAY_API_KEY`          | `vercel-ai-gateway`    | unset   | Provider-specific token. | Vercel AI Gateway API key target for the Pi harness. |
+| `XAI_API_KEY`                 | `xai`                  | unset   | Provider-specific token. | xAI API key target for the Pi harness.               |
+| `MINIMAX_API_KEY`             | `minimax`              | unset   | Provider-specific token. | MiniMax API key target for the Pi harness.           |
+| `MISTRAL_API_KEY`             | `mistral`              | unset   | Provider-specific token. | Mistral API key target for the Pi harness.           |
+| `GROQ_API_KEY`                | `groq`                 | unset   | Provider-specific token. | Groq API key target for the Pi harness.              |
+
+`AGH_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, AGH creates
+`$AGH_HOME/vault.key` with `0600` permissions the first time it needs to encrypt or decrypt a
+vault-backed secret.
+
+Use [Vault](/runtime/core/configuration/vault) for AGH-managed encrypted values that should be
+written through CLI, HTTP, UDS, or web surfaces. Use `env:NAME` when the service manager or shell
+that starts the daemon should remain the source of truth for the secret value.
 
 ## Automation Webhook Secrets
 
-Config-defined webhook triggers read the environment variable named by
-`[[automation.triggers]].webhook_secret_env`.
+Config-defined webhook triggers require `[[automation.triggers]].webhook_secret_ref`. Use `env:NAME`
+for operator-managed environment variables or `vault:automation/...` for AGH-managed encrypted
+secrets.
 
-| Variable                            | Type   | Default | Valid values                                          | Description                                                                                            |
-| ----------------------------------- | ------ | ------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Value named by `webhook_secret_env` | string | none    | Must exist and be non-empty when `event = "webhook"`. | Secret used to validate config-defined automation webhook triggers. The variable name is user-defined. |
+| Variable named by `env:` ref        | Type   | Default | Valid values                                          | Description                                                 |
+| ----------------------------------- | ------ | ------- | ----------------------------------------------------- | ----------------------------------------------------------- |
+| `AGH_DEPLOY_WEBHOOK_SECRET` example | string | none    | Must exist and be non-empty when the ref is resolved. | Secret used to validate config-defined automation webhooks. |
 
 Example:
 
@@ -57,7 +76,7 @@ agent = "release"
 prompt = "Handle deploy webhook {{ .Kind }}."
 event = "webhook"
 endpoint_slug = "deploy"
-webhook_secret_env = "AGH_DEPLOY_WEBHOOK_SECRET"
+webhook_secret_ref = "env:AGH_DEPLOY_WEBHOOK_SECRET"
 ```
 
 ```bash
@@ -68,21 +87,19 @@ export AGH_DEPLOY_WEBHOOK_SECRET="replace-with-secret"
 
 Managed ACP agent subprocesses inherit the daemon environment. AGH then applies these changes:
 
-| Variable              | Type          | Default                                        | Valid values                        | Description                                                                        |
-| --------------------- | ------------- | ---------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------- |
-| `AGH_SESSION_ID`      | string        | set for every managed session                  | Session ID.                         | Injected into the agent process and read by `agh whoami`.                          |
-| `AGH_SESSION_CHANNEL` | string        | unset unless the session has a network channel | Network channel name.               | Injected for channel sessions. Stale values are removed for non-channel sessions.  |
-| `AGH_PEER_ID`         | string        | unset unless the session has a network channel | `<agent-name>.<session-id>`         | Injected for channel sessions. Stale values are removed for non-channel sessions.  |
-| `AGH_BIN`             | absolute path | current AGH executable                         | Existing executable path.           | Injected into ACP provider subprocesses so agents can call the same AGH binary.    |
-| `PATH`                | path list     | inherited                                      | Path list for the operating system. | The directory containing `AGH_BIN` is prepended and duplicate entries are removed. |
-
-`agh whoami` also reads `AGH_AGENT` and `AGH_AGENT_NAME`, but the current session launch path does
-not synthesize those variables.
-
-| Variable         | Type   | Default | Valid values | Description                                                              |
-| ---------------- | ------ | ------- | ------------ | ------------------------------------------------------------------------ |
-| `AGH_AGENT`      | string | unset   | Any string.  | Read by `agh whoami` as agent identity metadata if a caller supplies it. |
-| `AGH_AGENT_NAME` | string | unset   | Any string.  | Read by `agh whoami` as display name metadata if a caller supplies it.   |
+| Variable               | Type          | Default                                        | Valid values                        | Description                                                                        |
+| ---------------------- | ------------- | ---------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `AGH_SESSION_ID`       | string        | set for every managed session                  | Session ID.                         | Injected into the agent process and read by `agh whoami`.                          |
+| `AGH_AGENT`            | string        | resolved agent name                            | Agent name.                         | Injected for agent identity metadata.                                              |
+| `AGH_AGENT_NAME`       | string        | resolved agent name                            | Agent name.                         | Injected for agent identity metadata.                                              |
+| `AGH_PROVIDER`         | string        | resolved provider id                           | Provider id.                        | Injected for provider-aware tools and diagnostics.                                 |
+| `AGH_PROVIDER_HARNESS` | string        | resolved provider harness                      | `acp`, `pi_acp`.                    | Injected for provider-aware tools and diagnostics.                                 |
+| `AGH_MODEL`            | string        | resolved model                                 | Provider model string.              | Injected for provider-aware tools and diagnostics.                                 |
+| `PI_CODING_AGENT_DIR`  | path          | set only for `pi_acp` providers                | Session-local directory.            | Points Pi at the isolated `settings.json` and `models.json` materialized by AGH.   |
+| `AGH_SESSION_CHANNEL`  | string        | unset unless the session has a network channel | Network channel name.               | Injected for channel sessions. Stale values are removed for non-channel sessions.  |
+| `AGH_PEER_ID`          | string        | unset unless the session has a network channel | `<agent-name>.<session-id>`         | Injected for channel sessions. Stale values are removed for non-channel sessions.  |
+| `AGH_BIN`              | absolute path | current AGH executable                         | Existing executable path.           | Injected into ACP provider subprocesses so agents can call the same AGH binary.    |
+| `PATH`                 | path list     | inherited                                      | Path list for the operating system. | The directory containing `AGH_BIN` is prepended and duplicate entries are removed. |
 
 ## Hook Subprocess Environment
 

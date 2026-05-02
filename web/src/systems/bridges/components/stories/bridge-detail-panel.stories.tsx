@@ -34,7 +34,7 @@ export const Default: Story = {
         provider={bridgeProvidersFixture[0]}
         routes={bridgeRoutesFixture}
         secretBindings={bridgeSecretBindingsFixture}
-        secretInputValues={{ bot_token: "AGH_BRIDGE_BOT_TOKEN" }}
+        secretInputValues={{ bot_token: "telegram-token" }}
         workspaceName="agh2"
       />
     </PanelSurface>
@@ -58,7 +58,7 @@ export const Disabled: Story = {
         provider={bridgeProvidersFixture[0]}
         routes={[]}
         secretBindings={bridgeSecretBindingsFixture}
-        secretInputValues={{ bot_token: "AGH_BRIDGE_BOT_TOKEN" }}
+        secretInputValues={{ bot_token: "telegram-token" }}
         workspaceName="agh2"
       />
     </PanelSurface>
@@ -78,7 +78,7 @@ export const NoRoutes: Story = {
         provider={bridgeProvidersFixture[0]}
         routes={[]}
         secretBindings={bridgeSecretBindingsFixture}
-        secretInputValues={{ bot_token: "AGH_BRIDGE_BOT_TOKEN" }}
+        secretInputValues={{ bot_token: "telegram-token" }}
         workspaceName="agh2"
       />
     </PanelSurface>

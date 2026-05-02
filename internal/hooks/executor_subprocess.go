@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/toolruntime"
+	"github.com/pedronauck/agh/internal/vault"
 	"golang.org/x/sys/execabs"
 )
 
@@ -61,6 +63,19 @@ func WithSubprocessEnv(env map[string]string) SubprocessExecutorOption {
 	}
 }
 
+// SecretRefResolver resolves env: and vault: refs for subprocess secret env bindings.
+type SecretRefResolver interface {
+	ResolveRef(context.Context, string) (string, error)
+}
+
+// WithSubprocessSecretEnv configures secret refs resolved immediately before a hook runs.
+func WithSubprocessSecretEnv(env map[string]string, resolver SecretRefResolver) SubprocessExecutorOption {
+	return func(executor *SubprocessExecutor) {
+		executor.secretEnv = cloneStringMap(env)
+		executor.secretResolver = resolver
+	}
+}
+
 // WithSubprocessProcessRegistry injects the shared process registry for subprocess hook commands.
 func WithSubprocessProcessRegistry(registry *toolruntime.Registry) SubprocessExecutorOption {
 	return func(executor *SubprocessExecutor) {
@@ -70,11 +85,13 @@ func WithSubprocessProcessRegistry(registry *toolruntime.Registry) SubprocessExe
 
 // SubprocessExecutor runs hooks through a local shell command boundary.
 type SubprocessExecutor struct {
-	command  string
-	args     []string
-	dir      string
-	env      map[string]string
-	registry *toolruntime.Registry
+	command        string
+	args           []string
+	dir            string
+	env            map[string]string
+	secretEnv      map[string]string
+	secretResolver SecretRefResolver
+	registry       *toolruntime.Registry
 }
 
 var _ Executor = (*SubprocessExecutor)(nil)
@@ -120,7 +137,12 @@ func (e *SubprocessExecutor) Execute(ctx context.Context, hook RegisteredHook, p
 	}
 	configureSubprocessCommand(cmd)
 	cmd.Dir = e.dir
-	cmd.Env = subprocessProcessEnv(e.env)
+	env, cleanup, err := e.subprocessProcessEnv(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("hooks: hook %q: %w", hook.Name, err)
+	}
+	defer cleanup()
+	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(payload)
 
 	stdout := newLimitedSubprocessCapture()
@@ -135,6 +157,56 @@ func (e *SubprocessExecutor) Execute(ctx context.Context, hook RegisteredHook, p
 	}
 
 	return output, nil
+}
+
+func (e *SubprocessExecutor) subprocessProcessEnv(ctx context.Context) ([]string, func(), error) {
+	env := cloneStringMap(e.env)
+	cleanups := []func(){}
+	if len(e.secretEnv) == 0 {
+		return subprocessProcessEnv(env), func() {}, nil
+	}
+	if ctx == nil {
+		return nil, func() {}, errors.New("secret env context is required")
+	}
+	keys := make([]string, 0, len(e.secretEnv))
+	for key := range e.secretEnv {
+		keys = append(keys, strings.TrimSpace(key))
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		ref := vault.NormalizeRef(e.secretEnv[key])
+		value, err := e.resolveSecretRef(ctx, ref)
+		if err != nil {
+			runSubprocessSecretCleanups(cleanups)
+			return nil, func() {}, fmt.Errorf("resolve secret_env.%s: %w", key, err)
+		}
+		env[key] = value
+		cleanups = append(cleanups, diagnostics.RegisterDynamicSecret(value))
+	}
+	return subprocessProcessEnv(env), func() { runSubprocessSecretCleanups(cleanups) }, nil
+}
+
+func (e *SubprocessExecutor) resolveSecretRef(ctx context.Context, ref string) (string, error) {
+	if e.secretResolver != nil {
+		return e.secretResolver.ResolveRef(ctx, ref)
+	}
+	envName, err := vault.EnvNameFromRef(ref)
+	if err != nil {
+		return "", err
+	}
+	value, ok := os.LookupEnv(envName)
+	if !ok || strings.TrimSpace(value) == "" {
+		return "", fmt.Errorf("%w: env:%s", vault.ErrMissingSecret, envName)
+	}
+	return value, nil
+}
+
+func runSubprocessSecretCleanups(cleanups []func()) {
+	for index := len(cleanups) - 1; index >= 0; index-- {
+		if cleanups[index] != nil {
+			cleanups[index]()
+		}
+	}
 }
 
 func resolvedHookCommand(command string, args []string) (string, []string, error) {

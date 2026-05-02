@@ -48,7 +48,7 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 	assertTableColumns(t, globalDB.db, "bridge_secret_bindings", []string{
 		"bridge_instance_id",
 		"binding_name",
-		"vault_ref",
+		"secret_ref",
 		"kind",
 		"created_at",
 		"updated_at",
@@ -219,7 +219,7 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 	binding := bridges.BridgeSecretBinding{
 		BridgeInstanceID: instance.ID,
 		BindingName:      "bot_token",
-		VaultRef:         "vault://telegram-bot-token",
+		SecretRef:        "vault:bridges/" + instance.ID + "/bot_token",
 		Kind:             "token",
 	}
 	if err := globalDB.PutBridgeSecretBinding(testutil.Context(t), binding); err != nil {
@@ -234,8 +234,8 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBridgeSecretBinding() error = %v", err)
 	}
-	if gotBinding.VaultRef != binding.VaultRef {
-		t.Fatalf("GetBridgeSecretBinding().VaultRef = %q, want %q", gotBinding.VaultRef, binding.VaultRef)
+	if gotBinding.SecretRef != binding.SecretRef {
+		t.Fatalf("GetBridgeSecretBinding().SecretRef = %q, want %q", gotBinding.SecretRef, binding.SecretRef)
 	}
 
 	bindings, err := globalDB.ListBridgeSecretBindings(testutil.Context(t), binding.BridgeInstanceID)
@@ -716,7 +716,7 @@ func TestGlobalDBBridgeConstraintFailuresAndDefaultDedupLookupTime(t *testing.T)
 	if err := globalDB.PutBridgeSecretBinding(testutil.Context(t), bridges.BridgeSecretBinding{
 		BridgeInstanceID: "brg-missing",
 		BindingName:      "bot_token",
-		VaultRef:         "vault://token",
+		SecretRef:        "vault:bridges/brg-missing/bot_token",
 		Kind:             "token",
 	}); !errors.Is(err, bridges.ErrBridgeInstanceNotFound) {
 		t.Fatalf("PutBridgeSecretBinding(missing instance) error = %v, want ErrBridgeInstanceNotFound", err)

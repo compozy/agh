@@ -357,13 +357,15 @@ func TestDaemonNightlyE2EBridgeIngressUsesSandboxToolBeforeDelivery(t *testing.T
 		SideEffectPaths: []string{sideEffectPath},
 	}
 
+	secretValue := "telegram-bot-token"
 	if _, err := harness.PutBridgeSecretBinding(
 		ctx,
 		bridgeID,
 		"bot_token",
 		aghcontract.PutBridgeSecretBindingRequest{
-			VaultRef: "env:AGH_TEST_TELEGRAM_TOKEN",
-			Kind:     "token",
+			SecretRef:   "vault:bridges/" + bridgeID + "/bot_token",
+			Kind:        "token",
+			SecretValue: &secretValue,
 		},
 	); err != nil {
 		t.Fatalf("PutBridgeSecretBinding() error = %v", err)

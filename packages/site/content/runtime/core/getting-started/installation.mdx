@@ -12,12 +12,11 @@ your first durable session.
 Make sure you have:
 
 - **macOS or Linux**. AGH currently targets local-first Unix-like environments.
-- **Go 1.25 or later** if you are installing from source.
-- **At least one supported agent CLI** such as Claude Code, Codex, Gemini CLI, or another
+- **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
   ACP-compatible agent runtime you already use.
-- **Provider credentials exported in the shell that will start the daemon**. The daemon passes its
-  environment down to managed agent subprocesses, so export any required API key before
-  `agh daemon start`.
+- **Provider credentials available to the daemon**. Direct `env:` refs read API keys from the
+  daemon environment, while `vault:providers/<provider>/<slot>` refs use encrypted AGH-managed
+  values saved through settings.
 
 Example:
 
@@ -27,33 +26,36 @@ export OPENAI_API_KEY="..."
 
 ## Install the Binary
 
-### Option 1: `go install`
+### Option 1: curl installer
 
-This is the shortest path when you already have Go installed.
-
-```bash
-go install github.com/compozy/agh/cmd/agh@latest
-```
-
-Make sure the Go bin directory is on your `PATH`:
+This is the recommended path on macOS and Linux:
 
 ```bash
-export PATH="$PATH:$(go env GOPATH)/bin"
+curl -fsSL https://agh.network/install.sh | sh
 ```
 
-### Option 2: build from a repository checkout
+The installer detects your platform, downloads the matching GitHub release archive, verifies it
+against `checksums.txt`, installs `agh`, runs `agh version`, and opens `agh install` when an
+interactive terminal is available.
 
-Use this when you are already working from the AGH source tree or want a local build artifact you
-control explicitly.
+Use flags when you need a pinned or scripted install:
 
 ```bash
-git clone https://github.com/compozy/agh
-cd agh
-go build -o ./bin/agh ./cmd/agh
-export PATH="$PWD/bin:$PATH"
+curl -fsSL https://agh.network/install.sh | sh -s -- --version v0.1.0 --dir "$HOME/.local/bin"
+curl -fsSL https://agh.network/install.sh | sh -s -- --skip-bootstrap
+curl -fsSL https://agh.network/install.sh | sh -s -- --dry-run
 ```
 
-### Option 3: package manager releases
+Environment variables are equivalent for automation:
+
+```bash
+curl -fsSL https://agh.network/install.sh |
+  AGH_VERSION=v0.1.0 AGH_INSTALL_DIR="$HOME/.local/bin" AGH_SKIP_BOOTSTRAP=1 sh
+```
+
+If the target directory is not on your `PATH`, the installer prints the exact directory to add.
+
+### Option 2: package manager releases
 
 Tagged releases publish archive checksums, cosign checksum signatures, SBOMs, a Homebrew cask, and
 Linux `.deb` and `.rpm` packages.
@@ -64,6 +66,18 @@ brew install --cask pedronauck/agh/agh
 
 For Linux package installs, download the `.deb` or `.rpm` for your architecture from the GitHub
 release, verify it against `checksums.txt`, then install it with your distribution package manager.
+
+### Option 3: build from a repository checkout
+
+Use this when you are already working from the AGH source tree or want a local build artifact you
+control explicitly. This path requires Go 1.25 or later.
+
+```bash
+git clone https://github.com/compozy/agh
+cd agh
+go build -o ./bin/agh ./cmd/agh
+export PATH="$PWD/bin:$PATH"
+```
 
 ## Verify the Install
 
@@ -77,7 +91,8 @@ If your shell reports `command not found`, fix `PATH` first. Do that before you 
 
 ## Bootstrap the AGH Home
 
-Run the interactive bootstrap once:
+The curl installer runs this step automatically when it can access an interactive terminal. If you
+used `--skip-bootstrap`, a package manager, or a source build, run the interactive bootstrap once:
 
 ```bash
 agh install
@@ -99,16 +114,17 @@ Use `agh config validate --repair-env --workspace <path>` when a workspace `.env
 bounded repair.
 
 `agh update` reports whether the binary is managed by a package manager through `AGH_MANAGED`. When
-managed, it defers to that package manager; otherwise it points you at the manual release or
-`go install` update path. `agh uninstall` removes runtime launch artifacts idempotently and preserves
-`~/.agh` unless you explicitly pass `--purge --force`.
+managed, it defers to that package manager; otherwise it points you at the manual release update
+path. `agh uninstall` removes runtime launch artifacts idempotently and preserves `~/.agh` unless
+you explicitly pass `--purge --force`.
 
 ## Sanity Check the Runtime Inputs
 
 Before moving to Quick Start, verify these three things:
 
 1. `agh version` succeeds.
-2. `agh install` completed and created `~/.agh/config.toml`.
+2. `agh install` completed, either from the curl installer or manually, and created
+   `~/.agh/config.toml`.
 3. `agh config validate` reports a valid config.
 4. Your provider credential is exported in the shell you will use to start the daemon.
 

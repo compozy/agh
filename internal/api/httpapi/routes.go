@@ -27,6 +27,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerBundleRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
+	registerVaultRoutes(api, handlers)
 	registerWebhookRoutes(api, handlers)
 
 	if engine, ok := router.(*gin.Engine); ok {
@@ -307,6 +308,15 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	actions := settings.Group("/actions")
 	actions.POST("/restart", privileged, handlers.TriggerSettingsRestart)
 	actions.GET("/restart/:operation_id", handlers.GetSettingsRestartStatus)
+}
+
+func registerVaultRoutes(api gin.IRouter, handlers *Handlers) {
+	privileged := handlers.privilegedMutationGuard()
+	vaultGroup := api.Group("/vault")
+	vaultGroup.GET("/secrets", privileged, handlers.ListVaultSecrets)
+	vaultGroup.GET("/secrets/metadata", privileged, handlers.GetVaultSecretMetadata)
+	vaultGroup.PUT("/secrets", privileged, handlers.PutVaultSecret)
+	vaultGroup.DELETE("/secrets", privileged, handlers.DeleteVaultSecret)
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {

@@ -71,7 +71,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "agh",
-		Short: "AGH agent operating system",
+		Short: "AGH — Artificial General Hivemind",
 		Example: `  # Start the daemon and create a session in the current workspace
   agh daemon start
   agh session new --agent general
@@ -108,6 +108,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskCommand(deps))
 	cmd.AddCommand(newSkillCommand(deps))
 	cmd.AddCommand(newMemoryCommand(deps))
+	cmd.AddCommand(newVaultCommand(deps))
 	cmd.AddCommand(newToolCommand(deps))
 	cmd.AddCommand(newToolsetsCommand(deps))
 	cmd.AddCommand(newMCPCommand(deps))

@@ -57,6 +57,7 @@ type dispatchReport struct {
 	Trace          []hookTraceEntry
 	Denied         bool
 	DenySource     string
+	DenyReason     string
 	FailedHook     string
 	FailedRequired bool
 }

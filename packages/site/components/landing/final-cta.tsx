@@ -5,7 +5,7 @@ import { SectionFrame } from "./primitives/section-frame";
 
 export function FinalCta() {
   return (
-    <SectionFrame background="surface" padY="lg">
+    <SectionFrame background="surface" padY="lg" className="border-b border-(--color-divider)">
       <div className="grid gap-8 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas) px-6 py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center lg:px-10">
         <div>
           <p className="font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">

@@ -34,14 +34,19 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 	writeFile(t, homePaths.ConfigFile, `
 # bootstrap comment
 [http]
-port = 3030
+	port = 3030
 
-[providers.claude]
-# keep api key comment
-api_key_env = "ANTHROPIC_KEY"
-`)
+	[providers.claude]
+	# keep credential slot comment
+	[[providers.claude.credential_slots]]
+	name = "api_key"
+	target_env = "ANTHROPIC_KEY"
+	secret_ref = "env:ANTHROPIC_KEY"
+	kind = "api_key"
+	required = true
+	`)
 
-	cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-20250514")
+	cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-6")
 	if err != nil {
 		t.Fatalf("SaveBootstrapConfig() error = %v", err)
 	}
@@ -68,18 +73,18 @@ api_key_env = "ANTHROPIC_KEY"
 	if reloaded.HTTP.Port != 3030 {
 		t.Fatalf("LoadGlobalConfig() HTTP.Port = %d, want 3030", reloaded.HTTP.Port)
 	}
-	if reloaded.Providers["claude"].APIKeyEnv != "ANTHROPIC_KEY" {
+	slots := reloaded.Providers["claude"].EffectiveCredentialSlots()
+	if len(slots) != 1 || slots[0].TargetEnv != "ANTHROPIC_KEY" || slots[0].SecretRef != "env:ANTHROPIC_KEY" {
 		t.Fatalf(
-			"LoadGlobalConfig() Providers[claude].APIKeyEnv = %q, want %q",
-			reloaded.Providers["claude"].APIKeyEnv,
-			"ANTHROPIC_KEY",
+			"LoadGlobalConfig() Providers[claude].CredentialSlots = %#v, want ANTHROPIC_KEY slot",
+			slots,
 		)
 	}
-	if reloaded.Providers["claude"].DefaultModel != "claude-sonnet-4-20250514" {
+	if reloaded.Providers["claude"].DefaultModel != "claude-sonnet-4-6" {
 		t.Fatalf(
 			"LoadGlobalConfig() Providers[claude].DefaultModel = %q, want %q",
 			reloaded.Providers["claude"].DefaultModel,
-			"claude-sonnet-4-20250514",
+			"claude-sonnet-4-6",
 		)
 	}
 	if !reloaded.Network.Enabled {
@@ -93,17 +98,64 @@ api_key_env = "ANTHROPIC_KEY"
 	text := string(contents)
 	for _, want := range []string{
 		`# bootstrap comment`,
-		`# keep api key comment`,
+		`# keep credential slot comment`,
 		`agent = "general"`,
 		`provider = "claude"`,
 		`mode = "approve-all"`,
-		`default_model = "claude-sonnet-4-20250514"`,
+		`default_model = "claude-sonnet-4-6"`,
 		`port = 3030`,
-		`api_key_env = "ANTHROPIC_KEY"`,
+		`secret_ref = "env:ANTHROPIC_KEY"`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config contents missing %q\n%s", want, text)
 		}
+	}
+}
+
+func TestSaveBootstrapConfigAllowsProviderManagedModel(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg, err := SaveBootstrapConfig(homePaths, "blackbox", "")
+	if err != nil {
+		t.Fatalf("SaveBootstrapConfig() error = %v", err)
+	}
+	if cfg.Defaults.Provider != "blackbox" {
+		t.Fatalf("SaveBootstrapConfig() Defaults.Provider = %q, want blackbox", cfg.Defaults.Provider)
+	}
+	if got := cfg.Providers["blackbox"].DefaultModel; got != "" {
+		t.Fatalf("SaveBootstrapConfig() Providers[blackbox].DefaultModel = %q, want empty", got)
+	}
+
+	contents, err := os.ReadFile(homePaths.ConfigFile)
+	if err != nil {
+		t.Fatalf("ReadFile(config) error = %v", err)
+	}
+	text := string(contents)
+	if strings.Contains(text, `default_model =`) {
+		t.Fatalf("config contents wrote provider-managed default model:\n%s", text)
+	}
+}
+
+func TestSaveBootstrapConfigRequiresModelForPiProviders(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	_, err = SaveBootstrapConfig(homePaths, "openrouter", "")
+	if err == nil {
+		t.Fatal("SaveBootstrapConfig() error = nil, want model required error")
+	}
+	wantErr := `bootstrap model is required for provider "openrouter"`
+	if err.Error() != wantErr {
+		t.Fatalf("SaveBootstrapConfig() error = %q, want %q", err.Error(), wantErr)
 	}
 }
 
@@ -149,7 +201,7 @@ default_channel = "legacy"
 				writeFile(t, homePaths.ConfigFile, tt.seed)
 			}
 
-			cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-20250514")
+			cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-6")
 			if err != nil {
 				t.Fatalf("SaveBootstrapConfig() error = %v", err)
 			}

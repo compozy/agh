@@ -27,18 +27,20 @@ for the change you actually want.
 | One agent's advertised capabilities | [capability catalog](/runtime/core/agents/capabilities) next to `AGENT.md` | Other peers need outcome-oriented discovery metadata about what that agent can do.                                                                             |
 | One skill                           | `SKILL.md`                                                                 | You are defining reusable instructions, optional MCP metadata, or skill-owned hooks.                                                                           |
 | MCP server configuration            | `mcp.json`                                                                 | MCP declarations are easier to manage as JSON sidecars than inline frontmatter.                                                                                |
-| Provider credentials                | environment variables                                                      | The daemon must inherit API keys or other runtime secrets before it starts agent subprocesses.                                                                 |
+| Encrypted AGH-managed secrets       | [Vault](/runtime/core/configuration/vault)                                 | Store write-only `vault:<namespace>/...` values and inspect redacted metadata through CLI, HTTP, UDS, web, or session-scoped views.                            |
+| Provider credentials                | provider settings, `credential_slots`, or environment variables            | Bind API-key providers to `env:` or encrypted `vault:providers/<provider>/<slot>` refs without exposing raw secrets in diagnostics.                            |
 | Filesystem locations and precedence | file-locations reference                                                   | You need to know where AGH looks for agents, skills, sessions, memory, or overlays.                                                                            |
 
 ## Read in this order
 
 1. [config.toml](/runtime/core/configuration/config-toml)
-2. [File Locations](/runtime/core/configuration/file-locations)
-3. [AGENT.md](/runtime/core/configuration/agent-md)
-4. [Agent Capabilities](/runtime/core/agents/capabilities)
-5. [SKILL.md](/runtime/core/configuration/skill-md)
-6. [mcp.json](/runtime/core/configuration/mcp-json)
-7. [Environment Variables](/runtime/core/configuration/env-vars)
+2. [Vault](/runtime/core/configuration/vault)
+3. [File Locations](/runtime/core/configuration/file-locations)
+4. [AGENT.md](/runtime/core/configuration/agent-md)
+5. [Agent Capabilities](/runtime/core/agents/capabilities)
+6. [SKILL.md](/runtime/core/configuration/skill-md)
+7. [mcp.json](/runtime/core/configuration/mcp-json)
+8. [Environment Variables](/runtime/core/configuration/env-vars)
 
 That order mirrors how operators usually troubleshoot AGH: global defaults first, path resolution
 second, then file-format specifics and agent sidecars.

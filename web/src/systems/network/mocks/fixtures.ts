@@ -203,7 +203,7 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: "/Users/pedro/Dev/compozy/agh2",
       acp_caps: {
         supports_load_session: true,
-        supported_models: ["claude-opus"],
+        supported_models: ["claude-sonnet-4-6"],
         supported_modes: ["chat"],
       },
     },

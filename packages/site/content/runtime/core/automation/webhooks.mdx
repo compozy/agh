@@ -49,8 +49,11 @@ delivery.
 
 ## Configure a webhook trigger
 
-Config-backed webhook triggers need an endpoint slug and an environment variable containing the
-secret. AGH resolves the secret when it loads and validates config.
+Config-backed webhook triggers need an endpoint slug and a `webhook_secret_ref`. Use `env:NAME` for
+operator-managed environment variables or a `vault:automation/...` ref for AGH-managed encrypted
+secret storage. AGH resolves the secret only when validating signed webhook requests. Store
+AGH-managed values with `agh vault put`, Settings > Vault, or the write-only API before enabling the
+trigger.
 
 ```toml
 [[automation.triggers]]
@@ -59,7 +62,7 @@ workspace = "/Users/you/src/checkout-api"
 name = "deploy-webhook"
 event = "webhook"
 endpoint_slug = "deploy"
-webhook_secret_env = "AGH_DEPLOY_WEBHOOK_SECRET"
+webhook_secret_ref = "env:AGH_DEPLOY_WEBHOOK_SECRET"
 agent = "deployer"
 prompt = "Validate deployment {{ index .Data \"sha\" }} on {{ index .Data \"branch\" }}."
 filter = { "data.action" = "deploy", "data.branch" = "main" }
@@ -257,5 +260,12 @@ agh automation triggers history <trigger-id> --last 20
     title="automation triggers create"
     description="Create the webhook trigger that owns the endpoint."
     meta="Reference"
+  />
+  <RouteRow
+    href="/runtime/core/configuration/vault"
+    label="Vault"
+    title="Encrypted webhook secrets"
+    description="Manage redacted `vault:automation/...` metadata and write-only secret values."
+    meta="Secrets"
   />
 </RouteList>

@@ -166,6 +166,7 @@ type AgentMCPServerJSON struct {
 	Command   string                        `json:"command,omitempty"`
 	Args      []string                      `json:"args,omitempty"`
 	Env       map[string]string             `json:"env,omitempty"`
+	SecretEnv map[string]string             `json:"secret_env,omitempty"`
 	URL       string                        `json:"url,omitempty"`
 	Auth      *SettingsMCPAuthConfigPayload `json:"auth,omitempty"`
 }
@@ -790,7 +791,11 @@ type WorkspaceSkillPayload struct {
 
 // SessionProviderOptionPayload is one workspace-visible session provider option.
 type SessionProviderOptionPayload struct {
-	Name string `json:"name"`
+	Name            string `json:"name"`
+	DisplayName     string `json:"display_name,omitempty"`
+	Harness         string `json:"harness,omitempty"`
+	RuntimeProvider string `json:"runtime_provider,omitempty"`
+	DefaultModel    string `json:"default_model,omitempty"`
 }
 
 // SkillPayload is the HTTP response type for a skill.

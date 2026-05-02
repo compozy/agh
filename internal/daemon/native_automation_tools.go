@@ -350,14 +350,8 @@ func (n *daemonNativeTools) automationTriggersCreate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if input.WebhookSecret != nil {
-		return toolspkg.ToolResult{}, nativeAutomationSecretError(req.ToolID)
-	}
 	trigger := core.AutomationTriggerFromCreateRequest(input.request())
-	if err := trigger.Validate("trigger"); err != nil {
-		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
-	}
-	created, err := n.automationManager().CreateTrigger(ctx, trigger, "")
+	created, err := n.automationManager().CreateTrigger(ctx, trigger, input.webhookSecretWrite())
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -373,9 +367,6 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 	var input automationTriggerUpdateInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
-	}
-	if input.WebhookSecret != nil {
-		return toolspkg.ToolResult{}, nativeAutomationSecretError(req.ToolID)
 	}
 	triggerID, err := requiredNativeString(req.ToolID, "trigger_id", input.TriggerID)
 	if err != nil {
@@ -401,10 +392,7 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 		updated, err = n.automationManager().SetTriggerEnabled(ctx, current.ID, *patch.Enabled)
 	default:
 		next := core.ApplyAutomationTriggerPatch(current, patch)
-		if err := next.Validate("trigger"); err != nil {
-			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
-		}
-		updated, err = n.automationManager().UpdateTrigger(ctx, next, nil)
+		updated, err = n.automationManager().UpdateTrigger(ctx, next, input.webhookSecretWrite())
 	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
@@ -747,68 +735,97 @@ func (i automationJobUpdateInput) request() contract.UpdateJobRequest {
 }
 
 type automationTriggerCreateInput struct {
-	Scope         automationpkg.Scope            `json:"scope"`
-	Name          string                         `json:"name"`
-	AgentName     string                         `json:"agent_name"`
-	WorkspaceID   string                         `json:"workspace_id,omitempty"`
-	Prompt        string                         `json:"prompt"`
-	Event         string                         `json:"event"`
-	Filter        map[string]string              `json:"filter,omitempty"`
-	Enabled       *bool                          `json:"enabled,omitempty"`
-	Retry         *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit     *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
-	WebhookID     string                         `json:"webhook_id,omitempty"`
-	EndpointSlug  string                         `json:"endpoint_slug,omitempty"`
-	WebhookSecret *string                        `json:"webhook_secret,omitempty"`
+	Scope              automationpkg.Scope            `json:"scope"`
+	Name               string                         `json:"name"`
+	AgentName          string                         `json:"agent_name"`
+	WorkspaceID        string                         `json:"workspace_id,omitempty"`
+	Prompt             string                         `json:"prompt"`
+	Event              string                         `json:"event"`
+	Filter             map[string]string              `json:"filter,omitempty"`
+	Enabled            *bool                          `json:"enabled,omitempty"`
+	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	WebhookID          string                         `json:"webhook_id,omitempty"`
+	EndpointSlug       string                         `json:"endpoint_slug,omitempty"`
+	WebhookSecretRef   string                         `json:"webhook_secret_ref,omitempty"`
+	WebhookSecretValue *string                        `json:"webhook_secret_value,omitempty"`
 }
 
 func (i automationTriggerCreateInput) request() contract.CreateTriggerRequest {
 	return contract.CreateTriggerRequest{
-		Scope:        i.Scope,
-		Name:         i.Name,
-		AgentName:    i.AgentName,
-		WorkspaceID:  i.WorkspaceID,
-		Prompt:       i.Prompt,
-		Event:        i.Event,
-		Filter:       i.Filter,
-		Enabled:      i.Enabled,
-		Retry:        i.Retry,
-		FireLimit:    i.FireLimit,
-		WebhookID:    i.WebhookID,
-		EndpointSlug: i.EndpointSlug,
+		Scope:            i.Scope,
+		Name:             i.Name,
+		AgentName:        i.AgentName,
+		WorkspaceID:      i.WorkspaceID,
+		Prompt:           i.Prompt,
+		Event:            i.Event,
+		Filter:           i.Filter,
+		Enabled:          i.Enabled,
+		Retry:            i.Retry,
+		FireLimit:        i.FireLimit,
+		WebhookID:        i.WebhookID,
+		EndpointSlug:     i.EndpointSlug,
+		WebhookSecretRef: i.WebhookSecretRef,
 	}
 }
 
+func (i automationTriggerCreateInput) webhookSecretWrite() automationpkg.WebhookSecretWrite {
+	write := automationpkg.WebhookSecretWrite{Ref: strings.TrimSpace(i.WebhookSecretRef)}
+	if i.WebhookSecretValue != nil {
+		value := strings.TrimSpace(*i.WebhookSecretValue)
+		write.Value = &value
+	}
+	return write
+}
+
 type automationTriggerUpdateInput struct {
-	TriggerID     string                         `json:"trigger_id"`
-	Name          *string                        `json:"name,omitempty"`
-	AgentName     *string                        `json:"agent_name,omitempty"`
-	WorkspaceID   *string                        `json:"workspace_id,omitempty"`
-	Prompt        *string                        `json:"prompt,omitempty"`
-	Event         *string                        `json:"event,omitempty"`
-	Filter        map[string]string              `json:"filter,omitempty"`
-	Enabled       *bool                          `json:"enabled,omitempty"`
-	Retry         *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit     *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
-	WebhookID     *string                        `json:"webhook_id,omitempty"`
-	EndpointSlug  *string                        `json:"endpoint_slug,omitempty"`
-	WebhookSecret *string                        `json:"webhook_secret,omitempty"`
+	TriggerID          string                         `json:"trigger_id"`
+	Name               *string                        `json:"name,omitempty"`
+	AgentName          *string                        `json:"agent_name,omitempty"`
+	WorkspaceID        *string                        `json:"workspace_id,omitempty"`
+	Prompt             *string                        `json:"prompt,omitempty"`
+	Event              *string                        `json:"event,omitempty"`
+	Filter             map[string]string              `json:"filter,omitempty"`
+	Enabled            *bool                          `json:"enabled,omitempty"`
+	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	WebhookID          *string                        `json:"webhook_id,omitempty"`
+	EndpointSlug       *string                        `json:"endpoint_slug,omitempty"`
+	WebhookSecretRef   *string                        `json:"webhook_secret_ref,omitempty"`
+	WebhookSecretValue *string                        `json:"webhook_secret_value,omitempty"`
 }
 
 func (i automationTriggerUpdateInput) request() contract.UpdateTriggerRequest {
 	return contract.UpdateTriggerRequest{
-		Name:         i.Name,
-		AgentName:    i.AgentName,
-		WorkspaceID:  i.WorkspaceID,
-		Prompt:       i.Prompt,
-		Event:        i.Event,
-		Filter:       i.Filter,
-		Enabled:      i.Enabled,
-		Retry:        i.Retry,
-		FireLimit:    i.FireLimit,
-		WebhookID:    i.WebhookID,
-		EndpointSlug: i.EndpointSlug,
+		Name:               i.Name,
+		AgentName:          i.AgentName,
+		WorkspaceID:        i.WorkspaceID,
+		Prompt:             i.Prompt,
+		Event:              i.Event,
+		Filter:             i.Filter,
+		Enabled:            i.Enabled,
+		Retry:              i.Retry,
+		FireLimit:          i.FireLimit,
+		WebhookID:          i.WebhookID,
+		EndpointSlug:       i.EndpointSlug,
+		WebhookSecretRef:   i.WebhookSecretRef,
+		WebhookSecretValue: i.WebhookSecretValue,
 	}
+}
+
+func (i automationTriggerUpdateInput) webhookSecretWrite() *automationpkg.WebhookSecretWrite {
+	if i.WebhookSecretRef == nil && i.WebhookSecretValue == nil {
+		return nil
+	}
+	write := automationpkg.WebhookSecretWrite{}
+	if i.WebhookSecretRef != nil {
+		write.Ref = strings.TrimSpace(*i.WebhookSecretRef)
+	}
+	if i.WebhookSecretValue != nil {
+		value := strings.TrimSpace(*i.WebhookSecretValue)
+		write.Value = &value
+	}
+	return &write
 }
 
 type automationJobHistoryInput struct {
@@ -919,7 +936,6 @@ func nativeAutomationToolError(id toolspkg.ToolID, err error) error {
 	case errors.Is(err, automationpkg.ErrJobNameTaken),
 		errors.Is(err, automationpkg.ErrTriggerNameTaken),
 		errors.Is(err, automationpkg.ErrTriggerWebhookIDTaken),
-		errors.Is(err, automationpkg.ErrTriggerWebhookSecretNotFound),
 		errors.Is(err, automationpkg.ErrWebhookSecretRequired),
 		errors.Is(err, automationpkg.ErrOverlayRequiresConfigSource):
 		return nativeAutomationValidationError(id, err)
@@ -935,16 +951,6 @@ func nativeAutomationValidationError(id toolspkg.ToolID, err error) error {
 		"automation validation failed",
 		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 		toolspkg.ReasonAutomationValidationFailed,
-	)
-}
-
-func nativeAutomationSecretError(id toolspkg.ToolID) error {
-	return toolspkg.NewToolError(
-		toolspkg.ErrorCodeDenied,
-		id,
-		"automation tools cannot accept raw webhook secret material",
-		toolspkg.ErrToolDenied,
-		toolspkg.ReasonAutomationSecretInputForbidden,
 	)
 }
 

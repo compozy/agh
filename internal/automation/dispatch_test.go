@@ -1558,18 +1558,19 @@ func testJob(scope Scope, name string, workspaceID string) Job {
 
 func testTrigger(scope Scope, name string, workspaceID string) Trigger {
 	return Trigger{
-		ID:          "trigger-" + name,
-		Scope:       scope,
-		Name:        name,
-		AgentName:   "reviewer",
-		WorkspaceID: workspaceID,
-		Prompt:      `Review payload {{ index .Data "payload" }}`,
-		Event:       "webhook",
-		Enabled:     true,
-		Retry:       DefaultRetryConfig(),
-		FireLimit:   DefaultFireLimitConfig(),
-		Source:      JobSourceDynamic,
-		WebhookID:   "wbh_" + name,
+		ID:               "trigger-" + name,
+		Scope:            scope,
+		Name:             name,
+		AgentName:        "reviewer",
+		WorkspaceID:      workspaceID,
+		Prompt:           `Review payload {{ index .Data "payload" }}`,
+		Event:            "webhook",
+		Enabled:          true,
+		Retry:            DefaultRetryConfig(),
+		FireLimit:        DefaultFireLimitConfig(),
+		Source:           JobSourceDynamic,
+		WebhookID:        "wbh_" + name,
+		WebhookSecretRef: "env:AGH_TEST_WEBHOOK_SECRET",
 	}
 }
 

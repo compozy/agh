@@ -371,7 +371,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}{
 			{path: "daemon.socket", reason: toolspkg.ReasonConfigTrustRootForbidden},
 			{path: "http.port", reason: toolspkg.ReasonConfigTrustRootForbidden},
-			{path: "providers.claude.api_key_env", reason: toolspkg.ReasonConfigSecretPathForbidden},
+			{path: "providers.claude.credential_slots[0].secret_ref", reason: toolspkg.ReasonConfigSecretPathForbidden},
 			{path: "mcp_servers[0].env.TOKEN", reason: toolspkg.ReasonConfigSecretPathForbidden},
 			{path: "sandboxes.default.runtime_root", reason: toolspkg.ReasonConfigTrustRootForbidden},
 		}

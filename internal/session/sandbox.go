@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	envpkg "github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 const (
@@ -102,6 +104,10 @@ func (m *Manager) prepareSandboxForStart(
 		ProviderState:       cloneRawMessage(meta.ProviderState),
 	}
 	req, err = m.dispatchSandboxPrepare(ctx, session, req)
+	if err != nil {
+		return acp.StartOpts{}, err
+	}
+	req, err = m.resolveSandboxSecretEnv(ctx, session, req)
 	if err != nil {
 		return acp.StartOpts{}, err
 	}
@@ -241,6 +247,45 @@ func (m *Manager) dispatchSandboxPrepare(
 
 	req.Sandbox.Env = mergeSandboxEnv(req.Sandbox.Env, patched.EnvOverrides)
 	req.AgentEnv = applySandboxEnvOverrides(req.AgentEnv, patched.EnvOverrides)
+	return req, nil
+}
+
+func (m *Manager) resolveSandboxSecretEnv(
+	ctx context.Context,
+	session *Session,
+	req envpkg.PrepareRequest,
+) (envpkg.PrepareRequest, error) {
+	if len(req.Sandbox.SecretEnv) == 0 {
+		return req, nil
+	}
+	if ctx == nil {
+		return req, errors.New("session: sandbox secret env context is required")
+	}
+	if m.providerSecrets == nil {
+		return req, errors.New("session: sandbox secret resolver is not configured")
+	}
+	values := make(map[string]string, len(req.Sandbox.SecretEnv))
+	cleanups := []func(){}
+	keys := make([]string, 0, len(req.Sandbox.SecretEnv))
+	for key := range req.Sandbox.SecretEnv {
+		keys = append(keys, strings.TrimSpace(key))
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		ref := vault.NormalizeRef(req.Sandbox.SecretEnv[key])
+		value, err := m.providerSecrets.ResolveRef(ctx, ref)
+		if err != nil {
+			runProviderSecretRedactions(cleanups)
+			return req, fmt.Errorf("session: resolve sandbox secret_env.%s: %w", key, err)
+		}
+		values[key] = value
+		cleanups = append(cleanups, diagnostics.RegisterDynamicSecret(value))
+	}
+	req.Sandbox.Env = mergeSandboxEnv(req.Sandbox.Env, values)
+	req.AgentEnv = applySandboxEnvOverrides(req.AgentEnv, values)
+	if session != nil {
+		session.addProviderSecretRedactions(cleanups)
+	}
 	return req, nil
 }
 
@@ -908,6 +953,7 @@ func sandboxProfilePayload(resolved envpkg.Resolved) hookspkg.SandboxProfilePayl
 		RuntimeRootDir: strings.TrimSpace(resolved.RuntimeRootDir),
 		DestroyOnStop:  resolved.DestroyOnStop,
 		Env:            mergeSandboxEnv(nil, resolved.Env),
+		SecretEnv:      mergeSandboxEnv(nil, resolved.SecretEnv),
 	}
 }
 

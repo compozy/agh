@@ -1,4 +1,5 @@
 {
     "title": "Sandbox",
-    "pages": ["index", "profiles", "daytona"]
+    "icon": "Terminal",
+    "pages": ["profiles", "daytona"]
 }

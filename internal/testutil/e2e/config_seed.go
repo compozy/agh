@@ -306,10 +306,11 @@ type seedAgentDefFrontmatter struct {
 }
 
 type seedAgentMCPServerFM struct {
-	Name    string            `yaml:"name"`
-	Command string            `yaml:"command"`
-	Args    []string          `yaml:"args,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"`
+	Name      string            `yaml:"name"`
+	Command   string            `yaml:"command"`
+	Args      []string          `yaml:"args,omitempty"`
+	Env       map[string]string `yaml:"env,omitempty"`
+	SecretEnv map[string]string `yaml:"secret_env,omitempty"`
 }
 
 func renderSeedAgentDef(seed AgentSeed) (string, error) {
@@ -331,10 +332,11 @@ func renderSeedAgentDef(seed AgentSeed) (string, error) {
 	}
 	for _, server := range seed.MCPServers {
 		metadata.MCPServers = append(metadata.MCPServers, seedAgentMCPServerFM{
-			Name:    strings.TrimSpace(server.Name),
-			Command: strings.TrimSpace(server.Command),
-			Args:    append([]string(nil), server.Args...),
-			Env:     maps.Clone(server.Env),
+			Name:      strings.TrimSpace(server.Name),
+			Command:   strings.TrimSpace(server.Command),
+			Args:      append([]string(nil), server.Args...),
+			Env:       maps.Clone(server.Env),
+			SecretEnv: maps.Clone(server.SecretEnv),
 		})
 	}
 

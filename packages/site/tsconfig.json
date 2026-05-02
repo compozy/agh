@@ -18,7 +18,9 @@
             }
         ],
         "paths": {
-            "@/*": ["./*"]
+            "@/*": ["./*"],
+            "#site/content": ["./.velite"],
+            "#site/*": ["./.velite/*"]
         },
         "allowJs": true
     },
@@ -28,6 +30,7 @@
         "**/*.tsx",
         ".next/types/**/*.ts",
         ".source/**/*.ts",
+        ".velite/**/*.ts",
         ".next/dev/types/**/*.ts"
     ],
     "exclude": ["node_modules"]

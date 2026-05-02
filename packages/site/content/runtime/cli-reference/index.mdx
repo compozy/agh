@@ -27,6 +27,7 @@ runtime --> daemon[daemon]
 runtime --> network[network]
 runtime --> bridge[bridge]
 runtime --> mcp[mcp]
+runtime --> vault[vault]
 
 agh --> work
 work --> session[session]
@@ -119,6 +120,13 @@ caption="The CLI groups commands by the runtime surface they operate: daemon pro
     title="Manage platform bridge instances"
     description="Use this group for bridge instance creation, routing, lifecycle, and delivery tests."
     meta="External channels"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/vault"
+    label="Vault"
+    title="Manage encrypted daemon Vault metadata"
+    description="Use this group to list redacted metadata, write values from stdin, inspect one ref, and delete refs."
+    meta="Secrets"
   />
   <RouteRow
     href="/runtime/cli-reference/skill"

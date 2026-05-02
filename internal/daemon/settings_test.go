@@ -82,7 +82,7 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(first) error = %v", err)
 	}
 
-	expiresAt := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	expiresAt := time.Date(2126, 5, 1, 12, 0, 0, 0, time.UTC)
 	if err := first.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
 		ServerName:   "remote-docs",
 		Issuer:       "https://issuer.example.com",
@@ -134,5 +134,43 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 	}
 	if status.ExpiresAt == nil || !status.ExpiresAt.Equal(expiresAt) {
 		t.Fatalf("MCPAuthStatus().ExpiresAt = %v, want %v", status.ExpiresAt, expiresAt)
+	}
+}
+
+func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	called := false
+	surface := &settingsRuntimeSurface{
+		secretResolver: func(_ context.Context, ref string) (string, error) {
+			called = true
+			if ref != "vault:mcp/remote-docs/oauth/client-secret" {
+				t.Fatalf("secret resolver ref = %q, want remote-docs client secret ref", ref)
+			}
+			return "client-secret", nil
+		},
+	}
+
+	status, err := surface.MCPAuthStatus(ctx, aghconfig.MCPServer{
+		Name:      "remote-docs",
+		Transport: aghconfig.MCPServerTransportHTTP,
+		URL:       "https://mcp.example.com",
+		Auth: aghconfig.MCPAuthConfig{
+			Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+			ClientID:         "agh-cli",
+			ClientSecretRef:  "vault:mcp/remote-docs/oauth/client-secret",
+			AuthorizationURL: "https://issuer.example.com/oauth/authorize",
+			TokenURL:         "https://issuer.example.com/oauth/token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("MCPAuthStatus() error = %v", err)
+	}
+	if !called {
+		t.Fatal("MCPAuthStatus() did not resolve client_secret_ref")
+	}
+	if got, want := status.Status, mcpauth.StatusNeedsLogin; got != want {
+		t.Fatalf("MCPAuthStatus().Status = %q, want %q", got, want)
 	}
 }

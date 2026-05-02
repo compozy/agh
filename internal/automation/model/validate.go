@@ -7,6 +7,7 @@ import (
 	"time"
 
 	networkrules "github.com/pedronauck/agh/internal/network/rules"
+	"github.com/pedronauck/agh/internal/vault"
 	cron "github.com/robfig/cron/v3"
 )
 
@@ -368,40 +369,43 @@ func (t Trigger) Validate(path string) error {
 		return fmt.Errorf("%s is invalid: %w", nestedPath(path, "prompt"), err)
 	}
 	if strings.TrimSpace(t.Event) == "webhook" {
-		if strings.TrimSpace(t.EndpointSlug) == "" && strings.TrimSpace(t.WebhookID) == "" {
-			return errors.New(
-				nestedPath(
-					path,
-					"endpoint_slug",
-				) + " or " + nestedPath(
-					path,
-					"webhook_id",
-				) + " is required when event is \"webhook\"",
-			)
-		}
-		if webhookID := strings.TrimSpace(
-			t.WebhookID,
-		); webhookID != "" &&
-			!strings.HasPrefix(webhookID, webhookIDPrefix) {
-			return fmt.Errorf("%s must start with %q: %q", nestedPath(path, "webhook_id"), webhookIDPrefix, webhookID)
-		}
-		return nil
+		return validateWebhookTriggerFields(t, path)
 	}
-	if strings.TrimSpace(t.EndpointSlug) != "" {
-		return fmt.Errorf(
-			"%s must be empty when event is %q",
-			nestedPath(path, "endpoint_slug"),
-			strings.TrimSpace(t.Event),
+	return validateNonWebhookTriggerFields(t, path)
+}
+
+func validateWebhookTriggerFields(t Trigger, path string) error {
+	if strings.TrimSpace(t.EndpointSlug) == "" && strings.TrimSpace(t.WebhookID) == "" {
+		return errors.New(
+			nestedPath(path, "endpoint_slug") + " or " +
+				nestedPath(path, "webhook_id") +
+				" is required when event is \"webhook\"",
 		)
+	}
+	webhookID := strings.TrimSpace(t.WebhookID)
+	if webhookID != "" && !strings.HasPrefix(webhookID, webhookIDPrefix) {
+		return fmt.Errorf("%s must start with %q: %q", nestedPath(path, "webhook_id"), webhookIDPrefix, webhookID)
+	}
+	if strings.TrimSpace(t.WebhookSecretRef) == "" {
+		return errors.New(nestedPath(path, "webhook_secret_ref") + " is required when event is \"webhook\"")
+	}
+	if err := vault.ValidateRefNamespace(t.WebhookSecretRef, "automation"); err != nil {
+		return fmt.Errorf("%s is invalid: %w", nestedPath(path, "webhook_secret_ref"), err)
+	}
+	return nil
+}
+
+func validateNonWebhookTriggerFields(t Trigger, path string) error {
+	event := strings.TrimSpace(t.Event)
+	if strings.TrimSpace(t.EndpointSlug) != "" {
+		return fmt.Errorf("%s must be empty when event is %q", nestedPath(path, "endpoint_slug"), event)
 	}
 	if strings.TrimSpace(t.WebhookID) != "" {
-		return fmt.Errorf(
-			"%s must be empty when event is %q",
-			nestedPath(path, "webhook_id"),
-			strings.TrimSpace(t.Event),
-		)
+		return fmt.Errorf("%s must be empty when event is %q", nestedPath(path, "webhook_id"), event)
 	}
-
+	if strings.TrimSpace(t.WebhookSecretRef) != "" {
+		return fmt.Errorf("%s must be empty when event is %q", nestedPath(path, "webhook_secret_ref"), event)
+	}
 	return nil
 }
 

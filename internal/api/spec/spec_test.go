@@ -145,7 +145,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"fire_limit",
 					"webhook_id",
 					"endpoint_slug",
-					"webhook_secret",
+					"webhook_secret_ref",
+					"webhook_secret_value",
 				)
 				assertEnumValues(t, propertySchema(t, createTriggerSchema, "scope"), "global", "workspace")
 
@@ -456,7 +457,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					bindingSchema,
 					"bridge_instance_id",
 					"binding_name",
-					"vault_ref",
+					"secret_ref",
 					"kind",
 					"created_at",
 					"updated_at",
@@ -466,7 +467,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, putBinding, "id", openapi3.ParameterInPath, true)
 				assertParameter(t, putBinding, "binding_name", openapi3.ParameterInPath, true)
 				putBindingSchema := jsonRequestSchema(t, putBinding)
-				assertRequired(t, putBindingSchema, "vault_ref", "kind")
+				assertRequired(t, putBindingSchema, "secret_ref", "kind")
 
 				putBindingResponseSchema := jsonResponseSchema(t, putBinding, 200)
 				assertRequired(t, putBindingResponseSchema, "binding")

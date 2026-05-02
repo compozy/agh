@@ -22,6 +22,7 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	"github.com/pedronauck/agh/internal/transcript"
+	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -78,7 +79,7 @@ type BridgeService interface {
 	bridgepkg.TargetResolver
 	ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error)
 	ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error)
-	PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error
+	PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding, secretValue *string) error
 	DeleteSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error
 	StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
 	StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
@@ -150,6 +151,14 @@ type SettingsService interface {
 	)
 }
 
+// VaultService exposes redacted secret metadata and write-only mutations to API transports.
+type VaultService interface {
+	GetMetadata(ctx context.Context, ref string) (vault.Metadata, error)
+	ListMetadata(ctx context.Context, prefix string) ([]vault.Metadata, error)
+	PutSecret(ctx context.Context, ref string, kind string, plaintext string) (vault.Metadata, error)
+	DeleteSecret(ctx context.Context, ref string) error
+}
+
 // SettingsRestartOperation is the daemon-owned restart record exposed to settings transports.
 type SettingsRestartOperation struct {
 	OperationID        string
@@ -217,12 +226,12 @@ type AutomationManager interface {
 	CreateTrigger(
 		ctx context.Context,
 		trigger automationpkg.Trigger,
-		webhookSecret string,
+		webhookSecret automationpkg.WebhookSecretWrite,
 	) (automationpkg.Trigger, error)
 	UpdateTrigger(
 		ctx context.Context,
 		trigger automationpkg.Trigger,
-		webhookSecret *string,
+		webhookSecret *automationpkg.WebhookSecretWrite,
 	) (automationpkg.Trigger, error)
 	DeleteTrigger(ctx context.Context, id string) error
 	ListRuns(ctx context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error)

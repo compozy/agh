@@ -994,11 +994,12 @@ func (m *Service) transitionClaimedRunToStarting(
 		return Run{}, nil, err
 	}
 
-	startingTask, err := m.reconcileTaskCascade(ctx, run.TaskID)
+	lifecycleCtx := taskRunLifecycleContext(ctx)
+	startingTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
 	if err != nil {
 		return Run{}, nil, err
 	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunStarting, actor, runTransitionPayload{
+	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunStarting, actor, runTransitionPayload{
 		Status:     run.Status,
 		TaskStatus: startingTask.Status,
 		SessionID:  run.SessionID,
@@ -1006,11 +1007,27 @@ func (m *Service) transitionClaimedRunToStarting(
 		return Run{}, nil, err
 	}
 
-	sessionID, failedRun, err := m.startRunSession(ctx, taskRecord, startingTask, run, actor)
+	sessionID, failedRun, err := m.startRunSession(lifecycleCtx, taskRecord, startingTask, run, actor)
 	if err != nil {
 		return Run{}, failedRun, err
 	}
 	run.SessionID = sessionID
+	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
+		stopErr := m.stopUnboundStartedTaskSession(lifecycleCtx, sessionID)
+		return Run{}, nil, errorsJoin(err, stopErr)
+	}
+
+	boundTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
+	if err != nil {
+		return Run{}, nil, err
+	}
+	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunSessionBound, actor, runTransitionPayload{
+		Status:     run.Status,
+		TaskStatus: boundTask.Status,
+		SessionID:  run.SessionID,
+	}); err != nil {
+		return Run{}, nil, err
+	}
 	return run, nil, nil
 }
 
@@ -1056,6 +1073,22 @@ func (m *Service) startRunSession(
 		return "", failedRun, err
 	}
 	return strings.TrimSpace(sessionRef.SessionID), nil, nil
+}
+
+func (m *Service) stopUnboundStartedTaskSession(ctx context.Context, sessionID string) error {
+	trimmedSessionID := strings.TrimSpace(sessionID)
+	if trimmedSessionID == "" || m.sessions == nil {
+		return nil
+	}
+	requestErr := m.sessions.RequestTaskStop(ctx, trimmedSessionID, StopReasonFailed)
+	forceErr := m.sessions.ForceTaskStop(ctx, trimmedSessionID, StopReasonFailed)
+	if requestErr != nil {
+		requestErr = fmt.Errorf("task: request stop for unbound session %q: %w", trimmedSessionID, requestErr)
+	}
+	if forceErr != nil {
+		forceErr = fmt.Errorf("task: force stop unbound session %q: %w", trimmedSessionID, forceErr)
+	}
+	return errorsJoin(requestErr, forceErr)
 }
 
 func (m *Service) failRunAfterSessionStartError(
@@ -1684,17 +1717,18 @@ func (m *Service) StartRun(ctx context.Context, runID string, req StartRun, acto
 		return nil, requireRunTransition(run, TaskRunStatusRunning)
 	}
 
+	lifecycleCtx := taskRunLifecycleContext(ctx)
 	run.Status = TaskRunStatusRunning
 	run.StartedAt = m.now().UTC()
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
+	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
 		return nil, err
 	}
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID)
+	reconciledTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunStarted, actor, runTransitionPayload{
+	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunStarted, actor, runTransitionPayload{
 		Status:     run.Status,
 		TaskStatus: reconciledTask.Status,
 		SessionID:  run.SessionID,

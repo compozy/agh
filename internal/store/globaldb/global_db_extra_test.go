@@ -275,10 +275,6 @@ func TestGlobalDBWorkspaceAndAutomationGuardClauses(t *testing.T) {
 	_, err = nilDB.ListTriggerEnabledOverlays(ctx)
 	assertErr("ListTriggerEnabledOverlays(nil receiver)", err)
 	assertErr("DeleteTriggerEnabledOverlay(nil receiver)", nilDB.DeleteTriggerEnabledOverlay(ctx, "trigger-1"))
-	assertErr("SetTriggerWebhookSecret(nil receiver)", nilDB.SetTriggerWebhookSecret(ctx, "trigger-1", "secret"))
-	_, err = nilDB.GetTriggerWebhookSecret(ctx, "trigger-1")
-	assertErr("GetTriggerWebhookSecret(nil receiver)", err)
-	assertErr("DeleteTriggerWebhookSecret(nil receiver)", nilDB.DeleteTriggerWebhookSecret(ctx, "trigger-1"))
 
 	globalDB := openTestGlobalDB(t)
 	assertErr("InsertWorkspace(nil ctx)", globalDB.InsertWorkspace(nilGlobalContext(), aghworkspace.Workspace{}))

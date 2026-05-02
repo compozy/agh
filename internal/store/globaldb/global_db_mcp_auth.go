@@ -2,31 +2,19 @@ package globaldb
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	cryptoRand "crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 var _ mcpauth.TokenStore = (*GlobalDB)(nil)
-
-const (
-	mcpAuthSecretKeyBytes      = 32
-	mcpAuthSecretEncodingV1    = "v1:"
-	mcpAuthSecretKeyFileSuffix = ".mcp-auth.key" // #nosec G101 -- file suffix, not secret material.
-	mcpAuthSecretKeyFileMode   = 0o600
-)
 
 // SaveMCPAuthToken persists one remote MCP OAuth token record.
 func (g *GlobalDB) SaveMCPAuthToken(ctx context.Context, token mcpauth.TokenRecord) error {
@@ -41,27 +29,42 @@ func (g *GlobalDB) SaveMCPAuthToken(ctx context.Context, token mcpauth.TokenReco
 	if err != nil {
 		return fmt.Errorf("store: marshal MCP auth token scopes: %w", err)
 	}
-	accessToken, err := g.encryptMCPAuthTokenSecret(normalized.ServerName, "access_token", normalized.AccessToken)
+	service, err := g.vaultService()
 	if err != nil {
 		return err
 	}
-	refreshToken, err := g.encryptMCPAuthTokenSecret(normalized.ServerName, "refresh_token", normalized.RefreshToken)
-	if err != nil {
-		return err
+	accessTokenRef := mcpAuthTokenSecretRef(normalized.ServerName, "access-token")
+	if _, err := service.PutSecret(ctx, accessTokenRef, "mcp_oauth_access_token", normalized.AccessToken); err != nil {
+		return fmt.Errorf("store: save MCP auth access token for %q: %w", normalized.ServerName, err)
+	}
+	refreshTokenRef := ""
+	if strings.TrimSpace(normalized.RefreshToken) != "" {
+		refreshTokenRef = mcpAuthTokenSecretRef(normalized.ServerName, "refresh-token")
+		if _, err := service.PutSecret(
+			ctx,
+			refreshTokenRef,
+			"mcp_oauth_refresh_token",
+			normalized.RefreshToken,
+		); err != nil {
+			return fmt.Errorf("store: save MCP auth refresh token for %q: %w", normalized.ServerName, err)
+		}
+	} else if err := deleteMCPRefreshTokenSecret(ctx, service, normalized.ServerName); err != nil &&
+		!errors.Is(err, vault.ErrSecretNotFound) {
+		return fmt.Errorf("store: clear MCP auth refresh token for %q: %w", normalized.ServerName, err)
 	}
 
 	_, err = g.db.ExecContext(
 		ctx,
 		`INSERT INTO mcp_auth_tokens (
-			server_name, issuer, client_id, scopes_json, access_token, refresh_token,
+			server_name, issuer, client_id, scopes_json, access_token_ref, refresh_token_ref,
 			token_type, expires_at, obtained_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(server_name) DO UPDATE SET
 			issuer = excluded.issuer,
 			client_id = excluded.client_id,
 			scopes_json = excluded.scopes_json,
-			access_token = excluded.access_token,
-			refresh_token = excluded.refresh_token,
+			access_token_ref = excluded.access_token_ref,
+			refresh_token_ref = excluded.refresh_token_ref,
 			token_type = excluded.token_type,
 			expires_at = excluded.expires_at,
 			obtained_at = excluded.obtained_at,
@@ -70,8 +73,8 @@ func (g *GlobalDB) SaveMCPAuthToken(ctx context.Context, token mcpauth.TokenReco
 		normalized.Issuer,
 		normalized.ClientID,
 		string(scopesJSON),
-		accessToken,
-		refreshToken,
+		accessTokenRef,
+		refreshTokenRef,
 		normalized.TokenType,
 		nullableTime(normalized.ExpiresAt),
 		store.FormatTimestamp(normalized.ObtainedAt),
@@ -95,7 +98,7 @@ func (g *GlobalDB) GetMCPAuthToken(ctx context.Context, serverName string) (mcpa
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT server_name, issuer, client_id, scopes_json, access_token, refresh_token,
+		`SELECT server_name, issuer, client_id, scopes_json, access_token_ref, refresh_token_ref,
 			token_type, expires_at, obtained_at, updated_at
 		FROM mcp_auth_tokens
 		WHERE server_name = ?`,
@@ -108,7 +111,7 @@ func (g *GlobalDB) GetMCPAuthToken(ctx context.Context, serverName string) (mcpa
 		}
 		return mcpauth.TokenRecord{}, err
 	}
-	if err := g.decryptMCPAuthTokenSecrets(&token); err != nil {
+	if err := g.resolveMCPAuthTokenSecrets(ctx, &token); err != nil {
 		return mcpauth.TokenRecord{}, err
 	}
 	return token, nil
@@ -121,7 +124,7 @@ func (g *GlobalDB) ListMCPAuthTokens(ctx context.Context) ([]mcpauth.TokenRecord
 	}
 	rows, err := g.db.QueryContext(
 		ctx,
-		`SELECT server_name, issuer, client_id, scopes_json, access_token, refresh_token,
+		`SELECT server_name, issuer, client_id, scopes_json, access_token_ref, refresh_token_ref,
 			token_type, expires_at, obtained_at, updated_at
 		FROM mcp_auth_tokens
 		ORDER BY server_name ASC`,
@@ -139,7 +142,7 @@ func (g *GlobalDB) ListMCPAuthTokens(ctx context.Context) ([]mcpauth.TokenRecord
 		if scanErr != nil {
 			return nil, scanErr
 		}
-		if err := g.decryptMCPAuthTokenSecrets(&token); err != nil {
+		if err := g.resolveMCPAuthTokenSecrets(ctx, &token); err != nil {
 			return nil, err
 		}
 		tokens = append(tokens, token)
@@ -159,8 +162,24 @@ func (g *GlobalDB) DeleteMCPAuthToken(ctx context.Context, serverName string) er
 	if name == "" {
 		return errors.New("store: MCP auth token server name is required")
 	}
+	accessTokenRef, refreshTokenRef, err := g.getMCPAuthTokenRefs(ctx, name)
+	if err != nil && !errors.Is(err, mcpauth.ErrTokenNotFound) {
+		return err
+	}
 	if _, err := g.db.ExecContext(ctx, `DELETE FROM mcp_auth_tokens WHERE server_name = ?`, name); err != nil {
 		return fmt.Errorf("store: delete MCP auth token for %q: %w", name, err)
+	}
+	service, err := g.vaultService()
+	if err != nil {
+		return err
+	}
+	for _, ref := range []string{accessTokenRef, refreshTokenRef} {
+		if strings.TrimSpace(ref) == "" {
+			continue
+		}
+		if err := service.DeleteSecret(ctx, ref); err != nil && !errors.Is(err, vault.ErrSecretNotFound) {
+			return fmt.Errorf("store: delete MCP auth token secret for %q: %w", name, err)
+		}
 	}
 	return nil
 }
@@ -207,34 +226,19 @@ func trimTokenScopes(scopes []string) []string {
 	return trimmed
 }
 
-func (g *GlobalDB) encryptMCPAuthTokenSecret(serverName string, fieldName string, secret string) (string, error) {
-	if strings.TrimSpace(secret) == "" {
-		return "", nil
-	}
-	aead, err := g.mcpAuthSecretCipher()
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, aead.NonceSize())
-	if _, err := cryptoRand.Read(nonce); err != nil {
-		return "", fmt.Errorf("store: generate MCP auth token nonce: %w", err)
-	}
-	ciphertext := aead.Seal(nil, nonce, []byte(secret), mcpAuthSecretAAD(serverName, fieldName))
-	payload := make([]byte, 0, len(nonce)+len(ciphertext))
-	payload = append(payload, nonce...)
-	payload = append(payload, ciphertext...)
-	return mcpAuthSecretEncodingV1 + base64.RawStdEncoding.EncodeToString(payload), nil
-}
-
-func (g *GlobalDB) decryptMCPAuthTokenSecrets(token *mcpauth.TokenRecord) error {
+func (g *GlobalDB) resolveMCPAuthTokenSecrets(ctx context.Context, token *mcpauth.TokenRecord) error {
 	if token == nil {
 		return nil
 	}
-	accessToken, err := g.decryptMCPAuthTokenSecret(token.ServerName, "access_token", token.AccessToken)
+	service, err := g.vaultService()
 	if err != nil {
 		return err
 	}
-	refreshToken, err := g.decryptMCPAuthTokenSecret(token.ServerName, "refresh_token", token.RefreshToken)
+	accessToken, err := resolveMCPAuthTokenRef(ctx, service, token.ServerName, "access_token", token.AccessToken)
+	if err != nil {
+		return err
+	}
+	refreshToken, err := resolveMCPAuthTokenRef(ctx, service, token.ServerName, "refresh_token", token.RefreshToken)
 	if err != nil {
 		return err
 	}
@@ -243,143 +247,62 @@ func (g *GlobalDB) decryptMCPAuthTokenSecrets(token *mcpauth.TokenRecord) error 
 	return nil
 }
 
-func (g *GlobalDB) decryptMCPAuthTokenSecret(serverName string, fieldName string, encoded string) (string, error) {
-	if strings.TrimSpace(encoded) == "" {
+func resolveMCPAuthTokenRef(
+	ctx context.Context,
+	service *vault.Service,
+	serverName string,
+	fieldName string,
+	ref string,
+) (string, error) {
+	trimmedRef := strings.TrimSpace(ref)
+	if trimmedRef == "" {
 		return "", nil
 	}
-	if !strings.HasPrefix(encoded, mcpAuthSecretEncodingV1) {
+	if err := vault.ValidateSecretRefNamespace(trimmedRef, "mcp"); err != nil {
 		return "", fmt.Errorf(
-			"store: MCP auth token %s for %q is not encrypted",
-			fieldName,
-			strings.TrimSpace(serverName),
-		)
-	}
-	aead, err := g.mcpAuthSecretCipher()
-	if err != nil {
-		return "", err
-	}
-	payload, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(encoded, mcpAuthSecretEncodingV1))
-	if err != nil {
-		return "", fmt.Errorf(
-			"store: decode MCP auth token %s for %q: %w",
+			"store: MCP auth token %s for %q is not a vault ref: %w",
 			fieldName,
 			strings.TrimSpace(serverName),
 			err,
 		)
 	}
-	nonceSize := aead.NonceSize()
-	if len(payload) <= nonceSize {
-		return "", fmt.Errorf(
-			"store: MCP auth token %s for %q ciphertext is truncated",
-			fieldName,
-			strings.TrimSpace(serverName),
-		)
-	}
-	plaintext, err := aead.Open(
-		nil,
-		payload[:nonceSize],
-		payload[nonceSize:],
-		mcpAuthSecretAAD(serverName, fieldName),
-	)
+	value, err := service.ResolveRef(ctx, trimmedRef)
 	if err != nil {
 		return "", fmt.Errorf(
-			"store: decrypt MCP auth token %s for %q: %w",
+			"store: resolve MCP auth token %s for %q: %w",
 			fieldName,
 			strings.TrimSpace(serverName),
 			err,
 		)
 	}
-	return string(plaintext), nil
+	return value, nil
 }
 
-func (g *GlobalDB) mcpAuthSecretCipher() (cipher.AEAD, error) {
-	key, err := g.mcpAuthSecretKey()
+func (g *GlobalDB) getMCPAuthTokenRefs(ctx context.Context, serverName string) (string, string, error) {
+	var accessTokenRef string
+	var refreshTokenRef string
+	err := g.db.QueryRowContext(
+		ctx,
+		`SELECT access_token_ref, refresh_token_ref
+		FROM mcp_auth_tokens
+		WHERE server_name = ?`,
+		strings.TrimSpace(serverName),
+	).Scan(&accessTokenRef, &refreshTokenRef)
 	if err != nil {
-		return nil, err
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("store: create MCP auth token cipher: %w", err)
-	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("store: create MCP auth token AEAD: %w", err)
-	}
-	return aead, nil
-}
-
-func (g *GlobalDB) mcpAuthSecretKey() ([]byte, error) {
-	keyPath := g.mcpAuthSecretKeyPath()
-	key, err := os.ReadFile(keyPath)
-	if err == nil {
-		if len(key) != mcpAuthSecretKeyBytes {
-			return nil, fmt.Errorf(
-				"store: MCP auth token key %q has %d bytes, want %d",
-				keyPath,
-				len(key),
-				mcpAuthSecretKeyBytes,
-			)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", "", mcpauth.ErrTokenNotFound
 		}
-		if chmodErr := os.Chmod(keyPath, mcpAuthSecretKeyFileMode); chmodErr != nil {
-			return nil, fmt.Errorf("store: restrict MCP auth token key %q: %w", keyPath, chmodErr)
-		}
-		return key, nil
+		return "", "", fmt.Errorf("store: get MCP auth token refs for %q: %w", strings.TrimSpace(serverName), err)
 	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("store: read MCP auth token key %q: %w", keyPath, err)
-	}
-	return createMCPAuthSecretKey(keyPath)
+	return strings.TrimSpace(accessTokenRef), strings.TrimSpace(refreshTokenRef), nil
 }
 
-func (g *GlobalDB) mcpAuthSecretKeyPath() string {
-	return strings.TrimSpace(g.path) + mcpAuthSecretKeyFileSuffix
+func mcpAuthTokenSecretRef(serverName string, fieldName string) string {
+	return "vault:mcp/" + strings.TrimSpace(serverName) + "/oauth/" + strings.TrimSpace(fieldName)
 }
 
-func createMCPAuthSecretKey(path string) ([]byte, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("store: create MCP auth token key directory %q: %w", filepath.Dir(path), err)
-	}
-	key := make([]byte, mcpAuthSecretKeyBytes)
-	if _, err := cryptoRand.Read(key); err != nil {
-		return nil, fmt.Errorf("store: generate MCP auth token key: %w", err)
-	}
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mcpAuthSecretKeyFileMode)
-	if err != nil {
-		if errors.Is(err, os.ErrExist) {
-			key, readErr := os.ReadFile(path)
-			if readErr != nil {
-				return nil, fmt.Errorf("store: read MCP auth token key %q: %w", path, readErr)
-			}
-			if len(key) != mcpAuthSecretKeyBytes {
-				return nil, fmt.Errorf(
-					"store: MCP auth token key %q has %d bytes, want %d",
-					path,
-					len(key),
-					mcpAuthSecretKeyBytes,
-				)
-			}
-			return key, nil
-		}
-		return nil, fmt.Errorf("store: create MCP auth token key %q: %w", path, err)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-	written, err := file.Write(key)
-	if err != nil {
-		return nil, fmt.Errorf("store: write MCP auth token key %q: %w", path, err)
-	}
-	if written != len(key) {
-		return nil, fmt.Errorf("store: write MCP auth token key %q: wrote %d bytes, want %d", path, written, len(key))
-	}
-	if err := file.Close(); err != nil {
-		return nil, fmt.Errorf("store: close MCP auth token key %q: %w", path, err)
-	}
-	return key, nil
-}
-
-func mcpAuthSecretAAD(serverName string, fieldName string) []byte {
-	return []byte(strings.TrimSpace(serverName) + "\x00" + strings.TrimSpace(fieldName))
+func deleteMCPRefreshTokenSecret(ctx context.Context, service *vault.Service, serverName string) error {
+	return service.DeleteSecret(ctx, mcpAuthTokenSecretRef(serverName, "refresh-token"))
 }
 
 func scanMCPAuthToken(scanner rowScanner) (mcpauth.TokenRecord, error) {

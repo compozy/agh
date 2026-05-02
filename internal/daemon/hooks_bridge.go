@@ -1167,8 +1167,13 @@ func daemonNativeHooks(
 	return decls, executors
 }
 
-func daemonExecutorResolver(
+func daemonExecutorResolver(nativeExecutors map[string]hookspkg.Executor) hookspkg.ExecutorResolver {
+	return daemonExecutorResolverWithSecrets(nativeExecutors, nil)
+}
+
+func daemonExecutorResolverWithSecrets(
 	nativeExecutors map[string]hookspkg.Executor,
+	secretResolver hookspkg.SecretRefResolver,
 	registries ...*toolruntime.Registry,
 ) hookspkg.ExecutorResolver {
 	var registry *toolruntime.Registry
@@ -1183,22 +1188,24 @@ func daemonExecutorResolver(
 			}
 			return executor, nil
 		}
-		return defaultDaemonExecutorResolverWithRegistry(decl, registry)
+		return defaultDaemonExecutorResolverWithRegistry(decl, secretResolver, registry)
 	}
 }
 
 func defaultDaemonExecutorResolver(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
-	return defaultDaemonExecutorResolverWithRegistry(decl, nil)
+	return defaultDaemonExecutorResolverWithRegistry(decl, nil, nil)
 }
 
 func defaultDaemonExecutorResolverWithRegistry(
 	decl hookspkg.HookDecl,
+	secretResolver hookspkg.SecretRefResolver,
 	registry *toolruntime.Registry,
 ) (hookspkg.Executor, error) {
 	switch decl.ExecutorKind {
 	case hookspkg.HookExecutorSubprocess:
 		opts := []hookspkg.SubprocessExecutorOption{
 			hookspkg.WithSubprocessEnv(decl.Env),
+			hookspkg.WithSubprocessSecretEnv(decl.SecretEnv, secretResolver),
 		}
 		if registry != nil {
 			opts = append(opts, hookspkg.WithSubprocessProcessRegistry(registry))
@@ -1443,6 +1450,7 @@ func cloneDaemonHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := src
 	cloned.Args = append([]string(nil), src.Args...)
 	cloned.Env = cloneStringMap(src.Env)
+	cloned.SecretEnv = cloneStringMap(src.SecretEnv)
 	cloned.Metadata = cloneStringMap(src.Metadata)
 	if src.Matcher.ToolReadOnly != nil {
 		value := *src.Matcher.ToolReadOnly

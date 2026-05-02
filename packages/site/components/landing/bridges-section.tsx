@@ -69,7 +69,7 @@ const BRIDGES: Bridge[] = [
 
 export function BridgesSection() {
   return (
-    <SectionFrame background="surface" padY="lg">
+    <SectionFrame background="surface" padY="lg" className="border-b border-(--color-divider)">
       <SectionHeader
         align="start"
         eyebrow="Bridges"

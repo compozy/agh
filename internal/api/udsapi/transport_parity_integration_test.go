@@ -802,13 +802,13 @@ func seedTransportWebhookTrigger(
 
 	state, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
 		Triggers: []aghcontract.CreateTriggerRequest{{
-			Scope:         automationpkg.AutomationScopeGlobal,
-			Name:          "deploy-review",
-			AgentName:     transportUDSAutomationAgent,
-			Prompt:        `Review payload {{ index .Data "payload" }} for {{ index .Data "branch" }}`,
-			Event:         "webhook",
-			EndpointSlug:  "deploy-review",
-			WebhookSecret: "shared-secret",
+			Scope:              automationpkg.AutomationScopeGlobal,
+			Name:               "deploy-review",
+			AgentName:          transportUDSAutomationAgent,
+			Prompt:             `Review payload {{ index .Data "payload" }} for {{ index .Data "branch" }}`,
+			Event:              "webhook",
+			EndpointSlug:       "deploy-review",
+			WebhookSecretValue: "shared-secret",
 		}},
 	})
 	if err != nil {
@@ -1043,7 +1043,12 @@ func writeTransportProviderOverrideConfig(
 		builder.WriteString(escapeTransportConfigString(command))
 		builder.WriteString("\"\n")
 		builder.WriteString(`default_model = "transport-override-model"` + "\n")
-		builder.WriteString(`api_key_env = "TRANSPORT_OVERRIDE_API_KEY"` + "\n")
+		builder.WriteString("[[providers." + providerName + ".credential_slots]]\n")
+		builder.WriteString(`name = "api_key"` + "\n")
+		builder.WriteString(`target_env = "TRANSPORT_OVERRIDE_API_KEY"` + "\n")
+		builder.WriteString(`secret_ref = "env:TRANSPORT_OVERRIDE_API_KEY"` + "\n")
+		builder.WriteString(`kind = "api_key"` + "\n")
+		builder.WriteString(`required = false` + "\n")
 	}
 
 	configPath := filepath.Join(configDir, aghconfig.ConfigName)

@@ -94,7 +94,7 @@ describe("tool-first canonical surface docs", () => {
       "`agh__automation_triggers_create`",
       "AUTOMATION_SCOPE_FORBIDDEN",
       "AUTOMATION_SECRET_INPUT_FORBIDDEN",
-      "webhook_secret_env",
+      "webhook_secret_ref",
     ]);
     expectIncludesAll(extensionsInstall, [
       "`agh__extensions`",

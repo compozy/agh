@@ -287,12 +287,12 @@ describe("updateAutomationTrigger", () => {
 
     const result = await updateAutomationTrigger("trg_push_review", {
       enabled: false,
-      webhook_secret: "next-secret",
+      webhook_secret_value: "next-secret",
     });
 
     expect(result.enabled).toBe(false);
     await expectFetchRequest({
-      body: { enabled: false, webhook_secret: "next-secret" },
+      body: { enabled: false, webhook_secret_value: "next-secret" },
       method: "PATCH",
       path: "/api/automation/triggers/trg_push_review",
     });

@@ -377,7 +377,7 @@ func configMapNode(value reflect.Value, fieldName string) (any, bool) {
 	result := make(map[string]any, value.Len())
 	for _, key := range sortedReflectMapKeys(value) {
 		mapKey := fmt.Sprint(key.Interface())
-		if strings.EqualFold(fieldName, "env") {
+		if strings.EqualFold(fieldName, "env") || strings.EqualFold(fieldName, "secret_env") {
 			result[mapKey] = RedactedValue()
 			continue
 		}
@@ -470,7 +470,7 @@ func flattenConfigValue(entries *[]Entry, path string, value any, redacted bool)
 			if path != "" {
 				nextPath = path + "." + key
 			}
-			flattenConfigValue(entries, nextPath, typed[key], redacted || key == "env")
+			flattenConfigValue(entries, nextPath, typed[key], redacted || key == "env" || key == "secret_env")
 		}
 	case []any:
 		if len(typed) == 0 {
@@ -502,7 +502,7 @@ func configPathIsSecret(path []string) bool {
 	for _, segment := range path {
 		lower := strings.ToLower(strings.TrimSpace(segment))
 		switch lower {
-		case "env", "api_key_env", "client_secret_env", "webhook_secret_env":
+		case "env", "secret_env", "secret_ref", "client_secret_ref", "webhook_secret_ref":
 			return true
 		}
 		if strings.Contains(lower, "secret") ||

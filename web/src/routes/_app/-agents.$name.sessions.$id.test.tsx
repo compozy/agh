@@ -3,11 +3,27 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
+import type { VaultSecret } from "@/systems/vault";
+
+type SessionVaultQueryState = {
+  data: VaultSecret[];
+  isLoading: boolean;
+  error: Error | null;
+};
+
+type SessionInspectorPropsForTest = {
+  sessionId?: string;
+  vaultSecrets?: VaultSecret[];
+  vaultIsLoading?: boolean;
+  vaultError?: Error | null;
+};
 
 const {
   mockNavigate,
   mockUseSession,
+  mockUseSessionVaultSecrets,
   mockUseWorkspaces,
+  mockSessionInspector,
   mockResume,
   mockStop,
   mockClear,
@@ -15,7 +31,15 @@ const {
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockUseSession: vi.fn(),
+  mockUseSessionVaultSecrets: vi.fn<(sessionId: string) => SessionVaultQueryState>(() => ({
+    data: [],
+    isLoading: false,
+    error: null,
+  })),
   mockUseWorkspaces: vi.fn(() => ({ data: [] })),
+  mockSessionInspector: vi.fn<(props: SessionInspectorPropsForTest) => ReactNode>(() => (
+    <div data-testid="session-inspector">inspector</div>
+  )),
   mockResume: {
     mutate: vi.fn<(id: string, opts?: { onError?: (error: unknown) => void }) => void>(),
     isPending: false as boolean,
@@ -57,7 +81,7 @@ vi.mock("@/systems/session/components/session-chat-runtime-provider", () => ({
 }));
 
 vi.mock("@/systems/session/components/session-inspector", () => ({
-  SessionInspector: () => <div data-testid="session-inspector">inspector</div>,
+  SessionInspector: mockSessionInspector,
 }));
 
 vi.mock("@/systems/session/hooks/use-sessions", () => ({
@@ -66,6 +90,10 @@ vi.mock("@/systems/session/hooks/use-sessions", () => ({
 
 vi.mock("@/systems/workspace", () => ({
   useWorkspaces: () => mockUseWorkspaces(),
+}));
+
+vi.mock("@/systems/vault", () => ({
+  useSessionVaultSecrets: (sessionId: string) => mockUseSessionVaultSecrets(sessionId),
 }));
 
 vi.mock("@/systems/session/hooks/use-session-actions", () => ({
@@ -114,6 +142,9 @@ describe("Nested agent session route — resume failure UX", () => {
     mockClear.mutate.mockReset();
     mockDelete.mutate.mockReset();
     mockUseSession.mockReset();
+    mockUseSessionVaultSecrets.mockReset();
+    mockUseSessionVaultSecrets.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockSessionInspector.mockClear();
     mockUseWorkspaces.mockReset();
     mockUseWorkspaces.mockReturnValue({ data: [] });
     mockUseSession.mockReturnValue({
@@ -205,6 +236,36 @@ describe("Nested agent session route — resume failure UX", () => {
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/agents/$name",
       params: { name: "codex-agent" },
+    });
+  });
+
+  it("passes session-scoped vault metadata into the inspector", () => {
+    const vaultSecrets: VaultSecret[] = [
+      {
+        ref: "vault:sessions/sess_123/github-token",
+        namespace: "sessions",
+        kind: "token",
+        present: true,
+        created_at: "2026-05-02T10:00:00Z",
+        updated_at: "2026-05-02T10:00:00Z",
+      },
+    ];
+    mockUseSessionVaultSecrets.mockReturnValue({
+      data: vaultSecrets,
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SessionPage />);
+
+    expect(mockUseSessionVaultSecrets).toHaveBeenCalledWith("sess_123");
+    const inspectorProps =
+      mockSessionInspector.mock.calls[mockSessionInspector.mock.calls.length - 1]?.[0];
+    expect(inspectorProps).toMatchObject({
+      sessionId: "sess_123",
+      vaultSecrets,
+      vaultIsLoading: false,
+      vaultError: null,
     });
   });
 });

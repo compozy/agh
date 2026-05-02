@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -82,6 +83,7 @@ func (p pipeline[P, R]) executeWithDisposition(ctx context.Context, payload P) (
 		if denied {
 			report.Denied = true
 			report.DenySource = hook.Name
+			report.DenyReason = denyReasonFromRawPatch(trace.Patch)
 			return current, report, nil
 		}
 	}
@@ -220,6 +222,17 @@ func decodeJSON[T any](payload []byte) (T, error) {
 		return decoded, err
 	}
 	return decoded, nil
+}
+
+func denyReasonFromRawPatch(rawPatch json.RawMessage) string {
+	if len(bytes.TrimSpace(rawPatch)) == 0 {
+		return ""
+	}
+	var patch ControlPatch
+	if err := json.Unmarshal(rawPatch, &patch); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(patch.DenyReason)
 }
 
 func (p pipeline[P, R]) recordHookRun(

@@ -455,7 +455,7 @@ func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 	trigger := testTrigger(AutomationScopeGlobal, "resource-crud-trigger", "")
 	trigger.Event = "session.stopped"
 	trigger.WebhookID = ""
-	createdTrigger, err := manager.CreateTrigger(h.ctx, trigger, "")
+	createdTrigger, err := manager.CreateTrigger(h.ctx, trigger, WebhookSecretWrite{})
 	if err != nil {
 		t.Fatalf("CreateTrigger(resource) error = %v", err)
 	}
@@ -520,6 +520,7 @@ func TestAutomationResourceSyncManagedDefinitionsPublishesAndPrunesSourceRecords
 	trigger := testTrigger(AutomationScopeGlobal, "managed-resource-trigger", "")
 	trigger.Event = "session.stopped"
 	trigger.WebhookID = ""
+	trigger.WebhookSecretRef = ""
 
 	stats, err := manager.SyncManagedDefinitions(
 		h.ctx,
@@ -637,6 +638,7 @@ func TestAutomationResourceConfigEnabledChangesUseOperationalOverlays(t *testing
 	trigger := testTrigger(AutomationScopeGlobal, "config-resource-trigger", "")
 	trigger.Event = "session.stopped"
 	trigger.WebhookID = ""
+	trigger.WebhookSecretRef = ""
 	if _, err := manager.SyncManagedDefinitions(
 		h.ctx,
 		JobSourceConfig,

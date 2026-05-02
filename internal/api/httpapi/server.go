@@ -55,6 +55,7 @@ type Server struct {
 	toolApprovals   core.ToolApprovalIssuer
 	settings        core.SettingsService
 	settingsRestart core.SettingsRestartController
+	vault           core.VaultService
 	workspaces      core.WorkspaceService
 	agentCatalog    core.AgentCatalog
 	skillsRegistry  core.SkillsRegistry
@@ -226,6 +227,13 @@ func WithSettingsService(service core.SettingsService) Option {
 func WithSettingsRestartController(controller core.SettingsRestartController) Option {
 	return func(server *Server) {
 		server.settingsRestart = controller
+	}
+}
+
+// WithVaultService injects the daemon-owned vault control surface.
+func WithVaultService(service core.VaultService) Option {
+	return func(server *Server) {
+		server.vault = service
 	}
 }
 
@@ -433,6 +441,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		toolApprovals:   s.toolApprovals,
 		settings:        s.settings,
 		settingsRestart: s.settingsRestart,
+		vault:           s.vault,
 		workspaces:      s.workspaces,
 		agentCatalog:    s.agentCatalog,
 		skillsRegistry:  s.skillsRegistry,

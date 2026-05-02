@@ -1,0 +1,74 @@
+import { authors, posts, releases, type Author, type Post, type Release } from "#site/content";
+
+export const BLOG_CATEGORIES = ["protocol", "runtime", "engineering", "network"] as const;
+export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
+
+const sortedPostsCache = [...posts].sort(
+  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+);
+
+const sortedReleasesCache = [...releases].sort(
+  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+);
+
+export function allPosts(): Post[] {
+  return sortedPostsCache;
+}
+
+export function postBySlug(slug: string): Post | undefined {
+  const target = slug.startsWith("posts/") ? slug : `posts/${slug}`;
+  return posts.find(post => post.slug === target);
+}
+
+export function postsByCategory(category: BlogCategory): Post[] {
+  return sortedPostsCache.filter(post => post.category === category);
+}
+
+export function categoryCounts(): Record<BlogCategory, number> {
+  const counts = Object.fromEntries(BLOG_CATEGORIES.map(c => [c, 0])) as Record<
+    BlogCategory,
+    number
+  >;
+  for (const post of sortedPostsCache) {
+    counts[post.category as BlogCategory] += 1;
+  }
+  return counts;
+}
+
+export function featuredPost(): Post | undefined {
+  return sortedPostsCache.find(post => post.featured) ?? sortedPostsCache[0];
+}
+
+export function relatedPosts(post: Post, limit = 3): Post[] {
+  const candidates = sortedPostsCache.filter(candidate => candidate.slug !== post.slug);
+  const tagSet = new Set(post.tags);
+  const scored = candidates.map(candidate => {
+    let score = 0;
+    if (candidate.category === post.category) score += 3;
+    for (const tag of candidate.tags) {
+      if (tagSet.has(tag)) score += 1;
+    }
+    return { candidate, score };
+  });
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return new Date(b.candidate.date).getTime() - new Date(a.candidate.date).getTime();
+  });
+  return scored.slice(0, limit).map(entry => entry.candidate);
+}
+
+export function authorByHandle(handle: string): Author | undefined {
+  return authors.find(author => author.handle === handle);
+}
+
+export function authorInitial(handle: string): string {
+  const author = authorByHandle(handle);
+  if (author) return author.avatar.charAt(0).toUpperCase();
+  return handle.charAt(0).toUpperCase();
+}
+
+export function allReleases(): Release[] {
+  return sortedReleasesCache;
+}
+
+export type { Author, Post, Release };

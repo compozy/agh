@@ -1,5 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
-import { Activity, ChevronRight, FileCode, Gauge, Library, PanelRightOpen } from "lucide-react";
+import {
+  Activity,
+  ChevronRight,
+  FileCode,
+  Gauge,
+  KeyRound,
+  Library,
+  PanelRightOpen,
+} from "lucide-react";
 import type { AssistantState } from "@assistant-ui/react";
 
 import {
@@ -19,6 +27,7 @@ import {
 } from "@agh/ui";
 
 import { isAgentEventPayload, parseToolUseResult } from "../lib/message-parts";
+import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
 
 type ThreadMessageState = AssistantState["thread"]["messages"][number];
 
@@ -67,8 +76,12 @@ export interface InspectorFileEntry {
 
 export interface SessionInspectorProps {
   messages: readonly ThreadMessageState[];
+  sessionId?: string;
   usage?: InspectorUsage | null;
   memoryDocs?: InspectorMemoryDoc[];
+  vaultSecrets?: readonly VaultSecret[];
+  vaultIsLoading?: boolean;
+  vaultError?: Error | null;
   /** Explicit file list. When omitted, derived from `messages` via `deriveFileReads`. */
   files?: InspectorFileEntry[];
   /** Total trace event count — when greater than `traceLimit`, renders a "View all" link. */
@@ -86,10 +99,11 @@ const SECTION_LABELS = {
   usage: "Usage",
   memory: "Memory",
   files: "Files",
+  vault: "Vault",
 } as const;
 
 type TopTab = "trace" | "usage";
-type BottomTab = "memory" | "files";
+type BottomTab = "memory" | "files" | "vault";
 
 const TRACE_STATUS_TONE: Record<InspectorTraceStatus, PillTone> = {
   ok: "success",
@@ -346,6 +360,10 @@ interface SectionBodyProps {
   onViewAllTrace?: () => void;
   usage: InspectorUsage | null | undefined;
   memoryDocs: InspectorMemoryDoc[];
+  sessionId?: string;
+  vaultSecrets: readonly VaultSecret[];
+  vaultIsLoading: boolean;
+  vaultError: Error | null;
   files: InspectorFileEntry[];
 }
 
@@ -362,6 +380,10 @@ function InspectorBody({
   onViewAllTrace,
   usage,
   memoryDocs,
+  sessionId,
+  vaultSecrets,
+  vaultIsLoading,
+  vaultError,
   files,
 }: SectionBodyProps) {
   const [topTab, setTopTab] = useState<TopTab>("trace");
@@ -370,7 +392,7 @@ function InspectorBody({
     if (value === "trace" || value === "usage") setTopTab(value);
   }, []);
   const handleBottomChange = useCallback((value: string | null | undefined) => {
-    if (value === "memory" || value === "files") setBottomTab(value);
+    if (value === "memory" || value === "files" || value === "vault") setBottomTab(value);
   }, []);
 
   return (
@@ -421,7 +443,7 @@ function InspectorBody({
         </ScrollArea>
       </Tabs>
       <Tabs
-        aria-label="Memory and files"
+        aria-label="Memory, files, and vault"
         value={bottomTab}
         onValueChange={handleBottomChange}
         className="flex min-h-0 flex-1 basis-0 flex-col gap-0 border-t border-[color:var(--color-divider)]"
@@ -446,6 +468,14 @@ function InspectorBody({
             <FileCode className="size-3.5" />
             <span>{SECTION_LABELS.files}</span>
           </TabsTrigger>
+          <TabsTrigger
+            value="vault"
+            data-testid="session-inspector-tab-vault"
+            className="h-12 gap-2 group-data-horizontal/tabs:after:bottom-[-1px]"
+          >
+            <KeyRound className="size-3.5" />
+            <span>{SECTION_LABELS.vault}</span>
+          </TabsTrigger>
         </TabsList>
         <ScrollArea className="flex-1 min-h-0">
           <div
@@ -455,6 +485,14 @@ function InspectorBody({
           >
             {bottomTab === "memory" && <MemorySection docs={memoryDocs} />}
             {bottomTab === "files" && <FilesSection files={files} />}
+            {bottomTab === "vault" && (
+              <SessionVaultPanel
+                secrets={vaultSecrets}
+                isLoading={vaultIsLoading}
+                error={vaultError}
+                sessionId={sessionId}
+              />
+            )}
           </div>
         </ScrollArea>
       </Tabs>
@@ -470,8 +508,12 @@ function InspectorBody({
  */
 export function SessionInspector({
   messages,
+  sessionId,
   usage,
   memoryDocs = [],
+  vaultSecrets = [],
+  vaultIsLoading = false,
+  vaultError = null,
   files,
   totalTraceEvents,
   traceLimit = TRACE_LIMIT_DEFAULT,
@@ -504,6 +546,10 @@ export function SessionInspector({
         onViewAllTrace={onViewAllTrace}
         usage={usage}
         memoryDocs={memoryDocs}
+        sessionId={sessionId}
+        vaultSecrets={vaultSecrets}
+        vaultIsLoading={vaultIsLoading}
+        vaultError={vaultError}
         files={derivedFiles}
       />
     </aside>
@@ -770,8 +816,12 @@ function FilesSection({ files }: FilesSectionProps) {
  */
 export function SessionInspectorDrawer({
   messages,
+  sessionId,
   usage,
   memoryDocs = [],
+  vaultSecrets = [],
+  vaultIsLoading = false,
+  vaultError = null,
   files,
   totalTraceEvents,
   traceLimit = TRACE_LIMIT_DEFAULT,
@@ -817,6 +867,10 @@ export function SessionInspectorDrawer({
           onViewAllTrace={onViewAllTrace}
           usage={usage}
           memoryDocs={memoryDocs}
+          sessionId={sessionId}
+          vaultSecrets={vaultSecrets}
+          vaultIsLoading={vaultIsLoading}
+          vaultError={vaultError}
           files={derivedFiles}
         />
       </SheetContent>

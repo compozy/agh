@@ -111,6 +111,7 @@ func cloneSandboxProfile(src aghconfig.SandboxProfile) aghconfig.SandboxProfile 
 		Persistence: src.Persistence,
 		RuntimeRoot: src.RuntimeRoot,
 		Env:         cloneStringMap(src.Env),
+		SecretEnv:   cloneStringMap(src.SecretEnv),
 		Network: aghconfig.NetworkProfile{
 			AllowPublicIngress: src.Network.AllowPublicIngress,
 			AllowOutbound:      src.Network.AllowOutbound,
@@ -124,6 +125,7 @@ func cloneSandboxProfile(src aghconfig.SandboxProfile) aghconfig.SandboxProfile 
 func cloneSandboxResolved(src sandbox.Resolved) sandbox.Resolved {
 	cloned := src
 	cloned.Env = cloneStringMap(src.Env)
+	cloned.SecretEnv = cloneStringMap(src.SecretEnv)
 	cloned.Network.AllowList = append([]string(nil), src.Network.AllowList...)
 	cloned.Network.DenyList = append([]string(nil), src.Network.DenyList...)
 	if src.Daytona != nil {
@@ -147,10 +149,16 @@ func cloneProviders(src map[string]aghconfig.ProviderConfig) map[string]aghconfi
 
 func cloneProvider(src aghconfig.ProviderConfig) aghconfig.ProviderConfig {
 	return aghconfig.ProviderConfig{
-		Command:      src.Command,
-		DefaultModel: src.DefaultModel,
-		APIKeyEnv:    src.APIKeyEnv,
-		MCPServers:   cloneMCPServers(src.MCPServers),
+		Command:         src.Command,
+		DisplayName:     src.DisplayName,
+		DefaultModel:    src.DefaultModel,
+		Harness:         src.Harness,
+		RuntimeProvider: src.RuntimeProvider,
+		Transport:       src.Transport,
+		BaseURL:         src.BaseURL,
+		Aliases:         append([]string(nil), src.Aliases...),
+		CredentialSlots: append([]aghconfig.ProviderCredentialSlot(nil), src.CredentialSlots...),
+		MCPServers:      cloneMCPServers(src.MCPServers),
 	}
 }
 
@@ -196,14 +204,23 @@ func cloneMCPServers(src []aghconfig.MCPServer) []aghconfig.MCPServer {
 	cloned := make([]aghconfig.MCPServer, 0, len(src))
 	for _, server := range src {
 		cloned = append(cloned, aghconfig.MCPServer{
-			Name:    server.Name,
-			Command: server.Command,
-			Args:    append([]string(nil), server.Args...),
-			Env:     cloneStringMap(server.Env),
+			Name:      server.Name,
+			Transport: server.Transport,
+			Command:   server.Command,
+			Args:      append([]string(nil), server.Args...),
+			Env:       cloneStringMap(server.Env),
+			SecretEnv: cloneStringMap(server.SecretEnv),
+			URL:       server.URL,
+			Auth:      cloneMCPAuthConfig(server.Auth),
 		})
 	}
 
 	return cloned
+}
+
+func cloneMCPAuthConfig(src aghconfig.MCPAuthConfig) aghconfig.MCPAuthConfig {
+	src.Scopes = append([]string(nil), src.Scopes...)
+	return src
 }
 
 func cloneStringMap(src map[string]string) map[string]string {
@@ -233,6 +250,7 @@ func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := src
 	cloned.Args = append([]string(nil), src.Args...)
 	cloned.Env = cloneStringMap(src.Env)
+	cloned.SecretEnv = cloneStringMap(src.SecretEnv)
 	cloned.Metadata = cloneStringMap(src.Metadata)
 	if src.Matcher.ToolReadOnly != nil {
 		value := *src.Matcher.ToolReadOnly

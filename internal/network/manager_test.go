@@ -606,24 +606,20 @@ func TestManagerAuditsBusyQueueOverflowAsRejected(t *testing.T) {
 		}
 		prompter.setPrompting("sess-busy", true)
 
-		firstID, err := manager.Send(ctx, SendRequest{
+		firstID := receiveTestEnvelope(t, manager, SendRequest{
+			ID:        ptrString("msg-overflow-first"),
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "overflow first"}),
 		})
-		if err != nil {
-			t.Fatalf("Send(first) error = %v", err)
-		}
-		secondID, err := manager.Send(ctx, SendRequest{
+		secondID := receiveTestEnvelope(t, manager, SendRequest{
+			ID:        ptrString("msg-overflow-second"),
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "overflow second"}),
 		})
-		if err != nil {
-			t.Fatalf("Send(second) error = %v", err)
-		}
 
 		waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
 		defer waitCancel()
@@ -648,6 +644,25 @@ func TestManagerAuditsBusyQueueOverflowAsRejected(t *testing.T) {
 			t.Fatalf("Status.MessagesRejected = %d, want %d", got, want)
 		}
 	})
+}
+
+func receiveTestEnvelope(t *testing.T, manager *Manager, req SendRequest) string {
+	t.Helper()
+
+	requestID := ""
+	if req.ID != nil {
+		requestID = *req.ID
+	}
+	envelope, err := manager.router.buildEnvelope(req, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("buildEnvelope(%q) error = %v", requestID, err)
+	}
+	payload, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("json.Marshal(%q) error = %v", envelope.ID, err)
+	}
+	manager.handleInboundMessage(payload)
+	return envelope.ID
 }
 
 func TestCleanupSubscriptionHelpers(t *testing.T) {

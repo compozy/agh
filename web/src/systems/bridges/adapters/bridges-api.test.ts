@@ -336,7 +336,7 @@ describe("listBridgeSecretBindings", () => {
           created_at: "2026-04-13T12:00:00Z",
           kind: "bot_token",
           updated_at: "2026-04-13T12:00:00Z",
-          vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+          secret_ref: "vault:bridges/brg_support/bot_token",
         },
       ],
     });
@@ -357,18 +357,19 @@ describe("putBridgeSecretBinding", () => {
         created_at: "2026-04-13T12:00:00Z",
         kind: "bot_token",
         updated_at: "2026-04-13T12:30:00Z",
-        vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+        secret_ref: "vault:bridges/brg_support/bot_token",
       },
     });
 
     const payload = {
       kind: "bot_token",
-      vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+      secret_ref: "vault:bridges/brg_support/bot_token",
+      secret_value: "telegram-token",
     };
 
     const result = await putBridgeSecretBinding("brg_support", "bot_token", payload);
 
-    expect(result.vault_ref).toBe("env:AGH_BRIDGE_BOT_TOKEN");
+    expect(result.secret_ref).toBe("vault:bridges/brg_support/bot_token");
     await expectFetchRequest({
       body: payload,
       method: "PUT",

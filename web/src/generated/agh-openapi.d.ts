@@ -2214,6 +2214,42 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/vault/secrets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List redacted vault secret metadata */
+    get: operations["listVaultSecrets"];
+    /** Create or update one write-only vault secret */
+    put: operations["putVaultSecret"];
+    post?: never;
+    /** Delete one vault secret */
+    delete: operations["deleteVaultSecret"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/vault/secrets/metadata": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read redacted vault secret metadata */
+    get: operations["getVaultSecretMetadata"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/webhooks/global/{endpoint}": {
     parameters: {
       query?: never;
@@ -4729,7 +4765,7 @@ export interface operations {
                 auth?: {
                   authorization_url?: string;
                   client_id?: string;
-                  client_secret_env?: string;
+                  client_secret_ref?: string;
                   issuer_url?: string;
                   metadata_url?: string;
                   revocation_url?: string;
@@ -4742,6 +4778,9 @@ export interface operations {
                   [key: string]: string;
                 };
                 name: string;
+                secret_env?: {
+                  [key: string]: string;
+                };
                 transport?: string;
                 url?: string;
               }[];
@@ -4805,7 +4844,7 @@ export interface operations {
                 auth?: {
                   authorization_url?: string;
                   client_id?: string;
-                  client_secret_env?: string;
+                  client_secret_ref?: string;
                   issuer_url?: string;
                   metadata_url?: string;
                   revocation_url?: string;
@@ -4818,6 +4857,9 @@ export interface operations {
                   [key: string]: string;
                 };
                 name: string;
+                secret_env?: {
+                  [key: string]: string;
+                };
                 transport?: string;
                 url?: string;
               }[];
@@ -6029,6 +6071,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
+              webhook_secret_ref?: string;
               workspace_id?: string;
             }[];
           };
@@ -6108,7 +6151,8 @@ export interface operations {
           /** @enum {string} */
           scope: "global" | "workspace";
           webhook_id?: string;
-          webhook_secret?: string;
+          webhook_secret_ref?: string;
+          webhook_secret_value?: string;
           workspace_id?: string;
         };
       };
@@ -6151,6 +6195,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
+              webhook_secret_ref?: string;
               workspace_id?: string;
             };
           };
@@ -6257,6 +6302,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
+              webhook_secret_ref?: string;
               workspace_id?: string;
             };
           };
@@ -6408,7 +6454,8 @@ export interface operations {
             strategy: "none" | "backoff";
           } | null;
           webhook_id?: string | null;
-          webhook_secret?: string | null;
+          webhook_secret_ref?: string | null;
+          webhook_secret_value?: string | null;
           workspace_id?: string | null;
         };
       };
@@ -6451,6 +6498,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
+              webhook_secret_ref?: string;
               workspace_id?: string;
             };
           };
@@ -7867,9 +7915,9 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               kind: string;
+              secret_ref: string;
               /** Format: date-time */
               updated_at: string;
-              vault_ref: string;
             }[];
           };
         };
@@ -7932,7 +7980,8 @@ export interface operations {
       content: {
         "application/json": {
           kind: string;
-          vault_ref: string;
+          secret_ref: string;
+          secret_value?: string | null;
         };
       };
     };
@@ -7950,9 +7999,9 @@ export interface operations {
               /** Format: date-time */
               created_at: string;
               kind: string;
+              secret_ref: string;
               /** Format: date-time */
               updated_at: string;
-              vault_ref: string;
             };
           };
         };
@@ -14691,6 +14740,9 @@ export interface operations {
                 name: string;
                 priority?: number;
                 required?: boolean;
+                secret_env?: {
+                  [key: string]: string;
+                };
                 timeout?: string;
               };
               name: string;
@@ -14900,6 +14952,9 @@ export interface operations {
                 name: string;
                 priority?: number;
                 required?: boolean;
+                secret_env?: {
+                  [key: string]: string;
+                };
                 timeout?: string;
               };
               name: string;
@@ -15233,6 +15288,9 @@ export interface operations {
             name: string;
             priority?: number;
             required?: boolean;
+            secret_env?: {
+              [key: string]: string;
+            };
             timeout?: string;
           };
         };
@@ -15441,7 +15499,7 @@ export interface operations {
               auth?: {
                 authorization_url?: string;
                 client_id?: string;
-                client_secret_env?: string;
+                client_secret_ref?: string;
                 issuer_url?: string;
                 metadata_url?: string;
                 revocation_url?: string;
@@ -15474,6 +15532,9 @@ export interface operations {
               name: string;
               /** @enum {string} */
               scope: "global" | "workspace";
+              secret_env?: {
+                [key: string]: string;
+              };
               source_metadata: {
                 available_targets: (
                   | "global-config"
@@ -15578,12 +15639,18 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          secret_values?: {
+            oauth_client_secret?: string | null;
+            secret_env?: {
+              [key: string]: string;
+            };
+          } | null;
           server: {
             args?: string[];
             auth?: {
               authorization_url?: string;
               client_id?: string;
-              client_secret_env?: string;
+              client_secret_ref?: string;
               issuer_url?: string;
               metadata_url?: string;
               revocation_url?: string;
@@ -15596,6 +15663,9 @@ export interface operations {
               [key: string]: string;
             };
             name: string;
+            secret_env?: {
+              [key: string]: string;
+            };
             transport?: string;
             url?: string;
           };
@@ -16443,14 +16513,33 @@ export interface operations {
             /** @enum {string} */
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             providers: {
-              api_key_env_present: boolean;
               command_available: boolean;
+              credentials?: {
+                kind?: string;
+                name: string;
+                present: boolean;
+                required: boolean;
+                secret_ref: string;
+                source?: string;
+                target_env: string;
+              }[];
               default: boolean;
               fallback?: {
                 settings: {
-                  api_key_env?: string;
+                  base_url?: string;
                   command?: string;
+                  credential_slots?: {
+                    kind?: string;
+                    name: string;
+                    required: boolean;
+                    secret_ref: string;
+                    target_env: string;
+                  }[];
                   default_model?: string;
+                  display_name?: string;
+                  harness?: string;
+                  runtime_provider?: string;
+                  transport?: string;
                 };
                 source: {
                   /** @enum {string} */
@@ -16467,9 +16556,20 @@ export interface operations {
               } | null;
               name: string;
               settings: {
-                api_key_env?: string;
+                base_url?: string;
                 command?: string;
+                credential_slots?: {
+                  kind?: string;
+                  name: string;
+                  required: boolean;
+                  secret_ref: string;
+                  target_env: string;
+                }[];
                 default_model?: string;
+                display_name?: string;
+                harness?: string;
+                runtime_provider?: string;
+                transport?: string;
               };
               source_metadata: {
                 available_targets: (
@@ -16549,14 +16649,33 @@ export interface operations {
         content: {
           "application/json": {
             provider: {
-              api_key_env_present: boolean;
               command_available: boolean;
+              credentials?: {
+                kind?: string;
+                name: string;
+                present: boolean;
+                required: boolean;
+                secret_ref: string;
+                source?: string;
+                target_env: string;
+              }[];
               default: boolean;
               fallback?: {
                 settings: {
-                  api_key_env?: string;
+                  base_url?: string;
                   command?: string;
+                  credential_slots?: {
+                    kind?: string;
+                    name: string;
+                    required: boolean;
+                    secret_ref: string;
+                    target_env: string;
+                  }[];
                   default_model?: string;
+                  display_name?: string;
+                  harness?: string;
+                  runtime_provider?: string;
+                  transport?: string;
                 };
                 source: {
                   /** @enum {string} */
@@ -16573,9 +16692,20 @@ export interface operations {
               } | null;
               name: string;
               settings: {
-                api_key_env?: string;
+                base_url?: string;
                 command?: string;
+                credential_slots?: {
+                  kind?: string;
+                  name: string;
+                  required: boolean;
+                  secret_ref: string;
+                  target_env: string;
+                }[];
                 default_model?: string;
+                display_name?: string;
+                harness?: string;
+                runtime_provider?: string;
+                transport?: string;
               };
               source_metadata: {
                 available_targets: (
@@ -16657,10 +16787,27 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          secrets?: {
+            kind?: string;
+            name?: string;
+            secret_ref: string;
+            value: string;
+          }[];
           settings: {
-            api_key_env?: string;
+            base_url?: string;
             command?: string;
+            credential_slots?: {
+              kind?: string;
+              name: string;
+              required: boolean;
+              secret_ref: string;
+              target_env: string;
+            }[];
             default_model?: string;
+            display_name?: string;
+            harness?: string;
+            runtime_provider?: string;
+            transport?: string;
           };
         };
       };
@@ -16883,6 +17030,9 @@ export interface operations {
                 } | null;
                 persistence?: string;
                 runtime_root?: string;
+                secret_env?: {
+                  [key: string]: string;
+                };
                 sync_mode?: string;
               };
               source_metadata: {
@@ -16988,6 +17138,9 @@ export interface operations {
                 } | null;
                 persistence?: string;
                 runtime_root?: string;
+                secret_env?: {
+                  [key: string]: string;
+                };
                 sync_mode?: string;
               };
               source_metadata: {
@@ -17094,6 +17247,9 @@ export interface operations {
             } | null;
             persistence?: string;
             runtime_root?: string;
+            secret_env?: {
+              [key: string]: string;
+            };
             sync_mode?: string;
           };
         };
@@ -27214,6 +27370,359 @@ export interface operations {
       };
     };
   };
+  listVaultSecrets: {
+    parameters: {
+      query?: {
+        /** @description Filter by vault ref prefix */
+        prefix?: string;
+        /** @description Filter by vault namespace */
+        namespace?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            secrets: {
+              /** Format: date-time */
+              created_at: string;
+              kind?: string;
+              namespace: string;
+              present: boolean;
+              ref: string;
+              /** Format: date-time */
+              updated_at: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid vault filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Vault service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putVaultSecret: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          kind?: string;
+          ref: string;
+          secret_value: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Stored */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            secret: {
+              /** Format: date-time */
+              created_at: string;
+              kind?: string;
+              namespace: string;
+              present: boolean;
+              ref: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid vault secret payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Vault service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteVaultSecret: {
+    parameters: {
+      query: {
+        /** @description Vault ref */
+        ref: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid vault ref */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Vault secret not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Vault service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getVaultSecretMetadata: {
+    parameters: {
+      query: {
+        /** @description Vault ref */
+        ref: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            secret: {
+              /** Format: date-time */
+              created_at: string;
+              kind?: string;
+              namespace: string;
+              present: boolean;
+              ref: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid vault ref */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Vault secret not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Vault service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   deliverGlobalWebhook: {
     parameters: {
       query?: never;
@@ -27699,7 +28208,7 @@ export interface operations {
                 auth?: {
                   authorization_url?: string;
                   client_id?: string;
-                  client_secret_env?: string;
+                  client_secret_ref?: string;
                   issuer_url?: string;
                   metadata_url?: string;
                   revocation_url?: string;
@@ -27712,6 +28221,9 @@ export interface operations {
                   [key: string]: string;
                 };
                 name: string;
+                secret_env?: {
+                  [key: string]: string;
+                };
                 transport?: string;
                 url?: string;
               }[];
@@ -27724,7 +28236,11 @@ export interface operations {
               toolsets?: string[];
             }[];
             providers?: {
+              default_model?: string;
+              display_name?: string;
+              harness?: string;
               name: string;
+              runtime_provider?: string;
             }[];
             sessions?: {
               acp_caps?: {

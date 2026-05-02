@@ -35,6 +35,7 @@ Use the API when you are:
 | Hooks      | `/api/hooks`                   | Inspect the hook catalog, hook runs, and supported hook events.                                         |
 | Extensions | `/api/extensions`              | Install, list, enable, disable, and inspect extension state.                                            |
 | Settings   | `/api/settings`                | Read and mutate daemon settings surfaces used by the web UI.                                            |
+| Vault      | `/api/vault`                   | List redacted secret metadata, write new secret values, and delete refs without exposing plaintext.     |
 | Resources  | `/api/resources`               | Read and mutate desired-state resource objects on the local control plane.                              |
 | Bundles    | `/api/bundles`                 | Preview and activate bundle-driven runtime behavior.                                                    |
 | Webhooks   | `/api/webhooks`                | Receive signed external events that can activate automation.                                            |
@@ -74,9 +75,25 @@ These routes are especially important when you are building live operator toolin
 
 1. `GET /api/settings/*`
 2. `PATCH /api/settings/*`
-3. `GET /api/workspaces`
-4. `GET /api/agents`
-5. `GET /api/skills`
+3. `GET /api/vault/secrets`
+4. `PUT /api/vault/secrets`
+5. `GET /api/workspaces`
+6. `GET /api/agents`
+7. `GET /api/skills`
+
+### If you are managing Vault refs
+
+1. `GET /api/vault/secrets?namespace=sessions`
+2. `GET /api/vault/secrets/metadata?ref=vault:sessions/<session_id>/<name>`
+3. `PUT /api/vault/secrets`
+4. `DELETE /api/vault/secrets?ref=vault:sessions/<session_id>/<name>`
+
+Vault read responses contain only `ref`, `namespace`, `kind`, `present`, `created_at`, and
+`updated_at`. The write request accepts `secret_value`, but no HTTP, UDS, CLI, or web response
+returns that value.
+
+HTTP Vault routes use the daemon's privileged loopback guard for metadata reads and mutations. Use
+UDS for local agent automation when the daemon HTTP listener is bound outside loopback.
 
 ## Until the Full Endpoint Reference Lands
 
@@ -85,3 +102,5 @@ These routes are especially important when you are building live operator toolin
   session streaming models.
 - Use [Automation](/runtime/core/automation/jobs) and [Bridges](/runtime/core/bridges) to
   understand the runtime behavior behind the API families.
+- Use [Vault](/runtime/core/configuration/vault) when an integration needs encrypted
+  AGH-managed secret refs instead of daemon environment variables.

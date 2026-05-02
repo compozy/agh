@@ -107,7 +107,7 @@ func TestDefaultHookPriority(t *testing.T) {
 
 	tests := []struct {
 		source HookSource
-		want   int
+		want   int32
 	}{
 		{source: HookSourceNative, want: 1000},
 		{source: HookSourceConfig, want: 500},
@@ -153,7 +153,7 @@ func testResolvedHook(name string, source HookSource, priority int, skillSource 
 			Event:    HookSessionPostCreate,
 			Source:   source,
 			Mode:     HookModeAsync,
-			Priority: priority,
+			Priority: int32(priority),
 			Executor: stubExecutor{kind: kind},
 		},
 		Decl: HookDecl{
@@ -161,7 +161,7 @@ func testResolvedHook(name string, source HookSource, priority int, skillSource 
 			Event:        HookSessionPostCreate,
 			Source:       source,
 			Mode:         HookModeAsync,
-			Priority:     priority,
+			Priority:     int32(priority),
 			PrioritySet:  true,
 			ExecutorKind: kind,
 			Command:      command,

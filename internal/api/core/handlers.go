@@ -47,6 +47,7 @@ type BaseHandlerConfig struct {
 	Bundles                      BundleService
 	Settings                     SettingsService
 	SettingsRestart              SettingsRestartController
+	Vault                        VaultService
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	AgentContextService          AgentContextService
@@ -86,6 +87,7 @@ type BaseHandlers struct {
 	Bundles                      BundleService
 	Settings                     SettingsService
 	SettingsRestart              SettingsRestartController
+	Vault                        VaultService
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	AgentContextService          AgentContextService
@@ -165,6 +167,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Bundles:                      cfg.Bundles,
 		Settings:                     cfg.Settings,
 		SettingsRestart:              cfg.SettingsRestart,
+		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
 		AgentCatalog:                 cfg.AgentCatalog,
 		AgentContextService:          cfg.AgentContextService,

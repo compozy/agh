@@ -190,6 +190,10 @@ function ProviderEditor({
     isCreate &&
     lowerName.length > 0 &&
     existingNames.some(existing => existing.toLowerCase() === lowerName);
+  const secretError =
+    draft.secret_value.trim() && !draft.secret_ref.trim().startsWith("vault:")
+      ? "API key values can only be saved into vault: refs."
+      : null;
 
   return (
     <SettingsEditorDialog
@@ -207,9 +211,13 @@ function ProviderEditor({
           />
         ) : null
       }
-      error={error ?? (nameConflict ? `A provider named "${draft.name}" already exists.` : null)}
+      error={
+        error ??
+        secretError ??
+        (nameConflict ? `A provider named "${draft.name}" already exists.` : null)
+      }
       warnings={warnings}
-      canSave={isValid && !nameConflict}
+      canSave={isValid && !nameConflict && !secretError}
       isSaving={isSaving}
       saveLabel={isCreate ? "Create provider" : "Replace overlay"}
       onSave={onSave}
@@ -254,6 +262,23 @@ function ProviderEditor({
           }
         />
         <SettingsFieldRow
+          data-testid="settings-providers-editor-display-name"
+          label="Display name"
+          description="Operator-facing label shown beside the provider id."
+          hint="OPTIONAL"
+          control={
+            <Input
+              className="w-56"
+              data-testid="settings-providers-editor-display-name-input"
+              value={draft.display_name}
+              placeholder="OpenRouter"
+              onChange={event =>
+                onChange(current => ({ ...current, display_name: event.target.value }))
+              }
+            />
+          }
+        />
+        <SettingsFieldRow
           data-testid="settings-providers-editor-model"
           label="Default model"
           description="Sent to the provider when an agent does not specify one."
@@ -271,9 +296,75 @@ function ProviderEditor({
           }
         />
         <SettingsFieldRow
+          data-testid="settings-providers-editor-harness"
+          label="Harness"
+          description="Runtime adapter used to launch the provider."
+          hint="REQUIRED"
+          control={
+            <Input
+              className="w-40 font-mono"
+              data-testid="settings-providers-editor-harness-input"
+              value={draft.harness}
+              placeholder="acp or pi_acp"
+              onChange={event => onChange(current => ({ ...current, harness: event.target.value }))}
+            />
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-runtime-provider"
+          label="Runtime provider"
+          description="Downstream provider id used by the selected harness."
+          hint="PI"
+          control={
+            <Input
+              className="w-56 font-mono"
+              data-testid="settings-providers-editor-runtime-provider-input"
+              value={draft.runtime_provider}
+              placeholder="openrouter"
+              onChange={event =>
+                onChange(current => ({ ...current, runtime_provider: event.target.value }))
+              }
+            />
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-transport"
+          label="Transport"
+          description="Provider API family or Pi models override transport."
+          hint="OPTIONAL"
+          control={
+            <Input
+              className="w-56 font-mono"
+              data-testid="settings-providers-editor-transport-input"
+              value={draft.transport}
+              placeholder="openai"
+              onChange={event =>
+                onChange(current => ({ ...current, transport: event.target.value }))
+              }
+            />
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-base-url"
+          label="Base URL"
+          description="Custom API base URL for Pi-backed model overrides."
+          hint="OPTIONAL"
+          control={
+            <Input
+              className="w-72 font-mono"
+              data-testid="settings-providers-editor-base-url-input"
+              value={draft.base_url}
+              placeholder="https://openrouter.ai/api/v1"
+              onChange={event =>
+                onChange(current => ({ ...current, base_url: event.target.value }))
+              }
+            />
+          }
+        />
+        <SettingsFieldRow
           data-testid="settings-providers-editor-api-key"
-          label="API key env"
-          description="Environment variable the daemon reads before spawning this provider."
+          label="Target env"
+          description="Environment variable injected from the provider credential slot."
           hint="OPTIONAL"
           control={
             <div className="flex items-center gap-2">
@@ -281,18 +372,224 @@ function ProviderEditor({
               <Input
                 className="w-56 font-mono"
                 data-testid="settings-providers-editor-api-key-input"
-                value={draft.api_key_env}
+                value={draft.target_env}
                 placeholder="ANTHROPIC_API_KEY"
                 onChange={event =>
-                  onChange(current => ({ ...current, api_key_env: event.target.value }))
+                  onChange(current => ({ ...current, target_env: event.target.value }))
                 }
               />
             </div>
           }
         />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-secret-ref"
+          label="Secret ref"
+          description="Bound credential source injected into the target env var at launch."
+          hint="BOUND"
+          control={
+            <div className="flex items-center gap-2">
+              <KeyRound className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+              <Input
+                className="w-72 font-mono"
+                data-testid="settings-providers-editor-secret-ref-input"
+                value={draft.secret_ref}
+                placeholder="env:OPENROUTER_API_KEY"
+                onChange={event =>
+                  onChange(current => ({ ...current, secret_ref: event.target.value }))
+                }
+              />
+            </div>
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-secret-value"
+          label="API key"
+          description="Write-only value stored when the secret ref uses vault:."
+          hint="WRITE-ONLY"
+          control={
+            <Input
+              className="w-72 font-mono"
+              data-testid="settings-providers-editor-secret-value-input"
+              value={draft.secret_value}
+              type="password"
+              placeholder="sk-..."
+              onChange={event =>
+                onChange(current => ({ ...current, secret_value: event.target.value }))
+              }
+            />
+          }
+        />
+        <AdditionalCredentialSlotsEditor draft={draft} onChange={onChange} />
       </div>
     </SettingsEditorDialog>
   );
+}
+
+type CredentialSlotDraft = ProviderDraft["credential_slots"][number];
+
+function AdditionalCredentialSlotsEditor({
+  draft,
+  onChange,
+}: {
+  draft: ProviderDraft;
+  onChange: (updater: (draft: ProviderDraft) => ProviderDraft) => void;
+}) {
+  const additionalSlots = draft.credential_slots.slice(1);
+
+  return (
+    <SettingsFieldRow
+      data-testid="settings-providers-editor-credential-slots"
+      label="More slots"
+      description="Additional credential refs injected into provider subprocess env."
+      hint="OPTIONAL"
+      control={
+        <div className="flex w-full max-w-[44rem] flex-col gap-2">
+          {additionalSlots.length === 0 ? (
+            <span
+              className="font-mono text-xs text-[color:var(--color-text-tertiary)]"
+              data-testid="settings-providers-editor-credential-slots-empty"
+            >
+              No additional credential slots
+            </span>
+          ) : (
+            additionalSlots.map((slot, offset) => {
+              const index = offset + 1;
+              return (
+                <div
+                  className="grid gap-2 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] p-2 md:grid-cols-[8rem_11rem_1fr_7rem_2rem]"
+                  data-testid={`settings-providers-editor-credential-slot-${index}`}
+                  key={`${slot.name}-${index}`}
+                >
+                  <Input
+                    className="font-mono"
+                    aria-label={`Credential slot ${index} name`}
+                    value={slot.name}
+                    placeholder="organization"
+                    onChange={event =>
+                      onChange(current =>
+                        updateCredentialSlot(current, index, { name: event.target.value })
+                      )
+                    }
+                  />
+                  <Input
+                    className="font-mono"
+                    aria-label={`Credential slot ${index} target env`}
+                    value={slot.target_env}
+                    placeholder="OPENROUTER_ORG_ID"
+                    onChange={event =>
+                      onChange(current =>
+                        updateCredentialSlot(current, index, { target_env: event.target.value })
+                      )
+                    }
+                  />
+                  <Input
+                    className="font-mono"
+                    aria-label={`Credential slot ${index} secret ref`}
+                    value={slot.secret_ref}
+                    placeholder="env:OPENROUTER_ORG_ID"
+                    onChange={event =>
+                      onChange(current =>
+                        updateCredentialSlot(current, index, { secret_ref: event.target.value })
+                      )
+                    }
+                  />
+                  <Input
+                    className="font-mono"
+                    aria-label={`Credential slot ${index} vault value`}
+                    type="password"
+                    value={draft.credential_secret_values[index] ?? ""}
+                    placeholder="value"
+                    onChange={event =>
+                      onChange(current =>
+                        updateCredentialSecretValue(current, index, event.target.value)
+                      )
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remove credential slot ${index}`}
+                    onClick={() => onChange(current => removeCredentialSlot(current, index))}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              );
+            })
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-fit"
+            onClick={() => onChange(addCredentialSlot)}
+            data-testid="settings-providers-editor-add-credential-slot"
+          >
+            <Plus className="size-3.5" />
+            Add slot
+          </Button>
+        </div>
+      }
+    />
+  );
+}
+
+function addCredentialSlot(draft: ProviderDraft): ProviderDraft {
+  const slots =
+    draft.credential_slots.length > 0 ? [...draft.credential_slots] : [primarySlot(draft)];
+  const values = [...draft.credential_secret_values];
+  slots.push({
+    name: `credential_${slots.length + 1}`,
+    target_env: "",
+    secret_ref: "",
+    kind: "api_key",
+    required: false,
+  });
+  values.length = slots.length;
+  values[slots.length - 1] = "";
+  return { ...draft, credential_slots: slots, credential_secret_values: values };
+}
+
+function primarySlot(draft: ProviderDraft): CredentialSlotDraft {
+  const targetEnv = draft.target_env.trim();
+  return {
+    name: "api_key",
+    target_env: targetEnv,
+    secret_ref: draft.secret_ref.trim() || (targetEnv ? `env:${targetEnv}` : ""),
+    kind: "api_key",
+    required: true,
+  };
+}
+
+function updateCredentialSlot(
+  draft: ProviderDraft,
+  index: number,
+  patch: Partial<CredentialSlotDraft>
+): ProviderDraft {
+  const slots = [...draft.credential_slots];
+  const current = slots[index];
+  if (!current) {
+    return draft;
+  }
+  slots[index] = { ...current, ...patch };
+  return { ...draft, credential_slots: slots };
+}
+
+function updateCredentialSecretValue(
+  draft: ProviderDraft,
+  index: number,
+  value: string
+): ProviderDraft {
+  const values = [...draft.credential_secret_values];
+  values[index] = value;
+  return { ...draft, credential_secret_values: values };
+}
+
+function removeCredentialSlot(draft: ProviderDraft, index: number): ProviderDraft {
+  const slots = draft.credential_slots.filter((_, currentIndex) => currentIndex !== index);
+  const values = draft.credential_secret_values.filter((_, currentIndex) => currentIndex !== index);
+  return { ...draft, credential_slots: slots, credential_secret_values: values };
 }
 
 function ProviderDeleteDialog({

@@ -9,7 +9,7 @@ import (
 var ErrInvalidHookSource = errors.New("hooks: invalid hook source")
 
 // DefaultHookPriority returns the documented default priority for the source.
-func DefaultHookPriority(source HookSource) (int, error) {
+func DefaultHookPriority(source HookSource) (int32, error) {
 	switch source {
 	case HookSourceNative:
 		return 1000, nil

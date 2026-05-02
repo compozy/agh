@@ -38,7 +38,7 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		},
 		{
 			name:   "Should reject provider secret binding",
-			path:   "providers.claude.api_key_env",
+			path:   "providers.claude.credential_slots[0].secret_ref",
 			denial: ConfigPathSecretForbidden,
 		},
 		{

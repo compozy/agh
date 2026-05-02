@@ -66,21 +66,25 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
         <MetaRow label="Default model" testId={`${testId}-model`}>
           {provider.settings.default_model ?? <EmptyValue />}
         </MetaRow>
-        <MetaRow label="API key env" testId={`${testId}-api-key`}>
-          {provider.settings.api_key_env ? (
+        <MetaRow label="Harness" testId={`${testId}-harness`}>
+          {provider.settings.harness ? (
             <span className="flex flex-wrap items-center gap-1.5">
-              <span className="truncate">{provider.settings.api_key_env}</span>
-              <Pill
-                mono
-                tone={provider.api_key_env_present ? "success" : "warning"}
-                data-testid={`${testId}-api-key-state`}
-              >
-                {provider.api_key_env_present ? "SET" : "MISSING"}
-              </Pill>
+              <span>{provider.settings.harness}</span>
+              {provider.settings.runtime_provider ? (
+                <Pill mono tone="neutral">
+                  {provider.settings.runtime_provider}
+                </Pill>
+              ) : null}
             </span>
           ) : (
             <EmptyValue />
           )}
+        </MetaRow>
+        <MetaRow label="Credential slots" testId={`${testId}-api-key`}>
+          <CredentialSlots provider={provider} />
+        </MetaRow>
+        <MetaRow label="Credential" testId={`${testId}-credential`}>
+          <CredentialState provider={provider} testId={testId} />
         </MetaRow>
         <MetaRow label="Source">
           <SettingsSourceBadge
@@ -160,6 +164,66 @@ function EmptyValue() {
   return <span className="text-[color:var(--color-text-label)]">—</span>;
 }
 
+function CredentialState({
+  provider,
+  testId,
+}: {
+  provider: SettingsProviderEntry;
+  testId: string;
+}) {
+  const credentials = provider.credentials ?? [];
+  const credential = credentials[0];
+  if (!credential) {
+    return <EmptyValue />;
+  }
+  const missingRequired = credentials.some(item => item.required && !item.present);
+  const presentCount = credentials.filter(item => item.present).length;
+  const stateLabel = missingRequired
+    ? "MISSING"
+    : presentCount === credentials.length
+      ? "BOUND"
+      : "OPTIONAL";
+  const stateTone = missingRequired ? "warning" : presentCount > 0 ? "success" : "neutral";
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className="truncate">
+        {credential.secret_ref}
+        {credentials.length > 1 ? ` +${credentials.length - 1}` : ""}
+      </span>
+      <Pill mono tone={stateTone} data-testid={`${testId}-credential-state`}>
+        {stateLabel}
+      </Pill>
+    </span>
+  );
+}
+
+function CredentialSlots({ provider }: { provider: SettingsProviderEntry }) {
+  const slots = provider.settings.credential_slots ?? [];
+  const slot = slots[0];
+  if (!slot) {
+    return <EmptyValue />;
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className="truncate">
+        {slot.target_env}
+        {slots.length > 1 ? ` +${slots.length - 1}` : ""}
+      </span>
+      <Pill mono tone="neutral">
+        {slot.name}
+      </Pill>
+    </span>
+  );
+}
+
+function providerCredentialsConfigured(provider: SettingsProviderEntry): boolean {
+  const credentials = provider.credentials ?? [];
+  if (credentials.length === 0) {
+    return true;
+  }
+  return credentials.every(credential => !credential.required || credential.present);
+}
+
 export function providerStateTone(provider: SettingsProviderEntry): {
   tone: PillTone;
   label: string;
@@ -167,7 +231,7 @@ export function providerStateTone(provider: SettingsProviderEntry): {
   if (!provider.command_available) {
     return { tone: "warning", label: "binary-missing" };
   }
-  if (!provider.api_key_env_present && provider.settings.api_key_env) {
+  if (!providerCredentialsConfigured(provider)) {
     return { tone: "warning", label: "unconfigured" };
   }
   return { tone: "success", label: "installed" };

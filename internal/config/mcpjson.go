@@ -25,6 +25,7 @@ type mcpJSONServer struct {
 	Command   string             `json:"command,omitempty"`
 	Args      []string           `json:"args,omitempty"`
 	Env       map[string]string  `json:"env,omitempty"`
+	SecretEnv map[string]string  `json:"secret_env,omitempty"`
 	URL       string             `json:"url,omitempty"`
 	Auth      MCPAuthConfig      `json:"auth"`
 }
@@ -124,6 +125,7 @@ func sortedMCPJSONServers(values map[string]mcpJSONServer) []MCPServer {
 			Command:   strings.TrimSpace(entry.Command),
 			Args:      append([]string(nil), entry.Args...),
 			Env:       mergeStringMaps(nil, entry.Env),
+			SecretEnv: mergeStringMaps(nil, entry.SecretEnv),
 			URL:       strings.TrimSpace(entry.URL),
 			Auth:      normalizeMCPAuthConfig(entry.Auth),
 		})

@@ -12,6 +12,8 @@ const primaryLinks = [
   { href: "/", label: "Home" },
   { href: "/runtime", label: "Runtime" },
   { href: "/protocol", label: "AGH Network" },
+  { href: "/blog", label: "Blog" },
+  { href: "/changelog", label: "Changelog" },
 ];
 
 function isActive(pathname: string, href: string) {

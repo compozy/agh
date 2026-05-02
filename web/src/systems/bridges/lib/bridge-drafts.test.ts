@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { BridgeCreateDraft } from "@/systems/bridges/types";
 
 import {
-  bridgeSecretBindingEnvName,
+  bridgeSecretBindingVaultRef,
   buildBridgeCreateRequest,
   buildBridgeSecretBindingRequest,
   buildBridgeUpdateRequest,
@@ -206,25 +206,34 @@ describe("buildBridgeUpdateRequest", () => {
 });
 
 describe("bridge secret binding helpers", () => {
-  it("normalizes env refs and builds env-backed secret binding payloads", () => {
+  it("normalizes vault refs and builds vault-backed secret binding payloads", () => {
     expect(
-      bridgeSecretBindingEnvName({
-        vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+      bridgeSecretBindingVaultRef({
+        secret_ref: "vault:bridges/brg_support/bot_token",
       } as never)
-    ).toBe("AGH_BRIDGE_BOT_TOKEN");
+    ).toBe("vault:bridges/brg_support/bot_token");
 
-    expect(buildBridgeSecretBindingRequest("env:AGH_BRIDGE_BOT_TOKEN", "bot_token")).toEqual({
+    expect(
+      buildBridgeSecretBindingRequest("brg_support", "bot_token", "telegram-token", "bot_token")
+    ).toEqual({
       data: {
         kind: "bot_token",
-        vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+        secret_ref: "vault:bridges/brg_support/bot_token",
+        secret_value: "telegram-token",
       },
       ok: true,
     });
   });
 
-  it("rejects invalid environment variable names", () => {
-    expect(buildBridgeSecretBindingRequest("not-valid-name", "bot_token")).toEqual({
-      error: "Secret binding must reference an environment variable name like AGH_BRIDGE_TOKEN.",
+  it("rejects invalid vault binding inputs", () => {
+    expect(
+      buildBridgeSecretBindingRequest("not valid", "bot_token", "telegram-token", "bot_token")
+    ).toEqual({
+      error: "Secret binding must use a bridge vault reference.",
+      ok: false,
+    });
+    expect(buildBridgeSecretBindingRequest("brg_support", "bot_token", " ", "bot_token")).toEqual({
+      error: "Secret binding value is required.",
       ok: false,
     });
   });

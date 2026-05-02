@@ -35,7 +35,7 @@ func TestInstallCommandWritesBootstrapConfigAndAgent(t *testing.T) {
 			"--provider",
 			"claude",
 			"--model",
-			"claude-sonnet-4-20250514",
+			"claude-sonnet-4-6",
 			"-o",
 			"json",
 		)
@@ -138,6 +138,122 @@ func TestInstallCommandMachineOutput(t *testing.T) {
 			t.Fatalf("decoded.Model = %q, want %q", decoded.Model, wantModel)
 		}
 	})
+
+	t.Run("Should bootstrap provider-managed drivers without a model", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		deps.runInstallWizard = func(context.Context, installWizardInput) (installWizardSelection, error) {
+			t.Fatal("install wizard should not run for explicit machine output")
+			return installWizardSelection{}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "install", "--provider", "blackbox", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(install blackbox) error = %v", err)
+		}
+
+		var decoded installRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(install) error = %v", err)
+		}
+		if decoded.Provider != "blackbox" {
+			t.Fatalf("decoded.Provider = %q, want %q", decoded.Provider, "blackbox")
+		}
+		if decoded.Model != "" {
+			t.Fatalf("decoded.Model = %q, want empty provider-managed model", decoded.Model)
+		}
+
+		cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig() error = %v", err)
+		}
+		if cfg.Defaults.Provider != "blackbox" {
+			t.Fatalf("cfg.Defaults.Provider = %q, want blackbox", cfg.Defaults.Provider)
+		}
+		if got := cfg.Providers["blackbox"].DefaultModel; got != "" {
+			t.Fatalf("cfg.Providers[blackbox].DefaultModel = %q, want empty", got)
+		}
+	})
+
+	t.Run("Should canonicalize aliases before resolving suggested models", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		deps.runInstallWizard = func(context.Context, installWizardInput) (installWizardSelection, error) {
+			t.Fatal("install wizard should not run for explicit machine output")
+			return installWizardSelection{}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "install", "--provider", "kimi", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(install kimi alias) error = %v", err)
+		}
+
+		var decoded installRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(install) error = %v", err)
+		}
+		if decoded.Provider != "moonshot" {
+			t.Fatalf("decoded.Provider = %q, want canonical moonshot", decoded.Provider)
+		}
+		if decoded.Model != "kimi-k2-thinking" {
+			t.Fatalf("decoded.Model = %q, want moonshot default model", decoded.Model)
+		}
+
+		cfg, err := aghconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig() error = %v", err)
+		}
+		if cfg.Defaults.Provider != "moonshot" {
+			t.Fatalf("cfg.Defaults.Provider = %q, want canonical moonshot", cfg.Defaults.Provider)
+		}
+	})
+
+	t.Run("Should use canonical direct driver alias defaults", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		input := buildInstallWizardInput(&cfg)
+		selection, err := resolveNonInteractiveInstallSelection(input, "qwen", "")
+		if err != nil {
+			t.Fatalf("resolveNonInteractiveInstallSelection(qwen alias) error = %v", err)
+		}
+		if selection.Provider != "qwen-code" {
+			t.Fatalf("selection.Provider = %q, want qwen-code", selection.Provider)
+		}
+		if selection.Model != "qwen3.6-plus" {
+			t.Fatalf("selection.Model = %q, want qwen3.6-plus", selection.Model)
+		}
+	})
+
+	t.Run("Should reject missing model for pi-backed providers", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := aghconfig.DefaultWithHome(aghconfig.HomePaths{})
+		cfg.Providers["custom-pi"] = aghconfig.ProviderConfig{
+			Command:         "npx -y pi-acp@latest",
+			Harness:         aghconfig.ProviderHarnessPiACP,
+			RuntimeProvider: "custom",
+		}
+		input := buildInstallWizardInput(&cfg)
+		_, err := resolveNonInteractiveInstallSelection(input, "custom-pi", "")
+		if err == nil {
+			t.Fatal("resolveNonInteractiveInstallSelection() error = nil, want model required error")
+		}
+		wantErr := `cli: install model is required for provider "custom-pi"`
+		if err.Error() != wantErr {
+			t.Fatalf("resolveNonInteractiveInstallSelection() error = %q, want %q", err.Error(), wantErr)
+		}
+	})
 }
 
 func TestInstallCommandHumanOutput(t *testing.T) {
@@ -153,7 +269,7 @@ func TestInstallCommandHumanOutput(t *testing.T) {
 			}
 			return installWizardSelection{
 				Provider: "claude",
-				Model:    "claude-sonnet-4-20250514",
+				Model:    "claude-sonnet-4-6",
 			}, nil
 		}
 
@@ -232,6 +348,9 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 				"claude": "claude-sonnet",
 				"codex":  "gpt-5.4",
 			},
+			ModelRequired: map[string]bool{
+				"codex": true,
+			},
 		})
 
 		if model.Init() == nil {
@@ -303,6 +422,40 @@ func TestInstallWizardModelTransitions(t *testing.T) {
 		}
 		if !model.done {
 			t.Fatal("done = false, want true after confirm enter")
+		}
+	})
+
+	t.Run("Should allow blank model for provider-managed drivers", func(t *testing.T) {
+		t.Parallel()
+
+		model := newInstallWizardModel(installWizardInput{
+			Providers:        []string{"blackbox"},
+			SelectedProvider: "blackbox",
+			SuggestedModels:  map[string]string{"blackbox": ""},
+			ModelRequired:    map[string]bool{"blackbox": false},
+		})
+
+		var cmd tea.Cmd
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		if cmd == nil {
+			t.Fatal("provider enter cmd = nil, want blink command")
+		}
+		if !strings.Contains(model.View(), "provider-managed default") {
+			t.Fatalf("model view = %q, want provider-managed guidance", model.View())
+		}
+
+		model, cmd = updateInstallWizardModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		if cmd != nil {
+			t.Fatalf("blank optional model enter cmd = %v, want nil", cmd)
+		}
+		if model.errText != "" {
+			t.Fatalf("errText = %q, want empty", model.errText)
+		}
+		if model.step != installWizardStepConfirm {
+			t.Fatalf("step = %v, want confirm", model.step)
+		}
+		if !strings.Contains(model.View(), "Model:       -") {
+			t.Fatalf("confirm view = %q, want model dash", model.View())
 		}
 	})
 }

@@ -117,7 +117,9 @@ func (c CoordinatorConfig) Validate(path string, resolver providerResolver) erro
 	if err != nil {
 		return fmt.Errorf("%s.provider: %w", path, err)
 	}
-	if strings.TrimSpace(c.Model) == "" && strings.TrimSpace(provider.DefaultModel) == "" {
+	if strings.TrimSpace(c.Model) == "" &&
+		strings.TrimSpace(provider.DefaultModel) == "" &&
+		provider.RequiresRuntimeModel() {
 		return fmt.Errorf("%s.model is required when provider %q has no default model", path, providerName)
 	}
 	return nil
@@ -151,7 +153,7 @@ func (c *Config) ResolveCoordinatorConfig(fallback AgentDef) (CoordinatorConfig,
 		if model == "" {
 			model = strings.TrimSpace(provider.DefaultModel)
 		}
-		if model == "" {
+		if model == "" && provider.RequiresRuntimeModel() {
 			return CoordinatorConfig{}, fmt.Errorf(
 				"autonomy.coordinator.model is required when provider %q has no default model",
 				providerName,

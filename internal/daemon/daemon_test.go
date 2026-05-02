@@ -5648,7 +5648,7 @@ func (f *fakeAutomationManager) GetTrigger(_ context.Context, id string) (automa
 func (f *fakeAutomationManager) CreateTrigger(
 	_ context.Context,
 	trigger automationpkg.Trigger,
-	_ string,
+	_ automationpkg.WebhookSecretWrite,
 ) (automationpkg.Trigger, error) {
 	f.triggers = append(f.triggers, trigger)
 	return trigger, nil
@@ -5657,7 +5657,7 @@ func (f *fakeAutomationManager) CreateTrigger(
 func (f *fakeAutomationManager) UpdateTrigger(
 	_ context.Context,
 	trigger automationpkg.Trigger,
-	_ *string,
+	_ *automationpkg.WebhookSecretWrite,
 ) (automationpkg.Trigger, error) {
 	for i := range f.triggers {
 		if f.triggers[i].ID == strings.TrimSpace(trigger.ID) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -69,6 +70,11 @@ type HostedMCPLaunchRequest struct {
 	AgentName   string
 }
 
+// ProviderSecretResolver resolves provider-bound secret refs at launch time.
+type ProviderSecretResolver interface {
+	ResolveRef(ctx context.Context, ref string) (string, error)
+}
+
 // Option customizes the session manager.
 type Option func(*Manager)
 
@@ -94,6 +100,7 @@ type Manager struct {
 	hooks           HookSet
 	sandbox         *sandbox.Registry
 	agentResolver   AgentResolver
+	providerSecrets ProviderSecretResolver
 	skillRegistry   SkillRegistry
 	mcpResolver     MCPResolver
 	hostedMCP       HostedMCPLauncher
@@ -172,6 +179,13 @@ func WithSkillRegistry(registry SkillRegistry) Option {
 func WithAgentResolver(resolver AgentResolver) Option {
 	return func(manager *Manager) {
 		manager.agentResolver = resolver
+	}
+}
+
+// WithProviderSecretResolver injects the launch-time provider secret resolver.
+func WithProviderSecretResolver(resolver ProviderSecretResolver) Option {
+	return func(manager *Manager) {
+		manager.providerSecrets = resolver
 	}
 }
 
@@ -334,6 +348,9 @@ func (m *Manager) applyRuntimeDefaults() error {
 	}
 	if m.openStore == nil {
 		return errors.New("session: store opener is required")
+	}
+	if m.providerSecrets == nil {
+		m.providerSecrets = envProviderSecretResolver{lookupEnv: os.LookupEnv}
 	}
 	if m.lifecycleCtx == nil {
 		m.lifecycleCtx = context.Background()

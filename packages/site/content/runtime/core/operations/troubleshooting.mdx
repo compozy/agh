@@ -121,9 +121,11 @@ command -v codex
 command -v gemini
 ```
 
-Agent subprocesses inherit the daemon environment. If a provider needs `ANTHROPIC_API_KEY`,
-`OPENAI_API_KEY`, `GEMINI_API_KEY`, or a custom variable, set it in the shell or service manager
-that starts the daemon.
+Agent subprocesses inherit the daemon environment and receive provider credentials from bound
+`credential_slots`. If a provider uses an `env:NAME` secret ref, set that variable in the shell or
+service manager that starts the daemon. If it uses a `vault:providers/<provider>/<slot>` ref, save
+the credential through the settings API or web provider editor and confirm the provider status
+reports the credential as present.
 
 See [Spawning](/runtime/core/agents/spawning) for the exact launch and ACP negotiation flow.
 

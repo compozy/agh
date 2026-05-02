@@ -3,14 +3,6 @@ import { SectionHeader } from "./primitives/section-header";
 
 const FEATURES = [
   {
-    eyebrow: "Sessions",
-    title: "Resume any agent run",
-    description:
-      "Every agent run is a durable session. Stop, resume, inspect every step, fork from any point.",
-    image: "/images/everything/illustration_01.png",
-    imageAlt: "Durable session timeline with code edits and replay checkpoints.",
-  },
-  {
     eyebrow: "Memory",
     title: "Context that survives restarts",
     description:
@@ -19,12 +11,12 @@ const FEATURES = [
     imageAlt: "Memory cards stored in a global Markdown index.",
   },
   {
-    eyebrow: "Skills",
-    title: "Reusable playbooks",
+    eyebrow: "Capabilities",
+    title: "Reusable agent capabilities",
     description:
-      "Drop-in SKILL.md bundles with YAML frontmatter. Bundled library, workspace overrides, community catalog.",
+      "Drop-in SKILL.md bundles with YAML frontmatter. Bundled library, workspace overrides, community catalog. Capabilities also travel across the network as a typed message kind.",
     image: "/images/everything/illustration_04.png",
-    imageAlt: "Playbook YAML connected to read, run, analyze, and propose steps.",
+    imageAlt: "Capability bundle connected to read, run, analyze, and propose steps.",
   },
   {
     eyebrow: "Workspaces",
@@ -42,27 +34,19 @@ const FEATURES = [
     image: "/images/everything/illustration_06.png",
     imageAlt: "Automation job fan-out to archive, notify, webhook, and summary actions.",
   },
-  {
-    eyebrow: "Observability",
-    title: "Everything logged, everything replayable",
-    description:
-      "Token usage, permission audit, tool calls, errors — streamed over SSE, persisted to disk.",
-    image: "/images/everything/illustration_03.png",
-    imageAlt: "Replay trace, event chart, and top tool usage panels.",
-  },
 ];
 
 export function FeaturesSection() {
   return (
-    <SectionFrame background="canvas" padY="lg">
+    <SectionFrame background="canvas" padY="lg" className="border-b border-(--color-divider)">
       <SectionHeader
         align="start"
-        eyebrow="What you get"
-        title="Everything a modern agent runtime should have."
-        description="You already know you need sessions, memory, and skills. AGH ships all of it, local-first, with an operator surface you can script."
+        eyebrow="Operator surface"
+        title="The runtime your agents already know how to drive."
+        description="Sessions, capabilities, workspaces, automation, observability — every surface is reachable from CLI, HTTP, and UDS. Same primitives for you and for the agents you run."
       />
 
-      <ul className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <ul className="mt-12 grid gap-4 md:grid-cols-2">
         {FEATURES.map(feature => (
           <li key={feature.eyebrow}>
             <article

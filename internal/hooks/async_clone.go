@@ -256,6 +256,7 @@ func cloneContextCompactPayload(payload ContextCompactPayload) ContextCompactPay
 
 func cloneSandboxProfilePayload(payload SandboxProfilePayload) SandboxProfilePayload {
 	payload.Env = cloneStringMap(payload.Env)
+	payload.SecretEnv = cloneStringMap(payload.SecretEnv)
 	return payload
 }
 

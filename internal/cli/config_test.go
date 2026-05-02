@@ -243,27 +243,28 @@ func TestConfigOutputRedactsMCPAndSandboxSecrets(t *testing.T) {
 [[mcp_servers]]
 name = "remote"
 command = "remote-mcp"
-env = { MCP_TOKEN = "raw-mcp-secret" }
+secret_env = { MCP_TOKEN = "env:MCP_TOKEN" }
 
 [sandboxes.dev]
 backend = "local"
 
-[sandboxes.dev.env]
-API_TOKEN = "raw-env-secret"
+	[sandboxes.dev.secret_env]
+	API_TOKEN = "vault:sandbox/dev/api-token"
 `)
 
 	listOut, _, err := executeRootCommand(t, deps, "config", "list", "-o", "json")
 	if err != nil {
 		t.Fatalf("config list error = %v", err)
 	}
-	if strings.Contains(listOut, "raw-mcp-secret") || strings.Contains(listOut, "raw-env-secret") {
+	if strings.Contains(listOut, "env:MCP_TOKEN") ||
+		strings.Contains(listOut, "vault:sandbox/dev/api-token") {
 		t.Fatalf("config list leaked secret values:\n%s", listOut)
 	}
 	if !strings.Contains(listOut, aghconfig.RedactedValue()) {
 		t.Fatalf("config list = %s, want redacted placeholder", listOut)
 	}
 
-	getOut, _, err := executeRootCommand(t, deps, "config", "get", "mcp_servers[0].env.MCP_TOKEN", "-o", "json")
+	getOut, _, err := executeRootCommand(t, deps, "config", "get", "mcp_servers[0].secret_env.MCP_TOKEN", "-o", "json")
 	if err != nil {
 		t.Fatalf("config get redacted MCP env error = %v", err)
 	}
@@ -471,15 +472,15 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 		deps,
 		"config",
 		"set",
-		"sandboxes.dev.env.API_TOKEN",
-		"raw-secret",
+		"sandboxes.dev.secret_env.API_TOKEN",
+		"vault:sandbox/dev/api-token",
 		"-o",
 		"json",
 	)
 	if err != nil {
 		t.Fatalf("config set sandbox env error = %v", err)
 	}
-	if strings.Contains(out, "raw-secret") {
+	if strings.Contains(out, "vault:sandbox/dev/api-token") {
 		t.Fatalf("config set leaked secret value:\n%s", out)
 	}
 	var setRecord configSetRecord

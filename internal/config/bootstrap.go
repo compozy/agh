@@ -28,14 +28,11 @@ func ResolveAgentName(name string, defaults DefaultsConfig) (string, error) {
 
 // SaveBootstrapConfig writes the global bootstrap config managed by `agh install`.
 func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Config, error) {
-	selectedProvider := strings.TrimSpace(provider)
+	selectedProvider := CanonicalProviderName(provider)
 	if selectedProvider == "" {
 		return Config{}, errors.New("bootstrap provider is required")
 	}
 	selectedModel := strings.TrimSpace(model)
-	if selectedModel == "" {
-		return Config{}, errors.New("bootstrap model is required")
-	}
 	if err := EnsureHomeLayout(homePaths); err != nil {
 		return Config{}, err
 	}
@@ -43,6 +40,13 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 	current, err := LoadGlobalConfig(homePaths)
 	if err != nil {
 		return Config{}, err
+	}
+	resolvedProvider, err := current.ResolveProvider(selectedProvider)
+	if err != nil {
+		return Config{}, fmt.Errorf("resolve bootstrap provider %q: %w", selectedProvider, err)
+	}
+	if selectedModel == "" && resolvedProvider.RequiresRuntimeModel() {
+		return Config{}, fmt.Errorf("bootstrap model is required for provider %q", selectedProvider)
 	}
 
 	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
@@ -70,6 +74,9 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 			if err := editor.SetValue([]string{"memory", "dream", "agent"}, dreamAgent); err != nil {
 				return err
 			}
+		}
+		if selectedModel == "" {
+			return nil
 		}
 		return editor.SetValue([]string{"providers", selectedProvider, "default_model"}, selectedModel)
 	})

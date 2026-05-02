@@ -136,6 +136,9 @@ func validateSkillResourceSpec(
 				idx,
 			)
 		}
+		if err := toConfigMCPServer(normalized.MCPServers[idx]).Validate("skill.mcp_servers"); err != nil {
+			return SkillResourceSpec{}, fmt.Errorf("%w: skill.mcp_servers[%d]: %v", resources.ErrValidation, idx, err)
+		}
 	}
 	for idx, hook := range normalized.Hooks {
 		if err := hookspkg.ValidateHookDecl(hook); err != nil {
@@ -165,10 +168,11 @@ func validateSkillResourceSpec(
 
 func normalizeMCPServerDecl(decl MCPServerDecl) MCPServerDecl {
 	normalized := MCPServerDecl{
-		Name:    strings.TrimSpace(decl.Name),
-		Command: strings.TrimSpace(decl.Command),
-		Args:    append([]string(nil), decl.Args...),
-		Env:     cloneStringMap(decl.Env),
+		Name:      strings.TrimSpace(decl.Name),
+		Command:   strings.TrimSpace(decl.Command),
+		Args:      append([]string(nil), decl.Args...),
+		Env:       cloneStringMap(decl.Env),
+		SecretEnv: cloneStringMap(decl.SecretEnv),
 	}
 	for idx := range normalized.Args {
 		normalized.Args[idx] = strings.TrimSpace(normalized.Args[idx])
@@ -184,6 +188,19 @@ func normalizeMCPServerDecl(decl MCPServerDecl) MCPServerDecl {
 		}
 		if len(normalized.Env) == 0 {
 			normalized.Env = nil
+		}
+	}
+	if len(normalized.SecretEnv) > 0 {
+		for key, value := range normalized.SecretEnv {
+			trimmedKey := strings.TrimSpace(key)
+			delete(normalized.SecretEnv, key)
+			if trimmedKey == "" {
+				continue
+			}
+			normalized.SecretEnv[trimmedKey] = strings.TrimSpace(value)
+		}
+		if len(normalized.SecretEnv) == 0 {
+			normalized.SecretEnv = nil
 		}
 	}
 	return normalized
@@ -215,6 +232,7 @@ func cloneSkillHookDecls(src []hookspkg.HookDecl) []hookspkg.HookDecl {
 		next := decl
 		next.Args = append([]string(nil), decl.Args...)
 		next.Env = cloneStringMap(decl.Env)
+		next.SecretEnv = cloneStringMap(decl.SecretEnv)
 		next.Metadata = cloneStringMap(decl.Metadata)
 		if decl.Matcher.ToolReadOnly != nil {
 			value := *decl.Matcher.ToolReadOnly

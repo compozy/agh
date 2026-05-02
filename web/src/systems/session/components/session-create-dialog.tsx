@@ -61,6 +61,7 @@ function SessionCreateDialog({
   const hasSelectedProvider = providerOptions.some(
     option => option.name === trimmedSelectedProvider
   );
+  const activeProvider = providerOptions.find(option => option.name === trimmedSelectedProvider);
   const workspaceSelected = workspace !== undefined;
   const canSubmit =
     !isSubmitting &&
@@ -159,10 +160,24 @@ function SessionCreateDialog({
                 )}
                 {providerOptions.map(option => (
                   <NativeSelectOption key={option.name} value={option.name}>
-                    {option.name}
+                    {providerOptionLabel(option)}
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
+              {activeProvider ? (
+                <div
+                  className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-[color:var(--color-text-tertiary)]"
+                  data-testid="session-create-provider-runtime"
+                >
+                  <span>{activeProvider.harness ?? "acp"}</span>
+                  {activeProvider.runtime_provider ? (
+                    <span>{activeProvider.runtime_provider}</span>
+                  ) : null}
+                  {activeProvider.default_model ? (
+                    <span>{activeProvider.default_model}</span>
+                  ) : null}
+                </div>
+              ) : null}
               {providersError ? (
                 <p
                   className="mt-1 text-xs text-[color:var(--color-danger)]"
@@ -212,6 +227,14 @@ function SessionCreateDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function providerOptionLabel(option: SessionProviderOption): string {
+  const label = option.display_name?.trim() || option.name;
+  if (!option.default_model?.trim()) {
+    return label;
+  }
+  return `${label} · ${option.default_model}`;
 }
 
 export { SessionCreateDialog };

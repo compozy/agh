@@ -13,6 +13,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -664,12 +665,17 @@ func TestListCollectionBuildsProvidersSandboxesAndHooks(t *testing.T) {
 [providers.codex]
 default_model = "gpt-5"
 
-[providers.custom]
-command = "custom-acp --stdio"
-default_model = "custom-model"
-api_key_env = "CUSTOM_API_KEY"
+	[providers.custom]
+	command = "custom-acp --stdio"
+	default_model = "custom-model"
+	[[providers.custom.credential_slots]]
+	name = "api_key"
+	target_env = "CUSTOM_API_KEY"
+	secret_ref = "env:CUSTOM_API_KEY"
+	kind = "api_key"
+	required = true
 
-[sandboxes.staging]
+	[sandboxes.staging]
 backend = "local"
 
 [[hooks.declarations]]
@@ -725,8 +731,8 @@ command = "/bin/ship"
 	if custom.CommandAvailable {
 		t.Fatal("custom command available = true, want false")
 	}
-	if custom.APIKeyEnvPresent {
-		t.Fatal("custom API key env present = true, want false")
+	if len(custom.Credentials) != 1 || custom.Credentials[0].Present {
+		t.Fatalf("custom credentials = %#v, want one missing credential status", custom.Credentials)
 	}
 	claude := mustFindProviderItem(t, providers.Providers, "claude")
 	if got, want := claude.SourceMetadata.EffectiveSource.Kind, SourceKindBuiltinProvider; got != want {
@@ -775,7 +781,15 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 		Provider: &ProviderSettings{
 			Command:      "custom-acp --stdio",
 			DefaultModel: "custom-model",
-			APIKeyEnv:    "CUSTOM_API_KEY",
+			CredentialSlots: []aghconfig.ProviderCredentialSlot{
+				{
+					Name:      "api_key",
+					TargetEnv: "CUSTOM_API_KEY",
+					SecretRef: "env:CUSTOM_API_KEY",
+					Kind:      "api_key",
+					Required:  true,
+				},
+			},
 		},
 	})
 	if err != nil {
@@ -865,6 +879,189 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	if strings.Contains(configPayload, `name = "ship"`) {
 		t.Fatalf("hook declaration still present after delete:\n%s", configPayload)
 	}
+}
+
+func TestProviderSecretOnlyMutationStoresVaultSecret(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := testHomePaths(t)
+	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+	secretStore := newFakeProviderSecretStore()
+	service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+	before := readFile(t, homePaths.ConfigFile)
+
+	result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "openrouter",
+		Provider:          &ProviderSettings{},
+		ProviderSecrets: []ProviderSecretWrite{
+			{
+				Name:      "api_key",
+				SecretRef: "vault:providers/openrouter/api-key",
+				Kind:      "api_key",
+				Value:     "openrouter-token",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(provider secret only) error = %v", err)
+	}
+	if got, want := result.WriteTarget, WriteTargetGlobalConfig; got != want {
+		t.Fatalf("provider secret write target = %q, want %q", got, want)
+	}
+	if got, want := result.Behavior, MutationBehaviorRestartRequired; got != want {
+		t.Fatalf("provider secret behavior = %q, want %q", got, want)
+	}
+	if got := secretStore.plaintext["vault:providers/openrouter/api-key"]; got != "openrouter-token" {
+		t.Fatalf("stored provider secret = %q, want openrouter-token", got)
+	}
+	if after := readFile(t, homePaths.ConfigFile); after != before {
+		t.Fatalf("config changed for secret-only mutation:\n%s", after)
+	}
+}
+
+func TestProviderSecretMutationRejectsCrossProviderRefs(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := testHomePaths(t)
+	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+	secretStore := newFakeProviderSecretStore()
+	service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+
+	_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+		Name:              "openrouter",
+		Provider:          &ProviderSettings{},
+		ProviderSecrets: []ProviderSecretWrite{{
+			Name:      "api_key",
+			SecretRef: "vault:providers/anthropic/api-key",
+			Kind:      "api_key",
+			Value:     "openrouter-token",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "must be scoped under vault:providers/openrouter") {
+		t.Fatalf("PutCollectionItem(cross-provider secret ref) error = %v", err)
+	}
+	if len(secretStore.plaintext) != 0 {
+		t.Fatalf("secret store writes = %#v, want none after validation failure", secretStore.plaintext)
+	}
+}
+
+func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
+	t.Run("Should store stdio secret env values without writing plaintext config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		secretStore := newFakeProviderSecretStore()
+		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+
+		result, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "github",
+			Target:            TargetAuto,
+			MCPServer: &aghconfig.MCPServer{
+				Command: "npx",
+				SecretEnv: map[string]string{
+					"GITHUB_TOKEN": "vault:mcp/github/env/GITHUB_TOKEN",
+				},
+			},
+			MCPSecrets: MCPSecretValues{
+				SecretEnv: map[string]string{"GITHUB_TOKEN": "ghp-secret"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("PutCollectionItem(MCP stdio secret) error = %v", err)
+		}
+		if got, want := result.WriteTarget, WriteTargetGlobalMCPSidecar; got != want {
+			t.Fatalf("MCP secret write target = %q, want %q", got, want)
+		}
+		if got, want := secretStore.plaintext["vault:mcp/github/env/GITHUB_TOKEN"], "ghp-secret"; got != want {
+			t.Fatalf("stored MCP secret_env = %q, want %q", got, want)
+		}
+		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		if !strings.Contains(sidecarPayload, "vault:mcp/github/env/GITHUB_TOKEN") {
+			t.Fatalf("sidecar payload missing secret ref:\n%s", sidecarPayload)
+		}
+		if strings.Contains(sidecarPayload, "ghp-secret") {
+			t.Fatalf("sidecar payload leaked plaintext secret:\n%s", sidecarPayload)
+		}
+	})
+
+	t.Run("Should store OAuth client secret values without writing plaintext config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		secretStore := newFakeProviderSecretStore()
+		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+		clientSecret := "oauth-client-secret"
+
+		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "linear",
+			Target:            TargetAuto,
+			MCPServer: &aghconfig.MCPServer{
+				Transport: aghconfig.MCPServerTransportSSE,
+				URL:       "https://mcp.linear.app/sse",
+				Auth: aghconfig.MCPAuthConfig{
+					Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+					AuthorizationURL: "https://linear.app/oauth/authorize",
+					TokenURL:         "https://api.linear.app/oauth/token",
+					ClientID:         "agh-client",
+					ClientSecretRef:  "vault:mcp/linear/oauth/client-secret",
+				},
+			},
+			MCPSecrets: MCPSecretValues{OAuthClientSecret: &clientSecret},
+		})
+		if err != nil {
+			t.Fatalf("PutCollectionItem(MCP OAuth secret) error = %v", err)
+		}
+		if got, want := secretStore.plaintext["vault:mcp/linear/oauth/client-secret"], clientSecret; got != want {
+			t.Fatalf("stored MCP OAuth secret = %q, want %q", got, want)
+		}
+		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		if !strings.Contains(sidecarPayload, "vault:mcp/linear/oauth/client-secret") {
+			t.Fatalf("sidecar payload missing client secret ref:\n%s", sidecarPayload)
+		}
+		if strings.Contains(sidecarPayload, clientSecret) {
+			t.Fatalf("sidecar payload leaked OAuth client secret:\n%s", sidecarPayload)
+		}
+	})
+
+	t.Run("Should reject secret values that do not match declared refs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		secretStore := newFakeProviderSecretStore()
+		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+
+		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "github",
+			MCPServer: &aghconfig.MCPServer{
+				Command: "npx",
+				SecretEnv: map[string]string{
+					"GITHUB_TOKEN": "env:GITHUB_TOKEN",
+				},
+			},
+			MCPSecrets: MCPSecretValues{
+				SecretEnv: map[string]string{"GITHUB_TOKEN": "ghp-secret"},
+			},
+		})
+		if err == nil || !strings.Contains(err.Error(), "must be scoped under vault:mcp/github/env/GITHUB_TOKEN") {
+			t.Fatalf("PutCollectionItem(mismatched MCP secret ref) error = %v", err)
+		}
+		if len(secretStore.plaintext) != 0 {
+			t.Fatalf("secret store writes = %#v, want none after validation failure", secretStore.plaintext)
+		}
+	})
 }
 
 func TestDeleteMCPServerAutoUsesHighestPrecedenceSourceInScope(t *testing.T) {
@@ -1462,6 +1659,50 @@ func (f *fakeSkillsRuntime) List() []*skillspkg.Skill {
 func (f *fakeSkillsRuntime) SetEnabled(name string, _ *workspacepkg.ResolvedWorkspace, enabled bool) error {
 	f.enabled[name] = enabled
 	return nil
+}
+
+type fakeProviderSecretStore struct {
+	metadata  map[string]vault.Metadata
+	plaintext map[string]string
+}
+
+func newFakeProviderSecretStore() *fakeProviderSecretStore {
+	return &fakeProviderSecretStore{
+		metadata:  make(map[string]vault.Metadata),
+		plaintext: make(map[string]string),
+	}
+}
+
+func (f *fakeProviderSecretStore) GetMetadata(ctx context.Context, ref string) (vault.Metadata, error) {
+	if err := ctx.Err(); err != nil {
+		return vault.Metadata{}, err
+	}
+	normalized := vault.NormalizeRef(ref)
+	metadata, ok := f.metadata[normalized]
+	if !ok {
+		return vault.Metadata{}, vault.ErrSecretNotFound
+	}
+	return metadata, nil
+}
+
+func (f *fakeProviderSecretStore) PutSecret(
+	ctx context.Context,
+	ref string,
+	kind string,
+	plaintext string,
+) (vault.Metadata, error) {
+	if err := ctx.Err(); err != nil {
+		return vault.Metadata{}, err
+	}
+	normalized := vault.NormalizeRef(ref)
+	metadata := vault.Metadata{
+		Ref:     normalized,
+		Kind:    strings.TrimSpace(kind),
+		Present: true,
+	}
+	f.metadata[normalized] = metadata
+	f.plaintext[normalized] = plaintext
+	return metadata, nil
 }
 
 func testService(t *testing.T, homePaths aghconfig.HomePaths, deps Dependencies) Service {

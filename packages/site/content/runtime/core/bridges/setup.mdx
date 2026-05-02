@@ -25,7 +25,8 @@ checking routes, and resolving delivery targets.
 - The workspace has a default agent, because bridge-initiated sessions use that default.
 - The provider extension is installed and enabled.
 - The platform can reach the provider webhook over HTTPS.
-- Bridge secrets are available as environment variables in the daemon process.
+- Bridge secret values are available when you bind each slot. AGH stores them encrypted in the
+  vault and only exposes `secret_ref` metadata afterward.
 
 Set a workspace default agent:
 
@@ -84,16 +85,20 @@ Routing is the channel mapping model. AGH does not store a separate channel-to-a
 bridge instance. Pick the dimensions that the adapter emits for the conversation shape, and set the
 workspace default agent for new bridge sessions.
 
-The stock daemon resolves secret refs only from environment variables:
+Bridge secret bindings use AGH-managed vault refs. The API accepts `secret_value` as write-only
+input, stores it encrypted, and returns only the binding metadata:
 
 ```bash
 curl -X PUT "http://localhost:2123/api/bridges/$BRIDGE_ID/secret-bindings/bot_token" \
   -H "Content-Type: application/json" \
-  -d '{"vault_ref":"env:SLACK_BOT_TOKEN","kind":"token"}'
+  -d '{"secret_ref":"vault:bridges/'"$BRIDGE_ID"'/bot_token","secret_value":"xoxb-...","kind":"token"}'
 ```
 
 Restart or enable the bridge after changing secret bindings so the provider gets fresh launch
 material.
+
+You can audit the stored refs without exposing their values through `agh vault list --namespace
+bridges` or Settings > Vault.
 
 ## Slack
 
@@ -104,9 +109,9 @@ Slack bridges support Events API messages, slash commands, actions, reactions, a
 
 1. Create or open a Slack app in the [Slack app dashboard](https://api.slack.com/apps).
 2. Add a bot user and install the app to the workspace.
-3. Store the Bot User OAuth token in the daemon environment as `SLACK_BOT_TOKEN`.
-4. Store the app signing secret as `SLACK_SIGNING_SECRET`. The Slack provider verifies requests with
-   Slack's signing-secret flow.
+3. Keep the Bot User OAuth token ready for the write-only binding request.
+4. Keep the app signing secret ready for the write-only binding request. The Slack provider verifies
+   requests with Slack's signing-secret flow.
 5. Enable [Event Subscriptions](https://api.slack.com/apis/events-api). Set the Request URL to your
    public bridge URL, for example `https://bridge.example.com/slack/support`.
 6. Subscribe to the message events needed for your channels, private channels, DMs, or multi-person
@@ -159,11 +164,11 @@ BRIDGE_ID=brg_123
 
 curl -X PUT "http://localhost:2123/api/bridges/$BRIDGE_ID/secret-bindings/bot_token" \
   -H "Content-Type: application/json" \
-  -d '{"vault_ref":"env:SLACK_BOT_TOKEN","kind":"token"}'
+  -d '{"secret_ref":"vault:bridges/'"$BRIDGE_ID"'/bot_token","secret_value":"xoxb-...","kind":"token"}'
 
 curl -X PUT "http://localhost:2123/api/bridges/$BRIDGE_ID/secret-bindings/signing_secret" \
   -H "Content-Type: application/json" \
-  -d '{"vault_ref":"env:SLACK_SIGNING_SECRET","kind":"secret"}'
+  -d '{"secret_ref":"vault:bridges/'"$BRIDGE_ID"'/signing_secret","secret_value":"slack-signing-secret","kind":"secret"}'
 ```
 
 Enable the bridge:
@@ -189,8 +194,8 @@ checks that the authenticated bot identity matches it.
 ### Platform setup
 
 1. Create or open an app in the [Discord Developer Portal](https://discord.com/developers/applications).
-2. Create a bot and store the bot token in the daemon environment as `DISCORD_BOT_TOKEN`.
-3. Copy the application public key and store it as `DISCORD_PUBLIC_KEY`.
+2. Create a bot and keep the bot token ready for the write-only binding request.
+3. Copy the application public key and keep it ready for the write-only binding request.
 4. Set the [Interactions Endpoint URL](https://docs.discord.com/developers/interactions/overview#configuring-an-interactions-endpoint-url)
    to your public bridge URL, for example `https://bridge.example.com/discord/support`.
 5. Discord validates the URL by sending a `PING` interaction and requires Ed25519 signature
@@ -244,11 +249,11 @@ BRIDGE_ID=brg_456
 
 curl -X PUT "http://localhost:2123/api/bridges/$BRIDGE_ID/secret-bindings/bot_token" \
   -H "Content-Type: application/json" \
-  -d '{"vault_ref":"env:DISCORD_BOT_TOKEN","kind":"token"}'
+  -d '{"secret_ref":"vault:bridges/'"$BRIDGE_ID"'/bot_token","secret_value":"discord-bot-token","kind":"token"}'
 
 curl -X PUT "http://localhost:2123/api/bridges/$BRIDGE_ID/secret-bindings/public_key" \
   -H "Content-Type: application/json" \
-  -d '{"vault_ref":"env:DISCORD_PUBLIC_KEY","kind":"public_key"}'
+  -d '{"secret_ref":"vault:bridges/'"$BRIDGE_ID"'/public_key","secret_value":"discord-public-key","kind":"public_key"}'
 ```
 
 Enable the bridge:
@@ -273,8 +278,8 @@ required. A webhook secret is optional, but recommended for public endpoints.
 ### Platform setup
 
 1. Create a bot with [BotFather](https://core.telegram.org/bots/features#botfather) using `/newbot`.
-2. Store the generated token in the daemon environment as `TELEGRAM_BOT_TOKEN`.
-3. Generate a webhook secret and store it as `TELEGRAM_WEBHOOK_SECRET`.
+2. Keep the generated token ready for the write-only binding request.
+3. Generate a webhook secret and keep it ready for the write-only binding request.
 4. Create the bridge in AGH and bind both secrets.
 5. Register the Telegram webhook with the [setWebhook](https://core.telegram.org/bots/api#setwebhook)
    API. The URL path must match `provider_config.webhook.path`.
@@ -282,7 +287,8 @@ required. A webhook secret is optional, but recommended for public endpoints.
    group message instead of commands, replies, and mentions, adjust the bot privacy setting in
    BotFather before relying on group routing.
 
-Register the webhook after the provider endpoint is reachable:
+Register the webhook after the provider endpoint is reachable. The example uses local shell
+variables only for the Telegram API call:
 
 ```bash
 curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
@@ -339,11 +345,11 @@ BRIDGE_ID=brg_789
 
 curl -X PUT "http://localhost:2123/api/bridges/$BRIDGE_ID/secret-bindings/bot_token" \
   -H "Content-Type: application/json" \
-  -d '{"vault_ref":"env:TELEGRAM_BOT_TOKEN","kind":"token"}'
+  -d '{"secret_ref":"vault:bridges/'"$BRIDGE_ID"'/bot_token","secret_value":"telegram-bot-token","kind":"token"}'
 
 curl -X PUT "http://localhost:2123/api/bridges/$BRIDGE_ID/secret-bindings/webhook_secret" \
   -H "Content-Type: application/json" \
-  -d '{"vault_ref":"env:TELEGRAM_WEBHOOK_SECRET","kind":"secret"}'
+  -d '{"secret_ref":"vault:bridges/'"$BRIDGE_ID"'/webhook_secret","secret_value":"telegram-webhook-secret","kind":"secret"}'
 ```
 
 Enable the bridge:

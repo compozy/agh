@@ -222,6 +222,7 @@ const hooksMutationProperties = `{
 	"command":{"type":"string"},
 	"args":{},
 	"env":{},
+	"secret_env":{},
 	"enabled":{"type":"boolean"},
 	"source":{"type":"string"}
 }`

@@ -1067,6 +1067,47 @@ func TestGlobalDBUpdateTaskRunRejectsSessionRebinding(t *testing.T) {
 	}
 }
 
+func TestGlobalDBUpdateTaskRunAllowsManagedStartSessionTransfer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should transfer a claimed start run to its dedicated managed session once", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-run-managed-start-transfer")
+		if err := globalDB.CreateTask(testutil.Context(t), taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		run := taskRunForTest("run-managed-start-transfer", taskRecord.ID)
+		run.Status = taskpkg.TaskRunStatusStarting
+		run.ClaimedBy = &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-claimant"}
+		run.SessionID = "sess-claimant"
+		run.ClaimedAt = run.QueuedAt.Add(time.Minute)
+		if err := globalDB.CreateTaskRun(testutil.Context(t), run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		run.SessionID = "sess-dedicated"
+		if err := globalDB.UpdateTaskRun(testutil.Context(t), run); err != nil {
+			t.Fatalf("UpdateTaskRun(managed transfer) error = %v", err)
+		}
+		stored, err := globalDB.GetTaskRun(testutil.Context(t), run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if got, want := stored.SessionID, "sess-dedicated"; got != want {
+			t.Fatalf("stored.SessionID = %q, want %q", got, want)
+		}
+
+		run.SessionID = "sess-other"
+		err = globalDB.UpdateTaskRun(testutil.Context(t), run)
+		if !errors.Is(err, taskpkg.ErrSessionAlreadyBound) {
+			t.Fatalf("UpdateTaskRun(rebind after transfer) error = %v, want ErrSessionAlreadyBound", err)
+		}
+	})
+}
+
 func TestGlobalDBUpdateTaskRunAllowsQueuedSessionRelease(t *testing.T) {
 	t.Parallel()
 

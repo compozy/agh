@@ -472,13 +472,13 @@ func seedTransportWebhookTrigger(
 
 	state, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
 		Triggers: []aghcontract.CreateTriggerRequest{{
-			Scope:         automationpkg.AutomationScopeGlobal,
-			Name:          "deploy-review",
-			AgentName:     transportAutomationAgent,
-			Prompt:        `Review payload {{ index .Data "payload" }} for {{ index .Data "branch" }}`,
-			Event:         "webhook",
-			EndpointSlug:  "deploy-review",
-			WebhookSecret: "shared-secret",
+			Scope:              automationpkg.AutomationScopeGlobal,
+			Name:               "deploy-review",
+			AgentName:          transportAutomationAgent,
+			Prompt:             `Review payload {{ index .Data "payload" }} for {{ index .Data "branch" }}`,
+			Event:              "webhook",
+			EndpointSlug:       "deploy-review",
+			WebhookSecretValue: "shared-secret",
 		}},
 	})
 	if err != nil {
@@ -658,7 +658,13 @@ func writeTransportProviderOverrideConfig(
 		}
 		tree.SetPath(append(providerPath, "command"), strings.TrimSpace(command))
 		tree.SetPath(append(providerPath, "default_model"), "transport-override-model")
-		tree.SetPath(append(providerPath, "api_key_env"), "TRANSPORT_OVERRIDE_API_KEY")
+		tree.SetPath(append(providerPath, "credential_slots"), []map[string]any{{
+			"name":       "api_key",
+			"target_env": "TRANSPORT_OVERRIDE_API_KEY",
+			"secret_ref": "env:TRANSPORT_OVERRIDE_API_KEY",
+			"kind":       "api_key",
+			"required":   false,
+		}})
 	} else {
 		if tree.GetPath(providerPath) != nil {
 			if err := tree.DeletePath(providerPath); err != nil {

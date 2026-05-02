@@ -34,6 +34,10 @@ const (
 // DaemonClient is the CLI transport surface for talking to the AGH daemon over UDS.
 type DaemonClient interface {
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
+	ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error)
+	GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error)
+	PutVaultSecret(ctx context.Context, request PutVaultSecretRequest) (VaultRecord, error)
+	DeleteVaultSecret(ctx context.Context, ref string) error
 	NetworkStatus(ctx context.Context) (NetworkStatusRecord, error)
 	NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	NetworkChannels(ctx context.Context) ([]NetworkChannelRecord, error)
@@ -526,6 +530,18 @@ type HealthStatus = contract.ObserveHealthPayload
 // DaemonStatus is the shared daemon status payload.
 type DaemonStatus = contract.DaemonStatusPayload
 
+// VaultRecord is one redacted vault secret metadata row.
+type VaultRecord = contract.VaultSecretPayload
+
+// PutVaultSecretRequest captures a write-only vault secret write payload.
+type PutVaultSecretRequest = contract.PutVaultSecretRequest
+
+// VaultListQuery captures CLI filters for vault metadata listing.
+type VaultListQuery struct {
+	Prefix    string
+	Namespace string
+}
+
 // NetworkStatusRecord is the shared network status payload.
 type NetworkStatusRecord = contract.NetworkStatusPayload
 
@@ -636,6 +652,57 @@ func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, erro
 		return DaemonStatus{}, err
 	}
 	return response.Daemon, nil
+}
+
+func (c *unixSocketClient) ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error) {
+	var response struct {
+		Secrets []VaultRecord `json:"secrets"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/vault/secrets",
+		vaultListValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response.Secrets, nil
+}
+
+func (c *unixSocketClient) GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error) {
+	var response struct {
+		Secret VaultRecord `json:"secret"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/vault/secrets/metadata",
+		vaultRefValues(ref),
+		nil,
+		&response,
+	); err != nil {
+		return VaultRecord{}, err
+	}
+	return response.Secret, nil
+}
+
+func (c *unixSocketClient) PutVaultSecret(
+	ctx context.Context,
+	request PutVaultSecretRequest,
+) (VaultRecord, error) {
+	var response struct {
+		Secret VaultRecord `json:"secret"`
+	}
+	if err := c.doJSON(ctx, http.MethodPut, "/api/vault/secrets", nil, request, &response); err != nil {
+		return VaultRecord{}, err
+	}
+	return response.Secret, nil
+}
+
+func (c *unixSocketClient) DeleteVaultSecret(ctx context.Context, ref string) error {
+	return c.doJSON(ctx, http.MethodDelete, "/api/vault/secrets", vaultRefValues(ref), nil, nil)
 }
 
 func (c *unixSocketClient) NetworkStatus(ctx context.Context) (NetworkStatusRecord, error) {
@@ -2391,6 +2458,25 @@ func networkInboxValues(sessionID string) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
+	}
+	return values
+}
+
+func vaultListValues(query VaultListQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.Prefix); trimmed != "" {
+		values.Set("prefix", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Namespace); trimmed != "" {
+		values.Set("namespace", trimmed)
+	}
+	return values
+}
+
+func vaultRefValues(ref string) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(ref); trimmed != "" {
+		values.Set("ref", trimmed)
 	}
 	return values
 }

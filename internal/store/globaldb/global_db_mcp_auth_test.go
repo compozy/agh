@@ -49,25 +49,39 @@ func TestMCPAuthTokenStorePersistsAcrossReopenWithPrivatePermissions(t *testing.
 	var rawAccessToken, rawRefreshToken string
 	if err := db.db.QueryRowContext(
 		ctx,
-		`SELECT access_token, refresh_token FROM mcp_auth_tokens WHERE server_name = ?`,
+		`SELECT access_token_ref, refresh_token_ref FROM mcp_auth_tokens WHERE server_name = ?`,
 		"linear",
 	).Scan(&rawAccessToken, &rawRefreshToken); err != nil {
 		t.Fatalf("query raw token row error = %v", err)
 	}
 	for label, raw := range map[string]string{"access": rawAccessToken, "refresh": rawRefreshToken} {
-		if strings.Contains(raw, label+"-token") {
-			t.Fatalf("raw %s token = %q, want encrypted storage without plaintext token material", label, raw)
+		plaintext := label + "-token"
+		if raw == plaintext {
+			t.Fatalf("raw %s token = %q, want vault ref without plaintext token material", label, raw)
 		}
-		if !strings.HasPrefix(raw, mcpAuthSecretEncodingV1) {
-			t.Fatalf("raw %s token = %q, want %s envelope", label, raw, mcpAuthSecretEncodingV1)
+		if !strings.HasPrefix(raw, "vault:mcp/") {
+			t.Fatalf("raw %s token = %q, want vault:mcp ref", label, raw)
 		}
 	}
-	keyInfo, err := os.Stat(path + mcpAuthSecretKeyFileSuffix)
-	if err != nil {
-		t.Fatalf("os.Stat(MCP auth key) error = %v", err)
+	if got, want := rawAccessToken, "vault:mcp/linear/oauth/access-token"; got != want {
+		t.Fatalf("raw access token ref = %q, want %q", got, want)
 	}
-	if got := keyInfo.Mode().Perm() & 0o077; got != 0 {
-		t.Fatalf("MCP auth key permissions = %#o, want no group/other bits", keyInfo.Mode().Perm())
+	if got, want := rawRefreshToken, "vault:mcp/linear/oauth/refresh-token"; got != want {
+		t.Fatalf("raw refresh token ref = %q, want %q", got, want)
+	}
+	var encryptedValue string
+	if err := db.db.QueryRowContext(
+		ctx,
+		`SELECT encrypted_value FROM vault_secrets WHERE ref = ?`,
+		rawAccessToken,
+	).Scan(&encryptedValue); err != nil {
+		t.Fatalf("query vault access token error = %v", err)
+	}
+	if strings.Contains(encryptedValue, "access-token") {
+		t.Fatalf("vault encrypted access token = %q, want no plaintext token material", encryptedValue)
+	}
+	if _, err := os.Stat(path + ".mcp-auth.key"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("os.Stat(legacy MCP auth key) error = %v, want not exists", err)
 	}
 	if err := db.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)

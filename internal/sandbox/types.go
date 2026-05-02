@@ -124,6 +124,7 @@ type Resolved struct {
 	RuntimeRootDir string
 	DestroyOnStop  bool
 	Env            map[string]string
+	SecretEnv      map[string]string
 	Network        NetworkPolicy
 	Daytona        *DaytonaConfig
 }

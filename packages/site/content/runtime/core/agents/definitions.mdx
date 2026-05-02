@@ -33,7 +33,7 @@ frontmatter into runtime configuration, then uses the Markdown body as the start
 ---
 name: code-reviewer
 provider: claude
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 permissions: approve-reads
 ---
 You are a senior code reviewer.
@@ -163,7 +163,7 @@ Sidecar behavior is precise:
 ---
 name: code-reviewer
 provider: claude
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 tools: ["mcp__github__*"]
 toolsets: ["agh__coordination"]
 deny_tools: ["agh__network_send"]
@@ -189,7 +189,7 @@ file and symbol references.
 ---
 name: implementation
 provider: codex
-model: gpt-4o
+model: gpt-5.4
 permissions: approve-all
 ---
 You implement scoped software changes end to end.

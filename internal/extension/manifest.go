@@ -19,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/extension/surfaces"
 	"github.com/pedronauck/agh/internal/resources"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/pedronauck/agh/internal/vault"
 	"github.com/pedronauck/agh/internal/version"
 )
 
@@ -85,6 +86,7 @@ type SubprocessConfig struct {
 	Command             string            `toml:"command,omitempty"               json:"command,omitempty"`
 	Args                []string          `toml:"args,omitempty"                  json:"args,omitempty"`
 	Env                 map[string]string `toml:"env,omitempty"                   json:"env,omitempty"`
+	SecretEnv           map[string]string `toml:"secret_env,omitempty"            json:"secret_env,omitempty"`
 	HealthCheckInterval Duration          `toml:"health_check_interval,omitempty" json:"health_check_interval,omitempty"`
 	ShutdownTimeout     Duration          `toml:"shutdown_timeout,omitempty"      json:"shutdown_timeout,omitempty"`
 }
@@ -104,25 +106,27 @@ type BridgeConfig struct {
 
 // HookConfig mirrors the hook declaration shape accepted from extension manifests.
 type HookConfig struct {
-	Name     string             `toml:"name"               json:"name"`
-	Event    string             `toml:"event"              json:"event"`
-	Mode     string             `toml:"mode,omitempty"     json:"mode,omitempty"`
-	Required bool               `toml:"required,omitempty" json:"required,omitempty"`
-	Priority *int               `toml:"priority,omitempty" json:"priority,omitempty"`
-	Timeout  Duration           `toml:"timeout,omitempty"  json:"timeout,omitempty"`
-	Matcher  HookMatcherConfig  `toml:"matcher,omitempty"  json:"matcher"`
-	Command  string             `toml:"command,omitempty"  json:"command,omitempty"`
-	Args     []string           `toml:"args,omitempty"     json:"args,omitempty"`
-	Env      map[string]string  `toml:"env,omitempty"      json:"env,omitempty"`
-	Executor HookExecutorConfig `toml:"executor,omitempty" json:"executor"`
+	Name      string             `toml:"name"                 json:"name"`
+	Event     string             `toml:"event"                json:"event"`
+	Mode      string             `toml:"mode,omitempty"       json:"mode,omitempty"`
+	Required  bool               `toml:"required,omitempty"   json:"required,omitempty"`
+	Priority  *int               `toml:"priority,omitempty"   json:"priority,omitempty"`
+	Timeout   Duration           `toml:"timeout,omitempty"    json:"timeout,omitempty"`
+	Matcher   HookMatcherConfig  `toml:"matcher,omitempty"    json:"matcher"`
+	Command   string             `toml:"command,omitempty"    json:"command,omitempty"`
+	Args      []string           `toml:"args,omitempty"       json:"args,omitempty"`
+	Env       map[string]string  `toml:"env,omitempty"        json:"env,omitempty"`
+	SecretEnv map[string]string  `toml:"secret_env,omitempty" json:"secret_env,omitempty"`
+	Executor  HookExecutorConfig `toml:"executor,omitempty"   json:"executor"`
 }
 
 // HookExecutorConfig selects the hook execution boundary and command.
 type HookExecutorConfig struct {
-	Kind    string            `toml:"kind,omitempty"    json:"kind,omitempty"`
-	Command string            `toml:"command,omitempty" json:"command,omitempty"`
-	Args    []string          `toml:"args,omitempty"    json:"args,omitempty"`
-	Env     map[string]string `toml:"env,omitempty"     json:"env,omitempty"`
+	Kind      string            `toml:"kind,omitempty"       json:"kind,omitempty"`
+	Command   string            `toml:"command,omitempty"    json:"command,omitempty"`
+	Args      []string          `toml:"args,omitempty"       json:"args,omitempty"`
+	Env       map[string]string `toml:"env,omitempty"        json:"env,omitempty"`
+	SecretEnv map[string]string `toml:"secret_env,omitempty" json:"secret_env,omitempty"`
 }
 
 // HookMatcherConfig narrows when a hook is eligible to run.
@@ -147,9 +151,10 @@ type HookMatcherConfig struct {
 
 // MCPServerConfig declares one MCP server bundled by the extension.
 type MCPServerConfig struct {
-	Command string            `toml:"command"        json:"command"`
-	Args    []string          `toml:"args,omitempty" json:"args,omitempty"`
-	Env     map[string]string `toml:"env,omitempty"  json:"env,omitempty"`
+	Command   string            `toml:"command"              json:"command"`
+	Args      []string          `toml:"args,omitempty"       json:"args,omitempty"`
+	Env       map[string]string `toml:"env,omitempty"        json:"env,omitempty"`
+	SecretEnv map[string]string `toml:"secret_env,omitempty" json:"secret_env,omitempty"`
 }
 
 // ToolConfig declares one static tool bundled by the extension.
@@ -283,6 +288,20 @@ func (m *Manifest) Validate() error {
 	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {
 		return err
 	}
+	if err := validateManifestEnvMaps(
+		"subprocess",
+		"extensions",
+		m.Subprocess.Env,
+		m.Subprocess.SecretEnv,
+	); err != nil {
+		return err
+	}
+	if err := validateManifestHookEnv(m.Resources.Hooks); err != nil {
+		return err
+	}
+	if err := validateManifestMCPServerEnv(m.Resources.MCPServers); err != nil {
+		return err
+	}
 	if err := validateToolConfigs(m.Name, m.Resources.Tools); err != nil {
 		return err
 	}
@@ -295,24 +314,8 @@ func (m *Manifest) Validate() error {
 	if err := validateDottedIdentifiers("security.capabilities", m.Security.Capabilities, true); err != nil {
 		return err
 	}
-	if providesCapability(m.Capabilities.Provides, extensionprotocol.CapabilityProvideBridgeAdapter) {
-		if err := requireField("bridge.platform", m.Bridge.Platform); err != nil {
-			return err
-		}
-		if err := requireField("bridge.display_name", m.Bridge.DisplayName); err != nil {
-			return err
-		}
-		if err := validateBridgeSecretSlots(m.Bridge.SecretSlots); err != nil {
-			return err
-		}
-		if m.Bridge.ConfigSchema != nil {
-			if err := m.Bridge.ConfigSchema.Validate(); err != nil {
-				return &ManifestValidationError{
-					Field:   "bridge.config_schema",
-					Message: err.Error(),
-				}
-			}
-		}
+	if err := m.validateBridgeAdapterCapability(); err != nil {
+		return err
 	}
 	if _, err := surfaces.ResolveManifestRequest(
 		m.Resources.Publish.Families,
@@ -320,6 +323,31 @@ func (m *Manifest) Validate() error {
 	); err != nil {
 		return &ManifestValidationError{
 			Field:   "resources.publish",
+			Message: err.Error(),
+		}
+	}
+	return nil
+}
+
+func (m *Manifest) validateBridgeAdapterCapability() error {
+	if !providesCapability(m.Capabilities.Provides, extensionprotocol.CapabilityProvideBridgeAdapter) {
+		return nil
+	}
+	if err := requireField("bridge.platform", m.Bridge.Platform); err != nil {
+		return err
+	}
+	if err := requireField("bridge.display_name", m.Bridge.DisplayName); err != nil {
+		return err
+	}
+	if err := validateBridgeSecretSlots(m.Bridge.SecretSlots); err != nil {
+		return err
+	}
+	if m.Bridge.ConfigSchema == nil {
+		return nil
+	}
+	if err := m.Bridge.ConfigSchema.Validate(); err != nil {
+		return &ManifestValidationError{
+			Field:   "bridge.config_schema",
 			Message: err.Error(),
 		}
 	}
@@ -623,6 +651,7 @@ func normalizeSubprocessConfig(cfg SubprocessConfig) SubprocessConfig {
 		Command:             strings.TrimSpace(cfg.Command),
 		Args:                normalizeStrings(cfg.Args),
 		Env:                 normalizeStringMap(cfg.Env),
+		SecretEnv:           normalizeStringMap(cfg.SecretEnv),
 		HealthCheckInterval: cfg.HealthCheckInterval,
 		ShutdownTimeout:     cfg.ShutdownTimeout,
 	}
@@ -705,6 +734,58 @@ func validateEnvRequirements(field string, values []string) error {
 			}
 		}
 		seen[name] = struct{}{}
+	}
+	return nil
+}
+
+func validateManifestEnvMaps(
+	field string,
+	namespace string,
+	env map[string]string,
+	secretEnv map[string]string,
+) error {
+	if err := vault.ValidateNonSecretEnvMap(field, env); err != nil {
+		return &ManifestValidationError{Field: field, Message: err.Error()}
+	}
+	if err := vault.ValidateSecretEnvMap(field, namespace, secretEnv); err != nil {
+		return &ManifestValidationError{Field: field, Message: err.Error()}
+	}
+	return nil
+}
+
+func validateManifestHookEnv(hooks []HookConfig) error {
+	for idx, hook := range hooks {
+		field := fmt.Sprintf("resources.hooks[%d]", idx)
+		rootSpecified := strings.TrimSpace(hook.Command) != "" || len(hook.Args) > 0 ||
+			len(hook.Env) > 0 || len(hook.SecretEnv) > 0
+		nestedSpecified := strings.TrimSpace(hook.Executor.Command) != "" || len(hook.Executor.Args) > 0 ||
+			len(hook.Executor.Env) > 0 || len(hook.Executor.SecretEnv) > 0
+		if rootSpecified && nestedSpecified {
+			return &ManifestValidationError{
+				Field:   field,
+				Message: "hook executor fields must be declared either at the top level or under executor, not both",
+			}
+		}
+		env := hook.Env
+		secretEnv := hook.SecretEnv
+		if nestedSpecified {
+			env = hook.Executor.Env
+			secretEnv = hook.Executor.SecretEnv
+		}
+		if err := validateManifestEnvMaps(field, "hooks", env, secretEnv); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateManifestMCPServerEnv(servers map[string]MCPServerConfig) error {
+	for _, name := range sortedMapKeys(servers) {
+		field := "resources.mcp_servers." + strings.TrimSpace(name)
+		server := servers[name]
+		if err := validateManifestEnvMaps(field, "mcp", server.Env, server.SecretEnv); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -804,14 +885,16 @@ func normalizeHooks(src []HookConfig) []HookConfig {
 				CompactionReason:   strings.TrimSpace(hook.Matcher.CompactionReason),
 				CompactionStrategy: strings.TrimSpace(hook.Matcher.CompactionStrategy),
 			},
-			Command: strings.TrimSpace(hook.Command),
-			Args:    normalizeStrings(hook.Args),
-			Env:     normalizeStringMap(hook.Env),
+			Command:   strings.TrimSpace(hook.Command),
+			Args:      normalizeStrings(hook.Args),
+			Env:       normalizeStringMap(hook.Env),
+			SecretEnv: normalizeStringMap(hook.SecretEnv),
 			Executor: HookExecutorConfig{
-				Kind:    strings.TrimSpace(hook.Executor.Kind),
-				Command: strings.TrimSpace(hook.Executor.Command),
-				Args:    normalizeStrings(hook.Executor.Args),
-				Env:     normalizeStringMap(hook.Executor.Env),
+				Kind:      strings.TrimSpace(hook.Executor.Kind),
+				Command:   strings.TrimSpace(hook.Executor.Command),
+				Args:      normalizeStrings(hook.Executor.Args),
+				Env:       normalizeStringMap(hook.Executor.Env),
+				SecretEnv: normalizeStringMap(hook.Executor.SecretEnv),
 			},
 		})
 	}
@@ -833,9 +916,10 @@ func normalizeMCPServers(src map[string]MCPServerConfig) map[string]MCPServerCon
 
 		server := src[name]
 		dst[trimmedName] = MCPServerConfig{
-			Command: strings.TrimSpace(server.Command),
-			Args:    normalizeStrings(server.Args),
-			Env:     normalizeStringMap(server.Env),
+			Command:   strings.TrimSpace(server.Command),
+			Args:      normalizeStrings(server.Args),
+			Env:       normalizeStringMap(server.Env),
+			SecretEnv: normalizeStringMap(server.SecretEnv),
 		}
 	}
 	if len(dst) == 0 {

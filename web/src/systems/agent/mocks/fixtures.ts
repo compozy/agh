@@ -13,6 +13,12 @@ export const agentFixtures: AgentPayload[] = [
     prompt: "Own implementation details and verification for coding tasks.",
   },
   {
+    name: "qwen-agent",
+    provider: "qwen-code",
+    model: "qwen3.6-plus",
+    prompt: "Use Qwen Code for model-managed implementation work.",
+  },
+  {
     name: "gemini-agent",
     provider: "gemini",
     prompt: "Summarize architectural decisions for the current workspace.",

@@ -16,6 +16,7 @@ import (
 	"github.com/pedronauck/agh/internal/extension/surfaces"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/sandbox"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 const (
@@ -189,6 +190,7 @@ type SandboxProfile struct {
 	Persistence string            `toml:"persistence,omitempty"`
 	RuntimeRoot string            `toml:"runtime_root,omitempty"`
 	Env         map[string]string `toml:"env,omitempty"`
+	SecretEnv   map[string]string `toml:"secret_env,omitempty"`
 	Network     NetworkProfile    `toml:"network,omitempty"`
 	Daytona     DaytonaProfile    `toml:"daytona,omitempty"`
 }
@@ -652,6 +654,12 @@ func (p SandboxProfile) Validate(path string) error {
 			)
 		}
 	}
+	if err := vault.ValidateNonSecretEnvMap(path, p.Env); err != nil {
+		return err
+	}
+	if err := vault.ValidateSecretEnvMap(path, "sandbox", p.SecretEnv); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -680,6 +688,7 @@ func (p SandboxProfile) Resolve(profileName string) (sandbox.Resolved, error) {
 		RuntimeRootDir: strings.TrimSpace(p.RuntimeRoot),
 		DestroyOnStop:  persistence != sandbox.PersistenceReuse,
 		Env:            mergeStringMaps(nil, p.Env),
+		SecretEnv:      mergeStringMaps(nil, p.SecretEnv),
 		Network: sandbox.NetworkPolicy{
 			AllowPublicIngress: p.Network.AllowPublicIngress,
 			AllowOutbound:      p.Network.AllowOutbound,

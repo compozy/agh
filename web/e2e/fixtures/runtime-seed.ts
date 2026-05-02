@@ -25,6 +25,7 @@ import type {
   SettingsMCPServerRequest,
   SettingsMCPServerTarget,
   SettingsMutationResult,
+  SettingsProviderRequest,
   SettingsSkillsSection,
 } from "@/systems/settings";
 import type {
@@ -120,11 +121,7 @@ export interface BrowserBridgeOperatorFlowResult {
 
 export interface BrowserSettingsProviderSeed {
   name: string;
-  settings: {
-    api_key_env?: string;
-    command?: string;
-    default_model?: string;
-  };
+  settings: SettingsProviderRequest["settings"];
 }
 
 export interface BrowserSettingsMCPServerSeed {
@@ -366,8 +363,8 @@ export const browserBridgeOperatorFlowScenario = {
     updateId: 94001,
   },
   secretBinding: {
-    envName: "AGH_TEST_TELEGRAM_TOKEN",
     name: "bot_token",
+    value: "telegram-bot-token",
   },
   testDelivery: {
     message: "Deliver a short operator ping.",
@@ -400,9 +397,8 @@ export const browserSettingsOperatorFlowScenario = {
     },
   },
   providers: {
-    overlayAPIKeyEnv: "BROWSER_CODEX_API_KEY",
     overlayCommand: "codex-browser",
-    overlayModel: "gpt-5.4-mini",
+    overlayModel: "gpt-5.4",
   },
   skills: {
     disabledSkill: "browser-disabled-skill",
@@ -936,7 +932,7 @@ export async function seedBrowserBridgeOperatorFlow(
     }),
   });
 
-  await runtime.requestJSON<{ binding: { binding_name: string; vault_ref: string } }>(
+  await runtime.requestJSON<{ binding: { binding_name: string; secret_ref: string } }>(
     `/api/bridges/${encodeURIComponent(createResponse.bridge.id)}/secret-bindings/${encodeURIComponent(
       browserBridgeOperatorFlowScenario.secretBinding.name
     )}`,
@@ -944,7 +940,8 @@ export async function seedBrowserBridgeOperatorFlow(
       method: "PUT",
       body: JSON.stringify({
         kind: browserBridgeOperatorFlowScenario.secretBinding.name,
-        vault_ref: `env:${browserBridgeOperatorFlowScenario.secretBinding.envName}`,
+        secret_ref: `vault:bridges/${createResponse.bridge.id}/${browserBridgeOperatorFlowScenario.secretBinding.name}`,
+        secret_value: browserBridgeOperatorFlowScenario.secretBinding.value,
       }),
     }
   );
@@ -1629,7 +1626,7 @@ async function createAutomationOperatorTrigger(
     retry: { strategy: "none", max_retries: 0, base_delay: "" },
     scope: "global",
     webhook_id: browserAutomationOperatorFlowScenario.trigger.webhookID,
-    webhook_secret: browserAutomationOperatorFlowScenario.trigger.webhookSecret,
+    webhook_secret_value: browserAutomationOperatorFlowScenario.trigger.webhookSecret,
   };
 
   return (

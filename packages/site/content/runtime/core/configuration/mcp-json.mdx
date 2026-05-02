@@ -49,8 +49,8 @@ definitions only.
     "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_TOKEN": "replace-with-real-token"
+      "secret_env": {
+        "GITHUB_TOKEN": "vault:mcp/github/env/GITHUB_TOKEN"
       }
     },
     "remote-docs": {
@@ -60,7 +60,7 @@ definitions only.
         "type": "oauth2_pkce",
         "issuer_url": "https://auth.example.com",
         "client_id": "agh-desktop",
-        "client_secret_env": "REMOTE_DOCS_MCP_CLIENT_SECRET",
+        "client_secret_ref": "env:REMOTE_DOCS_MCP_CLIENT_SECRET",
         "scopes": ["mcp.read", "mcp.write"]
       }
     }
@@ -93,15 +93,16 @@ If both top-level keys are present in the same file and both define the same ser
 
 ## Server Object
 
-| Field       | Type         | Default             | Valid values                                            | Description                                                                              |
-| ----------- | ------------ | ------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Map key     | string       | required            | Non-empty after trimming. Duplicate trimmed names fail. | Server `name`.                                                                           |
-| `transport` | string       | inferred            | `stdio`, `http`, or `sse`.                              | Transport kind. Local command servers default to `stdio`; URL servers default to `http`. |
-| `command`   | string       | required for stdio  | Non-empty after trimming.                               | Executable command. Only valid with `stdio` transport.                                   |
-| `url`       | string URL   | required for remote | Absolute URL.                                           | Remote MCP endpoint. Required for `http` and `sse`; invalid for `stdio`.                 |
-| `auth`      | object       | empty               | OAuth config listed below.                              | Remote MCP auth configuration. Only valid for remote transports.                         |
-| `args`      | string array | empty               | Strings.                                                | Process arguments for stdio servers.                                                     |
-| `env`       | string map   | empty               | String keys and values.                                 | Literal environment values. AGH does not expand `$VAR`, `~`, or shell syntax here.       |
+| Field        | Type         | Default             | Valid values                                            | Description                                                                                                 |
+| ------------ | ------------ | ------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Map key      | string       | required            | Non-empty after trimming. Duplicate trimmed names fail. | Server `name`.                                                                                              |
+| `transport`  | string       | inferred            | `stdio`, `http`, or `sse`.                              | Transport kind. Local command servers default to `stdio`; URL servers default to `http`.                    |
+| `command`    | string       | required for stdio  | Non-empty after trimming.                               | Executable command. Only valid with `stdio` transport.                                                      |
+| `url`        | string URL   | required for remote | Absolute URL.                                           | Remote MCP endpoint. Required for `http` and `sse`; invalid for `stdio`.                                    |
+| `auth`       | object       | empty               | OAuth config listed below.                              | Remote MCP auth configuration. Only valid for remote transports.                                            |
+| `args`       | string array | empty               | Strings.                                                | Process arguments for stdio servers.                                                                        |
+| `env`        | string map   | empty               | String keys and values.                                 | Literal environment values. AGH does not expand `$VAR`, `~`, or shell syntax here.                          |
+| `secret_env` | string map   | empty               | `env:NAME` or `vault:mcp/<server>/env/<KEY>` refs.      | Secret environment bindings for stdio servers. Values are resolved at launch and redacted from diagnostics. |
 
 ## Remote OAuth Auth Object
 
@@ -110,17 +111,21 @@ metadata and client settings; access tokens, refresh tokens, authorization codes
 and client-secret values are stored or handled by the auth subsystem and are never written to
 `mcp.json`.
 
-| Field               | Type         | Default  | Valid values                    | Description                                                                |
-| ------------------- | ------------ | -------- | ------------------------------- | -------------------------------------------------------------------------- |
-| `type`              | string       | required | `oauth2_pkce`                   | Enables the OAuth 2.1 PKCE lifecycle.                                      |
-| `client_id`         | string       | required | Non-empty.                      | OAuth client ID registered with the remote MCP provider.                   |
-| `client_secret_env` | string       | empty    | Environment variable name.      | Optional env var containing the client secret when the provider needs one. |
-| `issuer_url`        | string URL   | optional | Absolute `http` or `https` URL. | Issuer used for `/.well-known/oauth-authorization-server` discovery.       |
-| `metadata_url`      | string URL   | optional | Absolute `http` or `https` URL. | Explicit OAuth authorization-server metadata URL.                          |
-| `authorization_url` | string URL   | optional | Absolute `http` or `https` URL. | Direct authorization endpoint. Must be paired with `token_url`.            |
-| `token_url`         | string URL   | optional | Absolute `http` or `https` URL. | Direct token endpoint. Must be paired with `authorization_url`.            |
-| `revocation_url`    | string URL   | optional | Absolute `http` or `https` URL. | Optional token revocation endpoint used by `agh mcp auth logout`.          |
-| `scopes`            | string array | empty    | Non-empty strings when present. | Requested OAuth scopes.                                                    |
+AGH-managed MCP secret refs live in the Vault under the `mcp` namespace. Use
+`vault:mcp/<server>/env/<KEY>` for stdio `secret_env` bindings and
+`vault:mcp/<server>/oauth/client-secret` for OAuth client secrets that AGH owns.
+
+| Field               | Type         | Default  | Valid values                                            | Description                                                                  |
+| ------------------- | ------------ | -------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `type`              | string       | required | `oauth2_pkce`                                           | Enables the OAuth 2.1 PKCE lifecycle.                                        |
+| `client_id`         | string       | required | Non-empty.                                              | OAuth client ID registered with the remote MCP provider.                     |
+| `client_secret_ref` | string       | empty    | `env:NAME` or `vault:mcp/<server>/oauth/client-secret`. | Optional ref containing the OAuth client secret when the provider needs one. |
+| `issuer_url`        | string URL   | optional | Absolute `http` or `https` URL.                         | Issuer used for `/.well-known/oauth-authorization-server` discovery.         |
+| `metadata_url`      | string URL   | optional | Absolute `http` or `https` URL.                         | Explicit OAuth authorization-server metadata URL.                            |
+| `authorization_url` | string URL   | optional | Absolute `http` or `https` URL.                         | Direct authorization endpoint. Must be paired with `token_url`.              |
+| `token_url`         | string URL   | optional | Absolute `http` or `https` URL.                         | Direct token endpoint. Must be paired with `authorization_url`.              |
+| `revocation_url`    | string URL   | optional | Absolute `http` or `https` URL.                         | Optional token revocation endpoint used by `agh mcp auth logout`.            |
+| `scopes`            | string array | empty    | Non-empty strings when present.                         | Requested OAuth scopes.                                                      |
 
 One of `metadata_url`, `issuer_url`, or the pair `authorization_url` plus `token_url` is required.
 
@@ -226,5 +231,7 @@ skill root.
 ## Related Pages
 
 - [config.toml](/runtime/core/configuration/config-toml) documents top-level and provider MCP fields.
+- [Vault](/runtime/core/configuration/vault) documents `env:` versus `vault:` refs and redacted
+  metadata management.
 - [AGENT.md](/runtime/core/configuration/agent-md) documents agent-local MCP declarations.
 - [SKILL.md](/runtime/core/configuration/skill-md) documents skill-local MCP declarations.

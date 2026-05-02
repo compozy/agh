@@ -42,7 +42,7 @@ The session manager builds `acp.StartOpts` from the resolved workspace and agent
 | `Command`         | `agent.command` or provider `command`                                    |
 | `Cwd`             | primary workspace root                                                   |
 | `AdditionalDirs`  | registered workspace additional roots                                    |
-| `Env`             | daemon environment plus AGH session variables                            |
+| `Env`             | daemon environment plus AGH session variables and bound provider secrets |
 | `MCPServers`      | resolved config/provider/agent/skill MCP server list                     |
 | `Permissions`     | resolved agent or global permission mode                                 |
 | `SystemPrompt`    | assembled startup prompt built from `AGENT.md` body plus runtime context |
@@ -62,7 +62,7 @@ The ACP driver validates these before launch:
 AGH parses the provider command with shell-style quoting:
 
 ```text
-npx -y @agentclientprotocol/claude-agent-acp@0.24.2
+npx -y @agentclientprotocol/claude-agent-acp@latest
 ```
 
 The parsed executable and arguments are launched directly, not through a shell. The subprocess runs
@@ -76,20 +76,33 @@ start a Node wrapper before the actual ACP runtime.
 
 The subprocess inherits the daemon environment with these AGH additions:
 
-| Variable              | When set                                                         | Value                           |
-| --------------------- | ---------------------------------------------------------------- | ------------------------------- |
-| `AGH_SESSION_ID`      | every spawned session                                            | AGH session ID                  |
-| `AGH_SESSION_CHANNEL` | sessions created with a channel                                  | channel name                    |
-| `AGH_PEER_ID`         | sessions created with a channel                                  | `<agentName>.<sessionID>`       |
-| `AGH_BIN`             | every spawned session when the daemon executable can be resolved | absolute path to the AGH binary |
+| Variable               | When set                                                         | Value                                                |
+| ---------------------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| `AGH_SESSION_ID`       | every spawned session                                            | AGH session ID                                       |
+| `AGH_AGENT`            | every spawned session                                            | resolved agent name                                  |
+| `AGH_AGENT_NAME`       | every spawned session                                            | resolved agent name                                  |
+| `AGH_PROVIDER`         | every spawned session                                            | resolved provider id                                 |
+| `AGH_PROVIDER_HARNESS` | every spawned session                                            | resolved provider harness, such as `acp` or `pi_acp` |
+| `AGH_MODEL`            | every spawned session with a resolved model                      | resolved model string                                |
+| `PI_CODING_AGENT_DIR`  | sessions launched through the `pi_acp` harness                   | session-local Pi runtime directory                   |
+| `AGH_SESSION_CHANNEL`  | sessions created with a channel                                  | channel name                                         |
+| `AGH_PEER_ID`          | sessions created with a channel                                  | `<agentName>.<sessionID>`                            |
+| `AGH_BIN`              | every spawned session when the daemon executable can be resolved | absolute path to the AGH binary                      |
 
 AGH also prepends the AGH binary directory to `PATH`, removing a duplicate entry if it already
 exists. Before setting channel values, stale `AGH_SESSION_CHANNEL` and `AGH_PEER_ID` values are
 cleared from the inherited environment.
 
-Provider API keys are not loaded from `api_key_env`. If a provider needs `ANTHROPIC_API_KEY`,
-`OPENAI_API_KEY`, `GEMINI_API_KEY`, or a custom variable, start the daemon with that variable in
-the environment.
+Provider API keys are injected only through bound provider `credential_slots`. A slot maps a
+`secret_ref` into a target environment variable such as `OPENROUTER_API_KEY`. `env:NAME` refs read
+from the daemon environment at launch, while `vault:providers/<provider>/<slot>` refs read encrypted
+AGH-managed provider credentials written through settings. Required slots fail startup when the bound
+secret is missing.
+
+For `pi_acp` providers, AGH also materializes a session-local Pi runtime directory containing the
+resolved `settings.json` and `models.json`. That directory is passed through `PI_CODING_AGENT_DIR`
+so OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, and custom Pi-compatible providers can run
+through the same ACP adapter while still appearing as distinct AGH providers.
 
 ## ACP negotiation
 

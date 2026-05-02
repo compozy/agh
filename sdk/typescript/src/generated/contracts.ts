@@ -425,7 +425,8 @@ export interface AutomationTriggerCreateParams {
   fire_limit?: FireLimitConfig;
   webhook_id?: string;
   endpoint_slug?: string;
-  webhook_secret?: string;
+  webhook_secret_ref?: string;
+  webhook_secret_value?: string;
 }
 
 export interface AutomationTriggerFireParams {
@@ -475,7 +476,8 @@ export interface AutomationTriggerUpdateParams {
   fire_limit?: FireLimitConfig;
   webhook_id?: string;
   endpoint_slug?: string;
-  webhook_secret?: string;
+  webhook_secret_ref?: string;
+  webhook_secret_value?: string;
 }
 
 export interface AutomationTriggersParams {
@@ -1047,10 +1049,11 @@ export interface HookDecl {
   command?: string;
   args?: string[];
   env?: Record<string, string>;
+  secret_env?: Record<string, string>;
   metadata?: Record<string, string>;
   timeout?: number;
-  priority?: number;
   enabled?: boolean;
+  priority?: number;
   source: HookSource;
   required?: boolean;
 }
@@ -1874,6 +1877,7 @@ export interface SandboxProfilePayload {
   runtime_root?: string;
   destroy_on_stop?: boolean;
   env?: Record<string, string>;
+  secret_env?: Record<string, string>;
 }
 
 export interface SandboxPreparePayload {
@@ -3482,6 +3486,7 @@ export interface Trigger {
   source: JobSource;
   webhook_id?: string;
   endpoint_slug?: string;
+  webhook_secret_ref?: string;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }

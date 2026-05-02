@@ -572,8 +572,8 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 			Name:    " git ",
 			Command: " npx ",
 			Args:    []string{" --stdio "},
-			Env: map[string]string{
-				" TOKEN ": " secret ",
+			SecretEnv: map[string]string{
+				" TOKEN ": " env:MCP_TOKEN ",
 			},
 		},
 	)

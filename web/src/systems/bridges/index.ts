@@ -52,7 +52,7 @@ export {
 } from "./adapters/bridges-api";
 
 export {
-  bridgeSecretBindingEnvName,
+  bridgeSecretBindingVaultRef,
   buildBridgeCreateRequest,
   buildBridgeSecretBindingRequest,
   buildBridgeUpdateRequest,

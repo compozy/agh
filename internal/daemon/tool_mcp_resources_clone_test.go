@@ -27,7 +27,7 @@ func TestCloneDaemonMCPServer(t *testing.T) {
 				TokenURL:         "https://issuer.example.test/token",
 				RevocationURL:    "https://issuer.example.test/revoke",
 				ClientID:         "agh-client",
-				ClientSecretEnv:  "GITHUB_MCP_CLIENT_SECRET",
+				ClientSecretRef:  "env:GITHUB_MCP_CLIENT_SECRET",
 				Scopes:           []string{"tools.read", "tools.write"},
 			},
 		}
@@ -46,8 +46,8 @@ func TestCloneDaemonMCPServer(t *testing.T) {
 		if got, want := cloned.Auth.Type, aghconfig.MCPAuthTypeOAuth2PKCE; got != want {
 			t.Fatalf("cloned.Auth.Type = %q, want %q", got, want)
 		}
-		if got, want := cloned.Auth.ClientSecretEnv, "GITHUB_MCP_CLIENT_SECRET"; got != want {
-			t.Fatalf("cloned.Auth.ClientSecretEnv = %q, want %q", got, want)
+		if got, want := cloned.Auth.ClientSecretRef, "env:GITHUB_MCP_CLIENT_SECRET"; got != want {
+			t.Fatalf("cloned.Auth.ClientSecretRef = %q, want %q", got, want)
 		}
 		if got, want := cloned.Args[0], "--stdio"; got != want {
 			t.Fatalf("cloned.Args[0] = %q, want %q", got, want)

@@ -21,6 +21,14 @@ func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {
 			"fake": {
 				Command:      "fake-agent --stdio",
 				DefaultModel: "fake-model",
+				CredentialSlots: []aghconfig.ProviderCredentialSlot{
+					{
+						Name:      "api_key",
+						TargetEnv: "FAKE_API_KEY",
+						SecretRef: "env:FAKE_API_KEY",
+						Kind:      "api_key",
+					},
+				},
 			},
 		},
 		AgentDefs: []AgentSeed{{
@@ -264,8 +272,8 @@ func TestWriteAgentDefPersistsOptionalSections(t *testing.T) {
 			Name:    "filesystem",
 			Command: "mcp-fs",
 			Args:    []string{"--root", "/workspace"},
-			Env: map[string]string{
-				"TOKEN": "secret",
+			SecretEnv: map[string]string{
+				"TOKEN": "vault:mcp/filesystem/token",
 			},
 		}},
 		Prompt: "You are a builder.",
@@ -325,9 +333,11 @@ func TestWriteAgentDefEscapesYAMLSensitiveValues(t *testing.T) {
 			Command: "mcp-fs --mode=read:write",
 			Args:    []string{"--root", "/workspace/#demo", "--label=ops:review"},
 			Env: map[string]string{
-				"TOKEN":   "secret:value #1",
 				"PROMPT":  "line one\nline two",
 				"CHANNEL": "ops:review",
+			},
+			SecretEnv: map[string]string{
+				"TOKEN": "vault:mcp/filesystem/token",
 			},
 		}},
 		Prompt: "You are a builder.\nRespect review:all #notes.",
@@ -365,8 +375,8 @@ func TestWriteAgentDefEscapesYAMLSensitiveValues(t *testing.T) {
 	if got, want := agent.MCPServers[0].Args[1], "/workspace/#demo"; got != want {
 		t.Fatalf("agent.MCPServers[0].Args[1] = %q, want %q", got, want)
 	}
-	if got, want := agent.MCPServers[0].Env["TOKEN"], "secret:value #1"; got != want {
-		t.Fatalf("agent.MCPServers[0].Env[TOKEN] = %q, want %q", got, want)
+	if got, want := agent.MCPServers[0].SecretEnv["TOKEN"], "vault:mcp/filesystem/token"; got != want {
+		t.Fatalf("agent.MCPServers[0].SecretEnv[TOKEN] = %q, want %q", got, want)
 	}
 	if got, want := agent.MCPServers[0].Env["PROMPT"], "line one\nline two"; got != want {
 		t.Fatalf("agent.MCPServers[0].Env[PROMPT] = %q, want %q", got, want)

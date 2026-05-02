@@ -212,7 +212,7 @@ describe("useBridgeSecretBindings", () => {
         created_at: "2026-04-13T12:00:00Z",
         kind: "bot_token",
         updated_at: "2026-04-13T12:10:00Z",
-        vault_ref: "env:AGH_BRIDGE_BOT_TOKEN",
+        secret_ref: "vault:bridges/brg_support/bot_token",
       },
     ]);
 

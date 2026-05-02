@@ -414,15 +414,15 @@ func (g *GlobalDB) PutBridgeSecretBinding(ctx context.Context, binding bridges.B
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO bridge_secret_bindings (
-			bridge_instance_id, binding_name, vault_ref, kind, created_at, updated_at
+			bridge_instance_id, binding_name, secret_ref, kind, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(bridge_instance_id, binding_name) DO UPDATE SET
-			vault_ref = excluded.vault_ref,
+			secret_ref = excluded.secret_ref,
 			kind = excluded.kind,
 			updated_at = excluded.updated_at`,
 		normalized.BridgeInstanceID,
 		normalized.BindingName,
-		normalized.VaultRef,
+		normalized.SecretRef,
 		normalized.Kind,
 		store.FormatTimestamp(normalized.CreatedAt),
 		store.FormatTimestamp(normalized.UpdatedAt),
@@ -459,7 +459,7 @@ func (g *GlobalDB) GetBridgeSecretBinding(
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT bridge_instance_id, binding_name, vault_ref, kind, created_at, updated_at
+		`SELECT bridge_instance_id, binding_name, secret_ref, kind, created_at, updated_at
 		 FROM bridge_secret_bindings
 		 WHERE bridge_instance_id = ? AND binding_name = ?`,
 		trimmedInstanceID,
@@ -492,7 +492,7 @@ func (g *GlobalDB) ListBridgeSecretBindings(
 
 	rows, err := g.db.QueryContext(
 		ctx,
-		`SELECT bridge_instance_id, binding_name, vault_ref, kind, created_at, updated_at
+		`SELECT bridge_instance_id, binding_name, secret_ref, kind, created_at, updated_at
 		 FROM bridge_secret_bindings
 		 WHERE bridge_instance_id = ?
 		 ORDER BY binding_name ASC`,
@@ -983,7 +983,7 @@ func scanBridgeSecretBinding(scanner rowScanner) (bridges.BridgeSecretBinding, e
 	if err := scanner.Scan(
 		&binding.BridgeInstanceID,
 		&binding.BindingName,
-		&binding.VaultRef,
+		&binding.SecretRef,
 		&binding.Kind,
 		&createdAtRaw,
 		&updatedAtRaw,

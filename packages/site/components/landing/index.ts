@@ -3,6 +3,8 @@ export { FeaturesSection } from "./features-section";
 export { BentoSection } from "./bento-section";
 export { SupportedAgents } from "./supported-agents";
 export { NetworkSection } from "./network-section";
+export { MemoryDreamSection } from "./memory-dream-section";
+export { AutonomyKernelSection } from "./autonomy-kernel-section";
 export { RuntimeSection } from "./runtime-section";
 export { SandboxSection } from "./sandbox-section";
 export { BridgesSection } from "./bridges-section";

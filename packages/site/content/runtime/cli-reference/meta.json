@@ -28,6 +28,7 @@
         "network",
         "observe",
         "bridge",
+        "vault",
         "---System---",
         "install",
         "config",

@@ -27,13 +27,15 @@ vi.mock("next/navigation", () => ({
 import { Hero } from "../hero";
 import { FeaturesSection } from "../features-section";
 import { BentoSection } from "../bento-section";
-import { SupportedAgents } from "../supported-agents";
+import { PROVIDERS, SupportedAgents } from "../supported-agents";
 import { RuntimeMicroDiagram } from "../runtime-micro-diagram";
 import { RuntimeSection } from "../runtime-section";
 import { SandboxSection } from "../sandbox-section";
 import { BridgesSection } from "../bridges-section";
 import { ExtensibilitySection } from "../extensibility-section";
 import { NetworkSection } from "../network-section";
+import { MemoryDreamSection } from "../memory-dream-section";
+import { AutonomyKernelSection } from "../autonomy-kernel-section";
 import { InstallSection } from "../install-section";
 import { Comparison } from "../comparison";
 import { FinalCta } from "../final-cta";
@@ -42,50 +44,52 @@ import { Pill } from "@agh/ui";
 import { KIND_MEANING, type NetworkKind } from "../primitives/network-kinds";
 
 describe("Hero", () => {
-  it("leads with the runtime + network headline and drops ACP from the fold", () => {
+  it("leads with the locked headline, subhead, and agent network protocol CTA", () => {
     render(<Hero />);
-    expect(screen.getByText("An agent runtime with a network built in.")).toBeDefined();
+    expect(screen.getByText("An open workplace for AI agents.")).toBeDefined();
+    expect(screen.getByText(/find each other/)).toBeDefined();
     const install = screen.getByText("Install the runtime");
     expect(install.closest("a")?.getAttribute("href")).toBe(
       "/runtime/core/getting-started/installation"
     );
-    const network = screen.getByText("See the network");
-    expect(network.closest("a")?.getAttribute("href")).toBe("/protocol");
+    const spec = screen.getByText("Read the agh-network/v0 spec");
+    expect(spec.closest("a")?.getAttribute("href")).toBe("/protocol");
   });
 
-  it("renders four outcome-framed signal tiles", () => {
+  it("renders four proof-of-life signal tiles", () => {
     render(<Hero />);
-    expect(screen.getByText("Complete agent runtime")).toBeDefined();
-    expect(screen.getByText("Built-in agent network")).toBeDefined();
-    expect(screen.getByText("Local-first, self-hosted")).toBeDefined();
-    expect(screen.getByText("Open protocol, open source")).toBeDefined();
+    expect(screen.getByText("agh-network/v0 — shipping today")).toBeDefined();
+    expect(screen.getByText(`${PROVIDERS.length} ACP drivers supported`)).toBeDefined();
+    expect(screen.getByText("18 built-in tools, one registry")).toBeDefined();
+    expect(screen.getByText("Single binary, no infra")).toBeDefined();
   });
 });
 
 describe("FeaturesSection", () => {
-  it("renders six illustrated runtime capabilities", () => {
+  it("renders four illustrated runtime capabilities in a 2x2 grid", () => {
     render(<FeaturesSection />);
-    const eyebrows = ["Sessions", "Memory", "Skills", "Workspaces", "Automation", "Observability"];
+    const eyebrows = ["Memory", "Capabilities", "Workspaces", "Automation"];
     for (const label of eyebrows) {
       expect(screen.getByText(label)).toBeDefined();
     }
 
-    expect(screen.getAllByTestId("feature-card")).toHaveLength(6);
+    expect(screen.getAllByTestId("feature-card")).toHaveLength(4);
+    expect(screen.queryByText("Sessions")).toBeNull();
     expect(screen.queryByText("Hooks")).toBeNull();
     expect(screen.queryByText("Bridges")).toBeNull();
-    expect(screen.getByText("Everything a modern agent runtime should have.")).toBeDefined();
+    expect(screen.queryByText("Skills")).toBeNull();
+    expect(screen.queryByText("Observability")).toBeNull();
+    expect(screen.getByText("The runtime your agents already know how to drive.")).toBeDefined();
   });
 
-  it("uses the six everything illustration assets", () => {
+  it("uses the four everything illustration assets", () => {
     render(<FeaturesSection />);
 
     const expectedSources = [
-      "/images/everything/illustration_01.png",
       "/images/everything/illustration_02.png",
       "/images/everything/illustration_04.png",
       "/images/everything/illustration_05.png",
       "/images/everything/illustration_06.png",
-      "/images/everything/illustration_03.png",
     ];
 
     const sources = screen.getAllByRole("img").map(image => image.getAttribute("src"));
@@ -93,33 +97,37 @@ describe("FeaturesSection", () => {
     for (const source of expectedSources) {
       expect(sources).toContain(source);
     }
+    expect(sources).not.toContain("/images/everything/illustration_01.png");
+    expect(sources).not.toContain("/images/everything/illustration_03.png");
   });
 });
 
 describe("BentoSection", () => {
-  it("renders the five-tile runtime bento without an extra section header", () => {
+  it("renders the five-tile runtime bento with the Extensibility tile", () => {
     render(<BentoSection />);
 
     expect(screen.getByTestId("bento-grid")).toBeDefined();
     expect(screen.getAllByRole("article")).toHaveLength(5);
     expect(screen.queryByText("The runtime surface in five parts.")).toBeNull();
 
-    for (const label of ["Runtime", "Network", "Bridges", "Memory", "Trace"]) {
+    for (const label of ["Runtime", "Network", "Bridges", "Memory", "Extensibility"]) {
       expect(screen.getByText(label)).toBeDefined();
     }
+    expect(screen.queryByText("Trace")).toBeNull();
+    expect(screen.queryByText("Tool Registry")).toBeNull();
 
     for (const title of [
       "Your agents. Under control.",
       "Built-in network. Delegate. Deliver. Done.",
       "From anywhere. Into a session.",
-      "Context that remembers.",
-      "Every step Traceable.",
+      "Memory that compounds.",
+      "Every layer. Pluggable.",
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeDefined();
     }
   });
 
-  it("uses the five exported bento illustration assets", () => {
+  it("uses the five exported bento illustration assets including extensibility-v2", () => {
     render(<BentoSection />);
 
     const expectedSources = [
@@ -127,7 +135,7 @@ describe("BentoSection", () => {
       "/images/bento-illustrations/network-v2.png",
       "/images/bento-illustrations/bridges-v2.png",
       "/images/bento-illustrations/memory-v2.png",
-      "/images/bento-illustrations/trace-v2.png",
+      "/images/bento-illustrations/extensibility-v2.png",
     ];
 
     const sources = screen.getAllByRole("img").map(image => image.getAttribute("src"));
@@ -135,32 +143,52 @@ describe("BentoSection", () => {
     for (const source of expectedSources) {
       expect(sources).toContain(source);
     }
+    expect(sources).not.toContain("/images/bento-illustrations/trace-v2.png");
   });
 });
 
 describe("SupportedAgents", () => {
   it("renders as a compact support strip, not a hero section", () => {
     render(<SupportedAgents />);
-    const expected = ["claude", "codex", "gemini", "opencode", "copilot", "cursor", "kiro", "pi"];
+    const expected = [
+      "claude",
+      "codex",
+      "gemini",
+      "opencode",
+      "copilot",
+      "cursor",
+      "kiro",
+      "pi",
+      "blackbox",
+      "cline",
+      "goose",
+      "hermes",
+      "junie",
+      "kimi-cli",
+      "openclaw",
+      "openhands",
+      "qoder",
+      "qwen-code",
+    ];
     for (const id of expected) {
       expect(screen.getByText(id)).toBeDefined();
     }
-    expect(screen.getByText("Works with your agent CLIs")).toBeDefined();
+    expect(screen.getByText("Your CLI on the network")).toBeDefined();
   });
 });
 
 describe("RuntimeSection", () => {
-  it("renders the four runtime feature cards", () => {
+  it("renders the three runtime feature cards without the replay claim", () => {
     render(<RuntimeSection />);
     const expected = [
       "Durable sessions in SQLite",
-      "Replayable event stream",
       "Three operator surfaces, one daemon",
       "Permission modes with an audit trail",
     ];
     for (const title of expected) {
       expect(screen.getByText(title)).toBeDefined();
     }
+    expect(screen.queryByText("Replayable event stream")).toBeNull();
   });
 
   it("uses the runtime daemon illustration in the sticky rail", () => {
@@ -242,13 +270,16 @@ describe("BridgesSection", () => {
 });
 
 describe("ExtensibilitySection", () => {
-  it("renders four extensibility cards", () => {
+  it("renders six extensibility cards including sandbox and docs link", () => {
     render(<ExtensibilitySection />);
-    expect(screen.getAllByRole("article")).toHaveLength(4);
-    const eyebrows = ["Hooks", "Skills", "Automation", "Extensions"];
+    expect(screen.getAllByRole("article")).toHaveLength(6);
+    const eyebrows = ["Hooks", "Skills", "Automation", "Sandbox", "Extensions"];
     for (const label of eyebrows) {
       expect(screen.getByText(label)).toBeDefined();
     }
+    expect(screen.getByRole("link", { name: "Read extensions docs" }).getAttribute("href")).toBe(
+      "/runtime/core/extensions"
+    );
   });
 
   it("uses the dedicated skill contract illustration for the lower section", () => {
@@ -277,8 +308,10 @@ describe("NetworkSection", () => {
 describe("InstallSection", () => {
   it("renders three install tabs and the three CLI steps", () => {
     render(<InstallSection />);
-    expect(screen.getByRole("tab", { name: "go install" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "curl" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Package manager" })).toBeDefined();
     expect(screen.getByRole("tab", { name: "Build from source" })).toBeDefined();
+    expect(screen.getByText("curl -fsSL https://agh.network/install.sh | sh")).toBeDefined();
     expect(screen.getByText("Bootstrap your AGH home")).toBeDefined();
     expect(screen.getByText("Start the daemon")).toBeDefined();
     expect(screen.getByText("Launch a real session")).toBeDefined();
@@ -287,42 +320,100 @@ describe("InstallSection", () => {
   it("wires tab roles, panels, and keyboard navigation", () => {
     render(<InstallSection />);
 
-    const goInstall = screen.getByRole("tab", { name: "go install" });
+    const curl = screen.getByRole("tab", { name: "curl" });
+    const packageManager = screen.getByRole("tab", { name: "Package manager" });
     const source = screen.getByRole("tab", { name: "Build from source" });
 
-    expect(goInstall.getAttribute("id")).toBe("install-tab-go");
-    expect(goInstall.getAttribute("aria-controls")).toBe("install-panel-go");
-    expect(goInstall.getAttribute("tabindex")).toBe("0");
+    expect(curl.getAttribute("id")).toBe("install-tab-curl");
+    expect(curl.getAttribute("aria-controls")).toBe("install-panel-curl");
+    expect(curl.getAttribute("tabindex")).toBe("0");
+    expect(packageManager.getAttribute("tabindex")).toBe("-1");
     expect(source.getAttribute("tabindex")).toBe("-1");
 
-    fireEvent.keyDown(goInstall, { key: "ArrowRight" });
+    fireEvent.keyDown(curl, { key: "ArrowRight" });
+
+    expect(packageManager.getAttribute("aria-selected")).toBe("true");
+    let panel = screen.getByRole("tabpanel");
+    expect(panel.getAttribute("id")).toBe("install-panel-package");
+    expect(panel.getAttribute("aria-labelledby")).toBe("install-tab-package");
+
+    fireEvent.keyDown(packageManager, { key: "End" });
 
     expect(source.getAttribute("aria-selected")).toBe("true");
-    let panel = screen.getByRole("tabpanel");
+    panel = screen.getByRole("tabpanel");
     expect(panel.getAttribute("id")).toBe("install-panel-source");
-    expect(panel.getAttribute("aria-labelledby")).toBe("install-tab-source");
 
     fireEvent.keyDown(source, { key: "Home" });
 
-    expect(goInstall.getAttribute("aria-selected")).toBe("true");
+    expect(curl.getAttribute("aria-selected")).toBe("true");
     panel = screen.getByRole("tabpanel");
-    expect(panel.getAttribute("id")).toBe("install-panel-go");
+    expect(panel.getAttribute("id")).toBe("install-panel-curl");
   });
 });
 
 describe("Comparison", () => {
-  it("renders the four approaches and the Agents today column", () => {
+  it("renders the four named approaches and the Agents today column", () => {
     render(<Comparison />);
     expect(screen.getByText("Other tools stop at the runtime boundary.")).toBeDefined();
-    for (const name of [
-      "Assistant gateway",
-      "All-in-one agent OS",
-      "Multi-tenant gateway",
-      "AGH",
-    ]) {
+    for (const name of ["Letta", "LangGraph / CrewAI", "OpenAI Assistants / Devin", "AGH"]) {
       expect(screen.getByText(name)).toBeDefined();
     }
-    expect(screen.getByText("8 ACP CLIs")).toBeDefined();
+    expect(screen.getByText(`${PROVIDERS.length} ACP drivers`)).toBeDefined();
+  });
+});
+
+describe("MemoryDreamSection", () => {
+  it("renders the sticky-rail headline and the numbered consolidation steps", () => {
+    render(<MemoryDreamSection />);
+    expect(screen.getByText("Memory that compounds")).toBeDefined();
+    expect(screen.getByText("while you sleep.")).toBeDefined();
+    for (const title of [
+      "Memory at ~/.agh/memory/*.md",
+      "Time → Sessions → Lock cascade",
+      "Same surface for you and the agent",
+    ]) {
+      expect(screen.getByText(title)).toBeDefined();
+    }
+    expect(screen.getByText("01")).toBeDefined();
+    expect(screen.getByText("02")).toBeDefined();
+    expect(screen.getByText("03")).toBeDefined();
+  });
+
+  it("renders the memory storyboard illustration in the sticky rail", () => {
+    render(<MemoryDreamSection />);
+    expect(
+      screen
+        .getByAltText(
+          "AGH memory interface diagram showing scoped Markdown files, memory indexing, and dream consolidation into durable memory."
+        )
+        .getAttribute("src")
+    ).toBe("/images/runtime/memory-dream-landing-v1.png");
+  });
+});
+
+describe("AutonomyKernelSection", () => {
+  it("renders the autonomy kernel header and the storyboard image", () => {
+    render(<AutonomyKernelSection />);
+    expect(screen.getByText("A real autonomy kernel, not a fork-and-pray loop.")).toBeDefined();
+    expect(
+      screen
+        .getByAltText(
+          "AGH autonomy storyboard — task_runs queue, an agent claiming a run with a claim_token and heartbeat, and lease recovery on daemon restart."
+        )
+        .getAttribute("src")
+    ).toBe("/images/runtime/autonomy-overview-storyboard-v1.png");
+  });
+
+  it("renders the asymmetric narrative card and the side-list invariants", () => {
+    render(<AutonomyKernelSection />);
+    expect(screen.getByText("No double-execution, ever.")).toBeDefined();
+    for (const heading of [
+      "Daemon crashes don't orphan work.",
+      "Operators and agents hit task_runs.",
+      "Children cannot widen parents.",
+    ]) {
+      expect(screen.getByText(heading)).toBeDefined();
+    }
   });
 });
 

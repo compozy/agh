@@ -56,7 +56,7 @@ env = { PHASE = "pre" }
 	if got, want := hook.Mode, hookspkg.HookModeSync; got != want {
 		t.Fatalf("hook.Mode = %q, want %q", got, want)
 	}
-	if got, want := hook.Priority, 640; got != want {
+	if got, want := hook.Priority, int32(640); got != want {
 		t.Fatalf("hook.Priority = %d, want %d", got, want)
 	}
 	if got, want := hook.Timeout, 7*time.Second; got != want {
@@ -108,7 +108,7 @@ command = "/bin/echo"
 	if got, want := hook.Mode, hookspkg.HookModeAsync; got != want {
 		t.Fatalf("hook.Mode = %q, want %q", got, want)
 	}
-	if got, want := hook.Priority, 500; got != want {
+	if got, want := hook.Priority, int32(500); got != want {
 		t.Fatalf("hook.Priority = %d, want %d", got, want)
 	}
 	if hook.PrioritySet {

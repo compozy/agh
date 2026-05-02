@@ -16,25 +16,27 @@ type HooksConfig struct {
 }
 
 type parsedHookDeclaration struct {
-	Name     string             `yaml:"name"               toml:"name"`
-	Event    string             `yaml:"event"              toml:"event"`
-	Mode     string             `yaml:"mode,omitempty"     toml:"mode,omitempty"`
-	Enabled  *bool              `yaml:"enabled,omitempty"  toml:"enabled,omitempty"`
-	Required bool               `yaml:"required,omitempty" toml:"required,omitempty"`
-	Priority *int               `yaml:"priority,omitempty" toml:"priority,omitempty"`
-	Timeout  time.Duration      `yaml:"timeout,omitempty"  toml:"timeout,omitempty"`
-	Matcher  parsedHookMatcher  `yaml:"matcher,omitempty"  toml:"matcher,omitempty"`
-	Command  string             `yaml:"command,omitempty"  toml:"command,omitempty"`
-	Args     []string           `yaml:"args,omitempty"     toml:"args,omitempty"`
-	Env      map[string]string  `yaml:"env,omitempty"      toml:"env,omitempty"`
-	Executor parsedHookExecutor `yaml:"executor,omitempty" toml:"executor,omitempty"`
+	Name      string             `yaml:"name"                 toml:"name"`
+	Event     string             `yaml:"event"                toml:"event"`
+	Mode      string             `yaml:"mode,omitempty"       toml:"mode,omitempty"`
+	Enabled   *bool              `yaml:"enabled,omitempty"    toml:"enabled,omitempty"`
+	Required  bool               `yaml:"required,omitempty"   toml:"required,omitempty"`
+	Priority  *int               `yaml:"priority,omitempty"   toml:"priority,omitempty"`
+	Timeout   time.Duration      `yaml:"timeout,omitempty"    toml:"timeout,omitempty"`
+	Matcher   parsedHookMatcher  `yaml:"matcher,omitempty"    toml:"matcher,omitempty"`
+	Command   string             `yaml:"command,omitempty"    toml:"command,omitempty"`
+	Args      []string           `yaml:"args,omitempty"       toml:"args,omitempty"`
+	Env       map[string]string  `yaml:"env,omitempty"        toml:"env,omitempty"`
+	SecretEnv map[string]string  `yaml:"secret_env,omitempty" toml:"secret_env,omitempty"`
+	Executor  parsedHookExecutor `yaml:"executor,omitempty"   toml:"executor,omitempty"`
 }
 
 type parsedHookExecutor struct {
-	Kind    string            `yaml:"kind,omitempty"    toml:"kind,omitempty"`
-	Command string            `yaml:"command,omitempty" toml:"command,omitempty"`
-	Args    []string          `yaml:"args,omitempty"    toml:"args,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"     toml:"env,omitempty"`
+	Kind      string            `yaml:"kind,omitempty"       toml:"kind,omitempty"`
+	Command   string            `yaml:"command,omitempty"    toml:"command,omitempty"`
+	Args      []string          `yaml:"args,omitempty"       toml:"args,omitempty"`
+	Env       map[string]string `yaml:"env,omitempty"        toml:"env,omitempty"`
+	SecretEnv map[string]string `yaml:"secret_env,omitempty" toml:"secret_env,omitempty"`
 }
 
 type parsedHookMatcher struct {
@@ -121,7 +123,7 @@ func (d parsedHookDeclaration) toHookDecl(
 	source hookspkg.HookSource,
 	scopeAgentName string,
 ) (hookspkg.HookDecl, error) {
-	command, args, env, kind, err := d.resolveExecutor()
+	command, args, env, secretEnv, kind, err := d.resolveExecutor()
 	if err != nil {
 		return hookspkg.HookDecl{}, err
 	}
@@ -144,9 +146,14 @@ func (d parsedHookDeclaration) toHookDecl(
 		Command:      command,
 		Args:         args,
 		Env:          env,
+		SecretEnv:    secretEnv,
 	}
 	if d.Priority != nil {
-		decl.Priority = *d.Priority
+		priority, err := hookspkg.PriorityFromInt(*d.Priority)
+		if err != nil {
+			return hookspkg.HookDecl{}, err
+		}
+		decl.Priority = priority
 		decl.PrioritySet = true
 	}
 
@@ -157,14 +164,16 @@ func (d parsedHookDeclaration) resolveExecutor() (
 	string,
 	[]string,
 	map[string]string,
+	map[string]string,
 	hookspkg.HookExecutorKind,
 	error,
 ) {
-	rootSpecified := strings.TrimSpace(d.Command) != "" || len(d.Args) > 0 || len(d.Env) > 0
+	rootSpecified := strings.TrimSpace(d.Command) != "" || len(d.Args) > 0 || len(d.Env) > 0 ||
+		len(d.SecretEnv) > 0
 	nestedSpecified := strings.TrimSpace(d.Executor.Command) != "" || len(d.Executor.Args) > 0 ||
-		len(d.Executor.Env) > 0
+		len(d.Executor.Env) > 0 || len(d.Executor.SecretEnv) > 0
 	if rootSpecified && nestedSpecified {
-		return "", nil, nil, "", errors.New(
+		return "", nil, nil, nil, "", errors.New(
 			"hook executor fields must be declared either at the top level or under executor, not both",
 		)
 	}
@@ -172,13 +181,15 @@ func (d parsedHookDeclaration) resolveExecutor() (
 	command := strings.TrimSpace(d.Command)
 	args := cloneStrings(d.Args)
 	env := mergeStringMaps(nil, d.Env)
+	secretEnv := mergeStringMaps(nil, d.SecretEnv)
 	if nestedSpecified {
 		command = strings.TrimSpace(d.Executor.Command)
 		args = cloneStrings(d.Executor.Args)
 		env = mergeStringMaps(nil, d.Executor.Env)
+		secretEnv = mergeStringMaps(nil, d.Executor.SecretEnv)
 	}
 
-	return command, args, env, hookspkg.HookExecutorKind(strings.TrimSpace(d.Executor.Kind)), nil
+	return command, args, env, secretEnv, hookspkg.HookExecutorKind(strings.TrimSpace(d.Executor.Kind)), nil
 }
 
 func (m parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookMatcher, error) {
@@ -235,6 +246,7 @@ func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := src
 	cloned.Args = cloneStrings(src.Args)
 	cloned.Env = mergeStringMaps(nil, src.Env)
+	cloned.SecretEnv = mergeStringMaps(nil, src.SecretEnv)
 	cloned.Metadata = mergeStringMaps(nil, src.Metadata)
 	cloned.Enabled = cloneBoolPtr(src.Enabled)
 	if src.Matcher.ToolReadOnly != nil {

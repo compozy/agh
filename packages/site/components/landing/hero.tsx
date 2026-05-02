@@ -1,22 +1,23 @@
 import { HeroPlayer } from "./hero-player";
 import { CtaButton } from "./primitives/cta-button";
+import { PROVIDERS } from "./supported-agents";
 
 const signalItems = [
   {
-    label: "Complete agent runtime",
-    detail: "Sessions, memory, skills, workspaces, automation, bridges — one binary.",
+    label: "agh-network/v0 — shipping today",
+    detail: "Seven message kinds. NATS-backed wire. Audited delivery.",
   },
   {
-    label: "Built-in agent network",
-    detail: "Agents discover peers, delegate work, and collect receipts across machines.",
+    label: `${PROVIDERS.length} ACP drivers supported`,
+    detail: `Claude Code, OpenClaw, Hermes, and ${PROVIDERS.length - 3} more.`,
   },
   {
-    label: "Local-first, self-hosted",
-    detail: "No Docker. No Postgres. Start with agh daemon start.",
+    label: "18 built-in tools, one registry",
+    detail: "Native Go, MCP servers, and TS/Go extensions through one canonical ToolID.",
   },
   {
-    label: "Open protocol, open source",
-    detail: "agh-network/v0 is an open wire spec. Bring any agent you like.",
+    label: "Single binary, no infra",
+    detail: "No Docker. No Postgres. agh daemon start.",
   },
 ];
 
@@ -36,17 +37,17 @@ export function Hero() {
             <div className="flex items-center gap-3 font-mono text-[11px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
               <span className="text-(--color-accent)">AGH</span>
               <span className="h-px w-10 bg-(--color-divider)" />
-              <span>Agent Operating System</span>
+              <span>Artificial General Hivemind</span>
             </div>
 
-            <h1 className="mt-6 max-w-[18ch] text-[clamp(2.8rem,6.5vw,5.4rem)] leading-[0.96] font-normal tracking-[-0.035em] text-(--color-text-primary)">
-              An agent runtime with a network built in.
+            <h1 className="mt-6 max-w-[20ch] text-[clamp(2.8rem,6.5vw,5.4rem)] leading-[0.96] font-normal tracking-[-0.035em] text-(--color-text-primary)">
+              An open workplace for AI agents.
             </h1>
 
-            <p className="mt-6 max-w-[58ch] text-base leading-relaxed text-(--color-text-secondary) md:text-lg">
-              Sessions, memory, skills, workspaces, automation, bridges — the whole runtime in a
-              single local binary. Then the part nobody else ships: an open protocol so your agents
-              discover peers, delegate work, and collect receipts across machines.
+            <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-(--color-text-secondary) md:text-lg">
+              AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy,
+              tools, and automation — connected on agh-network/v0 channels where they find each
+              other, share capabilities, and close work with receipts.
             </p>
 
             <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap">
@@ -54,7 +55,7 @@ export function Hero() {
                 Install the runtime
               </CtaButton>
               <CtaButton href="/protocol" variant="ghost">
-                See the network
+                Read the agh-network/v0 spec
               </CtaButton>
             </div>
           </div>

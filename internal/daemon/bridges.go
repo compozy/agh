@@ -44,6 +44,10 @@ type BridgeSecretResolver interface {
 	ResolveBridgeSecret(ctx context.Context, binding bridgepkg.BridgeSecretBinding) (string, error)
 }
 
+type bridgeSecretValueWriter interface {
+	PutBridgeSecretValue(ctx context.Context, binding bridgepkg.BridgeSecretBinding, plaintext string) error
+}
+
 type bridgeRuntime struct {
 	*bridgepkg.Service
 
@@ -516,7 +520,11 @@ func (r *bridgeRuntime) ListSecretBindings(
 	return bindings, nil
 }
 
-func (r *bridgeRuntime) PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
+func (r *bridgeRuntime) PutSecretBinding(
+	ctx context.Context,
+	binding bridgepkg.BridgeSecretBinding,
+	secretValue *string,
+) error {
 	if r == nil {
 		return errors.New("daemon: bridge runtime is required")
 	}
@@ -534,6 +542,18 @@ func (r *bridgeRuntime) PutSecretBinding(ctx context.Context, binding bridgepkg.
 	if validator, ok := r.secretResolver.(bridgeSecretBindingValidator); ok {
 		if err := validator.ValidateBridgeSecretBinding(binding); err != nil {
 			return fmt.Errorf("daemon: put bridge secret binding: %w", err)
+		}
+	}
+	if secretValue != nil {
+		if _, err := r.GetInstance(ctx, binding.BridgeInstanceID); err != nil {
+			return fmt.Errorf("daemon: put bridge secret binding: load bridge instance: %w", err)
+		}
+		writer, ok := r.secretResolver.(bridgeSecretValueWriter)
+		if !ok {
+			return fmt.Errorf("daemon: put bridge secret binding: %w", errBridgeSecretResolverRequired)
+		}
+		if err := writer.PutBridgeSecretValue(ctx, binding, *secretValue); err != nil {
+			return fmt.Errorf("daemon: put bridge secret binding value: %w", err)
 		}
 	}
 	if err := r.store.PutBridgeSecretBinding(ctx, binding); err != nil {

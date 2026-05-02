@@ -83,7 +83,7 @@ func newToolSearchCommand(deps commandDeps) *cobra.Command {
 
   # Limit search results for automation
   agh tool search task --limit 5 -o json`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := strings.TrimSpace(args[0])
 			if query == "" {
@@ -121,7 +121,7 @@ func newToolInfoCommand(deps commandDeps) *cobra.Command {
 		Short: "Show one registry tool descriptor and diagnostics",
 		Example: `  # Show a tool descriptor and availability diagnostics
   agh tool info agh__skill_view -o json`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseToolIDArg(args[0])
 			if err != nil {
@@ -153,7 +153,7 @@ func newToolInvokeCommand(deps commandDeps) *cobra.Command {
 
   # Invoke a tool with JSON read from stdin
   echo '{"tool_id":"agh__skill_view"}' | agh tool invoke agh__tool_info -o json`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseToolIDArg(args[0])
 			if err != nil {
@@ -235,7 +235,7 @@ func newToolsetsInfoCommand(deps commandDeps) *cobra.Command {
 		Short: "Show one registry toolset expansion",
 		Example: `  # Show one toolset and expanded tool ids
   agh toolsets info agh__catalog -o json`,
-		Args: cobra.ExactArgs(1),
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseToolsetIDArg(args[0])
 			if err != nil {

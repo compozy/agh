@@ -74,3 +74,36 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 		}
 	})
 }
+
+func TestRedactHandlesRuntimeRegisteredSecrets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should redact dynamic provider secret values", func(t *testing.T) {
+		t.Parallel()
+
+		secret := "sk-dynamic-provider-secret-123456"
+		cleanup := RegisterDynamicSecret(secret)
+		t.Cleanup(cleanup)
+
+		redacted := Redact("provider stderr leaked " + secret)
+		if strings.Contains(redacted, secret) {
+			t.Fatalf("Redact(dynamic secret) = %q leaked registered value", redacted)
+		}
+		if !strings.Contains(redacted, "[REDACTED]") {
+			t.Fatalf("Redact(dynamic secret) = %q, want redacted placeholder", redacted)
+		}
+	})
+
+	t.Run("Should unregister dynamic provider secret values", func(t *testing.T) {
+		t.Parallel()
+
+		secret := "sk-dynamic-provider-secret-cleanup-123456"
+		cleanup := RegisterDynamicSecret(secret)
+		cleanup()
+
+		redacted := Redact("provider stderr contains " + secret)
+		if !strings.Contains(redacted, secret) {
+			t.Fatalf("Redact(after cleanup) = %q, want unregistered value unchanged", redacted)
+		}
+	})
+}

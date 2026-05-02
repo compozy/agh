@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,7 +18,9 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -79,28 +80,24 @@ type Store interface {
 	GetTriggerEnabledOverlay(ctx context.Context, triggerID string) (TriggerEnabledOverlay, error)
 	ListTriggerEnabledOverlays(ctx context.Context) ([]TriggerEnabledOverlay, error)
 	DeleteTriggerEnabledOverlay(ctx context.Context, triggerID string) error
-	SetTriggerWebhookSecret(ctx context.Context, triggerID string, secret string) error
-	GetTriggerWebhookSecret(ctx context.Context, triggerID string) (string, error)
-	DeleteTriggerWebhookSecret(ctx context.Context, triggerID string) error
 }
 
-// WebhookSecretResolver resolves the write-only webhook secret needed to
-// register persisted webhook triggers into the runtime engine.
+// WebhookSecretResolver resolves a persisted webhook secret reference.
 type WebhookSecretResolver interface {
-	SecretForTrigger(ctx context.Context, trigger Trigger) (string, error)
+	ResolveRef(ctx context.Context, ref string) (string, error)
 }
 
-type storeWebhookSecretResolver struct {
-	store interface {
-		GetTriggerWebhookSecret(ctx context.Context, triggerID string) (string, error)
-	}
+// WebhookSecretStore persists daemon-managed webhook secret values.
+type WebhookSecretStore interface {
+	WebhookSecretResolver
+	PutSecret(ctx context.Context, ref string, kind string, value string) (vault.Metadata, error)
+	DeleteSecret(ctx context.Context, ref string) error
 }
 
-func (r storeWebhookSecretResolver) SecretForTrigger(ctx context.Context, trigger Trigger) (string, error) {
-	if r.store == nil {
-		return "", ErrTriggerWebhookSecretNotFound
-	}
-	return r.store.GetTriggerWebhookSecret(ctx, strings.TrimSpace(trigger.ID))
+// WebhookSecretWrite carries the optional write-only webhook secret mutation.
+type WebhookSecretWrite struct {
+	Ref   string
+	Value *string
 }
 
 // ResourceStatus reports total and enabled counts for one automation resource
@@ -142,7 +139,7 @@ type managerOptions struct {
 	config              aghconfig.AutomationConfig
 	logger              *slog.Logger
 	globalWorkspacePath string
-	webhookSecrets      WebhookSecretResolver
+	webhookSecrets      WebhookSecretStore
 	dispatcherOptions   []DispatcherOption
 	schedulerOptions    []SchedulerOption
 	triggerOptions      []TriggerEngineOption
@@ -202,9 +199,6 @@ func finalizeManagerOptions(options *managerOptions) error {
 	if options.config.DefaultFireLimit.Max == 0 || strings.TrimSpace(options.config.DefaultFireLimit.Window) == "" {
 		options.config.DefaultFireLimit = DefaultFireLimitConfig()
 	}
-	if options.webhookSecrets == nil {
-		options.webhookSecrets = storeWebhookSecretResolver{store: options.store}
-	}
 	if options.jobResources != nil || options.triggerResources != nil {
 		if options.jobResources == nil {
 			return errors.New("automation: job resource store is required when resource definitions are enabled")
@@ -247,7 +241,7 @@ type Manager struct {
 	config              aghconfig.AutomationConfig
 	logger              *slog.Logger
 	globalWorkspacePath string
-	webhookSecrets      WebhookSecretResolver
+	webhookSecrets      WebhookSecretStore
 	dispatcher          *Dispatcher
 	schedulerOptions    []SchedulerOption
 	triggerOptions      []TriggerEngineOption
@@ -326,11 +320,10 @@ func WithGlobalWorkspacePath(path string) Option {
 	}
 }
 
-// WithWebhookSecretResolver injects the write-only secret source used for
-// webhook trigger runtime registration.
-func WithWebhookSecretResolver(resolver WebhookSecretResolver) Option {
+// WithWebhookSecretStore injects the vault-backed store used for webhook trigger secrets.
+func WithWebhookSecretStore(store WebhookSecretStore) Option {
 	return func(opts *managerOptions) {
-		opts.webhookSecrets = resolver
+		opts.webhookSecrets = store
 	}
 }
 
@@ -470,7 +463,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine),
 		)
 	}
-	if err := m.loadTriggerRegistrations(ctx, triggers, triggerEngine); err != nil {
+	if err := m.loadTriggerRegistrations(triggers, triggerEngine); err != nil {
 		return errors.Join(
 			fmt.Errorf("automation: register trigger definitions: %w", err),
 			m.shutdownStartupRuntime(ctx, runtimeCancel, scheduler, triggerEngine),
@@ -789,8 +782,12 @@ func (m *Manager) GetTrigger(ctx context.Context, id string) (Trigger, error) {
 }
 
 // CreateTrigger stores a new dynamic trigger definition plus its write-only
-// webhook secret when applicable, then registers it into the runtime engine.
-func (m *Manager) CreateTrigger(ctx context.Context, trigger Trigger, webhookSecret string) (Trigger, error) {
+// webhook secret value when applicable, then registers it into the runtime engine.
+func (m *Manager) CreateTrigger(
+	ctx context.Context,
+	trigger Trigger,
+	webhookSecret WebhookSecretWrite,
+) (Trigger, error) {
 	if ctx == nil {
 		return Trigger{}, errors.New("automation: create trigger context is required")
 	}
@@ -805,6 +802,13 @@ func (m *Manager) CreateTrigger(ctx context.Context, trigger Trigger, webhookSec
 	if next.Source != JobSourceDynamic {
 		return Trigger{}, ErrDefinitionReadOnly
 	}
+	if strings.TrimSpace(next.ID) == "" {
+		next.ID = store.NewID("trg")
+	}
+	next = applyWebhookSecretRef(next, nil, &webhookSecret)
+	if err := requireWebhookSecretRef(next); err != nil {
+		return Trigger{}, err
+	}
 
 	created, err := m.store.CreateTrigger(ctx, next)
 	if err != nil {
@@ -814,7 +818,7 @@ func (m *Manager) CreateTrigger(ctx context.Context, trigger Trigger, webhookSec
 	if err != nil {
 		return Trigger{}, errors.Join(err, m.cleanupCreatedTrigger(ctx, created.ID))
 	}
-	if err := m.syncTriggerWebhookSecret(ctx, Trigger{}, created, stringPointer(webhookSecret)); err != nil {
+	if err := m.applyWebhookSecretWrite(ctx, created, webhookSecret); err != nil {
 		return Trigger{}, errors.Join(err, m.cleanupCreatedTrigger(ctx, created.ID))
 	}
 
@@ -822,7 +826,7 @@ func (m *Manager) CreateTrigger(ctx context.Context, trigger Trigger, webhookSec
 	if err != nil {
 		return Trigger{}, errors.Join(err, m.cleanupCreatedTrigger(ctx, created.ID))
 	}
-	if err := m.applyTriggerToRuntime(ctx, current); err != nil {
+	if err := m.applyTriggerToRuntime(current); err != nil {
 		return Trigger{}, errors.Join(err, m.cleanupCreatedTrigger(ctx, created.ID))
 	}
 
@@ -830,7 +834,11 @@ func (m *Manager) CreateTrigger(ctx context.Context, trigger Trigger, webhookSec
 }
 
 // UpdateTrigger replaces one existing dynamic trigger definition.
-func (m *Manager) UpdateTrigger(ctx context.Context, trigger Trigger, webhookSecret *string) (Trigger, error) {
+func (m *Manager) UpdateTrigger(
+	ctx context.Context,
+	trigger Trigger,
+	webhookSecret *WebhookSecretWrite,
+) (Trigger, error) {
 	if ctx == nil {
 		return Trigger{}, errors.New("automation: update trigger context is required")
 	}
@@ -850,15 +858,14 @@ func (m *Manager) UpdateTrigger(ctx context.Context, trigger Trigger, webhookSec
 	if err != nil {
 		return Trigger{}, err
 	}
-	previousSecret, err := m.currentWebhookSecret(ctx, currentStored)
-	if err != nil {
-		return Trigger{}, err
-	}
-
 	next := cloneTrigger(trigger)
 	next.ID = currentStored.ID
 	next.Source = currentStored.Source
 	next.CreatedAt = currentStored.CreatedAt
+	next = applyWebhookSecretRef(next, &currentStored, webhookSecret)
+	if err := requireWebhookSecretRef(next); err != nil {
+		return Trigger{}, err
+	}
 
 	updatedStored, err := m.store.UpdateTrigger(ctx, next)
 	if err != nil {
@@ -871,13 +878,13 @@ func (m *Manager) UpdateTrigger(ctx context.Context, trigger Trigger, webhookSec
 		}
 		return Trigger{}, err
 	}
-	if err := m.syncTriggerWebhookSecret(ctx, currentStored, updatedStored, webhookSecret); err != nil {
+	if err := m.applyWebhookSecretWritePointer(ctx, updatedStored, webhookSecret); err != nil {
 		if _, rollbackErr := m.store.UpdateTrigger(ctx, currentStored); rollbackErr != nil {
 			return Trigger{}, errors.Join(err, rollbackErr)
 		}
-		if restoreErr := m.restoreWebhookSecret(ctx, currentStored, previousSecret); restoreErr != nil {
-			return Trigger{}, errors.Join(err, restoreErr)
-		}
+		return Trigger{}, err
+	}
+	if err := m.deleteSupersededOwnedWebhookSecret(ctx, currentStored, updatedStored); err != nil {
 		return Trigger{}, err
 	}
 
@@ -886,19 +893,13 @@ func (m *Manager) UpdateTrigger(ctx context.Context, trigger Trigger, webhookSec
 		if _, rollbackErr := m.store.UpdateTrigger(ctx, currentStored); rollbackErr != nil {
 			return Trigger{}, errors.Join(err, rollbackErr)
 		}
-		if restoreErr := m.restoreWebhookSecret(ctx, currentStored, previousSecret); restoreErr != nil {
-			return Trigger{}, errors.Join(err, restoreErr)
-		}
 		return Trigger{}, err
 	}
-	if err := m.applyTriggerToRuntime(ctx, currentEffective); err != nil {
+	if err := m.applyTriggerToRuntime(currentEffective); err != nil {
 		if _, rollbackErr := m.store.UpdateTrigger(ctx, currentStored); rollbackErr != nil {
 			return Trigger{}, errors.Join(err, rollbackErr)
 		}
-		if restoreErr := m.restoreWebhookSecret(ctx, currentStored, previousSecret); restoreErr != nil {
-			return Trigger{}, errors.Join(err, restoreErr)
-		}
-		if runtimeErr := m.applyTriggerToRuntime(ctx, previousEffective); runtimeErr != nil {
+		if runtimeErr := m.applyTriggerToRuntime(previousEffective); runtimeErr != nil {
 			return Trigger{}, errors.Join(err, runtimeErr)
 		}
 		return Trigger{}, err
@@ -929,11 +930,6 @@ func (m *Manager) DeleteTrigger(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	previousSecret, err := m.currentWebhookSecret(ctx, currentStored)
-	if err != nil {
-		return err
-	}
-
 	engine := m.triggerEngineSnapshot()
 	if engine != nil {
 		if err := engine.Unregister(currentStored.ID); err != nil && !errors.Is(err, ErrTriggerNotFound) {
@@ -941,16 +937,13 @@ func (m *Manager) DeleteTrigger(ctx context.Context, id string) error {
 		}
 	}
 
-	if err := m.store.DeleteTriggerWebhookSecret(ctx, currentStored.ID); err != nil {
-		return err
-	}
 	if err := m.store.DeleteTrigger(ctx, currentStored.ID); err != nil {
-		if restoreErr := m.restoreWebhookSecret(ctx, currentStored, previousSecret); restoreErr != nil {
-			return errors.Join(err, restoreErr)
-		}
-		if runtimeErr := m.applyTriggerToRuntime(ctx, previousEffective); runtimeErr != nil {
+		if runtimeErr := m.applyTriggerToRuntime(previousEffective); runtimeErr != nil {
 			return errors.Join(err, runtimeErr)
 		}
+		return err
+	}
+	if err := m.deleteOwnedWebhookSecretIfPresent(ctx, currentStored); err != nil {
 		return err
 	}
 
@@ -1109,7 +1102,7 @@ func (m *Manager) SetTriggerEnabled(ctx context.Context, id string, enabled bool
 	if err != nil {
 		return Trigger{}, err
 	}
-	if err := m.applyTriggerToRuntime(ctx, current); err != nil {
+	if err := m.applyTriggerToRuntime(current); err != nil {
 		if rollbackErr := m.rollbackTriggerEnabled(ctx, stored, previous.Enabled); rollbackErr != nil {
 			return Trigger{}, errors.Join(err, rollbackErr)
 		}
@@ -1407,6 +1400,7 @@ func (m *Manager) buildTriggerRuntime(_ context.Context) (*TriggerEngine, error)
 	triggerOpts := []TriggerEngineOption{
 		WithTriggerEngineLogger(m.logger),
 		WithTriggerEngineHookSessionResolver(m.sessions),
+		WithTriggerEngineWebhookSecretResolver(m.webhookSecrets),
 	}
 	triggerOpts = append(triggerOpts, m.triggerOptions...)
 	triggerEngine, err := NewTriggerEngine(m.dispatcher, triggerOpts...)
@@ -1425,12 +1419,9 @@ func (m *Manager) loadSchedulerRegistrations(ctx context.Context, jobs []Job, sc
 	return nil
 }
 
-func (m *Manager) loadTriggerRegistrations(ctx context.Context, triggers []Trigger, engine *TriggerEngine) error {
+func (m *Manager) loadTriggerRegistrations(triggers []Trigger, engine *TriggerEngine) error {
 	for _, trigger := range triggers {
-		registration, shouldRegister, err := m.runtimeTriggerRegistration(ctx, trigger)
-		if err != nil {
-			return err
-		}
+		registration, shouldRegister := m.runtimeTriggerRegistration(trigger)
 		if !shouldRegister {
 			if strings.EqualFold(trigger.Event, "webhook") && trigger.Enabled {
 				m.logger.Warn(
@@ -1460,24 +1451,16 @@ func (m *Manager) syncConfigDefinitions(ctx context.Context) (SyncStats, error) 
 	sortJobs(desiredJobs)
 
 	desiredTriggers := make([]Trigger, 0, len(m.config.Triggers))
-	desiredTriggerSecrets := make(map[string]string, len(m.config.Triggers))
 	for idx, raw := range m.config.Triggers {
 		trigger, err := m.resolveConfigTrigger(ctx, raw)
 		if err != nil {
 			return SyncStats{}, fmt.Errorf("automation: resolve config trigger %d: %w", idx, err)
 		}
-		secret, err := m.resolveConfigTriggerWebhookSecret(raw)
-		if err != nil {
-			return SyncStats{}, fmt.Errorf("automation: resolve config trigger %d webhook secret: %w", idx, err)
-		}
 		desiredTriggers = append(desiredTriggers, trigger)
-		if strings.TrimSpace(secret) != "" {
-			desiredTriggerSecrets[trigger.ID] = secret
-		}
 	}
 	sortTriggers(desiredTriggers)
 
-	return m.SyncManagedDefinitions(ctx, JobSourceConfig, desiredJobs, desiredTriggers, desiredTriggerSecrets)
+	return m.SyncManagedDefinitions(ctx, JobSourceConfig, desiredJobs, desiredTriggers, nil)
 }
 
 // SyncManagedDefinitions reconciles one daemon-managed automation source
@@ -1489,6 +1472,11 @@ func (m *Manager) SyncManagedDefinitions(
 	desiredTriggers []Trigger,
 	desiredTriggerSecrets map[string]string,
 ) (SyncStats, error) {
+	if len(desiredTriggerSecrets) > 0 {
+		return SyncStats{}, errors.New(
+			"automation: managed trigger plaintext values are not supported; use webhook_secret_ref",
+		)
+	}
 	if ctx == nil {
 		return SyncStats{}, errors.New("automation: sync managed definitions context is required")
 	}
@@ -1514,20 +1502,15 @@ func (m *Manager) SyncManagedDefinitions(
 	}
 	sortTriggers(triggers)
 
-	secrets := make(map[string]string, len(desiredTriggerSecrets))
-	for id, secret := range desiredTriggerSecrets {
-		secrets[strings.TrimSpace(id)] = strings.TrimSpace(secret)
-	}
-
 	if m.resourceDefinitionsEnabled() {
-		return m.syncManagedResourceDefinitions(ctx, source, jobs, triggers, secrets)
+		return m.syncManagedResourceDefinitions(ctx, source, jobs, triggers)
 	}
 
 	jobsSynced, jobsRemoved, err := m.syncJobsForSource(ctx, source, jobs)
 	if err != nil {
 		return SyncStats{}, err
 	}
-	triggersSynced, triggersRemoved, err := m.syncTriggersForSource(ctx, source, triggers, secrets)
+	triggersSynced, triggersRemoved, err := m.syncTriggersForSource(ctx, source, triggers)
 	if err != nil {
 		return SyncStats{}, err
 	}
@@ -1599,7 +1582,6 @@ func (m *Manager) syncTriggersForSource(
 	ctx context.Context,
 	source JobSource,
 	desired []Trigger,
-	desiredSecrets map[string]string,
 ) (int, int, error) {
 	existing, err := m.store.ListTriggers(ctx, TriggerListQuery{Source: source})
 	if err != nil {
@@ -1628,11 +1610,6 @@ func (m *Manager) syncTriggersForSource(
 				return 0, 0, err
 			}
 		}
-		// Managed webhook secrets can rotate independently from the trigger body,
-		// so we reconcile them even when the stored definition is unchanged.
-		if err := m.syncManagedTriggerWebhookSecret(ctx, current, trigger, desiredSecrets[trigger.ID]); err != nil {
-			return 0, 0, err
-		}
 		synced++
 	}
 
@@ -1641,14 +1618,10 @@ func (m *Manager) syncTriggersForSource(
 		if _, ok := desiredByID[id]; ok {
 			continue
 		}
-		if err := m.store.DeleteTriggerWebhookSecret(
-			ctx,
-			id,
-		); err != nil &&
-			!errors.Is(err, ErrTriggerWebhookSecretNotFound) {
+		if err := m.store.DeleteTrigger(ctx, id); err != nil {
 			return 0, 0, err
 		}
-		if err := m.store.DeleteTrigger(ctx, id); err != nil {
+		if err := m.deleteOwnedWebhookSecretIfPresent(ctx, existingByID[id]); err != nil {
 			return 0, 0, err
 		}
 		removed++
@@ -1717,19 +1690,20 @@ func (m *Manager) resolveConfigTrigger(ctx context.Context, raw aghconfig.Automa
 	}
 
 	trigger := Trigger{
-		ID:           configTriggerID(raw.Scope, workspaceID, raw.Name),
-		Scope:        raw.Scope,
-		Name:         strings.TrimSpace(raw.Name),
-		AgentName:    strings.TrimSpace(raw.AgentName),
-		WorkspaceID:  workspaceID,
-		Prompt:       strings.TrimSpace(raw.Prompt),
-		Event:        strings.TrimSpace(raw.Event),
-		Filter:       cloneFilter(raw.Filter),
-		Enabled:      raw.Enabled,
-		Retry:        retry,
-		FireLimit:    fireLimit,
-		Source:       JobSourceConfig,
-		EndpointSlug: strings.TrimSpace(raw.EndpointSlug),
+		ID:               configTriggerID(raw.Scope, workspaceID, raw.Name),
+		Scope:            raw.Scope,
+		Name:             strings.TrimSpace(raw.Name),
+		AgentName:        strings.TrimSpace(raw.AgentName),
+		WorkspaceID:      workspaceID,
+		Prompt:           strings.TrimSpace(raw.Prompt),
+		Event:            strings.TrimSpace(raw.Event),
+		Filter:           cloneFilter(raw.Filter),
+		Enabled:          raw.Enabled,
+		Retry:            retry,
+		FireLimit:        fireLimit,
+		Source:           JobSourceConfig,
+		EndpointSlug:     strings.TrimSpace(raw.EndpointSlug),
+		WebhookSecretRef: strings.TrimSpace(raw.WebhookSecretRef),
 	}
 	if strings.EqualFold(trigger.Event, "webhook") {
 		trigger.WebhookID = configWebhookID(raw.Scope, workspaceID, raw.Name)
@@ -1738,23 +1712,6 @@ func (m *Manager) resolveConfigTrigger(ctx context.Context, raw aghconfig.Automa
 		return Trigger{}, fmt.Errorf("automation: resolve config trigger %q: %w", strings.TrimSpace(raw.Name), err)
 	}
 	return trigger, nil
-}
-
-func (m *Manager) resolveConfigTriggerWebhookSecret(raw aghconfig.AutomationTrigger) (string, error) {
-	if !strings.EqualFold(strings.TrimSpace(raw.Event), "webhook") {
-		return "", nil
-	}
-
-	envName := strings.TrimSpace(raw.WebhookSecretEnv)
-	if envName == "" {
-		return "", ErrWebhookSecretRequired
-	}
-
-	secret, ok := os.LookupEnv(envName)
-	if !ok || strings.TrimSpace(secret) == "" {
-		return "", fmt.Errorf("automation: webhook secret env %q is not set or empty", envName)
-	}
-	return strings.TrimSpace(secret), nil
 }
 
 func (m *Manager) resolveConfigWorkspace(
@@ -1852,44 +1809,113 @@ func isOverlayManagedSource(source JobSource) bool {
 	}
 }
 
-func (m *Manager) syncTriggerWebhookSecret(
-	ctx context.Context,
-	previous Trigger,
-	current Trigger,
-	webhookSecret *string,
-) error {
-	if !strings.EqualFold(strings.TrimSpace(current.Event), "webhook") {
-		return m.deleteTriggerWebhookSecretIfPresent(ctx, current.ID)
+func applyWebhookSecretRef(current Trigger, previous *Trigger, write *WebhookSecretWrite) Trigger {
+	next := cloneTrigger(current)
+	if !strings.EqualFold(strings.TrimSpace(next.Event), "webhook") {
+		next.WebhookSecretRef = ""
+		return next
 	}
-
-	secret, err := m.desiredWebhookSecret(ctx, previous, current, webhookSecret)
-	if err != nil {
-		return err
+	ref := strings.TrimSpace(next.WebhookSecretRef)
+	if write != nil && strings.TrimSpace(write.Ref) != "" {
+		ref = strings.TrimSpace(write.Ref)
 	}
-	if strings.TrimSpace(secret) == "" {
-		return ErrWebhookSecretRequired
+	if ref == "" && previous != nil {
+		ref = strings.TrimSpace(previous.WebhookSecretRef)
 	}
-	return m.store.SetTriggerWebhookSecret(ctx, current.ID, secret)
+	if ref == "" && write != nil && write.Value != nil {
+		ref = defaultAutomationWebhookSecretRef(next.ID)
+	}
+	next.WebhookSecretRef = ref
+	return next
 }
 
-func (m *Manager) syncManagedTriggerWebhookSecret(
-	ctx context.Context,
-	_ Trigger,
-	current Trigger,
-	secret string,
-) error {
-	if !strings.EqualFold(strings.TrimSpace(current.Event), "webhook") {
-		return m.deleteTriggerWebhookSecretIfPresent(ctx, current.ID)
+func requireWebhookSecretRef(trigger Trigger) error {
+	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") {
+		return nil
 	}
-	if strings.TrimSpace(secret) == "" {
+	if strings.TrimSpace(trigger.WebhookSecretRef) == "" {
 		return ErrWebhookSecretRequired
 	}
-	return m.store.SetTriggerWebhookSecret(ctx, current.ID, strings.TrimSpace(secret))
+	return nil
 }
 
-func (m *Manager) deleteTriggerWebhookSecretIfPresent(ctx context.Context, triggerID string) error {
-	if err := m.store.DeleteTriggerWebhookSecret(ctx, triggerID); err != nil &&
-		!errors.Is(err, ErrTriggerWebhookSecretNotFound) {
+func defaultAutomationWebhookSecretRef(triggerID string) string {
+	return "vault:automation/triggers/" + strings.TrimSpace(triggerID) + "/webhook-secret"
+}
+
+func ownedAutomationWebhookSecretRef(trigger Trigger) string {
+	if strings.TrimSpace(trigger.ID) == "" {
+		return ""
+	}
+	return defaultAutomationWebhookSecretRef(trigger.ID)
+}
+
+func isOwnedAutomationWebhookSecretRef(trigger Trigger) bool {
+	return strings.TrimSpace(trigger.WebhookSecretRef) == ownedAutomationWebhookSecretRef(trigger)
+}
+
+func (m *Manager) applyWebhookSecretWritePointer(
+	ctx context.Context,
+	trigger Trigger,
+	write *WebhookSecretWrite,
+) error {
+	if write == nil {
+		return nil
+	}
+	return m.applyWebhookSecretWrite(ctx, trigger, *write)
+}
+
+func (m *Manager) applyWebhookSecretWrite(ctx context.Context, trigger Trigger, write WebhookSecretWrite) error {
+	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") {
+		if strings.TrimSpace(write.Ref) != "" || write.Value != nil {
+			return errors.New("automation: webhook secret write is only valid for webhook triggers")
+		}
+		return m.deleteOwnedWebhookSecretIfPresent(ctx, trigger)
+	}
+	if write.Value == nil {
+		return nil
+	}
+	ref := strings.TrimSpace(write.Ref)
+	if ref == "" {
+		ref = strings.TrimSpace(trigger.WebhookSecretRef)
+	}
+	if ref == "" {
+		ref = defaultAutomationWebhookSecretRef(trigger.ID)
+	}
+	if err := vault.ValidateSecretRefNamespace(ref, "automation"); err != nil {
+		return fmt.Errorf("automation: webhook secret value requires vault:automation/... ref: %w", err)
+	}
+	if strings.TrimSpace(*write.Value) == "" {
+		return ErrWebhookSecretRequired
+	}
+	if m.webhookSecrets == nil {
+		return errors.New("automation: webhook secret store is required")
+	}
+	if _, err := m.webhookSecrets.PutSecret(ctx, ref, "webhook_secret", *write.Value); err != nil {
+		return fmt.Errorf("automation: store webhook secret %q: %w", ref, err)
+	}
+	return nil
+}
+
+func (m *Manager) deleteSupersededOwnedWebhookSecret(ctx context.Context, previous Trigger, current Trigger) error {
+	if !isOwnedAutomationWebhookSecretRef(previous) {
+		return nil
+	}
+	if strings.TrimSpace(previous.WebhookSecretRef) == strings.TrimSpace(current.WebhookSecretRef) {
+		return nil
+	}
+	return m.deleteOwnedWebhookSecretIfPresent(ctx, previous)
+}
+
+func (m *Manager) deleteOwnedWebhookSecretIfPresent(ctx context.Context, trigger Trigger) error {
+	if !isOwnedAutomationWebhookSecretRef(trigger) {
+		return nil
+	}
+	if m.webhookSecrets == nil {
+		return nil
+	}
+	if err := m.webhookSecrets.DeleteSecret(ctx, strings.TrimSpace(trigger.WebhookSecretRef)); err != nil &&
+		!errors.Is(err, vault.ErrSecretNotFound) {
 		return err
 	}
 	return nil
@@ -1905,67 +1931,34 @@ func (m *Manager) ensureTriggerWebhookID(ctx context.Context, trigger Trigger) (
 	return m.store.UpdateTrigger(ctx, next)
 }
 
-func (m *Manager) desiredWebhookSecret(
-	ctx context.Context,
-	previous Trigger,
-	current Trigger,
-	webhookSecret *string,
-) (string, error) {
-	if webhookSecret != nil {
-		return strings.TrimSpace(*webhookSecret), nil
-	}
-
-	if strings.EqualFold(strings.TrimSpace(previous.Event), "webhook") && strings.TrimSpace(previous.ID) != "" {
-		secret, err := m.store.GetTriggerWebhookSecret(ctx, previous.ID)
-		switch {
-		case err == nil:
-			return strings.TrimSpace(secret), nil
-		case errors.Is(err, ErrTriggerWebhookSecretNotFound):
-			return "", nil
-		default:
-			return "", err
-		}
-	}
-
-	if strings.TrimSpace(current.ID) != "" {
-		secret, err := m.store.GetTriggerWebhookSecret(ctx, current.ID)
-		switch {
-		case err == nil:
-			return strings.TrimSpace(secret), nil
-		case errors.Is(err, ErrTriggerWebhookSecretNotFound):
-			return "", nil
-		default:
-			return "", err
-		}
-	}
-
-	return "", nil
-}
-
 func (m *Manager) currentWebhookSecret(ctx context.Context, trigger Trigger) (string, error) {
 	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") || strings.TrimSpace(trigger.ID) == "" {
 		return "", nil
 	}
-
-	secret, err := m.store.GetTriggerWebhookSecret(ctx, trigger.ID)
-	switch {
-	case err == nil:
-		return strings.TrimSpace(secret), nil
-	case errors.Is(err, ErrTriggerWebhookSecretNotFound):
+	if strings.TrimSpace(trigger.WebhookSecretRef) == "" || m.webhookSecrets == nil {
 		return "", nil
-	default:
+	}
+	secret, err := m.webhookSecrets.ResolveRef(ctx, trigger.WebhookSecretRef)
+	if err != nil {
+		if errors.Is(err, vault.ErrSecretNotFound) || errors.Is(err, vault.ErrMissingSecret) {
+			return "", nil
+		}
 		return "", err
 	}
+	return strings.TrimSpace(secret), nil
 }
 
 func (m *Manager) restoreWebhookSecret(ctx context.Context, trigger Trigger, secret string) error {
 	if !strings.EqualFold(strings.TrimSpace(trigger.Event), "webhook") {
-		return m.deleteTriggerWebhookSecretIfPresent(ctx, trigger.ID)
+		return m.deleteOwnedWebhookSecretIfPresent(ctx, trigger)
 	}
 	if strings.TrimSpace(secret) == "" {
-		return m.deleteTriggerWebhookSecretIfPresent(ctx, trigger.ID)
+		return m.deleteOwnedWebhookSecretIfPresent(ctx, trigger)
 	}
-	return m.store.SetTriggerWebhookSecret(ctx, trigger.ID, secret)
+	return m.applyWebhookSecretWrite(ctx, trigger, WebhookSecretWrite{
+		Ref:   trigger.WebhookSecretRef,
+		Value: &secret,
+	})
 }
 
 func (m *Manager) applyJobToRuntime(ctx context.Context, job Job) error {
@@ -1990,16 +1983,13 @@ func (m *Manager) applyJobToRuntime(ctx context.Context, job Job) error {
 	}
 }
 
-func (m *Manager) applyTriggerToRuntime(ctx context.Context, trigger Trigger) error {
+func (m *Manager) applyTriggerToRuntime(trigger Trigger) error {
 	engine := m.triggerEngineSnapshot()
 	if engine == nil {
 		return nil
 	}
 
-	registration, shouldRegister, err := m.runtimeTriggerRegistration(ctx, trigger)
-	if err != nil {
-		return err
-	}
+	registration, shouldRegister := m.runtimeTriggerRegistration(trigger)
 	if !shouldRegister {
 		if err := engine.Unregister(trigger.ID); err != nil && !errors.Is(err, ErrTriggerNotFound) {
 			return err
@@ -2016,32 +2006,13 @@ func (m *Manager) applyTriggerToRuntime(ctx context.Context, trigger Trigger) er
 	return nil
 }
 
-func (m *Manager) runtimeTriggerRegistration(ctx context.Context, trigger Trigger) (TriggerRegistration, bool, error) {
+func (m *Manager) runtimeTriggerRegistration(trigger Trigger) (TriggerRegistration, bool) {
 	if !trigger.Enabled {
-		return TriggerRegistration{}, false, nil
+		return TriggerRegistration{}, false
 	}
 
 	registration := TriggerRegistration{Trigger: cloneTrigger(trigger)}
-	if !strings.EqualFold(trigger.Event, "webhook") {
-		return registration, true, nil
-	}
-	if m.webhookSecrets == nil {
-		return TriggerRegistration{}, false, nil
-	}
-
-	secret, err := m.webhookSecrets.SecretForTrigger(ctx, trigger)
-	if err != nil {
-		if errors.Is(err, ErrTriggerWebhookSecretNotFound) {
-			return TriggerRegistration{}, false, nil
-		}
-		return TriggerRegistration{}, false, err
-	}
-	if strings.TrimSpace(secret) == "" {
-		return TriggerRegistration{}, false, nil
-	}
-
-	registration.WebhookSecret = strings.TrimSpace(secret)
-	return registration, true, nil
+	return registration, true
 }
 
 func (m *Manager) isRunning() bool {
@@ -2134,8 +2105,13 @@ func (m *Manager) cleanupCreatedJob(ctx context.Context, jobID string) error {
 
 func (m *Manager) cleanupCreatedTrigger(ctx context.Context, triggerID string) error {
 	var errs []error
-	if err := m.store.DeleteTriggerWebhookSecret(ctx, triggerID); err != nil {
-		errs = append(errs, fmt.Errorf("automation: delete created trigger webhook secret %q: %w", triggerID, err))
+	if current, err := m.store.GetTrigger(ctx, triggerID); err == nil {
+		if secretErr := m.deleteOwnedWebhookSecretIfPresent(ctx, current); secretErr != nil {
+			errs = append(
+				errs,
+				fmt.Errorf("automation: delete created trigger webhook secret %q: %w", triggerID, secretErr),
+			)
+		}
 	}
 	if err := m.store.DeleteTrigger(ctx, triggerID); err != nil {
 		errs = append(errs, fmt.Errorf("automation: delete created trigger %q: %w", triggerID, err))
@@ -2328,7 +2304,8 @@ func sameTriggerDefinition(left Trigger, right Trigger) bool {
 		left.FireLimit == right.FireLimit &&
 		left.Source == right.Source &&
 		left.WebhookID == right.WebhookID &&
-		left.EndpointSlug == right.EndpointSlug
+		left.EndpointSlug == right.EndpointSlug &&
+		left.WebhookSecretRef == right.WebhookSecretRef
 }
 
 func sameSchedule(left *ScheduleSpec, right *ScheduleSpec) bool {
@@ -2443,10 +2420,6 @@ func cloneFilter(source map[string]string) map[string]string {
 	cloned := make(map[string]string, len(source))
 	maps.Copy(cloned, source)
 	return cloned
-}
-
-func stringPointer(value string) *string {
-	return &value
 }
 
 type managerSessionObserver struct {

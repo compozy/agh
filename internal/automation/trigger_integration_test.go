@@ -130,10 +130,7 @@ func TestTriggerEngineIntegrationWebhookDispatchesExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTrigger() error = %v", err)
 	}
-	if err := engine.Register(TriggerRegistration{
-		Trigger:       trigger,
-		WebhookSecret: "shared-secret",
-	}); err != nil {
+	if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
 

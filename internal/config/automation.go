@@ -7,6 +7,7 @@ import (
 	"time"
 
 	automationpkg "github.com/pedronauck/agh/internal/automation/model"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 // AutomationConfig holds TOML-defined automation defaults, jobs, and triggers.
@@ -48,7 +49,7 @@ type AutomationTrigger struct {
 	FireLimit        automationpkg.FireLimitConfig `toml:"fire_limit,omitempty"`
 	Source           automationpkg.JobSource       `toml:"-"`
 	EndpointSlug     string                        `toml:"endpoint_slug,omitempty"`
-	WebhookSecretEnv string                        `toml:"webhook_secret_env,omitempty"`
+	WebhookSecretRef string                        `toml:"webhook_secret_ref,omitempty"`
 }
 
 type automationOverlay struct {
@@ -85,7 +86,7 @@ type parsedAutomationTrigger struct {
 	Retry            *automationpkg.RetryConfig     `toml:"retry"`
 	FireLimit        *automationpkg.FireLimitConfig `toml:"fire_limit"`
 	EndpointSlug     string                         `toml:"endpoint_slug"`
-	WebhookSecretEnv string                         `toml:"webhook_secret_env"`
+	WebhookSecretRef string                         `toml:"webhook_secret_ref"`
 }
 
 // Validate ensures the automation config is internally consistent.
@@ -170,6 +171,7 @@ func (t AutomationTrigger) Validate(path string) error {
 }
 
 func (t AutomationTrigger) validateWithEnv(path string, lookup envLookup) error {
+	_ = lookup
 	if strings.TrimSpace(t.Name) == "" {
 		return errors.New(path + ".name is required")
 	}
@@ -204,28 +206,20 @@ func (t AutomationTrigger) validateWithEnv(path string, lookup envLookup) error 
 		if strings.TrimSpace(t.EndpointSlug) == "" {
 			return errors.New(path + ".endpoint_slug is required when event is \"webhook\"")
 		}
-		envName := strings.TrimSpace(t.WebhookSecretEnv)
-		if envName == "" {
-			return errors.New(path + ".webhook_secret_env is required when event is \"webhook\"")
+		secretRef := strings.TrimSpace(t.WebhookSecretRef)
+		if secretRef == "" {
+			return errors.New(path + ".webhook_secret_ref is required when event is \"webhook\"")
 		}
-		secret, ok := processEnvLookup(envName)
-		if lookup != nil {
-			secret, ok = lookup(envName)
-		}
-		if !ok || strings.TrimSpace(secret) == "" {
-			return fmt.Errorf(
-				"%s.webhook_secret_env must reference a non-empty environment variable: %q",
-				path,
-				envName,
-			)
+		if err := vault.ValidateRefNamespace(secretRef, "automation"); err != nil {
+			return fmt.Errorf("%s.webhook_secret_ref is invalid: %w", path, err)
 		}
 		return nil
 	}
 	if strings.TrimSpace(t.EndpointSlug) != "" {
 		return fmt.Errorf("%s.endpoint_slug must be empty when event is %q", path, strings.TrimSpace(t.Event))
 	}
-	if strings.TrimSpace(t.WebhookSecretEnv) != "" {
-		return fmt.Errorf("%s.webhook_secret_env must be empty when event is %q", path, strings.TrimSpace(t.Event))
+	if strings.TrimSpace(t.WebhookSecretRef) != "" {
+		return fmt.Errorf("%s.webhook_secret_ref must be empty when event is %q", path, strings.TrimSpace(t.Event))
 	}
 
 	return nil
@@ -314,7 +308,7 @@ func (t parsedAutomationTrigger) toAutomationTrigger(defaultFireLimit automation
 		FireLimit:        defaultFireLimit,
 		Source:           automationpkg.JobSourceConfig,
 		EndpointSlug:     t.EndpointSlug,
-		WebhookSecretEnv: t.WebhookSecretEnv,
+		WebhookSecretRef: t.WebhookSecretRef,
 	}
 	if t.Enabled != nil {
 		trigger.Enabled = *t.Enabled

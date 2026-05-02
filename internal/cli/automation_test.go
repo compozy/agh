@@ -532,7 +532,7 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		"--enabled=false",
 		"--webhook-id", "wbh_123",
 		"--endpoint-slug", "branch-review",
-		"--webhook-secret", "shared-secret",
+		"--webhook-secret-value", "shared-secret",
 		"-o", "json",
 	)
 	if err != nil {
@@ -552,8 +552,8 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		*updateTriggerRequest.WebhookID != "wbh_123" ||
 		updateTriggerRequest.EndpointSlug == nil ||
 		*updateTriggerRequest.EndpointSlug != "branch-review" ||
-		updateTriggerRequest.WebhookSecret == nil ||
-		*updateTriggerRequest.WebhookSecret != "shared-secret" {
+		updateTriggerRequest.WebhookSecretValue == nil ||
+		*updateTriggerRequest.WebhookSecretValue != "shared-secret" {
 		t.Fatalf("updateTriggerRequest = %#v, want parsed trigger update request", updateTriggerRequest)
 	}
 

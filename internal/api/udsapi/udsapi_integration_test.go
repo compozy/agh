@@ -1971,7 +1971,11 @@ func (s *integrationBridgeService) ListSecretBindings(ctx context.Context, bridg
 	return s.store.ListBridgeSecretBindings(ctx, bridgeInstanceID)
 }
 
-func (s *integrationBridgeService) PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
+func (s *integrationBridgeService) PutSecretBinding(
+	ctx context.Context,
+	binding bridgepkg.BridgeSecretBinding,
+	_ *string,
+) error {
 	if s == nil || s.store == nil {
 		return errors.New("integration bridge secret store is not configured")
 	}

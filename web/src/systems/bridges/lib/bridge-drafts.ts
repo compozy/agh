@@ -62,7 +62,7 @@ type BuildBridgeSecretBindingRequestResult =
     };
 
 const DM_POLICIES = new Set<BridgeDmPolicy>(["allowlist", "open", "pairing"]);
-const BRIDGE_SECRET_ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const BRIDGE_SECRET_PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
 export function createBridgeCreateDraft(
   providers: BridgeProvider[],
@@ -199,33 +199,47 @@ export function buildBridgeUpdateRequest(draft: BridgeUpdateDraft): BuildBridgeU
   };
 }
 
-export function bridgeSecretBindingEnvName(
-  binding?: Pick<BridgeSecretBinding, "vault_ref"> | null
+export function bridgeSecretBindingVaultRef(
+  binding?: Pick<BridgeSecretBinding, "secret_ref"> | null
 ): string {
-  const vaultRef = binding?.vault_ref?.trim();
-  if (!vaultRef?.startsWith("env:")) {
+  const secretRef = binding?.secret_ref?.trim();
+  if (!secretRef?.startsWith("vault:bridges/")) {
     return "";
   }
 
-  return vaultRef.slice(4);
+  return secretRef;
 }
 
 export function buildBridgeSecretBindingRequest(
-  envName: string,
+  bridgeId: string,
+  bindingName: string,
+  secretValue: string,
   kind: string
 ): BuildBridgeSecretBindingRequestResult {
-  const normalizedEnvName = envName.trim().replace(/^env:/, "").trim();
-  if (!BRIDGE_SECRET_ENV_NAME.test(normalizedEnvName)) {
+  const normalizedBridgeId = bridgeId.trim();
+  const normalizedBindingName = bindingName.trim();
+  const normalizedKind = kind.trim();
+  if (
+    !BRIDGE_SECRET_PATH_SEGMENT.test(normalizedBridgeId) ||
+    !BRIDGE_SECRET_PATH_SEGMENT.test(normalizedBindingName)
+  ) {
     return {
-      error: "Secret binding must reference an environment variable name like AGH_BRIDGE_TOKEN.",
+      error: "Secret binding must use a bridge vault reference.",
+      ok: false,
+    };
+  }
+  if (!secretValue.trim()) {
+    return {
+      error: "Secret binding value is required.",
       ok: false,
     };
   }
 
   return {
     data: {
-      kind,
-      vault_ref: `env:${normalizedEnvName}`,
+      kind: normalizedKind,
+      secret_ref: `vault:bridges/${normalizedBridgeId}/${normalizedBindingName}`,
+      secret_value: secretValue,
     },
     ok: true,
   };

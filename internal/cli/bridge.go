@@ -55,7 +55,7 @@ func newBridgeGetCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <id>",
 		Short: "Show one bridge instance",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -203,7 +203,7 @@ func newBridgeUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update <id>",
 		Short: "Update mutable bridge fields",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -273,7 +273,7 @@ func newBridgeEnableCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable <id>",
 		Short: "Enable a bridge instance",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -293,7 +293,7 @@ func newBridgeDisableCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "disable <id>",
 		Short: "Disable a bridge instance",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -313,7 +313,7 @@ func newBridgeRestartCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart <id>",
 		Short: "Restart a bridge instance",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -333,7 +333,7 @@ func newBridgeRoutesCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "routes <id>",
 		Short: "Inspect routes for one bridge instance",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -361,7 +361,7 @@ func newBridgeTestDeliveryCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "test-delivery <id>",
 		Short: "Resolve a typed outbound delivery target for one bridge instance",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

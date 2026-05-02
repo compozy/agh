@@ -219,7 +219,7 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get <path>",
 		Short: "Get one redacted effective config value",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, _, err := loadConfigForDisplay(deps, workspaceRoot)
 			if err != nil {
@@ -630,7 +630,7 @@ func configMapNode(value reflect.Value, fieldName string) (any, bool) {
 	result := make(map[string]any, value.Len())
 	for _, key := range sortedReflectMapKeys(value) {
 		mapKey := fmt.Sprint(key.Interface())
-		if strings.EqualFold(fieldName, "env") {
+		if strings.EqualFold(fieldName, "env") || strings.EqualFold(fieldName, "secret_env") {
 			result[mapKey] = aghconfig.RedactedValue()
 			continue
 		}
@@ -732,7 +732,7 @@ func flattenConfigValue(entries *[]configEntry, path string, value any, redacted
 			if path != "" {
 				nextPath = path + "." + key
 			}
-			flattenConfigValue(entries, nextPath, typed[key], redacted || key == "env")
+			flattenConfigValue(entries, nextPath, typed[key], redacted || key == "env" || key == "secret_env")
 		}
 	case []any:
 		if len(typed) == 0 {
@@ -1027,7 +1027,7 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 func isProviderMutationPath(path []string) bool {
 	if len(path) == 3 && path[0] == "providers" {
 		switch path[2] {
-		case "command", "default_model", "api_key_env":
+		case "command", "default_model":
 			return true
 		}
 	}
@@ -1037,7 +1037,7 @@ func isProviderMutationPath(path []string) bool {
 func classifySandboxMutationPath(path []string) (configSetValueKind, bool, bool) {
 	if len(path) == 4 && path[0] == "sandboxes" {
 		switch path[2] {
-		case "env":
+		case "env", "secret_env":
 			return configSetString, true, true
 		case "network":
 			return classifySandboxNetworkMutationPath(path[3])

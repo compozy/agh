@@ -38,7 +38,6 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"automation_scheduler_state",
 		"automation_job_overlays",
 		"automation_trigger_overlays",
-		"automation_trigger_webhook_secrets",
 	)
 	assertTableColumns(t, globalDB.db, "automation_jobs", []string{
 		"id",
@@ -71,6 +70,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"source",
 		"webhook_id",
 		"endpoint_slug",
+		"webhook_secret_ref",
 		"created_at",
 		"updated_at",
 	})
@@ -103,11 +103,6 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"consecutive_resume_failures",
 		"last_misfire_at",
 		"misfire_count",
-		"updated_at",
-	})
-	assertTableColumns(t, globalDB.db, "automation_trigger_webhook_secrets", []string{
-		"trigger_id",
-		"secret",
 		"updated_at",
 	})
 	assertIndexesPresent(t, globalDB.db, "automation_jobs",
@@ -235,7 +230,7 @@ func TestGlobalDBGetTriggerByWebhookIDUsesStableID(t *testing.T) {
 	}
 }
 
-func TestGlobalDBTriggerWebhookSecretRoundTrip(t *testing.T) {
+func TestGlobalDBTriggerWebhookSecretRefPersistsWithoutLegacyTable(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
@@ -245,46 +240,29 @@ func TestGlobalDBTriggerWebhookSecretRoundTrip(t *testing.T) {
 		"",
 		automation.JobSourceDynamic,
 	)
+	trigger.WebhookSecretRef = "vault:automation/triggers/deploy-review/webhook-secret"
 
 	created, err := globalDB.CreateTrigger(testutil.Context(t), trigger)
 	if err != nil {
 		t.Fatalf("CreateTrigger() error = %v", err)
 	}
-
-	if err := globalDB.SetTriggerWebhookSecret(testutil.Context(t), created.ID, "secret-v1"); err != nil {
-		t.Fatalf("SetTriggerWebhookSecret() error = %v", err)
-	}
-
-	secret, err := globalDB.GetTriggerWebhookSecret(testutil.Context(t), created.ID)
+	got, err := globalDB.GetTrigger(testutil.Context(t), created.ID)
 	if err != nil {
-		t.Fatalf("GetTriggerWebhookSecret() error = %v", err)
+		t.Fatalf("GetTrigger() error = %v", err)
 	}
-	if got, want := secret, "secret-v1"; got != want {
-		t.Fatalf("secret = %q, want %q", got, want)
-	}
-
-	if err := globalDB.SetTriggerWebhookSecret(testutil.Context(t), created.ID, "secret-v2"); err != nil {
-		t.Fatalf("SetTriggerWebhookSecret(update) error = %v", err)
-	}
-	secret, err = globalDB.GetTriggerWebhookSecret(testutil.Context(t), created.ID)
-	if err != nil {
-		t.Fatalf("GetTriggerWebhookSecret(updated) error = %v", err)
-	}
-	if got, want := secret, "secret-v2"; got != want {
-		t.Fatalf("updated secret = %q, want %q", got, want)
+	if got, want := got.WebhookSecretRef, trigger.WebhookSecretRef; got != want {
+		t.Fatalf("trigger.WebhookSecretRef = %q, want %q", got, want)
 	}
 
-	if err := globalDB.DeleteTriggerWebhookSecret(testutil.Context(t), created.ID); err != nil {
-		t.Fatalf("DeleteTriggerWebhookSecret() error = %v", err)
-	}
-	if _, err := globalDB.GetTriggerWebhookSecret(
+	var legacyTableCount int
+	if err := globalDB.db.QueryRowContext(
 		testutil.Context(t),
-		created.ID,
-	); !errors.Is(
-		err,
-		automation.ErrTriggerWebhookSecretNotFound,
-	) {
-		t.Fatalf("GetTriggerWebhookSecret(after delete) error = %v, want ErrTriggerWebhookSecretNotFound", err)
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'automation_trigger_webhook_secrets'`,
+	).Scan(&legacyTableCount); err != nil {
+		t.Fatalf("QueryRowContext(legacy automation secret table) error = %v", err)
+	}
+	if legacyTableCount != 0 {
+		t.Fatalf("legacy automation_trigger_webhook_secrets table exists, want absent")
 	}
 }
 
@@ -707,15 +685,16 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	}
 
 	trigger, err := globalDB.normalizeTriggerForCreate(Trigger{
-		Scope:     automation.AutomationScopeGlobal,
-		Name:      "helper-trigger",
-		AgentName: "agent",
-		Prompt:    `{{ index .Data "payload" }}`,
-		Event:     "webhook",
-		Enabled:   true,
-		Retry:     automation.DefaultRetryConfig(),
-		FireLimit: automation.DefaultFireLimitConfig(),
-		WebhookID: "wbh_helper-webhook",
+		Scope:            automation.AutomationScopeGlobal,
+		Name:             "helper-trigger",
+		AgentName:        "agent",
+		Prompt:           `{{ index .Data "payload" }}`,
+		Event:            "webhook",
+		Enabled:          true,
+		Retry:            automation.DefaultRetryConfig(),
+		FireLimit:        automation.DefaultFireLimitConfig(),
+		WebhookID:        "wbh_helper-webhook",
+		WebhookSecretRef: "vault:automation/triggers/helper/webhook-secret",
 	})
 	if err != nil {
 		t.Fatalf("normalizeTriggerForCreate() error = %v", err)
@@ -1285,20 +1264,21 @@ func automationWebhookTriggerForTest(
 ) Trigger {
 	createdAt := time.Date(2026, 4, 10, 18, 5, 0, 0, time.UTC)
 	return Trigger{
-		Scope:        scope,
-		Name:         name,
-		AgentName:    "reviewer",
-		WorkspaceID:  workspaceID,
-		Prompt:       `Review webhook payload {{ index .Data "payload" }}`,
-		Event:        "webhook",
-		Enabled:      true,
-		Retry:        automation.DefaultRetryConfig(),
-		FireLimit:    automation.DefaultFireLimitConfig(),
-		Source:       source,
-		WebhookID:    "wbh_default",
-		EndpointSlug: "endpoint-default",
-		CreatedAt:    createdAt,
-		UpdatedAt:    createdAt,
+		Scope:            scope,
+		Name:             name,
+		AgentName:        "reviewer",
+		WorkspaceID:      workspaceID,
+		Prompt:           `Review webhook payload {{ index .Data "payload" }}`,
+		Event:            "webhook",
+		Enabled:          true,
+		Retry:            automation.DefaultRetryConfig(),
+		FireLimit:        automation.DefaultFireLimitConfig(),
+		Source:           source,
+		WebhookID:        "wbh_default",
+		EndpointSlug:     "endpoint-default",
+		WebhookSecretRef: "vault:automation/triggers/test/webhook-secret",
+		CreatedAt:        createdAt,
+		UpdatedAt:        createdAt,
 	}
 }
 

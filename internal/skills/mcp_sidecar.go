@@ -96,10 +96,11 @@ func toMCPServerDecls(servers []aghconfig.MCPServer) []MCPServerDecl {
 	decls := make([]MCPServerDecl, 0, len(servers))
 	for _, server := range servers {
 		decls = append(decls, MCPServerDecl{
-			Name:    server.Name,
-			Command: server.Command,
-			Args:    append([]string(nil), server.Args...),
-			Env:     cloneStringMap(server.Env),
+			Name:      server.Name,
+			Command:   server.Command,
+			Args:      append([]string(nil), server.Args...),
+			Env:       cloneStringMap(server.Env),
+			SecretEnv: cloneStringMap(server.SecretEnv),
 		})
 	}
 	return decls
@@ -107,9 +108,10 @@ func toMCPServerDecls(servers []aghconfig.MCPServer) []MCPServerDecl {
 
 func cloneMCPServerDecl(decl MCPServerDecl) MCPServerDecl {
 	return MCPServerDecl{
-		Name:    decl.Name,
-		Command: decl.Command,
-		Args:    append([]string(nil), decl.Args...),
-		Env:     cloneStringMap(decl.Env),
+		Name:      decl.Name,
+		Command:   decl.Command,
+		Args:      append([]string(nil), decl.Args...),
+		Env:       cloneStringMap(decl.Env),
+		SecretEnv: cloneStringMap(decl.SecretEnv),
 	}
 }

@@ -918,6 +918,7 @@ func nativeHookDeclPayload(decl hookspkg.HookDecl) map[string]any {
 		"command":       decl.Command,
 		"args":          append([]string(nil), decl.Args...),
 		"env":           cloneStringMap(decl.Env),
+		"secret_env":    cloneStringMap(decl.SecretEnv),
 		"matcher":       decl.Matcher,
 	}
 	if decl.Enabled != nil {
@@ -1085,6 +1086,7 @@ type hookMutationInput struct {
 	Command       *string               `json:"command,omitempty"`
 	Args          *[]string             `json:"args,omitempty"`
 	Env           *map[string]string    `json:"env,omitempty"`
+	SecretEnv     *map[string]string    `json:"secret_env,omitempty"`
 	Enabled       *bool                 `json:"enabled,omitempty"`
 	Source        *string               `json:"source,omitempty"`
 }
@@ -1110,7 +1112,11 @@ func (i hookMutationInput) apply(decl hookspkg.HookDecl) (hookspkg.HookDecl, err
 		decl.Required = *i.Required
 	}
 	if i.Priority != nil {
-		decl.Priority = *i.Priority
+		priority, err := hookspkg.PriorityFromInt(*i.Priority)
+		if err != nil {
+			return hookspkg.HookDecl{}, err
+		}
+		decl.Priority = priority
 		decl.PrioritySet = true
 	}
 	if i.Timeout != nil {
@@ -1135,6 +1141,9 @@ func (i hookMutationInput) apply(decl hookspkg.HookDecl) (hookspkg.HookDecl, err
 	}
 	if i.Env != nil {
 		decl.Env = cloneStringMap(*i.Env)
+	}
+	if i.SecretEnv != nil {
+		decl.SecretEnv = cloneStringMap(*i.SecretEnv)
 	}
 	if i.Enabled != nil {
 		decl.Enabled = boolPtr(*i.Enabled)

@@ -401,7 +401,8 @@ func (g *GlobalDB) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
 		nextSessionID := strings.TrimSpace(normalized.SessionID)
 		if currentSessionID != "" &&
 			nextSessionID != currentSessionID &&
-			(nextSessionID != "" || normalized.Status.Normalize() != taskpkg.TaskRunStatusQueued) {
+			(nextSessionID != "" || normalized.Status.Normalize() != taskpkg.TaskRunStatusQueued) &&
+			!allowsManagedTaskRunStartSessionTransfer(current, normalized) {
 			return taskpkg.ErrSessionAlreadyBound
 		}
 		if normalized.QueuedAt.IsZero() {
@@ -454,6 +455,27 @@ func (g *GlobalDB) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
 		}
 		return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
 	})
+}
+
+func allowsManagedTaskRunStartSessionTransfer(current taskpkg.Run, next taskpkg.Run) bool {
+	currentStatus := current.Status.Normalize()
+	nextStatus := next.Status.Normalize()
+	currentSessionID := strings.TrimSpace(current.SessionID)
+	if strings.TrimSpace(next.SessionID) == "" {
+		return false
+	}
+	if current.ClaimedBy == nil ||
+		current.ClaimedBy.Kind.Normalize() != taskpkg.ActorKindAgentSession ||
+		strings.TrimSpace(current.ClaimedBy.Ref) != currentSessionID {
+		return false
+	}
+	if currentStatus == taskpkg.TaskRunStatusClaimed && nextStatus == taskpkg.TaskRunStatusStarting {
+		return true
+	}
+	return currentStatus == taskpkg.TaskRunStatusStarting &&
+		nextStatus == taskpkg.TaskRunStatusStarting &&
+		current.StartedAt.IsZero() &&
+		next.StartedAt.IsZero()
 }
 
 // GetTaskRun returns one persisted task run by primary key.

@@ -19,6 +19,10 @@ var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
 	daemonStatusFn            func(context.Context) (DaemonStatus, error)
+	listVaultSecretsFn        func(context.Context, VaultListQuery) ([]VaultRecord, error)
+	getVaultSecretFn          func(context.Context, string) (VaultRecord, error)
+	putVaultSecretFn          func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
+	deleteVaultSecretFn       func(context.Context, string) error
 	networkStatusFn           func(context.Context) (NetworkStatusRecord, error)
 	networkPeersFn            func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	networkChannelsFn         func(context.Context) ([]NetworkChannelRecord, error)
@@ -134,6 +138,40 @@ func (s *stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
 		return s.daemonStatusFn(ctx)
 	}
 	return DaemonStatus{}, errors.New("unexpected DaemonStatus call")
+}
+
+func (s *stubClient) ListVaultSecrets(
+	ctx context.Context,
+	query VaultListQuery,
+) ([]VaultRecord, error) {
+	if s.listVaultSecretsFn != nil {
+		return s.listVaultSecretsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListVaultSecrets call")
+}
+
+func (s *stubClient) GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error) {
+	if s.getVaultSecretFn != nil {
+		return s.getVaultSecretFn(ctx, ref)
+	}
+	return VaultRecord{}, errors.New("unexpected GetVaultSecret call")
+}
+
+func (s *stubClient) PutVaultSecret(
+	ctx context.Context,
+	request PutVaultSecretRequest,
+) (VaultRecord, error) {
+	if s.putVaultSecretFn != nil {
+		return s.putVaultSecretFn(ctx, request)
+	}
+	return VaultRecord{}, errors.New("unexpected PutVaultSecret call")
+}
+
+func (s *stubClient) DeleteVaultSecret(ctx context.Context, ref string) error {
+	if s.deleteVaultSecretFn != nil {
+		return s.deleteVaultSecretFn(ctx, ref)
+	}
+	return errors.New("unexpected DeleteVaultSecret call")
 }
 
 func (s *stubClient) NetworkStatus(ctx context.Context) (NetworkStatusRecord, error) {

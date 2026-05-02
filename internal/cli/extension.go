@@ -55,7 +55,7 @@ func newExtensionSearchCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Search remote extension registries",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			results, err := searchExtensions(cmd.Context(), deps, args[0], sourceFilter, limit)
 			if err != nil {
@@ -92,7 +92,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install <path-or-slug>",
 		Short: "Install a local extension or download one from a registry",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prepared, isLocalPath, err := prepareLocalExtensionInstallIfPresent(args[0])
 			if err != nil {
@@ -141,7 +141,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <name>",
 		Short: "Remove an installed extension from disk and the registry",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := removeInstalledExtension(cmd.Context(), deps, args[0])
 			if err != nil {
@@ -191,7 +191,7 @@ func newExtensionEnableCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable <name>",
 		Short: "Enable an installed extension",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := mutateExtensionEnabled(cmd.Context(), deps, args[0], true)
 			if err != nil {
@@ -206,7 +206,7 @@ func newExtensionDisableCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "disable <name>",
 		Short: "Disable an installed extension",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := mutateExtensionEnabled(cmd.Context(), deps, args[0], false)
 			if err != nil {
@@ -221,7 +221,7 @@ func newExtensionStatusCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status <name>",
 		Short: "Show extension runtime status",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			item, err := extensionStatus(cmd.Context(), deps, args[0])
 			if err != nil {

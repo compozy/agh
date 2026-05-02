@@ -201,7 +201,7 @@ func (m *Manager) BuildTriggerResourceState(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.loadTriggerRegistrations(ctx, effectiveTriggers, engine); err != nil {
+	if err := m.loadTriggerRegistrations(effectiveTriggers, engine); err != nil {
 		return nil, errors.Join(err, m.shutdownRuntimeComponent(ctx, "trigger engine", engine))
 	}
 
@@ -372,7 +372,11 @@ func (m *Manager) deleteJobResource(ctx context.Context, id string) error {
 	return m.applyJobResourcesFromStore(ctx)
 }
 
-func (m *Manager) createTriggerResource(ctx context.Context, trigger Trigger, webhookSecret string) (Trigger, error) {
+func (m *Manager) createTriggerResource(
+	ctx context.Context,
+	trigger Trigger,
+	webhookSecret WebhookSecretWrite,
+) (Trigger, error) {
 	next := cloneTrigger(trigger)
 	if next.Source == "" {
 		next.Source = JobSourceDynamic
@@ -387,21 +391,26 @@ func (m *Manager) createTriggerResource(ctx context.Context, trigger Trigger, we
 		strings.TrimSpace(next.WebhookID) == "" {
 		next.WebhookID = stableConfigID("wbh", next.ID)
 	}
+	next = applyWebhookSecretRef(next, nil, &webhookSecret)
 	next.CreatedAt = m.now().UTC()
 	next.UpdatedAt = next.CreatedAt
+	if err := requireWebhookSecretRef(next); err != nil {
+		return Trigger{}, err
+	}
 	if err := next.Validate("trigger"); err != nil {
 		return Trigger{}, err
 	}
-	if err := m.syncTriggerWebhookSecret(ctx, Trigger{}, next, stringPointer(webhookSecret)); err != nil {
+	if err := m.applyWebhookSecretWrite(ctx, next, webhookSecret); err != nil {
 		return Trigger{}, err
 	}
-	if _, err := m.triggerResources.Put(ctx, m.resourceActorForSource(JobSourceDynamic), resources.Draft[Trigger]{
+	draft := resources.Draft[Trigger]{
 		ID:              next.ID,
 		Scope:           ResourceScopeForAutomation(next.Scope, next.WorkspaceID),
 		ExpectedVersion: 0,
 		Spec:            next,
-	}); err != nil {
-		return Trigger{}, errors.Join(err, m.store.DeleteTriggerWebhookSecret(ctx, next.ID))
+	}
+	if _, err := m.triggerResources.Put(ctx, m.resourceActorForSource(JobSourceDynamic), draft); err != nil {
+		return Trigger{}, errors.Join(err, m.deleteOwnedWebhookSecretIfPresent(ctx, next))
 	}
 	if err := m.applyTriggerResourcesFromStore(ctx); err != nil {
 		return Trigger{}, err
@@ -412,7 +421,7 @@ func (m *Manager) createTriggerResource(ctx context.Context, trigger Trigger, we
 func (m *Manager) updateTriggerResource(
 	ctx context.Context,
 	trigger Trigger,
-	webhookSecret *string,
+	webhookSecret *WebhookSecretWrite,
 ) (Trigger, error) {
 	current, err := m.triggerResources.Get(ctx, m.resourceActor, strings.TrimSpace(trigger.ID))
 	if err != nil {
@@ -421,24 +430,23 @@ func (m *Manager) updateTriggerResource(
 	if current.Spec.Source != JobSourceDynamic {
 		return Trigger{}, ErrDefinitionReadOnly
 	}
-	previousSecret, err := m.currentWebhookSecret(ctx, current.Spec)
-	if err != nil {
-		return Trigger{}, err
-	}
-
 	next := cloneTrigger(trigger)
 	next.ID = current.ID
 	next.Source = current.Spec.Source
 	next.CreatedAt = current.CreatedAt.UTC()
 	next.UpdatedAt = m.now().UTC()
+	next = applyWebhookSecretRef(next, &current.Spec, webhookSecret)
 	if strings.EqualFold(strings.TrimSpace(next.Event), "webhook") &&
 		strings.TrimSpace(next.WebhookID) == "" {
 		next.WebhookID = stableConfigID("wbh", next.ID)
 	}
+	if err := requireWebhookSecretRef(next); err != nil {
+		return Trigger{}, err
+	}
 	if err := next.Validate("trigger"); err != nil {
 		return Trigger{}, err
 	}
-	if err := m.syncTriggerWebhookSecret(ctx, current.Spec, next, webhookSecret); err != nil {
+	if err := m.applyWebhookSecretWritePointer(ctx, next, webhookSecret); err != nil {
 		return Trigger{}, err
 	}
 	if _, err := m.triggerResources.Put(
@@ -451,7 +459,10 @@ func (m *Manager) updateTriggerResource(
 			Spec:            next,
 		},
 	); err != nil {
-		return Trigger{}, errors.Join(err, m.restoreWebhookSecret(ctx, current.Spec, previousSecret))
+		return Trigger{}, err
+	}
+	if err := m.deleteSupersededOwnedWebhookSecret(ctx, current.Spec, next); err != nil {
+		return Trigger{}, err
 	}
 	if err := m.applyTriggerResourcesFromStore(ctx); err != nil {
 		return Trigger{}, err
@@ -467,20 +478,16 @@ func (m *Manager) deleteTriggerResource(ctx context.Context, id string) error {
 	if current.Spec.Source != JobSourceDynamic {
 		return ErrDefinitionReadOnly
 	}
-	previousSecret, err := m.currentWebhookSecret(ctx, current.Spec)
-	if err != nil {
-		return err
-	}
-	if err := m.store.DeleteTriggerWebhookSecret(ctx, current.ID); err != nil {
-		return err
-	}
 	if err := m.triggerResources.Delete(
 		ctx,
 		currentResourceActor(current.Source, m.resourceActor),
 		current.ID,
 		current.Version,
 	); err != nil {
-		return errors.Join(err, m.restoreWebhookSecret(ctx, current.Spec, previousSecret))
+		return err
+	}
+	if err := m.deleteOwnedWebhookSecretIfPresent(ctx, current.Spec); err != nil {
+		return err
 	}
 	return m.applyTriggerResourcesFromStore(ctx)
 }
@@ -521,7 +528,7 @@ func (m *Manager) setTriggerResourceEnabled(ctx context.Context, id string, enab
 		if err != nil {
 			return Trigger{}, err
 		}
-		if err := m.applyTriggerToRuntime(ctx, currentEffective); err != nil {
+		if err := m.applyTriggerToRuntime(currentEffective); err != nil {
 			return Trigger{}, err
 		}
 		return currentEffective, nil
@@ -536,7 +543,6 @@ func (m *Manager) syncManagedResourceDefinitions(
 	source JobSource,
 	desiredJobs []Job,
 	desiredTriggers []Trigger,
-	desiredTriggerSecrets map[string]string,
 ) (SyncStats, error) {
 	actor := m.resourceActorForSource(source)
 
@@ -548,7 +554,6 @@ func (m *Manager) syncManagedResourceDefinitions(
 		ctx,
 		actor,
 		desiredTriggers,
-		desiredTriggerSecrets,
 	)
 	if err != nil {
 		return SyncStats{}, err
@@ -642,7 +647,6 @@ func (m *Manager) syncTriggerResourcesForSource(
 	ctx context.Context,
 	actor resources.MutationActor,
 	desired []Trigger,
-	desiredSecrets map[string]string,
 ) (int, int, error) {
 	source := actor.Source
 	current, err := m.triggerResources.List(ctx, actor, resources.ResourceFilter{
@@ -665,10 +669,6 @@ func (m *Manager) syncTriggerResourcesForSource(
 		}
 		if strings.EqualFold(strings.TrimSpace(next.Event), "webhook") && strings.TrimSpace(next.WebhookID) == "" {
 			next.WebhookID = stableConfigID("wbh", next.ID)
-		}
-		secret := strings.TrimSpace(desiredSecrets[next.ID])
-		if err := m.syncManagedTriggerWebhookSecret(ctx, Trigger{}, next, secret); err != nil {
-			return 0, 0, err
 		}
 
 		currentRecord, exists := currentByID[next.ID]
@@ -697,11 +697,10 @@ func (m *Manager) syncTriggerResourcesForSource(
 
 	removed := 0
 	for _, stale := range currentByID {
-		if err := m.store.DeleteTriggerWebhookSecret(ctx, stale.ID); err != nil &&
-			!errors.Is(err, ErrTriggerWebhookSecretNotFound) {
+		if err := m.triggerResources.Delete(ctx, actor, stale.ID, stale.Version); err != nil {
 			return 0, 0, err
 		}
-		if err := m.triggerResources.Delete(ctx, actor, stale.ID, stale.Version); err != nil {
+		if err := m.deleteOwnedWebhookSecretIfPresent(ctx, stale.Spec); err != nil {
 			return 0, 0, err
 		}
 		removed++

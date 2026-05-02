@@ -13,6 +13,7 @@ import {
   useSession,
   type SessionPayload,
 } from "@/systems/session";
+import { useSessionVaultSecrets } from "@/systems/vault";
 import { useWorkspaces } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
@@ -42,6 +43,7 @@ function SessionPageContent({
     messages,
     resumeFailure,
   } = useSessionPageControls(sessionId, session.state, { onDeleteSuccess });
+  const sessionVault = useSessionVaultSecrets(sessionId);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -77,7 +79,13 @@ function SessionPageContent({
           isClearingConversation={isClearing}
         />
       </div>
-      <SessionInspector messages={messages} />
+      <SessionInspector
+        messages={messages}
+        sessionId={sessionId}
+        vaultSecrets={sessionVault.data ?? []}
+        vaultIsLoading={sessionVault.isLoading}
+        vaultError={sessionVault.error}
+      />
     </div>
   );
 }

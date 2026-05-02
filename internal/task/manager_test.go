@@ -72,6 +72,7 @@ type recordingSessionExecutor struct {
 	requestStopCalls []sessionStopCall
 	forceStopCalls   []sessionStopCall
 	startRef         *SessionRef
+	onStart          func(context.Context, *StartTaskSession)
 	returnNilStart   bool
 	startErr         error
 	attachErr        error
@@ -88,6 +89,10 @@ type testRuntimeViewReader struct {
 type contextSensitiveEventStore struct {
 	*inMemoryManagerStore
 	getTaskEventRecordCanceled []bool
+}
+
+type contextSensitiveRunStore struct {
+	*inMemoryManagerStore
 }
 
 type deleteTaskStore struct {
@@ -137,6 +142,13 @@ func (s *contextSensitiveEventStore) GetTaskEventRecord(ctx context.Context, eve
 		return EventRecord{}, ctx.Err()
 	}
 	return s.inMemoryManagerStore.GetTaskEventRecord(ctx, eventID)
+}
+
+func (s *contextSensitiveRunStore) UpdateTaskRun(ctx context.Context, run Run) error {
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return s.inMemoryManagerStore.UpdateTaskRun(ctx, run)
 }
 
 func (o *recordingTaskEventObserver) OnTaskEvent(_ context.Context, record EventRecord) {
@@ -205,11 +217,14 @@ func (s *deleteTaskStore) DeleteTask(ctx context.Context, id string) error {
 	return s.inMemoryManagerStore.DeleteTask(ctx, id)
 }
 
-func (e *recordingSessionExecutor) StartTaskSession(_ context.Context, spec *StartTaskSession) (*SessionRef, error) {
+func (e *recordingSessionExecutor) StartTaskSession(ctx context.Context, spec *StartTaskSession) (*SessionRef, error) {
 	if spec == nil {
 		return nil, fmtTestError("%w: start task session spec is required", ErrValidation)
 	}
 	e.startCalls = append(e.startCalls, *spec)
+	if e.onStart != nil {
+		e.onStart(ctx, spec)
+	}
 	if e.startErr != nil {
 		return nil, e.startErr
 	}
@@ -4839,6 +4854,82 @@ func TestNormalizeRawJSONAndSameRawJSONTrimWhitespace(t *testing.T) {
 	}
 	if sameRawJSON(trimmed, json.RawMessage(`{"ok":false}`)) {
 		t.Fatal("sameRawJSON(trimmed, changed) = true, want false")
+	}
+}
+
+func TestManagerStartRunPersistsDedicatedSessionAfterCallerCancellation(t *testing.T) {
+	t.Parallel()
+
+	baseStore := newInMemoryManagerStore()
+	store := &contextSensitiveRunStore{inMemoryManagerStore: baseStore}
+	startCtx, cancelStart := context.WithCancel(context.Background())
+	executor := &recordingSessionExecutor{
+		startRef: &SessionRef{SessionID: "sess-dedicated-start"},
+		onStart: func(context.Context, *StartTaskSession) {
+			cancelStart()
+		},
+	}
+	manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+	actor := validActorContext()
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Cancelable start run",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+	if err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+
+	running, err := manager.StartRun(startCtx, run.ID, StartRun{}, actor)
+	if err != nil {
+		t.Fatalf("StartRun(canceled caller) error = %v", err)
+	}
+	if startCtx.Err() == nil {
+		t.Fatal("startCtx.Err() = nil, want caller context canceled during session start")
+	}
+	if got, want := running.Status, TaskRunStatusRunning; got != want {
+		t.Fatalf("running.Status = %q, want %q", got, want)
+	}
+	if got, want := running.SessionID, "sess-dedicated-start"; got != want {
+		t.Fatalf("running.SessionID = %q, want %q", got, want)
+	}
+	storedRun, err := store.GetTaskRun(context.Background(), run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	if got, want := storedRun.Status, TaskRunStatusRunning; got != want {
+		t.Fatalf("storedRun.Status = %q, want %q", got, want)
+	}
+	if got, want := storedRun.SessionID, "sess-dedicated-start"; got != want {
+		t.Fatalf("storedRun.SessionID = %q, want %q", got, want)
+	}
+	events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	for _, eventType := range []string{
+		taskEventRunStarting,
+		taskEventRunSessionBound,
+		taskEventRunStarted,
+	} {
+		if !containsEventType(events, eventType) {
+			t.Fatalf("event types = %#v, want %q", sortedEventTypes(events), eventType)
+		}
+	}
+	if len(executor.requestStopCalls) != 0 || len(executor.forceStopCalls) != 0 {
+		t.Fatalf(
+			"session stop calls = request:%#v force:%#v, want none",
+			executor.requestStopCalls,
+			executor.forceStopCalls,
+		)
 	}
 }
 

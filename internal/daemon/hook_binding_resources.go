@@ -54,7 +54,7 @@ type hookBindingCodecSpec struct {
 	Source       hookspkg.HookSource       `json:"source"`
 	Mode         hookspkg.HookMode         `json:"mode,omitempty"`
 	Required     bool                      `json:"required,omitempty"`
-	Priority     int                       `json:"priority,omitempty"`
+	Priority     int32                     `json:"priority,omitempty"`
 	PrioritySet  bool                      `json:"priority_set,omitempty"`
 	Timeout      time.Duration             `json:"timeout,omitempty"`
 	Matcher      hookspkg.HookMatcher      `json:"matcher"`
@@ -63,6 +63,7 @@ type hookBindingCodecSpec struct {
 	Args         []string                  `json:"args,omitempty"`
 	WorkingDir   string                    `json:"working_dir,omitempty"`
 	Env          map[string]string         `json:"env,omitempty"`
+	SecretEnv    map[string]string         `json:"secret_env,omitempty"`
 	Metadata     map[string]string         `json:"metadata,omitempty"`
 	SkillSource  hookspkg.HookSkillSource  `json:"skill_source,omitempty"`
 }
@@ -164,6 +165,7 @@ func newHookBindingCodecSpec(decl hookspkg.HookDecl) hookBindingCodecSpec {
 		Args:         cloned.Args,
 		WorkingDir:   cloned.WorkingDir,
 		Env:          cloned.Env,
+		SecretEnv:    cloned.SecretEnv,
 		Metadata:     cloned.Metadata,
 		SkillSource:  cloned.SkillSource,
 	}
@@ -185,6 +187,7 @@ func (s *hookBindingCodecSpec) hookDecl() hookspkg.HookDecl {
 		Args:         s.Args,
 		WorkingDir:   s.WorkingDir,
 		Env:          s.Env,
+		SecretEnv:    s.SecretEnv,
 		Metadata:     s.Metadata,
 		SkillSource:  s.SkillSource,
 	})

@@ -560,8 +560,13 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 				want: true,
 			},
 			{
-				name: "Should return true when the webhook secret is set",
-				req:  contract.UpdateTriggerRequest{WebhookSecret: &secret},
+				name: "Should return true when the webhook secret ref is set",
+				req:  contract.UpdateTriggerRequest{WebhookSecretRef: &secret},
+				want: true,
+			},
+			{
+				name: "Should return true when the webhook secret value is set",
+				req:  contract.UpdateTriggerRequest{WebhookSecretValue: &secret},
 				want: true,
 			},
 			{

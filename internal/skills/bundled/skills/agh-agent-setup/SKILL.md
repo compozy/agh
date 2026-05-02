@@ -25,7 +25,7 @@ AGH agent definitions are parsed from `AGENT.md` files with YAML frontmatter fol
 ---
 name: general
 provider: claude
-model: claude-sonnet-4-20250514
+model: claude-sonnet-4-6
 permissions: approve-all
 ---
 You are a reliable software engineering agent.

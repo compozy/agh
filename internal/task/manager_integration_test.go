@@ -1080,6 +1080,7 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 		"task.run_claimed",
 		"task.run_completed",
 		"task.run_enqueued",
+		"task.run_session_bound",
 		"task.run_started",
 		"task.run_starting",
 	}
@@ -1357,19 +1358,20 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 
 	pageTwo, err := manager.Timeline(ctx, taskRecord.ID, taskpkg.TimelineQuery{
 		AfterSequence: pageOne[len(pageOne)-1].Sequence,
-		Limit:         3,
+		Limit:         4,
 	}, actor)
 	if err != nil {
 		t.Fatalf("Timeline(page two) error = %v", err)
 	}
-	if got, want := len(pageTwo), 3; got != want {
+	if got, want := len(pageTwo), 4; got != want {
 		t.Fatalf("len(pageTwo) = %d, want %d", got, want)
 	}
 	if got, want := []string{
 		pageTwo[0].EventType,
 		pageTwo[1].EventType,
 		pageTwo[2].EventType,
-	}, []string{"task.run_starting", "task.run_started", "task.run_completed"}; !testutil.EqualStringSlices(got, want) {
+		pageTwo[3].EventType,
+	}, []string{"task.run_starting", "task.run_session_bound", "task.run_started", "task.run_completed"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("pageTwo event types = %#v, want %#v", got, want)
 	}
 	for idx, item := range pageTwo {
@@ -1765,8 +1767,13 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 		t.Fatalf("StartRun() error = %v", err)
 	}
 	liveStarting := awaitIntegrationTaskStreamEvent(t, stream)
+	liveBound := awaitIntegrationTaskStreamEvent(t, stream)
 	liveStarted := awaitIntegrationTaskStreamEvent(t, stream)
-	if got, want := []string{liveStarting.Type, liveStarted.Type}, []string{"task.run_starting", "task.run_started"}; !testutil.EqualStringSlices(got, want) {
+	if got, want := []string{
+		liveStarting.Type,
+		liveBound.Type,
+		liveStarted.Type,
+	}, []string{"task.run_starting", "task.run_session_bound", "task.run_started"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("live start event types = %#v, want %#v", got, want)
 	}
 	lastSequence := liveStarted.Sequence

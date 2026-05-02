@@ -18,12 +18,14 @@ import (
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/toolruntime"
+	"github.com/pedronauck/agh/internal/vault"
 	"github.com/pedronauck/agh/internal/version"
 )
 
@@ -181,6 +183,7 @@ type managedExtension struct {
 	healthInterval        time.Duration
 	generation            int64
 	sessionNonce          string
+	redactionCleanups     []func()
 
 	phase               ExtensionPhase
 	registered          bool
@@ -208,6 +211,7 @@ type Manager struct {
 	logger                *slog.Logger
 	now                   func() time.Time
 	getenv                func(string) string
+	secretResolver        SecretRefResolver
 	launch                processLauncher
 
 	hostMethods map[string]subprocess.HandlerFunc
@@ -289,6 +293,18 @@ func WithNow(now func() time.Time) Option {
 func WithGetenv(getenv func(string) string) Option {
 	return func(manager *Manager) {
 		manager.getenv = getenv
+	}
+}
+
+// SecretRefResolver resolves env: and vault: refs for extension launch bindings.
+type SecretRefResolver interface {
+	ResolveRef(context.Context, string) (string, error)
+}
+
+// WithSecretResolver injects the daemon vault resolver used for extension secret env bindings.
+func WithSecretResolver(resolver SecretRefResolver) Option {
+	return func(manager *Manager) {
+		manager.secretResolver = resolver
 	}
 }
 
@@ -1137,13 +1153,14 @@ func (m *Manager) launchRuntime(
 	ctx context.Context,
 	ext *managedExtension,
 ) (processHandle, subprocess.InitializeResponse, subprocess.InitializeRuntime, time.Duration, error) {
-	launchCfg, runtime, healthInterval, err := m.launchConfigFor(ctx, ext)
+	launchCfg, runtime, healthInterval, cleanups, err := m.launchConfigFor(ctx, ext)
 	if err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, err
 	}
 
 	process, err := m.launch(ctx, launchCfg)
 	if err != nil {
+		runExtensionRedactionCleanups(cleanups)
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, fmt.Errorf(
 			"launch subprocess: %w",
 			err,
@@ -1154,12 +1171,14 @@ func (m *Manager) launchRuntime(
 	if err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
 			process,
+			cleanups,
 			err,
 		)
 	}
 	if err := m.registerRuntimeHostMethods(process, ext, runtime, resourceSession); err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
 			process,
+			cleanups,
 			err,
 		)
 	}
@@ -1168,22 +1187,26 @@ func (m *Manager) launchRuntime(
 	if err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
 			process,
+			cleanups,
 			err,
 		)
 	}
 	if err := validateSupportedHookEvents(response.SupportedHookEvents); err != nil {
 		return nil, subprocess.InitializeResponse{}, subprocess.InitializeRuntime{}, 0, m.cleanupLaunchedProcess(
 			process,
+			cleanups,
 			err,
 		)
 	}
 
 	ext.sessionNonce = resourceSession.Actor.SessionNonce
+	ext.redactionCleanups = cleanups
 
 	return process, response, runtime, healthInterval, nil
 }
 
-func (m *Manager) cleanupLaunchedProcess(process processHandle, err error) error {
+func (m *Manager) cleanupLaunchedProcess(process processHandle, cleanups []func(), err error) error {
+	runExtensionRedactionCleanups(cleanups)
 	if process == nil {
 		return err
 	}
@@ -1274,29 +1297,35 @@ func (m *Manager) initializeRuntimeRequest(
 func (m *Manager) launchConfigFor(
 	ctx context.Context,
 	ext *managedExtension,
-) (subprocess.LaunchConfig, subprocess.InitializeRuntime, time.Duration, error) {
+) (subprocess.LaunchConfig, subprocess.InitializeRuntime, time.Duration, []func(), error) {
 	if ext.manifest == nil {
-		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, errors.New("manifest is required")
+		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, nil, errors.New("manifest is required")
 	}
 
 	command, err := m.resolveCommand(ext.rootDir, ext.manifest.Subprocess.Command)
 	if err != nil {
-		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, err
+		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, nil, err
 	}
 	args, err := m.resolveStringSlice(ext.rootDir, ext.manifest.Subprocess.Args)
 	if err != nil {
-		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, err
+		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, nil, err
 	}
-	env, err := m.resolveEnvMap(ext.rootDir, ext.manifest.Subprocess.Env)
+	env, cleanups, err := m.resolveEnvMap(
+		ctx,
+		ext.rootDir,
+		ext.manifest.Subprocess.Env,
+		ext.manifest.Subprocess.SecretEnv,
+	)
 	if err != nil {
-		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, err
+		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, nil, err
 	}
 
 	healthInterval := durationOr(ext.manifest.Subprocess.HealthCheckInterval, defaultHealthCheckInterval)
 	shutdownTimeout := durationOr(ext.manifest.Subprocess.ShutdownTimeout, m.defaultShutdownTimeout)
 	bridgeRuntime, err := m.resolveBridgeRuntime(ctx, ext)
 	if err != nil {
-		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, err
+		runExtensionRedactionCleanups(cleanups)
+		return subprocess.LaunchConfig{}, subprocess.InitializeRuntime{}, 0, nil, err
 	}
 	runtime := subprocess.InitializeRuntime{
 		HealthCheckIntervalMS: healthInterval.Milliseconds(),
@@ -1322,7 +1351,7 @@ func (m *Manager) launchConfigFor(
 			},
 		},
 	}
-	return launchCfg, runtime, healthInterval, nil
+	return launchCfg, runtime, healthInterval, cleanups, nil
 }
 
 func (m *Manager) wrapHostHandler(
@@ -1497,58 +1526,21 @@ func (m *Manager) loadBundleResources(ext *managedExtension) ([]BundleSpec, erro
 }
 
 func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hookspkg.HookDecl, error) {
-	command := strings.TrimSpace(cfg.Command)
-	args := slices.Clone(cfg.Args)
-	env := cloneStringMap(cfg.Env)
-	kind := hookspkg.HookExecutorKind(strings.TrimSpace(cfg.Executor.Kind))
-
-	rootSpecified := command != "" || len(args) > 0 || len(env) > 0
-	nestedSpecified := strings.TrimSpace(cfg.Executor.Command) != "" || len(cfg.Executor.Args) > 0 ||
-		len(cfg.Executor.Env) > 0
-	if rootSpecified && nestedSpecified {
-		return hookspkg.HookDecl{}, errors.New(
-			"hook executor fields must be declared either at the top level or under executor, not both",
-		)
-	}
-	if nestedSpecified {
-		command = strings.TrimSpace(cfg.Executor.Command)
-		args = slices.Clone(cfg.Executor.Args)
-		env = cloneStringMap(cfg.Executor.Env)
-	}
-
-	resolvedCommand, err := m.resolveCommand(ext.rootDir, command)
+	executor, err := resolveHookConfigExecutorFields(cfg)
 	if err != nil {
 		return hookspkg.HookDecl{}, err
 	}
-	resolvedArgs, err := m.resolveStringSlice(ext.rootDir, args)
+	resolvedCommand, err := m.resolveCommand(ext.rootDir, executor.command)
 	if err != nil {
 		return hookspkg.HookDecl{}, err
 	}
-	resolvedEnv, err := m.resolveStringMap(ext.rootDir, env)
+	resolvedArgs, err := m.resolveStringSlice(ext.rootDir, executor.args)
 	if err != nil {
 		return hookspkg.HookDecl{}, err
 	}
-
-	matcher := hookspkg.HookMatcher{
-		AgentName:          strings.TrimSpace(cfg.Matcher.AgentName),
-		AgentType:          strings.TrimSpace(cfg.Matcher.AgentType),
-		WorkspaceID:        strings.TrimSpace(cfg.Matcher.WorkspaceID),
-		WorkspaceRoot:      strings.TrimSpace(cfg.Matcher.WorkspaceRoot),
-		SessionType:        strings.TrimSpace(cfg.Matcher.SessionType),
-		InputClass:         strings.TrimSpace(cfg.Matcher.InputClass),
-		ACPEventType:       strings.TrimSpace(cfg.Matcher.ACPEventType),
-		TurnID:             strings.TrimSpace(cfg.Matcher.TurnID),
-		ToolID:             strings.TrimSpace(cfg.Matcher.ToolID),
-		ToolName:           strings.TrimSpace(cfg.Matcher.ToolName),
-		DecisionClass:      strings.TrimSpace(cfg.Matcher.DecisionClass),
-		MessageRole:        strings.TrimSpace(cfg.Matcher.MessageRole),
-		MessageDeltaType:   strings.TrimSpace(cfg.Matcher.MessageDeltaType),
-		CompactionReason:   strings.TrimSpace(cfg.Matcher.CompactionReason),
-		CompactionStrategy: strings.TrimSpace(cfg.Matcher.CompactionStrategy),
-	}
-	if cfg.Matcher.ToolReadOnly != nil {
-		value := *cfg.Matcher.ToolReadOnly
-		matcher.ToolReadOnly = &value
+	resolvedEnv, err := m.resolveStringMap(ext.rootDir, executor.env)
+	if err != nil {
+		return hookspkg.HookDecl{}, err
 	}
 
 	decl := hookspkg.HookDecl{
@@ -1558,18 +1550,23 @@ func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hooks
 		Mode:         hookspkg.HookMode(strings.TrimSpace(cfg.Mode)),
 		Required:     cfg.Required,
 		Timeout:      time.Duration(cfg.Timeout),
-		Matcher:      matcher,
-		ExecutorKind: kind,
+		Matcher:      hookConfigMatcher(cfg.Matcher),
+		ExecutorKind: executor.kind,
 		Command:      resolvedCommand,
 		Args:         resolvedArgs,
 		WorkingDir:   ext.rootDir,
 		Env:          resolvedEnv,
+		SecretEnv:    executor.secretEnv,
 		Metadata: map[string]string{
 			"extension": ext.info.Name,
 		},
 	}
 	if cfg.Priority != nil {
-		decl.Priority = *cfg.Priority
+		priority, err := hookspkg.PriorityFromInt(*cfg.Priority)
+		if err != nil {
+			return hookspkg.HookDecl{}, err
+		}
+		decl.Priority = priority
 		decl.PrioritySet = true
 	}
 
@@ -1577,6 +1574,65 @@ func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hooks
 		return hookspkg.HookDecl{}, err
 	}
 	return decl, nil
+}
+
+type hookConfigExecutorFields struct {
+	command   string
+	args      []string
+	env       map[string]string
+	secretEnv map[string]string
+	kind      hookspkg.HookExecutorKind
+}
+
+func resolveHookConfigExecutorFields(cfg HookConfig) (hookConfigExecutorFields, error) {
+	fields := hookConfigExecutorFields{
+		command:   strings.TrimSpace(cfg.Command),
+		args:      slices.Clone(cfg.Args),
+		env:       cloneStringMap(cfg.Env),
+		secretEnv: cloneStringMap(cfg.SecretEnv),
+		kind:      hookspkg.HookExecutorKind(strings.TrimSpace(cfg.Executor.Kind)),
+	}
+	rootSpecified := fields.command != "" || len(fields.args) > 0 || len(fields.env) > 0 ||
+		len(fields.secretEnv) > 0
+	nestedSpecified := strings.TrimSpace(cfg.Executor.Command) != "" || len(cfg.Executor.Args) > 0 ||
+		len(cfg.Executor.Env) > 0 || len(cfg.Executor.SecretEnv) > 0
+	if rootSpecified && nestedSpecified {
+		return hookConfigExecutorFields{}, errors.New(
+			"hook executor fields must be declared either at the top level or under executor, not both",
+		)
+	}
+	if nestedSpecified {
+		fields.command = strings.TrimSpace(cfg.Executor.Command)
+		fields.args = slices.Clone(cfg.Executor.Args)
+		fields.env = cloneStringMap(cfg.Executor.Env)
+		fields.secretEnv = cloneStringMap(cfg.Executor.SecretEnv)
+	}
+	return fields, nil
+}
+
+func hookConfigMatcher(cfg HookMatcherConfig) hookspkg.HookMatcher {
+	matcher := hookspkg.HookMatcher{
+		AgentName:          strings.TrimSpace(cfg.AgentName),
+		AgentType:          strings.TrimSpace(cfg.AgentType),
+		WorkspaceID:        strings.TrimSpace(cfg.WorkspaceID),
+		WorkspaceRoot:      strings.TrimSpace(cfg.WorkspaceRoot),
+		SessionType:        strings.TrimSpace(cfg.SessionType),
+		InputClass:         strings.TrimSpace(cfg.InputClass),
+		ACPEventType:       strings.TrimSpace(cfg.ACPEventType),
+		TurnID:             strings.TrimSpace(cfg.TurnID),
+		ToolID:             strings.TrimSpace(cfg.ToolID),
+		ToolName:           strings.TrimSpace(cfg.ToolName),
+		DecisionClass:      strings.TrimSpace(cfg.DecisionClass),
+		MessageRole:        strings.TrimSpace(cfg.MessageRole),
+		MessageDeltaType:   strings.TrimSpace(cfg.MessageDeltaType),
+		CompactionReason:   strings.TrimSpace(cfg.CompactionReason),
+		CompactionStrategy: strings.TrimSpace(cfg.CompactionStrategy),
+	}
+	if cfg.ToolReadOnly != nil {
+		value := *cfg.ToolReadOnly
+		matcher.ToolReadOnly = &value
+	}
+	return matcher
 }
 
 func (m *Manager) resolveCommand(rootDir string, value string) (string, error) {
@@ -1591,14 +1647,23 @@ func (m *Manager) resolveStringMap(rootDir string, env map[string]string) (map[s
 	return resolveManifestStringMap(rootDir, env, m.getenv)
 }
 
-func (m *Manager) resolveEnvMap(rootDir string, env map[string]string) ([]string, error) {
+func (m *Manager) resolveEnvMap(
+	ctx context.Context,
+	rootDir string,
+	env map[string]string,
+	secretEnv map[string]string,
+) ([]string, []func(), error) {
 	resolvedMap, err := m.resolveStringMap(rootDir, env)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	secretMap, cleanups, err := m.resolveSecretEnvMap(ctx, secretEnv)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	valuesMap := make(map[string]string, len(safeSubprocessEnvKeys)+len(resolvedMap))
-	order := make([]string, 0, len(safeSubprocessEnvKeys)+len(resolvedMap))
+	valuesMap := make(map[string]string, len(safeSubprocessEnvKeys)+len(resolvedMap)+len(secretMap))
+	order := make([]string, 0, len(safeSubprocessEnvKeys)+len(resolvedMap)+len(secretMap))
 	for _, key := range safeSubprocessEnvKeys {
 		if _, exists := valuesMap[key]; exists {
 			continue
@@ -1619,12 +1684,76 @@ func (m *Manager) resolveEnvMap(rootDir string, env map[string]string) ([]string
 		}
 		valuesMap[key] = resolvedMap[key]
 	}
+	secretKeys := make([]string, 0, len(secretMap))
+	for key := range secretMap {
+		secretKeys = append(secretKeys, key)
+	}
+	slices.Sort(secretKeys)
+	for _, key := range secretKeys {
+		if _, exists := valuesMap[key]; !exists {
+			order = append(order, key)
+		}
+		valuesMap[key] = secretMap[key]
+	}
 
 	values := make([]string, 0, len(order))
 	for _, key := range order {
 		values = append(values, key+"="+valuesMap[key])
 	}
-	return values, nil
+	return values, cleanups, nil
+}
+
+func (m *Manager) resolveSecretEnvMap(
+	ctx context.Context,
+	secretEnv map[string]string,
+) (map[string]string, []func(), error) {
+	if len(secretEnv) == 0 {
+		return nil, nil, nil
+	}
+	if ctx == nil {
+		return nil, nil, errors.New("extension: secret env context is required")
+	}
+	values := make(map[string]string, len(secretEnv))
+	cleanups := []func(){}
+	keys := make([]string, 0, len(secretEnv))
+	for key := range secretEnv {
+		keys = append(keys, strings.TrimSpace(key))
+	}
+	slices.Sort(keys)
+	for _, key := range keys {
+		ref := vault.NormalizeRef(secretEnv[key])
+		value, err := m.resolveSecretRef(ctx, ref)
+		if err != nil {
+			runExtensionRedactionCleanups(cleanups)
+			return nil, nil, fmt.Errorf("extension: resolve subprocess secret_env.%s: %w", key, err)
+		}
+		values[key] = value
+		cleanups = append(cleanups, diagnostics.RegisterDynamicSecret(value))
+	}
+	return values, cleanups, nil
+}
+
+func (m *Manager) resolveSecretRef(ctx context.Context, ref string) (string, error) {
+	if m.secretResolver != nil {
+		return m.secretResolver.ResolveRef(ctx, ref)
+	}
+	envName, err := vault.EnvNameFromRef(ref)
+	if err != nil {
+		return "", err
+	}
+	value := getenvValue(m.getenv, envName)
+	if strings.TrimSpace(value) == "" {
+		return "", fmt.Errorf("%w: env:%s", vault.ErrMissingSecret, envName)
+	}
+	return value, nil
+}
+
+func runExtensionRedactionCleanups(cleanups []func()) {
+	for index := len(cleanups) - 1; index >= 0; index-- {
+		if cleanups[index] != nil {
+			cleanups[index]()
+		}
+	}
 }
 
 func (m *Manager) resolveString(rootDir string, value string) (string, error) {
@@ -1690,10 +1819,13 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.lastExitedAt = m.now()
 	ext.lastError = reason.Error()
 	ext.consecutiveFailures++
+	cleanups := ext.redactionCleanups
+	ext.redactionCleanups = nil
 	instanceIDs := managedBridgeInstanceIDs(ext)
 	failures := ext.consecutiveFailures
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
 		m.mu.Unlock()
+		runExtensionRedactionCleanups(cleanups)
 		m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
 		m.logger.Error(
 			"extension.lifecycle.failed",
@@ -1712,6 +1844,7 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.restartBackoff = restartBackoff(ext.consecutiveFailures, m.restartBackoffMax)
 	backoff := ext.restartBackoff
 	m.mu.Unlock()
+	runExtensionRedactionCleanups(cleanups)
 	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusDegraded, reason)
 
 	m.logger.Warn(
@@ -1744,7 +1877,10 @@ func (m *Manager) disableExtension(name string, reason error) {
 	ext.active = false
 	ext.process = nil
 	ext.awaitingStability = false
+	cleanups := ext.redactionCleanups
+	ext.redactionCleanups = nil
 	m.mu.Unlock()
+	runExtensionRedactionCleanups(cleanups)
 
 	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
 }
@@ -2209,6 +2345,7 @@ func cloneMCPServer(server aghconfig.MCPServer) aghconfig.MCPServer {
 	cloned := server
 	cloned.Args = slices.Clone(server.Args)
 	cloned.Env = cloneStringMap(server.Env)
+	cloned.SecretEnv = cloneStringMap(server.SecretEnv)
 	return cloned
 }
 
@@ -2233,6 +2370,7 @@ func cloneHookDecl(src hookspkg.HookDecl) hookspkg.HookDecl {
 	cloned := src
 	cloned.Args = slices.Clone(src.Args)
 	cloned.Env = cloneStringMap(src.Env)
+	cloned.SecretEnv = cloneStringMap(src.SecretEnv)
 	cloned.Metadata = cloneStringMap(src.Metadata)
 	if src.Matcher.ToolReadOnly != nil {
 		value := *src.Matcher.ToolReadOnly
@@ -2330,10 +2468,11 @@ func cloneSkillMCPServers(src []skillspkg.MCPServerDecl) []skillspkg.MCPServerDe
 	cloned := make([]skillspkg.MCPServerDecl, len(src))
 	for index, decl := range src {
 		cloned[index] = skillspkg.MCPServerDecl{
-			Name:    decl.Name,
-			Command: decl.Command,
-			Args:    slices.Clone(decl.Args),
-			Env:     cloneStringMap(decl.Env),
+			Name:      decl.Name,
+			Command:   decl.Command,
+			Args:      slices.Clone(decl.Args),
+			Env:       cloneStringMap(decl.Env),
+			SecretEnv: cloneStringMap(decl.SecretEnv),
 		}
 	}
 	return cloned

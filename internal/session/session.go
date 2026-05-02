@@ -107,6 +107,7 @@ type Session struct {
 	currentTurnID        string
 	currentTurnSource    TurnSource
 	currentPromptMeta    acp.PromptMeta
+	providerRedactions   []func()
 }
 
 // Info returns a consistent snapshot of the current session state.
@@ -183,6 +184,26 @@ func (s *Session) processHandle() *AgentProcess {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.process
+}
+
+func (s *Session) addProviderSecretRedactions(cleanups []func()) {
+	if s == nil || len(cleanups) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.providerRedactions = append(s.providerRedactions, cleanups...)
+}
+
+func (s *Session) clearProviderSecretRedactions() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	cleanups := append([]func(){}, s.providerRedactions...)
+	s.providerRedactions = nil
+	s.mu.Unlock()
+	runProviderSecretRedactions(cleanups)
 }
 
 // ApprovePermission resolves one pending permission request for an active session.

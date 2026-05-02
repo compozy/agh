@@ -27,6 +27,7 @@ type handlerConfig struct {
 	toolApprovals   core.ToolApprovalIssuer
 	settings        core.SettingsService
 	settingsRestart core.SettingsRestartController
+	vault           core.VaultService
 	workspaces      core.WorkspaceService
 	agentCatalog    core.AgentCatalog
 	skillsRegistry  core.SkillsRegistry
@@ -87,6 +88,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			ToolApprovals:                cfg.toolApprovals,
 			Settings:                     cfg.settings,
 			SettingsRestart:              cfg.settingsRestart,
+			Vault:                        cfg.vault,
 			Workspaces:                   cfg.workspaces,
 			AgentCatalog:                 cfg.agentCatalog,
 			SkillsRegistry:               cfg.skillsRegistry,

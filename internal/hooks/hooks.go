@@ -55,7 +55,7 @@ type resolvedHookFingerprint struct {
 	Source       HookSource        `json:"source"`
 	Mode         HookMode          `json:"mode"`
 	Required     bool              `json:"required"`
-	Priority     int               `json:"priority"`
+	Priority     int32             `json:"priority"`
 	Timeout      time.Duration     `json:"timeout"`
 	Matcher      HookMatcher       `json:"matcher"`
 	Metadata     map[string]string `json:"metadata"`
@@ -63,6 +63,7 @@ type resolvedHookFingerprint struct {
 	Command      string            `json:"command"`
 	Args         []string          `json:"args"`
 	Env          map[string]string `json:"env"`
+	SecretEnv    map[string]string `json:"secret_env"`
 	SkillSource  HookSkillSource   `json:"skill_source"`
 }
 
@@ -375,6 +376,7 @@ func fingerprintHookSnapshot(snapshot map[HookEvent][]*ResolvedHook) (string, er
 				Command:      hook.Decl.Command,
 				Args:         append([]string(nil), hook.Decl.Args...),
 				Env:          cloneStringMap(hook.Decl.Env),
+				SecretEnv:    cloneStringMap(hook.Decl.SecretEnv),
 				SkillSource:  hook.Decl.SkillSource,
 			})
 		}
@@ -400,6 +402,7 @@ func defaultExecutorResolver(decl HookDecl) (Executor, error) {
 			decl.Args,
 			WithSubprocessDir(decl.WorkingDir),
 			WithSubprocessEnv(decl.Env),
+			WithSubprocessSecretEnv(decl.SecretEnv, nil),
 		), nil
 	case HookExecutorWASM:
 		return &WasmExecutor{}, nil
@@ -435,6 +438,7 @@ func cloneHookDecl(decl HookDecl) HookDecl {
 	cloned := decl
 	cloned.Args = append([]string(nil), decl.Args...)
 	cloned.Env = cloneStringMap(decl.Env)
+	cloned.SecretEnv = cloneStringMap(decl.SecretEnv)
 	cloned.Metadata = cloneStringMap(decl.Metadata)
 	cloned.Enabled = cloneBoolPtr(decl.Enabled)
 	if decl.Matcher.ToolReadOnly != nil {

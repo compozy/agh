@@ -162,15 +162,15 @@ endpoint_slug = "deploy-review"
 [[automation.triggers]]
 scope = "global"
 name = "deploy"
-event = "webhook"
-agent = "summarizer"
-prompt = "Review {{ index .Data \"payload\" }}"
-webhook_secret_env = "AGH_AUTOMATION_WEBHOOK_SECRET"
-`,
+	event = "webhook"
+	agent = "summarizer"
+	prompt = "Review {{ index .Data \"payload\" }}"
+	webhook_secret_ref = "env:AGH_AUTOMATION_WEBHOOK_SECRET"
+	`,
 			wantErr: "endpoint_slug",
 		},
 		{
-			name: "webhook trigger without secret env",
+			name: "webhook trigger without secret ref",
 			contents: `
 [[automation.triggers]]
 scope = "global"
@@ -180,34 +180,34 @@ endpoint_slug = "deploy-review"
 agent = "summarizer"
 prompt = "Review {{ index .Data \"payload\" }}"
 `,
-			wantErr: "webhook_secret_env",
+			wantErr: "webhook_secret_ref",
 		},
 		{
-			name: "non webhook trigger with secret env",
+			name: "non webhook trigger with secret ref",
 			contents: `
 [[automation.triggers]]
 scope = "global"
 name = "post-run"
-event = "session.stopped"
-agent = "summarizer"
-prompt = "Summarize {{ .Kind }}"
-webhook_secret_env = "AGH_AUTOMATION_WEBHOOK_SECRET"
-`,
-			wantErr: "webhook_secret_env",
+	event = "session.stopped"
+	agent = "summarizer"
+	prompt = "Summarize {{ .Kind }}"
+	webhook_secret_ref = "env:AGH_AUTOMATION_WEBHOOK_SECRET"
+	`,
+			wantErr: "webhook_secret_ref",
 		},
 		{
-			name: "webhook trigger with unset secret env",
+			name: "webhook trigger with invalid secret ref",
 			contents: `
 [[automation.triggers]]
 scope = "global"
 name = "deploy"
 event = "webhook"
-endpoint_slug = "deploy-review"
-agent = "summarizer"
-prompt = "Review {{ index .Data \"payload\" }}"
-webhook_secret_env = "AGH_AUTOMATION_WEBHOOK_SECRET_MISSING"
-`,
-			wantErr: "webhook_secret_env",
+	endpoint_slug = "deploy-review"
+	agent = "summarizer"
+	prompt = "Review {{ index .Data \"payload\" }}"
+	webhook_secret_ref = "vault:mcp/wrong/webhook-secret"
+	`,
+			wantErr: "webhook_secret_ref",
 		},
 	}
 

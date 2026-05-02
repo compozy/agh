@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 )
 
@@ -43,6 +44,31 @@ func TestMCPAuthStatusReportsRedactedState(t *testing.T) {
 		}
 		if len(statuses) != 1 || statuses[0].Status != mcpauth.StatusAuthenticated {
 			t.Fatalf("statuses = %#v", statuses)
+		}
+	})
+}
+
+func TestMCPAuthSecretResolverRegistersDynamicRedaction(t *testing.T) {
+	t.Run("Should register resolved env secret for diagnostics redaction", func(t *testing.T) {
+		// diagnostics redaction keeps a package-global registry, so this subtest must stay serial.
+		secret := "mcp-client-secret-redaction-test"
+		resolver := mcpAuthSecretResolver(aghconfig.HomePaths{}, func(key string) string {
+			if key == "MCP_CLIENT_SECRET_REDACTION_TEST" {
+				return secret
+			}
+			return ""
+		})
+
+		value, err := resolver(context.Background(), "env:MCP_CLIENT_SECRET_REDACTION_TEST")
+		if err != nil {
+			t.Fatalf("mcpAuthSecretResolver(env) error = %v", err)
+		}
+		if value != secret {
+			t.Fatalf("mcpAuthSecretResolver(env) = %q, want secret", value)
+		}
+		redacted := diagnostics.Redact("leaked " + secret)
+		if strings.Contains(redacted, secret) {
+			t.Fatalf("diagnostics.Redact() leaked resolved MCP client secret: %q", redacted)
 		}
 	})
 }
@@ -283,7 +309,7 @@ func newMCPAuthTestDeps(t *testing.T, client *stubMCPAuthClient) commandDeps {
 			AuthorizationURL: "https://auth.example/authorize",
 			TokenURL:         "https://auth.example/token",
 			ClientID:         "client-id",
-			ClientSecretEnv:  "LINEAR_CLIENT_SECRET",
+			ClientSecretRef:  "env:LINEAR_CLIENT_SECRET",
 			Scopes:           []string{"read"},
 		},
 	}}

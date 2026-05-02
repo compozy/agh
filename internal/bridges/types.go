@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 var (
@@ -386,11 +388,11 @@ func (i BridgeInstance) Validate() error {
 	return nil
 }
 
-// BridgeSecretBinding binds one named bridge secret slot to a daemon-managed vault reference.
+// BridgeSecretBinding binds one named bridge secret slot to a daemon-managed secret reference.
 type BridgeSecretBinding struct {
 	BridgeInstanceID string    `json:"bridge_instance_id"`
 	BindingName      string    `json:"binding_name"`
-	VaultRef         string    `json:"vault_ref"`
+	SecretRef        string    `json:"secret_ref"`
 	Kind             string    `json:"kind"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
@@ -405,8 +407,11 @@ func (b BridgeSecretBinding) Validate() error {
 	if err := requireField(normalized.BindingName, "bridge secret binding name"); err != nil {
 		return err
 	}
-	if err := requireField(normalized.VaultRef, "bridge secret binding vault ref"); err != nil {
+	if err := requireField(normalized.SecretRef, "bridge secret binding secret ref"); err != nil {
 		return err
+	}
+	if err := vault.ValidateSecretRefNamespace(normalized.SecretRef, "bridges"); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidBridgeSecretBinding, err)
 	}
 	if err := requireField(normalized.Kind, "bridge secret binding kind"); err != nil {
 		return err
@@ -824,7 +829,7 @@ func (b BridgeSecretBinding) normalize() BridgeSecretBinding {
 	normalized := b
 	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
 	normalized.BindingName = strings.TrimSpace(normalized.BindingName)
-	normalized.VaultRef = strings.TrimSpace(normalized.VaultRef)
+	normalized.SecretRef = strings.TrimSpace(normalized.SecretRef)
 	normalized.Kind = strings.TrimSpace(normalized.Kind)
 	return normalized
 }

@@ -719,15 +719,13 @@ func parseUpdateSettingsHooksExtensionsRequest(c *gin.Context) (settingspkg.Sect
 }
 
 func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {
-	var body struct {
-		Settings *contract.SettingsProviderSettingsPayload `json:"settings"`
-	}
+	var body contract.PutSettingsProviderRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
 			fmt.Errorf("decode provider settings request: %w", err),
 		)
 	}
-	if body.Settings == nil {
+	if providerSettingsPayloadEmpty(body.Settings) && len(body.Secrets) == 0 {
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
 			errors.New("provider.settings is required"),
 		)
@@ -741,20 +739,75 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 		return settingspkg.CollectionItemPutRequest{}, err
 	}
 	settings := settingspkg.ProviderSettings{
-		Command:      strings.TrimSpace(body.Settings.Command),
-		DefaultModel: strings.TrimSpace(body.Settings.DefaultModel),
-		APIKeyEnv:    strings.TrimSpace(body.Settings.APIKeyEnv),
+		Command:         strings.TrimSpace(body.Settings.Command),
+		DisplayName:     strings.TrimSpace(body.Settings.DisplayName),
+		DefaultModel:    strings.TrimSpace(body.Settings.DefaultModel),
+		Harness:         aghconfig.ProviderHarness(strings.TrimSpace(body.Settings.Harness)),
+		RuntimeProvider: strings.TrimSpace(body.Settings.RuntimeProvider),
+		Transport:       strings.TrimSpace(body.Settings.Transport),
+		BaseURL:         strings.TrimSpace(body.Settings.BaseURL),
+		CredentialSlots: providerCredentialSlotsFromPayload(body.Settings.CredentialSlots),
 	}
 	return settingspkg.CollectionItemPutRequest{
 		CollectionRequest: req,
 		Name:              name,
 		Provider:          &settings,
+		ProviderSecrets:   providerSecretWritesFromPayload(body.Secrets),
 	}, nil
+}
+
+func providerSettingsPayloadEmpty(payload contract.SettingsProviderSettingsPayload) bool {
+	return strings.TrimSpace(payload.Command) == "" &&
+		strings.TrimSpace(payload.DisplayName) == "" &&
+		strings.TrimSpace(payload.DefaultModel) == "" &&
+		strings.TrimSpace(payload.Harness) == "" &&
+		strings.TrimSpace(payload.RuntimeProvider) == "" &&
+		strings.TrimSpace(payload.Transport) == "" &&
+		strings.TrimSpace(payload.BaseURL) == "" &&
+		len(payload.CredentialSlots) == 0
+}
+
+func providerCredentialSlotsFromPayload(
+	payloads []contract.SettingsProviderCredentialSlotPayload,
+) []aghconfig.ProviderCredentialSlot {
+	if len(payloads) == 0 {
+		return nil
+	}
+	slots := make([]aghconfig.ProviderCredentialSlot, 0, len(payloads))
+	for _, payload := range payloads {
+		slots = append(slots, aghconfig.ProviderCredentialSlot{
+			Name:      strings.TrimSpace(payload.Name),
+			TargetEnv: strings.TrimSpace(payload.TargetEnv),
+			SecretRef: strings.TrimSpace(payload.SecretRef),
+			Kind:      strings.TrimSpace(payload.Kind),
+			Required:  payload.Required,
+		})
+	}
+	return slots
+}
+
+func providerSecretWritesFromPayload(
+	payloads []contract.SettingsProviderSecretWritePayload,
+) []settingspkg.ProviderSecretWrite {
+	if len(payloads) == 0 {
+		return nil
+	}
+	secrets := make([]settingspkg.ProviderSecretWrite, 0, len(payloads))
+	for _, payload := range payloads {
+		secrets = append(secrets, settingspkg.ProviderSecretWrite{
+			Name:      strings.TrimSpace(payload.Name),
+			SecretRef: strings.TrimSpace(payload.SecretRef),
+			Kind:      strings.TrimSpace(payload.Kind),
+			Value:     payload.Value,
+		})
+	}
+	return secrets
 }
 
 func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {
 	var body struct {
-		Server *contract.SettingsMCPServerPayload `json:"server"`
+		Server       *contract.SettingsMCPServerPayload       `json:"server"`
+		SecretValues *contract.SettingsMCPSecretValuesPayload `json:"secret_values,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
@@ -790,6 +843,7 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		Command:   strings.TrimSpace(body.Server.Command),
 		Args:      cloneStrings(body.Server.Args),
 		Env:       cloneStringMap(body.Server.Env),
+		SecretEnv: cloneStringMap(body.Server.SecretEnv),
 		URL:       strings.TrimSpace(body.Server.URL),
 	}
 	if body.Server.Auth != nil {
@@ -801,7 +855,7 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 			TokenURL:         strings.TrimSpace(body.Server.Auth.TokenURL),
 			RevocationURL:    strings.TrimSpace(body.Server.Auth.RevocationURL),
 			ClientID:         strings.TrimSpace(body.Server.Auth.ClientID),
-			ClientSecretEnv:  strings.TrimSpace(body.Server.Auth.ClientSecretEnv),
+			ClientSecretRef:  strings.TrimSpace(body.Server.Auth.ClientSecretRef),
 			Scopes:           cloneStrings(body.Server.Auth.Scopes),
 		}
 	}
@@ -813,7 +867,23 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		Name:              name,
 		Target:            target,
 		MCPServer:         &server,
+		MCPSecrets:        mcpSecretValuesFromPayload(body.SecretValues),
 	}, nil
+}
+
+func mcpSecretValuesFromPayload(payload *contract.SettingsMCPSecretValuesPayload) settingspkg.MCPSecretValues {
+	if payload == nil {
+		return settingspkg.MCPSecretValues{}
+	}
+	var oauthClientSecret *string
+	if payload.OAuthClientSecret != nil {
+		value := *payload.OAuthClientSecret
+		oauthClientSecret = &value
+	}
+	return settingspkg.MCPSecretValues{
+		SecretEnv:         cloneStringMap(payload.SecretEnv),
+		OAuthClientSecret: oauthClientSecret,
+	}
 }
 
 func parsePutSettingsSandboxRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {
@@ -1154,6 +1224,7 @@ func sandboxProfileFromPayload(
 		Persistence: strings.TrimSpace(payload.Persistence),
 		RuntimeRoot: strings.TrimSpace(payload.RuntimeRoot),
 		Env:         cloneStringMap(payload.Env),
+		SecretEnv:   cloneStringMap(payload.SecretEnv),
 	}
 	if payload.Network != nil {
 		value.Network = aghconfig.NetworkProfile{
@@ -1188,6 +1259,10 @@ func hookDeclarationFromPayload(
 	if err != nil {
 		return hookspkg.HookDecl{}, err
 	}
+	priority, err := hookspkg.PriorityFromInt(payload.Priority)
+	if err != nil {
+		return hookspkg.HookDecl{}, err
+	}
 
 	value := hookspkg.HookDecl{
 		Name:         strings.TrimSpace(payload.Name),
@@ -1195,7 +1270,7 @@ func hookDeclarationFromPayload(
 		Source:       hookspkg.HookSourceConfig,
 		Mode:         payload.Mode,
 		Required:     payload.Required,
-		Priority:     payload.Priority,
+		Priority:     priority,
 		PrioritySet:  payload.Priority != 0,
 		Timeout:      timeout,
 		Matcher:      payload.Matcher,
@@ -1203,6 +1278,7 @@ func hookDeclarationFromPayload(
 		Command:      strings.TrimSpace(payload.Command),
 		Args:         cloneStrings(payload.Args),
 		Env:          cloneStringMap(payload.Env),
+		SecretEnv:    cloneStringMap(payload.SecretEnv),
 		Metadata:     cloneStringMap(payload.Metadata),
 	}
 	if err := hookspkg.ValidateHookDecl(value); err != nil {

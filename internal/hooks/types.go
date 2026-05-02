@@ -185,14 +185,29 @@ type HookDecl struct {
 	Args         []string          `json:"args,omitempty"          yaml:"args,omitempty"`
 	WorkingDir   string            `json:"-"                       yaml:"-"`
 	Env          map[string]string `json:"env,omitempty"           yaml:"env,omitempty"`
+	SecretEnv    map[string]string `json:"secret_env,omitempty"    yaml:"secret_env,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"      yaml:"metadata,omitempty"`
 	SkillSource  HookSkillSource   `json:"-"                       yaml:"-"`
 	Timeout      time.Duration     `json:"timeout,omitempty"       yaml:"timeout,omitempty"`
-	Priority     int               `json:"priority,omitempty"      yaml:"priority,omitempty"`
 	Enabled      *bool             `json:"enabled,omitempty"       yaml:"enabled,omitempty"`
+	Priority     int32             `json:"priority,omitempty"      yaml:"priority,omitempty"`
 	Source       HookSource        `json:"source"                  yaml:"source"`
 	Required     bool              `json:"required,omitempty"      yaml:"required,omitempty"`
 	PrioritySet  bool              `json:"-"                       yaml:"-"`
+}
+
+// PriorityFromInt converts external numeric priority inputs into the compact
+// priority representation used by hook declarations.
+func PriorityFromInt(value int) (int32, error) {
+	const (
+		minPriority = int64(-1 << 31)
+		maxPriority = int64(1<<31 - 1)
+	)
+	wide := int64(value)
+	if wide < minPriority || wide > maxPriority {
+		return 0, fmt.Errorf("hooks: priority %d is outside int32 range", value)
+	}
+	return int32(value), nil
 }
 
 // EnabledValue reports whether a declaration participates in dispatch.
@@ -207,7 +222,7 @@ type RegisteredHook struct {
 	Source   HookSource
 	Mode     HookMode
 	Required bool
-	Priority int
+	Priority int32
 	Timeout  time.Duration
 	Matcher  HookMatcher
 	Executor Executor

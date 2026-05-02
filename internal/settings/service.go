@@ -11,6 +11,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -66,6 +67,12 @@ type MCPAuthRuntimeProvider interface {
 	MCPAuthStatus(ctx context.Context, server aghconfig.MCPServer) (mcpauth.Status, error)
 }
 
+// ProviderSecretStore stores provider-bound secrets and returns redacted metadata.
+type ProviderSecretStore interface {
+	GetMetadata(ctx context.Context, ref string) (vault.Metadata, error)
+	PutSecret(ctx context.Context, ref string, kind string, plaintext string) (vault.Metadata, error)
+}
+
 // Dependencies captures the runtime dependencies required by the settings service.
 type Dependencies struct {
 	WorkspaceResolver          WorkspaceResolver
@@ -78,6 +85,7 @@ type Dependencies struct {
 	Extensions                 ExtensionStatusProvider
 	TransportParity            TransportParityProvider
 	MCPAuth                    MCPAuthRuntimeProvider
+	ProviderSecrets            ProviderSecretStore
 	RestartActionAvailable     bool
 	ConsolidateActionAvailable bool
 	LogTailAvailable           bool
@@ -97,6 +105,7 @@ type service struct {
 	extensions                 ExtensionStatusProvider
 	transportParity            TransportParityProvider
 	mcpAuth                    MCPAuthRuntimeProvider
+	providerSecrets            ProviderSecretStore
 	restartActionAvailable     bool
 	consolidateActionAvailable bool
 	logTailAvailable           bool
@@ -133,6 +142,7 @@ func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, erro
 		extensions:                 deps.Extensions,
 		transportParity:            deps.TransportParity,
 		mcpAuth:                    deps.MCPAuth,
+		providerSecrets:            deps.ProviderSecrets,
 		restartActionAvailable:     deps.RestartActionAvailable,
 		consolidateActionAvailable: deps.ConsolidateActionAvailable,
 		logTailAvailable:           deps.LogTailAvailable,

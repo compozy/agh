@@ -318,10 +318,11 @@ func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
 		}
 
 		server := MCPServerDecl{
-			Name:    strings.TrimSpace(stringValue(entry["name"])),
-			Command: strings.TrimSpace(stringValue(entry["command"])),
-			Args:    stringSliceValue(skill, "metadata.agh.mcp_servers", idx, "args", entry["args"]),
-			Env:     stringMapValue(skill, "metadata.agh.mcp_servers", idx, "env", entry["env"]),
+			Name:      strings.TrimSpace(stringValue(entry["name"])),
+			Command:   strings.TrimSpace(stringValue(entry["command"])),
+			Args:      stringSliceValue(skill, "metadata.agh.mcp_servers", idx, "args", entry["args"]),
+			Env:       stringMapValue(skill, "metadata.agh.mcp_servers", idx, "env", entry["env"]),
+			SecretEnv: stringMapValue(skill, "metadata.agh.mcp_servers", idx, "secret_env", entry["secret_env"]),
 		}
 		if server.Name == "" {
 			warnAGHMetadata(
@@ -357,14 +358,15 @@ func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {
 }
 
 type parsedSkillHookDecl struct {
-	Event    string               `yaml:"event"`
-	Command  string               `yaml:"command"`
-	Args     []string             `yaml:"args,omitempty"`
-	Timeout  time.Duration        `yaml:"timeout,omitempty"`
-	Env      map[string]string    `yaml:"env,omitempty"`
-	Mode     hookspkg.HookMode    `yaml:"mode,omitempty"`
-	Priority *int                 `yaml:"priority,omitempty"`
-	Matcher  hookspkg.HookMatcher `yaml:"matcher,omitempty"`
+	Event     string               `yaml:"event"`
+	Command   string               `yaml:"command"`
+	Args      []string             `yaml:"args,omitempty"`
+	Timeout   time.Duration        `yaml:"timeout,omitempty"`
+	Env       map[string]string    `yaml:"env,omitempty"`
+	SecretEnv map[string]string    `yaml:"secret_env,omitempty"`
+	Mode      hookspkg.HookMode    `yaml:"mode,omitempty"`
+	Priority  *int                 `yaml:"priority,omitempty"`
+	Matcher   hookspkg.HookMatcher `yaml:"matcher,omitempty"`
 }
 
 func parseHookDecls(skill *Skill, raw any) ([]hookspkg.HookDecl, error) {
@@ -448,10 +450,15 @@ func buildSkillHookDecl(
 		Command:     strings.TrimSpace(decoded.Command),
 		Args:        append([]string(nil), decoded.Args...),
 		Env:         cloneStringMap(decoded.Env),
+		SecretEnv:   cloneStringMap(decoded.SecretEnv),
 		PrioritySet: decoded.Priority != nil,
 	}, index, total)
 	if decoded.Priority != nil {
-		hook.Priority = *decoded.Priority
+		priority, err := hookspkg.PriorityFromInt(*decoded.Priority)
+		if err != nil {
+			return hookspkg.HookDecl{}, err
+		}
+		hook.Priority = priority
 	}
 	if hook.Command == "" {
 		return hookspkg.HookDecl{}, fmt.Errorf(

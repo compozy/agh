@@ -107,14 +107,14 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 			},
 		}},
 		Triggers: []aghcontract.CreateTriggerRequest{{
-			Scope:         automationpkg.AutomationScopeWorkspace,
-			WorkspaceID:   "ws-1",
-			Name:          "deploy-review",
-			AgentName:     "mock-automation-runner",
-			Prompt:        `Review payload {{ index .Data "payload" }} for {{ index .Data "branch" }}`,
-			Event:         "webhook",
-			EndpointSlug:  "deploy-review",
-			WebhookSecret: "shared-secret",
+			Scope:              automationpkg.AutomationScopeWorkspace,
+			WorkspaceID:        "ws-1",
+			Name:               "deploy-review",
+			AgentName:          "mock-automation-runner",
+			Prompt:             `Review payload {{ index .Data "payload" }} for {{ index .Data "branch" }}`,
+			Event:              "webhook",
+			EndpointSlug:       "deploy-review",
+			WebhookSecretValue: "shared-secret",
 			Filter: map[string]string{
 				"data.branch": "main",
 			},
@@ -145,8 +145,8 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 	if got, want := seenJobRequest.Task.Owner.Ref, "job:triage-deploy"; got != want {
 		t.Fatalf("seenJobRequest.Task.Owner.Ref = %q, want %q", got, want)
 	}
-	if got, want := seenTriggerRequest.WebhookSecret, "shared-secret"; got != want {
-		t.Fatalf("seenTriggerRequest.WebhookSecret = %q, want %q", got, want)
+	if got, want := seenTriggerRequest.WebhookSecretValue, "shared-secret"; got != want {
+		t.Fatalf("seenTriggerRequest.WebhookSecretValue = %q, want %q", got, want)
 	}
 	if got, want := seenTriggerRequest.Filter["data.branch"], "main"; got != want {
 		t.Fatalf("seenTriggerRequest.Filter[data.branch] = %q, want %q", got, want)

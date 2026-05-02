@@ -177,8 +177,13 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	}()
 
 	session := spec.newStartingSession(runtime.agent, storage, now)
+	defer cleanupProviderRedactionsOnStartError(session, &err)
 
 	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
+	startOpts, err = m.prepareProviderForStart(ctx, session, runtime.agent, startOpts)
+	if err != nil {
+		return nil, m.failSessionStart(ctx, spec, session, "session provider startup failed", err)
+	}
 	startOpts, err = m.prepareSandboxForStart(ctx, spec, session, startOpts)
 	if err != nil {
 		return nil, m.failSessionStart(ctx, spec, session, "session sandbox startup failed", err)
@@ -211,6 +216,12 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	}
 
 	return session, nil
+}
+
+func cleanupProviderRedactionsOnStartError(session *Session, err *error) {
+	if err != nil && *err != nil {
+		session.clearProviderSecretRedactions()
+	}
 }
 
 func (m *Manager) failSessionStart(

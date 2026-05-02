@@ -28,8 +28,6 @@ var (
 	ErrJobOverlayNotFound = errors.New("automation: job enabled overlay not found")
 	// ErrTriggerOverlayNotFound reports that a trigger enabled overlay row does not exist.
 	ErrTriggerOverlayNotFound = errors.New("automation: trigger enabled overlay not found")
-	// ErrTriggerWebhookSecretNotFound reports that no persisted webhook secret exists for the trigger.
-	ErrTriggerWebhookSecretNotFound = errors.New("automation: trigger webhook secret not found")
 )
 
 // JobListQuery filters persisted automation job listings.

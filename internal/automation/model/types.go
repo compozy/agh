@@ -134,22 +134,23 @@ type ScheduleSpec struct {
 
 // Trigger is the canonical event-driven automation definition used by runtime and storage layers.
 type Trigger struct {
-	ID           string            `json:"id"`
-	Scope        Scope             `json:"scope"`
-	Name         string            `json:"name"`
-	AgentName    string            `json:"agent_name"`
-	WorkspaceID  string            `json:"workspace_id,omitempty"`
-	Prompt       string            `json:"prompt"`
-	Event        string            `json:"event"`
-	Filter       map[string]string `json:"filter,omitempty"`
-	Enabled      bool              `json:"enabled"`
-	Retry        RetryConfig       `json:"retry"`
-	FireLimit    FireLimitConfig   `json:"fire_limit"`
-	Source       JobSource         `json:"source"`
-	WebhookID    string            `json:"webhook_id,omitempty"`
-	EndpointSlug string            `json:"endpoint_slug,omitempty"`
-	CreatedAt    time.Time         `json:"created_at"`
-	UpdatedAt    time.Time         `json:"updated_at"`
+	ID               string            `json:"id"`
+	Scope            Scope             `json:"scope"`
+	Name             string            `json:"name"`
+	AgentName        string            `json:"agent_name"`
+	WorkspaceID      string            `json:"workspace_id,omitempty"`
+	Prompt           string            `json:"prompt"`
+	Event            string            `json:"event"`
+	Filter           map[string]string `json:"filter,omitempty"`
+	Enabled          bool              `json:"enabled"`
+	Retry            RetryConfig       `json:"retry"`
+	FireLimit        FireLimitConfig   `json:"fire_limit"`
+	Source           JobSource         `json:"source"`
+	WebhookID        string            `json:"webhook_id,omitempty"`
+	EndpointSlug     string            `json:"endpoint_slug,omitempty"`
+	WebhookSecretRef string            `json:"webhook_secret_ref,omitempty"`
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
 }
 
 // RetryConfig defines retry behavior for a failed automation run.

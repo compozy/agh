@@ -18,6 +18,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 type stubSessionManager = testutil.StubSessionManager
@@ -27,6 +28,24 @@ type stubBridgeService = testutil.StubBridgeService
 type stubResourceService = testutil.StubResourceService
 type stubWorkspaceService = testutil.StubWorkspaceService
 type sseRecord = testutil.SSERecord
+
+type stubVaultService struct{}
+
+func (stubVaultService) GetMetadata(context.Context, string) (vault.Metadata, error) {
+	return vault.Metadata{}, vault.ErrSecretNotFound
+}
+
+func (stubVaultService) ListMetadata(context.Context, string) ([]vault.Metadata, error) {
+	return nil, nil
+}
+
+func (stubVaultService) PutSecret(context.Context, string, string, string) (vault.Metadata, error) {
+	return vault.Metadata{}, nil
+}
+
+func (stubVaultService) DeleteSecret(context.Context, string) error {
+	return nil
+}
 
 type stubExtensionService struct {
 	ListFn    func(context.Context) ([]contract.ExtensionPayload, error)

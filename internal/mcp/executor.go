@@ -15,8 +15,10 @@ import (
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 const (
@@ -46,14 +48,19 @@ type authService interface {
 	Refresh(ctx context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error)
 }
 
+type secretRefResolver interface {
+	ResolveRef(ctx context.Context, ref string) (string, error)
+}
+
 // CallExecutor lists and calls configured MCP servers through mcp-go clients.
 type CallExecutor struct {
-	servers      ServerResolver
-	tokenStore   mcpauth.TokenStore
-	auth         authService
-	lookupSecret func(string) string
-	httpClient   *http.Client
-	timeout      time.Duration
+	servers        ServerResolver
+	tokenStore     mcpauth.TokenStore
+	auth           authService
+	lookupSecret   func(string) string
+	secretResolver secretRefResolver
+	httpClient     *http.Client
+	timeout        time.Duration
 }
 
 var _ toolspkg.MCPCallExecutor = (*CallExecutor)(nil)
@@ -73,6 +80,13 @@ func WithTokenStore(store mcpauth.TokenStore) CallExecutorOption {
 func WithSecretLookup(lookup func(string) string) CallExecutorOption {
 	return func(executor *CallExecutor) {
 		executor.lookupSecret = lookup
+	}
+}
+
+// WithSecretResolver resolves env: and vault: refs for MCP auth and stdio secret_env launch bindings.
+func WithSecretResolver(resolver secretRefResolver) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		executor.secretResolver = resolver
 	}
 }
 
@@ -325,9 +339,13 @@ func (e *CallExecutor) openClient(ctx context.Context, server aghconfig.MCPServe
 	transport := server.EffectiveTransport()
 	switch transport {
 	case aghconfig.MCPServerTransportStdio:
+		env, err := e.mcpServerEnv(ctx, server)
+		if err != nil {
+			return nil, err
+		}
 		client, err := mcpclient.NewStdioMCPClient(
 			strings.TrimSpace(server.Command),
-			mcpServerEnv(server.Env),
+			env,
 			trimStrings(server.Args)...,
 		)
 		if err != nil {
@@ -438,7 +456,7 @@ func (e *CallExecutor) authStatus(
 	ctx context.Context,
 	server aghconfig.MCPServer,
 ) (toolspkg.MCPAuthStatus, error) {
-	cfg, err := mcpauth.ServerConfigFromMCP(server, e.lookupSecret)
+	cfg, err := mcpauth.ServerConfigFromMCP(ctx, server, e.resolveSecretRef)
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
@@ -474,7 +492,7 @@ func (e *CallExecutor) refreshAuth(
 			"mcp auth service is required for refresh",
 		)
 	}
-	cfg, err := mcpauth.ServerConfigFromMCP(server, e.lookupSecret)
+	cfg, err := mcpauth.ServerConfigFromMCP(ctx, server, e.resolveSecretRef)
 	if err != nil {
 		return toolspkg.MCPAuthStatus{}, fmt.Errorf("mcp: build auth config: %w", err)
 	}
@@ -513,6 +531,7 @@ func (e *CallExecutor) authorizationHeader(ctx context.Context, server aghconfig
 	if err != nil || strings.TrimSpace(token.AccessToken) == "" {
 		return ""
 	}
+	diagnostics.RegisterDynamicSecret(token.AccessToken)
 	tokenType := strings.TrimSpace(token.TokenType)
 	if tokenType == "" {
 		tokenType = "Bearer"
@@ -823,9 +842,64 @@ func mcpServerEnv(env map[string]string) []string {
 	return values
 }
 
+func (e *CallExecutor) mcpServerEnv(ctx context.Context, server aghconfig.MCPServer) ([]string, error) {
+	env := cloneStringMap(server.Env)
+	if len(server.SecretEnv) > 0 {
+		if env == nil {
+			env = make(map[string]string, len(server.SecretEnv))
+		}
+		for key, ref := range server.SecretEnv {
+			trimmedKey := strings.TrimSpace(key)
+			if trimmedKey == "" {
+				continue
+			}
+			value, err := e.resolveSecretRef(ctx, ref)
+			if err != nil {
+				return nil, fmt.Errorf("mcp: resolve secret_env %s for server %q: %w", trimmedKey, server.Name, err)
+			}
+			diagnostics.RegisterDynamicSecret(value)
+			env[trimmedKey] = value
+		}
+	}
+	return mcpServerEnv(env), nil
+}
+
+func (e *CallExecutor) resolveSecretRef(ctx context.Context, ref string) (string, error) {
+	normalized := vault.NormalizeRef(ref)
+	if normalized == "" {
+		return "", nil
+	}
+	if e != nil && e.secretResolver != nil {
+		value, err := e.secretResolver.ResolveRef(ctx, normalized)
+		if err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(value) != "" {
+			diagnostics.RegisterDynamicSecret(value)
+		}
+		return value, nil
+	}
+	if vault.IsEnvRef(normalized) {
+		envName, err := vault.EnvNameFromRef(normalized)
+		if err != nil {
+			return "", err
+		}
+		if e != nil && e.lookupSecret != nil {
+			value := e.lookupSecret(envName)
+			if strings.TrimSpace(value) == "" {
+				return "", fmt.Errorf("%w: env:%s", vault.ErrMissingSecret, envName)
+			}
+			diagnostics.RegisterDynamicSecret(value)
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("%w: %s", vault.ErrUnsupportedSecretRef, normalized)
+}
+
 func cloneMCPServer(server aghconfig.MCPServer) aghconfig.MCPServer {
 	server.Args = append([]string(nil), server.Args...)
 	server.Env = cloneStringMap(server.Env)
+	server.SecretEnv = cloneStringMap(server.SecretEnv)
 	server.Auth.Scopes = append([]string(nil), server.Auth.Scopes...)
 	return server
 }

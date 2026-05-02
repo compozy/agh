@@ -20,6 +20,7 @@ import (
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -124,6 +125,21 @@ func StatusForSettingsError(err error) int {
 		errors.Is(err, settingspkg.ErrConflict),
 		errors.Is(err, aghconfig.ErrUnsupportedTOMLMutation):
 		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// StatusForVaultError maps vault-domain failures to transport statuses.
+func StatusForVaultError(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.Is(err, vault.ErrSecretNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, vault.ErrUnsupportedSecretRef),
+		errors.Is(err, vault.ErrMissingSecret):
+		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
 	}

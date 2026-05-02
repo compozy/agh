@@ -7,14 +7,20 @@ import { CodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
-type TabId = "go" | "source";
+type TabId = "curl" | "package" | "source";
 
 const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[] = [
   {
-    id: "go",
-    label: "go install",
-    command: "go install github.com/compozy/agh/cmd/agh@latest",
-    note: "Recommended · macOS + Linux · Go 1.25+",
+    id: "curl",
+    label: "curl",
+    command: "curl -fsSL https://agh.network/install.sh | sh",
+    note: "Recommended · macOS + Linux · verifies checksums and opens agh install",
+  },
+  {
+    id: "package",
+    label: "Package manager",
+    command: "brew install --cask pedronauck/agh/agh",
+    note: "Managed updates · macOS · Homebrew tap",
   },
   {
     id: "source",
@@ -57,7 +63,7 @@ function getPanelId(id: TabId) {
 }
 
 export function InstallSection() {
-  const [tab, setTab] = useState<TabId>("go");
+  const [tab, setTab] = useState<TabId>("curl");
 
   function selectTab(next: TabId) {
     setTab(next);
@@ -97,12 +103,12 @@ export function InstallSection() {
   }
 
   return (
-    <SectionFrame background="surface" padY="lg">
+    <SectionFrame background="surface" padY="lg" className="border-b border-(--color-divider)">
       <SectionHeader
         align="center"
         eyebrow="Getting started"
         title="Three commands. First session in under a minute."
-        description="macOS and Linux today. Install with go, or build from a source checkout if you are already inside the repository."
+        description="macOS and Linux today. Install with curl, use a package manager, or build from a source checkout if you are already inside the repository."
       />
 
       <div className="mx-auto mt-10 w-full max-w-[760px]">

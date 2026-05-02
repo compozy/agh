@@ -52,7 +52,7 @@ letting each platform adapter speak the platform API directly.
 | ------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Provider extension | Extension catalog   | Declares `bridge.adapter`, platform name, display name, required secret slots, and provider config schema hints.                   |
 | Bridge instance    | AGH bridge registry | Stores scope, workspace, provider selection, routing policy, delivery defaults, provider config, status, and degradation metadata. |
-| Secret binding     | AGH daemon          | Maps a provider slot such as `bot_token` to a daemon-resolved secret reference. The stock resolver supports `env:NAME`.            |
+| Secret binding     | AGH daemon          | Maps a provider slot such as `bot_token` to a vault-backed secret reference and stores the write-only secret value encrypted.      |
 | Bridge route       | AGH routing layer   | Maps one canonical platform identity to one AGH session and agent name.                                                            |
 | Delivery target    | Delivery broker     | Identifies where a response should be posted, replied to, edited, or deleted on the platform.                                      |
 
@@ -169,16 +169,21 @@ Package-managed instances can be created by extension bundles. Those records rep
 | Discord  | `bot_token`, `public_key`     | none             | Discord Ed25519 interaction signature headers.                     |
 | Telegram | `bot_token`                   | `webhook_secret` | Telegram `X-Telegram-Bot-Api-Secret-Token` header when configured. |
 
-Bind each slot to an environment-backed secret before enabling the bridge:
+Bind each slot to an AGH-managed vault secret before enabling the bridge. The API accepts the
+plaintext only through the write-only `secret_value` field and never returns it:
 
 ```bash
 curl -X PUT http://localhost:2123/api/bridges/brg_123/secret-bindings/bot_token \
   -H "Content-Type: application/json" \
-  -d '{"vault_ref":"env:SLACK_BOT_TOKEN","kind":"token"}'
+  -d '{"secret_ref":"vault:bridges/brg_123/bot_token","secret_value":"xoxb-...","kind":"token"}'
 ```
 
-The environment variable must exist and be non-empty in the daemon process. Other reference schemes
-such as `vault://...` are not supported by the stock resolver.
+The reference must be scoped to the edited bridge: `vault:bridges/<bridge>/<slot>`. Restart or
+enable the bridge after changing a binding so the provider receives fresh launch material.
+
+Bridge Vault refs are visible as redacted metadata through Settings > Vault, `agh vault list
+--namespace bridges`, and `/api/vault/secrets?namespace=bridges`. The plaintext `secret_value` is
+accepted only on write.
 
 ## Operational states
 

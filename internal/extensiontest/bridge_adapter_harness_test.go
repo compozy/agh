@@ -10,6 +10,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	observepkg "github.com/pedronauck/agh/internal/observe"
@@ -177,8 +178,13 @@ func TestHarnessHelperUtilities(t *testing.T) {
 	sink.RecordBridgeRuntimeIssue("brg-1", bridgepkg.BridgeStatusError, "adapter failed")
 	sink.ClearBridgeRuntimeIssue("brg-1")
 
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
 	observer, err := observepkg.New(
 		context.Background(),
+		observepkg.WithHomePaths(homePaths),
 		observepkg.WithStartTime(time.Date(2026, 4, 11, 5, 15, 0, 0, time.UTC)),
 	)
 	if err != nil {

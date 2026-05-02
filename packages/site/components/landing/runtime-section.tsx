@@ -1,4 +1,4 @@
-import { Activity, Database, ShieldCheck, Terminal } from "lucide-react";
+import { Database, ShieldCheck, Terminal } from "lucide-react";
 import { CodeBlock } from "./primitives/code-block";
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
@@ -14,14 +14,6 @@ const FEATURES = [
       href: "/runtime",
       label: "sessions lifecycle",
     },
-  },
-  {
-    icon: <Activity className="h-4 w-4" />,
-    eyebrow: "Events",
-    title: "Replayable event stream",
-    description:
-      "Every prompt, tool call, permission decision, and agent message is persisted with a monotonic sequence. SSE replay at /api/sessions/:id/stream.",
-    cite: { href: "/runtime", label: "event catalog" },
   },
   {
     icon: <Terminal className="h-4 w-4" />,

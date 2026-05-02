@@ -1088,7 +1088,7 @@ func TestDispatchInputPreSubmitSkipsAsyncHooksWhenSyncPhaseDoesNotSucceed(t *tes
 					ControlPatch: ControlPatch{Deny: true, DenyReason: "blocked"},
 				}, nil
 			},
-			wantErr: "denied",
+			wantErr: "denied: blocked",
 		},
 		{
 			name:     "Should skip async hooks after a sync failure",

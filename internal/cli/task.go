@@ -200,7 +200,7 @@ func newTaskGetCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <id>",
 		Short: "Show one task with related detail",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -230,7 +230,7 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update <id>",
 		Short: "Update mutable task fields",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -359,7 +359,7 @@ func newTaskExecutionCommand(
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: short,
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -409,7 +409,7 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cancel <id>",
 		Short: "Cancel a task tree",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -723,7 +723,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create <parent-id>",
 		Short: "Create a child task beneath a parent",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -792,7 +792,7 @@ func newTaskDependencyAddCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <task-id>",
 		Short: "Add a dependency edge to a task",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -873,7 +873,7 @@ func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list <task-id>",
 		Short: "List runs for a task",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -907,7 +907,7 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "enqueue <task-id>",
 		Short: "Enqueue a task run",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -938,7 +938,7 @@ func newTaskRunClaimCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "claim <run-id>",
 		Short: "Claim a queued task run",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -964,7 +964,7 @@ func newTaskRunStartCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start <run-id>",
 		Short: "Start a claimed task run",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -990,7 +990,7 @@ func newTaskRunAttachSessionCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "attach-session <run-id>",
 		Short: "Attach an existing session to a claimed or starting run",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -1024,7 +1024,7 @@ func newTaskRunCompleteCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "complete <run-id>",
 		Short: "Complete a running task run",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -1059,7 +1059,7 @@ func newTaskRunFailCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "fail <run-id>",
 		Short: "Fail a task run",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -1099,7 +1099,7 @@ func newTaskRunCancelCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cancel <run-id>",
 		Short: "Cancel a task run",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

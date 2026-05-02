@@ -19,6 +19,7 @@ type installWizardInput struct {
 	Providers        []string
 	SelectedProvider string
 	SuggestedModels  map[string]string
+	ModelRequired    map[string]bool
 }
 
 type installWizardSelection struct {
@@ -45,7 +46,8 @@ const (
 	installWizardStepModel
 	installWizardStepConfirm
 
-	installWizardEnterKey = "enter"
+	defaultInstallProvider = "claude"
+	installWizardEnterKey  = "enter"
 )
 
 type installWizardModel struct {
@@ -150,9 +152,9 @@ func resolveNonInteractiveInstallSelection(
 	provider string,
 	model string,
 ) (installWizardSelection, error) {
-	selectedProvider := strings.TrimSpace(provider)
+	selectedProvider := aghconfig.CanonicalProviderName(provider)
 	if selectedProvider == "" {
-		selectedProvider = strings.TrimSpace(input.SelectedProvider)
+		selectedProvider = aghconfig.CanonicalProviderName(input.SelectedProvider)
 	}
 	if selectedProvider == "" {
 		return installWizardSelection{}, errors.New("cli: install provider is required")
@@ -162,7 +164,7 @@ func resolveNonInteractiveInstallSelection(
 	if selectedModel == "" {
 		selectedModel = strings.TrimSpace(input.SuggestedModels[selectedProvider])
 	}
-	if selectedModel == "" {
+	if selectedModel == "" && input.ModelRequired[selectedProvider] {
 		return installWizardSelection{}, fmt.Errorf(
 			"cli: install model is required for provider %q",
 			selectedProvider,
@@ -200,16 +202,25 @@ func buildInstallWizardInput(cfg *aghconfig.Config) installWizardInput {
 	sort.Strings(providers)
 
 	suggestedModels := make(map[string]string, len(providers))
+	modelRequired := make(map[string]bool, len(providers))
 	for _, provider := range providers {
 		resolved, err := cfg.ResolveProvider(provider)
 		if err == nil {
 			suggestedModels[provider] = strings.TrimSpace(resolved.DefaultModel)
+			modelRequired[provider] = installProviderRequiresModel(resolved)
 			continue
 		}
-		suggestedModels[provider] = strings.TrimSpace(cfg.Providers[provider].DefaultModel)
+		configured := cfg.Providers[provider]
+		suggestedModels[provider] = strings.TrimSpace(configured.DefaultModel)
+		modelRequired[provider] = installProviderRequiresModel(configured)
 	}
 
-	selectedProvider := strings.TrimSpace(cfg.Defaults.Provider)
+	selectedProvider := aghconfig.CanonicalProviderName(cfg.Defaults.Provider)
+	if selectedProvider == "" {
+		if _, ok := seen[defaultInstallProvider]; ok {
+			selectedProvider = defaultInstallProvider
+		}
+	}
 	if selectedProvider == "" && len(providers) > 0 {
 		selectedProvider = providers[0]
 	}
@@ -218,7 +229,12 @@ func buildInstallWizardInput(cfg *aghconfig.Config) installWizardInput {
 		Providers:        providers,
 		SelectedProvider: selectedProvider,
 		SuggestedModels:  suggestedModels,
+		ModelRequired:    modelRequired,
 	}
+}
+
+func installProviderRequiresModel(provider aghconfig.ProviderConfig) bool {
+	return provider.RequiresRuntimeModel()
 }
 
 func installBundle(record installRecord) outputBundle {
@@ -356,14 +372,18 @@ func (m *installWizardModel) View() string {
 		builder.WriteString("\nUse up/down or j/k, press Enter to continue, Ctrl+C to cancel.\n")
 	case installWizardStepModel:
 		builder.WriteString("Selected provider: " + m.provider + "\n")
-		builder.WriteString("Enter the default model for this provider.\n\n")
+		if m.modelRequired() {
+			builder.WriteString("Enter the default model for this provider.\n\n")
+		} else {
+			builder.WriteString("Enter a default model, or leave blank for the provider-managed default.\n\n")
+		}
 		builder.WriteString(m.modelInput.View() + "\n")
 		builder.WriteString("\nPress Enter to continue, Esc to go back, Ctrl+C to cancel.\n")
 	case installWizardStepConfirm:
 		builder.WriteString("Review the bootstrap configuration.\n\n")
 		builder.WriteString("Agent:       " + aghconfig.DefaultAgentName + "\n")
 		builder.WriteString("Provider:    " + m.provider + "\n")
-		builder.WriteString("Model:       " + strings.TrimSpace(m.modelInput.Value()) + "\n")
+		builder.WriteString("Model:       " + stringOrDash(strings.TrimSpace(m.modelInput.Value())) + "\n")
 		builder.WriteString("Permissions: " + string(aghconfig.PermissionModeApproveAll) + "\n")
 		builder.WriteString("\nPress Enter to write ~/.agh/config.toml and ensure ~/.agh/agents/general/AGENT.md.\n")
 		builder.WriteString("Press Esc to edit the model, or Ctrl+C to cancel.\n")
@@ -408,7 +428,7 @@ func (m *installWizardModel) updateModelStep(msg tea.KeyMsg) (tea.Model, tea.Cmd
 		m.step = installWizardStepProvider
 		return m, nil
 	case installWizardEnterKey:
-		if strings.TrimSpace(m.modelInput.Value()) == "" {
+		if strings.TrimSpace(m.modelInput.Value()) == "" && m.modelRequired() {
 			m.errText = "model is required"
 			return m, nil
 		}
@@ -420,6 +440,10 @@ func (m *installWizardModel) updateModelStep(msg tea.KeyMsg) (tea.Model, tea.Cmd
 	var cmd tea.Cmd
 	m.modelInput, cmd = m.modelInput.Update(msg)
 	return m, cmd
+}
+
+func (m *installWizardModel) modelRequired() bool {
+	return m.input.ModelRequired[strings.TrimSpace(m.provider)]
 }
 
 func (m *installWizardModel) updateConfirmStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

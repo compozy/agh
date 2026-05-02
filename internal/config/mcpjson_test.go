@@ -23,12 +23,12 @@ func TestParseMCPServersJSONAcceptsBothKeyStyles(t *testing.T) {
     "alpha": {
       "command": "alpha-sidecar"
     },
-    "beta": {
-      "command": "beta-command",
-      "env": {
-        "TOKEN": "value"
-      }
-    }
+	    "beta": {
+	      "command": "beta-command",
+	      "secret_env": {
+	        "TOKEN": "env:BETA_TOKEN"
+	      }
+	    }
   }
 }`), "fixture")
 	if err != nil {
@@ -47,8 +47,8 @@ func TestParseMCPServersJSONAcceptsBothKeyStyles(t *testing.T) {
 	if got := len(servers[0].Args); got != 0 {
 		t.Fatalf("servers[0].Args = %#v, want sidecar whole-object replacement", servers[0].Args)
 	}
-	if got, want := servers[1].Env["TOKEN"], "value"; got != want {
-		t.Fatalf("servers[1].Env[TOKEN] = %q, want %q", got, want)
+	if got, want := servers[1].SecretEnv["TOKEN"], "env:BETA_TOKEN"; got != want {
+		t.Fatalf("servers[1].SecretEnv[TOKEN] = %q, want %q", got, want)
 	}
 }
 
@@ -144,7 +144,7 @@ func TestPutMCPSidecarServerPreservesUnknownTopLevelKeysAndUntouchedEntries(t *t
   "custom": { "enabled": true },
   "mcpServers": {
     "alpha": { "command": "alpha-command" },
-    "beta": { "command": "beta-command", "env": { "TOKEN": "value" } }
+	    "beta": { "command": "beta-command", "secret_env": { "TOKEN": "env:BETA_TOKEN" } }
   }
 }`)
 
@@ -190,9 +190,73 @@ func TestPutMCPSidecarServerPreservesUnknownTopLevelKeysAndUntouchedEntries(t *t
 	if got, want := servers["beta"].Command, "beta-command"; got != want {
 		t.Fatalf("servers[beta].Command = %q, want %q", got, want)
 	}
-	if got, want := servers["beta"].Env["TOKEN"], "value"; got != want {
-		t.Fatalf("servers[beta].Env[TOKEN] = %q, want %q", got, want)
+	if got, want := servers["beta"].SecretEnv["TOKEN"], "env:BETA_TOKEN"; got != want {
+		t.Fatalf("servers[beta].SecretEnv[TOKEN] = %q, want %q", got, want)
 	}
+}
+
+func TestPutMCPSidecarServerPreservesRemoteAuthFields(t *testing.T) {
+	t.Run("Should write remote transport URL and auth fields", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		target, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeGlobal)
+		if err != nil {
+			t.Fatalf("ResolveMCPSidecarWriteTarget() error = %v", err)
+		}
+
+		cfg, err := PutMCPSidecarServer(homePaths, "", target, MCPServer{
+			Name:      "linear",
+			Transport: MCPServerTransportSSE,
+			URL:       "https://mcp.linear.app/sse",
+			Auth: MCPAuthConfig{
+				Type:             MCPAuthTypeOAuth2PKCE,
+				AuthorizationURL: "https://linear.app/oauth/authorize",
+				TokenURL:         "https://api.linear.app/oauth/token",
+				ClientID:         "agh-client",
+				ClientSecretRef:  "vault:mcp/linear/oauth/client-secret",
+			},
+		})
+		if err != nil {
+			t.Fatalf("PutMCPSidecarServer(remote) error = %v", err)
+		}
+		if got, want := len(cfg.MCPServers), 1; got != want {
+			t.Fatalf("len(Config.MCPServers) = %d, want %d", got, want)
+		}
+		server := cfg.MCPServers[0]
+		if got, want := server.Transport, MCPServerTransportSSE; got != want {
+			t.Fatalf("Config.MCPServers[0].Transport = %q, want %q", got, want)
+		}
+		if got, want := server.Auth.ClientSecretRef, "vault:mcp/linear/oauth/client-secret"; got != want {
+			t.Fatalf("Config.MCPServers[0].Auth.ClientSecretRef = %q, want %q", got, want)
+		}
+
+		payload, err := os.ReadFile(target.path)
+		if err != nil {
+			t.Fatalf("ReadFile(mcp.json) error = %v", err)
+		}
+		var root map[string]json.RawMessage
+		if err := json.Unmarshal(payload, &root); err != nil {
+			t.Fatalf("json.Unmarshal(root) error = %v", err)
+		}
+		var servers map[string]mcpJSONServer
+		if err := json.Unmarshal(root["mcpServers"], &servers); err != nil {
+			t.Fatalf("json.Unmarshal(mcpServers) error = %v", err)
+		}
+		linear := servers["linear"]
+		if got, want := linear.Transport, MCPServerTransportSSE; got != want {
+			t.Fatalf("servers[linear].Transport = %q, want %q", got, want)
+		}
+		if got, want := linear.URL, "https://mcp.linear.app/sse"; got != want {
+			t.Fatalf("servers[linear].URL = %q, want %q", got, want)
+		}
+		if got, want := linear.Auth.ClientSecretRef, "vault:mcp/linear/oauth/client-secret"; got != want {
+			t.Fatalf("servers[linear].Auth.ClientSecretRef = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestDeleteMCPSidecarServerRemovesEntriesFromSnakeCaseCollectionWhenBothExist(t *testing.T) {

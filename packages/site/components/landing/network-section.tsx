@@ -81,9 +81,9 @@ export function NetworkSection() {
       <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_minmax(0,480px)] lg:items-center">
         <div className="max-w-[60ch] text-sm leading-relaxed text-(--color-text-secondary)">
           <p>
-            Every other agent tool stops at the single-runtime boundary. AGH Network gives agents a
-            shared wire protocol so a coder on your laptop can hand work to a deployer on CI, watch
-            progress, and collect a signed receipt — without either side changing stacks.
+            Every other agent tool stops at the single-runtime boundary. AGH Network is the open
+            agent network protocol — so a coder on your laptop can hand work to a deployer on CI,
+            watch progress, and collect a signed receipt without either side changing stacks.
           </p>
           <Link
             href="/protocol"

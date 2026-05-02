@@ -217,6 +217,7 @@ var globalSchemaStatements = append([]string{
 		source        TEXT NOT NULL DEFAULT 'dynamic',
 		webhook_id    TEXT,
 		endpoint_slug TEXT,
+		webhook_secret_ref TEXT,
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL,
 		CHECK (
@@ -246,11 +247,6 @@ var globalSchemaStatements = append([]string{
 		trigger_id        TEXT PRIMARY KEY,
 		enabled_override  BOOLEAN NOT NULL,
 		updated_at        TEXT NOT NULL
-	);`,
-	`CREATE TABLE IF NOT EXISTS automation_trigger_webhook_secrets (
-		trigger_id  TEXT PRIMARY KEY,
-		secret      TEXT NOT NULL,
-		updated_at  TEXT NOT NULL
 	);`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_global_name ON automation_jobs(name) WHERE scope = 'global';`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_workspace_name ON automation_jobs(workspace_id, name) WHERE scope = 'workspace';`,
@@ -463,7 +459,7 @@ var globalSchemaStatements = append([]string{
 	`CREATE TABLE IF NOT EXISTS bridge_secret_bindings (
 		bridge_instance_id TEXT NOT NULL REFERENCES bridge_instances(id) ON DELETE CASCADE,
 		binding_name        TEXT NOT NULL,
-		vault_ref           TEXT NOT NULL,
+		secret_ref           TEXT NOT NULL,
 		kind                TEXT NOT NULL,
 		created_at          TEXT NOT NULL,
 		updated_at          TEXT NOT NULL,
@@ -577,6 +573,74 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateSandboxColumnNames,
 		Checksum: "2026-04-28-rename-environment-columns-to-sandbox",
 	},
+	{
+		Version:  10,
+		Name:     "add_vault_secrets",
+		Up:       migrateVaultSecrets,
+		Checksum: "2026-05-01-add-vault-secrets",
+	},
+	{
+		Version:  11,
+		Name:     "unify_secret_refs",
+		Up:       migrateUnifiedSecretRefs,
+		Checksum: "2026-05-01-unify-secret-refs",
+	},
+}
+
+func migrateUnifiedSecretRefs(ctx context.Context, tx *sql.Tx) error {
+	automationColumns, err := tableColumns(ctx, tx, "automation_triggers")
+	if err != nil {
+		return err
+	}
+	if _, ok := automationColumns["webhook_secret_ref"]; !ok {
+		if _, err := tx.ExecContext(
+			ctx,
+			`ALTER TABLE automation_triggers ADD COLUMN webhook_secret_ref TEXT`,
+		); err != nil {
+			return fmt.Errorf("store: add automation_triggers.webhook_secret_ref column: %w", err)
+		}
+	}
+
+	bridgeColumns, err := tableColumns(ctx, tx, "bridge_secret_bindings")
+	if err != nil {
+		return err
+	}
+	if _, hasSecretRef := bridgeColumns["secret_ref"]; !hasSecretRef {
+		return errors.New("store: bridge_secret_bindings schema is stale; recreate the AGH database")
+	}
+
+	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS automation_trigger_webhook_secrets`); err != nil {
+		return fmt.Errorf("store: drop automation trigger webhook plaintext secrets: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS mcp_auth_tokens`); err != nil {
+		return fmt.Errorf("store: drop legacy MCP auth token store: %w", err)
+	}
+	if err := migrateMCPAuthTokens(ctx, tx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func migrateVaultSecrets(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS vault_secrets (
+			ref             TEXT PRIMARY KEY,
+			kind            TEXT NOT NULL DEFAULT '',
+			encrypted_value TEXT NOT NULL,
+			created_at      TEXT NOT NULL,
+			updated_at      TEXT NOT NULL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_vault_secrets_kind
+			ON vault_secrets(kind);`,
+		`CREATE INDEX IF NOT EXISTS idx_vault_secrets_updated_at
+			ON vault_secrets(updated_at);`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate vault secrets: %w", err)
+		}
+	}
+	return nil
 }
 
 func migrateSessionLineageColumns(ctx context.Context, tx *sql.Tx) error {
@@ -684,8 +748,8 @@ func migrateMCPAuthTokens(ctx context.Context, tx *sql.Tx) error {
 			issuer         TEXT NOT NULL DEFAULT '',
 			client_id      TEXT NOT NULL,
 			scopes_json    TEXT NOT NULL DEFAULT '[]',
-			access_token   TEXT NOT NULL,
-			refresh_token  TEXT NOT NULL DEFAULT '',
+			access_token_ref   TEXT NOT NULL,
+			refresh_token_ref  TEXT NOT NULL DEFAULT '',
 			token_type     TEXT NOT NULL DEFAULT 'Bearer',
 			expires_at     TEXT,
 			obtained_at    TEXT NOT NULL,

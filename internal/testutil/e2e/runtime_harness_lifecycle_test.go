@@ -419,6 +419,9 @@ func TestRuntimeHelpersCoverRequestAndTimingUtilities(t *testing.T) {
 	); err == nil {
 		t.Fatal("doJSONRequest(/bad) error = nil, want non-nil")
 	}
+	if err := doJSONRequest(context.Background(), nil, server.URL+"/ok", http.MethodGet, nil, nil); err == nil {
+		t.Fatal("doJSONRequest(nil client) error = nil, want stable validation error")
+	}
 	if _, err := requestBody(make(chan int)); err == nil {
 		t.Fatal("requestBody(chan) error = nil, want non-nil")
 	}

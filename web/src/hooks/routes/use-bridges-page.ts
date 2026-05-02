@@ -2,7 +2,6 @@ import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
-  bridgeSecretBindingEnvName,
   buildBridgeCreateRequest,
   buildBridgeSecretBindingRequest,
   buildBridgeUpdateRequest,
@@ -179,19 +178,12 @@ function useBridgesPage() {
     bridgeDetailQuery.data?.health ??
     (effectiveSelectedBridgeId ? bridgeHealth[effectiveSelectedBridgeId] : undefined);
   const selectedSecretBindings = bridgeSecretBindingsQuery.data ?? [];
-  const selectedSecretBindingsByName = useMemo(
-    () => new Map(selectedSecretBindings.map(binding => [binding.binding_name, binding])),
-    [selectedSecretBindings]
-  );
   const selectedSecretInputMap = useMemo(() => {
     if (!selectedBridge) {
       return {};
     }
 
     const inputEntries = new Map<string, string>();
-    for (const binding of selectedSecretBindings) {
-      inputEntries.set(binding.binding_name, bridgeSecretBindingEnvName(binding));
-    }
 
     for (const [key, value] of Object.entries(secretInputValues)) {
       const prefix = `${selectedBridge.id}:`;
@@ -370,10 +362,13 @@ function useBridgesPage() {
       return;
     }
 
-    const envName =
-      selectedSecretInputMap[bindingName] ??
-      bridgeSecretBindingEnvName(selectedSecretBindingsByName.get(bindingName));
-    const requestResult = buildBridgeSecretBindingRequest(envName, bindingName);
+    const secretValue = selectedSecretInputMap[bindingName] ?? "";
+    const requestResult = buildBridgeSecretBindingRequest(
+      selectedBridge.id,
+      bindingName,
+      secretValue,
+      bindingName
+    );
     if (!requestResult.ok) {
       toast.error(requestResult.error);
       return;
@@ -388,7 +383,7 @@ function useBridgesPage() {
 
       setSecretInputValues(current => ({
         ...current,
-        [bridgeSecretDraftKey(selectedBridge.id, bindingName)]: bridgeSecretBindingEnvName(binding),
+        [bridgeSecretDraftKey(selectedBridge.id, binding.binding_name)]: "",
       }));
       markRestartRequired(selectedBridge.id);
       toast.success(`Updated secret binding ${bindingName} for ${selectedBridge.display_name}.`);

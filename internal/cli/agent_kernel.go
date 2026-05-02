@@ -122,7 +122,7 @@ func newChannelRecvCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "recv <channel>",
 		Short: "Receive queued coordination messages for a channel",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		Example: `  # Receive currently queued messages
   agh ch recv coord-run-123
 
@@ -160,7 +160,7 @@ func newChannelSendCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "send <channel>",
 		Short: "Send one task-run coordination message",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactOneNonBlankArg(),
 		Example: `  # Send a non-authoritative status message for a run
   agh ch send coord-run-123 \
     --task-id task-123 \

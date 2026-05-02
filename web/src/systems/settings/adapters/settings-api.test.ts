@@ -202,9 +202,19 @@ describe("collection endpoints", () => {
         {
           name: "openai",
           default: true,
-          api_key_env_present: true,
           command_available: true,
-          settings: { command: "codex", api_key_env: "OPENAI_API_KEY" },
+          settings: {
+            command: "codex",
+            credential_slots: [
+              {
+                name: "api_key",
+                target_env: "OPENAI_API_KEY",
+                secret_ref: "env:OPENAI_API_KEY",
+                kind: "api_key",
+                required: false,
+              },
+            ],
+          },
           source_metadata: {
             available_targets: ["global-config" as const],
             effective_source: { kind: "global-config" as const, scope: "global" as const },

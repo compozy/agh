@@ -188,21 +188,22 @@ function SecretSlotCard({
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <Field>
           <FieldContent>
-            <FieldTitle>Environment variable</FieldTitle>
+            <FieldTitle>Secret value</FieldTitle>
             <FieldDescription>
-              The stock daemon resolves bridge secrets from `env:NAME` refs.
+              AGH stores bridge secret values in the vault for this bridge.
             </FieldDescription>
           </FieldContent>
           <Input
             data-testid={`bridge-secret-env-input-${slot.name}`}
             id={`bridge-secret-env-${slot.name}`}
             onChange={event => onDraftChange?.(slot.name, event.target.value)}
-            placeholder="AGH_BRIDGE_TOKEN"
+            placeholder="Paste secret value"
+            type="password"
             value={inputValue}
           />
           {binding ? (
             <p className="text-[12px] text-[color:var(--color-text-secondary)]">
-              Current ref: <span className="font-mono">{binding.vault_ref}</span>
+              Current ref: <span className="font-mono">{binding.secret_ref}</span>
             </p>
           ) : (
             <p className="text-[12px] text-[color:var(--color-text-tertiary)]">

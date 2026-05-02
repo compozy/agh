@@ -221,18 +221,26 @@ type StubObserver struct {
 }
 
 type StubAutomationManager struct {
-	ListJobsFn          func(context.Context, automationpkg.JobListQuery) ([]automationpkg.Job, error)
-	JobsFn              func(context.Context) ([]automationpkg.Job, error)
-	GetJobFn            func(context.Context, string) (automationpkg.Job, error)
-	CreateJobFn         func(context.Context, automationpkg.Job) (automationpkg.Job, error)
-	UpdateJobFn         func(context.Context, automationpkg.Job) (automationpkg.Job, error)
-	DeleteJobFn         func(context.Context, string) error
-	TriggerJobFn        func(context.Context, string) (automationpkg.Run, error)
-	ListTriggersFn      func(context.Context, automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
-	TriggersFn          func(context.Context) ([]automationpkg.Trigger, error)
-	GetTriggerFn        func(context.Context, string) (automationpkg.Trigger, error)
-	CreateTriggerFn     func(context.Context, automationpkg.Trigger, string) (automationpkg.Trigger, error)
-	UpdateTriggerFn     func(context.Context, automationpkg.Trigger, *string) (automationpkg.Trigger, error)
+	ListJobsFn      func(context.Context, automationpkg.JobListQuery) ([]automationpkg.Job, error)
+	JobsFn          func(context.Context) ([]automationpkg.Job, error)
+	GetJobFn        func(context.Context, string) (automationpkg.Job, error)
+	CreateJobFn     func(context.Context, automationpkg.Job) (automationpkg.Job, error)
+	UpdateJobFn     func(context.Context, automationpkg.Job) (automationpkg.Job, error)
+	DeleteJobFn     func(context.Context, string) error
+	TriggerJobFn    func(context.Context, string) (automationpkg.Run, error)
+	ListTriggersFn  func(context.Context, automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
+	TriggersFn      func(context.Context) ([]automationpkg.Trigger, error)
+	GetTriggerFn    func(context.Context, string) (automationpkg.Trigger, error)
+	CreateTriggerFn func(
+		context.Context,
+		automationpkg.Trigger,
+		automationpkg.WebhookSecretWrite,
+	) (automationpkg.Trigger, error)
+	UpdateTriggerFn func(
+		context.Context,
+		automationpkg.Trigger,
+		*automationpkg.WebhookSecretWrite,
+	) (automationpkg.Trigger, error)
 	DeleteTriggerFn     func(context.Context, string) error
 	ListRunsFn          func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error)
 	RunsFn              func(context.Context, automationpkg.RunQuery) ([]automationpkg.Run, error)
@@ -477,7 +485,7 @@ func (s StubAutomationManager) GetTrigger(ctx context.Context, id string) (autom
 func (s StubAutomationManager) CreateTrigger(
 	ctx context.Context,
 	trigger automationpkg.Trigger,
-	secret string,
+	secret automationpkg.WebhookSecretWrite,
 ) (automationpkg.Trigger, error) {
 	if s.CreateTriggerFn != nil {
 		return s.CreateTriggerFn(ctx, trigger, secret)
@@ -488,7 +496,7 @@ func (s StubAutomationManager) CreateTrigger(
 func (s StubAutomationManager) UpdateTrigger(
 	ctx context.Context,
 	trigger automationpkg.Trigger,
-	secret *string,
+	secret *automationpkg.WebhookSecretWrite,
 ) (automationpkg.Trigger, error) {
 	if s.UpdateTriggerFn != nil {
 		return s.UpdateTriggerFn(ctx, trigger, secret)
@@ -1162,7 +1170,7 @@ type StubBridgeService struct {
 	ListInstancesFn         func(context.Context) ([]bridgepkg.BridgeInstance, error)
 	ListProvidersFn         func(context.Context) ([]bridgepkg.BridgeProvider, error)
 	ListSecretBindingsFn    func(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
-	PutSecretBindingFn      func(context.Context, bridgepkg.BridgeSecretBinding) error
+	PutSecretBindingFn      func(context.Context, bridgepkg.BridgeSecretBinding, *string) error
 	DeleteSecretBindingFn   func(context.Context, string, string) error
 	UpdateInstanceFn        func(context.Context, bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error)
 	UpdateInstanceStateFn   func(context.Context, bridgepkg.UpdateInstanceStateRequest) (*bridgepkg.BridgeInstance, error)
@@ -1223,9 +1231,13 @@ func (s StubBridgeService) ListSecretBindings(
 	return nil, nil
 }
 
-func (s StubBridgeService) PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error {
+func (s StubBridgeService) PutSecretBinding(
+	ctx context.Context,
+	binding bridgepkg.BridgeSecretBinding,
+	secretValue *string,
+) error {
 	if s.PutSecretBindingFn != nil {
-		return s.PutSecretBindingFn(ctx, binding)
+		return s.PutSecretBindingFn(ctx, binding, secretValue)
 	}
 	return nil
 }

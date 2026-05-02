@@ -4917,7 +4917,7 @@
                                                                         "client_id": {
                                                                             "type": "string"
                                                                         },
-                                                                        "client_secret_env": {
+                                                                        "client_secret_ref": {
                                                                             "type": "string"
                                                                         },
                                                                         "issuer_url": {
@@ -4955,6 +4955,12 @@
                                                                 },
                                                                 "name": {
                                                                     "type": "string"
+                                                                },
+                                                                "secret_env": {
+                                                                    "additionalProperties": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": "object"
                                                                 },
                                                                 "transport": {
                                                                     "type": "string"
@@ -5091,7 +5097,7 @@
                                                                     "client_id": {
                                                                         "type": "string"
                                                                     },
-                                                                    "client_secret_env": {
+                                                                    "client_secret_ref": {
                                                                         "type": "string"
                                                                     },
                                                                     "issuer_url": {
@@ -5129,6 +5135,12 @@
                                                             },
                                                             "name": {
                                                                 "type": "string"
+                                                            },
+                                                            "secret_env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
                                                             },
                                                             "transport": {
                                                                 "type": "string"
@@ -7617,6 +7629,9 @@
                                                     "webhook_id": {
                                                         "type": "string"
                                                     },
+                                                    "webhook_secret_ref": {
+                                                        "type": "string"
+                                                    },
                                                     "workspace_id": {
                                                         "type": "string"
                                                     }
@@ -7772,7 +7787,10 @@
                                     "webhook_id": {
                                         "type": "string"
                                     },
-                                    "webhook_secret": {
+                                    "webhook_secret_ref": {
+                                        "type": "string"
+                                    },
+                                    "webhook_secret_value": {
                                         "type": "string"
                                     },
                                     "workspace_id": {
@@ -7871,6 +7889,9 @@
                                                     "type": "string"
                                                 },
                                                 "webhook_id": {
+                                                    "type": "string"
+                                                },
+                                                "webhook_secret_ref": {
                                                     "type": "string"
                                                 },
                                                 "workspace_id": {
@@ -8163,6 +8184,9 @@
                                                 "webhook_id": {
                                                     "type": "string"
                                                 },
+                                                "webhook_secret_ref": {
+                                                    "type": "string"
+                                                },
                                                 "workspace_id": {
                                                     "type": "string"
                                                 }
@@ -8329,7 +8353,11 @@
                                         "nullable": true,
                                         "type": "string"
                                     },
-                                    "webhook_secret": {
+                                    "webhook_secret_ref": {
+                                        "nullable": true,
+                                        "type": "string"
+                                    },
+                                    "webhook_secret_value": {
                                         "nullable": true,
                                         "type": "string"
                                     },
@@ -8429,6 +8457,9 @@
                                                     "type": "string"
                                                 },
                                                 "webhook_id": {
+                                                    "type": "string"
+                                                },
+                                                "webhook_secret_ref": {
                                                     "type": "string"
                                                 },
                                                 "workspace_id": {
@@ -11401,11 +11432,11 @@
                                                     "kind": {
                                                         "type": "string"
                                                     },
-                                                    "updated_at": {
-                                                        "format": "date-time",
+                                                    "secret_ref": {
                                                         "type": "string"
                                                     },
-                                                    "vault_ref": {
+                                                    "updated_at": {
+                                                        "format": "date-time",
                                                         "type": "string"
                                                     }
                                                 },
@@ -11414,8 +11445,8 @@
                                                     "bridge_instance_id",
                                                     "created_at",
                                                     "kind",
-                                                    "updated_at",
-                                                    "vault_ref"
+                                                    "secret_ref",
+                                                    "updated_at"
                                                 ],
                                                 "type": "object"
                                             },
@@ -11599,11 +11630,15 @@
                                     "kind": {
                                         "type": "string"
                                     },
-                                    "vault_ref": {
+                                    "secret_ref": {
+                                        "type": "string"
+                                    },
+                                    "secret_value": {
+                                        "nullable": true,
                                         "type": "string"
                                     }
                                 },
-                                "required": ["kind", "vault_ref"],
+                                "required": ["kind", "secret_ref"],
                                 "type": "object"
                             }
                         }
@@ -11632,11 +11667,11 @@
                                                 "kind": {
                                                     "type": "string"
                                                 },
-                                                "updated_at": {
-                                                    "format": "date-time",
+                                                "secret_ref": {
                                                     "type": "string"
                                                 },
-                                                "vault_ref": {
+                                                "updated_at": {
+                                                    "format": "date-time",
                                                     "type": "string"
                                                 }
                                             },
@@ -11645,8 +11680,8 @@
                                                 "bridge_instance_id",
                                                 "created_at",
                                                 "kind",
-                                                "updated_at",
-                                                "vault_ref"
+                                                "secret_ref",
+                                                "updated_at"
                                             ],
                                             "type": "object"
                                         }
@@ -25342,6 +25377,12 @@
                                                             "required": {
                                                                 "type": "boolean"
                                                             },
+                                                            "secret_env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
+                                                            },
                                                             "timeout": {
                                                                 "type": "string"
                                                             }
@@ -25784,6 +25825,12 @@
                                                             },
                                                             "required": {
                                                                 "type": "boolean"
+                                                            },
+                                                            "secret_env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
                                                             },
                                                             "timeout": {
                                                                 "type": "string"
@@ -26597,6 +26644,12 @@
                                             "required": {
                                                 "type": "boolean"
                                             },
+                                            "secret_env": {
+                                                "additionalProperties": {
+                                                    "type": "string"
+                                                },
+                                                "type": "object"
+                                            },
                                             "timeout": {
                                                 "type": "string"
                                             }
@@ -26819,7 +26872,7 @@
                                                             "client_id": {
                                                                 "type": "string"
                                                             },
-                                                            "client_secret_env": {
+                                                            "client_secret_ref": {
                                                                 "type": "string"
                                                             },
                                                             "issuer_url": {
@@ -26922,6 +26975,12 @@
                                                     "scope": {
                                                         "enum": ["global", "workspace"],
                                                         "type": "string"
+                                                    },
+                                                    "secret_env": {
+                                                        "additionalProperties": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "object"
                                                     },
                                                     "source_metadata": {
                                                         "properties": {
@@ -27339,6 +27398,22 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
+                                    "secret_values": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "oauth_client_secret": {
+                                                "nullable": true,
+                                                "type": "string"
+                                            },
+                                            "secret_env": {
+                                                "additionalProperties": {
+                                                    "type": "string"
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
                                     "server": {
                                         "properties": {
                                             "args": {
@@ -27356,7 +27431,7 @@
                                                     "client_id": {
                                                         "type": "string"
                                                     },
-                                                    "client_secret_env": {
+                                                    "client_secret_ref": {
                                                         "type": "string"
                                                     },
                                                     "issuer_url": {
@@ -27394,6 +27469,12 @@
                                             },
                                             "name": {
                                                 "type": "string"
+                                            },
+                                            "secret_env": {
+                                                "additionalProperties": {
+                                                    "type": "string"
+                                                },
+                                                "type": "object"
                                             },
                                             "transport": {
                                                 "type": "string"
@@ -28733,11 +28814,44 @@
                                         "providers": {
                                             "items": {
                                                 "properties": {
-                                                    "api_key_env_present": {
-                                                        "type": "boolean"
-                                                    },
                                                     "command_available": {
                                                         "type": "boolean"
+                                                    },
+                                                    "credentials": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "present": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "required": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "secret_ref": {
+                                                                    "type": "string"
+                                                                },
+                                                                "source": {
+                                                                    "type": "string"
+                                                                },
+                                                                "target_env": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "name",
+                                                                "present",
+                                                                "required",
+                                                                "secret_ref",
+                                                                "target_env"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
                                                     },
                                                     "default": {
                                                         "type": "boolean"
@@ -28747,13 +28861,54 @@
                                                         "properties": {
                                                             "settings": {
                                                                 "properties": {
-                                                                    "api_key_env": {
+                                                                    "base_url": {
                                                                         "type": "string"
                                                                     },
                                                                     "command": {
                                                                         "type": "string"
                                                                     },
+                                                                    "credential_slots": {
+                                                                        "items": {
+                                                                            "properties": {
+                                                                                "kind": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "name": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "required": {
+                                                                                    "type": "boolean"
+                                                                                },
+                                                                                "secret_ref": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "target_env": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "name",
+                                                                                "required",
+                                                                                "secret_ref",
+                                                                                "target_env"
+                                                                            ],
+                                                                            "type": "object"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
                                                                     "default_model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "display_name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "harness": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "runtime_provider": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "transport": {
                                                                         "type": "string"
                                                                     }
                                                                 },
@@ -28794,13 +28949,54 @@
                                                     },
                                                     "settings": {
                                                         "properties": {
-                                                            "api_key_env": {
+                                                            "base_url": {
                                                                 "type": "string"
                                                             },
                                                             "command": {
                                                                 "type": "string"
                                                             },
+                                                            "credential_slots": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "kind": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "required": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "secret_ref": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "target_env": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "name",
+                                                                        "required",
+                                                                        "secret_ref",
+                                                                        "target_env"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                "type": "array"
+                                                            },
                                                             "default_model": {
+                                                                "type": "string"
+                                                            },
+                                                            "display_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "harness": {
+                                                                "type": "string"
+                                                            },
+                                                            "runtime_provider": {
+                                                                "type": "string"
+                                                            },
+                                                            "transport": {
                                                                 "type": "string"
                                                             }
                                                         },
@@ -28884,7 +29080,6 @@
                                                     }
                                                 },
                                                 "required": [
-                                                    "api_key_env_present",
                                                     "command_available",
                                                     "default",
                                                     "name",
@@ -29102,11 +29297,44 @@
                                     "properties": {
                                         "provider": {
                                             "properties": {
-                                                "api_key_env_present": {
-                                                    "type": "boolean"
-                                                },
                                                 "command_available": {
                                                     "type": "boolean"
+                                                },
+                                                "credentials": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "present": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "required": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "secret_ref": {
+                                                                "type": "string"
+                                                            },
+                                                            "source": {
+                                                                "type": "string"
+                                                            },
+                                                            "target_env": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "name",
+                                                            "present",
+                                                            "required",
+                                                            "secret_ref",
+                                                            "target_env"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
                                                 },
                                                 "default": {
                                                     "type": "boolean"
@@ -29116,13 +29344,54 @@
                                                     "properties": {
                                                         "settings": {
                                                             "properties": {
-                                                                "api_key_env": {
+                                                                "base_url": {
                                                                     "type": "string"
                                                                 },
                                                                 "command": {
                                                                     "type": "string"
                                                                 },
+                                                                "credential_slots": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "kind": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "name": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "required": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "secret_ref": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "target_env": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "name",
+                                                                            "required",
+                                                                            "secret_ref",
+                                                                            "target_env"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
+                                                                },
                                                                 "default_model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "display_name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "harness": {
+                                                                    "type": "string"
+                                                                },
+                                                                "runtime_provider": {
+                                                                    "type": "string"
+                                                                },
+                                                                "transport": {
                                                                     "type": "string"
                                                                 }
                                                             },
@@ -29160,13 +29429,54 @@
                                                 },
                                                 "settings": {
                                                     "properties": {
-                                                        "api_key_env": {
+                                                        "base_url": {
                                                             "type": "string"
                                                         },
                                                         "command": {
                                                             "type": "string"
                                                         },
+                                                        "credential_slots": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "kind": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "required": {
+                                                                        "type": "boolean"
+                                                                    },
+                                                                    "secret_ref": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "target_env": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "name",
+                                                                    "required",
+                                                                    "secret_ref",
+                                                                    "target_env"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
                                                         "default_model": {
+                                                            "type": "string"
+                                                        },
+                                                        "display_name": {
+                                                            "type": "string"
+                                                        },
+                                                        "harness": {
+                                                            "type": "string"
+                                                        },
+                                                        "runtime_provider": {
+                                                            "type": "string"
+                                                        },
+                                                        "transport": {
                                                             "type": "string"
                                                         }
                                                     },
@@ -29247,7 +29557,6 @@
                                                 }
                                             },
                                             "required": [
-                                                "api_key_env_present",
                                                 "command_available",
                                                 "default",
                                                 "name",
@@ -29322,15 +29631,77 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
+                                    "secrets": {
+                                        "items": {
+                                            "properties": {
+                                                "kind": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "secret_ref": {
+                                                    "type": "string"
+                                                },
+                                                "value": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["secret_ref", "value"],
+                                            "type": "object"
+                                        },
+                                        "type": "array"
+                                    },
                                     "settings": {
                                         "properties": {
-                                            "api_key_env": {
+                                            "base_url": {
                                                 "type": "string"
                                             },
                                             "command": {
                                                 "type": "string"
                                             },
+                                            "credential_slots": {
+                                                "items": {
+                                                    "properties": {
+                                                        "kind": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "required": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "secret_ref": {
+                                                            "type": "string"
+                                                        },
+                                                        "target_env": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "name",
+                                                        "required",
+                                                        "secret_ref",
+                                                        "target_env"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "type": "array"
+                                            },
                                             "default_model": {
+                                                "type": "string"
+                                            },
+                                            "display_name": {
+                                                "type": "string"
+                                            },
+                                            "harness": {
+                                                "type": "string"
+                                            },
+                                            "runtime_provider": {
+                                                "type": "string"
+                                            },
+                                            "transport": {
                                                 "type": "string"
                                             }
                                         },
@@ -29590,6 +29961,12 @@
                                                             },
                                                             "runtime_root": {
                                                                 "type": "string"
+                                                            },
+                                                            "secret_env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
                                                             },
                                                             "sync_mode": {
                                                                 "type": "string"
@@ -29969,6 +30346,12 @@
                                                         "runtime_root": {
                                                             "type": "string"
                                                         },
+                                                        "secret_env": {
+                                                            "additionalProperties": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "object"
+                                                        },
                                                         "sync_mode": {
                                                             "type": "string"
                                                         }
@@ -30197,6 +30580,12 @@
                                             },
                                             "runtime_root": {
                                                 "type": "string"
+                                            },
+                                            "secret_env": {
+                                                "additionalProperties": {
+                                                    "type": "string"
+                                                },
+                                                "type": "object"
                                             },
                                             "sync_mode": {
                                                 "type": "string"
@@ -48865,6 +49254,546 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
+        "/api/vault/secrets": {
+            "delete": {
+                "operationId": "deleteVaultSecret",
+                "parameters": [
+                    {
+                        "description": "Vault ref",
+                        "in": "query",
+                        "name": "ref",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Deleted"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid vault ref"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Vault secret not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Vault service unavailable"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Delete one vault secret",
+                "tags": ["vault"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "get": {
+                "operationId": "listVaultSecrets",
+                "parameters": [
+                    {
+                        "description": "Filter by vault ref prefix",
+                        "in": "query",
+                        "name": "prefix",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by vault namespace",
+                        "in": "query",
+                        "name": "namespace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "secrets": {
+                                            "items": {
+                                                "properties": {
+                                                    "created_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
+                                                    "namespace": {
+                                                        "type": "string"
+                                                    },
+                                                    "present": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "ref": {
+                                                        "type": "string"
+                                                    },
+                                                    "updated_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "created_at",
+                                                    "namespace",
+                                                    "present",
+                                                    "ref",
+                                                    "updated_at"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["secrets"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid vault filter"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Vault service unavailable"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List redacted vault secret metadata",
+                "tags": ["vault"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "put": {
+                "operationId": "putVaultSecret",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "kind": {
+                                        "type": "string"
+                                    },
+                                    "ref": {
+                                        "type": "string"
+                                    },
+                                    "secret_value": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["ref", "secret_value"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "secret": {
+                                            "properties": {
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "kind": {
+                                                    "type": "string"
+                                                },
+                                                "namespace": {
+                                                    "type": "string"
+                                                },
+                                                "present": {
+                                                    "type": "boolean"
+                                                },
+                                                "ref": {
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "created_at",
+                                                "namespace",
+                                                "present",
+                                                "ref",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["secret"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Stored"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid vault secret payload"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Vault service unavailable"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Create or update one write-only vault secret",
+                "tags": ["vault"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/vault/secrets/metadata": {
+            "get": {
+                "operationId": "getVaultSecretMetadata",
+                "parameters": [
+                    {
+                        "description": "Vault ref",
+                        "in": "query",
+                        "name": "ref",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "secret": {
+                                            "properties": {
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "kind": {
+                                                    "type": "string"
+                                                },
+                                                "namespace": {
+                                                    "type": "string"
+                                                },
+                                                "present": {
+                                                    "type": "boolean"
+                                                },
+                                                "ref": {
+                                                    "type": "string"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "created_at",
+                                                "namespace",
+                                                "present",
+                                                "ref",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["secret"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid vault ref"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Vault secret not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Vault service unavailable"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Read redacted vault secret metadata",
+                "tags": ["vault"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
         "/api/webhooks/global/{endpoint}": {
             "post": {
                 "operationId": "deliverGlobalWebhook",
@@ -49799,7 +50728,7 @@
                                                                         "client_id": {
                                                                             "type": "string"
                                                                         },
-                                                                        "client_secret_env": {
+                                                                        "client_secret_ref": {
                                                                             "type": "string"
                                                                         },
                                                                         "issuer_url": {
@@ -49837,6 +50766,12 @@
                                                                 },
                                                                 "name": {
                                                                     "type": "string"
+                                                                },
+                                                                "secret_env": {
+                                                                    "additionalProperties": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": "object"
                                                                 },
                                                                 "transport": {
                                                                     "type": "string"
@@ -49886,7 +50821,19 @@
                                         "providers": {
                                             "items": {
                                                 "properties": {
+                                                    "default_model": {
+                                                        "type": "string"
+                                                    },
+                                                    "display_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "harness": {
+                                                        "type": "string"
+                                                    },
                                                     "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "runtime_provider": {
                                                         "type": "string"
                                                     }
                                                 },
@@ -50518,6 +51465,9 @@
         },
         {
             "name": "toolsets"
+        },
+        {
+            "name": "vault"
         },
         {
             "name": "workspaces"

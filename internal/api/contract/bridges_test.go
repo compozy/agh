@@ -558,9 +558,11 @@ func TestBridgeJSONPayloadsRejectInvalidShapes(t *testing.T) {
 func TestPutBridgeSecretBindingRequestValidation(t *testing.T) {
 	t.Parallel()
 
+	secretValue := "telegram-token"
 	req := contract.PutBridgeSecretBindingRequest{
-		VaultRef: " env:TG_TOKEN ",
-		Kind:     " env ",
+		SecretRef:   " vault:bridges/brg-1/bot_token ",
+		Kind:        " token ",
+		SecretValue: &secretValue,
 	}
 
 	binding, err := req.ToBridgeSecretBinding(" brg-1 ", " bot_token ")
@@ -568,9 +570,12 @@ func TestPutBridgeSecretBindingRequestValidation(t *testing.T) {
 		t.Fatalf("ToBridgeSecretBinding() error = %v", err)
 	}
 	if binding.BridgeInstanceID != "brg-1" || binding.BindingName != "bot_token" ||
-		binding.VaultRef != "env:TG_TOKEN" ||
-		binding.Kind != "env" {
+		binding.SecretRef != "vault:bridges/brg-1/bot_token" ||
+		binding.Kind != "token" {
 		t.Fatalf("binding = %#v", binding)
+	}
+	if req.SecretValue == nil || *req.SecretValue != "telegram-token" {
+		t.Fatalf("SecretValue = %v, want write-only value", req.SecretValue)
 	}
 
 	req.Kind = "   "

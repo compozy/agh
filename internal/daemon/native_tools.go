@@ -212,6 +212,9 @@ func (d *Daemon) newDaemonMCPToolProvider(
 	if d != nil && d.getenv != nil {
 		options = append(options, mcppkg.WithSecretLookup(d.getenv))
 	}
+	if state.providerVault != nil {
+		options = append(options, mcppkg.WithSecretResolver(state.providerVault))
+	}
 	if store, ok := state.registry.(mcpauth.TokenStore); ok {
 		options = append(options, mcppkg.WithTokenStore(store))
 	}
@@ -2294,7 +2297,9 @@ func decodeNativeInput(req toolspkg.CallRequest, dst any) error {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		raw = json.RawMessage(`{}`)
 	}
-	if err := json.Unmarshal(raw, dst); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,
 			req.ToolID,

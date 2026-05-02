@@ -1016,7 +1016,15 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 				"claude": {
 					Command:      "claude",
 					DefaultModel: "sonnet",
-					APIKeyEnv:    "ANTHROPIC_API_KEY",
+					CredentialSlots: []aghconfig.ProviderCredentialSlot{
+						{
+							Name:      "api_key",
+							TargetEnv: "ANTHROPIC_API_KEY",
+							SecretRef: "env:ANTHROPIC_API_KEY",
+							Kind:      "api_key",
+							Required:  true,
+						},
+					},
 					MCPServers: []aghconfig.MCPServer{
 						{
 							Name:    "github",

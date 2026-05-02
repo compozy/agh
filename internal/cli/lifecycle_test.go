@@ -24,7 +24,7 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 		return ""
 	}
 	deps.runInstallWizard = func(context.Context, installWizardInput) (installWizardSelection, error) {
-		return installWizardSelection{Provider: "claude", Model: "claude-sonnet-4-20250514"}, nil
+		return installWizardSelection{Provider: "claude", Model: "claude-sonnet-4-6"}, nil
 	}
 
 	installOut, _, err := executeRootCommand(t, deps, "install", "-o", "json")

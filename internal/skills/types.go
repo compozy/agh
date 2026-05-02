@@ -48,10 +48,11 @@ const (
 
 // MCPServerDecl declares an MCP server dependency in skill frontmatter.
 type MCPServerDecl struct {
-	Name    string            `yaml:"name"`
-	Command string            `yaml:"command"`
-	Args    []string          `yaml:"args,omitempty"`
-	Env     map[string]string `yaml:"env,omitempty"`
+	Name      string            `yaml:"name"`
+	Command   string            `yaml:"command"`
+	Args      []string          `yaml:"args,omitempty"`
+	Env       map[string]string `yaml:"env,omitempty"`
+	SecretEnv map[string]string `yaml:"secret_env,omitempty"`
 }
 
 // Provenance stores marketplace install metadata for a skill.

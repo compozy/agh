@@ -1,4 +1,5 @@
 import {
+  AutonomyKernelSection,
   BentoSection,
   BridgesSection,
   Comparison,
@@ -7,9 +8,8 @@ import {
   FinalCta,
   Hero,
   InstallSection,
+  MemoryDreamSection,
   NetworkSection,
-  RuntimeSection,
-  SandboxSection,
   SupportedAgents,
 } from "@/components/landing";
 
@@ -17,14 +17,14 @@ export default function HomePage() {
   return (
     <main className="site-home">
       <Hero />
-      <BentoSection />
-      <FeaturesSection />
       <SupportedAgents />
       <NetworkSection />
-      <RuntimeSection />
-      <SandboxSection />
-      <BridgesSection />
+      <BentoSection />
+      <MemoryDreamSection />
+      <AutonomyKernelSection />
+      <FeaturesSection />
       <ExtensibilitySection />
+      <BridgesSection />
       <InstallSection />
       <Comparison />
       <FinalCta />
