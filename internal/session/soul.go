@@ -18,6 +18,8 @@ var (
 	// ErrSoulRefreshConflict reports that a Soul refresh cannot run because
 	// another session-scoped operation or an active task run is in progress.
 	ErrSoulRefreshConflict = errors.New("session: soul refresh conflict")
+	// ErrSoulRefreshDigestConflict reports a stale body-level expected digest.
+	ErrSoulRefreshDigestConflict = errors.New("session: soul refresh expected digest conflict")
 )
 
 // SoulSnapshotStore is the durable storage needed by session Soul integration.
@@ -35,15 +37,27 @@ type SoulRunActivityChecker interface {
 // SoulRefreshResult is the internal result returned after a session Soul refresh.
 type SoulRefreshResult struct {
 	SessionID        string
+	AgentName        string
 	SoulSnapshotID   string
 	SoulDigest       string
 	ParentSoulDigest string
 	Snapshot         *soul.Snapshot
+	Soul             *soul.ResolvedSoul
+	ConfigProvenance soul.ConfigProvenance
 	RefreshedAt      time.Time
 }
 
 // RefreshSoul explicitly refreshes the session's resolved Soul snapshot.
 func (m *Manager) RefreshSoul(ctx context.Context, id string) (SoulRefreshResult, error) {
+	return m.RefreshSoulWithExpectedDigest(ctx, id, "")
+}
+
+// RefreshSoulWithExpectedDigest explicitly refreshes a session Soul snapshot after service-owned CAS.
+func (m *Manager) RefreshSoulWithExpectedDigest(
+	ctx context.Context,
+	id string,
+	expectedDigest string,
+) (SoulRefreshResult, error) {
 	if m == nil {
 		return SoulRefreshResult{}, errors.New("session: manager is required")
 	}
@@ -64,6 +78,9 @@ func (m *Manager) RefreshSoul(ctx context.Context, id string) (SoulRefreshResult
 	info := session.Info()
 	if info == nil {
 		return SoulRefreshResult{}, fmt.Errorf("%w: %s", ErrSessionNotFound, id)
+	}
+	if err := validateSoulRefreshExpectedDigest(info, expectedDigest); err != nil {
+		return SoulRefreshResult{}, err
 	}
 	return m.refreshSoulLocked(ctx, session, info)
 }
@@ -111,7 +128,11 @@ func (m *Manager) refreshSoulLocked(
 	if err := m.storeSoulRefresh(durableCtx, session, info, snapshot, refreshedAt); err != nil {
 		return SoulRefreshResult{}, err
 	}
-	return newSoulRefreshResult(info, snapshot, refreshedAt), nil
+	provenance, err := soul.NewConfigProvenance(workspaceSnapshot.Config.Agents.Soul, "session_refresh")
+	if err != nil {
+		return SoulRefreshResult{}, err
+	}
+	return newSoulRefreshResult(info, snapshot, &resolved, provenance, refreshedAt), nil
 }
 
 func (m *Manager) ensureSoulRefreshAllowed(ctx context.Context, info *Info, now time.Time) error {
@@ -155,11 +176,20 @@ func (m *Manager) storeSoulRefresh(
 	return nil
 }
 
-func newSoulRefreshResult(info *Info, snapshot *soul.Snapshot, refreshedAt time.Time) SoulRefreshResult {
+func newSoulRefreshResult(
+	info *Info,
+	snapshot *soul.Snapshot,
+	resolved *soul.ResolvedSoul,
+	provenance soul.ConfigProvenance,
+	refreshedAt time.Time,
+) SoulRefreshResult {
 	result := SoulRefreshResult{
 		SessionID:        info.ID,
+		AgentName:        info.AgentName,
 		ParentSoulDigest: info.ParentSoulDigest,
 		Snapshot:         cloneSoulSnapshotPointer(snapshot),
+		Soul:             cloneResolvedSoulPointer(resolved),
+		ConfigProvenance: provenance,
 		RefreshedAt:      refreshedAt,
 	}
 	if snapshot != nil {
@@ -167,6 +197,29 @@ func newSoulRefreshResult(info *Info, snapshot *soul.Snapshot, refreshedAt time.
 		result.SoulDigest = snapshot.Digest
 	}
 	return result
+}
+
+func validateSoulRefreshExpectedDigest(info *Info, expectedDigest string) error {
+	if info == nil {
+		return errors.New("session: session info is required")
+	}
+	expected := strings.TrimSpace(expectedDigest)
+	if expected == "" {
+		return nil
+	}
+	current := strings.TrimSpace(info.SoulDigest)
+	if current == "" {
+		return fmt.Errorf("%w: expected_digest was provided but session %q has no Soul snapshot",
+			ErrSoulRefreshDigestConflict,
+			info.ID,
+		)
+	}
+	if current != expected {
+		return fmt.Errorf("%w: expected_digest does not match current session Soul digest",
+			ErrSoulRefreshDigestConflict,
+		)
+	}
+	return nil
 }
 
 // WithSoulClaimLock runs fn while holding the session Soul lock used by refresh.
@@ -424,6 +477,30 @@ func cloneSoulSnapshotPointer(snapshot *soul.Snapshot) *soul.Snapshot {
 	}
 	clone := *snapshot
 	clone.ProfileJSON = append([]byte(nil), snapshot.ProfileJSON...)
+	return &clone
+}
+
+func cloneResolvedSoulPointer(resolved *soul.ResolvedSoul) *soul.ResolvedSoul {
+	if resolved == nil {
+		return nil
+	}
+	clone := *resolved
+	clone.Profile.Tone = append([]string(nil), resolved.Profile.Tone...)
+	clone.Profile.Principles = append([]string(nil), resolved.Profile.Principles...)
+	clone.Profile.Constraints = append([]string(nil), resolved.Profile.Constraints...)
+	clone.Profile.Collaboration = append([]string(nil), resolved.Profile.Collaboration...)
+	clone.Profile.MemoryPolicy = append([]string(nil), resolved.Profile.MemoryPolicy...)
+	clone.Profile.Tags = append([]string(nil), resolved.Profile.Tags...)
+	clone.Compact.Tone = append([]string(nil), resolved.Compact.Tone...)
+	clone.Compact.Principles = append([]string(nil), resolved.Compact.Principles...)
+	clone.ReadModel.Frontmatter.Tone = append([]string(nil), resolved.ReadModel.Frontmatter.Tone...)
+	clone.ReadModel.Frontmatter.Principles = append([]string(nil), resolved.ReadModel.Frontmatter.Principles...)
+	clone.ReadModel.Frontmatter.Constraints = append([]string(nil), resolved.ReadModel.Frontmatter.Constraints...)
+	clone.ReadModel.Frontmatter.Collaboration = append([]string(nil), resolved.ReadModel.Frontmatter.Collaboration...)
+	clone.ReadModel.Frontmatter.MemoryPolicy = append([]string(nil), resolved.ReadModel.Frontmatter.MemoryPolicy...)
+	clone.ReadModel.Frontmatter.Tags = append([]string(nil), resolved.ReadModel.Frontmatter.Tags...)
+	clone.ReadModel.Diagnostics = append([]soul.Diagnostic(nil), resolved.ReadModel.Diagnostics...)
+	clone.Diagnostics = append([]soul.Diagnostic(nil), resolved.Diagnostics...)
 	return &clone
 }
 

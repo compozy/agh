@@ -125,6 +125,13 @@ type RuntimeDeps struct {
 	WorkspaceService  core.WorkspaceService
 	AgentCatalog      core.AgentCatalog
 	AgentContext      *situation.Service
+	SoulAuthoring     core.SoulAuthoringService
+	SoulRefresher     core.SoulRefresher
+	HeartbeatAuthor   core.HeartbeatAuthoringService
+	HeartbeatStatus   core.HeartbeatStatusService
+	HeartbeatWake     core.HeartbeatWakeService
+	SessionHealth     core.SessionHealthReader
+	WakeEvents        core.HeartbeatWakeEventReader
 	CoordinatorConfig CoordinatorConfigResolver
 	SkillsRegistry    core.SkillsRegistry
 	DreamTrigger      DreamTrigger
@@ -912,6 +919,14 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				httpapi.WithResourceService(deps.Resources),
 				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
 				httpapi.WithAgentCatalog(deps.AgentCatalog),
+				httpapi.WithAgentContext(deps.AgentContext),
+				httpapi.WithSoulAuthoring(deps.SoulAuthoring),
+				httpapi.WithSoulRefresher(deps.SoulRefresher),
+				httpapi.WithHeartbeatAuthoring(deps.HeartbeatAuthor),
+				httpapi.WithHeartbeatStatus(deps.HeartbeatStatus),
+				httpapi.WithHeartbeatWake(deps.HeartbeatWake),
+				httpapi.WithSessionHealthReader(deps.SessionHealth),
+				httpapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
 				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
 				httpapi.WithMemoryStore(deps.MemoryStore),
 				httpapi.WithDreamTrigger(deps.DreamTrigger),
@@ -944,6 +959,13 @@ func (d *Daemon) applyServerFactoryDefaults() {
 				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
 				udsapi.WithAgentCatalog(deps.AgentCatalog),
 				udsapi.WithAgentContext(deps.AgentContext),
+				udsapi.WithSoulAuthoring(deps.SoulAuthoring),
+				udsapi.WithSoulRefresher(deps.SoulRefresher),
+				udsapi.WithHeartbeatAuthoring(deps.HeartbeatAuthor),
+				udsapi.WithHeartbeatStatus(deps.HeartbeatStatus),
+				udsapi.WithHeartbeatWake(deps.HeartbeatWake),
+				udsapi.WithSessionHealthReader(deps.SessionHealth),
+				udsapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
 				udsapi.WithCoordinatorConfig(deps.CoordinatorConfig),
 				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
 				udsapi.WithMemoryStore(deps.MemoryStore),

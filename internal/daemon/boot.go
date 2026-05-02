@@ -524,7 +524,7 @@ func (d *Daemon) bootRuntimeServices(
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 	state.sessions = sessions
-	state.deps = d.runtimeDeps(state, sessions)
+	state.deps = d.runtimeDeps(ctx, state, sessions)
 	resourceService, err := d.buildResourceService(state)
 	if err != nil {
 		return err
@@ -796,7 +796,7 @@ func mcpResolverDependency(resolver *skills.MCPResolver) session.MCPResolver {
 	return resolver
 }
 
-func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeDeps {
+func (d *Daemon) runtimeDeps(ctx context.Context, state *bootState, sessions SessionManager) RuntimeDeps {
 	if state != nil && state.dreamSvc != nil {
 		lockPath := memory.ConsolidationLockPath(state.globalMemoryDir)
 		state.dreamRuntime = consolidation.NewRuntime(
@@ -815,6 +815,7 @@ func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeD
 			},
 		)
 	}
+	authoredContext := authoredContextRuntimeDeps(ctx, state, sessions)
 
 	return RuntimeDeps{
 		Config:            state.cfg,
@@ -828,6 +829,13 @@ func (d *Daemon) runtimeDeps(state *bootState, sessions SessionManager) RuntimeD
 		WorkspaceService:  state.workspaceResolver,
 		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
 		AgentContext:      state.situationContext,
+		SoulAuthoring:     authoredContext.SoulAuthoring,
+		SoulRefresher:     authoredContext.SoulRefresher,
+		HeartbeatAuthor:   authoredContext.HeartbeatAuthoring,
+		HeartbeatStatus:   authoredContext.HeartbeatStatus,
+		HeartbeatWake:     authoredContext.HeartbeatWake,
+		SessionHealth:     authoredContext.SessionHealth,
+		WakeEvents:        authoredContext.WakeEvents,
 		CoordinatorConfig: newCoordinatorConfigResolver(
 			&state.cfg,
 			state.workspaceResolver,

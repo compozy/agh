@@ -58,6 +58,14 @@ type Server struct {
 	vault           core.VaultService
 	workspaces      core.WorkspaceService
 	agentCatalog    core.AgentCatalog
+	agentContext    core.AgentContextService
+	soulAuthoring   core.SoulAuthoringService
+	soulRefresher   core.SoulRefresher
+	heartbeatAuthor core.HeartbeatAuthoringService
+	heartbeatStatus core.HeartbeatStatusService
+	heartbeatWake   core.HeartbeatWakeService
+	sessionHealth   core.SessionHealthReader
+	wakeEvents      core.HeartbeatWakeEventReader
 	skillsRegistry  core.SkillsRegistry
 	memoryStore     *memory.Store
 	dreamTrigger    core.DreamTrigger
@@ -265,6 +273,62 @@ func WithAgentCatalog(catalog core.AgentCatalog) Option {
 	}
 }
 
+// WithAgentContext injects the bounded agent situation context service.
+func WithAgentContext(service core.AgentContextService) Option {
+	return func(server *Server) {
+		server.agentContext = service
+	}
+}
+
+// WithSoulAuthoring injects the managed Soul authoring surface.
+func WithSoulAuthoring(service core.SoulAuthoringService) Option {
+	return func(server *Server) {
+		server.soulAuthoring = service
+	}
+}
+
+// WithSoulRefresher injects the session Soul refresh surface.
+func WithSoulRefresher(service core.SoulRefresher) Option {
+	return func(server *Server) {
+		server.soulRefresher = service
+	}
+}
+
+// WithHeartbeatAuthoring injects the managed Heartbeat authoring surface.
+func WithHeartbeatAuthoring(service core.HeartbeatAuthoringService) Option {
+	return func(server *Server) {
+		server.heartbeatAuthor = service
+	}
+}
+
+// WithHeartbeatStatus injects the Heartbeat status/read surface.
+func WithHeartbeatStatus(service core.HeartbeatStatusService) Option {
+	return func(server *Server) {
+		server.heartbeatStatus = service
+	}
+}
+
+// WithHeartbeatWake injects the manual Heartbeat wake surface.
+func WithHeartbeatWake(service core.HeartbeatWakeService) Option {
+	return func(server *Server) {
+		server.heartbeatWake = service
+	}
+}
+
+// WithSessionHealthReader injects the metadata-only session health reader.
+func WithSessionHealthReader(reader core.SessionHealthReader) Option {
+	return func(server *Server) {
+		server.sessionHealth = reader
+	}
+}
+
+// WithHeartbeatWakeEventReader injects the retained Heartbeat wake audit reader.
+func WithHeartbeatWakeEventReader(reader core.HeartbeatWakeEventReader) Option {
+	return func(server *Server) {
+		server.wakeEvents = reader
+	}
+}
+
 // WithDreamTrigger injects the dream-consolidation trigger surfaced by the daemon.
 func WithDreamTrigger(trigger core.DreamTrigger) Option {
 	return func(server *Server) {
@@ -444,6 +508,14 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		vault:           s.vault,
 		workspaces:      s.workspaces,
 		agentCatalog:    s.agentCatalog,
+		agentContext:    s.agentContext,
+		soulAuthoring:   s.soulAuthoring,
+		soulRefresher:   s.soulRefresher,
+		heartbeatAuthor: s.heartbeatAuthor,
+		heartbeatStatus: s.heartbeatStatus,
+		heartbeatWake:   s.heartbeatWake,
+		sessionHealth:   s.sessionHealth,
+		wakeEvents:      s.wakeEvents,
 		skillsRegistry:  s.skillsRegistry,
 		memoryStore:     s.memoryStore,
 		dreamTrigger:    s.dreamTrigger,

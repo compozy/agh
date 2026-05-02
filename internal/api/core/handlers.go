@@ -51,6 +51,13 @@ type BaseHandlerConfig struct {
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	AgentContextService          AgentContextService
+	SoulAuthoring                SoulAuthoringService
+	SoulRefresher                SoulRefresher
+	HeartbeatAuthoring           HeartbeatAuthoringService
+	HeartbeatStatus              HeartbeatStatusService
+	HeartbeatWake                HeartbeatWakeService
+	SessionHealth                SessionHealthReader
+	HeartbeatWakeEvents          HeartbeatWakeEventReader
 	CoordinatorConfig            CoordinatorConfigResolver
 	SkillsRegistry               SkillsRegistry
 	TaskActorContextResolver     TaskActorContextResolver
@@ -91,6 +98,13 @@ type BaseHandlers struct {
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	AgentContextService          AgentContextService
+	SoulAuthoring                SoulAuthoringService
+	SoulRefresher                SoulRefresher
+	HeartbeatAuthoring           HeartbeatAuthoringService
+	HeartbeatStatus              HeartbeatStatusService
+	HeartbeatWake                HeartbeatWakeService
+	SessionHealth                SessionHealthReader
+	HeartbeatWakeEvents          HeartbeatWakeEventReader
 	CoordinatorConfig            CoordinatorConfigResolver
 	SkillsRegistry               SkillsRegistry
 	TaskActorContextResolver     TaskActorContextResolver
@@ -185,9 +199,23 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		AgentLoader:                  agentLoader,
 		PID:                          pid,
 	}
+	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.httpPort.Store(int64(cfg.HTTPPort))
 	return handlers
+}
+
+func (h *BaseHandlers) applyAuthoredContextConfig(cfg *BaseHandlerConfig) {
+	if h == nil || cfg == nil {
+		return
+	}
+	h.SoulAuthoring = cfg.SoulAuthoring
+	h.SoulRefresher = cfg.SoulRefresher
+	h.HeartbeatAuthoring = cfg.HeartbeatAuthoring
+	h.HeartbeatStatus = cfg.HeartbeatStatus
+	h.HeartbeatWake = cfg.HeartbeatWake
+	h.SessionHealth = cfg.SessionHealth
+	h.HeartbeatWakeEvents = cfg.HeartbeatWakeEvents
 }
 
 // SetStreamDone updates the transport shutdown bridge used by streaming handlers.
@@ -234,8 +262,18 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		}
 		infos = filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)
 	}
+	includeHealth, err := parseBoolQuery(c, "include_health")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	payloads, err := h.sessionPayloadsWithOptionalHealth(c.Request.Context(), infos, includeHealth)
+	if err != nil {
+		h.respondError(c, StatusForHeartbeatError(err), err)
+		return
+	}
 
-	c.JSON(http.StatusOK, contract.SessionsResponse{Sessions: SessionPayloadsFromInfos(infos)})
+	c.JSON(http.StatusOK, contract.SessionsResponse{Sessions: payloads})
 }
 
 // CreateSession creates a new runtime session.
@@ -284,8 +322,18 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
+	includeHealth, err := parseBoolQuery(c, "include_health")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, includeHealth)
+	if err != nil {
+		h.respondError(c, StatusForHeartbeatError(err), err)
+		return
+	}
 
-	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
 }
 
 // DeleteSession removes one session from the runtime catalog and persisted history.

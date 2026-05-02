@@ -68,6 +68,10 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	sessions.GET("", handlers.ListSessions)
 	sessions.POST("", handlers.CreateSession)
 	sessions.GET("/:id", handlers.GetSession)
+	sessions.POST("/:id/soul/refresh", handlers.RefreshSessionSoul)
+	sessions.GET("/:id/health", handlers.GetSessionHealth)
+	sessions.GET("/:id/status", handlers.GetSessionStatus)
+	sessions.GET("/:id/inspect", handlers.InspectSession)
 	sessions.DELETE("/:id", handlers.DeleteSession)
 	sessions.POST("/:id/stop", handlers.StopSession)
 	sessions.POST("/:id/resume", handlers.ResumeSession)
@@ -83,8 +87,26 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
+	agent := api.Group("/agent")
+	agent.GET("/context", handlers.AgentContext)
+	agent.GET("/soul", handlers.AgentSoul)
+	agent.POST("/soul/validate", handlers.ValidateAgentSoul)
+
 	agents := api.Group("/agents")
 	agents.GET("", handlers.ListAgents)
+	agents.GET("/:name/soul", handlers.GetAgentSoul)
+	agents.PUT("/:name/soul", handlers.PutAgentSoul)
+	agents.DELETE("/:name/soul", handlers.DeleteAgentSoul)
+	agents.GET("/:name/soul/history", handlers.ListAgentSoulHistory)
+	agents.POST("/:name/soul/rollback", handlers.RollbackAgentSoul)
+	agents.GET("/:name/heartbeat", handlers.GetAgentHeartbeat)
+	agents.POST("/:name/heartbeat/validate", handlers.ValidateAgentHeartbeat)
+	agents.PUT("/:name/heartbeat", handlers.PutAgentHeartbeat)
+	agents.DELETE("/:name/heartbeat", handlers.DeleteAgentHeartbeat)
+	agents.GET("/:name/heartbeat/history", handlers.ListAgentHeartbeatHistory)
+	agents.POST("/:name/heartbeat/rollback", handlers.RollbackAgentHeartbeat)
+	agents.GET("/:name/heartbeat/status", handlers.GetAgentHeartbeatStatus)
+	agents.POST("/:name/heartbeat/wake", handlers.WakeAgentHeartbeat)
 	agents.GET("/:name", handlers.GetAgent)
 }
 
