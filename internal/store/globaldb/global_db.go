@@ -585,6 +585,12 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateUnifiedSecretRefs,
 		Checksum: "2026-05-01-unify-secret-refs",
 	},
+	{
+		Version:  12,
+		Name:     "add_agent_soul_snapshots",
+		Up:       migrateAgentSoulSnapshots,
+		Checksum: "2026-05-02-add-agent-soul-snapshots",
+	},
 }
 
 func migrateUnifiedSecretRefs(ctx context.Context, tx *sql.Tx) error {

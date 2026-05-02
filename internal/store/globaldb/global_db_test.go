@@ -169,7 +169,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(first) error = %v", err)
 	}
-	if got, want := len(firstRecords), 11; got != want {
+	if got, want := len(firstRecords), 12; got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
 	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
@@ -205,6 +205,9 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if firstRecords[10].Version != 11 || firstRecords[10].Name != "unify_secret_refs" {
 		t.Fatalf("firstRecords[10] = %#v, want unify_secret_refs v11", firstRecords[10])
 	}
+	if firstRecords[11].Version != 12 || firstRecords[11].Name != "add_agent_soul_snapshots" {
+		t.Fatalf("firstRecords[11] = %#v, want add_agent_soul_snapshots v12", firstRecords[11])
+	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
 	}
@@ -222,7 +225,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(second) error = %v", err)
 	}
-	if got, want := len(secondRecords), 11; got != want {
+	if got, want := len(secondRecords), 12; got != want {
 		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 	}
 	for i := range firstRecords {
@@ -1351,6 +1354,9 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"auto_stop_on_parent",
 			"spawn_budget_json",
 			"permission_policy_json",
+			"soul_snapshot_id",
+			"soul_digest",
+			"parent_soul_digest",
 		},
 	)
 }
@@ -1594,6 +1600,9 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"auto_stop_on_parent",
 			"spawn_budget_json",
 			"permission_policy_json",
+			"soul_snapshot_id",
+			"soul_digest",
+			"parent_soul_digest",
 		},
 	)
 	assertTableColumns(
@@ -2454,6 +2463,9 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"auto_stop_on_parent",
 			"spawn_budget_json",
 			"permission_policy_json",
+			"soul_snapshot_id",
+			"soul_digest",
+			"parent_soul_digest",
 		},
 	)
 	assertTableColumns(

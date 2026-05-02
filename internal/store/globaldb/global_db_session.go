@@ -82,6 +82,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		failure_kind, failure_summary, crash_bundle_path,
 		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 		activity_json,
+		soul_snapshot_id, soul_digest, parent_soul_digest,
 		sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
 		sandbox_state, sandbox_provider_state_json,
 		sandbox_last_sync_at, sandbox_last_sync_error,
@@ -210,6 +211,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			auto_stop_on_parent, spawn_budget_json, permission_policy_json,
 			acp_session_id, stop_reason, stop_detail, failure_kind, failure_summary, crash_bundle_path,
 			subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
+				soul_snapshot_id, soul_digest, parent_soul_digest,
 				sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
 				sandbox_state, sandbox_provider_state_json,
 				sandbox_last_sync_at, sandbox_last_sync_error, created_at, updated_at
@@ -217,7 +219,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 				?, ?, ?, ?, ?, ?, ?, ?,
 				?, ?, ?, ?, ?, ?, ?, ?,
 				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-				?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 			)
 			ON CONFLICT(id) DO UPDATE SET
 				name = excluded.name,
@@ -247,6 +249,9 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			stall_state = excluded.stall_state,
 			stall_reason = excluded.stall_reason,
 			activity_json = excluded.activity_json,
+			soul_snapshot_id = excluded.soul_snapshot_id,
+			soul_digest = excluded.soul_digest,
+			parent_soul_digest = excluded.parent_soul_digest,
 			sandbox_id = excluded.sandbox_id,
 			sandbox_backend = excluded.sandbox_backend,
 			sandbox_profile = excluded.sandbox_profile,
@@ -327,6 +332,9 @@ func (record sessionCatalogRecord) args() []any {
 		sessionLivenessStallState(session.Liveness),
 		sessionLivenessStallReason(session.Liveness),
 		record.activityJSON,
+		store.NullableString(session.SoulSnapshotID),
+		strings.TrimSpace(session.SoulDigest),
+		strings.TrimSpace(session.ParentSoulDigest),
 		sessionSandboxID(session.Sandbox),
 		sessionSandboxBackend(session.Sandbox),
 		sessionSandboxProfile(session.Sandbox),
@@ -497,6 +505,9 @@ type sessionInfoRow struct {
 	stallState           string
 	stallReason          string
 	activityJSON         string
+	soulSnapshotID       sql.NullString
+	soulDigest           string
+	parentSoulDigest     string
 	envID                string
 	envBackend           string
 	envProfile           string
@@ -538,6 +549,11 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	}
 	session.Lineage = lineage
 	session.ACPSessionID = store.NullString(row.acpSessionID)
+	if soulSnapshotID := store.NullString(row.soulSnapshotID); soulSnapshotID != nil {
+		session.SoulSnapshotID = *soulSnapshotID
+	}
+	session.SoulDigest = strings.TrimSpace(row.soulDigest)
+	session.ParentSoulDigest = strings.TrimSpace(row.parentSoulDigest)
 	if reason := store.NullString(row.stopReason); reason != nil {
 		session.StopReason = store.StopReason(*reason)
 	}
@@ -631,6 +647,9 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.stallState,
 		&row.stallReason,
 		&row.activityJSON,
+		&row.soulSnapshotID,
+		&row.soulDigest,
+		&row.parentSoulDigest,
 		&row.envID,
 		&row.envBackend,
 		&row.envProfile,

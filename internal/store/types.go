@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -139,23 +140,26 @@ func ValidStopReason(r StopReason) bool {
 
 // SessionInfo is the canonical session index row stored in the global database.
 type SessionInfo struct {
-	ID           string
-	Name         string
-	AgentName    string
-	Provider     string
-	WorkspaceID  string
-	Channel      string
-	SessionType  string
-	Lineage      *SessionLineage
-	State        string
-	ACPSessionID *string
-	StopReason   StopReason
-	StopDetail   string
-	Failure      *SessionFailure
-	Liveness     *SessionLivenessMeta
-	Sandbox      *SessionSandboxMeta
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID               string
+	Name             string
+	AgentName        string
+	Provider         string
+	WorkspaceID      string
+	Channel          string
+	SessionType      string
+	Lineage          *SessionLineage
+	State            string
+	ACPSessionID     *string
+	StopReason       StopReason
+	StopDetail       string
+	Failure          *SessionFailure
+	Liveness         *SessionLivenessMeta
+	Sandbox          *SessionSandboxMeta
+	SoulSnapshotID   string
+	SoulDigest       string
+	ParentSoulDigest string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 // Validate ensures the session record contains the required fields.
@@ -176,6 +180,9 @@ func (s SessionInfo) Validate() error {
 		return err
 	}
 	if err := s.Liveness.Validate(); err != nil {
+		return err
+	}
+	if err := validateSessionSoulProvenance(s.SoulSnapshotID, s.SoulDigest); err != nil {
 		return err
 	}
 	if s.Failure != nil {
@@ -217,6 +224,23 @@ type SessionStateUpdate struct {
 	UpdatedAt     time.Time
 }
 
+// SessionSoulSnapshotUpdate updates the Soul provenance attached to a session.
+type SessionSoulSnapshotUpdate struct {
+	ID               string
+	SoulSnapshotID   string
+	SoulDigest       string
+	ParentSoulDigest string
+	UpdatedAt        time.Time
+}
+
+// Validate ensures session Soul provenance is internally consistent.
+func (u SessionSoulSnapshotUpdate) Validate() error {
+	if err := requireField(u.ID, "session soul update id"); err != nil {
+		return err
+	}
+	return validateSessionSoulProvenance(u.SoulSnapshotID, u.SoulDigest)
+}
+
 // Validate ensures the update contains the required fields.
 func (u SessionStateUpdate) Validate() error {
 	if err := requireField(u.ID, "session update id"); err != nil {
@@ -232,6 +256,15 @@ func (u SessionStateUpdate) Validate() error {
 		if err := u.Failure.Validate(); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateSessionSoulProvenance(snapshotID string, digest string) error {
+	hasSnapshotID := strings.TrimSpace(snapshotID) != ""
+	hasDigest := strings.TrimSpace(digest) != ""
+	if hasSnapshotID && !hasDigest {
+		return errors.New("store: session soul digest is required when soul snapshot id is set")
 	}
 	return nil
 }
