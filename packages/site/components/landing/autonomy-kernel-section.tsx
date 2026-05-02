@@ -38,9 +38,9 @@ export function AutonomyKernelSection() {
       </figure>
 
       {/* Asymmetric 2-col below — large narrative + code, narrow value list. No 3-col card grid. */}
-      <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-12 lg:items-start">
-        <div className="flex flex-col gap-6">
-          <div className="rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-7">
+      <div className="mt-12 grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start lg:gap-12">
+        <div className="flex min-w-0 flex-col gap-6">
+          <div className="min-w-0 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-5 sm:p-7">
             <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
               Token-fenced ownership
             </p>
@@ -56,7 +56,7 @@ export function AutonomyKernelSection() {
           <CodeBlock code={AUTONOMY_CODE} caption="agh task" shell />
         </div>
 
-        <ul className="flex flex-col divide-y divide-(--color-divider) border-y border-(--color-divider)">
+        <ul className="flex min-w-0 flex-col divide-y divide-(--color-divider) border-y border-(--color-divider)">
           <li className="py-6">
             <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
               Lease recovery

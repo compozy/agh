@@ -164,6 +164,11 @@ a {
   color: var(--color-text-primary);
 }
 
+.site-doc-body :is(h1, h2, h3, h4, h5, h6) a.peer {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .site-doc-body p,
 .site-doc-body ul,
 .site-doc-body ol,
@@ -207,6 +212,19 @@ a {
 
 .site-doc-body a:hover {
   color: var(--color-accent);
+}
+
+a p.text-fd-muted-foreground.truncate {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+button span.truncate[class*="transition-"] {
+  overflow: visible;
+  line-height: 1.15;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .agh-mermaid {
@@ -261,6 +279,14 @@ a {
   fill: var(--agh-mermaid-node-text) !important;
   font-family: var(--font-mono) !important;
   letter-spacing: 0 !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+}
+
+.agh-mermaid foreignObject,
+.agh-mermaid foreignObject > * {
+  overflow: visible !important;
+  white-space: normal !important;
 }
 
 .agh-mermaid .edgeLabel,

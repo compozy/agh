@@ -103,8 +103,8 @@ export default async function BlogPostPage({ params }: PageProps) {
       </section>
 
       <section className="px-4 pt-8 pb-16">
-        <div className="mx-auto grid max-w-(--site-layout-width) gap-12 lg:grid-cols-[minmax(0,760px)_220px]">
-          <article className="prose-blog max-w-none">
+        <div className="mx-auto grid min-w-0 max-w-(--site-layout-width) gap-12 lg:grid-cols-[minmax(0,760px)_220px]">
+          <article className="prose-blog min-w-0 max-w-none">
             <MdxContent code={post.body} />
           </article>
           <TocRail items={flattenToc(post.toc)} />

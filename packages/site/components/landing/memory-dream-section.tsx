@@ -38,8 +38,8 @@ export function MemoryDreamSection() {
       padY="lg"
       ariaLabel="Memory and dream consolidation"
     >
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,400px)_1fr] lg:items-start lg:gap-16">
-        <div className="h-full flex flex-col justify-between lg:sticky lg:top-24">
+      <div className="grid min-w-0 gap-12 lg:grid-cols-[minmax(0,400px)_1fr] lg:items-start lg:gap-16">
+        <div className="flex h-full min-w-0 flex-col justify-between lg:sticky lg:top-24">
           <div>
             <p className="font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
               Memory
@@ -74,12 +74,12 @@ export function MemoryDreamSection() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-0">
+        <div className="flex min-w-0 flex-col gap-0">
           <ol className="flex flex-col divide-y divide-(--color-divider)">
             {STEPS.map((step, index) => (
               <li
                 key={step.eyebrow}
-                className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 py-7 first:pt-0"
+                className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 py-7 first:pt-0"
               >
                 <span
                   aria-hidden="true"
@@ -87,7 +87,7 @@ export function MemoryDreamSection() {
                 >
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <div>
+                <div className="min-w-0">
                   <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)">
                     {step.eyebrow}
                   </p>

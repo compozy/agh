@@ -57,13 +57,13 @@ export function CodeBlock({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep)",
+        "min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep)",
         className
       )}
     >
       {(caption || language || copyable) && (
-        <div className="flex items-center justify-between border-b border-(--color-divider) px-4 py-2.5">
-          <span className="font-mono text-[10px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
+        <div className="flex min-w-0 items-start justify-between gap-3 border-b border-(--color-divider) px-4 py-2.5">
+          <span className="min-w-0 font-mono text-[10px] leading-relaxed font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary) [overflow-wrap:anywhere]">
             {caption ?? language ?? "shell"}
           </span>
           {copyable ? (

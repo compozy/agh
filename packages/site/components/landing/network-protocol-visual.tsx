@@ -175,10 +175,10 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       role="group"
       aria-roledescription="protocol walkthrough"
       aria-label="agh-network/v0 seven-step delegation sequence"
-      className="overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep) outline-none focus:ring-1 focus:ring-(--color-accent)"
+      className="min-w-0 max-w-full overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep) outline-none focus:ring-1 focus:ring-(--color-accent)"
     >
       {/* Header — lane labels */}
-      <div className="grid grid-cols-3 gap-4 border-b border-(--color-divider) bg-(--color-surface) px-4 py-3 md:px-6">
+      <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-2 border-b border-(--color-divider) bg-(--color-surface) px-3 py-3 sm:gap-4 sm:px-4 md:px-6">
         <LaneHeader title="Agent A" subtitle="coder · desk-01" />
         <LaneHeader title="AGH Network" subtitle="agh-network/v0 · nats" accent />
         <LaneHeader title="Agent B" subtitle="deployer · ci-runner-03" />
@@ -187,7 +187,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       {/* Body */}
       <div className="relative">
         {/* Lane lines — purely decorative vertical rulers */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 grid w-full grid-cols-3 gap-4 px-4 md:px-6">
+        <div className="pointer-events-none absolute inset-y-0 left-0 grid w-full grid-cols-[repeat(3,minmax(0,1fr))] gap-2 px-3 sm:gap-4 sm:px-4 md:px-6">
           <div className="relative flex justify-center">
             <div className="h-full w-px bg-(--color-divider)" />
           </div>
@@ -199,7 +199,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
           </div>
         </div>
 
-        <ol className="relative flex flex-col gap-3 px-4 py-6 md:px-6">
+        <ol className="relative flex min-w-0 flex-col gap-3 px-3 py-6 sm:px-4 md:px-6">
           {STEPS.map((step, i) => {
             const isCurrent = !showAll && i === state.step;
             const isPast = !showAll && i < state.step;
@@ -243,15 +243,19 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
                       </Pill>
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1 font-mono text-[11px] tracking-[0.03em]",
+                          "inline-flex min-w-0 flex-wrap items-center gap-1 font-mono text-[11px] tracking-[0.03em]",
                           step.direction === ".."
                             ? "text-(--color-text-tertiary)"
                             : "text-(--color-text-secondary)"
                         )}
                       >
-                        <span className="whitespace-nowrap">{fromLabel(step.from)}</span>
+                        <span className="min-w-0 [overflow-wrap:anywhere] sm:whitespace-nowrap">
+                          {fromLabel(step.from)}
+                        </span>
                         <ArrowGlyph direction={step.direction} />
-                        <span className="whitespace-nowrap">{fromLabel(step.to)}</span>
+                        <span className="min-w-0 [overflow-wrap:anywhere] sm:whitespace-nowrap">
+                          {fromLabel(step.to)}
+                        </span>
                       </span>
                     </div>
 
@@ -273,8 +277,8 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       </div>
 
       {/* Footer — controls + kind footnote */}
-      <div className="flex flex-col gap-3 border-t border-(--color-divider) bg-(--color-surface) px-4 py-3 md:flex-row md:items-center md:justify-between md:px-6">
-        <p className="font-mono text-[11px] text-(--color-text-tertiary)">
+      <div className="flex min-w-0 flex-col gap-3 border-t border-(--color-divider) bg-(--color-surface) px-3 py-3 sm:px-4 md:flex-row md:items-center md:justify-between md:px-6">
+        <p className="min-w-0 font-mono text-[11px] text-(--color-text-tertiary)">
           <span className="text-(--color-accent)">capability</span> transfers full capability
           artifacts. <span className="text-(--color-accent)">say</span> is free-form operator chat.
         </p>
@@ -326,7 +330,7 @@ function LaneHeader({
   accent?: boolean;
 }) {
   return (
-    <div className="text-center">
+    <div className="min-w-0 text-center">
       <p
         className={cn(
           "font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono)",
@@ -335,7 +339,9 @@ function LaneHeader({
       >
         {title}
       </p>
-      <p className="mt-0.5 font-mono text-[11px] text-(--color-text-secondary)">{subtitle}</p>
+      <p className="mt-0.5 font-mono text-[11px] text-(--color-text-secondary) [overflow-wrap:anywhere]">
+        {subtitle}
+      </p>
     </div>
   );
 }

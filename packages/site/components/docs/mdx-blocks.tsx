@@ -132,11 +132,11 @@ export function Workflow({ children }: { children: ReactNode }) {
 
 export function WorkflowStep({ title, children }: WorkflowStepProps) {
   return (
-    <section className="grid gap-4 border-t border-(--color-divider) px-5 py-5 first:border-t-0 md:grid-cols-[40px_minmax(0,1fr)] md:px-6">
+    <section className="grid min-w-0 gap-4 border-t border-(--color-divider) px-5 py-5 first:border-t-0 md:grid-cols-[40px_minmax(0,1fr)] md:px-6">
       <div className="flex size-10 items-center justify-center rounded-lg border border-(--color-divider) bg-(--color-surface-elevated)">
         <CheckCircle2 className="size-4 text-(--color-accent)" />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-lg leading-7 font-semibold tracking-[-0.02em] text-(--color-text-primary)">
           {title}
         </p>
