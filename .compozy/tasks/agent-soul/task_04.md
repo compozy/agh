@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Integrate Soul With Sessions, Prompt Context, and Task Provenance
 type: backend
 complexity: critical
@@ -36,12 +36,12 @@ Wire resolved Soul profiles into runtime context, session lifecycle, prompt asse
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Wire resolved Soul snapshots into session start and prompt-context assembly.
-- [ ] 4.2 Add explicit session Soul refresh with bounded detached lifetime and session-scoped locking.
-- [ ] 4.3 Add compact Soul projection to agent context and prepare full read-model sources.
-- [ ] 4.4 Persist task-run claim provenance from pre-resolved snapshots without claim-time file I/O.
-- [ ] 4.5 Implement spawn/subagent lineage metadata without implicit parent Soul inheritance.
-- [ ] 4.6 Add behavioral tests for prompt, session, claim, refresh, spawn, and failure-matrix scenarios.
+- [x] 4.1 Wire resolved Soul snapshots into session start and prompt-context assembly.
+- [x] 4.2 Add explicit session Soul refresh with bounded detached lifetime and session-scoped locking.
+- [x] 4.3 Add compact Soul projection to agent context and prepare full read-model sources.
+- [x] 4.4 Persist task-run claim provenance from pre-resolved snapshots without claim-time file I/O.
+- [x] 4.5 Implement spawn/subagent lineage metadata without implicit parent Soul inheritance.
+- [x] 4.6 Add behavioral tests for prompt, session, claim, refresh, spawn, and failure-matrix scenarios.
 
 ## Implementation Details
 
@@ -92,16 +92,16 @@ Treat the resolver and persisted snapshots from tasks 01-03 as the only Soul aut
 
 ## Tests
 - Unit tests:
-  - [ ] Prompt assembly includes Soul projection in the approved order and respects truncation.
-  - [ ] Invalid `SOUL.md` fails closed at session start with a redacted diagnostic.
-  - [ ] Explicit refresh updates the session snapshot under a session-scoped lock.
-  - [ ] Spawned sessions do not inherit parent `SOUL.md` implicitly.
-  - [ ] Task claim metadata includes `soul_digest` and provenance from existing snapshots.
-  - [ ] `ClaimNextRun` path does not read the filesystem for `SOUL.md`.
+  - [x] Prompt assembly includes Soul projection in the approved order and respects truncation.
+  - [x] Invalid `SOUL.md` fails closed at session start with a redacted diagnostic.
+  - [x] Explicit refresh updates the session snapshot under a session-scoped lock.
+  - [x] Spawned sessions do not inherit parent `SOUL.md` implicitly.
+  - [x] Task claim metadata includes `soul_digest` and provenance from existing snapshots.
+  - [x] `ClaimNextRun` path does not read the filesystem for `SOUL.md`.
 - Integration tests:
-  - [ ] Session start, prompt, refresh, and task claim flow works across daemon/store boundaries.
-  - [ ] `/agent/context` internal core data includes compact Soul projection without exposing full body where forbidden.
-  - [ ] Restart/reopen preserves session and task provenance.
+  - [x] Session start, prompt, refresh, and task claim flow works across daemon/store boundaries.
+  - [x] `/agent/context` internal core data includes compact Soul projection without exposing full body where forbidden.
+  - [x] Restart/reopen preserves session and task provenance.
 - Test coverage target: >=80%.
 - All tests must pass.
 

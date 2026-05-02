@@ -294,6 +294,8 @@ type SessionManagerDeps struct {
 	ProcessRegistry      *toolruntime.Registry
 	HostedMCP            session.HostedMCPLauncher
 	ProviderSecrets      session.ProviderSecretResolver
+	SoulStore            session.SoulSnapshotStore
+	SoulRunChecker       session.SoulRunActivityChecker
 }
 
 // Daemon is the sole AGH composition root.
@@ -552,6 +554,8 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionSupervision(deps.SessionSupervision),
 			session.WithHostedMCPLauncher(deps.HostedMCP),
 			session.WithProviderSecretResolver(deps.ProviderSecrets),
+			session.WithSoulSnapshotStore(deps.SoulStore),
+			session.WithSoulRunActivityChecker(deps.SoulRunChecker),
 			session.WithDriver(session.NewACPDriverAdapter(acp.New(
 				acp.WithLogger(deps.Logger),
 				acp.WithProcessRegistry(deps.ProcessRegistry),

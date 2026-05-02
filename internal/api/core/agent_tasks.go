@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/agentidentity"
 	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -21,6 +22,10 @@ const (
 	agentTaskActionFail      = "agent.task.fail"
 	agentTaskActionRelease   = "agent.task.release"
 )
+
+type agentSoulClaimLocker interface {
+	WithSoulClaimLock(ctx context.Context, sessionID string, fn func() error) error
+}
 
 // AgentTaskClaimNext claims the next eligible task run for the validated caller.
 func (h *BaseHandlers) AgentTaskClaimNext(c *gin.Context) {
@@ -44,14 +49,8 @@ func (h *BaseHandlers) AgentTaskClaimNext(c *gin.Context) {
 		return
 	}
 
-	criteria, err := h.agentTaskClaimCriteria(c.Request.Context(), req, caller)
-	if err != nil {
-		h.respondError(c, statusForAgentTaskError(err), err)
-		return
-	}
-
 	for {
-		result, err := manager.ClaimNextRun(c.Request.Context(), criteria, caller.Actor)
+		result, err := h.claimNextRunForAgent(c.Request.Context(), manager, req, caller)
 		switch {
 		case err == nil:
 			if result == nil {
@@ -79,6 +78,68 @@ func (h *BaseHandlers) AgentTaskClaimNext(c *gin.Context) {
 			return
 		}
 	}
+}
+
+func (h *BaseHandlers) claimNextRunForAgent(
+	ctx context.Context,
+	manager TaskService,
+	req contract.AgentTaskClaimNextRequest,
+	caller agentidentity.Caller,
+) (*taskpkg.ClaimResult, error) {
+	if locker, ok := h.Sessions.(agentSoulClaimLocker); ok {
+		var result *taskpkg.ClaimResult
+		err := locker.WithSoulClaimLock(ctx, caller.Session.ID, func() error {
+			currentCaller, err := h.currentAgentCaller(ctx, caller)
+			if err != nil {
+				return err
+			}
+			criteria, err := h.agentTaskClaimCriteria(ctx, req, currentCaller)
+			if err != nil {
+				return err
+			}
+			result, err = manager.ClaimNextRun(ctx, criteria, currentCaller.Actor)
+			return err
+		})
+		return result, err
+	}
+
+	criteria, err := h.agentTaskClaimCriteria(ctx, req, caller)
+	if err != nil {
+		return nil, err
+	}
+	return manager.ClaimNextRun(ctx, criteria, caller.Actor)
+}
+
+func (h *BaseHandlers) currentAgentCaller(
+	ctx context.Context,
+	caller agentidentity.Caller,
+) (agentidentity.Caller, error) {
+	if h == nil || h.Sessions == nil {
+		return caller, nil
+	}
+	info, err := h.Sessions.Status(ctx, caller.Session.ID)
+	if err != nil {
+		return agentidentity.Caller{}, err
+	}
+	if info == nil {
+		return agentidentity.Caller{}, fmt.Errorf("%w: session %q", taskpkg.ErrPermissionDenied, caller.Session.ID)
+	}
+	current := caller
+	current.Session = agentidentity.SessionSnapshotFromInfo(info)
+	if current.Session.ID != caller.Session.ID || current.Session.AgentName != caller.Session.AgentName {
+		return agentidentity.Caller{}, fmt.Errorf(
+			"%w: agent session identity changed during task claim",
+			taskpkg.ErrPermissionDenied,
+		)
+	}
+	if current.Session.State != session.StateActive {
+		return agentidentity.Caller{}, fmt.Errorf(
+			"%w: agent session %q is not active",
+			taskpkg.ErrPermissionDenied,
+			current.Session.ID,
+		)
+	}
+	return current, nil
 }
 
 // AgentTaskHeartbeat extends the current lease for one claimed task run.
@@ -314,8 +375,21 @@ func (h *BaseHandlers) agentTaskClaimCriteria(
 		RequiredCapabilities:  capabilities,
 		PriorityMin:           req.PriorityMin,
 		CoordinationChannelID: strings.TrimSpace(caller.Session.Channel),
+		Soul:                  soulClaimProvenanceFromCaller(caller),
 		LeaseDuration:         leaseDuration,
 	}, nil
+}
+
+func soulClaimProvenanceFromCaller(caller agentidentity.Caller) *taskpkg.SoulClaimProvenance {
+	digest := strings.TrimSpace(caller.Session.SoulDigest)
+	if digest == "" {
+		return nil
+	}
+	return &taskpkg.SoulClaimProvenance{
+		SnapshotID: strings.TrimSpace(caller.Session.SoulSnapshotID),
+		Digest:     digest,
+		AgentName:  strings.TrimSpace(caller.Session.AgentName),
+	}
 }
 
 func (h *BaseHandlers) agentTaskClaimCapabilities(

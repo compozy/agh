@@ -185,6 +185,26 @@ func SnapshotFromResolved(
 	return snapshot.Normalize(), nil
 }
 
+// ProfileEnvelope decodes the structured JSON envelope stored with the snapshot.
+func (s Snapshot) ProfileEnvelope() (SnapshotProfile, error) {
+	normalized := s.Normalize()
+	if len(normalized.ProfileJSON) == 0 {
+		return SnapshotProfile{}, fmt.Errorf("%w: profile_json is required", ErrInvalidSnapshot)
+	}
+	var profile SnapshotProfile
+	if err := json.Unmarshal(normalized.ProfileJSON, &profile); err != nil {
+		return SnapshotProfile{}, fmt.Errorf("%w: decode profile_json: %w", ErrInvalidSnapshot, err)
+	}
+	if profile.SchemaVersion != snapshotProfileSchemaVersion {
+		return SnapshotProfile{}, fmt.Errorf(
+			"%w: unsupported profile schema version %d",
+			ErrInvalidSnapshot,
+			profile.SchemaVersion,
+		)
+	}
+	return profile, nil
+}
+
 // DiagnosticsJSON encodes redacted validation diagnostics for revision storage.
 func DiagnosticsJSON(diagnostics []Diagnostic) (json.RawMessage, error) {
 	encoded, err := json.Marshal(clonePersistenceDiagnostics(diagnostics))

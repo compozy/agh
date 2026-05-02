@@ -987,6 +987,7 @@ func cloneAgentDef(agent aghconfig.AgentDef) aghconfig.AgentDef {
 		Hooks:        cloneHookDecls(agent.Hooks),
 		Capabilities: agent.Capabilities.Clone(),
 		Prompt:       strings.TrimSpace(agent.Prompt),
+		SourcePath:   strings.TrimSpace(agent.SourcePath),
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/soul"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -244,6 +245,116 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 	if strings.Contains(rendered, "claim_token") {
 		t.Fatalf("RenderPrompt() leaked raw claim token field: %s", rendered)
 	}
+}
+
+func TestContextForSessionIncludesCompactSoulProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose compact soul before task without full body", func(t *testing.T) {
+		t.Parallel()
+
+		snapshot := testSituationSoulSnapshot(t, "body-secret-marker")
+		taskRecord := taskpkg.Task{
+			ID:          "task-soul",
+			Identifier:  "SOUL-1",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-1",
+			Title:       "Use soul context",
+			Status:      taskpkg.TaskStatusInProgress,
+			Priority:    taskpkg.PriorityMedium,
+			Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindAgentSession, Ref: "sess-1"},
+			UpdatedAt:   fixedTime().Add(time.Minute),
+		}
+		run := taskpkg.Run{
+			ID:        "run-soul",
+			TaskID:    taskRecord.ID,
+			Status:    taskpkg.TaskRunStatusRunning,
+			SessionID: "sess-1",
+			QueuedAt:  fixedTime(),
+			StartedAt: fixedTime().Add(time.Minute),
+		}
+		service := NewService(Deps{
+			Now:          fixedNow,
+			SectionLimit: 3,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "AGH", RootDir: "/work/agh"},
+						Config:    aghconfig.Config{Defaults: aghconfig.DefaultsConfig{Provider: "codex"}},
+					}, nil
+				},
+			),
+			AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error) {
+				return aghconfig.AgentDef{Name: "coder", Provider: "codex", Model: "gpt-test"}, nil
+			}),
+			TaskStore: taskStoreStub{
+				tasks: map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+				runs:  []taskpkg.Run{run},
+			},
+			SoulSnapshots: soulSnapshotStoreStub{
+				snapshots: map[string]soul.Snapshot{snapshot.ID: snapshot},
+			},
+		})
+
+		payload, err := service.ContextForSession(context.Background(), &session.Info{
+			ID:             "sess-1",
+			AgentName:      "coder",
+			Provider:       "codex",
+			WorkspaceID:    "ws-1",
+			Workspace:      "/work/agh",
+			Type:           session.SessionTypeUser,
+			State:          session.StateActive,
+			SoulSnapshotID: snapshot.ID,
+			SoulDigest:     snapshot.Digest,
+			CreatedAt:      fixedTime(),
+			UpdatedAt:      fixedTime(),
+		})
+		if err != nil {
+			t.Fatalf("ContextForSession() error = %v", err)
+		}
+
+		if !payload.Soul.Present || !payload.Soul.Active || !payload.Soul.Valid {
+			t.Fatalf("Soul flags = %#v, want present active valid", payload.Soul)
+		}
+		if got, want := payload.Soul.SnapshotID, snapshot.ID; got != want {
+			t.Fatalf("Soul.SnapshotID = %q, want %q", got, want)
+		}
+		if got, want := payload.Soul.Role, "Reviewer"; got != want {
+			t.Fatalf("Soul.Role = %q, want %q", got, want)
+		}
+		if got, want := payload.Soul.Tone, []string{"direct"}; !slices.Equal(got, want) {
+			t.Fatalf("Soul.Tone = %#v, want %#v", got, want)
+		}
+		if got, want := payload.Soul.Principles, []string{"protect correctness"}; !slices.Equal(got, want) {
+			t.Fatalf("Soul.Principles = %#v, want %#v", got, want)
+		}
+		encodedSoul, err := json.Marshal(payload.Soul)
+		if err != nil {
+			t.Fatalf("json.Marshal(Soul) error = %v", err)
+		}
+		if strings.Contains(string(encodedSoul), "body-secret-marker") ||
+			strings.Contains(string(encodedSoul), `"body":`) {
+			t.Fatalf("Soul compact payload leaked full body data: %s", encodedSoul)
+		}
+
+		rendered, err := RenderPrompt(&payload)
+		if err != nil {
+			t.Fatalf("RenderPrompt(context) error = %v", err)
+		}
+		assertOrder(t, rendered, []string{
+			`"self"`,
+			`"workspace"`,
+			`"session"`,
+			`"soul"`,
+			`"task"`,
+			`"capabilities"`,
+			`"limits"`,
+			`"provenance"`,
+		})
+		if strings.Contains(rendered, "body-secret-marker") || strings.Contains(rendered, `"body":`) {
+			t.Fatalf("RenderPrompt() leaked full soul body: %s", rendered)
+		}
+	})
 }
 
 func TestContextForSessionMissingOptionalServicesOmitsUnavailableSections(t *testing.T) {
@@ -711,6 +822,18 @@ func (s taskStoreStub) ListTaskRuns(_ context.Context, query taskpkg.RunQuery) (
 	return runs, nil
 }
 
+type soulSnapshotStoreStub struct {
+	snapshots map[string]soul.Snapshot
+}
+
+func (s soulSnapshotStoreStub) GetSoulSnapshot(_ context.Context, id string) (soul.Snapshot, error) {
+	snapshot, ok := s.snapshots[strings.TrimSpace(id)]
+	if !ok {
+		return soul.Snapshot{}, soul.ErrSnapshotNotFound
+	}
+	return snapshot, nil
+}
+
 type networkStub struct {
 	envelopes []network.Envelope
 	peers     []network.PeerInfo
@@ -722,4 +845,44 @@ func (s networkStub) Inbox(_ context.Context, _ string) ([]network.Envelope, err
 
 func (s networkStub) ListPeers(_ context.Context, _ string) ([]network.PeerInfo, error) {
 	return slices.Clone(s.peers), nil
+}
+
+func testSituationSoulSnapshot(t *testing.T, body string) soul.Snapshot {
+	t.Helper()
+
+	cfg := aghconfig.DefaultSoulConfig()
+	resolved, err := soul.Parse(context.Background(), soul.ParseRequest{
+		SourcePath:    "/work/agh/.agh/agents/coder/SOUL.md",
+		WorkspaceRoot: "/work/agh",
+		Content: []byte(strings.Join([]string{
+			"---",
+			"role: Reviewer",
+			"tone:",
+			"  - direct",
+			"principles:",
+			"  - protect correctness",
+			"---",
+			body,
+		}, "\n")),
+		Config: cfg,
+	})
+	if err != nil {
+		t.Fatalf("soul.Parse() error = %v", err)
+	}
+	provenance, err := soul.NewConfigProvenance(cfg, "test")
+	if err != nil {
+		t.Fatalf("NewConfigProvenance() error = %v", err)
+	}
+	snapshot, err := soul.SnapshotFromResolved(
+		"soul-situation",
+		"ws-1",
+		"coder",
+		&resolved,
+		provenance,
+		fixedTime(),
+	)
+	if err != nil {
+		t.Fatalf("SnapshotFromResolved() error = %v", err)
+	}
+	return snapshot
 }

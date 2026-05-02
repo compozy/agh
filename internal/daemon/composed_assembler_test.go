@@ -7,11 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills/bundled"
+	"github.com/pedronauck/agh/internal/soul"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -263,6 +265,127 @@ func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.
 	if got != want {
 		t.Fatalf("AssembleStartup() = %q, want %q", got, want)
 	}
+}
+
+func TestComposedAssemblerAssembleStartupIncludesSoulSection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render soul after base prompt and before append sections", func(t *testing.T) {
+		t.Parallel()
+
+		assembler := NewComposedAssembler(
+			WithPromptSectionDescriptors(
+				PromptSectionDescriptor{
+					Name:             "soul",
+					Position:         PromptSectionPositionAppend,
+					Order:            50,
+					Provider:         soulPromptSectionProvider{},
+					StartupPredicate: startupHasSoulSnapshot,
+				},
+				PromptSectionDescriptor{
+					Name:     "skills",
+					Position: PromptSectionPositionAppend,
+					Order:    100,
+					Provider: staticPromptProvider("skills block"),
+				},
+			),
+		)
+		snapshot := testPromptSoulSnapshot(t, "Review implementation behavior.")
+
+		got := assembleStartupPrompt(
+			t,
+			assembler,
+			session.StartupPromptContext{SoulSnapshot: snapshot},
+			testPromptAgent("Base prompt."),
+			t.TempDir(),
+		)
+
+		assertPromptOrder(t, got, []string{"Base prompt.", "<agh-agent-soul>", "skills block"})
+		for _, want := range []string{
+			"# Agent Soul",
+			"Snapshot ID: soul-test",
+			"Digest: sha256:",
+			"Role: Reviewer",
+			"- direct",
+			"Review implementation behavior.",
+		} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("AssembleStartup() = %q, want substring %q", got, want)
+			}
+		}
+	})
+
+	t.Run("Should omit soul section when startup has no snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		assembler := NewComposedAssembler(
+			WithPromptSectionDescriptors(
+				PromptSectionDescriptor{
+					Name:             "soul",
+					Position:         PromptSectionPositionAppend,
+					Order:            50,
+					Provider:         soulPromptSectionProvider{},
+					StartupPredicate: startupHasSoulSnapshot,
+				},
+				PromptSectionDescriptor{
+					Name:     "skills",
+					Position: PromptSectionPositionAppend,
+					Order:    100,
+					Provider: staticPromptProvider("skills block"),
+				},
+			),
+		)
+
+		got := assembleStartupPrompt(
+			t,
+			assembler,
+			session.StartupPromptContext{},
+			testPromptAgent("Base prompt."),
+			t.TempDir(),
+		)
+
+		want := "Base prompt.\n\nskills block"
+		if got != want {
+			t.Fatalf("AssembleStartup() = %q, want %q", got, want)
+		}
+		if strings.Contains(got, "<agh-agent-soul>") {
+			t.Fatalf("AssembleStartup() included soul section without snapshot: %q", got)
+		}
+	})
+
+	t.Run("Should apply descriptor budget to soul startup section", func(t *testing.T) {
+		t.Parallel()
+
+		assembler := NewComposedAssembler(
+			WithPromptSectionDescriptors(
+				PromptSectionDescriptor{
+					Name:             "soul",
+					Position:         PromptSectionPositionAppend,
+					Order:            50,
+					Budget:           96,
+					BudgetBehavior:   PromptSectionBudgetBehaviorTrim,
+					Provider:         soulPromptSectionProvider{},
+					StartupPredicate: startupHasSoulSnapshot,
+				},
+			),
+		)
+		snapshot := testPromptSoulSnapshot(t, strings.Repeat("long body ", 40)+"tail-marker")
+
+		got := assembleStartupPrompt(
+			t,
+			assembler,
+			session.StartupPromptContext{SoulSnapshot: snapshot},
+			testPromptAgent("Base prompt."),
+			t.TempDir(),
+		)
+
+		if !strings.Contains(got, "<agh-agent-soul>") {
+			t.Fatalf("AssembleStartup() = %q, want trimmed soul section", got)
+		}
+		if strings.Contains(got, "tail-marker") {
+			t.Fatalf("AssembleStartup() did not trim over-budget soul body: %q", got)
+		}
+	})
 }
 
 func TestComposedAssemblerAppliesBudgetPolicies(t *testing.T) {
@@ -552,5 +675,61 @@ func testPromptAgent(prompt string) aghconfig.AgentDef {
 func testResolvedWorkspace(root string) workspacepkg.ResolvedWorkspace {
 	return workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{RootDir: root},
+	}
+}
+
+func testPromptSoulSnapshot(t *testing.T, body string) *soul.Snapshot {
+	t.Helper()
+
+	cfg := aghconfig.DefaultSoulConfig()
+	resolved, err := soul.Parse(context.Background(), soul.ParseRequest{
+		SourcePath:    "/workspace/.agh/agents/coder/SOUL.md",
+		WorkspaceRoot: "/workspace",
+		Content: []byte(strings.Join([]string{
+			"---",
+			"role: Reviewer",
+			"tone:",
+			"  - direct",
+			"principles:",
+			"  - protect correctness",
+			"---",
+			body,
+		}, "\n")),
+		Config: cfg,
+	})
+	if err != nil {
+		t.Fatalf("soul.Parse() error = %v", err)
+	}
+	provenance, err := soul.NewConfigProvenance(cfg, "test")
+	if err != nil {
+		t.Fatalf("NewConfigProvenance() error = %v", err)
+	}
+	snapshot, err := soul.SnapshotFromResolved(
+		"soul-test",
+		"ws-1",
+		"coder",
+		&resolved,
+		provenance,
+		time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC),
+	)
+	if err != nil {
+		t.Fatalf("SnapshotFromResolved() error = %v", err)
+	}
+	return &snapshot
+}
+
+func assertPromptOrder(t *testing.T, value string, tokens []string) {
+	t.Helper()
+
+	last := -1
+	for _, token := range tokens {
+		index := strings.Index(value, token)
+		if index < 0 {
+			t.Fatalf("missing token %q in %s", token, value)
+		}
+		if index <= last {
+			t.Fatalf("token %q appeared out of order in %s", token, value)
+		}
+		last = index
 	}
 }

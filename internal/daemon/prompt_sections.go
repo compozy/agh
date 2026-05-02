@@ -17,12 +17,14 @@ const (
 
 	startupSituationSectionOrder = 50
 	startupMemorySectionOrder    = 100
+	startupSoulSectionOrder      = 50
 	startupSkillsSectionOrder    = 100
 	startupToolsSectionOrder     = 150
 	startupNetworkSectionOrder   = 200
 
 	startupSituationSectionBudget = 20_000
 	startupMemorySectionBudget    = 24_000
+	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
 	startupToolsSectionBudget     = 12_000
 	startupNetworkSectionBudget   = 12_000
@@ -53,16 +55,21 @@ const (
 // resolved startup policy.
 type SectionPredicate func(ResolvedHarnessPolicy) bool
 
+// StartupSectionPredicate decides whether a prompt section is eligible for the
+// concrete startup context being assembled.
+type StartupSectionPredicate func(session.StartupPromptContext) bool
+
 // PromptSectionDescriptor describes one startup prompt section provider plus
 // its ordering, policy eligibility, and budget behavior.
 type PromptSectionDescriptor struct {
-	Name           string
-	Position       PromptSectionPosition
-	Order          int
-	Budget         int
-	BudgetBehavior PromptSectionBudgetBehavior
-	Provider       session.PromptProvider
-	Predicate      SectionPredicate
+	Name             string
+	Position         PromptSectionPosition
+	Order            int
+	Budget           int
+	BudgetBehavior   PromptSectionBudgetBehavior
+	Provider         session.PromptProvider
+	Predicate        SectionPredicate
+	StartupPredicate StartupSectionPredicate
 }
 
 func defaultStartupPromptSectionDescriptors(
@@ -95,6 +102,16 @@ func defaultStartupPromptSectionDescriptors(
 			Predicate:      policyIncludesSection(HarnessPromptSectionMemory),
 		})
 	}
+
+	descriptors = append(descriptors, PromptSectionDescriptor{
+		Name:             "soul",
+		Position:         PromptSectionPositionAppend,
+		Order:            startupSoulSectionOrder,
+		Budget:           startupSoulSectionBudget,
+		BudgetBehavior:   PromptSectionBudgetBehaviorTrim,
+		Provider:         soulPromptSectionProvider{},
+		StartupPredicate: startupHasSoulSnapshot,
+	})
 
 	if skillsProvider != nil {
 		descriptors = append(descriptors, PromptSectionDescriptor{

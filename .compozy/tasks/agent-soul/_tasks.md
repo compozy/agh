@@ -15,7 +15,7 @@ MVP includes optional managed `SOUL.md` persona authoring, optional managed `HEA
 | 01 | Add Soul Config and Resolver Foundation | pending | high | - |
 | 02 | Persist Soul Snapshots and Authoring Revisions | pending | high | task_01 |
 | 03 | Implement Managed Soul Authoring Service | pending | high | task_01, task_02 |
-| 04 | Integrate Soul With Sessions, Prompt Context, and Task Provenance | pending | critical | task_01, task_02, task_03 |
+| 04 | Integrate Soul With Sessions, Prompt Context, and Task Provenance | completed | critical | task_01, task_02, task_03 |
 | 05 | Add Heartbeat Config and Policy Resolver Foundation | pending | high | - |
 | 06 | Persist Heartbeat Snapshots, Revisions, Session Health, and Wake Audit | pending | critical | task_02, task_05 |
 | 07 | Implement Metadata-Only Session Health | pending | critical | task_06 |

@@ -82,15 +82,16 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent)
 
 	child, err := m.Create(ctx, CreateOpts{
-		AgentName:     normalized.AgentName,
-		Provider:      normalized.Provider,
-		Name:          normalized.Name,
-		Workspace:     workspaceRef,
-		WorkspacePath: workspacePath,
-		Channel:       spawnChannel(normalized, parent),
-		PromptOverlay: normalized.PromptOverlay,
-		Type:          SessionTypeSpawned,
-		Lineage:       lineage,
+		AgentName:        normalized.AgentName,
+		Provider:         normalized.Provider,
+		Name:             normalized.Name,
+		Workspace:        workspaceRef,
+		WorkspacePath:    workspacePath,
+		Channel:          spawnChannel(normalized, parent),
+		PromptOverlay:    normalized.PromptOverlay,
+		Type:             SessionTypeSpawned,
+		Lineage:          lineage,
+		ParentSoulDigest: strings.TrimSpace(parent.SoulDigest),
 	})
 	if err != nil {
 		return nil, err

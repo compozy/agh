@@ -27,6 +27,7 @@ type AgentDef struct {
 	Hooks        []hookspkg.HookDecl `yaml:"hooks,omitempty"       toml:"hooks,omitempty"`
 	Capabilities *CapabilityCatalog  `yaml:"-"                     toml:"-"                     json:"capabilities,omitempty"`
 	Prompt       string              `yaml:"-"`
+	SourcePath   string              `yaml:"-"                     toml:"-"                     json:"-"`
 }
 
 type parsedAgentDef struct {
@@ -108,6 +109,7 @@ func LoadAgentDefFile(path string) (AgentDef, error) {
 	if err := agent.Validate(); err != nil {
 		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", path, err)
 	}
+	agent.SourcePath = filepath.Clean(path)
 
 	return agent, nil
 }

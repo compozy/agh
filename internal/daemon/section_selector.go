@@ -56,6 +56,9 @@ func (s *SectionSelector) Select(
 		if descriptor.Provider == nil {
 			continue
 		}
+		if descriptor.StartupPredicate != nil && !descriptor.StartupPredicate(startup) {
+			continue
+		}
 		if s != nil && s.resolver != nil && descriptor.Predicate != nil && !descriptor.Predicate(resolved.Policy) {
 			continue
 		}
@@ -88,13 +91,14 @@ func normalizeAndSortPromptSectionDescriptors(
 		}
 
 		normalized = append(normalized, PromptSectionDescriptor{
-			Name:           name,
-			Position:       position,
-			Order:          descriptor.Order,
-			Budget:         descriptor.Budget,
-			BudgetBehavior: normalizePromptSectionBudgetBehavior(descriptor.BudgetBehavior),
-			Provider:       descriptor.Provider,
-			Predicate:      descriptor.Predicate,
+			Name:             name,
+			Position:         position,
+			Order:            descriptor.Order,
+			Budget:           descriptor.Budget,
+			BudgetBehavior:   normalizePromptSectionBudgetBehavior(descriptor.BudgetBehavior),
+			Provider:         descriptor.Provider,
+			Predicate:        descriptor.Predicate,
+			StartupPredicate: descriptor.StartupPredicate,
 		})
 	}
 

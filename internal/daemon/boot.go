@@ -356,6 +356,9 @@ func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 		CoordinatorConfigFunc: func() situation.CoordinatorConfigResolver {
 			return state.deps.CoordinatorConfig
 		},
+		SoulSnapshotsFunc: func() situation.SoulSnapshotStore {
+			return soulSnapshotStoreDependency(state.registry)
+		},
 	})
 }
 
@@ -642,6 +645,8 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		ProcessRegistry:      state.processRegistry,
 		HostedMCP:            hostedMCPLauncher(state.hostedMCP),
 		ProviderSecrets:      sessionProviderVaultDependency(state.providerVault),
+		SoulStore:            soulSnapshotStoreDependency(state.registry),
+		SoulRunChecker:       soulRunActivityCheckerDependency(state.registry),
 	}
 }
 

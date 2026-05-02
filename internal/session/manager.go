@@ -39,15 +39,16 @@ var (
 
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
-	AgentName     string
-	Provider      string
-	Name          string
-	Workspace     string
-	WorkspacePath string
-	Channel       string
-	PromptOverlay string
-	Type          Type
-	Lineage       *store.SessionLineage
+	AgentName        string
+	Provider         string
+	Name             string
+	Workspace        string
+	WorkspacePath    string
+	Channel          string
+	PromptOverlay    string
+	Type             Type
+	Lineage          *store.SessionLineage
+	ParentSoulDigest string
 }
 
 // StoreOpener opens the per-session events store for a session directory.
@@ -89,33 +90,38 @@ type Manager struct {
 	syntheticMu          sync.Mutex
 	syntheticQueues      map[string][]queuedSyntheticPrompt
 	syntheticDispatching map[string]bool
+	soulLocksMu          sync.Mutex
+	soulLocks            map[string]chan struct{}
 
-	logger          *slog.Logger
-	driver          AgentDriver
-	notifier        Notifier
-	networkPeers    NetworkPeerLifecycle
-	turnEndNotifier TurnEndNotifier
-	inputAugmenter  PromptInputAugmenter
-	startupOverlay  StartupPromptOverlay
-	hooks           HookSet
-	sandbox         *sandbox.Registry
-	agentResolver   AgentResolver
-	providerSecrets ProviderSecretResolver
-	skillRegistry   SkillRegistry
-	mcpResolver     MCPResolver
-	hostedMCP       HostedMCPLauncher
-	homePaths       aghconfig.HomePaths
-	workspace       workspacepkg.RuntimeResolver
-	openStore       StoreOpener
-	assembler       PromptAssembler
-	supervision     aghconfig.SessionSupervisionConfig
-	lifecycleCtx    context.Context
-	now             func() time.Time
-	newSessionID    IDGenerator
-	newSandboxID    IDGenerator
-	newTurnID       IDGenerator
-	maxSessions     int
-	promptBufSize   int
+	logger             *slog.Logger
+	driver             AgentDriver
+	notifier           Notifier
+	networkPeers       NetworkPeerLifecycle
+	turnEndNotifier    TurnEndNotifier
+	inputAugmenter     PromptInputAugmenter
+	startupOverlay     StartupPromptOverlay
+	hooks              HookSet
+	sandbox            *sandbox.Registry
+	agentResolver      AgentResolver
+	providerSecrets    ProviderSecretResolver
+	skillRegistry      SkillRegistry
+	mcpResolver        MCPResolver
+	hostedMCP          HostedMCPLauncher
+	soulStore          SoulSnapshotStore
+	soulRunChecker     SoulRunActivityChecker
+	homePaths          aghconfig.HomePaths
+	workspace          workspacepkg.RuntimeResolver
+	openStore          StoreOpener
+	assembler          PromptAssembler
+	supervision        aghconfig.SessionSupervisionConfig
+	lifecycleCtx       context.Context
+	now                func() time.Time
+	newSessionID       IDGenerator
+	newSandboxID       IDGenerator
+	newTurnID          IDGenerator
+	maxSessions        int
+	promptBufSize      int
+	soulRefreshTimeout time.Duration
 }
 
 // WithSandboxRegistry injects the runtime sandbox provider registry.
@@ -200,6 +206,20 @@ func WithMCPResolver(resolver MCPResolver) Option {
 func WithHostedMCPLauncher(launcher HostedMCPLauncher) Option {
 	return func(manager *Manager) {
 		manager.hostedMCP = launcher
+	}
+}
+
+// WithSoulSnapshotStore injects durable Soul snapshot/session provenance storage.
+func WithSoulSnapshotStore(store SoulSnapshotStore) Option {
+	return func(manager *Manager) {
+		manager.soulStore = store
+	}
+}
+
+// WithSoulRunActivityChecker injects the active-run predicate used by Soul refresh.
+func WithSoulRunActivityChecker(checker SoulRunActivityChecker) Option {
+	return func(manager *Manager) {
+		manager.soulRunChecker = checker
 	}
 }
 
@@ -300,6 +320,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		finalizing:           make(map[string]chan struct{}),
 		syntheticQueues:      make(map[string][]queuedSyntheticPrompt),
 		syntheticDispatching: make(map[string]bool),
+		soulLocks:            make(map[string]chan struct{}),
 		logger:               slog.Default(),
 		driver:               NewACPDriverAdapter(acp.New()),
 		homePaths:            homePaths,
@@ -320,7 +341,8 @@ func NewManager(opts ...Option) (*Manager, error) {
 		newTurnID: func() string {
 			return newID("turn")
 		},
-		promptBufSize: defaultPromptBufferSize,
+		promptBufSize:      defaultPromptBufferSize,
+		soulRefreshTimeout: defaultLifecycleTimeout,
 	}
 
 	for _, opt := range opts {
@@ -377,6 +399,12 @@ func (m *Manager) applyRuntimeDefaults() error {
 	}
 	if m.promptBufSize <= 0 {
 		m.promptBufSize = defaultPromptBufferSize
+	}
+	if m.soulLocks == nil {
+		m.soulLocks = make(map[string]chan struct{})
+	}
+	if m.soulRefreshTimeout <= 0 {
+		m.soulRefreshTimeout = defaultLifecycleTimeout
 	}
 	if m.supervision == (aghconfig.SessionSupervisionConfig{}) {
 		m.supervision = aghconfig.DefaultSessionSupervisionConfig()
@@ -562,6 +590,10 @@ func (m *Manager) remove(id string) {
 	delete(m.finalizing, target)
 	m.mu.Unlock()
 
+	m.soulLocksMu.Lock()
+	delete(m.soulLocks, target)
+	m.soulLocksMu.Unlock()
+
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotFound)
 }
 
@@ -572,6 +604,10 @@ func (m *Manager) removeActive(id string) {
 	delete(m.sessions, target)
 	delete(m.pending, target)
 	m.mu.Unlock()
+
+	m.soulLocksMu.Lock()
+	delete(m.soulLocks, target)
+	m.soulLocksMu.Unlock()
 
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotActive)
 }

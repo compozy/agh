@@ -37,16 +37,25 @@ var rawClaimTokenPattern = regexp.MustCompile(`agh_claim_[A-Za-z0-9_-]+`)
 
 // ClaimCriteria captures the atomic next-work filters for one claiming session.
 type ClaimCriteria struct {
-	Scope                 Scope          `json:"scope,omitempty"`
-	WorkspaceID           string         `json:"workspace_id,omitempty"`
-	ClaimerSessionID      string         `json:"claimer_session_id"`
-	ClaimedBy             *ActorIdentity `json:"claimed_by,omitempty"`
-	AgentName             string         `json:"agent_name,omitempty"`
-	RequiredCapabilities  []string       `json:"required_capabilities,omitempty"`
-	PriorityMin           int            `json:"priority_min,omitempty"`
-	CoordinationChannelID string         `json:"coordination_channel_id,omitempty"`
-	LeaseDuration         time.Duration  `json:"lease_duration"`
-	Now                   time.Time      `json:"now"`
+	Scope                 Scope                `json:"scope,omitempty"`
+	WorkspaceID           string               `json:"workspace_id,omitempty"`
+	ClaimerSessionID      string               `json:"claimer_session_id"`
+	ClaimedBy             *ActorIdentity       `json:"claimed_by,omitempty"`
+	AgentName             string               `json:"agent_name,omitempty"`
+	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
+	PriorityMin           int                  `json:"priority_min,omitempty"`
+	CoordinationChannelID string               `json:"coordination_channel_id,omitempty"`
+	Soul                  *SoulClaimProvenance `json:"soul,omitempty"`
+	LeaseDuration         time.Duration        `json:"lease_duration"`
+	Now                   time.Time            `json:"now"`
+}
+
+// SoulClaimProvenance captures pre-resolved session Soul data at claim time.
+type SoulClaimProvenance struct {
+	SnapshotID string    `json:"snapshot_id,omitempty"`
+	Digest     string    `json:"digest,omitempty"`
+	AgentName  string    `json:"agent_name,omitempty"`
+	CapturedAt time.Time `json:"captured_at"`
 }
 
 // CoordinationChannelMetadata is the safe channel display metadata returned with a claim.
@@ -211,6 +220,18 @@ func (c ClaimCriteria) Normalize(defaultNow time.Time) (ClaimCriteria, error) {
 	} else {
 		normalized.Now = normalized.Now.UTC()
 	}
+	if normalized.Soul != nil {
+		soulProvenance := *normalized.Soul
+		soulProvenance.SnapshotID = strings.TrimSpace(soulProvenance.SnapshotID)
+		soulProvenance.Digest = strings.TrimSpace(soulProvenance.Digest)
+		soulProvenance.AgentName = strings.TrimSpace(soulProvenance.AgentName)
+		if soulProvenance.CapturedAt.IsZero() {
+			soulProvenance.CapturedAt = normalized.Now
+		} else {
+			soulProvenance.CapturedAt = soulProvenance.CapturedAt.UTC()
+		}
+		normalized.Soul = &soulProvenance
+	}
 	if err := normalized.Validate("claim_criteria"); err != nil {
 		return ClaimCriteria{}, err
 	}
@@ -244,8 +265,29 @@ func (c ClaimCriteria) Validate(path string) error {
 	if err := validateLeaseDuration(c.LeaseDuration, nestedPath(path, "lease_duration")); err != nil {
 		return err
 	}
+	if c.Soul != nil {
+		if err := c.Soul.Validate(nestedPath(path, "soul")); err != nil {
+			return err
+		}
+	}
 	if c.Now.IsZero() {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "now"))
+	}
+	return nil
+}
+
+// Validate reports whether pre-resolved Soul claim provenance is internally consistent.
+func (p SoulClaimProvenance) Validate(path string) error {
+	hasSnapshotID := strings.TrimSpace(p.SnapshotID) != ""
+	hasDigest := strings.TrimSpace(p.Digest) != ""
+	if hasSnapshotID && !hasDigest {
+		return fmt.Errorf("%w: %s.digest is required when snapshot_id is set", ErrValidation, path)
+	}
+	if hasDigest && strings.TrimSpace(p.AgentName) == "" {
+		return fmt.Errorf("%w: %s.agent_name is required when digest is set", ErrValidation, path)
+	}
+	if !p.CapturedAt.IsZero() && p.CapturedAt.Location() != time.UTC {
+		return fmt.Errorf("%w: %s.captured_at must be UTC", ErrValidation, path)
 	}
 	return nil
 }

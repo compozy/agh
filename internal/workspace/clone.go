@@ -182,6 +182,7 @@ func cloneAgentDefs(src []aghconfig.AgentDef) []aghconfig.AgentDef {
 			Hooks:        cloneHookDecls(agent.Hooks),
 			Capabilities: agent.Capabilities.Clone(),
 			Prompt:       agent.Prompt,
+			SourcePath:   agent.SourcePath,
 		})
 	}
 

@@ -15,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/soul"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -62,6 +63,11 @@ type CoordinatorConfigResolver interface {
 	ResolveCoordinatorConfig(ctx context.Context, workspaceID string) (aghconfig.CoordinatorConfig, error)
 }
 
+// SoulSnapshotStore loads immutable Soul snapshots for compact context projection.
+type SoulSnapshotStore interface {
+	GetSoulSnapshot(ctx context.Context, id string) (soul.Snapshot, error)
+}
+
 // Deps wires situation context to daemon-owned services. Function fields are
 // evaluated at render time so daemon boot can install the provider before late
 // runtime services are available.
@@ -82,6 +88,8 @@ type Deps struct {
 	NetworkFunc           func() NetworkReader
 	CoordinatorConfig     CoordinatorConfigResolver
 	CoordinatorConfigFunc func() CoordinatorConfigResolver
+	SoulSnapshots         SoulSnapshotStore
+	SoulSnapshotsFunc     func() SoulSnapshotStore
 }
 
 // Service assembles contract.AgentContextPayload and renders prompt sections.
@@ -101,6 +109,8 @@ type Service struct {
 	networkFunc           func() NetworkReader
 	coordinatorConfig     CoordinatorConfigResolver
 	coordinatorConfigFunc func() CoordinatorConfigResolver
+	soulSnapshots         SoulSnapshotStore
+	soulSnapshotsFunc     func() SoulSnapshotStore
 }
 
 // NewService constructs a deterministic situation context assembler.
@@ -129,6 +139,8 @@ func NewService(deps Deps) *Service {
 		networkFunc:           deps.NetworkFunc,
 		coordinatorConfig:     deps.CoordinatorConfig,
 		coordinatorConfigFunc: deps.CoordinatorConfigFunc,
+		soulSnapshots:         deps.SoulSnapshots,
+		soulSnapshotsFunc:     deps.SoulSnapshotsFunc,
 	}
 }
 
@@ -214,6 +226,7 @@ func (s *Service) ContextForSession(
 		},
 		Workspace:    workspaceSection,
 		Session:      sessionPayload(info),
+		Soul:         s.soulPayload(ctx, info),
 		Capabilities: s.capabilitiesSection(ctx, workspaceSnapshot, agentDef),
 		Limits:       s.limits(ctx, workspaceSection.ID),
 		Provenance:   s.provenance(),
@@ -615,6 +628,46 @@ func (s *Service) coordinatorConfigValue() CoordinatorConfigResolver {
 	return s.coordinatorConfig
 }
 
+func (s *Service) soulSnapshotsValue() SoulSnapshotStore {
+	if s == nil {
+		return nil
+	}
+	if s.soulSnapshotsFunc != nil {
+		return s.soulSnapshotsFunc()
+	}
+	return s.soulSnapshots
+}
+
+func (s *Service) soulPayload(ctx context.Context, info *session.Info) contract.AgentSoulPayload {
+	if info == nil || strings.TrimSpace(info.SoulSnapshotID) == "" {
+		return contract.AgentSoulPayload{}
+	}
+	store := s.soulSnapshotsValue()
+	if store == nil {
+		return contract.AgentSoulPayload{
+			Present:    true,
+			Active:     true,
+			Valid:      true,
+			SnapshotID: strings.TrimSpace(info.SoulSnapshotID),
+			Digest:     strings.TrimSpace(info.SoulDigest),
+		}
+	}
+	snapshot, err := store.GetSoulSnapshot(ctx, info.SoulSnapshotID)
+	if err != nil {
+		if isContextError(err) {
+			return contract.AgentSoulPayload{}
+		}
+		return contract.AgentSoulPayload{
+			Present:    true,
+			Active:     true,
+			Valid:      false,
+			SnapshotID: strings.TrimSpace(info.SoulSnapshotID),
+			Digest:     strings.TrimSpace(info.SoulDigest),
+		}
+	}
+	return soulPayloadFromSnapshot(&snapshot)
+}
+
 func startupSessionPayload(startup session.StartupPromptContext) contract.AgentSessionPayload {
 	return contract.AgentSessionPayload{
 		ID:        strings.TrimSpace(startup.SessionID),
@@ -639,6 +692,37 @@ func sessionPayload(info *session.Info) contract.AgentSessionPayload {
 		Channel:   strings.TrimSpace(info.Channel),
 		CreatedAt: info.CreatedAt.UTC(),
 		UpdatedAt: info.UpdatedAt.UTC(),
+	}
+}
+
+func soulPayloadFromSnapshot(snapshot *soul.Snapshot) contract.AgentSoulPayload {
+	if snapshot == nil || strings.TrimSpace(snapshot.ID) == "" {
+		return contract.AgentSoulPayload{}
+	}
+	profile, err := snapshot.ProfileEnvelope()
+	if err != nil {
+		return contract.AgentSoulPayload{
+			Present:    true,
+			Active:     false,
+			Valid:      false,
+			SnapshotID: strings.TrimSpace(snapshot.ID),
+			Digest:     strings.TrimSpace(snapshot.Digest),
+		}
+	}
+	return contract.AgentSoulPayload{
+		Enabled:      profile.Compact.Enabled,
+		Present:      profile.Compact.Present,
+		Active:       profile.Compact.Active,
+		Valid:        profile.Valid,
+		SnapshotID:   strings.TrimSpace(snapshot.ID),
+		Digest:       firstTrimmed(profile.Compact.Digest, snapshot.Digest),
+		SourcePath:   firstTrimmed(profile.Compact.SourcePath, snapshot.SourcePath),
+		Role:         strings.TrimSpace(profile.Compact.Role),
+		Tone:         append([]string(nil), profile.Compact.Tone...),
+		Principles:   append([]string(nil), profile.Compact.Principles...),
+		Truncated:    profile.Compact.Truncated || snapshot.Truncated,
+		MaxBytes:     profile.Compact.MaxBytes,
+		MaxBodyBytes: profile.Compact.MaxBodyBytes,
 	}
 }
 

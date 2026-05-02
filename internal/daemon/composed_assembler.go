@@ -173,10 +173,27 @@ func (a *ComposedAssembler) selectDescriptors(
 		return nil, err
 	}
 	if a.selector == nil {
-		return normalizeAndSortPromptSectionDescriptors(a.descriptors), nil
+		return filterPromptDescriptorsForStartup(normalizeAndSortPromptSectionDescriptors(a.descriptors), startup), nil
 	}
 	selected, _, err := a.selector.Select(startup, a.descriptors)
 	return selected, err
+}
+
+func filterPromptDescriptorsForStartup(
+	descriptors []PromptSectionDescriptor,
+	startup session.StartupPromptContext,
+) []PromptSectionDescriptor {
+	if len(descriptors) == 0 {
+		return nil
+	}
+	filtered := make([]PromptSectionDescriptor, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		if descriptor.StartupPredicate != nil && !descriptor.StartupPredicate(startup) {
+			continue
+		}
+		filtered = append(filtered, descriptor)
+	}
+	return filtered
 }
 
 func gatherPromptSections(

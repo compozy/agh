@@ -787,18 +787,21 @@ func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) network.Envelop
 
 func sessionInfoFromAgentCaller(caller agentidentity.Caller) *session.Info {
 	return &session.Info{
-		ID:          strings.TrimSpace(caller.Session.ID),
-		Name:        strings.TrimSpace(caller.Session.Name),
-		AgentName:   strings.TrimSpace(caller.Session.AgentName),
-		Provider:    strings.TrimSpace(caller.Session.Provider),
-		Model:       strings.TrimSpace(caller.Session.Model),
-		WorkspaceID: strings.TrimSpace(caller.Session.WorkspaceID),
-		Workspace:   strings.TrimSpace(caller.Session.WorkspacePath),
-		Channel:     strings.TrimSpace(caller.Session.Channel),
-		Type:        caller.Session.Type,
-		State:       caller.Session.State,
-		CreatedAt:   caller.Session.CreatedAt,
-		UpdatedAt:   caller.Session.UpdatedAt,
+		ID:               strings.TrimSpace(caller.Session.ID),
+		Name:             strings.TrimSpace(caller.Session.Name),
+		AgentName:        strings.TrimSpace(caller.Session.AgentName),
+		Provider:         strings.TrimSpace(caller.Session.Provider),
+		Model:            strings.TrimSpace(caller.Session.Model),
+		WorkspaceID:      strings.TrimSpace(caller.Session.WorkspaceID),
+		Workspace:        strings.TrimSpace(caller.Session.WorkspacePath),
+		Channel:          strings.TrimSpace(caller.Session.Channel),
+		Type:             caller.Session.Type,
+		State:            caller.Session.State,
+		SoulSnapshotID:   strings.TrimSpace(caller.Session.SoulSnapshotID),
+		SoulDigest:       strings.TrimSpace(caller.Session.SoulDigest),
+		ParentSoulDigest: strings.TrimSpace(caller.Session.ParentSoulDigest),
+		CreatedAt:        caller.Session.CreatedAt,
+		UpdatedAt:        caller.Session.UpdatedAt,
 	}
 }
 

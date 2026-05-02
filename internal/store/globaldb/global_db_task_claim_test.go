@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -236,6 +237,104 @@ func TestGlobalDBClaimNextRunManualAndAgentCreatedRunsSharePrimitive(t *testing.
 	if got, want := second.Task.CreatedBy.Kind, taskpkg.ActorKindAgentSession; got != want {
 		t.Fatalf("second.Task.CreatedBy.Kind = %q, want %q", got, want)
 	}
+}
+
+func TestGlobalDBClaimNextRunPersistsSoulProvenanceMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should merge pre-resolved soul provenance without reading SOUL.md", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		globalDB, err := OpenGlobalDB(ctx, dbPath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if globalDB == nil {
+				return
+			}
+			if err := globalDB.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		writeInvalidSoulFixture(t, workspaceRoot)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "claim-soul", workspaceRoot)
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+
+		taskRecord := taskRecordForTest("task-soul-claim")
+		taskRecord.Scope = taskpkg.ScopeWorkspace
+		taskRecord.WorkspaceID = workspaceID
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-soul-claim", taskRecord.ID)
+		run.Metadata = json.RawMessage(`{"workflow_id":"wf-soul"}`)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		capturedAt := now.Add(-time.Minute)
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-soul",
+			AgentName:        "coder",
+			Soul: &taskpkg.SoulClaimProvenance{
+				SnapshotID: "soul-snapshot-1",
+				Digest:     "sha256:resolved",
+				AgentName:  "coder",
+				CapturedAt: capturedAt,
+			},
+			LeaseDuration: time.Minute,
+			Now:           now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+
+		assertRunSoulMetadata(
+			t,
+			claim.Run.Metadata,
+			"wf-soul",
+			"soul-snapshot-1",
+			"sha256:resolved",
+			"coder",
+			capturedAt,
+		)
+		stored, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		assertRunSoulMetadata(t, stored.Metadata, "wf-soul", "soul-snapshot-1", "sha256:resolved", "coder", capturedAt)
+
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close(before reopen) error = %v", err)
+		}
+		globalDB = nil
+		reopened, err := OpenGlobalDB(ctx, dbPath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		globalDB = reopened
+		reopenedRun, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(reopen) error = %v", err)
+		}
+		assertRunSoulMetadata(
+			t,
+			reopenedRun.Metadata,
+			"wf-soul",
+			"soul-snapshot-1",
+			"sha256:resolved",
+			"coder",
+			capturedAt,
+		)
+	})
 }
 
 func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
@@ -826,4 +925,59 @@ func containsJSONKeyValue(value any, key string) bool {
 		}
 	}
 	return false
+}
+
+func writeInvalidSoulFixture(t *testing.T, workspaceRoot string) {
+	t.Helper()
+
+	soulDir := filepath.Join(workspaceRoot, ".agh", "agents", "coder")
+	if err := os.MkdirAll(soulDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", soulDir, err)
+	}
+	soulPath := filepath.Join(soulDir, "SOUL.md")
+	content := []byte("---\nprovider: claude\n---\nThis invalid file must not be read during claim.\n")
+	if err := os.WriteFile(soulPath, content, 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", soulPath, err)
+	}
+}
+
+func assertRunSoulMetadata(
+	t *testing.T,
+	raw json.RawMessage,
+	workflowID string,
+	snapshotID string,
+	digest string,
+	agentName string,
+	capturedAt time.Time,
+) {
+	t.Helper()
+
+	var decoded struct {
+		WorkflowID string `json:"workflow_id"`
+		Soul       struct {
+			SnapshotID string    `json:"snapshot_id"`
+			Digest     string    `json:"digest"`
+			AgentName  string    `json:"agent_name"`
+			CapturedAt time.Time `json:"captured_at"`
+		} `json:"soul"`
+	}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(run.Metadata) error = %v; raw=%s", err, raw)
+	}
+	if decoded.WorkflowID != workflowID {
+		t.Fatalf("metadata.workflow_id = %q, want %q", decoded.WorkflowID, workflowID)
+	}
+	if decoded.Soul.SnapshotID != snapshotID ||
+		decoded.Soul.Digest != digest ||
+		decoded.Soul.AgentName != agentName ||
+		!decoded.Soul.CapturedAt.Equal(capturedAt) {
+		t.Fatalf(
+			"metadata.soul = %#v, want snapshot=%q digest=%q agent=%q captured_at=%s",
+			decoded.Soul,
+			snapshotID,
+			digest,
+			agentName,
+			capturedAt,
+		)
+	}
 }

@@ -3045,6 +3045,23 @@ export interface operations {
                 /** Format: date-time */
                 updated_at: string;
               };
+              soul: {
+                active: boolean;
+                digest?: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes?: number;
+                /** Format: int64 */
+                max_bytes?: number;
+                present: boolean;
+                principles: string[];
+                role?: string;
+                snapshot_id?: string;
+                source_path?: string;
+                tone: string[];
+                truncated?: boolean;
+                valid: boolean;
+              };
               task: {
                 available: boolean;
                 lease?: {

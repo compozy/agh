@@ -61,11 +61,25 @@ func renderSections(payload *contract.AgentContextPayload) ([]renderedSection, e
 	if err != nil {
 		return nil, err
 	}
+	sections, err = appendSoulSections(sections, payload)
+	if err != nil {
+		return nil, err
+	}
 	sections, err = appendRuntimeSections(sections, payload)
 	if err != nil {
 		return nil, err
 	}
 	return appendSupportSections(sections, payload)
+}
+
+func appendSoulSections(
+	sections []renderedSection,
+	payload *contract.AgentContextPayload,
+) ([]renderedSection, error) {
+	if hasSoul(payload.Soul) {
+		return appendRenderedSection(sections, "soul", payload.Soul)
+	}
+	return sections, nil
 }
 
 func appendIdentitySections(
@@ -180,6 +194,15 @@ func hasWorkspace(payload contract.AgentWorkspacePayload) bool {
 
 func hasSession(payload contract.AgentSessionPayload) bool {
 	return strings.TrimSpace(payload.ID) != ""
+}
+
+func hasSoul(payload contract.AgentSoulPayload) bool {
+	return payload.Enabled ||
+		payload.Present ||
+		payload.Active ||
+		payload.Valid ||
+		strings.TrimSpace(payload.SnapshotID) != "" ||
+		strings.TrimSpace(payload.Digest) != ""
 }
 
 func hasListSection(payload contract.AgentContextSectionMetaPayload) bool {

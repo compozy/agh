@@ -1411,6 +1411,66 @@
                                                     ],
                                                     "type": "object"
                                                 },
+                                                "soul": {
+                                                    "properties": {
+                                                        "active": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "digest": {
+                                                            "type": "string"
+                                                        },
+                                                        "enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "max_body_bytes": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "max_bytes": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "present": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "principles": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "role": {
+                                                            "type": "string"
+                                                        },
+                                                        "snapshot_id": {
+                                                            "type": "string"
+                                                        },
+                                                        "source_path": {
+                                                            "type": "string"
+                                                        },
+                                                        "tone": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "truncated": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "valid": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "active",
+                                                        "enabled",
+                                                        "present",
+                                                        "principles",
+                                                        "tone",
+                                                        "valid"
+                                                    ],
+                                                    "type": "object"
+                                                },
                                                 "task": {
                                                     "properties": {
                                                         "available": {
@@ -1639,6 +1699,7 @@
                                                 "provenance",
                                                 "self",
                                                 "session",
+                                                "soul",
                                                 "task",
                                                 "workspace"
                                             ],

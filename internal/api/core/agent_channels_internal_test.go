@@ -17,6 +17,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T) {
@@ -298,6 +299,47 @@ func TestAgentChannelCoreHandlersRejectInvalidIdentityAndClaimToken(t *testing.T
 	if sendCalled {
 		t.Fatal("Send should not be called for denied/raw-token requests")
 	}
+}
+
+func TestAgentTaskClaimCriteriaIncludesSoulProvenance(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should copy session soul provenance into claim criteria", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := &BaseHandlers{}
+		caller := agentidentity.Caller{
+			Session: agentidentity.SessionSnapshot{
+				ID:             "sess-agent",
+				AgentName:      "coder",
+				WorkspaceID:    "ws-1",
+				Channel:        "builders",
+				State:          session.StateActive,
+				SoulSnapshotID: "soul-snapshot-1",
+				SoulDigest:     "sha256:resolved",
+			},
+			Actor: taskpkg.ActorContext{
+				Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
+			},
+		}
+
+		criteria, err := handlers.agentTaskClaimCriteria(
+			context.Background(),
+			contract.AgentTaskClaimNextRequest{LeaseSeconds: 60},
+			caller,
+		)
+		if err != nil {
+			t.Fatalf("agentTaskClaimCriteria() error = %v", err)
+		}
+		if criteria.Soul == nil {
+			t.Fatal("ClaimCriteria.Soul = nil, want session provenance")
+		}
+		if criteria.Soul.SnapshotID != "soul-snapshot-1" ||
+			criteria.Soul.Digest != "sha256:resolved" ||
+			criteria.Soul.AgentName != "coder" {
+			t.Fatalf("ClaimCriteria.Soul = %#v, want caller soul provenance", criteria.Soul)
+		}
+	})
 }
 
 type agentCoreNetworkService struct {
