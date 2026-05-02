@@ -19,7 +19,7 @@ import (
 func TestGlobalDBSoulMigration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should create Soul tables session columns indexes and reserve Heartbeat migration", func(t *testing.T) {
+	t.Run("Should create Soul tables session columns indexes before Heartbeat migration", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -61,25 +61,24 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AppliedMigrations() error = %v", err)
 		}
-		if got, want := len(records), 12; got != want {
+		if got, want := len(records), 13; got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
-		last := records[len(records)-1]
-		if last.Version != 12 || last.Name != "add_agent_soul_snapshots" {
-			t.Fatalf("last migration = %#v, want add_agent_soul_snapshots v12", last)
+		soulRecord := records[11]
+		if soulRecord.Version != 12 || soulRecord.Name != "add_agent_soul_snapshots" {
+			t.Fatalf("records[11] = %#v, want add_agent_soul_snapshots v12", soulRecord)
 		}
-		for _, record := range records {
-			if record.Version == 13 {
-				t.Fatalf("unexpected Heartbeat migration record: %#v", record)
-			}
+		heartbeatRecord := records[12]
+		if heartbeatRecord.Version != 13 || heartbeatRecord.Name != "add_agent_heartbeat_storage" {
+			t.Fatalf("records[12] = %#v, want add_agent_heartbeat_storage v13", heartbeatRecord)
 		}
-		for _, table := range []string{"agent_heartbeat_snapshots", "agent_heartbeat_revisions", "soul_snapshots", "soul_revisions"} {
+		for _, table := range []string{"soul_snapshots", "soul_revisions"} {
 			exists, err := tableExists(ctx, globalDB.db, table)
 			if err != nil {
 				t.Fatalf("tableExists(%q) error = %v", table, err)
 			}
 			if exists {
-				t.Fatalf("table %q exists, want no Heartbeat or legacy bridge table", table)
+				t.Fatalf("table %q exists, want no legacy bridge table", table)
 			}
 		}
 
