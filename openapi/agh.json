@@ -30436,6 +30436,14 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "description": "Include metadata-only session health when available",
+                        "in": "query",
+                        "name": "include_health",
+                        "schema": {
+                            "type": "boolean"
+                        }
                     }
                 ],
                 "responses": {
@@ -31451,6 +31459,14 @@
                         "required": true,
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Include metadata-only session health when available",
+                        "in": "query",
+                        "name": "include_health",
+                        "schema": {
+                            "type": "boolean"
                         }
                     }
                 ],

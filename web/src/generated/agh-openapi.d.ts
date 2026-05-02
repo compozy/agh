@@ -16304,6 +16304,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path */
         workspace?: string;
+        /** @description Include metadata-only session health when available */
+        include_health?: boolean;
       };
       header?: never;
       path?: never;
@@ -16678,7 +16680,10 @@ export interface operations {
   };
   getSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Include metadata-only session health when available */
+        include_health?: boolean;
+      };
       header?: never;
       path: {
         /** @description Session id */

@@ -1956,6 +1956,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			queryParam("workspace", "Workspace id or path", false),
+			boolQueryParam("include_health", "Include metadata-only session health when available"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionsResponse{}},
@@ -1988,6 +1989,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("id", "Session id"),
+			boolQueryParam("include_health", "Include metadata-only session health when available"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},

@@ -1,6 +1,6 @@
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { OperationRequestBody, OperationResponse } from "./api-contract";
+import type { OperationQuery, OperationRequestBody, OperationResponse } from "./api-contract";
 
 describe("agent authored context contract types", () => {
   it("keeps Soul contracts aligned with generated OpenAPI types", () => {
@@ -30,6 +30,23 @@ describe("agent authored context contract types", () => {
       digest?: string;
       tone: string[];
       principles: string[];
+    }>();
+  });
+
+  it("exposes include_health query and optional health field on session list/detail contracts", () => {
+    type ListSessionsQuery = NonNullable<OperationQuery<"listSessions">>;
+    type GetSessionQuery = NonNullable<OperationQuery<"getSession">>;
+    type SessionListItem = OperationResponse<"listSessions", 200>["sessions"][number];
+    type SessionListHealth = NonNullable<SessionListItem["health"]>;
+
+    expectTypeOf<ListSessionsQuery["include_health"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<GetSessionQuery["include_health"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<SessionListHealth>().toMatchTypeOf<{
+      session_id: string;
+      state: "idle" | "prompting" | "stopped" | "detached";
+      health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+      attachable: boolean;
+      eligible_for_wake: boolean;
     }>();
   });
 

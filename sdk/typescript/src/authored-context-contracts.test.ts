@@ -1,5 +1,6 @@
-import { describe, expectTypeOf, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
+import * as sdk from "./index.js";
 import type {
   AgentSoulPayload,
   AgentSoulPutRequest,
@@ -74,5 +75,13 @@ describe("generated authored context contracts", () => {
     expectTypeOf<
       HostAPIMethodMap["agents/heartbeat/wake"]["result"]
     >().toMatchTypeOf<HeartbeatWakeResponse>();
+  });
+
+  it("does not export Soul or Heartbeat editor helpers from the SDK package barrel", () => {
+    const exportedNames = Object.keys(sdk as Record<string, unknown>);
+    const forbiddenName =
+      /(Soul|Heartbeat|SessionHealth)(?:Editor|Form|Composer|Settings|Panel|Inspector|Workbench|Builder)/;
+    const editorExports = exportedNames.filter(name => forbiddenName.test(name));
+    expect(editorExports).toEqual([]);
   });
 });
