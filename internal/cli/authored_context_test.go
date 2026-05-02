@@ -307,7 +307,7 @@ func TestAgentHeartbeatCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should write heartbeat with if match mapped to expected digest", func(t *testing.T) {
+	t.Run("Should write heartbeat with expected digest mapped to expected digest", func(t *testing.T) {
 		t.Parallel()
 
 		bodyPath := filepath.Join(t.TempDir(), "HEARTBEAT.md")
@@ -321,7 +321,7 @@ func TestAgentHeartbeatCommands(t *testing.T) {
 				request AgentHeartbeatPutRequest,
 			) (AgentHeartbeatMutationRecord, error) {
 				if name != "coder" || request.ExpectedDigest != "sha256:old" {
-					t.Fatalf("PutAgentHeartbeat() = %q/%#v, want if-match digest", name, request)
+					t.Fatalf("PutAgentHeartbeat() = %q/%#v, want expected digest", name, request)
 				}
 				if request.WorkspaceID != "checkout-api" || request.Body != "# Heartbeat\n\nCheck in.\n" {
 					t.Fatalf("PutAgentHeartbeat() request = %#v", request)
@@ -353,7 +353,7 @@ func TestAgentHeartbeatCommands(t *testing.T) {
 			"coder",
 			"--file",
 			bodyPath,
-			"--if-match",
+			"--expected-digest",
 			"sha256:old",
 			"--workspace",
 			"checkout-api",
@@ -371,7 +371,7 @@ func TestAgentHeartbeatCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should create heartbeat without if match when file is absent", func(t *testing.T) {
+	t.Run("Should create heartbeat without expected digest when file is absent", func(t *testing.T) {
 		t.Parallel()
 
 		bodyPath := filepath.Join(t.TempDir(), "HEARTBEAT.md")

@@ -999,8 +999,8 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 
 func webhookSecretWriteFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.WebhookSecretWrite {
 	write := automationpkg.WebhookSecretWrite{}
-	if strings.TrimSpace(req.WebhookSecretValue) != "" {
-		value := strings.TrimSpace(req.WebhookSecretValue)
+	if req.WebhookSecretValue != "" {
+		value := req.WebhookSecretValue
 		write.Value = &value
 	}
 	return write
@@ -1011,7 +1011,7 @@ func webhookSecretWriteFromUpdateRequest(req contract.UpdateTriggerRequest) *aut
 		return nil
 	}
 	write := automationpkg.WebhookSecretWrite{}
-	value := strings.TrimSpace(*req.WebhookSecretValue)
+	value := *req.WebhookSecretValue
 	write.Value = &value
 	return &write
 }

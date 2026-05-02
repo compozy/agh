@@ -747,6 +747,11 @@ func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *te
 			body, _ := io.ReadAll(resp.Body)
 			t.Fatalf("GET /api/vault/secrets status = %d, want %d; body=%s", got, want, string(body))
 		}
+		var payload contract.ErrorPayload
+		decodeServerJSON(t, resp, &payload)
+		if got, want := payload.Error, errLoopbackMutationRequired.Error(); got != want {
+			t.Fatalf("payload.Error = %q, want %q", got, want)
+		}
 	})
 
 	mutationCases := []struct {

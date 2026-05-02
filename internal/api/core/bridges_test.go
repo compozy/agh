@@ -343,8 +343,13 @@ func TestBridgeHandlersSecretBindingsCRUD(t *testing.T) {
 	if got, want := len(listPayload.Bindings), 1; got != want {
 		t.Fatalf("len(bindings) = %d, want %d", got, want)
 	}
-	if listPayload.Bindings[0].BindingName != "bot_token" {
+	if listPayload.Bindings[0].BindingName != "bot_token" ||
+		listPayload.Bindings[0].SecretRef != "vault:bridges/brg-core/bot_token" ||
+		listPayload.Bindings[0].Kind != "token" {
 		t.Fatalf("binding = %#v", listPayload.Bindings[0])
+	}
+	if strings.Contains(listResp.Body.String(), "secret_value") {
+		t.Fatalf("list response leaked write-only secret field: %s", listResp.Body.String())
 	}
 
 	putResp := performRequest(

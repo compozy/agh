@@ -346,7 +346,7 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "write <agent>",
 		Short:   "Create or replace HEARTBEAT.md through managed authoring",
-		Example: "  agh agent heartbeat write coder --file HEARTBEAT.md --if-match sha256:old --json",
+		Example: "  agh agent heartbeat write coder --file HEARTBEAT.md --expected-digest sha256:old --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -361,7 +361,7 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			digest := optionalStringFlag(cmd, "if-match", expectedDigest)
+			digest := optionalStringFlag(cmd, "expected-digest", expectedDigest)
 			record, err := client.PutAgentHeartbeat(cmd.Context(), args[0], AgentHeartbeatPutRequest{
 				WorkspaceID:    workspace,
 				AgentName:      args[0],
@@ -377,7 +377,7 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 	}
 	addWorkspaceFlag(cmd)
 	addAuthoredBodyFlags(cmd, &input)
-	cmd.Flags().StringVar(&expectedDigest, "if-match", "", "Expected current Heartbeat digest for CAS")
+	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Expected current Heartbeat digest for CAS")
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	return cmd
 }
@@ -387,7 +387,7 @@ func newAgentHeartbeatDeleteCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "delete <agent>",
 		Short:   "Delete HEARTBEAT.md through managed authoring",
-		Example: "  agh agent heartbeat delete coder --if-match sha256:old --json",
+		Example: "  agh agent heartbeat delete coder --expected-digest sha256:old --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -398,7 +398,7 @@ func newAgentHeartbeatDeleteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			digest, err := changedStringFlag(cmd, "if-match", expectedDigest)
+			digest, err := changedStringFlag(cmd, "expected-digest", expectedDigest)
 			if err != nil {
 				return err
 			}
@@ -414,7 +414,7 @@ func newAgentHeartbeatDeleteCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addWorkspaceFlag(cmd)
-	cmd.Flags().StringVar(&expectedDigest, "if-match", "", "Expected current Heartbeat digest for CAS")
+	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Expected current Heartbeat digest for CAS")
 	return cmd
 }
 
@@ -465,7 +465,7 @@ func newAgentHeartbeatRollbackCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "rollback <agent>",
 		Short:   "Rollback HEARTBEAT.md to a managed revision or snapshot digest",
-		Example: "  agh agent heartbeat rollback coder --revision-id rev_123 --if-match sha256:old --json",
+		Example: "  agh agent heartbeat rollback coder --revision-id rev_123 --expected-digest sha256:old --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -493,7 +493,7 @@ func newAgentHeartbeatRollbackCommand(deps commandDeps) *cobra.Command {
 					return errors.New("cli: --target-digest cannot be empty")
 				}
 			}
-			digest, err := changedStringFlag(cmd, "if-match", expectedDigest)
+			digest, err := changedStringFlag(cmd, "expected-digest", expectedDigest)
 			if err != nil {
 				return err
 			}
@@ -514,7 +514,7 @@ func newAgentHeartbeatRollbackCommand(deps commandDeps) *cobra.Command {
 	addWorkspaceFlag(cmd)
 	cmd.Flags().StringVar(&revisionID, "revision-id", "", "Managed Heartbeat revision id to restore")
 	cmd.Flags().StringVar(&targetDigest, "target-digest", "", "Heartbeat snapshot digest to restore")
-	cmd.Flags().StringVar(&expectedDigest, "if-match", "", "Expected current Heartbeat digest for CAS")
+	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Expected current Heartbeat digest for CAS")
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	return cmd
 }

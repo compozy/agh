@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -45,27 +46,123 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		EligibleForWake: true,
 		UpdatedAt:       fixedTestNow,
 	}
+	tempDir := t.TempDir()
+	soulBodyPath := filepath.Join(tempDir, "SOUL.md")
+	if err := os.WriteFile(soulBodyPath, []byte("# Soul\n\nStay precise.\n"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(SOUL.md) error = %v", err)
+	}
+	heartbeatBodyPath := filepath.Join(tempDir, "HEARTBEAT.md")
+	if err := os.WriteFile(heartbeatBodyPath, []byte("# Heartbeat\n\nCheck in.\n"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(HEARTBEAT.md) error = %v", err)
+	}
 
 	getCalls := 0
 	networkChannelsCalled := false
+	getAgentSoulCalled := false
+	putAgentSoulCalled := false
+	deleteAgentSoulCalled := false
+	rollbackAgentSoulCalled := false
+	refreshSessionSoulCalled := false
+	getAgentHeartbeatCalled := false
+	putAgentHeartbeatCalled := false
+	deleteAgentHeartbeatCalled := false
+	rollbackAgentHeartbeatCalled := false
+	getAgentHeartbeatStatusCalled := false
 	client := &stubClient{
 		getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
 			return AgentRecord{Name: "coder", Provider: "fake", Prompt: "hi"}, nil
 		},
 		getAgentSoulFn: func(context.Context, string, AgentQuery) (AgentSoulRecord, error) {
+			getAgentSoulCalled = true
 			return AgentSoulRecord{AgentName: "coder", Enabled: true, Valid: true, ValidationStatus: "valid"}, nil
 		},
+		putAgentSoulFn: func(_ context.Context, _ string, request AgentSoulPutRequest) (AgentSoulMutationRecord, error) {
+			putAgentSoulCalled = true
+			return AgentSoulMutationRecord{
+				Soul: AgentSoulRecord{
+					AgentName:        "coder",
+					Valid:            true,
+					ValidationStatus: "valid",
+					Digest:           request.ExpectedDigest,
+				},
+			}, nil
+		},
+		deleteAgentSoulFn: func(_ context.Context, _ string, request AgentSoulDeleteRequest) (AgentSoulMutationRecord, error) {
+			deleteAgentSoulCalled = true
+			return AgentSoulMutationRecord{
+				Soul: AgentSoulRecord{
+					AgentName:        "coder",
+					Valid:            true,
+					ValidationStatus: "valid",
+					Digest:           request.ExpectedDigest,
+				},
+			}, nil
+		},
+		rollbackAgentSoulFn: func(
+			_ context.Context,
+			_ string,
+			request AgentSoulRollbackRequest,
+		) (AgentSoulMutationRecord, error) {
+			rollbackAgentSoulCalled = true
+			return AgentSoulMutationRecord{
+				Soul: AgentSoulRecord{
+					AgentName:        "coder",
+					Valid:            true,
+					ValidationStatus: "valid",
+					Digest:           request.ExpectedDigest,
+				},
+			}, nil
+		},
 		refreshSessionSoulFn: func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error) {
+			refreshSessionSoulCalled = true
 			return AgentSoulRecord{AgentName: "coder", Enabled: true, Valid: true, ValidationStatus: "valid"}, nil
 		},
 		getAgentHeartbeatFn: func(context.Context, string, AgentQuery) (AgentHeartbeatRecord, error) {
+			getAgentHeartbeatCalled = true
 			return AgentHeartbeatRecord{AgentName: "coder", Enabled: true, Valid: true, ValidationStatus: "valid"}, nil
+		},
+		putAgentHeartbeatFn: func(
+			_ context.Context,
+			_ string,
+			request AgentHeartbeatPutRequest,
+		) (AgentHeartbeatMutationRecord, error) {
+			putAgentHeartbeatCalled = true
+			return AgentHeartbeatMutationRecord{
+				Heartbeat: AgentHeartbeatRecord{
+					AgentName: "coder", Valid: true, ValidationStatus: "valid", Digest: request.ExpectedDigest,
+				},
+			}, nil
+		},
+		deleteAgentHeartbeatFn: func(
+			_ context.Context,
+			_ string,
+			request AgentHeartbeatDeleteRequest,
+		) (AgentHeartbeatMutationRecord, error) {
+			deleteAgentHeartbeatCalled = true
+			return AgentHeartbeatMutationRecord{
+				Heartbeat: AgentHeartbeatRecord{
+					AgentName: "coder", Valid: true, ValidationStatus: "valid", Digest: request.ExpectedDigest,
+				},
+			}, nil
+		},
+		rollbackAgentHeartbeatFn: func(
+			_ context.Context,
+			_ string,
+			request AgentHeartbeatRollbackRequest,
+		) (AgentHeartbeatMutationRecord, error) {
+			rollbackAgentHeartbeatCalled = true
+			return AgentHeartbeatMutationRecord{
+				Heartbeat: AgentHeartbeatRecord{
+					AgentName: "coder", Valid: true, ValidationStatus: "valid", Digest: request.ExpectedDigest,
+				},
+			}, nil
 		},
 		getAgentHeartbeatStatusFn: func(
 			context.Context,
 			string,
 			AgentHeartbeatStatusRequest,
 		) (AgentHeartbeatStatusRecord, error) {
+			getAgentHeartbeatStatusCalled = true
 			return AgentHeartbeatStatusRecord{
 				AgentName:        "coder",
 				Enabled:          true,
@@ -203,7 +300,57 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	tests := [][]string{
 		{"agent", "info", "coder", "-o", "json"},
 		{"agent", "soul", "inspect", "coder", "-o", "json"},
+		{
+			"agent",
+			"soul",
+			"write",
+			"coder",
+			"--file",
+			soulBodyPath,
+			"--expected-digest",
+			"sha256:soul-old",
+			"-o",
+			"json",
+		},
+		{"agent", "soul", "delete", "coder", "--expected-digest", "sha256:soul-old", "-o", "json"},
+		{
+			"agent",
+			"soul",
+			"rollback",
+			"coder",
+			"--revision-id",
+			"rev-soul-1",
+			"--expected-digest",
+			"sha256:soul-old",
+			"-o",
+			"json",
+		},
 		{"agent", "heartbeat", "inspect", "coder", "-o", "json"},
+		{
+			"agent",
+			"heartbeat",
+			"write",
+			"coder",
+			"--file",
+			heartbeatBodyPath,
+			"--expected-digest",
+			"sha256:hb-old",
+			"-o",
+			"json",
+		},
+		{"agent", "heartbeat", "delete", "coder", "--expected-digest", "sha256:hb-old", "-o", "json"},
+		{
+			"agent",
+			"heartbeat",
+			"rollback",
+			"coder",
+			"--revision-id",
+			"rev-hb-1",
+			"--expected-digest",
+			"sha256:hb-old",
+			"-o",
+			"json",
+		},
 		{"agent", "heartbeat", "status", "coder", "-o", "json"},
 		{"network", "status", "-o", "json"},
 		{"network", "peers", "builders", "-o", "json"},
@@ -250,6 +397,29 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	}
 	if !networkChannelsCalled {
 		t.Fatal("NetworkChannels() was not called")
+	}
+	if !getAgentSoulCalled || !putAgentSoulCalled || !deleteAgentSoulCalled || !rollbackAgentSoulCalled {
+		t.Fatalf(
+			"soul command routing flags = inspect:%v write:%v delete:%v rollback:%v, want all true",
+			getAgentSoulCalled,
+			putAgentSoulCalled,
+			deleteAgentSoulCalled,
+			rollbackAgentSoulCalled,
+		)
+	}
+	if !getAgentHeartbeatCalled || !putAgentHeartbeatCalled || !deleteAgentHeartbeatCalled ||
+		!rollbackAgentHeartbeatCalled || !getAgentHeartbeatStatusCalled {
+		t.Fatalf(
+			"heartbeat command routing flags = inspect:%v write:%v delete:%v rollback:%v status:%v, want all true",
+			getAgentHeartbeatCalled,
+			putAgentHeartbeatCalled,
+			deleteAgentHeartbeatCalled,
+			rollbackAgentHeartbeatCalled,
+			getAgentHeartbeatStatusCalled,
+		)
+	}
+	if !refreshSessionSoulCalled {
+		t.Fatal("RefreshSessionSoul() was not called")
 	}
 	if !runner.ran {
 		t.Fatal("daemon runner did not execute")

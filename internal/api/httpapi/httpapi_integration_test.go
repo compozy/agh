@@ -916,8 +916,18 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		_ = createResp.Body.Close()
 		t.Fatalf("create trigger status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
 	}
+	createBody, err := io.ReadAll(createResp.Body)
+	_ = createResp.Body.Close()
+	if err != nil {
+		t.Fatalf("io.ReadAll(create trigger response) error = %v", err)
+	}
+	if strings.Contains(string(createBody), "shared-secret") {
+		t.Fatalf("create trigger response leaked webhook secret: %s", string(createBody))
+	}
 	var created contract.TriggerResponse
-	decodeHTTPJSON(t, createResp, &created)
+	if err := json.Unmarshal(createBody, &created); err != nil {
+		t.Fatalf("json.Unmarshal(create trigger response) error = %v; body=%s", err, string(createBody))
+	}
 	if created.Trigger.ID == "" || created.Trigger.WebhookID == "" {
 		t.Fatalf("created trigger = %#v", created.Trigger)
 	}
@@ -933,8 +943,18 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		_ = getResp.Body.Close()
 		t.Fatalf("get trigger status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, string(body))
 	}
+	getBody, err := io.ReadAll(getResp.Body)
+	_ = getResp.Body.Close()
+	if err != nil {
+		t.Fatalf("io.ReadAll(get trigger response) error = %v", err)
+	}
+	if strings.Contains(string(getBody), "shared-secret") {
+		t.Fatalf("get trigger response leaked webhook secret: %s", string(getBody))
+	}
 	var fetched contract.TriggerResponse
-	decodeHTTPJSON(t, getResp, &fetched)
+	if err := json.Unmarshal(getBody, &fetched); err != nil {
+		t.Fatalf("json.Unmarshal(get trigger response) error = %v; body=%s", err, string(getBody))
+	}
 	if fetched.Trigger.EndpointSlug != "deploy-review" {
 		t.Fatalf("fetched trigger endpoint_slug = %q, want %q", fetched.Trigger.EndpointSlug, "deploy-review")
 	}
@@ -945,8 +965,18 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		_ = updateResp.Body.Close()
 		t.Fatalf("update trigger status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, string(body))
 	}
+	updateBody, err := io.ReadAll(updateResp.Body)
+	_ = updateResp.Body.Close()
+	if err != nil {
+		t.Fatalf("io.ReadAll(update trigger response) error = %v", err)
+	}
+	if strings.Contains(string(updateBody), "shared-secret") {
+		t.Fatalf("update trigger response leaked webhook secret: %s", string(updateBody))
+	}
 	var updated contract.TriggerResponse
-	decodeHTTPJSON(t, updateResp, &updated)
+	if err := json.Unmarshal(updateBody, &updated); err != nil {
+		t.Fatalf("json.Unmarshal(update trigger response) error = %v; body=%s", err, string(updateBody))
+	}
 	if updated.Trigger.Prompt != `triage {{ index .Data "payload" }}` {
 		t.Fatalf("updated trigger prompt = %q", updated.Trigger.Prompt)
 	}
@@ -1830,10 +1860,13 @@ func (s *integrationBridgeService) ListSecretBindings(ctx context.Context, bridg
 func (s *integrationBridgeService) PutSecretBinding(
 	ctx context.Context,
 	binding bridgepkg.BridgeSecretBinding,
-	_ *string,
+	secretValue *string,
 ) error {
 	if s == nil || s.store == nil {
 		return errors.New("integration bridge secret store is not configured")
+	}
+	if secretValue != nil {
+		return errors.New("integration bridge secret store should not receive raw secret values")
 	}
 	return s.store.PutBridgeSecretBinding(ctx, binding)
 }

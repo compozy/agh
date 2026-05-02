@@ -3,6 +3,8 @@ package automation
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -179,7 +181,11 @@ func TestTriggerEngineRejectsStaleWebhookTimestampBeforeDispatch(t *testing.T) {
 	}
 
 	staleTimestamp := now.Add(-10 * time.Minute)
-	signature, err := SignWebhookPayload("shared-secret", staleTimestamp, []byte(`{"payload":"deploy"}`))
+	signature, err := SignWebhookPayload(
+		testWebhookSecretValue(trigger.WebhookSecretRef),
+		staleTimestamp,
+		[]byte(`{"payload":"deploy"}`),
+	)
 	if err != nil {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}
@@ -343,7 +349,7 @@ func TestTriggerEngineHandleWebhookDispatchesValidRequest(t *testing.T) {
 	}
 
 	payload := []byte(`{"payload":"deploy"}`)
-	signature, err := SignWebhookPayload("shared-secret", now, payload)
+	signature, err := SignWebhookPayload(testWebhookSecretValue(trigger.WebhookSecretRef), now, payload)
 	if err != nil {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}
@@ -393,7 +399,7 @@ func TestTriggerEngineRejectsReplayedWebhookDeliveriesWithinFreshnessWindow(t *t
 	}
 
 	payload := []byte(`{"payload":"deploy"}`)
-	signature, err := SignWebhookPayload("shared-secret", current, payload)
+	signature, err := SignWebhookPayload(testWebhookSecretValue(trigger.WebhookSecretRef), current, payload)
 	if err != nil {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}
@@ -432,7 +438,7 @@ func TestTriggerEngineRejectsReplayedWebhookDeliveriesWithinFreshnessWindow(t *t
 	}
 
 	current = current.Add(6 * time.Minute)
-	signature, err = SignWebhookPayload("shared-secret", current, payload)
+	signature, err = SignWebhookPayload(testWebhookSecretValue(trigger.WebhookSecretRef), current, payload)
 	if err != nil {
 		t.Fatalf("SignWebhookPayload(after expiry) error = %v", err)
 	}
@@ -495,7 +501,7 @@ func TestTriggerEngineAllowsWebhookRetryAfterDispatchFailsWithoutPersistingARun(
 	<-createStarted
 
 	payload := []byte(`{"payload":"deploy"}`)
-	signature, err := SignWebhookPayload("shared-secret", current, payload)
+	signature, err := SignWebhookPayload(testWebhookSecretValue(trigger.WebhookSecretRef), current, payload)
 	if err != nil {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}
@@ -618,6 +624,43 @@ func TestTriggerRegistrationAndWebhookRequestValidation(t *testing.T) {
 	if err == nil {
 		t.Fatal("WebhookRequest.Validate() error = nil, want non-nil")
 	}
+}
+
+func TestTriggerEngineRegisterRejectsInvalidWebhookSecretConfiguration(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	dispatcher := newTestDispatcher(t, creator, store)
+
+	t.Run("Should reject webhook registrations without a resolver", func(t *testing.T) {
+		t.Parallel()
+
+		engine, err := NewTriggerEngine(dispatcher)
+		if err != nil {
+			t.Fatalf("NewTriggerEngine() error = %v", err)
+		}
+
+		err = engine.Register(
+			TriggerRegistration{Trigger: testWebhookTrigger(AutomationScopeGlobal, "missing-resolver", "")},
+		)
+		if !errors.Is(err, ErrWebhookSecretRequired) {
+			t.Fatalf("Register(missing resolver) error = %v, want ErrWebhookSecretRequired", err)
+		}
+	})
+
+	t.Run("Should reject webhook registrations outside the automation vault namespace", func(t *testing.T) {
+		t.Parallel()
+
+		engine := newTestTriggerEngine(t, dispatcher)
+		trigger := testWebhookTrigger(AutomationScopeGlobal, "invalid-namespace", "")
+		trigger.WebhookSecretRef = "vault:bridges/brg-core/bot_token"
+
+		err := engine.Register(TriggerRegistration{Trigger: trigger})
+		if err == nil || !strings.Contains(err.Error(), "must use vault:automation/<path>") {
+			t.Fatalf("Register(invalid namespace) error = %v, want automation namespace validation", err)
+		}
+	})
 }
 
 func TestWebhookHelpersRejectInvalidInputs(t *testing.T) {
@@ -785,7 +828,11 @@ func TestTriggerEngineRejectsWebhookScopeMismatchAndDuplicateWebhookID(t *testin
 	}
 
 	now := time.Date(2026, 4, 11, 6, 30, 0, 0, time.UTC)
-	signature, err := SignWebhookPayload("secret", now, []byte(`{"payload":"deploy"}`))
+	signature, err := SignWebhookPayload(
+		testWebhookSecretValue(first.WebhookSecretRef),
+		now,
+		[]byte(`{"payload":"deploy"}`),
+	)
 	if err != nil {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}
@@ -808,7 +855,7 @@ func newTestTriggerEngine(t *testing.T, dispatcher TriggerDispatcher, opts ...Tr
 
 	opts = append(
 		[]TriggerEngineOption{
-			WithTriggerEngineWebhookSecretResolver(staticTriggerWebhookSecretResolver{secret: "shared-secret"}),
+			WithTriggerEngineWebhookSecretResolver(staticTriggerWebhookSecretResolver{}),
 		},
 		opts...,
 	)
@@ -833,16 +880,27 @@ func testWebhookTrigger(scope Scope, name string, workspaceID string) Trigger {
 	trigger := testTrigger(scope, name, workspaceID)
 	trigger.WebhookID = "wbh_" + name
 	trigger.EndpointSlug = "deploy-review"
-	trigger.WebhookSecretRef = "env:AGH_TEST_WEBHOOK_SECRET"
+	trigger.WebhookSecretRef = "vault:automation/triggers/" + name + "/webhook-secret"
 	return trigger
 }
 
-type staticTriggerWebhookSecretResolver struct {
-	secret string
+func testWebhookSecretValue(ref string) string {
+	return "secret-for:" + strings.TrimSpace(ref)
 }
 
-func (r staticTriggerWebhookSecretResolver) ResolveRef(context.Context, string) (string, error) {
-	return r.secret, nil
+type staticTriggerWebhookSecretResolver struct {
+	refs map[string]string
+}
+
+func (r staticTriggerWebhookSecretResolver) ResolveRef(_ context.Context, ref string) (string, error) {
+	if len(r.refs) == 0 {
+		return testWebhookSecretValue(ref), nil
+	}
+	value, ok := r.refs[ref]
+	if !ok {
+		return "", fmt.Errorf("unexpected webhook secret ref %q", ref)
+	}
+	return value, nil
 }
 
 type stubHookSessionResolver struct {

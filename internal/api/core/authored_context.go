@@ -201,6 +201,9 @@ func (h *BaseHandlers) PutAgentSoul(c *gin.Context) {
 		h.respondError(c, StatusForSoulError(errSoulAuthoringUnavailable), errSoulAuthoringUnavailable)
 		return
 	}
+	if h.rejectSoulIfMatch(c) {
+		return
+	}
 	var req contract.AgentSoulPutRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -234,6 +237,9 @@ func (h *BaseHandlers) PutAgentSoul(c *gin.Context) {
 func (h *BaseHandlers) DeleteAgentSoul(c *gin.Context) {
 	if h.SoulAuthoring == nil {
 		h.respondError(c, StatusForSoulError(errSoulAuthoringUnavailable), errSoulAuthoringUnavailable)
+		return
+	}
+	if h.rejectSoulIfMatch(c) {
 		return
 	}
 	var req contract.AgentSoulDeleteRequest
@@ -306,6 +312,9 @@ func (h *BaseHandlers) RollbackAgentSoul(c *gin.Context) {
 		h.respondError(c, StatusForSoulError(errSoulAuthoringUnavailable), errSoulAuthoringUnavailable)
 		return
 	}
+	if h.rejectSoulIfMatch(c) {
+		return
+	}
 	var req contract.AgentSoulRollbackRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -339,6 +348,9 @@ func (h *BaseHandlers) RollbackAgentSoul(c *gin.Context) {
 func (h *BaseHandlers) RefreshSessionSoul(c *gin.Context) {
 	if h.SoulRefresher == nil {
 		h.respondError(c, StatusForSoulError(errSoulRefreshUnavailable), errSoulRefreshUnavailable)
+		return
+	}
+	if h.rejectSoulIfMatch(c) {
 		return
 	}
 	var req contract.SessionSoulRefreshRequest
@@ -971,11 +983,23 @@ func (h *BaseHandlers) heartbeatActorForRequest() heartbeat.AuthoringIdentity {
 }
 
 func (h *BaseHandlers) rejectHeartbeatIfMatch(c *gin.Context) bool {
+	return h.rejectExpectedDigestHeader(c, "heartbeat_if_match_header_unsupported", StatusForHeartbeatError)
+}
+
+func (h *BaseHandlers) rejectSoulIfMatch(c *gin.Context) bool {
+	return h.rejectExpectedDigestHeader(c, "soul_if_match_header_unsupported", StatusForSoulError)
+}
+
+func (h *BaseHandlers) rejectExpectedDigestHeader(
+	c *gin.Context,
+	code string,
+	statusFor func(error) int,
+) bool {
 	if strings.TrimSpace(c.GetHeader("If-Match")) == "" {
 		return false
 	}
-	err := newAuthoredValidationError("heartbeat_if_match_header_unsupported: use expected_digest in request body")
-	h.respondError(c, StatusForHeartbeatError(err), err)
+	err := newAuthoredValidationError(code + ": use expected_digest in request body")
+	h.respondError(c, statusFor(err), err)
 	return true
 }
 

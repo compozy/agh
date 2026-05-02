@@ -1770,6 +1770,9 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 	if got, want := service.LastPutCollectionRequest.MCPSecrets.SecretEnv["TOKEN"], "server-token"; got != want {
 		t.Fatalf("LastPutCollectionRequest.MCPSecrets.SecretEnv[TOKEN] = %q, want %q", got, want)
 	}
+	if strings.Contains(putResp.Body.String(), "server-token") {
+		t.Fatalf("PUT response leaked raw secret value: %s", putResp.Body.String())
+	}
 
 	var putPayload contract.MutationResult
 	decodeJSON(t, putResp.Body.Bytes(), &putPayload)

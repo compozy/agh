@@ -5734,7 +5734,6 @@ func (f *fakeAutomationManager) SyncManagedDefinitions(
 	source automationpkg.JobSource,
 	desiredJobs []automationpkg.Job,
 	desiredTriggers []automationpkg.Trigger,
-	_ map[string]string,
 ) (automationpkg.SyncStats, error) {
 	f.jobs = slices.DeleteFunc(append([]automationpkg.Job(nil), f.jobs...), func(job automationpkg.Job) bool {
 		return job.Source == source

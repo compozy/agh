@@ -1460,7 +1460,7 @@ func (m *Manager) syncConfigDefinitions(ctx context.Context) (SyncStats, error) 
 	}
 	sortTriggers(desiredTriggers)
 
-	return m.SyncManagedDefinitions(ctx, JobSourceConfig, desiredJobs, desiredTriggers, nil)
+	return m.SyncManagedDefinitions(ctx, JobSourceConfig, desiredJobs, desiredTriggers)
 }
 
 // SyncManagedDefinitions reconciles one daemon-managed automation source
@@ -1470,13 +1470,7 @@ func (m *Manager) SyncManagedDefinitions(
 	source JobSource,
 	desiredJobs []Job,
 	desiredTriggers []Trigger,
-	desiredTriggerSecrets map[string]string,
 ) (SyncStats, error) {
-	if len(desiredTriggerSecrets) > 0 {
-		return SyncStats{}, errors.New(
-			"automation: managed trigger plaintext values are not supported; use webhook_secret_ref",
-		)
-	}
 	if ctx == nil {
 		return SyncStats{}, errors.New("automation: sync managed definitions context is required")
 	}

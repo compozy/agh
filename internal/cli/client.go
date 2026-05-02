@@ -813,6 +813,10 @@ func (c *unixSocketClient) ListVaultSecrets(ctx context.Context, query VaultList
 }
 
 func (c *unixSocketClient) GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error) {
+	trimmedRef, err := requireVaultRef(ref)
+	if err != nil {
+		return VaultRecord{}, err
+	}
 	var response struct {
 		Secret VaultRecord `json:"secret"`
 	}
@@ -820,7 +824,7 @@ func (c *unixSocketClient) GetVaultSecret(ctx context.Context, ref string) (Vaul
 		ctx,
 		http.MethodGet,
 		"/api/vault/secrets/metadata",
-		vaultRefValues(ref),
+		vaultRefValues(trimmedRef),
 		nil,
 		&response,
 	); err != nil {
@@ -843,7 +847,11 @@ func (c *unixSocketClient) PutVaultSecret(
 }
 
 func (c *unixSocketClient) DeleteVaultSecret(ctx context.Context, ref string) error {
-	return c.doJSON(ctx, http.MethodDelete, "/api/vault/secrets", vaultRefValues(ref), nil, nil)
+	trimmedRef, err := requireVaultRef(ref)
+	if err != nil {
+		return err
+	}
+	return c.doJSON(ctx, http.MethodDelete, "/api/vault/secrets", vaultRefValues(trimmedRef), nil, nil)
 }
 
 func (c *unixSocketClient) NetworkStatus(ctx context.Context) (NetworkStatusRecord, error) {
@@ -2856,6 +2864,14 @@ func vaultRefValues(ref string) url.Values {
 		values.Set("ref", trimmed)
 	}
 	return values
+}
+
+func requireVaultRef(ref string) (string, error) {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return "", errors.New("cli: vault ref is required")
+	}
+	return trimmed, nil
 }
 
 func agentValues(query AgentQuery) url.Values {

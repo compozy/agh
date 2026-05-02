@@ -281,6 +281,9 @@ func (e *TriggerEngine) Register(registration TriggerRegistration) error {
 	if err != nil {
 		return err
 	}
+	if err := e.validateWebhookRegistration(normalized); err != nil {
+		return err
+	}
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -303,6 +306,9 @@ func (e *TriggerEngine) Register(registration TriggerRegistration) error {
 func (e *TriggerEngine) Update(registration TriggerRegistration) error {
 	normalized, err := normalizeTriggerRegistration(registration)
 	if err != nil {
+		return err
+	}
+	if err := e.validateWebhookRegistration(normalized); err != nil {
 		return err
 	}
 
@@ -678,6 +684,23 @@ func (e *TriggerEngine) resolveWebhookSecret(ctx context.Context, trigger Trigge
 		return "", func() {}, ErrWebhookSecretRequired
 	}
 	return value, diagnostics.RegisterDynamicSecret(value), nil
+}
+
+func (e *TriggerEngine) validateWebhookRegistration(registration TriggerRegistration) error {
+	if !strings.EqualFold(strings.TrimSpace(registration.Trigger.Event), triggerEventWebhook) {
+		return nil
+	}
+	ref := strings.TrimSpace(registration.Trigger.WebhookSecretRef)
+	if ref == "" {
+		return ErrWebhookSecretRequired
+	}
+	if err := vault.ValidateRefNamespace(ref, "automation"); err != nil {
+		return fmt.Errorf("%w: %w", ErrWebhookSecretRequired, err)
+	}
+	if e.webhookSecrets == nil {
+		return ErrWebhookSecretRequired
+	}
+	return nil
 }
 
 func (e *TriggerEngine) ensureUniqueWebhookLocked(registration TriggerRegistration, allowTriggerID string) error {

@@ -1597,7 +1597,7 @@ func buildAutomationTriggerCreateRequest(
 		Filter:             filter,
 		WebhookID:          strings.TrimSpace(input.WebhookID),
 		EndpointSlug:       strings.TrimSpace(input.EndpointSlug),
-		WebhookSecretValue: strings.TrimSpace(input.WebhookSecretValue),
+		WebhookSecretValue: input.WebhookSecretValue,
 	}
 	if cmd.Flags().Changed("enabled") {
 		request.Enabled = boolPointer(input.Enabled)
@@ -1662,7 +1662,7 @@ func buildAutomationTriggerUpdateRequest(
 		request.EndpointSlug = stringPointer(strings.TrimSpace(input.EndpointSlug))
 	}
 	if cmd.Flags().Changed("webhook-secret-value") {
-		request.WebhookSecretValue = stringPointer(strings.TrimSpace(input.WebhookSecretValue))
+		request.WebhookSecretValue = stringPointer(input.WebhookSecretValue)
 	}
 	if !request.HasChanges() {
 		return AutomationTriggerUpdateRequest{}, errors.New(
