@@ -213,7 +213,7 @@ For positioning consistency on the marketing site and in docs:
 - AGH is **not a federation protocol**. AGH Network v1 is a self-certified pairwise envelope, not a federated trust system.
 - AGH is **not an MCP replacement**. MCP integrates _into_ AGH skills via `metadata.agh.mcp_servers`.
 - AGH is **not an A2A replacement**. AGH Network is a peer-to-peer envelope; A2A is an industry standard. They can coexist.
-- AGH **competes on runtime, SDK, observability, DX, and integration depth — NOT the wire protocol.** The protocol must remain implementable outside AGH.
+- AGH **competes on runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol.** AGH Network must remain implementable outside AGH.
 
 ---
 

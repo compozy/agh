@@ -23,7 +23,7 @@ type = "oauth2_pkce"
 authorization_url = "https://auth.example/authorize"
 token_url = "https://auth.example/token"
 client_id = "client-id"
-client_secret_env = "HERMES_MCP_SECRET"
+client_secret_ref = "env:HERMES_MCP_SECRET"
 scopes = ["read"]
 ```
 

@@ -8,7 +8,7 @@ This document captures research into the AI agent extension ecosystem as of Apri
 
 ## 1. OpenFang: The Closest Comparable System
 
-OpenFang is an open-source Agent Operating System built in Rust -- the closest architectural analog to AGH. It compiles to a single ~32MB binary (137K LOC, 14 Rust crates) and runs agents as background daemons.
+OpenFang is an open-source agent operating system built in Rust -- the closest architectural analog to AGH. It compiles to a single ~32MB binary (137K LOC, 14 Rust crates) and runs agents as background daemons.
 
 ### 1.1 Built-in Tools (53 tools in openfang-runtime)
 

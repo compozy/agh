@@ -9,7 +9,7 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 - Reuse the existing tools-refac native built-in pattern (`internal/tools/builtin` descriptors plus `internal/daemon` native handlers) instead of creating a parallel automation tool API.
 - Keep automation storage, scheduling, dispatch, and validation authority in `internal/automation`; tools are an adapter over those paths.
 - Register a dedicated `agh__automation` native toolset. Include TechSpec-listed jobs/triggers/runs tools and explicit job/trigger enable-disable tools because Task 07 subtasks require them.
-- Treat raw webhook secret material as operator-only: any `webhook_secret` field supplied through automation tools is denied before calling the automation manager.
+- Treat raw webhook secret material as write-only: automation tools use `webhook_secret_ref` plus `webhook_secret_value`, never readable trigger fields.
 
 ## Learnings
 - Shared workflow memory confirms the tool registry, policy resolver, approval bridge, and prior read/mutable tool families are already implemented on this branch.

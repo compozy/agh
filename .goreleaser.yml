@@ -8,8 +8,8 @@ project_name: agh
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
   license: "BSL-1.1"
-  homepage: "https://github.com/pedronauck/agh"
-  description: "AGH — Agent Operating System"
+  homepage: "https://agh.network"
+  description: "AGH — Artificial General Hivemind"
   maintainers:
     - "AGH Team"
 
@@ -50,7 +50,7 @@ archives:
     ids:
       - agh
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
+      {{ .ProjectName }}_{{ .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
@@ -67,8 +67,8 @@ homebrew_casks:
     binaries:
       - agh
     directory: Casks
-    homepage: "https://github.com/pedronauck/agh"
-    description: "AGH — Agent Operating System"
+    homepage: "https://agh.network"
+    description: "AGH — Artificial General Hivemind"
     caveats: |
       AGH is distributed through the AGH Homebrew tap. Use `brew upgrade --cask agh`
       for managed updates, or set AGH_MANAGED=homebrew in shell wrappers that need
@@ -87,9 +87,9 @@ nfpms:
       - agh
     if: '{{ eq .Os "linux" }}'
     vendor: AGH
-    homepage: "https://github.com/pedronauck/agh"
+    homepage: "https://agh.network"
     maintainer: "AGH Team"
-    description: "AGH — Agent Operating System"
+    description: "AGH — Artificial General Hivemind"
     license: "BSL-1.1"
     bindir: /usr/bin
     section: utils
@@ -176,7 +176,7 @@ changelog:
 
 release:
   github:
-    owner: pedronauck
+    owner: compozy
     name: agh
   target_commitish: "{{ .Commit }}"
   name_template: "Release {{ .Version }}"
@@ -184,6 +184,9 @@ release:
   replace_existing_artifacts: true
   draft: false
   prerelease: auto
+  extra_files:
+    - glob: ./packages/site/public/install.sh
+      name_template: install.sh
 
 sboms:
   - artifacts: archive

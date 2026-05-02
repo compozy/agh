@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenFang is a Rust-based Agent Operating System comprising 14 crates (~137K LoC) that runs as a persistent daemon managing AI agent sessions. It shares AGH's fundamental design philosophy -- single binary, SQLite persistence, daemon model, local-first -- but takes a maximalist approach: 53 builtin tools, 40 channel adapters, 7 bundled Hands, 60+ skills, 130+ model catalog entries, and 25 MCP templates all compiled into one ~32 MB binary.
+OpenFang is a Rust-based agent operating system comprising 14 crates (~137K LoC) that runs as a persistent daemon managing AI agent sessions. It shares AGH's fundamental design philosophy -- single binary, SQLite persistence, daemon model, local-first -- but takes a maximalist approach: 53 builtin tools, 40 channel adapters, 7 bundled Hands, 60+ skills, 130+ model catalog entries, and 25 MCP templates all compiled into one ~32 MB binary.
 
 Where AGH follows "robust minimal core + extensible plugins", OpenFang follows "bundle everything into the binary". This is the central tension in the analysis: OpenFang validates many features AGH should eventually support, but its monolithic compilation strategy is the opposite of AGH's extension-first philosophy. The features are proven; the packaging strategy should be inverted.
 

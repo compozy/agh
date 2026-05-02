@@ -8,12 +8,12 @@ A design system for **AGH** — a local-first agent runtime and open coordinatio
 
 ## About the product
 
-AGH is marketed as an **Agent Operating System**: a single local binary that runs real agent CLIs (Claude Code, Codex, Gemini CLI, OpenCode, Copilot CLI, Cursor, Kiro, Pi) as durable, resumable, auditable sessions — with a built-in network protocol (`agh-network/v0`) for peer discovery and delegation across machines.
+AGH is marketed as an agent operating system: a single local binary that runs real agent CLIs (Claude Code, Codex, Gemini CLI, OpenCode, Copilot CLI, Cursor, Kiro, Pi) as durable, resumable, auditable sessions — with a built-in network protocol (`agh-network/v0`) for peer discovery and delegation across machines.
 
 Two product surfaces are represented here:
 
 1. **AGH Runtime** — the local daemon. Sessions, memory, skills, workspaces, automation, bridges, observability, hooks.
-2. **AGH Network** — `agh-network/v0`, a seven-kind wire protocol (`greet`, `whois`, `say`, `direct`, `recipe`, `receipt`, `trace`) running over NATS + JSON.
+2. **AGH Network** — `agh-network/v0`, the open agent network protocol with seven message kinds (`greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`) running over NATS + JSON.
 
 The one website (`packages/site/`) serves both: a marketing landing page plus a docs surface (Fumadocs MDX) with two trees — `/runtime/*` and `/protocol/*`.
 
@@ -72,11 +72,11 @@ AGH copy has a very specific voice — **operator-first, engineer-to-engineer, c
 - Arrows: Lucide `ArrowUpRight` as "source link" / "continue reading" indicator.
 - `$ ` prompt in shell code blocks, rendered in accent orange.
 
-**Example copy to match**
+**Example copy to match** (locked positioning as of 2026-05-01)
 
-- Hero: _"An agent runtime with a network built in."_
-- Sub: _"Sessions, memory, skills, workspaces, automation, bridges — the whole runtime in a single local binary."_
-- CTA: _"Install the runtime"_, _"See the network"_, _"Read the full agh-network/v0 spec"_, _"Ship it"_.
+- Hero: _"An open workplace for AI agents."_
+- Sub: _"AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts."_
+- CTA: _"Install the runtime"_, _"Read the agh-network/v0 spec"_, _"Star on GitHub"_.
 - Comparison: _"Other tools stop at the runtime boundary."_
 
 ---

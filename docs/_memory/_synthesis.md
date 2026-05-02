@@ -158,7 +158,7 @@ Listed in 3 priority bands. Each entry: name → trigger → mandate → evidenc
 
 #### S-M15. `agh-ecosystem-positioning`
 
-- **Mandate**: single-source-of-truth on what AGH is NOT (workflow engine, federation protocol, MCP replacement, A2A replacement) and what it competes on (runtime/SDK/observability/DX _outside_ the wire protocol).
+- **Mandate**: single-source-of-truth on what AGH is NOT (workflow engine, federation protocol, MCP replacement, A2A replacement) and what it competes on (runtime/SDK/observability/DX _outside_ the open agent network protocol).
 - **Evidence**: qmd_collections — RFC 003-old §4.5 explicitly states this. Critical for site/docs work. The `agh-site-*`, `agh-docs/`, `agh-compozy/` collections are empty (no public artifacts yet).
 
 ### LOW priority (specialized or narrow — consider before adoption)
@@ -366,7 +366,7 @@ Promote the existing soft "table-driven default" wording to a hard rule. Reviewe
 
 **P-T3.14 (path security helpers)**: _"Filesystem helpers resolving user-controlled or agent-controlled paths use the `sanitizePathKey` + `realpathDeepestExisting` pattern (defenses against null-byte, URL-encoded traversal, Unicode normalization, symlink-escape)."_ (qmd_collections)
 
-**P-T3.15 (runtime moat)**: _"AGH's competitive surface is runtime, SDK, observability, DX, and integration depth — NOT the wire protocol. The AGH Network protocol must remain implementable outside AGH. Any feature requiring AGH to interoperate is a design smell."_ (qmd_collections)
+**P-T3.15 (runtime moat)**: _"AGH's competitive surface is runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol. AGH Network must remain implementable outside AGH. Any feature requiring AGH to interoperate is a design smell."_ (qmd_collections)
 
 **P-T3.16 (canonical ledger format)**: _"Ledger files use the canonical `Goal / Constraints / Decisions / State / Done / Now / Next / Open Questions / Working set` format. The 'Working set' section captures exact file paths + commands."_ (codex_ledger)
 

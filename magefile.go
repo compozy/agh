@@ -192,6 +192,14 @@ func BunTest() error {
 	return runCommandInDir(context.Background(), ".", "bun", "run", "tests")
 }
 
+func InstallerCheck() error {
+	installer := filepath.Join("packages", "site", "public", "install.sh")
+	if err := sh.RunV("sh", "-n", installer); err != nil {
+		return err
+	}
+	return sh.RunV("sh", installer, "--dry-run", "--skip-bootstrap")
+}
+
 func WebLint() error {
 	return runCommandInDir(context.Background(), "web", "bun", "run", "lint")
 }
@@ -294,6 +302,7 @@ func Boundaries() error {
 func Verify() error {
 	steps := []func() error{
 		CodegenCheck,
+		InstallerCheck,
 		BunLint,
 		BunTypecheck,
 		BunTest,

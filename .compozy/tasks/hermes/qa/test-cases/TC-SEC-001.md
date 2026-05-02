@@ -21,7 +21,7 @@ Verify that remote MCP servers authenticate through OAuth 2.1 authorization code
 ### Preconditions
 
 - Local mock OAuth authorization server supports metadata, authorization, token, refresh, and optional revocation endpoints.
-- Remote MCP config uses token-free auth metadata and `client_secret_env` only when needed.
+- Remote MCP config uses token-free auth metadata and `client_secret_ref` only when needed.
 - Sentinel values exist for access token, refresh token, authorization code, PKCE verifier, and client secret.
 
 ### Test Steps

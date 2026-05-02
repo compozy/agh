@@ -1343,4 +1343,4 @@ denyPatterns := []string{
 
 ---
 
-**Generated:** Analysis of GoClaw .resources/goclaw codebase for AGH (Agent Operating System in Go) reference implementation.
+**Generated:** Analysis of GoClaw .resources/goclaw codebase for AGH (Artificial General Hivemind) reference implementation.

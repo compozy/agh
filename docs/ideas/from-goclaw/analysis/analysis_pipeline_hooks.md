@@ -1,6 +1,6 @@
 # GoClaw Pipeline, Hooks, Middleware & Sandbox Architecture Analysis
 
-**Scope:** Agent Operating System patterns for the AGH project  
+**Scope:** agent operating system patterns for the AGH project  
 **Reference:** `.resources/goclaw/` directory structure  
 **Date:** 2026-04-15
 

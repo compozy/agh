@@ -245,6 +245,16 @@ jobs:
             fi
           done
 
+          if [ ! -s packages/site/public/install.sh ]; then
+            echo "::error::Missing or empty curl installer: packages/site/public/install.sh"
+            exit 1
+          fi
+          sh -n packages/site/public/install.sh
+          if ! grep -q 'packages/site/public/install.sh' .goreleaser.yml; then
+            echo "::error::.goreleaser.yml must upload packages/site/public/install.sh as a release extra file"
+            exit 1
+          fi
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro

@@ -186,7 +186,7 @@ function Hero() {
             >
               <span style={{ color: "#E8572A" }}>AGH</span>
               <span style={{ height: 1, width: 40, background: "#3C3A39" }} />
-              <span>Agent Operating System</span>
+              <span>Artificial General Hivemind</span>
             </div>
             <h1
               style={{

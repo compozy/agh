@@ -238,7 +238,7 @@ function ChannelRoom({ channel, rightOpen, onToggleRight }) {
         </div>
       </div>
 
-      {/* Protocol filter bar — Slack doesn't have this; we do because it's a wire protocol */}
+      {/* Protocol filter bar — Slack doesn't have this; we do because it's an open agent network protocol */}
       <div style={{ padding: '10px 22px', borderBottom: '1px solid var(--color-divider)', background: 'transparent', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span className="eyebrow" style={{ fontSize: 9 }}>Filter by kind</span>
         <div className="flex items-center gap-1" style={{ flexWrap: 'wrap' }}>

@@ -87,7 +87,7 @@ function ArchiveRow({ p, i }) {
 const PROTOCOL_POSTS = [
   {
     date: 'Apr 28',
-    title: 'Why agents need a wire protocol, not another SDK',
+    title: 'Why agents need an open network protocol, not another SDK',
     dek: 'Six months of agh-network/v0 in the wild. What shipping a JSON-over-NATS spec teaches you about coordination.',
     author: 'pedronauck', read: '14 min',
     tags: ['agh-network/v0', 'kinds', 'rationale'],

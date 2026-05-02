@@ -19,7 +19,7 @@ v0 is designed to be wire-compatible with v1: the envelope schema is identical, 
 
 ### 1.1 Problem
 
-The agent ecosystem lacks a lightweight protocol for agent-to-agent networking that is practical to implement, transport-aware, artifact-aware, and operationally observable without collapsing into a workflow engine or telemetry infrastructure.
+The agent ecosystem lacks a lightweight open agent network protocol that is practical to implement, transport-aware, artifact-aware, and operationally observable without collapsing into a workflow engine or telemetry infrastructure.
 
 ### 1.2 Scope of v0
 

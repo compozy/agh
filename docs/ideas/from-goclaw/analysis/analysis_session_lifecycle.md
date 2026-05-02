@@ -9,7 +9,7 @@ GoClaw implements a **multi-tier session management system** with graceful lifec
 3. **Message Consumer** (inbound routing + deduplication)
 4. **Graceful Shutdown** (coordinated resource cleanup)
 
-This analysis extracts patterns that AGH can adapt for its Agent Operating System architecture.
+This analysis extracts patterns that AGH can adapt for its agent operating system architecture.
 
 ---
 

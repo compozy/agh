@@ -13,6 +13,15 @@ React 19 SPA with Vite 8, TanStack Router (file-based), TanStack Query v5, Tailw
 - Tokens live in `packages/ui/src/tokens.css`; never override with ad-hoc hex values in components.
 - For tasks under `.compozy/tasks/redesign/`, implementation runs through the `designer` agent (`.claude/agents/designer.md`) in **execution mode only** and MUST activate the mandatory design skills below.
 
+## Copy System - `COPY.md` is the source of truth
+
+**`COPY.md` (repo root) is the authoritative product-language specification** for web UI labels, headings, empty states, errors, onboarding/settings text, toasts, page metadata, and any runtime UI copy. Before writing or changing product-facing text:
+
+- Read `COPY.md` and use backend nouns exactly; UI labels must match runtime/domain terminology.
+- Do not imply a metric, control, state, or repair path exists unless the runtime exposes it.
+- Follow `docs/_memory/glossary.md` for canonical terms, especially `capability`, `skill`, `bridge`, `channel`, `session`, and `task run`.
+- Keep `DESIGN.md` as the visual authority and `COPY.md` as the verbal/product-language authority.
+
 ## Greenfield Alpha — Zero Legacy Tolerance
 
 No production users exist. Never sacrifice code quality for backward compatibility. Never write migration, compat, or defensive code for old state — delete the old thing instead of working around it.
@@ -42,6 +51,7 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | TypeScript (types)            | `typescript-advanced`                                            | `context7`                                      |
 | UI / UX Design (generic)      | `frontend-design` + `design-taste-frontend`                      | `interface-design` + `shadcn` + `minimalist-ui` |
 | **AGH UI / Redesign tasks**   | `agh-design` + `design-taste-frontend` + `minimalist-ui`         | `frontend-design` + `interface-design`          |
+| UI microcopy / product labels | `copywriting` + `documentation-writer`                           |                                                 |
 | Storybook / component stories | `storybook-stories`                                              | `shadcn`                                        |
 | Animation / motion            | `motion-react`                                                   | `motion`                                        |
 | Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`    |                                                 |

@@ -51,7 +51,7 @@ Prove `agh__config_show/list/get/set/unset/diff/path` reuse the existing validat
 
 3. **Secret denial:**
    ```bash
-   agh tool invoke agh__config_set --input '{"path":"providers.codex.api_key_env","value":"X","scope":"workspace"}' -o json \
+   agh tool invoke agh__config_set --input '{"path":"providers.codex.credential_slots[0].secret_ref","value":"env:OPENAI_API_KEY","scope":"workspace"}' -o json \
      | tee qa/logs/TC-FUNC-004/config-set-secret.json
    ```
    - **Expected:** Returns `error.code=CONFIG_SECRET_PATH_FORBIDDEN`. CLI parity returns identical reason code.

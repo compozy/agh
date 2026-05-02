@@ -1,11 +1,11 @@
 # Design System: AGH
 
-**Agent Operating System** — one visual language across the runtime daemon, the shared UI kit, and the marketing + docs site.
+**Artificial General Hivemind** — one visual language across the runtime daemon, the shared UI kit, and the marketing + docs site.
 
 AGH ships as three surfaces that must feel like one product:
 
 1. **AGH Runtime** — the local daemon, operator UI (`web/`) and CLI. Sessions, memory, skills, workspaces, automation, bridges, observability.
-2. **AGH Network** — `agh-network/v0`, the seven-kind wire protocol (`greet`, `whois`, `say`, `direct`, `recipe`, `receipt`, `trace`) over NATS + JSON.
+2. **AGH Network** — `agh-network/v0`, the open agent network protocol with seven message kinds (`greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`) over NATS + JSON.
 3. **packages/site** — the marketing landing + Fumadocs MDX docs at `agh.network` with two trees (`/runtime/*`, `/protocol/*`).
 
 The canonical token source is [`packages/ui/src/tokens.css`](packages/ui/src/tokens.css). The canonical reference extraction and UI kits live in [`docs/design/design-system/`](docs/design/design-system/).
@@ -611,6 +611,8 @@ Ring outlines (`ring-1 ring-foreground/10`) and `shadow-xs` on shadcn inputs are
 ## 7. Voice & Content
 
 AGH copy has a specific, operator-first voice. Design without the voice is incomplete.
+
+This section is the visual-system summary for copy that appears inside designed surfaces. For the canonical product-language contract - positioning, claims, evidence, vocabulary, CTA patterns, docs prose, release copy, package metadata, UI microcopy, and agent prompt guidance - read [`COPY.md`](COPY.md). `DESIGN.md` governs visual grammar; `COPY.md` governs verbal/product grammar.
 
 ### Tone
 

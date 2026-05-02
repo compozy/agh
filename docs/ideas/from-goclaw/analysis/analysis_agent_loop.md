@@ -2,7 +2,7 @@
 
 **Comprehensive Deep-Dive into AGH Reference Implementation**
 
-This document analyzes the core agent execution loop in GoClaw (internal/agent/), the reference implementation for the AGH (Agent Operating System in Go) project. The goal is to extract architectural patterns, execution flow, and implementation techniques that AGH can benefit from.
+This document analyzes the core agent execution loop in GoClaw (internal/agent/), the reference implementation for the AGH (Artificial General Hivemind) project. The goal is to extract architectural patterns, execution flow, and implementation techniques that AGH can benefit from.
 
 ---
 

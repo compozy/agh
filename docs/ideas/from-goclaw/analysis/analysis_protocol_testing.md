@@ -1,6 +1,6 @@
 # GoClaw Protocol, Testing, and Multi-Agent Orchestration Patterns
 
-Comprehensive analysis of `goclaw` codebase patterns for AGH (Agent Operating System in Go), focusing on protocol design, testing infrastructure, message bus architecture, RPC dispatch, and multi-agent orchestration.
+Comprehensive analysis of `goclaw` codebase patterns for AGH (Artificial General Hivemind), focusing on protocol design, testing infrastructure, message bus architecture, RPC dispatch, and multi-agent orchestration.
 
 ## 1. Test Helper Design Patterns
 

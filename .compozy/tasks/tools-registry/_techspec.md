@@ -1058,7 +1058,7 @@ MVP default is `disabled`.
 No new `config.toml` keys are added for remote MCP OAuth tokens. Existing MCP lifecycle remains authoritative:
 
 - MCP server definitions continue to come from top-level `[mcp_servers]`, provider `[providers.<name>.mcp_servers]`, agent-local `mcp_servers`, global/workspace `mcp.json`, skill sidecars, and extension `resources.mcp_servers`.
-- Remote MCP auth configuration continues to use `MCPAuthConfig` fields (`type`, metadata/issuer/authorization/token/revocation URLs, `client_id`, `client_secret_env`, `scopes`) on remote MCP servers.
+- Remote MCP auth configuration continues to use `MCPAuthConfig` fields (`type`, metadata/issuer/authorization/token/revocation URLs, `client_id`, `client_secret_ref`, `scopes`) on remote MCP servers.
 - Access tokens and refresh tokens continue to live only in the `internal/mcp/auth` token store backed by `internal/store/globaldb`; they are not copied into registry config, session lineage, tool descriptors, events, or extension manifests.
 - The registry may read redacted MCP auth status to produce operator diagnostics and availability reason codes, but cannot mutate auth state. Login, refresh, and logout remain `agh mcp auth ...` operations in MVP.
 - The hosted MCP bind nonce is ephemeral process/session launch state, not `config.toml` state and not part of the MCP OAuth token store.

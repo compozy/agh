@@ -1,6 +1,6 @@
 ## Project Overview
 
-AGH is an Agent Operating System — a Go single-binary daemon that manages AI agent sessions via ACP (Agent Client Protocol). It spawns ACP-compatible agents (Claude Code, Codex, Gemini CLI, etc.) as subprocesses, communicates via JSON-RPC over stdio, persists events in SQLite, and exposes interfaces via HTTP/SSE (web UI) and UDS (CLI). A Fumadocs site at `agh.network` documents the runtime and the AGH Network protocol.
+AGH is an agent operating system — a Go single-binary daemon that manages AI agent sessions via ACP (Agent Client Protocol). It spawns ACP-compatible agents (Claude Code, OpenClaw, Hermes, etc.) as subprocesses, communicates via JSON-RPC over stdio, persists events in SQLite, and exposes interfaces via HTTP/SSE (web UI) and UDS (CLI). A Fumadocs site at `agh.network` documents the runtime and the AGH Network protocol.
 
 **Goals**: daemon single-binary in background, strong observability, agent-first system (agents manipulate via CLI + REST), highly extensible, highly configurable.
 
@@ -60,6 +60,16 @@ These govern how features move from idea to ship. Internalize them before openin
 - When a task belongs to `.compozy/tasks/redesign/`, run it through the `designer` agent (`.claude/agents/designer.md`) in **execution mode only** and activate the mandatory design skills listed below.
 - **Truthful UI > plausible UI.** Don't render controls or metrics the runtime doesn't actually support. When Paper artboards conflict with daemon truth, daemon wins. Paper governs _composition_, `DESIGN.md` governs _grammar_.
 
+## Copy System
+
+**`COPY.md` (repo root) is the authoritative product-language specification for every AGH surface** - marketing copy, docs prose, release copy, package metadata, UI microcopy, CLI help, and public social/SEO/OpenGraph text. Any product-facing copy work MUST:
+
+- Read `COPY.md` before writing or changing public copy, narrative docs, UI labels, metadata, changelog/release copy, or CLI/help text.
+- Treat runtime truth as stronger than copy preference: generated API/CLI references, implemented code, tests, and release artifacts beat aspirational wording.
+- Follow `docs/_memory/glossary.md` for canonical terms. The canonical artifact name is `capability`, never `recipe`, `workflow`, `procedure`, or `playbook` for current AGH behavior.
+- Keep `DESIGN.md` as the visual authority and `COPY.md` as the verbal/product-language authority.
+- Use the `COPY.md` claim standards before saying "today", "shipping", "supported", "live", "complete", or using product counts.
+
 ## Skill Dispatch
 
 Activate skills **before** writing code. Match task domain → activate all required skills:
@@ -94,6 +104,7 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | External docs lookup                  | `context7` + `find-docs`                                                                 | `exa-web-search-free`                             |
 | Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                                |
 | Documentation (internal)              | `documentation-writer`                                                                   | `crafting-effective-readmes`                      |
+| Copy / public product language        | `copywriting` + `documentation-writer`                                                   | `seo-audit`                                       |
 | Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                                   |
 | UI / Design (any surface)             | `agh-design` + `design-taste-frontend` + `minimalist-ui`                                 | `frontend-design` + `interface-design`            |
 
@@ -217,7 +228,7 @@ Repo-wide rules backed by RFC 001 / RFC 002. Runtime implementation details (pre
 
 - **Capability vs Recipe**: reusable agent artifacts are called `capability`, NOT `recipe`/`workflow`/`procedure`/`playbook`. Capabilities are interpretive, not deterministic; they are not workflow programs in disguise.
 - **Format extension default**: when integrating with an external spec (AgentSkills, AGENTS.md, MCP, A2A), extend via a namespaced metadata field (`metadata.agh.*` or `agh.*`) — never fork the format.
-- **Runtime moat statement**: AGH competes on runtime, SDK, observability, DX, and integration depth — NOT the wire protocol. The AGH Network protocol must remain implementable outside AGH. Any feature requiring AGH to interoperate is a design smell.
+- **Runtime moat statement**: AGH competes on runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol. AGH Network must remain implementable outside AGH. Any feature requiring AGH to interoperate is a design smell.
 
 ## Memory & Lessons Learned
 
@@ -250,3 +261,4 @@ Repo-wide rules backed by RFC 001 / RFC 002. Runtime implementation details (pre
 - **Site rules**: `packages/site/CLAUDE.md`.
 - **Institutional memory**: `docs/_memory/` — see the **Memory & Lessons Learned** section above for the per-surface map.
 - **Authoritative design tokens**: `DESIGN.md` (repo root).
+- **Authoritative copy system**: `COPY.md` (repo root).

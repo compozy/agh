@@ -37,7 +37,7 @@
 
 ### 6. Auth
 - **Hermes:** `auth.py:1-3475` — registry of 20+ providers (Nous/Anthropic/Codex/Qwen/Gemini OAuth + Copilot/GLM/Kimi/Minimax/HF API key), `ProviderConfig` with `auth_type`, env-var priority, base-URL override (`auth.py:92-200`). File-locked `~/.hermes/auth.json`, token refresh with skew. `hermes auth add|list|remove|reset` with credential-pool rotation (round-robin / fill-first / random / least-used — `auth_commands.py:12-32`) and cascading cleanup that suppresses auto-reseed on remove (`auth_commands.py:354-399`).
-- **AGH:** providers in `config.toml` via `api_key_env` only. No OAuth, no token store, no `agh auth` tree.
+- **AGH:** providers in `config.toml` via explicit `credential_slots` only. No OAuth, no token store, no `agh auth` tree.
 - **Gap:** `agh auth login/logout/status` with locked `~/.agh/auth.json` at mode 0600. Credential pools are a v2 luxury.
 
 ### 7. Profiles

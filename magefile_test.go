@@ -148,3 +148,11 @@ func TestRunRaceEnabledGoCommand(t *testing.T) {
 		}
 	})
 }
+
+func TestInstallerCheck(t *testing.T) {
+	t.Parallel()
+
+	if err := InstallerCheck(); err != nil {
+		t.Fatalf("InstallerCheck() error = %v", err)
+	}
+}

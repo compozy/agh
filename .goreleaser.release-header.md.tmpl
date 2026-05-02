@@ -1,11 +1,19 @@
 ## AGH {{ .Version }}
 
-AGH is an Agent Operating System for running ACP-compatible coding agents as managed sessions.
+AGH is an agent operating system for running ACP-compatible coding agents as managed sessions.
 
 ### Installation
 
+#### Curl Installer
+```bash
+curl -fsSL https://agh.network/install.sh | sh
+```
+
+The installer downloads the release archive for macOS or Linux, verifies it against `checksums.txt`,
+installs `agh`, and starts `agh install` when an interactive terminal is available.
+
 #### Binary Download
-Download the appropriate `agh_{{ .Version }}_<os>_<arch>.tar.gz` asset for your platform and extract it.
+Download the appropriate `agh_<os>_<arch>.tar.gz` asset for your platform and extract it.
 
 #### Go Install
 ```bash

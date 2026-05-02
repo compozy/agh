@@ -31,15 +31,30 @@ trusted_sources = []
 
 [providers.claude]
 default_model = "claude-sonnet-4-20250514"
-api_key_env = "ANTHROPIC_API_KEY"
+[[providers.claude.credential_slots]]
+name = "api_key"
+target_env = "ANTHROPIC_API_KEY"
+secret_ref = "env:ANTHROPIC_API_KEY"
+kind = "api_key"
+required = true
 
 [providers.codex]
 default_model = "gpt-4o"
-api_key_env = "OPENAI_API_KEY"
+[[providers.codex.credential_slots]]
+name = "api_key"
+target_env = "OPENAI_API_KEY"
+secret_ref = "env:OPENAI_API_KEY"
+kind = "api_key"
+required = true
 
 [providers.gemini]
 default_model = "gemini-2.5-pro"
-api_key_env = "GEMINI_API_KEY"
+[[providers.gemini.credential_slots]]
+name = "api_key"
+target_env = "GEMINI_API_KEY"
+secret_ref = "env:GEMINI_API_KEY"
+kind = "api_key"
+required = true
 
 [observability]
 enabled = true

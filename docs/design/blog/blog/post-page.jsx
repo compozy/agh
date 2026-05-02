@@ -31,7 +31,7 @@ function PostMasthead() {
             color: TOKENS.textPrimary,
           }}
         >
-          Why agents need a wire protocol, not another SDK.
+          Why agents need an open network protocol, not another SDK.
         </h1>
         <p className="mt-6" style={{ fontSize: 19, lineHeight: 1.5, color: TOKENS.textSecondary, maxWidth: '58ch' }}>
           Six months of <span style={{ color: TOKENS.textPrimary }}>agh-network/v0</span> in the wild. What shipping a JSON-over-NATS spec teaches you about agent coordination, receipts as durability, and why every framework eventually rebuilds the same seven kinds.

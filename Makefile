@@ -6,7 +6,7 @@ else
 MAGE_RUN = $(MAGE)
 endif
 
-.PHONY: deps fmt lint test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build boundaries verify help bun-lint bun-typecheck bun-test
+.PHONY: deps fmt lint test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build boundaries verify help bun-lint bun-typecheck bun-test installer-check
 
 deps:
 	@$(MAGE_RUN) deps
@@ -58,6 +58,9 @@ bun-typecheck:
 
 bun-test:
 	@$(MAGE_RUN) bunTest
+
+installer-check:
+	@$(MAGE_RUN) installerCheck
 
 help:
 	@$(MAGE_RUN) -l

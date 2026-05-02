@@ -2,7 +2,7 @@
 
 ## Scope
 
-This analysis covers the QMD knowledge collections that are most relevant to the AGH Agent Operating System and the AGH Network protocol drafts. The QMD `query` (hybrid) command was unavailable in this environment because the `sqlite-vec` virtual-table module failed to load (`SQLiteError: no such module: vec0`), so all retrieval was performed with `qmd ls`, `qmd search` (BM25), and `qmd get` for full-document fetches.
+This analysis covers the QMD knowledge collections that are most relevant to the AGH agent operating system and the AGH Network protocol drafts. The QMD `query` (hybrid) command was unavailable in this environment because the `sqlite-vec` virtual-table module failed to load (`SQLiteError: no such module: vec0`), so all retrieval was performed with `qmd ls`, `qmd search` (BM25), and `qmd get` for full-document fetches.
 
 Sources read in full:
 
@@ -232,7 +232,7 @@ Skills that would help apply RFC/reference knowledge to current AGH work:
 3. **`agh-memory-consolidation-design`** — encodes the AutoDream gate cascade (Time → Sessions → Lock), forked-agent execution, four-type memory taxonomy (`user/feedback/project/reference`), three-scope writes (`agent/workspace/global`), and the path-security pattern (`sanitizePathKey`, `realpathDeepestExisting`). Use when extending `internal/memory/consolidation/`.
 4. **`agh-agent-md-author`** — RFC 001's frontmatter schema, skills/memory inheritance and disable patterns, `extra_sources` precedence, portability invariants ("directory is the unit of portability"). Use when scaffolding new agent definitions or designing CLI commands like `agh agent create`.
 5. **`agh-context-budget-discipline`** — distills the "20%+ inference cost penalty for irrelevant context" finding from ETH Zurich (Feb 2026) plus the five-layer compaction cascade from Claude Code into a checklist for any prompt-assembly or memory-injection change.
-6. **`agh-ecosystem-positioning`** — single-source-of-truth on what AGH is _not_ (workflow engine, federation protocol, MCP replacement, A2A replacement) and what it competes on (runtime/SDK/observability/DX _outside_ the wire protocol). Critical for marketing-site and docs work because the agh-site-\* collections are currently empty.
+6. **`agh-ecosystem-positioning`** — single-source-of-truth on what AGH is _not_ (workflow engine, federation protocol, MCP replacement, A2A replacement) and what it competes on (runtime/SDK/observability/DX _outside_ the open agent network protocol). Critical for marketing-site and docs work because the agh-site-\* collections are currently empty.
 
 ---
 
@@ -265,7 +265,7 @@ Rules implied by the RFCs that aren't yet in the project `CLAUDE.md`:
 6. **Memory taxonomy.** _"User-facing memories use the four-type taxonomy `user | feedback | project | reference`, written to scopes `agent | workspace | global`. The default write scope is declared per agent in `memory.scope`."_
 7. **Identity proof-stripping defense.** _"In any signed-message processing path, an identity in verified format (`nickname@fingerprint`) without a valid proof must classify as `rejected`, not `unverified`. Test every code path for this case."_
 8. **Capability vs Recipe naming.** _"Reusable agent artifacts are called `capability`, not `recipe`, `workflow`, `procedure`, or `playbook`. Capabilities are interpretive, not deterministic; they are not workflow programs."_
-9. **Runtime moat statement.** _"AGH's competitive surface is runtime, SDK, observability, DX, and integration depth — not the wire protocol. The wire protocol must remain implementable outside AGH. Any feature that requires AGH to interoperate is a design smell."_
+9. **Runtime moat statement.** _"AGH's competitive surface is runtime, SDK, observability, DX, and integration depth — not the open agent network protocol. AGH Network must remain implementable outside AGH. Any feature that requires AGH to interoperate is a design smell."_
 10. **Context-budget hygiene.** _"Any change that adds content to a prompt must justify the inclusion against the ETH Zurich Feb 2026 finding (irrelevant context = +20% inference cost, lower task success). Default to scoped, tag-filtered injection rather than full-file dumps."_
 11. **Path security helpers.** _"All filesystem helpers that resolve user-controlled or agent-controlled paths must use the `sanitizePathKey` + `realpathDeepestExisting` pattern (defenses against null-byte, URL-encoded traversal, Unicode normalization, and symlink-escape attacks)."_
 12. **Hook semantics are fail-open.** _"Lifecycle hooks (`on_session_created`, `on_session_stopped`) execute in hierarchy precedence then alphabetical order. Hook errors log as warnings and never block the session. Hooks receive context as JSON over stdin."_

@@ -34,7 +34,7 @@ For each forbidden path below, exercise tool, CLI, and UDS surfaces and confirm 
 | `permissions.allow_unknown_tools` | trust-root | `CONFIG_TRUST_ROOT_FORBIDDEN` |
 | `memory.global_dir` | trust-root | `CONFIG_TRUST_ROOT_FORBIDDEN` |
 | `providers.codex.command` | trust-root provider transport | `CONFIG_TRUST_ROOT_FORBIDDEN` |
-| `providers.codex.api_key_env` | secret env binding | `CONFIG_SECRET_PATH_FORBIDDEN` |
+| `providers.codex.credential_slots[0].secret_ref` | secret ref binding | `CONFIG_SECRET_PATH_FORBIDDEN` |
 | `mcp_servers.foo.transport` | trust-root | `CONFIG_TRUST_ROOT_FORBIDDEN` |
 | `mcp_servers.foo.auth.access_token` | secret | `CONFIG_SECRET_PATH_FORBIDDEN` |
 | `sandboxes.local.backend` | trust-root | `CONFIG_TRUST_ROOT_FORBIDDEN` |

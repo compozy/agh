@@ -10,7 +10,7 @@ Prove that the resource-cloning path used by `internal/daemon/tool_mcp_resources
 
 ## Preconditions
 
-- `[mcp_servers.fake_http]` configured with `transport = "http"`, `url`, and `MCPAuthConfig` (issuer, authorization, token, scopes, `client_id`, `client_secret_env`).
+- `[mcp_servers.fake_http]` configured with `transport = "http"`, `url`, and `MCPAuthConfig` (issuer, authorization, token, scopes, `client_id`, `client_secret_ref`).
 - `[mcp_servers.fake_sse]` configured with `transport = "sse"`.
 
 ## Test Steps

@@ -72,7 +72,7 @@ const SETTINGS_DESCRIPTIONS = {
   'memory': 'How AGH stores, scopes, and compacts memory across sessions and workspaces.',
   'skills': 'Global skill policies. For per-skill config, see Skills in the sidebar.',
   'automation': 'Global automation runner. Cron and event triggers live here.',
-  'network': 'agh-network/v0 wire protocol configuration and peer discovery.',
+  'network': 'agh-network/v0 open agent network protocol configuration and peer discovery.',
   'observability': 'Traces, metrics, and logs. Wire up OTel collectors or ship to stdout.',
   'hooks-extensions': 'Lifecycle hooks fired on session, tool, and bridge events. Drop scripts anywhere on PATH.',
 };

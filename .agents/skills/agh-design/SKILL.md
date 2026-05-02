@@ -1,6 +1,6 @@
 ---
 name: agh-design
-description: Use this skill to generate well-branded interfaces and assets for AGH (Compozy's local-first agent runtime and open coordination protocol) — either for production code or throwaway prototypes, mocks, slides, and landing pages. Contains essential design guidelines, colors, type, fonts, assets, and UI kit components for prototyping. AGH is dark-mode only with a single warm orange accent (#E8572A) on a near-black canvas (#141312); copy is operator-first, engineer-to-engineer, no emoji.
+description: Use this skill to generate well-branded interfaces and assets for AGH (Compozy's open workplace for AI agents — a local-first runtime that hosts durable agent sessions and the agh-network/v0 protocol) — either for production code or throwaway prototypes, mocks, slides, and landing pages. Contains essential design guidelines, colors, type, fonts, assets, and UI kit components for prototyping. AGH is dark-mode only with a single warm orange accent (#E8572A) on a near-black canvas (#141312); copy is operator-first, engineer-to-engineer, no emoji.
 user-invocable: true
 ---
 
