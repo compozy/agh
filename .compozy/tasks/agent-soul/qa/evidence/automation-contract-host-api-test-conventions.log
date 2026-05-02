@@ -1,0 +1,76 @@
+SUBTEST NAME ERROR (host_api_test.go:3826): t.Run name 'ShouldRejectWhenTaskManagerIsMissing' does not start with "Should ".
+SUBTEST NAME ERROR (host_api_test.go:3881): t.Run name 'ShouldRejectWhenTaskObserverIsMissing' does not start with "Should ".
+SUBTEST NAME ERROR (host_api_test.go:3907): t.Run name 'ShouldRejectInvalidTaskMethodInputs' does not start with "Should ".
+SUBTEST NAME ERROR (host_api_test.go:4367): t.Run name 'ShouldWrapTaskManagerResolutionError' does not start with "Should ".
+SUBTEST NAME ERROR (host_api_test.go:4375): t.Run name 'ShouldWrapTaskActorContextErrorWhenExtensionNameMissing' does not start with "Should ".
+INLINE-CASE ERROR: TestHostAPIHandlerSessionsListReturnsAuthorizedSessions appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSessionsCreateReturnsSessionID appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSessionsCreateReturnsCapabilityDeniedWithoutSessionWrite appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSessionsPromptReturnsTurnIDAndPersistsEvents appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSessionsStopStopsSession appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSessionsStatusReturnsAuthorizedState appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSandboxListReturnsActiveSandboxInstances appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSandboxListFiltersWorkspaceAndSkipsStopped appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSandboxInfoReturnsRuntimeState appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSandboxInfoReturnsNotFoundForInvalidSession appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSandboxInfoValidatesSessionID appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerResolveSandboxWorkspaceFilter appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSandboxExecRequiresExecCapability appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSandboxExecRunsCommandInSandbox appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSessionsEventsSupportsSinceFilter appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerResourcesSnapshotRejectsStaleVersionAndInactiveNonce appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerResourcesMethodsCoexistWithBridgeOperationalMethods appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerMemoryStorePersistsContentWithTags appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerMemoryRecallReturnsRankedMatches appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerMemoryRecallRequiresConfiguredStore appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerMemoryForgetRemovesEntries appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerObserveHealthReturnsSnapshot appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerObserveEventsReturnsFilteredEventsWithSince appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSkillsListReturnsWorkspaceSkills appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesInstancesReportStateRejectsConflictingDegradationControls appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRuntime appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSessionAndRoute appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSession appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesMessagesIngestExpiredDedupAllowsReingest appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerBridgesMessagesIngestRegistersPromptDelivery appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestPromptSubmissionFromStoredEventsUsesSyntheticBoundary appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestPromptTurnIDFromStoredEventsPrefersFirstPromptBoundary appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestPromptSubmissionFromStoredEventsRejectsMissingPromptBoundary appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestPromptProjectionEventFromStoredEventUsesStoredFallbacks appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestPromptSeedEventsFromStoredEventsFiltersOtherTurns appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSubmitPromptRejectsMissingSessionManager appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerSubmitPromptRejectsMissingBoundaryEvents appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestBridgeHostAPIHelpersMapErrorsAndFormatInboundMetadata appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerUnknownMethodReturnsMethodNotFound appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerRateLimitExceededReturnsRetryAfter appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerRateLimitUsesConfiguredClockRegardlessOfOptionOrder appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestManagerWrapHostHandlerInjectsExtensionNameForHostAPIHandler appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestNormalizeHostAPIHandlerDefaultsFillsZeroValues appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIContextHelpersCloneBridgeAndResourceSession appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestRPCCapabilityDeniedUsesHTTPStatusForResourceMethods appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerAutomationTriggerFireRejectsNonExtensionEvent appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerAutomationJobCRUDAndRunQueries appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestDescribeExtensionProjectsHealthAndState appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerAutomationGetterAndMethodHandlers appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerTaskRunStartRespectsManagerTransitions appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerTasksListAndGetReturnFilteredDetail appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerTasksUpdateAndCancelMutateTask appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestHostAPITaskRequestHelpersRejectInvalidPayloads appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+ERROR-DISCARD (host_api_test.go:1350): underscore-discarded error. Handle every error in tests via t.Fatalf/t.Errorf.
+ERROR-DISCARD (host_api_test.go:3735): underscore-discarded error. Handle every error in tests via t.Fatalf/t.Errorf.
+ERROR-DISCARD (host_api_test.go:3765): underscore-discarded error. Handle every error in tests via t.Fatalf/t.Errorf.
+ERROR-DISCARD (host_api_test.go:5151): underscore-discarded error. Handle every error in tests via t.Fatalf/t.Errorf.

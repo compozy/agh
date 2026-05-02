@@ -1,0 +1,10 @@
+=== RUN   TestHooksNotifierLifecycleForwarding
+=== PAUSE TestHooksNotifierLifecycleForwarding
+=== CONT  TestHooksNotifierLifecycleForwarding
+=== RUN   TestHooksNotifierLifecycleForwarding/Should_forward_full_session_metadata_to_downstream_observers
+=== PAUSE TestHooksNotifierLifecycleForwarding/Should_forward_full_session_metadata_to_downstream_observers
+=== CONT  TestHooksNotifierLifecycleForwarding/Should_forward_full_session_metadata_to_downstream_observers
+--- PASS: TestHooksNotifierLifecycleForwarding (0.00s)
+    --- PASS: TestHooksNotifierLifecycleForwarding/Should_forward_full_session_metadata_to_downstream_observers (0.00s)
+PASS
+ok  	github.com/pedronauck/agh/internal/daemon	1.052s

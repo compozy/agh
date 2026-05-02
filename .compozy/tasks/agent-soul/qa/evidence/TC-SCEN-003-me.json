@@ -1,0 +1,103 @@
+{
+  "self": {
+    "session_id": "sess-70fea3626e97e646",
+    "agent_name": "reviewer",
+    "provider": "codex",
+    "model": "gpt-5.4"
+  },
+  "workspace": {
+    "id": "ws_abaaa84e9c734bbb",
+    "name": "agent-soul-lab",
+    "root_dir": "/Users/pedronauck/dev/qa-labs/agh-agent-soul-20260502-185208-519542-lab"
+  },
+  "session": {
+    "id": "sess-70fea3626e97e646",
+    "name": "reviewer-soul-output",
+    "type": "user",
+    "state": "active",
+    "channel": "default",
+    "lineage": {
+      "root_session_id": "sess-70fea3626e97e646",
+      "spawn_depth": 0,
+      "auto_stop_on_parent": false,
+      "spawn_budget": {
+        "max_children": 0,
+        "max_depth": 0,
+        "ttl_seconds": 0
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-02T19:38:43.700309Z",
+    "updated_at": "2026-05-02T19:39:51.369604Z"
+  },
+  "capabilities": [
+    {
+      "id": "skill:agh-agent-setup",
+      "summary": "Set up AGH agent definitions, provider defaults, permissions, and MCP server entries correctly.",
+      "source": "skill"
+    },
+    {
+      "id": "skill:agh-memory-guide",
+      "summary": "Manage AGH persistent memory files, scopes, and manual consolidation from the CLI.",
+      "source": "skill"
+    },
+    {
+      "id": "skill:agh-network",
+      "summary": "Inspect channels and peers, read inbox messages, and send safe AGH network replies through the daemon-owned CLI control plane.",
+      "source": "skill"
+    },
+    {
+      "id": "skill:agh-session-guide",
+      "summary": "Operate AGH sessions from the CLI, including creation, inspection, prompting, and shutdown.",
+      "source": "skill"
+    },
+    {
+      "id": "skill:agh-tools-guide",
+      "summary": "Use AGH-native tool discovery and invocation correctly. Teaches agents to start with agh__tool_search, read descriptors with agh__tool_info, invoke dedicated AGH tools before shelling out to agh commands, and keep operator-only lifecycle, OAuth, trust-root, and raw-secret flows on management surfaces.",
+      "source": "skill"
+    }
+  ],
+  "channels": [
+    {
+      "id": "default",
+      "channel": "default",
+      "display_name": "default",
+      "purpose": "network_channel",
+      "workspace_id": "ws_abaaa84e9c734bbb",
+      "allowed_message_kinds": [
+        "status",
+        "request",
+        "reply",
+        "blocker",
+        "handoff",
+        "result",
+        "review_request"
+      ]
+    }
+  ],
+  "active_task_leases": [],
+  "coordinator": {
+    "enabled": false,
+    "agent_name": "coordinator",
+    "provider": "codex",
+    "model": "gpt-5.4",
+    "default_ttl_seconds": 7200,
+    "max_children": 5,
+    "max_active_per_workspace": 1,
+    "source": "workspace",
+    "workspace_id": "ws_abaaa84e9c734bbb"
+  },
+  "limits": {
+    "max_children": 5,
+    "max_spawn_depth": 1,
+    "max_active_task_leases": 1,
+    "context_section_limit": 8
+  }
+}

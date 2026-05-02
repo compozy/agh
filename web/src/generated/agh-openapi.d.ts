@@ -10031,7 +10031,8 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
-              webhook_secret_ref?: string;
+              webhook_secret_hash?: string;
+              webhook_secret_present: boolean;
               workspace_id?: string;
             }[];
           };
@@ -10111,7 +10112,6 @@ export interface operations {
           /** @enum {string} */
           scope: "global" | "workspace";
           webhook_id?: string;
-          webhook_secret_ref?: string;
           webhook_secret_value?: string;
           workspace_id?: string;
         };
@@ -10155,7 +10155,8 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
-              webhook_secret_ref?: string;
+              webhook_secret_hash?: string;
+              webhook_secret_present: boolean;
               workspace_id?: string;
             };
           };
@@ -10262,7 +10263,8 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
-              webhook_secret_ref?: string;
+              webhook_secret_hash?: string;
+              webhook_secret_present: boolean;
               workspace_id?: string;
             };
           };
@@ -10414,7 +10416,6 @@ export interface operations {
             strategy: "none" | "backoff";
           } | null;
           webhook_id?: string | null;
-          webhook_secret_ref?: string | null;
           webhook_secret_value?: string | null;
           workspace_id?: string | null;
         };
@@ -10458,7 +10459,8 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
-              webhook_secret_ref?: string;
+              webhook_secret_hash?: string;
+              webhook_secret_present: boolean;
               workspace_id?: string;
             };
           };

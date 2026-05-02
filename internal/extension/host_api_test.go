@@ -2591,184 +2591,193 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant(
-		"ext-automation",
-		[]string{
-			"automation/triggers",
-			"automation/triggers/get",
-			"automation/triggers/create",
-			"automation/triggers/update",
+	t.Run("Should manage automation trigger CRUD and config guardrails", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		env.grant(
+			"ext-automation",
+			[]string{
+				"automation/triggers",
+				"automation/triggers/get",
+				"automation/triggers/create",
+				"automation/triggers/update",
+				"automation/triggers/delete",
+				"automation/triggers/runs",
+				"automation/triggers/fire",
+				"automation/jobs/delete",
+				"automation/jobs/update",
+			},
+			[]string{"automation.read", "automation.write"},
+		)
+
+		createResult, err := env.call(t, "ext-automation", "automation/triggers/create", map[string]any{
+			"name":         "host-api-trigger",
+			"scope":        "workspace",
+			"workspace_id": env.workspace.RootDir,
+			"agent_name":   "coder",
+			"event":        "ext.github.push",
+			"prompt":       `Review {{ index .Data "repo" }}`,
+			"filter": map[string]string{
+				"data.repo": "acme/api",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/triggers/create) error = %v", err)
+		}
+
+		var created apicontract.TriggerPayload
+		decodeResult(t, createResult, &created)
+		if got, want := created.WorkspaceID, env.workspaceID; got != want {
+			t.Fatalf("created trigger workspace_id = %q, want %q", got, want)
+		}
+		var createdRaw map[string]any
+		decodeResult(t, createResult, &createdRaw)
+		if _, ok := createdRaw["webhook_secret_ref"]; ok {
+			t.Fatalf("created trigger result includes webhook_secret_ref: %#v", createdRaw)
+		}
+
+		listResult, err := env.call(t, "ext-automation", "automation/triggers", map[string]any{
+			"scope":        "workspace",
+			"workspace_id": env.workspace.RootDir,
+			"event":        "ext.github.push",
+			"enabled":      true,
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/triggers) error = %v", err)
+		}
+		var listed []apicontract.TriggerPayload
+		decodeResult(t, listResult, &listed)
+		if got, want := len(listed), 1; got != want {
+			t.Fatalf("len(automation/triggers) = %d, want %d", got, want)
+		}
+
+		getResult, err := env.call(t, "ext-automation", "automation/triggers/get", map[string]any{"id": created.ID})
+		if err != nil {
+			t.Fatalf("Handle(automation/triggers/get) error = %v", err)
+		}
+		var fetched apicontract.TriggerPayload
+		decodeResult(t, getResult, &fetched)
+		if got, want := fetched.ID, created.ID; got != want {
+			t.Fatalf("automation/triggers/get id = %q, want %q", got, want)
+		}
+
+		updateResult, err := env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
+			"id":           created.ID,
+			"workspace_id": env.workspace.RootDir,
+			"prompt":       `Updated {{ index .Data "repo" }}`,
+			"filter": map[string]string{
+				"data.repo": "acme/api",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/triggers/update) error = %v", err)
+		}
+		var updated apicontract.TriggerPayload
+		decodeResult(t, updateResult, &updated)
+		if got, want := updated.Prompt, `Updated {{ index .Data "repo" }}`; got != want {
+			t.Fatalf("updated trigger prompt = %q, want %q", got, want)
+		}
+
+		fireResult, err := env.call(t, "ext-automation", "automation/triggers/fire", map[string]any{
+			"event":        "ext.github.push",
+			"scope":        "workspace",
+			"workspace_id": env.workspaceID,
+			"payload": map[string]any{
+				"repo": "acme/api",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/triggers/fire) error = %v", err)
+		}
+		var fire automationpkg.TriggerResult
+		decodeResult(t, fireResult, &fire)
+		if got, want := fire.Matched, 1; got != want {
+			t.Fatalf("automation/triggers/fire matched = %d, want %d", got, want)
+		}
+
+		runsResult, err := env.call(t, "ext-automation", "automation/triggers/runs", map[string]any{"id": created.ID})
+		if err != nil {
+			t.Fatalf("Handle(automation/triggers/runs) error = %v", err)
+		}
+		var triggerRuns []automationpkg.Run
+		decodeResult(t, runsResult, &triggerRuns)
+		if got, want := len(triggerRuns), 1; got != want {
+			t.Fatalf("len(automation/triggers/runs) = %d, want %d", got, want)
+		}
+
+		configJob, err := env.registry.CreateJob(testutil.Context(t), automationpkg.Job{
+			ID:          "job-config-host-api",
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			Name:        "config-host-api-job",
+			AgentName:   "coder",
+			WorkspaceID: env.workspaceID,
+			Prompt:      "Config-backed prompt",
+			Schedule: &automationpkg.ScheduleSpec{
+				Mode:     automationpkg.ScheduleModeEvery,
+				Interval: "1h",
+			},
+			Enabled:   true,
+			Retry:     automationpkg.DefaultRetryConfig(),
+			FireLimit: automationpkg.DefaultFireLimitConfig(),
+			Source:    automationpkg.JobSourceConfig,
+		})
+		if err != nil {
+			t.Fatalf("CreateJob(config) error = %v", err)
+		}
+		if _, err := env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
+			"id":      configJob.ID,
+			"enabled": false,
+		}); err != nil {
+			t.Fatalf("Handle(automation/jobs/update enabled-only) error = %v", err)
+		}
+		_, err = env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
+			"id":     configJob.ID,
+			"prompt": "should fail",
+		})
+		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+		_, err = env.call(t, "ext-automation", "automation/jobs/delete", map[string]any{"id": configJob.ID})
+		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+
+		configTrigger, err := env.registry.CreateTrigger(testutil.Context(t), automationpkg.Trigger{
+			ID:          "trigger-config-host-api",
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			Name:        "config-host-api-trigger",
+			AgentName:   "coder",
+			WorkspaceID: env.workspaceID,
+			Prompt:      `Config {{ index .Data "repo" }}`,
+			Event:       "ext.github.push",
+			Enabled:     true,
+			Retry:       automationpkg.DefaultRetryConfig(),
+			FireLimit:   automationpkg.DefaultFireLimitConfig(),
+			Source:      automationpkg.JobSourceConfig,
+		})
+		if err != nil {
+			t.Fatalf("CreateTrigger(config) error = %v", err)
+		}
+		if _, err := env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
+			"id":      configTrigger.ID,
+			"enabled": false,
+		}); err != nil {
+			t.Fatalf("Handle(automation/triggers/update enabled-only) error = %v", err)
+		}
+		_, err = env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
+			"id":     configTrigger.ID,
+			"prompt": "should fail",
+		})
+		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+		_, err = env.call(t, "ext-automation", "automation/triggers/delete", map[string]any{"id": configTrigger.ID})
+		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+
+		if _, err := env.call(
+			t,
+			"ext-automation",
 			"automation/triggers/delete",
-			"automation/triggers/runs",
-			"automation/triggers/fire",
-			"automation/jobs/delete",
-			"automation/jobs/update",
-		},
-		[]string{"automation.read", "automation.write"},
-	)
-
-	createResult, err := env.call(t, "ext-automation", "automation/triggers/create", map[string]any{
-		"name":         "host-api-trigger",
-		"scope":        "workspace",
-		"workspace_id": env.workspace.RootDir,
-		"agent_name":   "coder",
-		"event":        "ext.github.push",
-		"prompt":       `Review {{ index .Data "repo" }}`,
-		"filter": map[string]string{
-			"data.repo": "acme/api",
-		},
+			map[string]any{"id": created.ID},
+		); err != nil {
+			t.Fatalf("Handle(automation/triggers/delete) error = %v", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Handle(automation/triggers/create) error = %v", err)
-	}
-
-	var created automationpkg.Trigger
-	decodeResult(t, createResult, &created)
-	if got, want := created.WorkspaceID, env.workspaceID; got != want {
-		t.Fatalf("created trigger workspace_id = %q, want %q", got, want)
-	}
-
-	listResult, err := env.call(t, "ext-automation", "automation/triggers", map[string]any{
-		"scope":        "workspace",
-		"workspace_id": env.workspace.RootDir,
-		"event":        "ext.github.push",
-		"enabled":      true,
-	})
-	if err != nil {
-		t.Fatalf("Handle(automation/triggers) error = %v", err)
-	}
-	var listed []automationpkg.Trigger
-	decodeResult(t, listResult, &listed)
-	if got, want := len(listed), 1; got != want {
-		t.Fatalf("len(automation/triggers) = %d, want %d", got, want)
-	}
-
-	getResult, err := env.call(t, "ext-automation", "automation/triggers/get", map[string]any{"id": created.ID})
-	if err != nil {
-		t.Fatalf("Handle(automation/triggers/get) error = %v", err)
-	}
-	var fetched automationpkg.Trigger
-	decodeResult(t, getResult, &fetched)
-	if got, want := fetched.ID, created.ID; got != want {
-		t.Fatalf("automation/triggers/get id = %q, want %q", got, want)
-	}
-
-	updateResult, err := env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
-		"id":           created.ID,
-		"workspace_id": env.workspace.RootDir,
-		"prompt":       `Updated {{ index .Data "repo" }}`,
-		"filter": map[string]string{
-			"data.repo": "acme/api",
-		},
-	})
-	if err != nil {
-		t.Fatalf("Handle(automation/triggers/update) error = %v", err)
-	}
-	var updated automationpkg.Trigger
-	decodeResult(t, updateResult, &updated)
-	if got, want := updated.Prompt, `Updated {{ index .Data "repo" }}`; got != want {
-		t.Fatalf("updated trigger prompt = %q, want %q", got, want)
-	}
-
-	fireResult, err := env.call(t, "ext-automation", "automation/triggers/fire", map[string]any{
-		"event":        "ext.github.push",
-		"scope":        "workspace",
-		"workspace_id": env.workspaceID,
-		"payload": map[string]any{
-			"repo": "acme/api",
-		},
-	})
-	if err != nil {
-		t.Fatalf("Handle(automation/triggers/fire) error = %v", err)
-	}
-	var fire automationpkg.TriggerResult
-	decodeResult(t, fireResult, &fire)
-	if got, want := fire.Matched, 1; got != want {
-		t.Fatalf("automation/triggers/fire matched = %d, want %d", got, want)
-	}
-
-	runsResult, err := env.call(t, "ext-automation", "automation/triggers/runs", map[string]any{"id": created.ID})
-	if err != nil {
-		t.Fatalf("Handle(automation/triggers/runs) error = %v", err)
-	}
-	var triggerRuns []automationpkg.Run
-	decodeResult(t, runsResult, &triggerRuns)
-	if got, want := len(triggerRuns), 1; got != want {
-		t.Fatalf("len(automation/triggers/runs) = %d, want %d", got, want)
-	}
-
-	configJob, err := env.registry.CreateJob(testutil.Context(t), automationpkg.Job{
-		ID:          "job-config-host-api",
-		Scope:       automationpkg.AutomationScopeWorkspace,
-		Name:        "config-host-api-job",
-		AgentName:   "coder",
-		WorkspaceID: env.workspaceID,
-		Prompt:      "Config-backed prompt",
-		Schedule: &automationpkg.ScheduleSpec{
-			Mode:     automationpkg.ScheduleModeEvery,
-			Interval: "1h",
-		},
-		Enabled:   true,
-		Retry:     automationpkg.DefaultRetryConfig(),
-		FireLimit: automationpkg.DefaultFireLimitConfig(),
-		Source:    automationpkg.JobSourceConfig,
-	})
-	if err != nil {
-		t.Fatalf("CreateJob(config) error = %v", err)
-	}
-	if _, err := env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
-		"id":      configJob.ID,
-		"enabled": false,
-	}); err != nil {
-		t.Fatalf("Handle(automation/jobs/update enabled-only) error = %v", err)
-	}
-	_, err = env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
-		"id":     configJob.ID,
-		"prompt": "should fail",
-	})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	_, err = env.call(t, "ext-automation", "automation/jobs/delete", map[string]any{"id": configJob.ID})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-
-	configTrigger, err := env.registry.CreateTrigger(testutil.Context(t), automationpkg.Trigger{
-		ID:          "trigger-config-host-api",
-		Scope:       automationpkg.AutomationScopeWorkspace,
-		Name:        "config-host-api-trigger",
-		AgentName:   "coder",
-		WorkspaceID: env.workspaceID,
-		Prompt:      `Config {{ index .Data "repo" }}`,
-		Event:       "ext.github.push",
-		Enabled:     true,
-		Retry:       automationpkg.DefaultRetryConfig(),
-		FireLimit:   automationpkg.DefaultFireLimitConfig(),
-		Source:      automationpkg.JobSourceConfig,
-	})
-	if err != nil {
-		t.Fatalf("CreateTrigger(config) error = %v", err)
-	}
-	if _, err := env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
-		"id":      configTrigger.ID,
-		"enabled": false,
-	}); err != nil {
-		t.Fatalf("Handle(automation/triggers/update enabled-only) error = %v", err)
-	}
-	_, err = env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
-		"id":     configTrigger.ID,
-		"prompt": "should fail",
-	})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	_, err = env.call(t, "ext-automation", "automation/triggers/delete", map[string]any{"id": configTrigger.ID})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-
-	if _, err := env.call(
-		t,
-		"ext-automation",
-		"automation/triggers/delete",
-		map[string]any{"id": created.ID},
-	); err != nil {
-		t.Fatalf("Handle(automation/triggers/delete) error = %v", err)
-	}
 }
 
 func TestDescribeExtensionProjectsHealthAndState(t *testing.T) {

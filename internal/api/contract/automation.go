@@ -1,6 +1,10 @@
 package contract
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"maps"
+	"strings"
 	"time"
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
@@ -63,23 +67,78 @@ type JobPayload struct {
 
 // TriggerPayload is the shared automation trigger response payload.
 type TriggerPayload struct {
-	ID               string                        `json:"id"`
-	Scope            automationpkg.Scope           `json:"scope"`
-	Name             string                        `json:"name"`
-	AgentName        string                        `json:"agent_name"`
-	WorkspaceID      string                        `json:"workspace_id,omitempty"`
-	Prompt           string                        `json:"prompt"`
-	Event            string                        `json:"event"`
-	Filter           map[string]string             `json:"filter,omitempty"`
-	Enabled          bool                          `json:"enabled"`
-	Retry            automationpkg.RetryConfig     `json:"retry"`
-	FireLimit        automationpkg.FireLimitConfig `json:"fire_limit"`
-	Source           automationpkg.JobSource       `json:"source"`
-	WebhookID        string                        `json:"webhook_id,omitempty"`
-	EndpointSlug     string                        `json:"endpoint_slug,omitempty"`
-	WebhookSecretRef string                        `json:"webhook_secret_ref,omitempty"`
-	CreatedAt        time.Time                     `json:"created_at"`
-	UpdatedAt        time.Time                     `json:"updated_at"`
+	ID                   string                        `json:"id"`
+	Scope                automationpkg.Scope           `json:"scope"`
+	Name                 string                        `json:"name"`
+	AgentName            string                        `json:"agent_name"`
+	WorkspaceID          string                        `json:"workspace_id,omitempty"`
+	Prompt               string                        `json:"prompt"`
+	Event                string                        `json:"event"`
+	Filter               map[string]string             `json:"filter,omitempty"`
+	Enabled              bool                          `json:"enabled"`
+	Retry                automationpkg.RetryConfig     `json:"retry"`
+	FireLimit            automationpkg.FireLimitConfig `json:"fire_limit"`
+	Source               automationpkg.JobSource       `json:"source"`
+	WebhookID            string                        `json:"webhook_id,omitempty"`
+	EndpointSlug         string                        `json:"endpoint_slug,omitempty"`
+	WebhookSecretPresent bool                          `json:"webhook_secret_present"`
+	WebhookSecretHash    string                        `json:"webhook_secret_hash,omitempty"`
+	CreatedAt            time.Time                     `json:"created_at"`
+	UpdatedAt            time.Time                     `json:"updated_at"`
+}
+
+// TriggerPayloadFromTrigger converts an internal automation trigger into the
+// public redacted automation trigger payload.
+func TriggerPayloadFromTrigger(trigger automationpkg.Trigger) TriggerPayload {
+	webhookSecretPresent, webhookSecretHash := webhookSecretMetadataFromRef(trigger.WebhookSecretRef)
+	return TriggerPayload{
+		ID:                   trigger.ID,
+		Scope:                trigger.Scope,
+		Name:                 trigger.Name,
+		AgentName:            trigger.AgentName,
+		WorkspaceID:          trigger.WorkspaceID,
+		Prompt:               trigger.Prompt,
+		Event:                trigger.Event,
+		Filter:               cloneTriggerFilter(trigger.Filter),
+		Enabled:              trigger.Enabled,
+		Retry:                trigger.Retry,
+		FireLimit:            trigger.FireLimit,
+		Source:               trigger.Source,
+		WebhookID:            trigger.WebhookID,
+		EndpointSlug:         trigger.EndpointSlug,
+		WebhookSecretPresent: webhookSecretPresent,
+		WebhookSecretHash:    webhookSecretHash,
+		CreatedAt:            trigger.CreatedAt,
+		UpdatedAt:            trigger.UpdatedAt,
+	}
+}
+
+// TriggerPayloadsFromTriggers converts internal automation triggers into public
+// redacted automation trigger payloads.
+func TriggerPayloadsFromTriggers(triggers []automationpkg.Trigger) []TriggerPayload {
+	payloads := make([]TriggerPayload, 0, len(triggers))
+	for _, trigger := range triggers {
+		payloads = append(payloads, TriggerPayloadFromTrigger(trigger))
+	}
+	return payloads
+}
+
+func webhookSecretMetadataFromRef(ref string) (bool, string) {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return false, ""
+	}
+	sum := sha256.Sum256([]byte(trimmed))
+	return true, "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func cloneTriggerFilter(source map[string]string) map[string]string {
+	if len(source) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(source))
+	maps.Copy(cloned, source)
+	return cloned
 }
 
 // RunPayload is the shared automation run response payload.
@@ -161,7 +220,6 @@ type CreateTriggerRequest struct {
 	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
 	WebhookID          string                         `json:"webhook_id,omitempty"`
 	EndpointSlug       string                         `json:"endpoint_slug,omitempty"`
-	WebhookSecretRef   string                         `json:"webhook_secret_ref,omitempty"`
 	WebhookSecretValue string                         `json:"webhook_secret_value,omitempty"`
 }
 
@@ -178,7 +236,6 @@ type UpdateTriggerRequest struct {
 	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
 	WebhookID          *string                        `json:"webhook_id,omitempty"`
 	EndpointSlug       *string                        `json:"endpoint_slug,omitempty"`
-	WebhookSecretRef   *string                        `json:"webhook_secret_ref,omitempty"`
 	WebhookSecretValue *string                        `json:"webhook_secret_value,omitempty"`
 }
 
@@ -195,6 +252,5 @@ func (r UpdateTriggerRequest) HasChanges() bool {
 		r.FireLimit != nil ||
 		r.WebhookID != nil ||
 		r.EndpointSlug != nil ||
-		r.WebhookSecretRef != nil ||
 		r.WebhookSecretValue != nil
 }

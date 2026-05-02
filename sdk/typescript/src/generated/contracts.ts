@@ -827,7 +827,6 @@ export interface AutomationTriggerCreateParams {
   fire_limit?: FireLimitConfig;
   webhook_id?: string;
   endpoint_slug?: string;
-  webhook_secret_ref?: string;
   webhook_secret_value?: string;
 }
 
@@ -878,7 +877,6 @@ export interface AutomationTriggerUpdateParams {
   fire_limit?: FireLimitConfig;
   webhook_id?: string;
   endpoint_slug?: string;
-  webhook_secret_ref?: string;
   webhook_secret_value?: string;
 }
 
@@ -4350,7 +4348,8 @@ export interface Trigger {
   source: JobSource;
   webhook_id?: string;
   endpoint_slug?: string;
-  webhook_secret_ref?: string;
+  webhook_secret_present: boolean;
+  webhook_secret_hash?: string;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }

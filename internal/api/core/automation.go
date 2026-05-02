@@ -925,20 +925,19 @@ func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.T
 	}
 
 	return automationpkg.Trigger{
-		Scope:            req.Scope,
-		Name:             strings.TrimSpace(req.Name),
-		AgentName:        strings.TrimSpace(req.AgentName),
-		WorkspaceID:      strings.TrimSpace(req.WorkspaceID),
-		Prompt:           strings.TrimSpace(req.Prompt),
-		Event:            strings.TrimSpace(req.Event),
-		Filter:           cloneAutomationFilter(req.Filter),
-		Enabled:          enabled,
-		Retry:            retry,
-		FireLimit:        fireLimit,
-		Source:           automationpkg.JobSourceDynamic,
-		WebhookID:        strings.TrimSpace(req.WebhookID),
-		EndpointSlug:     strings.TrimSpace(req.EndpointSlug),
-		WebhookSecretRef: strings.TrimSpace(req.WebhookSecretRef),
+		Scope:        req.Scope,
+		Name:         strings.TrimSpace(req.Name),
+		AgentName:    strings.TrimSpace(req.AgentName),
+		WorkspaceID:  strings.TrimSpace(req.WorkspaceID),
+		Prompt:       strings.TrimSpace(req.Prompt),
+		Event:        strings.TrimSpace(req.Event),
+		Filter:       cloneAutomationFilter(req.Filter),
+		Enabled:      enabled,
+		Retry:        retry,
+		FireLimit:    fireLimit,
+		Source:       automationpkg.JobSourceDynamic,
+		WebhookID:    strings.TrimSpace(req.WebhookID),
+		EndpointSlug: strings.TrimSpace(req.EndpointSlug),
 	}
 }
 
@@ -991,9 +990,7 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 	} else if !strings.EqualFold(event, "webhook") {
 		next.EndpointSlug = ""
 	}
-	if req.WebhookSecretRef != nil {
-		next.WebhookSecretRef = strings.TrimSpace(*req.WebhookSecretRef)
-	} else if !strings.EqualFold(event, "webhook") {
+	if !strings.EqualFold(event, "webhook") {
 		next.WebhookSecretRef = ""
 	}
 
@@ -1001,7 +998,7 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 }
 
 func webhookSecretWriteFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.WebhookSecretWrite {
-	write := automationpkg.WebhookSecretWrite{Ref: strings.TrimSpace(req.WebhookSecretRef)}
+	write := automationpkg.WebhookSecretWrite{}
 	if strings.TrimSpace(req.WebhookSecretValue) != "" {
 		value := strings.TrimSpace(req.WebhookSecretValue)
 		write.Value = &value
@@ -1010,17 +1007,12 @@ func webhookSecretWriteFromCreateRequest(req contract.CreateTriggerRequest) auto
 }
 
 func webhookSecretWriteFromUpdateRequest(req contract.UpdateTriggerRequest) *automationpkg.WebhookSecretWrite {
-	if req.WebhookSecretRef == nil && req.WebhookSecretValue == nil {
+	if req.WebhookSecretValue == nil {
 		return nil
 	}
 	write := automationpkg.WebhookSecretWrite{}
-	if req.WebhookSecretRef != nil {
-		write.Ref = strings.TrimSpace(*req.WebhookSecretRef)
-	}
-	if req.WebhookSecretValue != nil {
-		value := strings.TrimSpace(*req.WebhookSecretValue)
-		write.Value = &value
-	}
+	value := strings.TrimSpace(*req.WebhookSecretValue)
+	write.Value = &value
 	return &write
 }
 
@@ -1043,7 +1035,6 @@ func validateConfigTriggerUpdate(req contract.UpdateTriggerRequest) error {
 		req.FireLimit != nil ||
 		req.WebhookID != nil ||
 		req.EndpointSlug != nil ||
-		req.WebhookSecretRef != nil ||
 		req.WebhookSecretValue != nil:
 		return errors.New("config-backed automation triggers only accept enabled updates")
 	default:

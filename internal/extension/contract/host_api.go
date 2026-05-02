@@ -790,23 +790,23 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method:         HostAPIMethodAutomationTriggers,
 		Params:         NamedType{Name: "AutomationTriggersParams", Value: AutomationTriggersParams{}},
-		Result:         NamedType{Name: "Trigger", Value: []automationpkg.Trigger{}},
+		Result:         NamedType{Name: "Trigger", Value: []apicontract.TriggerPayload{}},
 		OptionalParams: true,
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersGet,
 		Params: NamedType{Name: "AutomationTargetParams", Value: AutomationTargetParams{}},
-		Result: NamedType{Name: "Trigger", Value: automationpkg.Trigger{}},
+		Result: NamedType{Name: "Trigger", Value: apicontract.TriggerPayload{}},
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersCreate,
 		Params: NamedType{Name: "AutomationTriggerCreateParams", Value: AutomationTriggerCreateParams{}},
-		Result: NamedType{Name: "Trigger", Value: automationpkg.Trigger{}},
+		Result: NamedType{Name: "Trigger", Value: apicontract.TriggerPayload{}},
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersUpdate,
 		Params: NamedType{Name: "AutomationTriggerUpdateParams", Value: AutomationTriggerUpdateParams{}},
-		Result: NamedType{Name: "Trigger", Value: automationpkg.Trigger{}},
+		Result: NamedType{Name: "Trigger", Value: apicontract.TriggerPayload{}},
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersDelete,

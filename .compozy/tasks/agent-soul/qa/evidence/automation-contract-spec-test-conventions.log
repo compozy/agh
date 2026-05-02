@@ -1,0 +1,3 @@
+SUBTEST NAME ERROR (spec_test.go:1200): t.Run name 'host api method values' does not start with "Should ".
+INLINE-CASE ERROR: TestWriteFileAndEnumHelpers appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).
+INLINE-CASE ERROR: TestOperationsRemainUniqueWithExpandedTaskSurface appears to assert directly without t.Run subtests. Wrap each case in t.Run("Should ...", ...).

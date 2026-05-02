@@ -1,0 +1,32 @@
+{
+  "status": "running",
+  "pid": 52938,
+  "started_at": "2026-05-02T20:07:11.031356Z",
+  "socket": "/Users/pedronauck/dev/qa-labs/agh-agent-soul-20260502-185208-519542-lab/.agh/runtime/aghd.sock",
+  "http_host": "127.0.0.1",
+  "http_port": 50140,
+  "user_home_dir": "/Users/pedronauck/dev/qa-labs/agh-agent-soul-20260502-185208-519542-lab/.provider-home",
+  "active_sessions": 2,
+  "total_sessions": 5,
+  "version": "a62e5397-dirty",
+  "network": {
+    "enabled": true,
+    "status": "running",
+    "configured_default_channel": "default",
+    "effective_default_channel": "default",
+    "effective_default_source": "config",
+    "listener_host": "127.0.0.1",
+    "listener_port": 55894,
+    "local_peers": 2,
+    "channels": 1,
+    "messages_sent": 37,
+    "messages_received": 32,
+    "kind_metrics": [
+      {
+        "kind": "greet",
+        "sent": 37,
+        "received": 32
+      }
+    ]
+  }
+}

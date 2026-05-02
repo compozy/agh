@@ -30,13 +30,6 @@ Main features grouped by priority:
 - Functional requirements for each feature
 - Interaction between features
 
-## Agent and Extension Outcomes
-
-Product-level outcomes for manageability and extensibility. Describe WHAT must be possible, not HOW it will be implemented:
-- Agent/operator manageability: what agents or operators must inspect, configure, operate, approve, repair, or observe outside the web UI
-- Extension ecosystem expectation: whether runtime/third-party extension points should participate in this capability
-- Configuration expectation: whether users/operators should be able to enable, disable, tune, or remove behavior through configuration
-
 ## User Experience
 
 User journey from first contact to regular use:

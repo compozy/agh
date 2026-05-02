@@ -50,11 +50,6 @@ Reference the TechSpec implementation section for code patterns and interface de
 ### Related ADRs
 - [ADR-NNN: Title](../adrs/adr-NNN.md) — Relevance to this task
 
-## Extensibility / Agent Manageability / Config Lifecycle
-- Extensibility: [affected extension points, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, protocol docs, or `none — checked surfaces: ...`]
-- Agent manageability: [affected CLI verbs, HTTP endpoints, UDS routes, structured output modes, status/config discovery, deterministic errors, or `none — checked surfaces: ...`]
-- Config lifecycle: [affected `config.toml` keys/defaults, structs, merge/overlay, validation, examples, docs, tests, or `none — checked surfaces: ...`]
-
 ## Deliverables
 - [Concrete output 1]
 - [Concrete output 2]
@@ -82,8 +77,7 @@ Reference the TechSpec implementation section for code patterns and interface de
 
 - Every task must be independently implementable when its dependencies are met.
 - Every task MUST include a Tests section and test items in Deliverables.
-- Never create separate implementation tasks dedicated solely to unit or integration testing.
-- The AGH PRD pipeline appends two final validation tasks (`qa-report` and `qa-execution`) after implementation tasks. Those QA handoff tasks are the only exception to the no-test-only-task rule.
+- Never create separate tasks dedicated solely to testing.
 - Subtasks describe WHAT needs to happen, not HOW to implement it.
 - Minimize code in tasks. Show code only to illustrate current structure or problem areas.
 - Implementation details should reference the TechSpec for patterns rather than duplicating them.

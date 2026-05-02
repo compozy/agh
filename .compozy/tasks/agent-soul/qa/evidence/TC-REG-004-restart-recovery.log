@@ -1,0 +1,36 @@
+{
+  "daemon": {
+    "status": "running",
+    "http_port": 50140,
+    "total_sessions": 3
+  },
+  "soul": {
+    "present": false,
+    "active": false,
+    "valid": true,
+    "digest": null
+  },
+  "heartbeat": {
+    "present": true,
+    "active": true,
+    "valid": true,
+    "digest": "sha256:d79cf0c4f9bdd0eebffa0506af7412b84a11316d30330a6bd5f2ca71c053cd13"
+  },
+  "sessions": [
+    {
+      "id": "sess-6e4a7e679c1df522",
+      "agent_name": "ops",
+      "state": "stopped"
+    },
+    {
+      "id": "sess-70fea3626e97e646",
+      "agent_name": "reviewer",
+      "state": "stopped"
+    },
+    {
+      "id": "sess-7e522fe5bf4ea05b",
+      "agent_name": "reviewer",
+      "state": "stopped"
+    }
+  ]
+}

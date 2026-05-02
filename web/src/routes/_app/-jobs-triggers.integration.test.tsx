@@ -193,6 +193,8 @@ function makeJob(overrides: Partial<AutomationJob> = {}): AutomationJob {
 }
 
 function makeTrigger(overrides: Partial<AutomationTrigger> = {}): AutomationTrigger {
+  const webhookSecretPresent = overrides.webhook_secret_present ?? false;
+
   return {
     agent_name: "reviewer",
     created_at: "2026-04-11T08:00:00Z",
@@ -211,6 +213,7 @@ function makeTrigger(overrides: Partial<AutomationTrigger> = {}): AutomationTrig
     webhook_id: "wbh_push_review",
     workspace_id: "ws_test",
     ...overrides,
+    webhook_secret_present: webhookSecretPresent,
   };
 }
 

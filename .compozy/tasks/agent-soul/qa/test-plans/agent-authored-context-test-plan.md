@@ -10,6 +10,8 @@ This plan validates the Agent Soul plus Agent Heartbeat MVP as a real operator w
 - Prove mutations use the managed services, body-level CAS (`expected_digest` or the documented CLI alias), revision history, and deterministic diagnostics.
 - Prove Soul and Heartbeat stay independent: invalid Soul fails closed for persona/session behavior without hiding Heartbeat diagnostics, and invalid Heartbeat disables wake behavior without dropping Soul read models.
 - Prove session health is metadata-only, operator-readable, and consumed by Heartbeat wake/status without creating task runs or lease ownership.
+- Prove a real session/agent journey either reflects Soul-authored persona in provider-backed output or records the exact isolated-provider boundary and validates every reachable runtime projection.
+- Prove rollback, delete, restart recovery, and redaction edge cases preserve operator trust and do not leak absolute paths, claim tokens, or raw secret material.
 - Prove MVP does not expose a fake Web editor or web-only implementation path; generated contracts and docs remain truthful.
 
 ## Scope
@@ -41,9 +43,9 @@ Out of scope:
 ## Test Strategy
 
 1. Smoke readiness: repository contract discovery, generated contract drift checks, fresh bootstrap, daemon readiness.
-2. P0 behavioral journeys: managed Soul authoring, Heartbeat policy/status/wake, session health, and fail-closed invalid authored content.
-3. P1 regression: HTTP/CLI CAS parity, unsupported `If-Match` headers, generated TypeScript/Web guard tests, docs command truth.
-4. Disruption probes: stale CAS mutation, invalid forbidden fields, invalid Heartbeat policy, wake against ineligible or absent session, and browser/Web editor absence.
+2. P0 behavioral journeys: managed Soul authoring, Heartbeat policy/status/wake, session health, provider-backed or explicitly blocked agent output, and fail-closed invalid authored content.
+3. P1 regression: HTTP/CLI CAS parity, rollback/delete/history, restart recovery, unsupported `If-Match` headers, generated TypeScript/Web guard tests, docs command truth, and redaction/security output checks.
+4. Disruption probes: stale CAS mutation, invalid forbidden fields, invalid Heartbeat policy, wake against ineligible or absent session, rollback to older revision, delete with stale digest, daemon restart, and browser/Web editor absence.
 5. Final gate: `make verify`, then rerun the highest-risk CLI/API journeys and persist verification evidence.
 
 ## Environment Requirements
@@ -83,7 +85,7 @@ Out of scope:
 
 - Test plan: `qa/test-plans/agent-authored-context-test-plan.md`
 - Regression suite: `qa/test-plans/agent-authored-context-regression-suite.md`
-- Test cases: `qa/test-cases/SMOKE-001.md`, `qa/test-cases/TC-SCEN-001.md`, `qa/test-cases/TC-SCEN-002.md`, `qa/test-cases/TC-REG-001.md`, `qa/test-cases/TC-REG-002.md`, `qa/test-cases/TC-REG-003.md`
+- Test cases: `qa/test-cases/SMOKE-001.md`, `qa/test-cases/TC-SCEN-001.md`, `qa/test-cases/TC-SCEN-002.md`, `qa/test-cases/TC-SCEN-003.md`, `qa/test-cases/TC-REG-001.md`, `qa/test-cases/TC-REG-002.md`, `qa/test-cases/TC-REG-003.md`, `qa/test-cases/TC-REG-004.md`
 - Execution evidence: `qa/evidence/`
 - Issue reports: `qa/issues/BUG-*.md`
 - Final report: `qa/verification-report.md`

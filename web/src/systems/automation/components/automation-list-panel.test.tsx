@@ -36,6 +36,7 @@ const triggerFixture = {
   fire_limit: { max: 12, window: "1h" },
   endpoint_slug: "push-review",
   webhook_id: "wbh_push_review",
+  webhook_secret_present: false,
   created_at: "2026-04-11T08:00:00Z",
   updated_at: "2026-04-11T08:10:00Z",
 };

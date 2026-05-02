@@ -145,7 +145,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"fire_limit",
 					"webhook_id",
 					"endpoint_slug",
-					"webhook_secret_ref",
 					"webhook_secret_value",
 				)
 				assertEnumValues(t, propertySchema(t, createTriggerSchema, "scope"), "global", "workspace")

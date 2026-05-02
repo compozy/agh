@@ -1,0 +1,16 @@
+{
+  "session_id": "sess-70fea3626e97e646",
+  "health": {
+    "session_id": "sess-70fea3626e97e646",
+    "workspace_id": "ws_abaaa84e9c734bbb",
+    "agent_name": "reviewer",
+    "state": "idle",
+    "health": "healthy",
+    "active_prompt": false,
+    "attachable": true,
+    "eligible_for_wake": true,
+    "last_presence_at": "2026-05-02T19:39:23.096562Z",
+    "updated_at": "2026-05-02T19:39:23.096562Z"
+  },
+  "config_digest": "sha256:aa14478e90a69249213146b75b37edf2ff2d27aff3418fea1b0f66143029a68b"
+}

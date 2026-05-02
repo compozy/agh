@@ -1,0 +1,18 @@
+{
+  "session_id": "sess-7e522fe5bf4ea05b",
+  "health": {
+    "session_id": "sess-7e522fe5bf4ea05b",
+    "workspace_id": "ws_abaaa84e9c734bbb",
+    "agent_name": "reviewer",
+    "state": "prompting",
+    "health": "healthy",
+    "active_prompt": true,
+    "attachable": true,
+    "eligible_for_wake": false,
+    "ineligibility_reason": "session_prompt_active",
+    "last_activity_at": "2026-05-02T19:57:38.822724708Z",
+    "last_presence_at": "2026-05-02T19:49:40.00321Z",
+    "updated_at": "2026-05-02T19:57:41.582823Z"
+  },
+  "config_digest": "sha256:aa14478e90a69249213146b75b37edf2ff2d27aff3418fea1b0f66143029a68b"
+}

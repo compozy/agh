@@ -12,6 +12,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -268,6 +269,55 @@ func TestHooksNotifierOnAgentEventUsesProvidedSessionIDAndLifecycleNoops(t *test
 	}
 }
 
+func TestHooksNotifierLifecycleForwarding(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward full session metadata to downstream observers", func(t *testing.T) {
+		t.Parallel()
+
+		downstream := &recordingLifecycleForwardNotifier{}
+		notifier := newHooksNotifier(discardLogger(), func() time.Time {
+			return time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		})
+		notifier.setRuntime(&fakeHookRuntime{}, downstream)
+		child := &session.Session{
+			ID:          "sess-child",
+			Name:        "spawned worker",
+			AgentName:   "reviewer",
+			Provider:    "codex",
+			WorkspaceID: "ws-1",
+			Channel:     "default",
+			Type:        session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: "sess-parent",
+				RootSessionID:   "sess-parent",
+				SpawnDepth:      1,
+			},
+			State:            session.StateActive,
+			SoulSnapshotID:   "soul-child",
+			SoulDigest:       "sha256:child",
+			ParentSoulDigest: "sha256:parent",
+		}
+
+		notifier.OnSessionCreated(testutil.Context(t), child)
+		notifier.OnSessionStopped(testutil.Context(t), child)
+
+		if got := len(downstream.created); got != 1 {
+			t.Fatalf("created calls = %d, want 1", got)
+		}
+		created := downstream.created[0].Info()
+		if created.Lineage == nil ||
+			created.Lineage.ParentSessionID != "sess-parent" ||
+			created.ParentSoulDigest != "sha256:parent" ||
+			created.SoulDigest != "sha256:child" {
+			t.Fatalf("created session metadata = %#v", created)
+		}
+		if got := len(downstream.stopped); got != 1 {
+			t.Fatalf("stopped calls = %d, want 1", got)
+		}
+	})
+}
+
 func mustJSON(t *testing.T, value any) json.RawMessage {
 	t.Helper()
 
@@ -277,6 +327,21 @@ func mustJSON(t *testing.T, value any) json.RawMessage {
 	}
 	return raw
 }
+
+type recordingLifecycleForwardNotifier struct {
+	created []*session.Session
+	stopped []*session.Session
+}
+
+func (n *recordingLifecycleForwardNotifier) OnSessionCreated(_ context.Context, sess *session.Session) {
+	n.created = append(n.created, sess)
+}
+
+func (n *recordingLifecycleForwardNotifier) OnSessionStopped(_ context.Context, sess *session.Session) {
+	n.stopped = append(n.stopped, sess)
+}
+
+func (n *recordingLifecycleForwardNotifier) OnAgentEvent(context.Context, string, any) {}
 
 func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 	t.Parallel()

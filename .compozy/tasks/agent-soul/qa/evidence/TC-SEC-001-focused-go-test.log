@@ -1,0 +1,56 @@
+=== RUN   TestAgentContextHTTPIdentity
+=== PAUSE TestAgentContextHTTPIdentity
+=== CONT  TestAgentContextHTTPIdentity
+=== RUN   TestAgentContextHTTPIdentity/Should_return_context_for_a_daemon-validated_HTTP_agent_session
+=== PAUSE TestAgentContextHTTPIdentity/Should_return_context_for_a_daemon-validated_HTTP_agent_session
+=== RUN   TestAgentContextHTTPIdentity/Should_reject_missing_HTTP_agent_session_identity
+=== PAUSE TestAgentContextHTTPIdentity/Should_reject_missing_HTTP_agent_session_identity
+=== RUN   TestAgentContextHTTPIdentity/Should_reject_stale_HTTP_agent_session_identity
+=== PAUSE TestAgentContextHTTPIdentity/Should_reject_stale_HTTP_agent_session_identity
+=== CONT  TestAgentContextHTTPIdentity/Should_return_context_for_a_daemon-validated_HTTP_agent_session
+=== CONT  TestAgentContextHTTPIdentity/Should_reject_missing_HTTP_agent_session_identity
+=== CONT  TestAgentContextHTTPIdentity/Should_reject_stale_HTTP_agent_session_identity
+--- PASS: TestAgentContextHTTPIdentity (0.00s)
+    --- PASS: TestAgentContextHTTPIdentity/Should_reject_stale_HTTP_agent_session_identity (0.00s)
+    --- PASS: TestAgentContextHTTPIdentity/Should_reject_missing_HTTP_agent_session_identity (0.00s)
+    --- PASS: TestAgentContextHTTPIdentity/Should_return_context_for_a_daemon-validated_HTTP_agent_session (0.00s)
+PASS
+ok  	github.com/pedronauck/agh/internal/api/httpapi	1.054s
+=== RUN   TestHostAPIAuthoredContextWriteBypassRejections
+=== PAUSE TestHostAPIAuthoredContextWriteBypassRejections
+=== CONT  TestHostAPIAuthoredContextWriteBypassRejections
+=== RUN   TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Soul_write_without_write_grant_before_managed_authoring_runs
+=== PAUSE TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Soul_write_without_write_grant_before_managed_authoring_runs
+=== RUN   TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Heartbeat_write_without_write_grant_before_managed_authoring_runs
+=== PAUSE TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Heartbeat_write_without_write_grant_before_managed_authoring_runs
+=== RUN   TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Heartbeat_wake_without_write_grant_before_wake_service_runs
+=== PAUSE TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Heartbeat_wake_without_write_grant_before_wake_service_runs
+=== CONT  TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Soul_write_without_write_grant_before_managed_authoring_runs
+=== CONT  TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Heartbeat_wake_without_write_grant_before_wake_service_runs
+=== CONT  TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Heartbeat_write_without_write_grant_before_managed_authoring_runs
+--- PASS: TestHostAPIAuthoredContextWriteBypassRejections (0.00s)
+    --- PASS: TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Heartbeat_write_without_write_grant_before_managed_authoring_runs (0.78s)
+    --- PASS: TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Soul_write_without_write_grant_before_managed_authoring_runs (0.80s)
+    --- PASS: TestHostAPIAuthoredContextWriteBypassRejections/Should_reject_Heartbeat_wake_without_write_grant_before_wake_service_runs (0.80s)
+PASS
+ok  	github.com/pedronauck/agh/internal/extension	1.851s
+=== RUN   TestAuthoredContextHooksRemainObservationOnly
+=== PAUSE TestAuthoredContextHooksRemainObservationOnly
+=== CONT  TestAuthoredContextHooksRemainObservationOnly
+=== RUN   TestAuthoredContextHooksRemainObservationOnly/Should_ignore_direct_file_write_fields_returned_by_Soul_mutation_hooks
+=== PAUSE TestAuthoredContextHooksRemainObservationOnly/Should_ignore_direct_file_write_fields_returned_by_Soul_mutation_hooks
+=== RUN   TestAuthoredContextHooksRemainObservationOnly/Should_ignore_direct_file_write_fields_returned_by_Heartbeat_policy_hooks
+=== PAUSE TestAuthoredContextHooksRemainObservationOnly/Should_ignore_direct_file_write_fields_returned_by_Heartbeat_policy_hooks
+=== CONT  TestAuthoredContextHooksRemainObservationOnly/Should_ignore_direct_file_write_fields_returned_by_Soul_mutation_hooks
+=== CONT  TestAuthoredContextHooksRemainObservationOnly/Should_ignore_direct_file_write_fields_returned_by_Heartbeat_policy_hooks
+2026/05/02 19:37:34 INFO hook.registry.projected version=1 resource_revision=0 hook_count=1 hook_count_delta=1 duration_ms=0
+2026/05/02 19:37:34 INFO hook.registry.projected version=1 resource_revision=0 hook_count=1 hook_count_delta=1 duration_ms=0
+2026/05/02 19:37:34 INFO hook.dispatch.started event=agent.heartbeat.policy.resolved dispatch_depth=1 sync_hooks=0 async_hooks=1
+2026/05/02 19:37:34 INFO hook.dispatch.started event=agent.soul.mutation.after dispatch_depth=1 sync_hooks=0 async_hooks=1
+2026/05/02 19:37:34 INFO hook.dispatch.completed event=agent.soul.mutation.after dispatch_depth=1 duration_ms=0 pipeline_trace=[] sync_hooks=0 async_hooks=1
+2026/05/02 19:37:34 INFO hook.dispatch.completed event=agent.heartbeat.policy.resolved dispatch_depth=1 duration_ms=0 pipeline_trace=[] sync_hooks=0 async_hooks=1
+--- PASS: TestAuthoredContextHooksRemainObservationOnly (0.00s)
+    --- PASS: TestAuthoredContextHooksRemainObservationOnly/Should_ignore_direct_file_write_fields_returned_by_Soul_mutation_hooks (0.00s)
+    --- PASS: TestAuthoredContextHooksRemainObservationOnly/Should_ignore_direct_file_write_fields_returned_by_Heartbeat_policy_hooks (0.00s)
+PASS
+ok  	github.com/pedronauck/agh/internal/hooks	1.033s

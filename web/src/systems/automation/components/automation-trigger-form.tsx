@@ -209,18 +209,6 @@ export function AutomationTriggerForm({
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="trigger-webhook-secret-ref">Webhook secret ref</FieldLabel>
-                  <Input
-                    data-testid="trigger-webhook-secret-ref-input"
-                    id="trigger-webhook-secret-ref"
-                    onChange={event =>
-                      onChange({ ...draft, webhook_secret_ref: event.target.value })
-                    }
-                    placeholder="vault:automation/triggers/repo-push/webhook-secret"
-                    value={draft.webhook_secret_ref ?? ""}
-                  />
-                </Field>
-                <Field>
                   <FieldLabel htmlFor="trigger-webhook-secret-value">
                     Webhook secret value
                   </FieldLabel>

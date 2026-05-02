@@ -1,0 +1,5 @@
+{
+  "path": "agents.heartbeat.default_interval",
+  "value": "25m0s",
+  "redacted": false
+}

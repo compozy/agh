@@ -1,0 +1,5 @@
+{
+  "path": "agents.heartbeat.wake_event_retention",
+  "value": "168h0m0s",
+  "redacted": false
+}

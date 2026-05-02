@@ -1,0 +1,174 @@
+[
+  {
+    "id": "sess-522339b62662cdfa",
+    "name": "qa-lineage-parent-after-fix",
+    "agent_name": "reviewer",
+    "provider": "codex",
+    "workspace_id": "ws_abaaa84e9c734bbb",
+    "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-agent-soul-20260502-185208-519542-lab",
+    "channel": "default",
+    "type": "user",
+    "state": "active",
+    "acp_session_id": "019deaca-5486-7bc1-9dd4-cfef3f821f89",
+    "acp_caps": {
+      "supports_load_session": true,
+      "supported_modes": [
+        "read-only",
+        "auto",
+        "full-access"
+      ],
+      "supported_models": [
+        "gpt-5.5/low",
+        "gpt-5.5/medium",
+        "gpt-5.5/high",
+        "gpt-5.5/xhigh",
+        "gpt-5.4/low",
+        "gpt-5.4/medium",
+        "gpt-5.4/high",
+        "gpt-5.4/xhigh",
+        "gpt-5.4-mini/low",
+        "gpt-5.4-mini/medium",
+        "gpt-5.4-mini/high",
+        "gpt-5.4-mini/xhigh",
+        "gpt-5.3-codex/low",
+        "gpt-5.3-codex/medium",
+        "gpt-5.3-codex/high",
+        "gpt-5.3-codex/xhigh",
+        "gpt-5.3-codex-spark/low",
+        "gpt-5.3-codex-spark/medium",
+        "gpt-5.3-codex-spark/high",
+        "gpt-5.3-codex-spark/xhigh",
+        "gpt-5.2/low",
+        "gpt-5.2/medium",
+        "gpt-5.2/high",
+        "gpt-5.2/xhigh"
+      ]
+    },
+    "activity": {
+      "turn_id": "turn-b9e4128b5ae6f769",
+      "turn_source": "synthetic",
+      "turn_started_at": "2026-05-02T22:23:43.455924Z",
+      "last_activity_at": "2026-05-02T22:23:46.505134Z",
+      "last_activity_kind": "usage",
+      "current_tool": "Tool: agh-hosted-tools/agh__tool_search",
+      "tool_call_id": "call_S3fVVcbZJs9O4VJu1VMRon2d",
+      "iteration_current": 0,
+      "iteration_max": 0,
+      "idle_seconds": 17,
+      "elapsed_seconds": 20
+    },
+    "sandbox": {
+      "sandbox_id": "env-cfbf0073363c6f6f",
+      "backend": "local",
+      "profile": "local",
+      "state": "prepared"
+    },
+    "lineage": {
+      "root_session_id": "sess-522339b62662cdfa",
+      "spawn_depth": 0,
+      "auto_stop_on_parent": false,
+      "spawn_budget": {
+        "max_children": 0,
+        "max_depth": 0,
+        "ttl_seconds": 0
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-02T22:23:40.104332Z",
+    "updated_at": "2026-05-02T22:23:46.505134Z"
+  },
+  {
+    "id": "sess-e7ec0ca2d3b901e4",
+    "name": "qa-lineage-child-general-after-fix",
+    "agent_name": "general",
+    "provider": "codex",
+    "workspace_id": "ws_abaaa84e9c734bbb",
+    "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-agent-soul-20260502-185208-519542-lab",
+    "channel": "default",
+    "type": "spawned",
+    "state": "active",
+    "acp_session_id": "019deaca-5704-7832-80a1-653684a281c5",
+    "acp_caps": {
+      "supports_load_session": true,
+      "supported_modes": [
+        "read-only",
+        "auto",
+        "full-access"
+      ],
+      "supported_models": [
+        "gpt-5.5/low",
+        "gpt-5.5/medium",
+        "gpt-5.5/high",
+        "gpt-5.5/xhigh",
+        "gpt-5.4/low",
+        "gpt-5.4/medium",
+        "gpt-5.4/high",
+        "gpt-5.4/xhigh",
+        "gpt-5.4-mini/low",
+        "gpt-5.4-mini/medium",
+        "gpt-5.4-mini/high",
+        "gpt-5.4-mini/xhigh",
+        "gpt-5.3-codex/low",
+        "gpt-5.3-codex/medium",
+        "gpt-5.3-codex/high",
+        "gpt-5.3-codex/xhigh",
+        "gpt-5.3-codex-spark/low",
+        "gpt-5.3-codex-spark/medium",
+        "gpt-5.3-codex-spark/high",
+        "gpt-5.3-codex-spark/xhigh",
+        "gpt-5.2/low",
+        "gpt-5.2/medium",
+        "gpt-5.2/high",
+        "gpt-5.2/xhigh"
+      ]
+    },
+    "activity": {
+      "turn_id": "turn-e5aebffce9613cff",
+      "turn_source": "synthetic",
+      "turn_started_at": "2026-05-02T22:23:58.457186Z",
+      "last_activity_at": "2026-05-02T22:24:01.467773Z",
+      "last_activity_kind": "agent_message",
+      "last_activity_detail": ".",
+      "iteration_current": 0,
+      "iteration_max": 0,
+      "idle_seconds": 2,
+      "elapsed_seconds": 5
+    },
+    "sandbox": {
+      "sandbox_id": "env-8527264b8b8f1f2a",
+      "backend": "local",
+      "profile": "local",
+      "state": "prepared"
+    },
+    "lineage": {
+      "parent_session_id": "sess-522339b62662cdfa",
+      "root_session_id": "sess-522339b62662cdfa",
+      "spawn_depth": 1,
+      "spawn_role": "worker",
+      "ttl_expires_at": "2026-05-02T22:53:41.753191Z",
+      "auto_stop_on_parent": true,
+      "spawn_budget": {
+        "max_children": 5,
+        "max_depth": 1,
+        "ttl_seconds": 1800
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-02T22:23:41.753323Z",
+    "updated_at": "2026-05-02T22:24:01.467773Z"
+  }
+]

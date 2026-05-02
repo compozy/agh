@@ -48,32 +48,6 @@ External services and system boundaries. Include only when the design integrates
 - Authentication and authorization approach
 - Error handling and retry strategy
 
-## Extensibility Integration Plan
-
-AGH extensibility surfaces affected by this change. List additions, updates, removals, or explicit no-impact evidence:
-- Extension manifests and runtime extension points
-- Hooks and hook payloads
-- Skills/capabilities, tools, resources, bundles, registries
-- Bridge SDKs, MCP sidecars, AGH Network/protocol docs
-- Docs or examples extension authors need
-
-## Agent Manageability Plan
-
-Structured surfaces agents will use to inspect, configure, operate, approve, repair, or observe this capability:
-- CLI verbs and required `-o json` / `-o jsonl` behavior
-- HTTP endpoints and UDS routes, including parity expectations
-- Status/config discovery commands or endpoints
-- Deterministic error contracts and redaction requirements
-- E2E checks that compare CLI/HTTP/UDS state when applicable
-
-## Config Lifecycle
-
-`config.toml` impact for this change. List additions, updates, removals, or explicit no-impact evidence:
-- Config sections/keys/defaults and zero-value semantics
-- Structs, merge/overlay behavior, validation, examples
-- Generated CLI/site docs and runtime documentation updates
-- Tests for defaults, overlays, invalid values, reload/restart behavior
-
 ## Impact Analysis
 
 Table of components affected by this implementation:

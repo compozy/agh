@@ -43,8 +43,7 @@ Decompose requirements into detailed, actionable task files with codebase-inform
      - `high`: 5+ files, new subsystem or significant refactor, multiple integration points, concurrency involved.
      - `critical`: Cross-cutting change affecting many packages, high risk of regression, requires coordination with other tasks.
    - When a task directly implements or is constrained by a specific ADR, include the ADR reference in the task's "Related ADRs" section under Implementation Details.
-   - Embed implementation test requirements in every implementation task.
-   - The only standalone validation tasks allowed in the AGH PRD pipeline are the final `qa-report` planning task and `qa-execution` execution task. Do not create other test-only implementation tasks.
+   - Embed test requirements in every task. Never create separate tasks dedicated solely to testing.
    - Follow the structure defined in `references/task-template.md`.
    - Refer to `references/task-context-schema.md` for metadata field definitions.
 
@@ -83,7 +82,6 @@ Decompose requirements into detailed, actionable task files with codebase-inform
      - `### Relevant Files`: discovered paths from codebase exploration with brief reasons.
      - `### Dependent Files`: files that will be affected by this task with brief reasons.
      - `### Related ADRs`: links to relevant ADRs if any exist, or omit subsection if no ADRs apply.
-     - `## Extensibility / Agent Manageability / Config Lifecycle`: impacted extension points, CLI/HTTP/UDS agent paths, config keys, or explicit no-impact evidence.
      - `## Deliverables`: concrete outputs with mandatory test items and at least 80% coverage target.
      - `## Tests`: specific test cases as checklists, split into unit tests and integration tests categories.
      - `## Success Criteria`: measurable outcomes including "All tests passing" and "Test coverage >=80%".
@@ -91,16 +89,7 @@ Decompose requirements into detailed, actionable task files with codebase-inform
    - Update the task file in place with enriched content.
    - If enrichment fails for one task, continue to the next and report all failures at the end.
 
-7. Append the AGH QA pair.
-   - After implementation tasks are enriched, ensure `_tasks.md` ends with the canonical QA pair:
-     - `QA Plan and Test Coverage` using the `qa-report` skill.
-     - `Real-Scenario QA Execution` using `qa-execution` and `real-scenario-qa` when release-grade or cross-surface validation applies.
-   - Use `cy-tasks-tail-qa-pair` for the exact row shape, dependencies, task bodies, and e2e directives.
-   - `qa-report` depends on the last implementation task.
-   - `qa-execution` depends on `qa-report`.
-   - These two tasks are validation/QA handoff tasks, not a replacement for per-task unit/integration tests.
-
-8. Run task validation.
+7. Run task validation.
    - Run `compozy tasks validate --name <feature>`.
    - If it exits non-zero, fix the reported issues and re-run.
    - Do not mark the skill complete until it exits 0.
@@ -112,7 +101,6 @@ Do NOT produce tasks with these defects:
 - **Mega-tasks.** If a task touches more than 7 files or has more than 7 subtasks, it is too broad. Split it into smaller tasks with explicit dependencies between them.
 - **TechSpec duplication.** Do NOT copy interface definitions, code snippets, or architectural diagrams from the TechSpec into task files. Reference the TechSpec section by name (e.g., "See TechSpec 'Core Interfaces' section") instead of reproducing its content.
 - **Vague test cases.** Do NOT write test descriptions like "test the happy path" or "verify error handling." Each test case must name the specific input, condition, or behavior being verified (e.g., "POST /job/done with unknown job ID returns 404").
-- **Extra test-only tasks.** Do NOT split unit or integration testing into separate implementation tasks. The final `qa-report` and `qa-execution` tasks are the only exception, and they exist for planning/executing real scenario QA after implementation.
 
 ## Error Handling
 

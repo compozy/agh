@@ -1,0 +1,72 @@
+{
+  "id": "sess-70fea3626e97e646",
+  "name": "reviewer-soul-output",
+  "agent_name": "reviewer",
+  "provider": "codex",
+  "workspace_id": "ws_abaaa84e9c734bbb",
+  "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-agent-soul-20260502-185208-519542-lab",
+  "channel": "default",
+  "type": "user",
+  "state": "active",
+  "acp_session_id": "019dea33-52e6-74f3-9e06-f640cdb87b5c",
+  "acp_caps": {
+    "supports_load_session": true,
+    "supported_modes": [
+      "read-only",
+      "auto",
+      "full-access"
+    ],
+    "supported_models": [
+      "gpt-5.5/low",
+      "gpt-5.5/medium",
+      "gpt-5.5/high",
+      "gpt-5.5/xhigh",
+      "gpt-5.4/low",
+      "gpt-5.4/medium",
+      "gpt-5.4/high",
+      "gpt-5.4/xhigh",
+      "gpt-5.4-mini/low",
+      "gpt-5.4-mini/medium",
+      "gpt-5.4-mini/high",
+      "gpt-5.4-mini/xhigh",
+      "gpt-5.3-codex/low",
+      "gpt-5.3-codex/medium",
+      "gpt-5.3-codex/high",
+      "gpt-5.3-codex/xhigh",
+      "gpt-5.3-codex-spark/low",
+      "gpt-5.3-codex-spark/medium",
+      "gpt-5.3-codex-spark/high",
+      "gpt-5.3-codex-spark/xhigh",
+      "gpt-5.2/low",
+      "gpt-5.2/medium",
+      "gpt-5.2/high",
+      "gpt-5.2/xhigh"
+    ]
+  },
+  "sandbox": {
+    "sandbox_id": "env-84c97151d7554b74",
+    "backend": "local",
+    "profile": "local",
+    "state": "prepared"
+  },
+  "lineage": {
+    "root_session_id": "sess-70fea3626e97e646",
+    "spawn_depth": 0,
+    "auto_stop_on_parent": false,
+    "spawn_budget": {
+      "max_children": 0,
+      "max_depth": 0,
+      "ttl_seconds": 0
+    },
+    "permission_policy": {
+      "tools": [],
+      "skills": [],
+      "mcp_servers": [],
+      "workspace_paths": [],
+      "network_channels": [],
+      "sandbox_profiles": []
+    }
+  },
+  "created_at": "2026-05-02T19:38:43.700309Z",
+  "updated_at": "2026-05-02T19:38:45.363705Z"
+}

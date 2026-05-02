@@ -1,0 +1,18 @@
+=== RUN   TestPromptSyntheticHeartbeatWakeOptions
+=== PAUSE TestPromptSyntheticHeartbeatWakeOptions
+=== RUN   TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder
+=== PAUSE TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder
+=== CONT  TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder
+=== CONT  TestPromptSyntheticHeartbeatWakeOptions
+=== RUN   TestPromptSyntheticHeartbeatWakeOptions/Should_reject_busy_synthetic_prompt_without_queueing_when_requested
+=== PAUSE TestPromptSyntheticHeartbeatWakeOptions/Should_reject_busy_synthetic_prompt_without_queueing_when_requested
+=== RUN   TestPromptSyntheticHeartbeatWakeOptions/Should_preserve_heartbeat_metadata_and_supplied_prompt_turn_id
+=== PAUSE TestPromptSyntheticHeartbeatWakeOptions/Should_preserve_heartbeat_metadata_and_supplied_prompt_turn_id
+=== CONT  TestPromptSyntheticHeartbeatWakeOptions/Should_reject_busy_synthetic_prompt_without_queueing_when_requested
+=== CONT  TestPromptSyntheticHeartbeatWakeOptions/Should_preserve_heartbeat_metadata_and_supplied_prompt_turn_id
+--- PASS: TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder (0.49s)
+--- PASS: TestPromptSyntheticHeartbeatWakeOptions (0.00s)
+    --- PASS: TestPromptSyntheticHeartbeatWakeOptions/Should_reject_busy_synthetic_prompt_without_queueing_when_requested (0.44s)
+    --- PASS: TestPromptSyntheticHeartbeatWakeOptions/Should_preserve_heartbeat_metadata_and_supplied_prompt_turn_id (0.50s)
+PASS
+ok  	github.com/pedronauck/agh/internal/session	1.540s

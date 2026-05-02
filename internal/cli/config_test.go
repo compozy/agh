@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -229,6 +230,101 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	if string(after) != before {
 		t.Fatalf("workspace config changed after invalid set\nbefore:\n%s\nafter:\n%s", before, string(after))
 	}
+}
+
+func TestConfigSetSupportsAgentAuthoredContextPaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should write valid agent Soul and Heartbeat overlays and reject invalid values", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		workspaceRoot := t.TempDir()
+		deps.getwd = func() (string, error) {
+			return workspaceRoot, nil
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"agents.soul.context_projection_bytes",
+			"1536",
+			"--scope",
+			"workspace",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("config set agents.soul.context_projection_bytes error = %v", err)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"agents.heartbeat.default_interval",
+			"25m",
+			"--scope",
+			"workspace",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("config set agents.heartbeat.default_interval error = %v", err)
+		}
+
+		loaded, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if got := loaded.Agents.Soul.ContextProjectionBytes; got != 1536 {
+			t.Fatalf("Agents.Soul.ContextProjectionBytes = %d, want 1536", got)
+		}
+		if got := loaded.Agents.Heartbeat.DefaultInterval.String(); got != "25m0s" {
+			t.Fatalf("Agents.Heartbeat.DefaultInterval = %q, want 25m0s", got)
+		}
+
+		workspaceConfig := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName)
+		before, err := os.ReadFile(workspaceConfig)
+		if err != nil {
+			t.Fatalf("ReadFile(workspace config) error = %v", err)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"agents.soul.context_projection_bytes",
+			"0",
+			"--scope",
+			"workspace",
+		); err == nil {
+			t.Fatal("config set invalid agents.soul.context_projection_bytes error = nil, want validation failure")
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"agents.heartbeat.default_interval",
+			"0s",
+			"--scope",
+			"workspace",
+		); err == nil {
+			t.Fatal("config set invalid agents.heartbeat.default_interval error = nil, want validation failure")
+		}
+		after, err := os.ReadFile(workspaceConfig)
+		if err != nil {
+			t.Fatalf("ReadFile(workspace config after invalid set) error = %v", err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatalf("workspace config changed after invalid agent config set\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
 }
 
 func TestConfigOutputRedactsMCPAndSandboxSecrets(t *testing.T) {

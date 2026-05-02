@@ -1,0 +1,42 @@
+{
+  "task": {
+    "id": "task-soul-qa-default-1777760033",
+    "scope": "workspace",
+    "workspace_id": "ws_abaaa84e9c734bbb",
+    "title": "Verify Soul provenance claim on default channel",
+    "description": "QA-created task for ClaimNextRun Soul provenance on session channel",
+    "priority": "medium",
+    "max_attempts": 3,
+    "status": "ready",
+    "approval_policy": "none",
+    "approval_state": "not_required",
+    "created_by": {
+      "kind": "human",
+      "ref": "local-user"
+    },
+    "origin": {
+      "kind": "uds",
+      "ref": "tasks.create"
+    },
+    "created_at": "2026-05-02T22:13:53.370252Z",
+    "updated_at": "2026-05-02T22:13:53.370252Z"
+  },
+  "run": {
+    "id": "run-a955658f9673c2a6",
+    "task_id": "task-soul-qa-default-1777760033",
+    "status": "queued",
+    "attempt": 1,
+    "origin": {
+      "kind": "uds",
+      "ref": "tasks.start"
+    },
+    "idempotency_key": "task.start.task-soul-qa-default-1777760033",
+    "network_channel": "default",
+    "coordination_channel_id": "default",
+    "queued_at": "2026-05-02T22:13:53.38437Z",
+    "metadata": {
+      "qa_case": "TC-SCEN-004",
+      "channel": "default"
+    }
+  }
+}

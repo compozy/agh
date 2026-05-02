@@ -2,6 +2,7 @@ package contract_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -384,22 +385,24 @@ func TestAutomationTriggerPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		payload := contract.TriggerPayload{
-			ID:           "trigger-1",
-			Scope:        automationpkg.AutomationScopeWorkspace,
-			Name:         "deploy-review",
-			AgentName:    "coder",
-			WorkspaceID:  "ws-alpha",
-			Prompt:       `review {{ index .Data "payload" }}`,
-			Event:        "webhook",
-			Filter:       map[string]string{"branch": "main"},
-			Enabled:      true,
-			Retry:        automationpkg.DefaultRetryConfig(),
-			FireLimit:    automationpkg.DefaultFireLimitConfig(),
-			Source:       automationpkg.JobSourceDynamic,
-			WebhookID:    "wbh_123",
-			EndpointSlug: "deploy-review",
-			CreatedAt:    time.Date(2026, 4, 11, 11, 0, 0, 0, time.UTC),
-			UpdatedAt:    time.Date(2026, 4, 11, 11, 30, 0, 0, time.UTC),
+			ID:                   "trigger-1",
+			Scope:                automationpkg.AutomationScopeWorkspace,
+			Name:                 "deploy-review",
+			AgentName:            "coder",
+			WorkspaceID:          "ws-alpha",
+			Prompt:               `review {{ index .Data "payload" }}`,
+			Event:                "webhook",
+			Filter:               map[string]string{"branch": "main"},
+			Enabled:              true,
+			Retry:                automationpkg.DefaultRetryConfig(),
+			FireLimit:            automationpkg.DefaultFireLimitConfig(),
+			Source:               automationpkg.JobSourceDynamic,
+			WebhookID:            "wbh_123",
+			EndpointSlug:         "deploy-review",
+			WebhookSecretPresent: true,
+			WebhookSecretHash:    "sha256:redacted",
+			CreatedAt:            time.Date(2026, 4, 11, 11, 0, 0, 0, time.UTC),
+			UpdatedAt:            time.Date(2026, 4, 11, 11, 30, 0, 0, time.UTC),
 		}
 
 		var got map[string]any
@@ -419,6 +422,49 @@ func TestAutomationTriggerPayloadJSONShape(t *testing.T) {
 		}
 		if got["webhook_id"] != "wbh_123" {
 			t.Fatalf("webhook_id = %#v, want %q", got["webhook_id"], "wbh_123")
+		}
+		if got["webhook_secret_present"] != true || got["webhook_secret_hash"] != "sha256:redacted" {
+			t.Fatalf(
+				"webhook secret metadata = %#v/%#v, want redacted metadata",
+				got["webhook_secret_present"],
+				got["webhook_secret_hash"],
+			)
+		}
+		if _, exists := got["webhook_secret_ref"]; exists {
+			t.Fatalf("trigger payload includes webhook_secret_ref: %#v", got)
+		}
+	})
+
+	t.Run("Should derive redacted webhook secret metadata from internal triggers", func(t *testing.T) {
+		t.Parallel()
+
+		sourceFilter := map[string]string{"branch": "main"}
+		payload := contract.TriggerPayloadFromTrigger(automationpkg.Trigger{
+			ID:               "trigger-1",
+			Scope:            automationpkg.AutomationScopeWorkspace,
+			Name:             "deploy-review",
+			AgentName:        "coder",
+			WorkspaceID:      "ws-alpha",
+			Prompt:           `review {{ index .Data "payload" }}`,
+			Event:            "webhook",
+			Filter:           sourceFilter,
+			Enabled:          true,
+			Retry:            automationpkg.DefaultRetryConfig(),
+			FireLimit:        automationpkg.DefaultFireLimitConfig(),
+			Source:           automationpkg.JobSourceDynamic,
+			WebhookID:        "wbh_123",
+			EndpointSlug:     "deploy-review",
+			WebhookSecretRef: "vault:automation/triggers/deploy-review/webhook-secret",
+			CreatedAt:        time.Date(2026, 4, 11, 11, 0, 0, 0, time.UTC),
+			UpdatedAt:        time.Date(2026, 4, 11, 11, 30, 0, 0, time.UTC),
+		})
+		sourceFilter["branch"] = "mutated"
+
+		if !payload.WebhookSecretPresent || !strings.HasPrefix(payload.WebhookSecretHash, "sha256:") {
+			t.Fatalf("webhook secret metadata = %#v, want redacted metadata", payload)
+		}
+		if got, want := payload.Filter["branch"], "main"; got != want {
+			t.Fatalf("payload.Filter[branch] = %q, want %q", got, want)
 		}
 	})
 }
@@ -557,11 +603,6 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 			{
 				name: "Should return true when the trigger filter is set",
 				req:  contract.UpdateTriggerRequest{Filter: filter},
-				want: true,
-			},
-			{
-				name: "Should return true when the webhook secret ref is set",
-				req:  contract.UpdateTriggerRequest{WebhookSecretRef: &secret},
 				want: true,
 			},
 			{

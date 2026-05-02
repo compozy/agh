@@ -1,0 +1,119 @@
+{
+  "self": {
+    "session_id": "sess-70fea3626e97e646",
+    "agent_name": "reviewer",
+    "provider": "codex",
+    "model": "gpt-5.4"
+  },
+  "workspace": {
+    "id": "ws_abaaa84e9c734bbb",
+    "name": "agent-soul-lab",
+    "root_dir": "/Users/pedronauck/dev/qa-labs/agh-agent-soul-20260502-185208-519542-lab"
+  },
+  "session": {
+    "id": "sess-70fea3626e97e646",
+    "name": "reviewer-soul-output",
+    "type": "user",
+    "state": "active",
+    "channel": "default",
+    "created_at": "2026-05-02T19:38:43.700309Z",
+    "updated_at": "2026-05-02T19:39:51.369604Z"
+  },
+  "soul": {
+    "enabled": true,
+    "present": true,
+    "active": true,
+    "valid": true,
+    "validation_status": "valid",
+    "snapshot_id": "soul-fb2b8161840f45d0",
+    "digest": "sha256:30da7b5e3b93917360620fec60eb0f486466ebffea3248c238a9dfece83f2e63",
+    "config_digest": "sha256:81d02c4dc3d10d56d00ceb7a6a0099967bc57d352936b8e3fe8639e2d1fcbd71",
+    "source_path": ".agh/agents/reviewer/SOUL.md",
+    "role": "launch reviewer",
+    "tone": [
+      "evidence-first",
+      "conservative"
+    ],
+    "principles": [
+      "cite observable runtime state before readiness claims",
+      "name missing evidence as a launch risk"
+    ],
+    "max_bytes": 2048,
+    "max_body_bytes": 32768
+  },
+  "task": {
+    "available": false
+  },
+  "coordination_channel": {
+    "available": false
+  },
+  "inbox_summary": {
+    "section": {
+      "limit": 8,
+      "returned": 0,
+      "truncated": false
+    },
+    "unread_count": 0,
+    "items": []
+  },
+  "peer_roster": {
+    "section": {
+      "limit": 8,
+      "returned": 1,
+      "truncated": false
+    },
+    "peers": [
+      {
+        "peer_id": "ops.sess-6e4a7e679c1df522",
+        "session_id": "sess-6e4a7e679c1df522",
+        "display_name": "ops-health-boundary",
+        "channel_id": "default",
+        "capabilities": []
+      }
+    ]
+  },
+  "capabilities": {
+    "section": {
+      "limit": 8,
+      "returned": 5,
+      "truncated": false
+    },
+    "capabilities": [
+      {
+        "id": "skill:agh-agent-setup",
+        "summary": "Set up AGH agent definitions, provider defaults, permissions, and MCP server entries correctly.",
+        "source": "skill"
+      },
+      {
+        "id": "skill:agh-memory-guide",
+        "summary": "Manage AGH persistent memory files, scopes, and manual consolidation from the CLI.",
+        "source": "skill"
+      },
+      {
+        "id": "skill:agh-network",
+        "summary": "Inspect channels and peers, read inbox messages, and send safe AGH network replies through the daemon-owned CLI control plane.",
+        "source": "skill"
+      },
+      {
+        "id": "skill:agh-session-guide",
+        "summary": "Operate AGH sessions from the CLI, including creation, inspection, prompting, and shutdown.",
+        "source": "skill"
+      },
+      {
+        "id": "skill:agh-tools-guide",
+        "summary": "Use AGH-native tool discovery and invocation correctly. Teaches agents to start with agh__tool_search, read descriptors with agh__tool_info, invoke dedicated AGH tools before shelling out to agh commands, and keep operator-only lifecycle, OAuth, trust-root, and raw-secret flows on management surfaces.",
+        "source": "skill"
+      }
+    ]
+  },
+  "limits": {
+    "max_children": 5,
+    "max_spawn_depth": 1,
+    "max_active_task_leases": 1,
+    "context_section_limit": 8
+  },
+  "provenance": {
+    "generated_at": "2026-05-02T19:40:50.408319Z",
+    "source": "daemon.situation"
+  }
+}

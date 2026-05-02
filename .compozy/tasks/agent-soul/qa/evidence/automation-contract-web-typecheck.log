@@ -1,0 +1,4 @@
+$ bun run codegen-check && bun run typecheck:raw
+$ bun run --cwd .. codegen-check
+$ make codegen-check
+$ tsgo --noEmit

@@ -747,30 +747,28 @@ type automationTriggerCreateInput struct {
 	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
 	WebhookID          string                         `json:"webhook_id,omitempty"`
 	EndpointSlug       string                         `json:"endpoint_slug,omitempty"`
-	WebhookSecretRef   string                         `json:"webhook_secret_ref,omitempty"`
 	WebhookSecretValue *string                        `json:"webhook_secret_value,omitempty"`
 }
 
 func (i automationTriggerCreateInput) request() contract.CreateTriggerRequest {
 	return contract.CreateTriggerRequest{
-		Scope:            i.Scope,
-		Name:             i.Name,
-		AgentName:        i.AgentName,
-		WorkspaceID:      i.WorkspaceID,
-		Prompt:           i.Prompt,
-		Event:            i.Event,
-		Filter:           i.Filter,
-		Enabled:          i.Enabled,
-		Retry:            i.Retry,
-		FireLimit:        i.FireLimit,
-		WebhookID:        i.WebhookID,
-		EndpointSlug:     i.EndpointSlug,
-		WebhookSecretRef: i.WebhookSecretRef,
+		Scope:        i.Scope,
+		Name:         i.Name,
+		AgentName:    i.AgentName,
+		WorkspaceID:  i.WorkspaceID,
+		Prompt:       i.Prompt,
+		Event:        i.Event,
+		Filter:       i.Filter,
+		Enabled:      i.Enabled,
+		Retry:        i.Retry,
+		FireLimit:    i.FireLimit,
+		WebhookID:    i.WebhookID,
+		EndpointSlug: i.EndpointSlug,
 	}
 }
 
 func (i automationTriggerCreateInput) webhookSecretWrite() automationpkg.WebhookSecretWrite {
-	write := automationpkg.WebhookSecretWrite{Ref: strings.TrimSpace(i.WebhookSecretRef)}
+	write := automationpkg.WebhookSecretWrite{}
 	if i.WebhookSecretValue != nil {
 		value := strings.TrimSpace(*i.WebhookSecretValue)
 		write.Value = &value
@@ -791,7 +789,6 @@ type automationTriggerUpdateInput struct {
 	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
 	WebhookID          *string                        `json:"webhook_id,omitempty"`
 	EndpointSlug       *string                        `json:"endpoint_slug,omitempty"`
-	WebhookSecretRef   *string                        `json:"webhook_secret_ref,omitempty"`
 	WebhookSecretValue *string                        `json:"webhook_secret_value,omitempty"`
 }
 
@@ -808,23 +805,17 @@ func (i automationTriggerUpdateInput) request() contract.UpdateTriggerRequest {
 		FireLimit:          i.FireLimit,
 		WebhookID:          i.WebhookID,
 		EndpointSlug:       i.EndpointSlug,
-		WebhookSecretRef:   i.WebhookSecretRef,
 		WebhookSecretValue: i.WebhookSecretValue,
 	}
 }
 
 func (i automationTriggerUpdateInput) webhookSecretWrite() *automationpkg.WebhookSecretWrite {
-	if i.WebhookSecretRef == nil && i.WebhookSecretValue == nil {
+	if i.WebhookSecretValue == nil {
 		return nil
 	}
 	write := automationpkg.WebhookSecretWrite{}
-	if i.WebhookSecretRef != nil {
-		write.Ref = strings.TrimSpace(*i.WebhookSecretRef)
-	}
-	if i.WebhookSecretValue != nil {
-		value := strings.TrimSpace(*i.WebhookSecretValue)
-		write.Value = &value
-	}
+	value := strings.TrimSpace(*i.WebhookSecretValue)
+	write.Value = &value
 	return &write
 }
 

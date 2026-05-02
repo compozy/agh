@@ -1,0 +1,63 @@
+{
+  "soul": {
+    "agent_name": "reviewer",
+    "enabled": true,
+    "present": true,
+    "active": true,
+    "valid": true,
+    "validation_status": "valid",
+    "snapshot_id": "soul-fb2b8161840f45d0",
+    "revision_id": "srev-933c08ce49487cbf",
+    "digest": "sha256:30da7b5e3b93917360620fec60eb0f486466ebffea3248c238a9dfece83f2e63",
+    "source_path": ".agh/agents/reviewer/SOUL.md",
+    "frontmatter": {
+      "version": "1",
+      "role": "launch reviewer",
+      "tone": [
+        "evidence-first",
+        "conservative"
+      ],
+      "principles": [
+        "cite observable runtime state before readiness claims",
+        "name missing evidence as a launch risk"
+      ],
+      "constraints": [
+        "do not claim task ownership",
+        "do not expose hidden state"
+      ],
+      "tags": [
+        "launch",
+        "review"
+      ]
+    },
+    "body": "\n# Launch Review Soul\n\n- Use evidence-first risk bullets.\n- Avoid hype and promotional language.\n- Prefer concrete file, command, and runtime observations.\n- Do not claim task ownership, scheduler authority, or hidden queue access.\n- When evidence is missing, name the missing boundary explicitly.",
+    "limits": {
+      "max_body_bytes": 32768,
+      "context_projection_bytes": 2048
+    },
+    "config_provenance": {
+      "digest": "sha256:81d02c4dc3d10d56d00ceb7a6a0099967bc57d352936b8e3fe8639e2d1fcbd71",
+      "source": "workspace",
+      "enabled": true,
+      "max_body_bytes": 32768,
+      "context_projection_bytes": 2048
+    }
+  },
+  "revision": {
+    "id": "srev-933c08ce49487cbf",
+    "agent_name": "reviewer",
+    "source_path": ".agh/agents/reviewer/SOUL.md",
+    "action": "rollback",
+    "previous_digest": "sha256:3d3600ec41d4507c5cc876c846b971cd5fbeef3b71259dbaa93434e38fc5edf9",
+    "new_digest": "sha256:30da7b5e3b93917360620fec60eb0f486466ebffea3248c238a9dfece83f2e63",
+    "actor": {
+      "kind": "user",
+      "ref": "udsapi"
+    },
+    "origin": {
+      "kind": "udsapi",
+      "ref": "POST /api/agents/:name/soul/rollback"
+    },
+    "created_at": "2026-05-02T20:05:40.795257Z"
+  }
+}

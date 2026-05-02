@@ -1,3 +1,9 @@
-TC-REG-001 cross-feature evidence
-valid_heartbeat_after_invalid_soul=true
-valid_soul_after_invalid_heartbeat=true
+{
+  "soul_digest_before": "sha256:30da7b5e3b93917360620fec60eb0f486466ebffea3248c238a9dfece83f2e63",
+  "soul_digest_after": "sha256:30da7b5e3b93917360620fec60eb0f486466ebffea3248c238a9dfece83f2e63",
+  "soul_unchanged": true,
+  "heartbeat_digest_before": "sha256:d79cf0c4f9bdd0eebffa0506af7412b84a11316d30330a6bd5f2ca71c053cd13",
+  "heartbeat_digest_after": "sha256:d79cf0c4f9bdd0eebffa0506af7412b84a11316d30330a6bd5f2ca71c053cd13",
+  "heartbeat_unchanged": true,
+  "heartbeat_valid_after": true
+}

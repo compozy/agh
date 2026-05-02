@@ -385,12 +385,30 @@ func (n *hooksNotifier) taskRunEnqueuedObservers() []taskRunEnqueuedObserver {
 	return append([]taskRunEnqueuedObserver(nil), n.taskRunEnqueuedHooks...)
 }
 
-// OnSessionCreated is a no-op; lifecycle observation is handled via hook dispatch.
-func (n *hooksNotifier) OnSessionCreated(_ context.Context, _ *session.Session) {
+// OnSessionCreated forwards the full runtime session to the downstream
+// observer after hook dispatch has already run. The native hook payload keeps
+// lifecycle ordering, while this pass preserves catalog fields that are not
+// exposed on public hook payloads.
+func (n *hooksNotifier) OnSessionCreated(ctx context.Context, sess *session.Session) {
+	if sess == nil {
+		return
+	}
+	_, agentEventNotify := n.runtime()
+	if agentEventNotify != nil {
+		agentEventNotify.OnSessionCreated(ctx, sess)
+	}
 }
 
-// OnSessionStopped is a no-op; lifecycle observation is handled via hook dispatch.
-func (n *hooksNotifier) OnSessionStopped(_ context.Context, _ *session.Session) {
+// OnSessionStopped forwards the full runtime session to the downstream
+// observer after hook dispatch has already run.
+func (n *hooksNotifier) OnSessionStopped(ctx context.Context, sess *session.Session) {
+	if sess == nil {
+		return
+	}
+	_, agentEventNotify := n.runtime()
+	if agentEventNotify != nil {
+		agentEventNotify.OnSessionStopped(ctx, sess)
+	}
 }
 
 func (n *hooksNotifier) DispatchSessionPreCreate(

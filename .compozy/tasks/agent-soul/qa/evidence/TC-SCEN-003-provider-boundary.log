@@ -1,0 +1,2259 @@
+[
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.04266Z",
+    "text": "-",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "-"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.361359Z",
+    "text": " Soul",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " Soul"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.361425Z",
+    "text": " Evidence",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " Evidence"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.361454Z",
+    "text": " digest",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " digest"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.361516Z",
+    "text": ":",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ":"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.612704Z",
+    "text": " `",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " `"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.61591Z",
+    "text": "sha",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "sha"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.6187Z",
+    "text": "256",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "256"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.621356Z",
+    "text": ":",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ":"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.889201Z",
+    "text": "da",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "da"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.889214Z",
+    "text": "30",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "30"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.889242Z",
+    "text": "7",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "7"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.891596Z",
+    "text": "b",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "b"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.896753Z",
+    "text": "5",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "5"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.90625Z",
+    "text": "e",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "e"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:37.910638Z",
+    "text": "3",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "3"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.183169Z",
+    "text": "b",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "b"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.185563Z",
+    "text": "939",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "939"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.189381Z",
+    "text": "173",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "173"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.215284Z",
+    "text": "606",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "606"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.229055Z",
+    "text": "fec",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "fec"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.229067Z",
+    "text": "20",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "20"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.235143Z",
+    "text": "60",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "60"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.240332Z",
+    "text": "eb",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "eb"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.244816Z",
+    "text": "0",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "0"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.245704Z",
+    "text": "f",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "f"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.250078Z",
+    "text": "486",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "486"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.251672Z",
+    "text": "466",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "466"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.257616Z",
+    "text": "eb",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "eb"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.266176Z",
+    "text": "ff",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "ff"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416303Z",
+    "text": "324",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "324"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.41631Z",
+    "text": "9",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "9"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416323Z",
+    "text": "fe",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "fe"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416339Z",
+    "text": "8",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "8"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416349Z",
+    "text": "d",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "d"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416361Z",
+    "text": "c",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "c"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416384Z",
+    "text": "238",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "238"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416386Z",
+    "text": "ea",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "ea"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416391Z",
+    "text": "ce",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "ce"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416428Z",
+    "text": "a",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "a"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416474Z",
+    "text": "f",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "f"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416503Z",
+    "text": "2",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "2"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416512Z",
+    "text": "83",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "83"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416536Z",
+    "text": "e",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "e"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416561Z",
+    "text": "63",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "63"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416578Z",
+    "text": "`",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "`"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416607Z",
+    "text": " is",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " is"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416621Z",
+    "text": " present",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " present"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416639Z",
+    "text": " for",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " for"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416671Z",
+    "text": " this",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " this"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416696Z",
+    "text": " session",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " session"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416701Z",
+    "text": ".",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "."
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416732Z",
+    "text": " Risk",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " Risk"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416746Z",
+    "text": ":",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ":"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416774Z",
+    "text": " readiness",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " readiness"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416786Z",
+    "text": " depends",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " depends"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416813Z",
+    "text": " on",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " on"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416838Z",
+    "text": " this",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " this"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.41685Z",
+    "text": " digest",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " digest"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416868Z",
+    "text": " matching",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " matching"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416899Z",
+    "text": " the",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " the"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416915Z",
+    "text": " intended",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " intended"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416953Z",
+    "text": " Agent",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " Agent"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416968Z",
+    "text": " Soul",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " Soul"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.416988Z",
+    "text": " QA",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " QA"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.41708Z",
+    "text": ".\n\n",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ".\n\n"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417094Z",
+    "text": "-",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "-"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417106Z",
+    "text": " fixture",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " fixture"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417117Z",
+    "text": " Evidence",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " Evidence"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417202Z",
+    "text": ":",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ":"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417231Z",
+    "text": " `/",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " `/"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417246Z",
+    "text": "api",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "api"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417278Z",
+    "text": "/",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "/"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417304Z",
+    "text": "agent",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "agent"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417326Z",
+    "text": "`",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "`"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417328Z",
+    "text": "/context",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "/context"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417347Z",
+    "text": " returned",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " returned"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417364Z",
+    "text": " HTTP",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " HTTP"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417381Z",
+    "text": " `",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " `"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417395Z",
+    "text": "200",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "200"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417411Z",
+    "text": "`.",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "`."
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417443Z",
+    "text": ":",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ":"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.41745Z",
+    "text": " Risk",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " Risk"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417457Z",
+    "text": " this",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " this"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417475Z",
+    "text": " confirms",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " confirms"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417497Z",
+    "text": " context",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " context"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.41751Z",
+    "text": " endpoint",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " endpoint"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.417526Z",
+    "text": " reach",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " reach"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.419438Z",
+    "text": ",",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ","
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.419445Z",
+    "text": "ability",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "ability"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.422301Z",
+    "text": " but",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " but"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.426016Z",
+    "text": " not",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " not"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.430503Z",
+    "text": " full",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " full"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.433986Z",
+    "text": " downstream",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " downstream"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.438271Z",
+    "text": " behavior",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " behavior"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.442123Z",
+    "text": ".\n\n",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ".\n\n"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.444546Z",
+    "text": "-",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "-"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.45005Z",
+    "text": " Evidence",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " Evidence"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.450122Z",
+    "text": ":",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ":"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.454898Z",
+    "text": " this",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " this"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538089Z",
+    "text": " claimed",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " claimed"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538108Z",
+    "text": " task",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " task"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538136Z",
+    "text": " note",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " note"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538192Z",
+    "text": " makes",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " makes"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538199Z",
+    "text": " ownership",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " ownership"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538202Z",
+    "text": " no",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " no"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538265Z",
+    "text": ".",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "."
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538278Z",
+    "text": " Risk",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " Risk"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538302Z",
+    "text": ":",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ":"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538395Z",
+    "text": " launch",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " launch"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538459Z",
+    "text": " language",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " language"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538489Z",
+    "text": " should",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " should"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538504Z",
+    "text": " continue",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " continue"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538537Z",
+    "text": " avoiding",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " avoiding"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538571Z",
+    "text": " ownership",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " ownership"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538584Z",
+    "text": ",",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ","
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538611Z",
+    "text": " scheduler",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " scheduler"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538645Z",
+    "text": ",",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ","
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538654Z",
+    "text": " authority",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " authority"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538721Z",
+    "text": " hidden",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " hidden"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538758Z",
+    "text": " queues",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " queues"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538783Z",
+    "text": ",",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ","
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.5388Z",
+    "text": " or",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " or"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538818Z",
+    "text": " token",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " token"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538831Z",
+    "text": " access",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " access"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538857Z",
+    "text": " claims",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " claims"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538877Z",
+    "text": ".\n\n",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ".\n\n"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538892Z",
+    "text": "Missing",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "Missing"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538904Z",
+    "text": "-e",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "-e"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.53893Z",
+    "text": "vidence",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "vidence"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538953Z",
+    "text": ":",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ":"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538959Z",
+    "text": " boundary",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " boundary"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.538977Z",
+    "text": " no",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " no"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.543703Z",
+    "text": " evidence",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " evidence"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.543714Z",
+    "text": " session",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " session"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.54372Z",
+    "text": " in",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " in"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.543744Z",
+    "text": " this",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " this"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.558368Z",
+    "text": " validates",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " validates"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.558403Z",
+    "text": " hidden",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " hidden"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.558476Z",
+    "text": " queue",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " queue"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.574729Z",
+    "text": " state",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " state"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.575676Z",
+    "text": ",",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ","
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.595579Z",
+    "text": " token",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " token"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.615885Z",
+    "text": " contents",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " contents"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.635343Z",
+    "text": ",",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": ","
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.655701Z",
+    "text": " or",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " or"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.674456Z",
+    "text": " broader",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " broader"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.695534Z",
+    "text": " production",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " production"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.714321Z",
+    "text": " runtime",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " runtime"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.735299Z",
+    "text": " health",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " health"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.754177Z",
+    "text": " beyond",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " beyond"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.755978Z",
+    "text": " the",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " the"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.776128Z",
+    "text": " stated",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " stated"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.803434Z",
+    "text": " digest",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " digest"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.82887Z",
+    "text": " and",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " and"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.844463Z",
+    "text": " HTTP",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " HTTP"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.939265Z",
+    "text": "`.",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "`."
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.939333Z",
+    "text": "200",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "200"
+      }
+    }
+  },
+  {
+    "type": "agent_message",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.939369Z",
+    "text": " `",
+    "raw": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": " `"
+      }
+    }
+  },
+  {
+    "type": "usage",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:38.99703Z",
+    "usage": {
+      "turn_id": "turn-fec84473f7458276",
+      "context_used": 18240,
+      "context_size": 258400,
+      "timestamp": "2026-05-02T19:49:38.99703Z"
+    },
+    "raw": {
+      "sessionUpdate": "usage_update",
+      "used": 18240,
+      "size": 258400
+    }
+  },
+  {
+    "type": "done",
+    "session_id": "019dea3c-32f8-7a22-b18e-5c9f59e347f6",
+    "turn_id": "turn-fec84473f7458276",
+    "timestamp": "2026-05-02T19:49:39.003533Z",
+    "stop_reason": "end_turn",
+    "usage": {
+      "turn_id": "turn-fec84473f7458276",
+      "context_used": 18240,
+      "context_size": 258400,
+      "timestamp": "2026-05-02T19:49:38.99703Z"
+    },
+    "raw": null
+  }
+]

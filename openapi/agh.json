@@ -17459,8 +17459,11 @@
                                                     "webhook_id": {
                                                         "type": "string"
                                                     },
-                                                    "webhook_secret_ref": {
+                                                    "webhook_secret_hash": {
                                                         "type": "string"
+                                                    },
+                                                    "webhook_secret_present": {
+                                                        "type": "boolean"
                                                     },
                                                     "workspace_id": {
                                                         "type": "string"
@@ -17478,7 +17481,8 @@
                                                     "retry",
                                                     "scope",
                                                     "source",
-                                                    "updated_at"
+                                                    "updated_at",
+                                                    "webhook_secret_present"
                                                 ],
                                                 "type": "object"
                                             },
@@ -17617,9 +17621,6 @@
                                     "webhook_id": {
                                         "type": "string"
                                     },
-                                    "webhook_secret_ref": {
-                                        "type": "string"
-                                    },
                                     "webhook_secret_value": {
                                         "type": "string"
                                     },
@@ -17721,8 +17722,11 @@
                                                 "webhook_id": {
                                                     "type": "string"
                                                 },
-                                                "webhook_secret_ref": {
+                                                "webhook_secret_hash": {
                                                     "type": "string"
+                                                },
+                                                "webhook_secret_present": {
+                                                    "type": "boolean"
                                                 },
                                                 "workspace_id": {
                                                     "type": "string"
@@ -17740,7 +17744,8 @@
                                                 "retry",
                                                 "scope",
                                                 "source",
-                                                "updated_at"
+                                                "updated_at",
+                                                "webhook_secret_present"
                                             ],
                                             "type": "object"
                                         }
@@ -18014,8 +18019,11 @@
                                                 "webhook_id": {
                                                     "type": "string"
                                                 },
-                                                "webhook_secret_ref": {
+                                                "webhook_secret_hash": {
                                                     "type": "string"
+                                                },
+                                                "webhook_secret_present": {
+                                                    "type": "boolean"
                                                 },
                                                 "workspace_id": {
                                                     "type": "string"
@@ -18033,7 +18041,8 @@
                                                 "retry",
                                                 "scope",
                                                 "source",
-                                                "updated_at"
+                                                "updated_at",
+                                                "webhook_secret_present"
                                             ],
                                             "type": "object"
                                         }
@@ -18183,10 +18192,6 @@
                                         "nullable": true,
                                         "type": "string"
                                     },
-                                    "webhook_secret_ref": {
-                                        "nullable": true,
-                                        "type": "string"
-                                    },
                                     "webhook_secret_value": {
                                         "nullable": true,
                                         "type": "string"
@@ -18289,8 +18294,11 @@
                                                 "webhook_id": {
                                                     "type": "string"
                                                 },
-                                                "webhook_secret_ref": {
+                                                "webhook_secret_hash": {
                                                     "type": "string"
+                                                },
+                                                "webhook_secret_present": {
+                                                    "type": "boolean"
                                                 },
                                                 "workspace_id": {
                                                     "type": "string"
@@ -18308,7 +18316,8 @@
                                                 "retry",
                                                 "scope",
                                                 "source",
-                                                "updated_at"
+                                                "updated_at",
+                                                "webhook_secret_present"
                                             ],
                                             "type": "object"
                                         }

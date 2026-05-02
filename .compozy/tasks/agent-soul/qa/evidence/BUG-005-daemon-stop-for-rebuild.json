@@ -1,0 +1,12 @@
+{
+  "status": "stopped",
+  "pid": 52938,
+  "started_at": "2026-05-02T20:07:11.031356Z",
+  "socket": "/Users/pedronauck/dev/qa-labs/agh-agent-soul-20260502-185208-519542-lab/.agh/runtime/aghd.sock",
+  "http_host": "127.0.0.1",
+  "http_port": 50140,
+  "user_home_dir": "",
+  "active_sessions": 0,
+  "total_sessions": 0,
+  "version": "a62e5397-dirty"
+}

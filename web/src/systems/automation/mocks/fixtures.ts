@@ -87,6 +87,8 @@ export const automationTriggerFixtures: AutomationTrigger[] = [
     },
     endpoint_slug: "push-review",
     webhook_id: "wbh_push_review",
+    webhook_secret_hash: "sha256:storybook",
+    webhook_secret_present: true,
     created_at: "2026-04-17T08:00:00Z",
     updated_at: "2026-04-17T08:10:00Z",
   },

@@ -1,0 +1,106 @@
+{
+  "session": {
+    "id": "sess-2983139beeb71de9",
+    "name": "qa-child-lineage",
+    "agent_name": "reviewer",
+    "provider": "codex",
+    "workspace_id": "ws_abaaa84e9c734bbb",
+    "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-agent-soul-20260502-185208-519542-lab",
+    "channel": "default",
+    "type": "spawned",
+    "state": "active",
+    "acp_session_id": "019deac1-ea88-74c2-a873-07798e8959c4",
+    "acp_caps": {
+      "supports_load_session": true,
+      "supported_modes": [
+        "read-only",
+        "auto",
+        "full-access"
+      ],
+      "supported_models": [
+        "gpt-5.5/low",
+        "gpt-5.5/medium",
+        "gpt-5.5/high",
+        "gpt-5.5/xhigh",
+        "gpt-5.4/low",
+        "gpt-5.4/medium",
+        "gpt-5.4/high",
+        "gpt-5.4/xhigh",
+        "gpt-5.4-mini/low",
+        "gpt-5.4-mini/medium",
+        "gpt-5.4-mini/high",
+        "gpt-5.4-mini/xhigh",
+        "gpt-5.3-codex/low",
+        "gpt-5.3-codex/medium",
+        "gpt-5.3-codex/high",
+        "gpt-5.3-codex/xhigh",
+        "gpt-5.3-codex-spark/low",
+        "gpt-5.3-codex-spark/medium",
+        "gpt-5.3-codex-spark/high",
+        "gpt-5.3-codex-spark/xhigh",
+        "gpt-5.2/low",
+        "gpt-5.2/medium",
+        "gpt-5.2/high",
+        "gpt-5.2/xhigh"
+      ]
+    },
+    "sandbox": {
+      "sandbox_id": "env-69fa201fa49fd269",
+      "backend": "local",
+      "profile": "local",
+      "state": "prepared"
+    },
+    "lineage": {
+      "parent_session_id": "sess-594513b02f0fb2fd",
+      "root_session_id": "sess-594513b02f0fb2fd",
+      "spawn_depth": 1,
+      "spawn_role": "reviewer",
+      "ttl_expires_at": "2026-05-02T22:44:29.094439Z",
+      "auto_stop_on_parent": true,
+      "spawn_budget": {
+        "max_children": 5,
+        "max_depth": 1,
+        "ttl_seconds": 1800
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-02T22:14:29.094548Z",
+    "updated_at": "2026-05-02T22:14:30.288015Z"
+  },
+  "lineage": {
+    "parent_session_id": "sess-594513b02f0fb2fd",
+    "root_session_id": "sess-594513b02f0fb2fd",
+    "spawn_depth": 1,
+    "spawn_role": "reviewer",
+    "ttl_expires_at": "2026-05-02T22:44:29.094439Z",
+    "auto_stop_on_parent": true,
+    "spawn_budget": {
+      "max_children": 5,
+      "max_depth": 1,
+      "ttl_seconds": 1800
+    },
+    "permission_policy": {
+      "tools": [],
+      "skills": [],
+      "mcp_servers": [],
+      "workspace_paths": [],
+      "network_channels": [],
+      "sandbox_profiles": []
+    }
+  },
+  "permissions": {
+    "tools": [],
+    "skills": [],
+    "mcp_servers": [],
+    "workspace_paths": [],
+    "network_channels": [],
+    "sandbox_profiles": []
+  }
+}

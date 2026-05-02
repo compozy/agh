@@ -1,0 +1,10 @@
+=== RUN   TestConfigSetSupportsAgentAuthoredContextPaths
+=== PAUSE TestConfigSetSupportsAgentAuthoredContextPaths
+=== CONT  TestConfigSetSupportsAgentAuthoredContextPaths
+=== RUN   TestConfigSetSupportsAgentAuthoredContextPaths/Should_write_valid_agent_Soul_and_Heartbeat_overlays_and_reject_invalid_values
+=== PAUSE TestConfigSetSupportsAgentAuthoredContextPaths/Should_write_valid_agent_Soul_and_Heartbeat_overlays_and_reject_invalid_values
+=== CONT  TestConfigSetSupportsAgentAuthoredContextPaths/Should_write_valid_agent_Soul_and_Heartbeat_overlays_and_reject_invalid_values
+--- PASS: TestConfigSetSupportsAgentAuthoredContextPaths (0.00s)
+    --- PASS: TestConfigSetSupportsAgentAuthoredContextPaths/Should_write_valid_agent_Soul_and_Heartbeat_overlays_and_reject_invalid_values (0.06s)
+PASS
+ok  	github.com/pedronauck/agh/internal/cli	1.118s

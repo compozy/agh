@@ -1,0 +1,5 @@
+{
+  "command": "agh session heartbeat",
+  "checked": "agh session --help",
+  "absent": true
+}

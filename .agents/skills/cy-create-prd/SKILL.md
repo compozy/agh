@@ -117,7 +117,7 @@ You MUST create a task for each phase and complete them in order:
    - Apply YAGNI ruthlessly: challenge every feature and remove anything the MVP does not need.
    - The PRD must describe user capabilities and business outcomes only.
    - No databases, APIs, code structure, frameworks, testing strategies, or architecture decisions.
-   - Mandatory sections (ALWAYS include): Overview, Goals, User Stories, Core Features, Agent and Extension Outcomes, User Experience, Non-Goals, Phased Rollout Plan, Success Metrics, Risks and Mitigations, Architecture Decision Records, Open Questions.
+   - Mandatory sections (ALWAYS include): Overview, Goals, User Stories, Core Features, User Experience, Non-Goals, Phased Rollout Plan, Success Metrics, Risks and Mitigations, Architecture Decision Records, Open Questions.
    - Optional sections (include when relevant): High-Level Technical Constraints.
    - Prefer active voice, omit needless words, use definite and specific language over vague generalities. Every sentence should earn its place.
    - Language: **English**. Tone: clear, technical, consistent with existing project artifacts.

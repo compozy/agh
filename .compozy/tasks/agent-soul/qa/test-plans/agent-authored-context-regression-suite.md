@@ -22,6 +22,7 @@ Smoke is readiness-only. Passing smoke does not prove Agent Soul/Heartbeat behav
 |----|----------|---------|-----------|
 | TC-SCEN-001 | P0 | Managed Soul authoring, inspect, stale-CAS disruption, history, HTTP read parity | Yes |
 | TC-SCEN-002 | P0 | Heartbeat policy authoring, status with session health, wake decision/audit boundary | Yes |
+| TC-SCEN-003 | P0 | Soul-influenced session context and provider-backed or explicitly blocked agent output | Yes |
 | TC-REG-001 | P0 | Invalid authored content fails closed without Soul/Heartbeat cross-feature bleed | Yes |
 
 ## P1 Regression Checks
@@ -30,6 +31,7 @@ Smoke is readiness-only. Passing smoke does not prove Agent Soul/Heartbeat behav
 |----|----------|------------|-----------|
 | TC-REG-002 | P1 | HTTP/CLI CAS contract and unsupported `If-Match` rejection | Yes unless API daemon is blocked |
 | TC-REG-003 | P1 | Generated Web/SDK/docs consumers remain truthful and no fake Web editor exists | Yes |
+| TC-REG-004 | P1 | Revision rollback/delete, daemon restart recovery, and redacted output edge cases | Yes |
 
 ## Pass/Fail Criteria
 

@@ -36,17 +36,17 @@ func DeriveAgentSessionActorContext(sessionRef string) (ActorContext, error) {
 }
 
 // DeriveAgentSessionActorContextForOrigin derives one trusted agent-session
-// actor context for an authenticated CLI or UDS agent ingress operation.
+// actor context for an authenticated agent ingress operation.
 func DeriveAgentSessionActorContextForOrigin(
 	sessionRef string,
 	originKind OriginKind,
 	originRef string,
 ) (ActorContext, error) {
 	switch originKind.Normalize() {
-	case OriginKindCLI, OriginKindUDS, OriginKindAgentSession:
+	case OriginKindCLI, OriginKindUDS, OriginKindHTTP, OriginKindAgentSession:
 	default:
 		return ActorContext{}, fmt.Errorf(
-			"%w: agent-session task ingress requires cli, uds, or agent_session origin, got %q",
+			"%w: agent-session task ingress requires cli, uds, http, or agent_session origin, got %q",
 			ErrValidation,
 			originKind,
 		)
@@ -137,7 +137,7 @@ func validateActorOriginPair(actor ActorIdentity, origin Origin) error {
 		}
 	case ActorKindAgentSession:
 		switch origin.Kind.Normalize() {
-		case OriginKindAgentSession, OriginKindAutomation, OriginKindCLI, OriginKindUDS:
+		case OriginKindAgentSession, OriginKindAutomation, OriginKindCLI, OriginKindUDS, OriginKindHTTP:
 			return nil
 		}
 	case ActorKindAutomation:

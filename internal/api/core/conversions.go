@@ -633,34 +633,12 @@ func schedulerNextRun(state *contract.AutomationSchedulerStatePayload) *time.Tim
 // TriggerPayloadFromTrigger converts an automation trigger into the shared
 // response payload.
 func TriggerPayloadFromTrigger(trigger automationpkg.Trigger) contract.TriggerPayload {
-	return contract.TriggerPayload{
-		ID:               trigger.ID,
-		Scope:            trigger.Scope,
-		Name:             trigger.Name,
-		AgentName:        trigger.AgentName,
-		WorkspaceID:      trigger.WorkspaceID,
-		Prompt:           trigger.Prompt,
-		Event:            trigger.Event,
-		Filter:           cloneFilter(trigger.Filter),
-		Enabled:          trigger.Enabled,
-		Retry:            trigger.Retry,
-		FireLimit:        trigger.FireLimit,
-		Source:           trigger.Source,
-		WebhookID:        trigger.WebhookID,
-		EndpointSlug:     trigger.EndpointSlug,
-		WebhookSecretRef: trigger.WebhookSecretRef,
-		CreatedAt:        trigger.CreatedAt,
-		UpdatedAt:        trigger.UpdatedAt,
-	}
+	return contract.TriggerPayloadFromTrigger(trigger)
 }
 
 // TriggerPayloadsFromTriggers converts a slice of triggers into response payloads.
 func TriggerPayloadsFromTriggers(triggers []automationpkg.Trigger) []contract.TriggerPayload {
-	payloads := make([]contract.TriggerPayload, 0, len(triggers))
-	for _, trigger := range triggers {
-		payloads = append(payloads, TriggerPayloadFromTrigger(trigger))
-	}
-	return payloads
+	return contract.TriggerPayloadsFromTriggers(triggers)
 }
 
 // RunPayloadFromRun converts an automation run into the shared response payload.
@@ -1827,15 +1805,6 @@ func durationString(value time.Duration) string {
 		return ""
 	}
 	return value.String()
-}
-
-func cloneFilter(source map[string]string) map[string]string {
-	if len(source) == 0 {
-		return nil
-	}
-	cloned := make(map[string]string, len(source))
-	maps.Copy(cloned, source)
-	return cloned
 }
 
 // TaskReferencePayloadFromReference converts one task reference into the shared payload.

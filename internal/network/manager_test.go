@@ -735,98 +735,113 @@ func TestReplayDeadlineClampsExplicitExpiryToReplayWindow(t *testing.T) {
 func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	t.Run("Should track workflow metrics and structured logs", func(t *testing.T) {
+		t.Parallel()
 
-	fixedNow := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
-	var logs bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	prompter := newFakeDeliveryPrompter()
-	cfg := testManagerConfig()
-	cfg.GreetInterval = 3600
+		ctx := t.Context()
 
-	manager, err := NewManager(
-		ctx,
-		cfg,
-		prompter,
-		filepath.Join(t.TempDir(), "network.audit"),
-		nil,
-		WithManagerLogger(logger),
-		WithManagerClock(func() time.Time { return fixedNow }),
-	)
-	if err != nil {
-		t.Fatalf("NewManager() error = %v", err)
-	}
-	defer func() {
-		if err := manager.Shutdown(context.Background()); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+		fixedNow := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+		prompter := newFakeDeliveryPrompter()
+		cfg := testManagerConfig()
+		cfg.GreetInterval = 3600
+
+		manager, err := NewManager(
+			ctx,
+			cfg,
+			prompter,
+			filepath.Join(t.TempDir(), "network.audit"),
+			nil,
+			WithManagerLogger(logger),
+			WithManagerClock(func() time.Time { return fixedNow }),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
 		}
-	}()
+		defer func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		}()
 
-	if err := manager.JoinChannel(ctx, testJoinRequest("sess-a", "reviewer.sess-a", "builders")); err != nil {
-		t.Fatalf("JoinChannel() error = %v", err)
-	}
-	if err := manager.JoinChannel(ctx, testJoinRequest("sess-b", "patcher.sess-b", "builders")); err != nil {
-		t.Fatalf("JoinChannel(second peer) error = %v", err)
-	}
+		if err := manager.JoinChannel(ctx, testJoinRequest("sess-a", "reviewer.sess-a", "builders")); err != nil {
+			t.Fatalf("JoinChannel() error = %v", err)
+		}
+		waitForCondition(ctx, t, func() bool {
+			manager.router.mu.Lock()
+			defer manager.router.mu.Unlock()
+			return len(manager.router.seen) >= 1
+		}, "first greet routing")
 
-	_, err = manager.Send(ctx, SendRequest{
-		SessionID:     "sess-a",
-		Channel:       "builders",
-		Kind:          KindSay,
-		Body:          mustRawJSON(t, map[string]any{"text": "hello builders"}),
-		ReplyTo:       ptrString("msg-root"),
-		TraceID:       ptrString("trace-1"),
-		CausationID:   ptrString("cause-1"),
-		InteractionID: ptrString("int-1"),
-		Ext: ExtensionMap{
-			"agh.workflow_id":     mustRawJSON(t, "wf-1"),
-			"agh.handoff_version": mustRawJSON(t, 3),
-		},
+		if err := manager.JoinChannel(ctx, testJoinRequest("sess-b", "patcher.sess-b", "builders")); err != nil {
+			t.Fatalf("JoinChannel(second peer) error = %v", err)
+		}
+		waitForCondition(ctx, t, func() bool {
+			manager.router.mu.Lock()
+			defer manager.router.mu.Unlock()
+			return len(manager.router.seen) >= 2
+		}, "second greet routing")
+
+		_, err = manager.Send(ctx, SendRequest{
+			SessionID:     "sess-a",
+			Channel:       "builders",
+			Kind:          KindSay,
+			Body:          mustRawJSON(t, map[string]any{"text": "hello builders"}),
+			ReplyTo:       ptrString("msg-root"),
+			TraceID:       ptrString("trace-1"),
+			CausationID:   ptrString("cause-1"),
+			InteractionID: ptrString("int-1"),
+			Ext: ExtensionMap{
+				"agh.workflow_id":     mustRawJSON(t, "wf-1"),
+				"agh.handoff_version": mustRawJSON(t, 3),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Send() error = %v", err)
+		}
+
+		prompter.waitForCalls(t, 1)
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: fixedNow})
+		manager.deliveries.wait()
+
+		status, err := manager.Status(ctx)
+		if err != nil {
+			t.Fatalf("Status() error = %v", err)
+		}
+		if status.MessagesSent != 3 || status.MessagesReceived != 2 || status.MessagesDelivered != 1 {
+			t.Fatalf("status message counts = %#v, want sent=3 received=2 delivered=1", status)
+		}
+		if status.WorkflowTaggedEvents != 3 || status.HandoffTaggedEvents != 3 {
+			t.Fatalf("status tagged counts = %#v, want workflow=3 handoff=3", status)
+		}
+		metricsByKind := make(map[Kind]KindMetric)
+		for _, metric := range status.KindMetrics {
+			metricsByKind[metric.Kind] = metric
+		}
+		if greet := metricsByKind[KindGreet]; greet.Sent != 2 || greet.Received != 1 || greet.Delivered != 0 {
+			t.Fatalf("greet kind metrics = %#v, want sent=2 received=1 delivered=0", greet)
+		}
+		if say := metricsByKind[KindSay]; say.Sent != 1 || say.Received != 1 || say.Delivered != 1 {
+			t.Fatalf("say kind metrics = %#v, want sent=1 received=1 delivered=1", say)
+		}
+
+		logOutput := logs.String()
+		for _, want := range []string{
+			"network.started",
+			"network.message.sent",
+			"network.message.delivered",
+			"agh.workflow_id=wf-1",
+			"agh.handoff_version=3",
+			"reply_to=msg-root",
+			"trace_id=trace-1",
+			"causation_id=cause-1",
+		} {
+			if !strings.Contains(logOutput, want) {
+				t.Fatalf("logs missing %q:\n%s", want, logOutput)
+			}
+		}
 	})
-	if err != nil {
-		t.Fatalf("Send() error = %v", err)
-	}
-
-	prompter.waitForCalls(t, 1)
-	prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: fixedNow})
-	manager.deliveries.wait()
-
-	status, err := manager.Status(ctx)
-	if err != nil {
-		t.Fatalf("Status() error = %v", err)
-	}
-	if status.MessagesSent != 3 || status.MessagesReceived != 2 || status.MessagesDelivered != 1 {
-		t.Fatalf("status message counts = %#v, want sent=3 received=2 delivered=1", status)
-	}
-	if status.WorkflowTaggedEvents != 3 || status.HandoffTaggedEvents != 3 {
-		t.Fatalf("status tagged counts = %#v, want workflow=3 handoff=3", status)
-	}
-	metricsByKind := make(map[Kind]KindMetric)
-	for _, metric := range status.KindMetrics {
-		metricsByKind[metric.Kind] = metric
-	}
-	if greet := metricsByKind[KindGreet]; greet.Sent != 2 || greet.Received != 1 || greet.Delivered != 0 {
-		t.Fatalf("greet kind metrics = %#v, want sent=2 received=1 delivered=0", greet)
-	}
-	if say := metricsByKind[KindSay]; say.Sent != 1 || say.Received != 1 || say.Delivered != 1 {
-		t.Fatalf("say kind metrics = %#v, want sent=1 received=1 delivered=1", say)
-	}
-
-	logOutput := logs.String()
-	for _, want := range []string{
-		"network.started",
-		"network.message.sent",
-		"network.message.delivered",
-		"agh.workflow_id=wf-1",
-		"agh.handoff_version=3",
-		"reply_to=msg-root",
-		"trace_id=trace-1",
-		"causation_id=cause-1",
-	} {
-		if !strings.Contains(logOutput, want) {
-			t.Fatalf("logs missing %q:\n%s", want, logOutput)
-		}
-	}
 }
 
 func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {

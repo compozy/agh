@@ -25,7 +25,6 @@ type automationTriggerCommandInput struct {
 	Enabled            bool
 	WebhookID          string
 	EndpointSlug       string
-	WebhookSecretRef   string
 	WebhookSecretValue string
 }
 
@@ -458,7 +457,6 @@ func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 		enabled            bool
 		webhookID          string
 		endpointSlug       string
-		webhookSecretRef   string
 		webhookSecretValue string
 	)
 
@@ -487,7 +485,6 @@ func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 					Enabled:            enabled,
 					WebhookID:          webhookID,
 					EndpointSlug:       endpointSlug,
-					WebhookSecretRef:   webhookSecretRef,
 					WebhookSecretValue: webhookSecretValue,
 				},
 			)
@@ -515,7 +512,6 @@ func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 		&enabled,
 		&webhookID,
 		&endpointSlug,
-		&webhookSecretRef,
 		&webhookSecretValue,
 	)
 	return cmd
@@ -534,7 +530,6 @@ func bindAutomationTriggerCreateFlags(
 	enabled *bool,
 	webhookID *string,
 	endpointSlug *string,
-	webhookSecretRef *string,
 	webhookSecretValue *string,
 ) {
 	cmd.Flags().StringVar(name, "name", "", "Trigger name")
@@ -551,7 +546,6 @@ func bindAutomationTriggerCreateFlags(
 	cmd.Flags().BoolVar(enabled, "enabled", false, "Create the trigger enabled or disabled")
 	cmd.Flags().StringVar(webhookID, "webhook-id", "", "Stable webhook identifier override for webhook events")
 	cmd.Flags().StringVar(endpointSlug, "endpoint-slug", "", "Public endpoint slug for webhook events")
-	cmd.Flags().StringVar(webhookSecretRef, "webhook-secret-ref", "", "Secret ref for webhook events")
 	cmd.Flags().StringVar(webhookSecretValue, "webhook-secret-value", "", "Write-only webhook secret value")
 	mustMarkFlagRequired(cmd, "name")
 	mustMarkFlagRequired(cmd, "scope")
@@ -592,7 +586,6 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 		enabled            bool
 		webhookID          string
 		endpointSlug       string
-		webhookSecretRef   string
 		webhookSecretValue string
 	)
 
@@ -620,7 +613,6 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 					Enabled:            enabled,
 					WebhookID:          webhookID,
 					EndpointSlug:       endpointSlug,
-					WebhookSecretRef:   webhookSecretRef,
 					WebhookSecretValue: webhookSecretValue,
 				},
 			)
@@ -647,8 +639,6 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&enabled, "enabled", false, "Update the enabled state")
 	cmd.Flags().StringVar(&webhookID, "webhook-id", "", "Update the stable webhook identifier")
 	cmd.Flags().StringVar(&endpointSlug, "endpoint-slug", "", "Update the webhook endpoint slug")
-	cmd.Flags().
-		StringVar(&webhookSecretRef, "webhook-secret-ref", "", "Update the webhook secret ref")
 	cmd.Flags().
 		StringVar(&webhookSecretValue, "webhook-secret-value", "", "Write-only webhook secret value")
 	return cmd
@@ -1607,7 +1597,6 @@ func buildAutomationTriggerCreateRequest(
 		Filter:             filter,
 		WebhookID:          strings.TrimSpace(input.WebhookID),
 		EndpointSlug:       strings.TrimSpace(input.EndpointSlug),
-		WebhookSecretRef:   strings.TrimSpace(input.WebhookSecretRef),
 		WebhookSecretValue: strings.TrimSpace(input.WebhookSecretValue),
 	}
 	if cmd.Flags().Changed("enabled") {
@@ -1671,9 +1660,6 @@ func buildAutomationTriggerUpdateRequest(
 	}
 	if cmd.Flags().Changed("endpoint-slug") {
 		request.EndpointSlug = stringPointer(strings.TrimSpace(input.EndpointSlug))
-	}
-	if cmd.Flags().Changed("webhook-secret-ref") {
-		request.WebhookSecretRef = stringPointer(strings.TrimSpace(input.WebhookSecretRef))
 	}
 	if cmd.Flags().Changed("webhook-secret-value") {
 		request.WebhookSecretValue = stringPointer(strings.TrimSpace(input.WebhookSecretValue))

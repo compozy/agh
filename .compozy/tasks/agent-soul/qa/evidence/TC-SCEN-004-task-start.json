@@ -1,0 +1,40 @@
+{
+  "task": {
+    "id": "task-soul-qa-1777759973",
+    "scope": "workspace",
+    "workspace_id": "ws_abaaa84e9c734bbb",
+    "title": "Verify Soul provenance claim",
+    "description": "QA-created task for ClaimNextRun Soul provenance",
+    "priority": "medium",
+    "max_attempts": 3,
+    "status": "ready",
+    "approval_policy": "none",
+    "approval_state": "not_required",
+    "created_by": {
+      "kind": "human",
+      "ref": "local-user"
+    },
+    "origin": {
+      "kind": "uds",
+      "ref": "tasks.create"
+    },
+    "created_at": "2026-05-02T22:12:53.142499Z",
+    "updated_at": "2026-05-02T22:12:53.142499Z"
+  },
+  "run": {
+    "id": "run-ff1696d8f1e999d1",
+    "task_id": "task-soul-qa-1777759973",
+    "status": "queued",
+    "attempt": 1,
+    "origin": {
+      "kind": "uds",
+      "ref": "tasks.start"
+    },
+    "idempotency_key": "task.start.task-soul-qa-1777759973",
+    "coordination_channel_id": "coord-run-ff1696d8f1e999d1",
+    "queued_at": "2026-05-02T22:13:08.36915Z",
+    "metadata": {
+      "qa_case": "TC-SCEN-004"
+    }
+  }
+}

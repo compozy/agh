@@ -1,0 +1,5 @@
+mise ERROR No version is set for shim: mage
+Set a global default version with one of the following:
+mise use -g go@1.26.1
+mise ERROR Run with --verbose or MISE_VERBOSE=1 for more information
+make: *** [codegen-check] Error 1

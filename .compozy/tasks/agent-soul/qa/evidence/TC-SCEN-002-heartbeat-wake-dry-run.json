@@ -1,9 +1,7 @@
 {
-  "wake_event_id": "hwe-6136564af793b8b8",
   "result": "sent",
   "reason": "wake_sent",
-  "policy_snapshot_id": "hb-1d71a88698831cc5",
-  "policy_digest": "sha256:cfacf8eba8a5bd20f0823c2e6d7225c6d676258f69fb9e1008d61b7812d9a0ae",
-  "config_digest": "sha256:aa14478e90a69249213146b75b37edf2ff2d27aff3418fea1b0f66143029a68b",
-  "synthetic_prompt_id": "turn-7e3dc9c87f134736"
+  "policy_snapshot_id": "hb-d0aaf51e3bcd9075",
+  "policy_digest": "sha256:d79cf0c4f9bdd0eebffa0506af7412b84a11316d30330a6bd5f2ca71c053cd13",
+  "config_digest": "sha256:aa14478e90a69249213146b75b37edf2ff2d27aff3418fea1b0f66143029a68b"
 }

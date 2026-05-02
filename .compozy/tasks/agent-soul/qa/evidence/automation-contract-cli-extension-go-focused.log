@@ -1,0 +1,5 @@
+ok  	github.com/pedronauck/agh/internal/api/contract	0.018s
+ok  	github.com/pedronauck/agh/internal/api/core	0.021s [no tests to run]
+ok  	github.com/pedronauck/agh/internal/extension/contract	0.012s
+ok  	github.com/pedronauck/agh/internal/extension	0.222s
+ok  	github.com/pedronauck/agh/internal/cli	0.032s

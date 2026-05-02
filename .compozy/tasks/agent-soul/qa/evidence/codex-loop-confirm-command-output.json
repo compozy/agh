@@ -1,0 +1,7 @@
+{
+  "completed": true,
+  "confidence": 0.97,
+  "reason": "The Agent Soul QA goal is complete: qa-report and qa-execution artifacts exist, all eight real-scenario QA cases passed or passed with a documented provider-output observation, BUG-004 was found through real HTTP agent-context testing and fixed with focused Go coverage, and final post-confirmation make verify passed. Concrete evidence is recorded in .compozy/tasks/agent-soul/qa/verification-report.md, .compozy/tasks/agent-soul/qa/evidence/goal-confirmation-post-reason-make-verify.log, .compozy/tasks/agent-soul/qa/evidence/goal-confirmation-test-statuses.log, and .compozy/tasks/agent-soul/qa/evidence/BUG-004-http-agent-context-go-test.log.",
+  "missing_work": [],
+  "next_round_guidance": ""
+}

@@ -1,0 +1,42 @@
+=== RUN   TestManagedWakeServiceDecision
+=== PAUSE TestManagedWakeServiceDecision
+=== CONT  TestManagedWakeServiceDecision
+=== RUN   TestManagedWakeServiceDecision/Should_use_the_latest_valid_policy_snapshot_at_decision_time
+=== PAUSE TestManagedWakeServiceDecision/Should_use_the_latest_valid_policy_snapshot_at_decision_time
+=== RUN   TestManagedWakeServiceDecision/Should_evaluate_dry_run_without_prompt_or_persisted_wake_identifiers
+=== PAUSE TestManagedWakeServiceDecision/Should_evaluate_dry_run_without_prompt_or_persisted_wake_identifiers
+=== RUN   TestManagedWakeServiceDecision/Should_skip_ineligible_session_health_with_a_closed_audit_reason
+=== PAUSE TestManagedWakeServiceDecision/Should_skip_ineligible_session_health_with_a_closed_audit_reason
+=== RUN   TestManagedWakeServiceDecision/Should_coalesce_scheduler_wakes_during_cooldown_and_rate_limit_manual_wakes
+=== PAUSE TestManagedWakeServiceDecision/Should_coalesce_scheduler_wakes_during_cooldown_and_rate_limit_manual_wakes
+=== RUN   TestManagedWakeServiceDecision/Should_honor_active_hours_and_quiet_window_boundaries
+=== PAUSE TestManagedWakeServiceDecision/Should_honor_active_hours_and_quiet_window_boundaries
+=== RUN   TestManagedWakeServiceDecision/Should_record_prompt_gate_races_without_duplicate_wakes
+=== PAUSE TestManagedWakeServiceDecision/Should_record_prompt_gate_races_without_duplicate_wakes
+=== RUN   TestManagedWakeServiceDecision/Should_write_failed_audit_events_when_synthetic_prompt_dispatch_fails
+=== PAUSE TestManagedWakeServiceDecision/Should_write_failed_audit_events_when_synthetic_prompt_dispatch_fails
+=== RUN   TestManagedWakeServiceDecision/Should_enforce_configured_max_wakes_per_cycle
+=== PAUSE TestManagedWakeServiceDecision/Should_enforce_configured_max_wakes_per_cycle
+=== RUN   TestManagedWakeServiceDecision/Should_preserve_WakeMany_decision_order_when_one_request_errors
+=== PAUSE TestManagedWakeServiceDecision/Should_preserve_WakeMany_decision_order_when_one_request_errors
+=== CONT  TestManagedWakeServiceDecision/Should_coalesce_scheduler_wakes_during_cooldown_and_rate_limit_manual_wakes
+=== CONT  TestManagedWakeServiceDecision/Should_honor_active_hours_and_quiet_window_boundaries
+=== CONT  TestManagedWakeServiceDecision/Should_write_failed_audit_events_when_synthetic_prompt_dispatch_fails
+=== CONT  TestManagedWakeServiceDecision/Should_preserve_WakeMany_decision_order_when_one_request_errors
+=== CONT  TestManagedWakeServiceDecision/Should_skip_ineligible_session_health_with_a_closed_audit_reason
+=== CONT  TestManagedWakeServiceDecision/Should_record_prompt_gate_races_without_duplicate_wakes
+=== CONT  TestManagedWakeServiceDecision/Should_evaluate_dry_run_without_prompt_or_persisted_wake_identifiers
+=== CONT  TestManagedWakeServiceDecision/Should_use_the_latest_valid_policy_snapshot_at_decision_time
+=== CONT  TestManagedWakeServiceDecision/Should_enforce_configured_max_wakes_per_cycle
+--- PASS: TestManagedWakeServiceDecision (0.00s)
+    --- PASS: TestManagedWakeServiceDecision/Should_skip_ineligible_session_health_with_a_closed_audit_reason (0.00s)
+    --- PASS: TestManagedWakeServiceDecision/Should_enforce_configured_max_wakes_per_cycle (0.00s)
+    --- PASS: TestManagedWakeServiceDecision/Should_preserve_WakeMany_decision_order_when_one_request_errors (0.00s)
+    --- PASS: TestManagedWakeServiceDecision/Should_honor_active_hours_and_quiet_window_boundaries (0.00s)
+    --- PASS: TestManagedWakeServiceDecision/Should_write_failed_audit_events_when_synthetic_prompt_dispatch_fails (0.00s)
+    --- PASS: TestManagedWakeServiceDecision/Should_evaluate_dry_run_without_prompt_or_persisted_wake_identifiers (0.00s)
+    --- PASS: TestManagedWakeServiceDecision/Should_record_prompt_gate_races_without_duplicate_wakes (0.00s)
+    --- PASS: TestManagedWakeServiceDecision/Should_coalesce_scheduler_wakes_during_cooldown_and_rate_limit_manual_wakes (0.00s)
+    --- PASS: TestManagedWakeServiceDecision/Should_use_the_latest_valid_policy_snapshot_at_decision_time (0.00s)
+PASS
+ok  	github.com/pedronauck/agh/internal/heartbeat	1.037s

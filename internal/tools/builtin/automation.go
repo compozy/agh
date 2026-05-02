@@ -402,7 +402,6 @@ const automationTriggerProperties = `{
 	"fire_limit":{"type":"object"},
 	"webhook_id":{"type":"string"},
 	"endpoint_slug":{"type":"string"},
-	"webhook_secret_ref":{"type":"string"},
 	"webhook_secret_value":{"type":"string"}
 }`
 
@@ -419,7 +418,6 @@ const automationTriggerPatchProperties = `{
 	"fire_limit":{"type":"object"},
 	"webhook_id":{"type":"string"},
 	"endpoint_slug":{"type":"string"},
-	"webhook_secret_ref":{"type":"string"},
 	"webhook_secret_value":{"type":"string"}
 }`
 

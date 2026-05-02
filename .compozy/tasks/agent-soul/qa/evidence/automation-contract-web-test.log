@@ -1,0 +1,13 @@
+$ bun run codegen-check && bun run test:raw
+$ bun run --cwd .. codegen-check
+$ make codegen-check
+$ vitest run
+
+ RUN  v4.1.4 /Users/pedronauck/Dev/compozy/agh/web
+
+
+ Test Files  202 passed (202)
+      Tests  1510 passed (1510)
+   Start at  15:58:52
+   Duration  25.33s (transform 16.81s, setup 15.44s, import 161.53s, tests 37.54s, environment 130.55s)
+
