@@ -45,6 +45,27 @@ func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
 	return nil
 }
 
+// AtomicRemoveFile removes a file and syncs its parent directory.
+func AtomicRemoveFile(path string) error {
+	if strings.TrimSpace(path) == "" {
+		return errors.New("fileutil: path is required")
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return fmt.Errorf("fileutil: stat %q before remove: %w", path, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("fileutil: remove %q: target is a directory", path)
+	}
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("fileutil: remove %q: %w", path, err)
+	}
+	if err := syncDir(filepath.Dir(path)); err != nil {
+		return fmt.Errorf("fileutil: sync parent directory for %q: %w", path, err)
+	}
+	return nil
+}
+
 func writeTempFile(file *os.File, tempPath string, content []byte, perm os.FileMode) error {
 	var err error
 	if _, err = file.Write(content); err == nil {
