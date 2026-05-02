@@ -173,10 +173,14 @@ type PromptNetworkMeta struct {
 
 // PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
 type PromptSyntheticMeta struct {
-	TaskID    string `json:"task_id,omitempty"`
-	TaskRunID string `json:"task_run_id,omitempty"`
-	Reason    string `json:"reason,omitempty"`
-	Summary   string `json:"summary,omitempty"`
+	TaskID           string `json:"task_id,omitempty"`
+	TaskRunID        string `json:"task_run_id,omitempty"`
+	Reason           string `json:"reason,omitempty"`
+	Summary          string `json:"summary,omitempty"`
+	WakeEventID      string `json:"wake_event_id,omitempty"`
+	PolicySnapshotID string `json:"policy_snapshot_id,omitempty"`
+	PolicyDigest     string `json:"policy_digest,omitempty"`
+	ConfigDigest     string `json:"config_digest,omitempty"`
 }
 
 // Normalize returns a trimmed copy of the prompt metadata.
@@ -256,10 +260,14 @@ func (m PromptNetworkMeta) IsZero() bool {
 // Normalize returns a trimmed copy of the synthetic metadata.
 func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 	return PromptSyntheticMeta{
-		TaskID:    strings.TrimSpace(m.TaskID),
-		TaskRunID: strings.TrimSpace(m.TaskRunID),
-		Reason:    strings.TrimSpace(m.Reason),
-		Summary:   strings.TrimSpace(m.Summary),
+		TaskID:           strings.TrimSpace(m.TaskID),
+		TaskRunID:        strings.TrimSpace(m.TaskRunID),
+		Reason:           strings.TrimSpace(m.Reason),
+		Summary:          strings.TrimSpace(m.Summary),
+		WakeEventID:      strings.TrimSpace(m.WakeEventID),
+		PolicySnapshotID: strings.TrimSpace(m.PolicySnapshotID),
+		PolicyDigest:     strings.TrimSpace(m.PolicyDigest),
+		ConfigDigest:     strings.TrimSpace(m.ConfigDigest),
 	}
 }
 

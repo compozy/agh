@@ -44,6 +44,11 @@ type Waker interface {
 	Wake(ctx context.Context, target *WakeTarget) error
 }
 
+// BatchWaker handles every selected wake target in one scheduler cycle.
+type BatchWaker interface {
+	WakeMany(ctx context.Context, targets []WakeTarget) []error
+}
+
 // RunSnapshot joins a durable run with its owning task.
 type RunSnapshot struct {
 	Task taskpkg.Task

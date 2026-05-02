@@ -315,39 +315,91 @@ func (s *Scheduler) dispatchWakeTargets(
 	targets []WakeTarget,
 	result *CycleResult,
 ) []error {
+	for idx := range targets {
+		targets[idx].Reason = s.wakeReason
+	}
+	if batchWaker, ok := s.waker.(BatchWaker); ok {
+		return s.dispatchWakeBatch(ctx, now, targets, result, batchWaker)
+	}
+
 	var errs []error
 	for idx := range targets {
 		target := &targets[idx]
-		target.Reason = s.wakeReason
 		if err := s.waker.Wake(ctx, target); err != nil {
-			result.WakeFailed++
-			s.recordWakeError(err)
 			errs = append(errs, fmt.Errorf(
 				"scheduler: wake session %q for run %q: %w",
 				target.Session.ID,
 				target.Work.Run.ID,
 				err,
 			))
-			s.logger.Warn(
-				"scheduler.wake.error",
-				"session_id", target.Session.ID,
-				"run_id", target.Work.Run.ID,
-				"task_id", target.Work.Task.ID,
-				"error", err,
-			)
+			s.recordDispatchWakeFailure(result, target, err)
 			continue
 		}
-		result.WakeSucceeded++
-		result.SelectedRunIDs = append(result.SelectedRunIDs, target.Work.Run.ID)
-		s.markWoken(now, target)
-		s.logger.Info(
-			"scheduler.wake",
-			"session_id", target.Session.ID,
-			"run_id", target.Work.Run.ID,
-			"task_id", target.Work.Task.ID,
-		)
+		s.recordDispatchWakeSuccess(now, result, target)
 	}
 	return errs
+}
+
+func (s *Scheduler) dispatchWakeBatch(
+	ctx context.Context,
+	now time.Time,
+	targets []WakeTarget,
+	result *CycleResult,
+	batchWaker BatchWaker,
+) []error {
+	wakeErrs := batchWaker.WakeMany(ctx, append([]WakeTarget(nil), targets...))
+	if len(wakeErrs) != len(targets) {
+		err := fmt.Errorf(
+			"scheduler: batch waker returned %d errors for %d targets",
+			len(wakeErrs),
+			len(targets),
+		)
+		for idx := range targets {
+			s.recordDispatchWakeFailure(result, &targets[idx], err)
+		}
+		return []error{err}
+	}
+
+	var errs []error
+	for idx := range targets {
+		target := &targets[idx]
+		if err := wakeErrs[idx]; err != nil {
+			errs = append(errs, fmt.Errorf(
+				"scheduler: wake session %q for run %q: %w",
+				target.Session.ID,
+				target.Work.Run.ID,
+				err,
+			))
+			s.recordDispatchWakeFailure(result, target, err)
+			continue
+		}
+		s.recordDispatchWakeSuccess(now, result, target)
+	}
+	return errs
+}
+
+func (s *Scheduler) recordDispatchWakeFailure(result *CycleResult, target *WakeTarget, err error) {
+	result.WakeFailed++
+	s.recordWakeError(err)
+	s.logger.Warn(
+		"scheduler.wake.error",
+		"session_id", target.Session.ID,
+		"run_id", target.Work.Run.ID,
+		"task_id", target.Work.Task.ID,
+		"error", err,
+	)
+}
+
+func (s *Scheduler) recordDispatchWakeSuccess(now time.Time, result *CycleResult, target *WakeTarget) {
+	result.WakeSucceeded++
+	result.SelectedRunIDs = append(result.SelectedRunIDs, target.Work.Run.ID)
+	s.markWoken(now, target)
+	s.logger.Info(
+		"scheduler.wake",
+		"session_id", target.Session.ID,
+		"run_id", target.Work.Run.ID,
+		"task_id", target.Work.Task.ID,
+	)
 }
 
 func (s *Scheduler) loop(ctx context.Context) {

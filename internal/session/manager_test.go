@@ -1606,6 +1606,124 @@ func TestPromptSyntheticRejectsMissingWakeupMetadata(t *testing.T) {
 	}
 }
 
+func TestPromptSyntheticHeartbeatWakeOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject busy synthetic prompt without queueing when requested", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		firstPromptEntered := make(chan struct{})
+		releaseFirstPrompt := make(chan struct{})
+		var releaseOnce sync.Once
+		t.Cleanup(func() {
+			releaseOnce.Do(func() {
+				close(releaseFirstPrompt)
+			})
+		})
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			if req.TurnID == "turn-1" {
+				close(firstPromptEntered)
+				events := make(chan acp.AgentEvent)
+				go func() {
+					<-releaseFirstPrompt
+					close(events)
+				}()
+				return events, nil
+			}
+			events := make(chan acp.AgentEvent)
+			close(events)
+			return events, nil
+		}
+
+		userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		<-firstPromptEntered
+
+		_, err = h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+			Message: "heartbeat wake",
+			Metadata: acp.PromptSyntheticMeta{
+				Reason:      "agent_heartbeat_wake",
+				WakeEventID: "hwe-busy",
+			},
+			SkipIfBusy: true,
+		})
+		if !errors.Is(err, ErrPromptInProgress) {
+			t.Fatalf("PromptSynthetic(skip busy) error = %v, want ErrPromptInProgress", err)
+		}
+		if got, want := len(h.driver.promptCalls), 1; got != want {
+			t.Fatalf("len(promptCalls) = %d, want %d", got, want)
+		}
+
+		releaseOnce.Do(func() {
+			close(releaseFirstPrompt)
+		})
+		_ = collectEvents(t, userEvents)
+	})
+
+	t.Run("Should preserve heartbeat metadata and supplied prompt turn id", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		eventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+			Message: "heartbeat wake",
+			TurnID:  "turn-heartbeat",
+			Metadata: acp.PromptSyntheticMeta{
+				Reason:           "agent_heartbeat_wake",
+				Summary:          "policy summary",
+				WakeEventID:      "hwe-heartbeat",
+				PolicySnapshotID: "hb-heartbeat",
+				PolicyDigest:     "sha256:policy",
+				ConfigDigest:     "sha256:config",
+			},
+			SkipIfBusy: true,
+		})
+		if err != nil {
+			t.Fatalf("PromptSynthetic(heartbeat) error = %v", err)
+		}
+		_ = collectEvents(t, eventsCh)
+
+		if got, want := h.driver.promptCalls[0].TurnID, "turn-heartbeat"; got != want {
+			t.Fatalf("synthetic turn id = %q, want %q", got, want)
+		}
+		if got, want := h.driver.promptCalls[0].Meta.Synthetic.WakeEventID, "hwe-heartbeat"; got != want {
+			t.Fatalf("synthetic wake_event_id = %q, want %q", got, want)
+		}
+
+		stored := readStoredEvents(t, session)
+		payload := decodeStoredEventPayload(t, stored[0])
+		syntheticPayload, ok := payload["synthetic"].(map[string]any)
+		if !ok {
+			t.Fatalf("stored synthetic metadata = %#v, want object", payload["synthetic"])
+		}
+		if got, want := syntheticPayload["wake_event_id"], "hwe-heartbeat"; got != want {
+			t.Fatalf("stored wake_event_id = %v, want %q", got, want)
+		}
+		if got, want := syntheticPayload["policy_snapshot_id"], "hb-heartbeat"; got != want {
+			t.Fatalf("stored policy_snapshot_id = %v, want %q", got, want)
+		}
+		if got, want := syntheticPayload["policy_digest"], "sha256:policy"; got != want {
+			t.Fatalf("stored policy_digest = %v, want %q", got, want)
+		}
+	})
+}
+
 func TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder(t *testing.T) {
 	t.Parallel()
 

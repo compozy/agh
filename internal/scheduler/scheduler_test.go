@@ -263,6 +263,42 @@ func TestRunOnceOrdersGlobalWakeTargetsByPriorityAndSession(t *testing.T) {
 	}
 }
 
+func TestRunOnceDispatchesSelectedTargetsAsBatch(t *testing.T) {
+	t.Run("Should dispatch selected targets through batch waker", func(t *testing.T) {
+		base := time.Date(2026, 4, 26, 12, 50, 0, 0, time.UTC)
+		source := &fakeTaskSource{pending: []RunSnapshot{
+			workSnapshot("task-1", "run-1", taskpkg.ScopeWorkspace, "ws-1", nil, base),
+			workSnapshot("task-2", "run-2", taskpkg.ScopeWorkspace, "ws-1", nil, base.Add(time.Second)),
+		}}
+		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
+			sessionSnapshot("sess-a", "ws-1", "active", false, nil, base),
+			sessionSnapshot("sess-b", "ws-1", "active", false, nil, base.Add(time.Second)),
+		}}
+		waker := &fakeBatchWaker{}
+		scheduler := newTestScheduler(t, source, sessions, waker, WithClock(clockwork.NewFakeClockAt(base)))
+
+		result, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if result.WakeAttempts != 2 || result.WakeSucceeded != 2 {
+			t.Fatalf("wake result = %#v, want two successful batch wakes", result)
+		}
+		if got, want := waker.batchCallCount(), 1; got != want {
+			t.Fatalf("batch wake calls = %d, want %d", got, want)
+		}
+		targets := waker.targetsSnapshot()
+		if got, want := len(targets), 2; got != want {
+			t.Fatalf("batch wake targets = %d, want %d", got, want)
+		}
+		for _, target := range targets {
+			if got, want := target.Reason, defaultWakeReason; got != want {
+				t.Fatalf("batch wake reason = %q, want %q", got, want)
+			}
+		}
+	})
+}
+
 func TestShutdownCancelsLoopAndPreventsRestart(t *testing.T) {
 	base := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
 	clock := clockwork.NewFakeClockAt(base)
@@ -478,6 +514,36 @@ func (f *fakeWaker) Wake(_ context.Context, target *WakeTarget) error {
 }
 
 func (f *fakeWaker) targetsSnapshot() []WakeTarget {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]WakeTarget(nil), f.targets...)
+}
+
+type fakeBatchWaker struct {
+	mu      sync.Mutex
+	targets []WakeTarget
+	calls   int
+}
+
+func (f *fakeBatchWaker) Wake(context.Context, *WakeTarget) error {
+	return errors.New("single wake should not be called")
+}
+
+func (f *fakeBatchWaker) WakeMany(_ context.Context, targets []WakeTarget) []error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	f.targets = append(f.targets, targets...)
+	return make([]error, len(targets))
+}
+
+func (f *fakeBatchWaker) batchCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+func (f *fakeBatchWaker) targetsSnapshot() []WakeTarget {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]WakeTarget(nil), f.targets...)

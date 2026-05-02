@@ -254,6 +254,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		reentryStore,
 		reentrySessions,
 		state.logger,
+		withHarnessHeartbeatWake(state.registry, reentrySessions, state.cfg.Agents.Heartbeat),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create harness reentry bridge: %w", err)

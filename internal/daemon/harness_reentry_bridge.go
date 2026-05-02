@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -73,16 +75,17 @@ type harnessReentryDecision struct {
 }
 
 type harnessSyntheticWake struct {
-	taskID           string
-	runID            string
-	targetSessionID  string
-	targetAgentName  string
-	reason           string
-	summary          string
-	completedAt      time.Time
-	completionSeq    int64
-	syntheticMessage string
-	syntheticMeta    acp.PromptSyntheticMeta
+	taskID            string
+	runID             string
+	targetSessionID   string
+	targetAgentName   string
+	targetWorkspaceID string
+	reason            string
+	summary           string
+	completedAt       time.Time
+	completionSeq     int64
+	syntheticMessage  string
+	syntheticMeta     acp.PromptSyntheticMeta
 }
 
 type harnessWakeQueue struct {
@@ -97,14 +100,15 @@ type recoveredDetachedHarnessRun struct {
 }
 
 type harnessReentryBridge struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	workers  sync.WaitGroup
-	resolver *HarnessContextResolver
-	recorder *harnessLifecycleRecorder
-	store    harnessReentryStore
-	sessions harnessReentrySessionManager
-	logger   *slog.Logger
+	ctx           context.Context
+	cancel        context.CancelFunc
+	workers       sync.WaitGroup
+	resolver      *HarnessContextResolver
+	recorder      *harnessLifecycleRecorder
+	store         harnessReentryStore
+	sessions      harnessReentrySessionManager
+	heartbeatWake heartbeat.WakeService
+	logger        *slog.Logger
 
 	events chan taskpkg.EventRecord
 	rescan chan struct{}
@@ -125,6 +129,7 @@ func newHarnessReentryBridge(
 	store harnessReentryStore,
 	sessions harnessReentrySessionManager,
 	logger *slog.Logger,
+	options ...harnessReentryOption,
 ) (*harnessReentryBridge, error) {
 	if ctx == nil {
 		return nil, errors.New("daemon: harness reentry bridge context is required")
@@ -156,8 +161,45 @@ func newHarnessReentryBridge(
 		processing: make(map[string]struct{}),
 		queues:     make(map[string]*harnessWakeQueue),
 	}
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+		if err := option(bridge); err != nil {
+			cancel()
+			return nil, err
+		}
+	}
 	bridge.startWorker(bridge.run)
 	return bridge, nil
+}
+
+type harnessReentryOption func(*harnessReentryBridge) error
+
+func withHarnessHeartbeatWake(
+	store any,
+	sessions harnessReentrySessionManager,
+	config aghconfig.HeartbeatConfig,
+) harnessReentryOption {
+	return func(bridge *harnessReentryBridge) error {
+		if bridge == nil || !config.Enabled {
+			return nil
+		}
+		wakeStore, ok := store.(heartbeat.WakeStore)
+		if !ok {
+			return nil
+		}
+		healthReader, ok := sessions.(heartbeat.SessionHealthReader)
+		if !ok {
+			return nil
+		}
+		service, err := heartbeat.NewManagedWakeService(wakeStore, healthReader, bridge, config)
+		if err != nil {
+			return fmt.Errorf("daemon: create harness heartbeat wake service: %w", err)
+		}
+		bridge.heartbeatWake = service
+		return nil
+	}
 }
 
 func (b *harnessReentryBridge) shutdown() {
@@ -472,16 +514,17 @@ func (b *harnessReentryBridge) applyWakeDecision(
 	}
 
 	b.enqueueWake(harnessSyntheticWake{
-		taskID:           task.ID,
-		runID:            run.ID,
-		targetSessionID:  target.SessionID,
-		targetAgentName:  agentName,
-		reason:           decision.reason,
-		summary:          decision.syntheticMeta.Summary,
-		completedAt:      completedAt,
-		completionSeq:    completionSequence,
-		syntheticMessage: decision.syntheticMessage,
-		syntheticMeta:    decision.syntheticMeta,
+		taskID:            task.ID,
+		runID:             run.ID,
+		targetSessionID:   target.SessionID,
+		targetAgentName:   agentName,
+		targetWorkspaceID: target.WorkspaceID,
+		reason:            decision.reason,
+		summary:           decision.syntheticMeta.Summary,
+		completedAt:       completedAt,
+		completionSeq:     completionSequence,
+		syntheticMessage:  decision.syntheticMessage,
+		syntheticMeta:     decision.syntheticMeta,
 	})
 	return nil
 }
@@ -717,6 +760,9 @@ func (b *harnessReentryBridge) dispatchWake(item harnessSyntheticWake) {
 		)
 		return
 	}
+	if b.dispatchHeartbeatWake(item) {
+		return
+	}
 
 	eventsCh, promptErr := b.sessions.PromptSynthetic(b.ctx, item.targetSessionID, session.SyntheticPromptOpts{
 		Message: item.syntheticMessage,
@@ -750,6 +796,121 @@ func (b *harnessReentryBridge) dispatchWake(item harnessSyntheticWake) {
 
 	b.startWorker(func() {
 		b.awaitSyntheticWake(item, eventsCh)
+	})
+}
+
+func (b *harnessReentryBridge) dispatchHeartbeatWake(item harnessSyntheticWake) bool {
+	if b == nil || b.heartbeatWake == nil {
+		return false
+	}
+	if strings.TrimSpace(item.targetWorkspaceID) == "" || strings.TrimSpace(item.targetAgentName) == "" {
+		return false
+	}
+	decision, err := b.heartbeatWake.Wake(b.ctx, heartbeat.WakeRequest{
+		WorkspaceID: strings.TrimSpace(item.targetWorkspaceID),
+		AgentName:   strings.TrimSpace(item.targetAgentName),
+		SessionID:   strings.TrimSpace(item.targetSessionID),
+		Source:      heartbeat.WakeSourceHarnessReentry,
+	})
+	if err != nil {
+		b.finalizeRunOutcome(
+			item.runID,
+			item.targetSessionID,
+			item.targetAgentName,
+			harnessReentryOutcomeDropped,
+			harnessReentryReasonDispatchFailed,
+		)
+		return true
+	}
+	if decision.Result == heartbeat.WakeResultSkipped &&
+		decision.Reason == heartbeat.WakeReasonHeartbeatNoPolicy {
+		return false
+	}
+	switch decision.Result {
+	case heartbeat.WakeResultSent:
+		b.finalizeRunOutcome(
+			item.runID,
+			item.targetSessionID,
+			item.targetAgentName,
+			harnessReentryOutcomeEmitted,
+			string(decision.Reason),
+		)
+	case heartbeat.WakeResultFailed:
+		b.finalizeRunOutcome(
+			item.runID,
+			item.targetSessionID,
+			item.targetAgentName,
+			harnessReentryOutcomeDropped,
+			harnessReentryReasonDispatchFailed,
+		)
+	default:
+		b.finalizeRunOutcome(
+			item.runID,
+			item.targetSessionID,
+			item.targetAgentName,
+			harnessReentryOutcomeDropped,
+			string(decision.Reason),
+		)
+	}
+	return true
+}
+
+func (b *harnessReentryBridge) PromptHeartbeatWake(
+	ctx context.Context,
+	req heartbeat.SyntheticWakePromptRequest,
+) (heartbeat.SyntheticWakePromptResult, error) {
+	if b == nil || b.sessions == nil {
+		return heartbeat.SyntheticWakePromptResult{}, errors.New("daemon: harness heartbeat prompter requires sessions")
+	}
+	events, err := b.sessions.PromptSynthetic(ctx, req.SessionID, session.SyntheticPromptOpts{
+		Message: req.Message,
+		TurnID:  req.TurnID,
+		Metadata: acp.PromptSyntheticMeta{
+			Reason:           heartbeat.SyntheticReasonHeartbeatWake,
+			Summary:          req.Summary,
+			WakeEventID:      req.WakeEventID,
+			PolicySnapshotID: req.PolicySnapshotID,
+			PolicyDigest:     req.PolicyDigest,
+			ConfigDigest:     req.ConfigDigest,
+		},
+		SkipIfBusy: true,
+	})
+	if err != nil {
+		if errors.Is(err, session.ErrPromptInProgress) {
+			return heartbeat.SyntheticWakePromptResult{}, heartbeat.ErrSyntheticPromptBusy
+		}
+		return heartbeat.SyntheticWakePromptResult{}, err
+	}
+	b.drainHeartbeatWakeEvents(req.SessionID, req.WakeEventID, events)
+	return heartbeat.SyntheticWakePromptResult{SyntheticPromptID: req.TurnID}, nil
+}
+
+func (b *harnessReentryBridge) drainHeartbeatWakeEvents(
+	sessionID string,
+	wakeEventID string,
+	events <-chan acp.AgentEvent,
+) {
+	if b == nil || events == nil {
+		return
+	}
+	b.startWorker(func() {
+		for {
+			select {
+			case <-b.ctx.Done():
+				return
+			case event, ok := <-events:
+				if !ok {
+					return
+				}
+				if event.Type == acp.EventTypeError {
+					b.logger.Warn(
+						"daemon: heartbeat harness wake agent error",
+						"session_id", sessionID,
+						"wake_event_id", wakeEventID,
+					)
+				}
+			}
+		}
 	})
 }
 

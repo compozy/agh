@@ -30,6 +30,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/memory/consolidation"
@@ -4259,6 +4260,7 @@ type fakeSessionManager struct {
 	}
 	syntheticPromptCalls     []fakeSyntheticPromptCall
 	syntheticPromptHook      func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
+	healthRows               map[string]heartbeat.SessionHealth
 	promptStarted            chan struct{}
 	promptRelease            <-chan struct{}
 	promptCtxCancelled       chan struct{}

@@ -13,8 +13,10 @@ import (
 // SyntheticPromptOpts carries daemon-owned synthetic prompt input plus
 // wake-up metadata required for persistence and later reentry handling.
 type SyntheticPromptOpts struct {
-	Message  string
-	Metadata acp.PromptSyntheticMeta
+	Message    string
+	Metadata   acp.PromptSyntheticMeta
+	TurnID     string
+	SkipIfBusy bool
 }
 
 type queuedSyntheticPrompt struct {
@@ -41,6 +43,9 @@ func (m *Manager) PromptSynthetic(
 
 	dispatchCtx := context.WithoutCancel(ctx)
 	if session.IsPrompting() || m.hasQueuedSyntheticPrompt(req.target) {
+		if opts.SkipIfBusy {
+			return nil, ErrPromptInProgress
+		}
 		return m.enqueueSyntheticPrompt(dispatchCtx, req), nil
 	}
 
@@ -50,6 +55,9 @@ func (m *Manager) PromptSynthetic(
 	}
 	if !errors.Is(err, ErrPromptInProgress) {
 		return nil, err
+	}
+	if opts.SkipIfBusy {
+		return nil, ErrPromptInProgress
 	}
 
 	return m.enqueueSyntheticPrompt(dispatchCtx, req), nil
@@ -86,8 +94,13 @@ func (m *Manager) parseSyntheticPromptRequest(
 		return promptRequest{}, err
 	}
 
+	turnID := strings.TrimSpace(opts.TurnID)
+	if turnID == "" {
+		turnID = m.newPromptTurnID()
+	}
+
 	return promptRequest{
-		turnID:     m.newPromptTurnID(),
+		turnID:     turnID,
 		target:     target,
 		message:    message,
 		turnSource: TurnSourceSynthetic,
