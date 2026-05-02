@@ -56,6 +56,25 @@ var authoredContextOperationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      "POST",
+		Path:        "/api/agents/{agent_name}/soul/validate",
+		OperationID: "validateAgentDefinitionSoul",
+		Summary:     "Validate a proposed Soul body for an agent definition",
+		Tags:        []string{"agents"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("agent_name", "Agent name"),
+		},
+		RequestBody: contract.AgentSoulValidateRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.AgentSoulPayload{}},
+			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Agent or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Soul validation failed", Body: contract.AgentSoulPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      "PUT",
 		Path:        "/api/agents/{agent_name}/soul",
 		OperationID: "putAgentSoul",

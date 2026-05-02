@@ -148,6 +148,30 @@ func (h *BaseHandlers) GetAgentSoul(c *gin.Context) {
 	h.inspectSoulTarget(c, target)
 }
 
+// ValidateAgentSoulDefinition validates a proposed SOUL.md body for one workspace-visible agent.
+func (h *BaseHandlers) ValidateAgentSoulDefinition(c *gin.Context) {
+	var req contract.AgentSoulValidateRequest
+	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	if err != nil {
+		h.respondError(c, StatusForSoulError(err), err)
+		return
+	}
+	target, err := h.resolveAuthoredAgentTarget(
+		c.Request.Context(),
+		firstNonEmpty(req.WorkspaceID, authoredWorkspaceRefFromQuery(c)),
+		agentName,
+	)
+	if err != nil {
+		h.respondError(c, StatusForSoulError(err), err)
+		return
+	}
+	h.validateSoulTarget(c, target, req.Body)
+}
+
 // ValidateAgentSoul validates a proposed SOUL.md body for the caller's agent.
 func (h *BaseHandlers) ValidateAgentSoul(c *gin.Context) {
 	caller, ok := h.requireAgentCaller(c, "agent.soul.validate")

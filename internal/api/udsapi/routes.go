@@ -91,6 +91,7 @@ func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
 	{
 		agents.GET("", handlers.ListAgents)
 		agents.GET("/:name/soul", handlers.GetAgentSoul)
+		agents.POST("/:name/soul/validate", handlers.ValidateAgentSoulDefinition)
 		agents.PUT("/:name/soul", handlers.PutAgentSoul)
 		agents.DELETE("/:name/soul", handlers.DeleteAgentSoul)
 		agents.GET("/:name/soul/history", handlers.ListAgentSoulHistory)

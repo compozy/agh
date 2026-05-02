@@ -35,12 +35,43 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		CreatedAt:     fixedTestNow,
 		UpdatedAt:     fixedTestNow,
 	}
+	statusSessionHealth := SessionHealthRecord{
+		SessionID:       "sess-1",
+		AgentName:       "coder",
+		WorkspaceID:     "ws-1",
+		State:           "idle",
+		Health:          "healthy",
+		Attachable:      true,
+		EligibleForWake: true,
+		UpdatedAt:       fixedTestNow,
+	}
 
 	getCalls := 0
 	networkChannelsCalled := false
 	client := &stubClient{
 		getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
 			return AgentRecord{Name: "coder", Provider: "fake", Prompt: "hi"}, nil
+		},
+		getAgentSoulFn: func(context.Context, string, AgentQuery) (AgentSoulRecord, error) {
+			return AgentSoulRecord{AgentName: "coder", Enabled: true, Valid: true, ValidationStatus: "valid"}, nil
+		},
+		refreshSessionSoulFn: func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error) {
+			return AgentSoulRecord{AgentName: "coder", Enabled: true, Valid: true, ValidationStatus: "valid"}, nil
+		},
+		getAgentHeartbeatFn: func(context.Context, string, AgentQuery) (AgentHeartbeatRecord, error) {
+			return AgentHeartbeatRecord{AgentName: "coder", Enabled: true, Valid: true, ValidationStatus: "valid"}, nil
+		},
+		getAgentHeartbeatStatusFn: func(
+			context.Context,
+			string,
+			AgentHeartbeatStatusRequest,
+		) (AgentHeartbeatStatusRecord, error) {
+			return AgentHeartbeatStatusRecord{
+				AgentName:        "coder",
+				Enabled:          true,
+				Valid:            true,
+				ValidationStatus: "valid",
+			}, nil
 		},
 		networkStatusFn: func(context.Context) (NetworkStatusRecord, error) {
 			return NetworkStatusRecord{Enabled: true, Status: "running"}, nil
@@ -104,6 +135,24 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 			stopped.State = "stopped"
 			return stopped, nil
 		},
+		getSessionHealthFn: func(context.Context, string) (SessionHealthRecord, error) {
+			return statusSessionHealth, nil
+		},
+		getSessionStatusFn: func(context.Context, string) (SessionStatusRecord, error) {
+			return SessionStatusRecord{
+				SessionID:       "sess-1",
+				AgentName:       "coder",
+				WorkspaceID:     "ws-1",
+				State:           "idle",
+				Health:          "healthy",
+				Attachable:      true,
+				EligibleForWake: true,
+				UpdatedAt:       fixedTestNow,
+			}, nil
+		},
+		inspectSessionFn: func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error) {
+			return SessionInspectRecord{SessionID: "sess-1", Health: statusSessionHealth}, nil
+		},
 		resumeSessionFn: func(context.Context, string) (SessionRecord, error) {
 			return statusSession, nil
 		},
@@ -153,6 +202,9 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 
 	tests := [][]string{
 		{"agent", "info", "coder", "-o", "json"},
+		{"agent", "soul", "inspect", "coder", "-o", "json"},
+		{"agent", "heartbeat", "inspect", "coder", "-o", "json"},
+		{"agent", "heartbeat", "status", "coder", "-o", "json"},
 		{"network", "status", "-o", "json"},
 		{"network", "peers", "builders", "-o", "json"},
 		{"network", "channels", "-o", "json"},
@@ -177,7 +229,10 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		{"bridge", "get", "brg-1", "-o", "json"},
 		{"bridge", "routes", "brg-1", "-o", "json"},
 		{"bridge", "test-delivery", "brg-1", "--peer-id", "peer-1", "--mode", "reply", "-o", "json"},
+		{"session", "soul", "refresh", "sess-1", "--expected-digest", "sha256:old", "-o", "json"},
+		{"session", "health", "sess-1", "-o", "json"},
 		{"session", "status", "sess-1", "-o", "json"},
+		{"session", "inspect", "sess-1", "-o", "json"},
 		{"session", "resume", "sess-1", "-o", "json"},
 		{"session", "wait", "sess-1", "-o", "json"},
 		{"session", "history", "sess-1", "-o", "json"},

@@ -168,6 +168,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/agents/:name/heartbeat/validate",
 		"POST /api/agents/:name/heartbeat/wake",
 		"POST /api/agents/:name/soul/rollback",
+		"POST /api/agents/:name/soul/validate",
 		"POST /api/automation/jobs",
 		"POST /api/automation/jobs/:id/trigger",
 		"POST /api/automation/triggers",

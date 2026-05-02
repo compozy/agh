@@ -20,6 +20,7 @@ import (
 
 const (
 	outputFlagName = "output"
+	jsonFlagName   = "json"
 
 	defaultPollInterval = 100 * time.Millisecond
 	defaultStartTimeout = 15 * time.Second
@@ -87,6 +88,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 
 	cmd.PersistentFlags().
 		StringP(outputFlagName, "o", string(OutputHuman), "Output format: human, json, jsonl, or toon")
+	cmd.PersistentFlags().Bool(jsonFlagName, false, "Emit JSON output")
 
 	cmd.AddCommand(newVersionCommand())
 	cmd.AddCommand(newInstallCommand(deps))

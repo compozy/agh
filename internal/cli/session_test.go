@@ -551,20 +551,23 @@ func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 	}
 }
 
-func TestSessionStatusReturnsSessionRecord(t *testing.T) {
+func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{
-		getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
-			return SessionRecord{
-				ID:            id,
-				AgentName:     "coder",
-				Provider:      "fake",
-				WorkspaceID:   "ws-1",
-				WorkspacePath: "/workspace/project",
-				State:         session.StateActive,
-				CreatedAt:     fixedTestNow,
-				UpdatedAt:     fixedTestNow,
+		getSessionStatusFn: func(_ context.Context, id string) (SessionStatusRecord, error) {
+			if id != "sess-1" {
+				t.Fatalf("GetSessionStatus() id = %q, want sess-1", id)
+			}
+			return SessionStatusRecord{
+				SessionID:       id,
+				AgentName:       "coder",
+				WorkspaceID:     "ws-1",
+				State:           "idle",
+				Health:          "healthy",
+				Attachable:      true,
+				EligibleForWake: true,
+				UpdatedAt:       fixedTestNow,
 			}, nil
 		},
 	})
@@ -574,12 +577,12 @@ func TestSessionStatusReturnsSessionRecord(t *testing.T) {
 		t.Fatalf("executeRootCommand() error = %v", err)
 	}
 
-	var decoded SessionRecord
+	var decoded SessionStatusRecord
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.ID != "sess-1" || decoded.Provider != "fake" || decoded.State != session.StateActive {
-		t.Fatalf("decoded = %#v, want sess-1 active", decoded)
+	if decoded.SessionID != "sess-1" || decoded.State != "idle" || !decoded.EligibleForWake {
+		t.Fatalf("decoded = %#v, want sess-1 eligible idle health", decoded)
 	}
 }
 

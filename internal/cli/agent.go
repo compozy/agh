@@ -15,6 +15,8 @@ func newAgentCommand(deps commandDeps) *cobra.Command {
 
 	cmd.AddCommand(newAgentListCommand(deps))
 	cmd.AddCommand(newAgentInfoCommand(deps))
+	cmd.AddCommand(newAgentSoulCommand(deps))
+	cmd.AddCommand(newAgentHeartbeatCommand(deps))
 	return cmd
 }
 

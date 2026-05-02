@@ -16,6 +16,7 @@ Inspect AGH agent definitions
 ### Options inherited from parent commands
 
 ```
+      --json            Emit JSON output
   -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
 
@@ -30,7 +31,9 @@ Every AGH command supports `-o, --output`:
 
 ## Subcommands
 
-| Command                                             | Description                      |
-| --------------------------------------------------- | -------------------------------- |
-| [agh agent info](/runtime/cli-reference/agent/info) | Show one agent definition        |
-| [agh agent list](/runtime/cli-reference/agent/list) | List installed agent definitions |
+| Command                                                       | Description                                 |
+| ------------------------------------------------------------- | ------------------------------------------- |
+| [agh agent heartbeat](/runtime/cli-reference/agent/heartbeat) | Inspect and manage agent HEARTBEAT.md files |
+| [agh agent info](/runtime/cli-reference/agent/info)           | Show one agent definition                   |
+| [agh agent list](/runtime/cli-reference/agent/list)           | List installed agent definitions            |
+| [agh agent soul](/runtime/cli-reference/agent/soul)           | Inspect and manage agent SOUL.md files      |

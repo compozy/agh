@@ -82,6 +82,15 @@ func resolveOutputFormat(cmd *cobra.Command) (OutputFormat, error) {
 	if err != nil {
 		return "", fmt.Errorf("cli: read output flag: %w", err)
 	}
+	jsonEnabled, err := cmd.Flags().GetBool(jsonFlagName)
+	if err == nil && jsonEnabled {
+		outputFlag := cmd.Flag(outputFlagName)
+		normalized := OutputFormat(strings.ToLower(strings.TrimSpace(value)))
+		if outputFlag != nil && outputFlag.Changed && normalized != "" && normalized != OutputJSON {
+			return "", errors.New("cli: --json cannot be combined with a non-json output format")
+		}
+		return OutputJSON, nil
+	}
 
 	switch OutputFormat(strings.ToLower(strings.TrimSpace(value))) {
 	case "", OutputHuman:

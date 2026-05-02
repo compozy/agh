@@ -54,6 +54,7 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		Daemon:        src.Daemon,
 		HTTP:          src.HTTP,
 		Defaults:      src.Defaults,
+		Agents:        src.Agents,
 		Limits:        src.Limits,
 		Session:       src.Session,
 		Permissions:   src.Permissions,

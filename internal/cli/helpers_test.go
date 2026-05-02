@@ -18,47 +18,69 @@ import (
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
-	daemonStatusFn            func(context.Context) (DaemonStatus, error)
-	listVaultSecretsFn        func(context.Context, VaultListQuery) ([]VaultRecord, error)
-	getVaultSecretFn          func(context.Context, string) (VaultRecord, error)
-	putVaultSecretFn          func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
-	deleteVaultSecretFn       func(context.Context, string) error
-	networkStatusFn           func(context.Context) (NetworkStatusRecord, error)
-	networkPeersFn            func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
-	networkChannelsFn         func(context.Context) ([]NetworkChannelRecord, error)
-	networkSendFn             func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
-	networkInboxFn            func(context.Context, string) ([]NetworkEnvelopeRecord, error)
-	listExtensionsFn          func(context.Context) ([]ExtensionRecord, error)
-	installExtensionFn        func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
-	enableExtensionFn         func(context.Context, string) (ExtensionRecord, error)
-	disableExtensionFn        func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusFn         func(context.Context, string) (ExtensionRecord, error)
-	listBridgesFn             func(context.Context) ([]BridgeRecord, error)
-	createBridgeFn            func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
-	getBridgeFn               func(context.Context, string) (BridgeRecord, error)
-	updateBridgeFn            func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
-	enableBridgeFn            func(context.Context, string) (BridgeRecord, error)
-	disableBridgeFn           func(context.Context, string) (BridgeRecord, error)
-	restartBridgeFn           func(context.Context, string) (BridgeRecord, error)
-	bridgeRoutesFn            func(context.Context, string) ([]BridgeRouteRecord, error)
-	testBridgeDeliveryFn      func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
-	listSessionsFn            func(context.Context, SessionListQuery) ([]SessionRecord, error)
-	createSessionFn           func(context.Context, CreateSessionRequest) (SessionRecord, error)
-	getSessionFn              func(context.Context, string) (SessionRecord, error)
-	stopSessionFn             func(context.Context, string) error
-	resumeSessionFn           func(context.Context, string) (SessionRecord, error)
-	repairSessionFn           func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
-	promptSessionFn           func(context.Context, string, string) ([]AgentEventRecord, error)
-	sessionEventsFn           func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
-	streamSessionFn           func(context.Context, string, SessionEventQuery, string, SSEHandler) error
-	sessionHistoryFn          func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
-	createWorkspaceFn         func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
-	listWorkspacesFn          func(context.Context) ([]WorkspaceRecord, error)
-	getWorkspaceFn            func(context.Context, string) (WorkspaceDetailRecord, error)
-	updateWorkspaceFn         func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
-	deleteWorkspaceFn         func(context.Context, string) error
-	listAgentsFn              func(context.Context, AgentQuery) ([]AgentRecord, error)
-	getAgentFn                func(context.Context, string, AgentQuery) (AgentRecord, error)
+	daemonStatusFn              func(context.Context) (DaemonStatus, error)
+	listVaultSecretsFn          func(context.Context, VaultListQuery) ([]VaultRecord, error)
+	getVaultSecretFn            func(context.Context, string) (VaultRecord, error)
+	putVaultSecretFn            func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
+	deleteVaultSecretFn         func(context.Context, string) error
+	networkStatusFn             func(context.Context) (NetworkStatusRecord, error)
+	networkPeersFn              func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
+	networkChannelsFn           func(context.Context) ([]NetworkChannelRecord, error)
+	networkSendFn               func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
+	networkInboxFn              func(context.Context, string) ([]NetworkEnvelopeRecord, error)
+	listExtensionsFn            func(context.Context) ([]ExtensionRecord, error)
+	installExtensionFn          func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	enableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
+	disableExtensionFn          func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusFn           func(context.Context, string) (ExtensionRecord, error)
+	listBridgesFn               func(context.Context) ([]BridgeRecord, error)
+	createBridgeFn              func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
+	getBridgeFn                 func(context.Context, string) (BridgeRecord, error)
+	updateBridgeFn              func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
+	enableBridgeFn              func(context.Context, string) (BridgeRecord, error)
+	disableBridgeFn             func(context.Context, string) (BridgeRecord, error)
+	restartBridgeFn             func(context.Context, string) (BridgeRecord, error)
+	bridgeRoutesFn              func(context.Context, string) ([]BridgeRouteRecord, error)
+	testBridgeDeliveryFn        func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
+	listSessionsFn              func(context.Context, SessionListQuery) ([]SessionRecord, error)
+	createSessionFn             func(context.Context, CreateSessionRequest) (SessionRecord, error)
+	getSessionFn                func(context.Context, string) (SessionRecord, error)
+	getSessionHealthFn          func(context.Context, string) (SessionHealthRecord, error)
+	getSessionStatusFn          func(context.Context, string) (SessionStatusRecord, error)
+	inspectSessionFn            func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
+	refreshSessionSoulFn        func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
+	stopSessionFn               func(context.Context, string) error
+	resumeSessionFn             func(context.Context, string) (SessionRecord, error)
+	repairSessionFn             func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
+	promptSessionFn             func(context.Context, string, string) ([]AgentEventRecord, error)
+	sessionEventsFn             func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
+	streamSessionFn             func(context.Context, string, SessionEventQuery, string, SSEHandler) error
+	sessionHistoryFn            func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
+	createWorkspaceFn           func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
+	listWorkspacesFn            func(context.Context) ([]WorkspaceRecord, error)
+	getWorkspaceFn              func(context.Context, string) (WorkspaceDetailRecord, error)
+	updateWorkspaceFn           func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
+	deleteWorkspaceFn           func(context.Context, string) error
+	listAgentsFn                func(context.Context, AgentQuery) ([]AgentRecord, error)
+	getAgentFn                  func(context.Context, string, AgentQuery) (AgentRecord, error)
+	getAgentSoulFn              func(context.Context, string, AgentQuery) (AgentSoulRecord, error)
+	validateAgentSoulFn         func(context.Context, string, AgentSoulValidateRequest) (AgentSoulRecord, error)
+	putAgentSoulFn              func(context.Context, string, AgentSoulPutRequest) (AgentSoulMutationRecord, error)
+	deleteAgentSoulFn           func(context.Context, string, AgentSoulDeleteRequest) (AgentSoulMutationRecord, error)
+	listAgentSoulHistoryFn      func(context.Context, string, AgentSoulHistoryRequest) (AgentSoulHistoryRecord, error)
+	rollbackAgentSoulFn         func(context.Context, string, AgentSoulRollbackRequest) (AgentSoulMutationRecord, error)
+	getAgentHeartbeatFn         func(context.Context, string, AgentQuery) (AgentHeartbeatRecord, error)
+	validateAgentHeartbeatFn    func(context.Context, string, AgentHeartbeatValidateRequest) (AgentHeartbeatRecord, error)
+	putAgentHeartbeatFn         func(context.Context, string, AgentHeartbeatPutRequest) (AgentHeartbeatMutationRecord, error)
+	deleteAgentHeartbeatFn      func(context.Context, string, AgentHeartbeatDeleteRequest) (AgentHeartbeatMutationRecord, error)
+	listAgentHeartbeatHistoryFn func(
+		context.Context,
+		string,
+		AgentHeartbeatHistoryRequest,
+	) (AgentHeartbeatHistoryRecord, error)
+	rollbackAgentHeartbeatFn  func(context.Context, string, AgentHeartbeatRollbackRequest) (AgentHeartbeatMutationRecord, error)
+	getAgentHeartbeatStatusFn func(context.Context, string, AgentHeartbeatStatusRequest) (AgentHeartbeatStatusRecord, error)
+	wakeAgentHeartbeatFn      func(context.Context, string, AgentHeartbeatWakeRequest) (AgentHeartbeatWakeDecisionRecord, error)
 	listSkillsFn              func(context.Context, SkillQuery) ([]SkillRecord, error)
 	getSkillFn                func(context.Context, string, SkillQuery) (SkillRecord, error)
 	getSkillContentFn         func(context.Context, string, SkillQuery) (string, error)
@@ -357,6 +379,42 @@ func (s *stubClient) GetSession(ctx context.Context, id string) (SessionRecord, 
 	return SessionRecord{}, errors.New("unexpected GetSession call")
 }
 
+func (s *stubClient) GetSessionHealth(ctx context.Context, id string) (SessionHealthRecord, error) {
+	if s.getSessionHealthFn != nil {
+		return s.getSessionHealthFn(ctx, id)
+	}
+	return SessionHealthRecord{}, errors.New("unexpected GetSessionHealth call")
+}
+
+func (s *stubClient) GetSessionStatus(ctx context.Context, id string) (SessionStatusRecord, error) {
+	if s.getSessionStatusFn != nil {
+		return s.getSessionStatusFn(ctx, id)
+	}
+	return SessionStatusRecord{}, errors.New("unexpected GetSessionStatus call")
+}
+
+func (s *stubClient) InspectSession(
+	ctx context.Context,
+	id string,
+	query SessionInspectQuery,
+) (SessionInspectRecord, error) {
+	if s.inspectSessionFn != nil {
+		return s.inspectSessionFn(ctx, id, query)
+	}
+	return SessionInspectRecord{}, errors.New("unexpected InspectSession call")
+}
+
+func (s *stubClient) RefreshSessionSoul(
+	ctx context.Context,
+	id string,
+	request SessionSoulRefreshRequest,
+) (AgentSoulRecord, error) {
+	if s.refreshSessionSoulFn != nil {
+		return s.refreshSessionSoulFn(ctx, id, request)
+	}
+	return AgentSoulRecord{}, errors.New("unexpected RefreshSessionSoul call")
+}
+
 func (s *stubClient) StopSession(ctx context.Context, id string) error {
 	if s.stopSessionFn != nil {
 		return s.stopSessionFn(ctx, id)
@@ -482,6 +540,160 @@ func (s *stubClient) GetAgent(ctx context.Context, name string, query AgentQuery
 		return s.getAgentFn(ctx, name, query)
 	}
 	return AgentRecord{}, errors.New("unexpected GetAgent call")
+}
+
+func (s *stubClient) GetAgentSoul(
+	ctx context.Context,
+	name string,
+	query AgentQuery,
+) (AgentSoulRecord, error) {
+	if s.getAgentSoulFn != nil {
+		return s.getAgentSoulFn(ctx, name, query)
+	}
+	return AgentSoulRecord{}, errors.New("unexpected GetAgentSoul call")
+}
+
+func (s *stubClient) ValidateAgentSoul(
+	ctx context.Context,
+	name string,
+	request AgentSoulValidateRequest,
+) (AgentSoulRecord, error) {
+	if s.validateAgentSoulFn != nil {
+		return s.validateAgentSoulFn(ctx, name, request)
+	}
+	return AgentSoulRecord{}, errors.New("unexpected ValidateAgentSoul call")
+}
+
+func (s *stubClient) PutAgentSoul(
+	ctx context.Context,
+	name string,
+	request AgentSoulPutRequest,
+) (AgentSoulMutationRecord, error) {
+	if s.putAgentSoulFn != nil {
+		return s.putAgentSoulFn(ctx, name, request)
+	}
+	return AgentSoulMutationRecord{}, errors.New("unexpected PutAgentSoul call")
+}
+
+func (s *stubClient) DeleteAgentSoul(
+	ctx context.Context,
+	name string,
+	request AgentSoulDeleteRequest,
+) (AgentSoulMutationRecord, error) {
+	if s.deleteAgentSoulFn != nil {
+		return s.deleteAgentSoulFn(ctx, name, request)
+	}
+	return AgentSoulMutationRecord{}, errors.New("unexpected DeleteAgentSoul call")
+}
+
+func (s *stubClient) ListAgentSoulHistory(
+	ctx context.Context,
+	name string,
+	request AgentSoulHistoryRequest,
+) (AgentSoulHistoryRecord, error) {
+	if s.listAgentSoulHistoryFn != nil {
+		return s.listAgentSoulHistoryFn(ctx, name, request)
+	}
+	return AgentSoulHistoryRecord{}, errors.New("unexpected ListAgentSoulHistory call")
+}
+
+func (s *stubClient) RollbackAgentSoul(
+	ctx context.Context,
+	name string,
+	request AgentSoulRollbackRequest,
+) (AgentSoulMutationRecord, error) {
+	if s.rollbackAgentSoulFn != nil {
+		return s.rollbackAgentSoulFn(ctx, name, request)
+	}
+	return AgentSoulMutationRecord{}, errors.New("unexpected RollbackAgentSoul call")
+}
+
+func (s *stubClient) GetAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	query AgentQuery,
+) (AgentHeartbeatRecord, error) {
+	if s.getAgentHeartbeatFn != nil {
+		return s.getAgentHeartbeatFn(ctx, name, query)
+	}
+	return AgentHeartbeatRecord{}, errors.New("unexpected GetAgentHeartbeat call")
+}
+
+func (s *stubClient) ValidateAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatValidateRequest,
+) (AgentHeartbeatRecord, error) {
+	if s.validateAgentHeartbeatFn != nil {
+		return s.validateAgentHeartbeatFn(ctx, name, request)
+	}
+	return AgentHeartbeatRecord{}, errors.New("unexpected ValidateAgentHeartbeat call")
+}
+
+func (s *stubClient) PutAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatPutRequest,
+) (AgentHeartbeatMutationRecord, error) {
+	if s.putAgentHeartbeatFn != nil {
+		return s.putAgentHeartbeatFn(ctx, name, request)
+	}
+	return AgentHeartbeatMutationRecord{}, errors.New("unexpected PutAgentHeartbeat call")
+}
+
+func (s *stubClient) DeleteAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatDeleteRequest,
+) (AgentHeartbeatMutationRecord, error) {
+	if s.deleteAgentHeartbeatFn != nil {
+		return s.deleteAgentHeartbeatFn(ctx, name, request)
+	}
+	return AgentHeartbeatMutationRecord{}, errors.New("unexpected DeleteAgentHeartbeat call")
+}
+
+func (s *stubClient) ListAgentHeartbeatHistory(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatHistoryRequest,
+) (AgentHeartbeatHistoryRecord, error) {
+	if s.listAgentHeartbeatHistoryFn != nil {
+		return s.listAgentHeartbeatHistoryFn(ctx, name, request)
+	}
+	return AgentHeartbeatHistoryRecord{}, errors.New("unexpected ListAgentHeartbeatHistory call")
+}
+
+func (s *stubClient) RollbackAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatRollbackRequest,
+) (AgentHeartbeatMutationRecord, error) {
+	if s.rollbackAgentHeartbeatFn != nil {
+		return s.rollbackAgentHeartbeatFn(ctx, name, request)
+	}
+	return AgentHeartbeatMutationRecord{}, errors.New("unexpected RollbackAgentHeartbeat call")
+}
+
+func (s *stubClient) GetAgentHeartbeatStatus(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatStatusRequest,
+) (AgentHeartbeatStatusRecord, error) {
+	if s.getAgentHeartbeatStatusFn != nil {
+		return s.getAgentHeartbeatStatusFn(ctx, name, request)
+	}
+	return AgentHeartbeatStatusRecord{}, errors.New("unexpected GetAgentHeartbeatStatus call")
+}
+
+func (s *stubClient) WakeAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatWakeRequest,
+) (AgentHeartbeatWakeDecisionRecord, error) {
+	if s.wakeAgentHeartbeatFn != nil {
+		return s.wakeAgentHeartbeatFn(ctx, name, request)
+	}
+	return AgentHeartbeatWakeDecisionRecord{}, errors.New("unexpected WakeAgentHeartbeat call")
 }
 
 func (s *stubClient) ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error) {

@@ -14388,6 +14388,488 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
+        "/api/agents/{agent_name}/soul/validate": {
+            "post": {
+                "operationId": "validateAgentDefinitionSoul",
+                "parameters": [
+                    {
+                        "description": "Agent name",
+                        "in": "path",
+                        "name": "agent_name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "agent_name": {
+                                        "type": "string"
+                                    },
+                                    "body": {
+                                        "type": "string"
+                                    },
+                                    "workspace_id": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "active": {
+                                            "type": "boolean"
+                                        },
+                                        "agent_name": {
+                                            "type": "string"
+                                        },
+                                        "body": {
+                                            "type": "string"
+                                        },
+                                        "config_provenance": {
+                                            "properties": {
+                                                "context_projection_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "digest": {
+                                                    "type": "string"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "max_body_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "source": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "context_projection_bytes",
+                                                "digest",
+                                                "enabled",
+                                                "max_body_bytes"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "created_at": {
+                                            "format": "date-time",
+                                            "nullable": true,
+                                            "type": "string"
+                                        },
+                                        "diagnostics": {
+                                            "items": {
+                                                "properties": {
+                                                    "code": {
+                                                        "type": "string"
+                                                    },
+                                                    "column": {
+                                                        "type": "integer"
+                                                    },
+                                                    "field": {
+                                                        "type": "string"
+                                                    },
+                                                    "line": {
+                                                        "type": "integer"
+                                                    },
+                                                    "message": {
+                                                        "type": "string"
+                                                    },
+                                                    "owner_surface": {
+                                                        "type": "string"
+                                                    },
+                                                    "section": {
+                                                        "type": "string"
+                                                    },
+                                                    "severity": {
+                                                        "enum": ["info", "warning", "error"],
+                                                        "type": "string"
+                                                    },
+                                                    "source_path": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["code", "message", "severity"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "digest": {
+                                            "type": "string"
+                                        },
+                                        "enabled": {
+                                            "type": "boolean"
+                                        },
+                                        "frontmatter": {
+                                            "properties": {
+                                                "collaboration": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "constraints": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "memory_policy": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "principles": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "role": {
+                                                    "type": "string"
+                                                },
+                                                "tags": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "tone": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "version": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "limits": {
+                                            "properties": {
+                                                "context_projection_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "max_body_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "max_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["max_body_bytes"],
+                                            "type": "object"
+                                        },
+                                        "present": {
+                                            "type": "boolean"
+                                        },
+                                        "revision_id": {
+                                            "type": "string"
+                                        },
+                                        "snapshot_id": {
+                                            "type": "string"
+                                        },
+                                        "source_path": {
+                                            "type": "string"
+                                        },
+                                        "truncated": {
+                                            "type": "boolean"
+                                        },
+                                        "valid": {
+                                            "type": "boolean"
+                                        },
+                                        "validation_status": {
+                                            "enum": ["missing", "inactive", "valid", "invalid"],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "active",
+                                        "config_provenance",
+                                        "enabled",
+                                        "frontmatter",
+                                        "limits",
+                                        "present",
+                                        "valid",
+                                        "validation_status"
+                                    ],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Forbidden - workspace or permission mismatch"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Agent or workspace not found"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "active": {
+                                            "type": "boolean"
+                                        },
+                                        "agent_name": {
+                                            "type": "string"
+                                        },
+                                        "body": {
+                                            "type": "string"
+                                        },
+                                        "config_provenance": {
+                                            "properties": {
+                                                "context_projection_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "digest": {
+                                                    "type": "string"
+                                                },
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "max_body_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "source": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "context_projection_bytes",
+                                                "digest",
+                                                "enabled",
+                                                "max_body_bytes"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "created_at": {
+                                            "format": "date-time",
+                                            "nullable": true,
+                                            "type": "string"
+                                        },
+                                        "diagnostics": {
+                                            "items": {
+                                                "properties": {
+                                                    "code": {
+                                                        "type": "string"
+                                                    },
+                                                    "column": {
+                                                        "type": "integer"
+                                                    },
+                                                    "field": {
+                                                        "type": "string"
+                                                    },
+                                                    "line": {
+                                                        "type": "integer"
+                                                    },
+                                                    "message": {
+                                                        "type": "string"
+                                                    },
+                                                    "owner_surface": {
+                                                        "type": "string"
+                                                    },
+                                                    "section": {
+                                                        "type": "string"
+                                                    },
+                                                    "severity": {
+                                                        "enum": ["info", "warning", "error"],
+                                                        "type": "string"
+                                                    },
+                                                    "source_path": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["code", "message", "severity"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "digest": {
+                                            "type": "string"
+                                        },
+                                        "enabled": {
+                                            "type": "boolean"
+                                        },
+                                        "frontmatter": {
+                                            "properties": {
+                                                "collaboration": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "constraints": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "memory_policy": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "principles": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "role": {
+                                                    "type": "string"
+                                                },
+                                                "tags": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "tone": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "version": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "limits": {
+                                            "properties": {
+                                                "context_projection_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "max_body_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "max_bytes": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["max_body_bytes"],
+                                            "type": "object"
+                                        },
+                                        "present": {
+                                            "type": "boolean"
+                                        },
+                                        "revision_id": {
+                                            "type": "string"
+                                        },
+                                        "snapshot_id": {
+                                            "type": "string"
+                                        },
+                                        "source_path": {
+                                            "type": "string"
+                                        },
+                                        "truncated": {
+                                            "type": "boolean"
+                                        },
+                                        "valid": {
+                                            "type": "boolean"
+                                        },
+                                        "validation_status": {
+                                            "enum": ["missing", "inactive", "valid", "invalid"],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "active",
+                                        "config_provenance",
+                                        "enabled",
+                                        "frontmatter",
+                                        "limits",
+                                        "present",
+                                        "valid",
+                                        "validation_status"
+                                    ],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Soul validation failed"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Validate a proposed Soul body for an agent definition",
+                "tags": ["agents"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
         "/api/agents/{name}": {
             "get": {
                 "operationId": "getAgent",

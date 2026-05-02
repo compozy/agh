@@ -64,6 +64,10 @@ type DaemonClient interface {
 	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error)
 	CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error)
 	GetSession(ctx context.Context, id string) (SessionRecord, error)
+	GetSessionHealth(ctx context.Context, id string) (SessionHealthRecord, error)
+	GetSessionStatus(ctx context.Context, id string) (SessionStatusRecord, error)
+	InspectSession(ctx context.Context, id string, query SessionInspectQuery) (SessionInspectRecord, error)
+	RefreshSessionSoul(ctx context.Context, id string, request SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	StopSession(ctx context.Context, id string) error
 	ResumeSession(ctx context.Context, id string) (SessionRecord, error)
 	RepairSession(ctx context.Context, id string, query SessionRepairQuery) (SessionRepairRecord, error)
@@ -84,6 +88,60 @@ type DaemonClient interface {
 	DeleteWorkspace(ctx context.Context, ref string) error
 	ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error)
 	GetAgent(ctx context.Context, name string, query AgentQuery) (AgentRecord, error)
+	GetAgentSoul(ctx context.Context, name string, query AgentQuery) (AgentSoulRecord, error)
+	ValidateAgentSoul(ctx context.Context, name string, request AgentSoulValidateRequest) (AgentSoulRecord, error)
+	PutAgentSoul(ctx context.Context, name string, request AgentSoulPutRequest) (AgentSoulMutationRecord, error)
+	DeleteAgentSoul(ctx context.Context, name string, request AgentSoulDeleteRequest) (AgentSoulMutationRecord, error)
+	ListAgentSoulHistory(
+		ctx context.Context,
+		name string,
+		request AgentSoulHistoryRequest,
+	) (AgentSoulHistoryRecord, error)
+	RollbackAgentSoul(
+		ctx context.Context,
+		name string,
+		request AgentSoulRollbackRequest,
+	) (AgentSoulMutationRecord, error)
+	GetAgentHeartbeat(
+		ctx context.Context,
+		name string,
+		query AgentQuery,
+	) (AgentHeartbeatRecord, error)
+	ValidateAgentHeartbeat(
+		ctx context.Context,
+		name string,
+		request AgentHeartbeatValidateRequest,
+	) (AgentHeartbeatRecord, error)
+	PutAgentHeartbeat(
+		ctx context.Context,
+		name string,
+		request AgentHeartbeatPutRequest,
+	) (AgentHeartbeatMutationRecord, error)
+	DeleteAgentHeartbeat(
+		ctx context.Context,
+		name string,
+		request AgentHeartbeatDeleteRequest,
+	) (AgentHeartbeatMutationRecord, error)
+	ListAgentHeartbeatHistory(
+		ctx context.Context,
+		name string,
+		request AgentHeartbeatHistoryRequest,
+	) (AgentHeartbeatHistoryRecord, error)
+	RollbackAgentHeartbeat(
+		ctx context.Context,
+		name string,
+		request AgentHeartbeatRollbackRequest,
+	) (AgentHeartbeatMutationRecord, error)
+	GetAgentHeartbeatStatus(
+		ctx context.Context,
+		name string,
+		request AgentHeartbeatStatusRequest,
+	) (AgentHeartbeatStatusRecord, error)
+	WakeAgentHeartbeat(
+		ctx context.Context,
+		name string,
+		request AgentHeartbeatWakeRequest,
+	) (AgentHeartbeatWakeDecisionRecord, error)
 	ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error)
 	GetSkill(ctx context.Context, name string, query SkillQuery) (SkillRecord, error)
 	GetSkillContent(ctx context.Context, name string, query SkillQuery) (string, error)
@@ -218,6 +276,23 @@ type SessionListQuery struct {
 // SessionRecord is the shared daemon session payload.
 type SessionRecord = contract.SessionPayload
 
+// SessionSoulRefreshRequest captures the managed session Soul refresh payload.
+type SessionSoulRefreshRequest = contract.SessionSoulRefreshRequest
+
+// SessionHealthRecord is the shared session-health payload.
+type SessionHealthRecord = contract.SessionHealthPayload
+
+// SessionStatusRecord is the shared compact session status payload.
+type SessionStatusRecord = contract.SessionStatusResponse
+
+// SessionInspectRecord is the shared detailed session inspect payload.
+type SessionInspectRecord = contract.SessionInspectResponse
+
+// SessionInspectQuery captures optional session inspect expansion fields.
+type SessionInspectQuery struct {
+	IncludeRecentWakeEvents bool
+}
+
 // ACPCapsRecord captures optional runtime capabilities exposed by the daemon API.
 type ACPCapsRecord = contract.ACPCapsPayload
 
@@ -254,6 +329,72 @@ type SessionEventQuery struct {
 
 // AgentRecord is the shared daemon agent definition payload.
 type AgentRecord = contract.AgentPayload
+
+// AgentSoulRecord is the dedicated managed Soul read model.
+type AgentSoulRecord = contract.AgentSoulPayload
+
+// AgentSoulValidateRequest captures a managed Soul validation payload.
+type AgentSoulValidateRequest = contract.AgentSoulValidateRequest
+
+// AgentSoulPutRequest captures a managed Soul write payload.
+type AgentSoulPutRequest = contract.AgentSoulPutRequest
+
+// AgentSoulDeleteRequest captures a managed Soul delete payload.
+type AgentSoulDeleteRequest = contract.AgentSoulDeleteRequest
+
+// AgentSoulRollbackRequest captures a managed Soul rollback payload.
+type AgentSoulRollbackRequest = contract.AgentSoulRollbackRequest
+
+// AgentSoulHistoryRequest captures managed Soul history filters.
+type AgentSoulHistoryRequest = contract.AgentSoulHistoryRequest
+
+// AgentSoulHistoryRecord is the managed Soul history response.
+type AgentSoulHistoryRecord = contract.AgentSoulHistoryResponse
+
+// AgentSoulRevisionRecord is one managed Soul authoring revision.
+type AgentSoulRevisionRecord = contract.AgentSoulRevisionPayload
+
+// AgentSoulMutationRecord is the managed Soul mutation response.
+type AgentSoulMutationRecord = contract.AgentSoulMutationResponse
+
+// AgentHeartbeatRecord is the dedicated managed Heartbeat policy read model.
+type AgentHeartbeatRecord = contract.HeartbeatPolicyPayload
+
+// AgentHeartbeatValidateRequest captures a managed Heartbeat validation payload.
+type AgentHeartbeatValidateRequest = contract.HeartbeatValidateRequest
+
+// AgentHeartbeatPutRequest captures a managed Heartbeat write payload.
+type AgentHeartbeatPutRequest = contract.HeartbeatPutRequest
+
+// AgentHeartbeatDeleteRequest captures a managed Heartbeat delete payload.
+type AgentHeartbeatDeleteRequest = contract.HeartbeatDeleteRequest
+
+// AgentHeartbeatRollbackRequest captures a managed Heartbeat rollback payload.
+type AgentHeartbeatRollbackRequest = contract.HeartbeatRollbackRequest
+
+// AgentHeartbeatHistoryRequest captures managed Heartbeat history filters.
+type AgentHeartbeatHistoryRequest = contract.HeartbeatHistoryRequest
+
+// AgentHeartbeatHistoryRecord is the managed Heartbeat history response.
+type AgentHeartbeatHistoryRecord = contract.HeartbeatHistoryResponse
+
+// AgentHeartbeatRevisionRecord is one managed Heartbeat authoring revision.
+type AgentHeartbeatRevisionRecord = contract.HeartbeatRevisionPayload
+
+// AgentHeartbeatMutationRecord is the managed Heartbeat mutation response.
+type AgentHeartbeatMutationRecord = contract.HeartbeatMutationResponse
+
+// AgentHeartbeatStatusRequest captures Heartbeat status filters.
+type AgentHeartbeatStatusRequest = contract.HeartbeatStatusRequest
+
+// AgentHeartbeatStatusRecord is the shared Heartbeat status payload.
+type AgentHeartbeatStatusRecord = contract.HeartbeatStatusResponse
+
+// AgentHeartbeatWakeRequest captures one manual Heartbeat wake request.
+type AgentHeartbeatWakeRequest = contract.HeartbeatWakeRequest
+
+// AgentHeartbeatWakeDecisionRecord is one manual Heartbeat wake decision payload.
+type AgentHeartbeatWakeDecisionRecord = contract.HeartbeatWakeDecisionPayload
 
 // AgentMCPServer is one MCP server entry returned by the daemon API.
 type AgentMCPServer = contract.AgentMCPServerJSON
@@ -936,6 +1077,52 @@ func (c *unixSocketClient) GetSession(ctx context.Context, id string) (SessionRe
 	return response.Session, nil
 }
 
+func (c *unixSocketClient) GetSessionHealth(ctx context.Context, id string) (SessionHealthRecord, error) {
+	var response struct {
+		Health SessionHealthRecord `json:"health"`
+	}
+	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/health"
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return SessionHealthRecord{}, err
+	}
+	return response.Health, nil
+}
+
+func (c *unixSocketClient) GetSessionStatus(ctx context.Context, id string) (SessionStatusRecord, error) {
+	var response SessionStatusRecord
+	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/status"
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return SessionStatusRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) InspectSession(
+	ctx context.Context,
+	id string,
+	query SessionInspectQuery,
+) (SessionInspectRecord, error) {
+	var response SessionInspectRecord
+	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/inspect"
+	if err := c.doJSON(ctx, http.MethodGet, path, sessionInspectValues(query), nil, &response); err != nil {
+		return SessionInspectRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) RefreshSessionSoul(
+	ctx context.Context,
+	id string,
+	request SessionSoulRefreshRequest,
+) (AgentSoulRecord, error) {
+	var response AgentSoulRecord
+	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/soul/refresh"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return AgentSoulRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) StopSession(ctx context.Context, id string) error {
 	return c.doJSON(
 		ctx,
@@ -1238,6 +1425,188 @@ func (c *unixSocketClient) GetAgent(ctx context.Context, name string, query Agen
 		return AgentRecord{}, err
 	}
 	return response.Agent, nil
+}
+
+func (c *unixSocketClient) GetAgentSoul(
+	ctx context.Context,
+	name string,
+	query AgentQuery,
+) (AgentSoulRecord, error) {
+	var response AgentSoulRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/soul"
+	if err := c.doJSON(ctx, http.MethodGet, path, agentValues(query), nil, &response); err != nil {
+		return AgentSoulRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ValidateAgentSoul(
+	ctx context.Context,
+	name string,
+	request AgentSoulValidateRequest,
+) (AgentSoulRecord, error) {
+	var response AgentSoulRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/soul/validate"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return AgentSoulRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) PutAgentSoul(
+	ctx context.Context,
+	name string,
+	request AgentSoulPutRequest,
+) (AgentSoulMutationRecord, error) {
+	var response AgentSoulMutationRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/soul"
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return AgentSoulMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) DeleteAgentSoul(
+	ctx context.Context,
+	name string,
+	request AgentSoulDeleteRequest,
+) (AgentSoulMutationRecord, error) {
+	var response AgentSoulMutationRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/soul"
+	if err := c.doJSON(ctx, http.MethodDelete, path, nil, request, &response); err != nil {
+		return AgentSoulMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListAgentSoulHistory(
+	ctx context.Context,
+	name string,
+	request AgentSoulHistoryRequest,
+) (AgentSoulHistoryRecord, error) {
+	var response AgentSoulHistoryRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/soul/history"
+	if err := c.doJSON(ctx, http.MethodGet, path, agentSoulHistoryValues(request), nil, &response); err != nil {
+		return AgentSoulHistoryRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) RollbackAgentSoul(
+	ctx context.Context,
+	name string,
+	request AgentSoulRollbackRequest,
+) (AgentSoulMutationRecord, error) {
+	var response AgentSoulMutationRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/soul/rollback"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return AgentSoulMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	query AgentQuery,
+) (AgentHeartbeatRecord, error) {
+	var response AgentHeartbeatRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/heartbeat"
+	if err := c.doJSON(ctx, http.MethodGet, path, agentValues(query), nil, &response); err != nil {
+		return AgentHeartbeatRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ValidateAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatValidateRequest,
+) (AgentHeartbeatRecord, error) {
+	var response AgentHeartbeatRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/heartbeat/validate"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return AgentHeartbeatRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) PutAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatPutRequest,
+) (AgentHeartbeatMutationRecord, error) {
+	var response AgentHeartbeatMutationRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/heartbeat"
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return AgentHeartbeatMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) DeleteAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatDeleteRequest,
+) (AgentHeartbeatMutationRecord, error) {
+	var response AgentHeartbeatMutationRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/heartbeat"
+	if err := c.doJSON(ctx, http.MethodDelete, path, nil, request, &response); err != nil {
+		return AgentHeartbeatMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListAgentHeartbeatHistory(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatHistoryRequest,
+) (AgentHeartbeatHistoryRecord, error) {
+	var response AgentHeartbeatHistoryRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/heartbeat/history"
+	if err := c.doJSON(ctx, http.MethodGet, path, agentHeartbeatHistoryValues(request), nil, &response); err != nil {
+		return AgentHeartbeatHistoryRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) RollbackAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatRollbackRequest,
+) (AgentHeartbeatMutationRecord, error) {
+	var response AgentHeartbeatMutationRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/heartbeat/rollback"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return AgentHeartbeatMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetAgentHeartbeatStatus(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatStatusRequest,
+) (AgentHeartbeatStatusRecord, error) {
+	var response AgentHeartbeatStatusRecord
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/heartbeat/status"
+	if err := c.doJSON(ctx, http.MethodGet, path, agentHeartbeatStatusValues(request), nil, &response); err != nil {
+		return AgentHeartbeatStatusRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) WakeAgentHeartbeat(
+	ctx context.Context,
+	name string,
+	request AgentHeartbeatWakeRequest,
+) (AgentHeartbeatWakeDecisionRecord, error) {
+	var response contract.HeartbeatWakeResponse
+	path := "/api/agents/" + url.PathEscape(strings.TrimSpace(name)) + "/heartbeat/wake"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return AgentHeartbeatWakeDecisionRecord{}, err
+	}
+	return response.Decision, nil
 }
 
 func (c *unixSocketClient) ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error) {
@@ -2446,6 +2815,14 @@ func sessionRepairValues(query SessionRepairQuery) url.Values {
 	return values
 }
 
+func sessionInspectValues(query SessionInspectQuery) url.Values {
+	values := url.Values{}
+	if query.IncludeRecentWakeEvents {
+		values.Set("include_recent_wake_events", "true")
+	}
+	return values
+}
+
 func networkPeersValues(query NetworkPeersQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Channel); trimmed != "" {
@@ -2485,6 +2862,42 @@ func agentValues(query AgentQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
 		values.Set("workspace", trimmed)
+	}
+	return values
+}
+
+func agentSoulHistoryValues(request AgentSoulHistoryRequest) url.Values {
+	values := agentValues(AgentQuery{Workspace: request.WorkspaceID})
+	if request.Limit > 0 {
+		values.Set("limit", strconv.Itoa(request.Limit))
+	}
+	if trimmed := strings.TrimSpace(request.Cursor); trimmed != "" {
+		values.Set("cursor", trimmed)
+	}
+	return values
+}
+
+func agentHeartbeatHistoryValues(request AgentHeartbeatHistoryRequest) url.Values {
+	values := agentValues(AgentQuery{Workspace: request.WorkspaceID})
+	if request.Limit > 0 {
+		values.Set("limit", strconv.Itoa(request.Limit))
+	}
+	if trimmed := strings.TrimSpace(request.Cursor); trimmed != "" {
+		values.Set("cursor", trimmed)
+	}
+	return values
+}
+
+func agentHeartbeatStatusValues(request AgentHeartbeatStatusRequest) url.Values {
+	values := agentValues(AgentQuery{Workspace: request.WorkspaceID})
+	if trimmed := strings.TrimSpace(request.SessionID); trimmed != "" {
+		values.Set("session_id", trimmed)
+	}
+	if request.IncludeSessionHealth {
+		values.Set("include_session_health", "true")
+	}
+	if request.IncludeRecentWakeEvents {
+		values.Set("include_recent_wake_events", "true")
 	}
 	return values
 }

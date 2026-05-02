@@ -28,11 +28,13 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	sandboxlocal "github.com/pedronauck/agh/internal/sandbox/local"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -278,12 +280,12 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 		t.Fatalf("session status error = %v", err)
 	}
 
-	var status SessionRecord
+	var status SessionStatusRecord
 	if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
 		t.Fatalf("json.Unmarshal(session status) error = %v", err)
 	}
-	if status.Provider != "fake-alt" || status.State != session.StateActive {
-		t.Fatalf("status = %#v, want active fake-alt session", status)
+	if status.SessionID != created.ID || status.AgentName != "coder" {
+		t.Fatalf("status = %#v, want coder session health status", status)
 	}
 
 	listOut, _, err := executeRootCommand(t, h.deps, "session", "list", "--all", "-o", "json")
@@ -326,6 +328,176 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 	}
 	if resumed.Provider != "fake-alt" || resumed.State != session.StateActive {
 		t.Fatalf("resumed = %#v, want active fake-alt session", resumed)
+	}
+}
+
+func TestCLIAgentAuthoredContextIntegration(t *testing.T) {
+	t.Parallel()
+
+	h := newIntegrationHarness(t)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "--json")
+	defer func() {
+		stopStdout, stopStderr, stopErr := executeRootCommand(t, h.deps, "daemon", "stop", "--json")
+		if stopErr != nil {
+			t.Logf("daemon stop error = %v; stderr=%s; stdout=%s", stopErr, stopStderr, stopStdout)
+			if signalErr := h.runner.signalProcess(h.runner.pid, syscall.SIGTERM); signalErr != nil {
+				t.Logf("fallback daemon signal error = %v", signalErr)
+			}
+		}
+		done := make(chan error, 1)
+		go func() {
+			done <- h.runner.waitForExit()
+		}()
+		select {
+		case waitErr := <-done:
+			if waitErr != nil {
+				t.Logf("daemon wait error = %v", waitErr)
+			}
+		case <-time.After(5 * time.Second):
+			t.Log("daemon wait timed out during authored-context integration cleanup")
+		}
+	}()
+	writeWorkspaceAgentDef(t, h.workspace, "coder")
+	mustExecuteRoot(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "--json")
+
+	soulBodyPath := filepath.Join(t.TempDir(), "SOUL.md")
+	soulBody := strings.Join([]string{
+		"---",
+		`version: "1"`,
+		"role: Reviewer",
+		"tone:",
+		"  - concise",
+		"principles:",
+		"  - Keep scope tight",
+		"---",
+		"Review implementation behavior.",
+		"",
+	}, "\n")
+	if err := os.WriteFile(soulBodyPath, []byte(soulBody), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(SOUL.md) error = %v", err)
+	}
+
+	soulWriteOut, soulWriteStderr, soulWriteErr := executeRootCommand(
+		t,
+		h.deps,
+		"agent",
+		"soul",
+		"write",
+		"coder",
+		"--file",
+		soulBodyPath,
+		"--expected-digest",
+		"",
+		"--workspace",
+		"alpha",
+		"--json",
+	)
+	if soulWriteErr != nil {
+		t.Fatalf("agent soul write error = %v; stderr=%s; stdout=%s", soulWriteErr, soulWriteStderr, soulWriteOut)
+	}
+	var soulMutation AgentSoulMutationRecord
+	if err := json.Unmarshal([]byte(soulWriteOut), &soulMutation); err != nil {
+		t.Fatalf("json.Unmarshal(agent soul write) error = %v", err)
+	}
+	if !soulMutation.Soul.Valid || soulMutation.Soul.Digest == "" {
+		t.Fatalf("soul mutation = %#v, want valid digest", soulMutation)
+	}
+
+	soulInspectOut := mustExecuteRoot(t, h.deps, "agent", "soul", "inspect", "coder", "--workspace", "alpha", "--json")
+	var soulInspect AgentSoulRecord
+	if err := json.Unmarshal([]byte(soulInspectOut), &soulInspect); err != nil {
+		t.Fatalf("json.Unmarshal(agent soul inspect) error = %v", err)
+	}
+	if soulInspect.Digest != soulMutation.Soul.Digest || strings.Contains(soulInspectOut, h.homePaths.HomeDir) {
+		t.Fatalf("soul inspect = %#v, want redacted matching digest", soulInspect)
+	}
+
+	heartbeatBodyPath := filepath.Join(t.TempDir(), "HEARTBEAT.md")
+	heartbeatBody := strings.Join([]string{
+		"---",
+		`version: "1"`,
+		"enabled: true",
+		`summary: "Inspect state before waking work."`,
+		"preferences:",
+		`  min_interval: "30m"`,
+		"context:",
+		"  include:",
+		"    - self",
+		"    - session_health",
+		"---",
+		"Check session health before requesting work.",
+		"",
+	}, "\n")
+	if err := os.WriteFile(heartbeatBodyPath, []byte(heartbeatBody), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(HEARTBEAT.md) error = %v", err)
+	}
+
+	heartbeatWriteOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"agent",
+		"heartbeat",
+		"write",
+		"coder",
+		"--file",
+		heartbeatBodyPath,
+		"--if-match",
+		"",
+		"--workspace",
+		"alpha",
+		"--json",
+	)
+	var heartbeatMutation AgentHeartbeatMutationRecord
+	if err := json.Unmarshal([]byte(heartbeatWriteOut), &heartbeatMutation); err != nil {
+		t.Fatalf("json.Unmarshal(agent heartbeat write) error = %v", err)
+	}
+	if !heartbeatMutation.Heartbeat.Valid || heartbeatMutation.Heartbeat.ConfigDigest == "" {
+		t.Fatalf("heartbeat mutation = %#v, want valid policy with config digest", heartbeatMutation)
+	}
+
+	sessionOut := mustExecuteRoot(t, h.deps, "session", "new", "--agent", "coder", "--workspace", "alpha", "--json")
+	var created SessionRecord
+	if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
+		t.Fatalf("json.Unmarshal(session new) error = %v", err)
+	}
+
+	heartbeatStatusOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"agent",
+		"heartbeat",
+		"status",
+		"coder",
+		"--workspace",
+		"alpha",
+		"--session",
+		created.ID,
+		"--json",
+	)
+	var heartbeatStatus AgentHeartbeatStatusRecord
+	if err := json.Unmarshal([]byte(heartbeatStatusOut), &heartbeatStatus); err != nil {
+		t.Fatalf("json.Unmarshal(agent heartbeat status) error = %v", err)
+	}
+	if heartbeatStatus.ConfigDigest == "" || heartbeatStatus.SessionHealth == nil {
+		t.Fatalf("heartbeat status = %#v, want config digest and session health", heartbeatStatus)
+	}
+
+	sessionHealthOut := mustExecuteRoot(t, h.deps, "session", "health", created.ID, "--json")
+	var sessionHealth SessionHealthRecord
+	if err := json.Unmarshal([]byte(sessionHealthOut), &sessionHealth); err != nil {
+		t.Fatalf("json.Unmarshal(session health) error = %v", err)
+	}
+	if sessionHealth.SessionID != created.ID || sessionHealth.AgentName != "coder" {
+		t.Fatalf("session health = %#v, want created coder session", sessionHealth)
+	}
+
+	sessionInspectOut := mustExecuteRoot(t, h.deps, "session", "inspect", created.ID, "--json")
+	var sessionInspect SessionInspectRecord
+	if err := json.Unmarshal([]byte(sessionInspectOut), &sessionInspect); err != nil {
+		t.Fatalf("json.Unmarshal(session inspect) error = %v", err)
+	}
+	if sessionInspect.SessionID != created.ID || sessionInspect.ConfigDigest == "" {
+		t.Fatalf("session inspect = %#v, want policy correlation", sessionInspect)
 	}
 }
 
@@ -2189,6 +2361,12 @@ func (t *integrationDreamTrigger) Enabled() bool {
 	return t.enabled
 }
 
+type integrationSoulRunActivityChecker struct{}
+
+func (integrationSoulRunActivityChecker) HasActiveRunForSession(context.Context, string, time.Time) (bool, error) {
+	return false, nil
+}
+
 type integrationDaemon struct {
 	t         *testing.T
 	homePaths aghconfig.HomePaths
@@ -2535,6 +2713,10 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		}()),
 		session.WithNotifier(fanout),
 		session.WithSandboxRegistry(sandboxRegistry),
+		session.WithSoulSnapshotStore(registry),
+		session.WithSoulRunActivityChecker(integrationSoulRunActivityChecker{}),
+		session.WithSessionHealthStore(registry),
+		session.WithSessionHealthConfig(d.cfg.Agents.Heartbeat),
 	)
 	if err != nil {
 		return fmt.Errorf("new session manager: %w", err)
@@ -2630,6 +2812,23 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	}
 	manager.SetNetworkPeerLifecycle(networkManager)
 	manager.SetTurnEndNotifier(networkManager.OnTurnEnd)
+
+	soulAuthoring, err := soul.NewManagedSoulAuthoringService(registry)
+	if err != nil {
+		return fmt.Errorf("new soul authoring service: %w", err)
+	}
+	heartbeatAuthoring, err := heartbeat.NewManagedHeartbeatAuthoringService(registry)
+	if err != nil {
+		return fmt.Errorf("new heartbeat authoring service: %w", err)
+	}
+	heartbeatStatus, err := heartbeat.NewManagedHeartbeatStatusService(
+		registry,
+		heartbeat.WithHeartbeatStatusSessionHealthReader(manager),
+	)
+	if err != nil {
+		return fmt.Errorf("new heartbeat status service: %w", err)
+	}
+
 	server, err := udsapi.New(
 		udsapi.WithHomePaths(d.homePaths),
 		udsapi.WithConfig(&d.cfg),
@@ -2648,6 +2847,12 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		udsapi.WithMemoryStore(memoryStore),
 		udsapi.WithDreamTrigger(dreamTrigger),
 		udsapi.WithExtensionService(extService),
+		udsapi.WithSoulAuthoring(soulAuthoring),
+		udsapi.WithSoulRefresher(manager),
+		udsapi.WithHeartbeatAuthoring(heartbeatAuthoring),
+		udsapi.WithHeartbeatStatus(heartbeatStatus),
+		udsapi.WithSessionHealthReader(manager),
+		udsapi.WithHeartbeatWakeEventReader(registry),
 	)
 	if err != nil {
 		return fmt.Errorf("new uds server: %w", err)
@@ -2977,6 +3182,19 @@ func writeAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name string) {
 	t.Helper()
 
 	agentDir := filepath.Join(homePaths.AgentsDir, name)
+	writeAgentDefInDir(t, agentDir, name)
+}
+
+func writeWorkspaceAgentDef(t *testing.T, root string, name string) {
+	t.Helper()
+
+	agentDir := filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, name)
+	writeAgentDefInDir(t, agentDir, name)
+}
+
+func writeAgentDefInDir(t *testing.T, agentDir string, name string) {
+	t.Helper()
+
 	if err := os.MkdirAll(agentDir, 0o755); err != nil {
 		t.Fatalf("os.MkdirAll(%q) error = %v", agentDir, err)
 	}

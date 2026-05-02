@@ -22,7 +22,10 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionCreateCommand(deps))
 	cmd.AddCommand(newSessionListCommand(deps))
 	cmd.AddCommand(newSessionStopCommand(deps))
+	cmd.AddCommand(newSessionSoulCommand(deps))
+	cmd.AddCommand(newSessionHealthCommand(deps))
 	cmd.AddCommand(newSessionStatusCommand(deps))
+	cmd.AddCommand(newSessionInspectCommand(deps))
 	cmd.AddCommand(newSessionResumeCommand(deps))
 	cmd.AddCommand(newSessionRepairCommand(deps))
 	cmd.AddCommand(newSessionWaitCommand(deps))
@@ -168,11 +171,11 @@ func newSessionStatusCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			info, err := client.GetSession(cmd.Context(), args[0])
+			info, err := client.GetSessionStatus(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionBundle(info, deps.now))
+			return writeCommandOutput(cmd, sessionStatusBundle(info))
 		},
 	}
 }

@@ -996,6 +996,27 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 
 		toolReadOnly := true
 		original := aghconfig.Config{
+			Agents: aghconfig.AgentsConfig{
+				Soul: aghconfig.SoulConfig{
+					Enabled:                true,
+					MaxBodyBytes:           32768,
+					ContextProjectionBytes: 2048,
+				},
+				Heartbeat: aghconfig.HeartbeatConfig{
+					Enabled:                      true,
+					MaxBodyBytes:                 32768,
+					ContextProjectionBytes:       4096,
+					MinInterval:                  5 * time.Minute,
+					DefaultInterval:              30 * time.Minute,
+					WakeCooldown:                 time.Minute,
+					MaxWakesPerCycle:             25,
+					ActiveSessionOnly:            true,
+					AllowActiveHoursPreferences:  true,
+					WakeEventRetention:           168 * time.Hour,
+					SessionHealthStaleAfter:      2 * time.Minute,
+					SessionHealthHookMinInterval: time.Minute,
+				},
+			},
 			Session: aghconfig.SessionConfig{
 				Limits: aghconfig.SessionLimitsConfig{
 					Timeout: time.Minute,
@@ -1056,6 +1077,8 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		}
 
 		cloned := cloneConfig(&original)
+		cloned.Agents.Soul.MaxBodyBytes = 8192
+		cloned.Agents.Heartbeat.MaxBodyBytes = 8192
 		cloned.Session.Limits.Timeout = 2 * time.Minute
 		cloned.Autonomy.Coordinator.Enabled = false
 		cloned.Autonomy.Coordinator.AgentName = "mutated-coordinator"
@@ -1067,6 +1090,12 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		cloned.Hooks.Declarations[0].Metadata["origin"] = "mutated"
 		*cloned.Hooks.Declarations[0].Matcher.ToolReadOnly = false
 
+		if got, want := original.Agents.Soul.MaxBodyBytes, int64(32768); got != want {
+			t.Fatalf("original Agents.Soul.MaxBodyBytes = %d, want %d", got, want)
+		}
+		if got, want := original.Agents.Heartbeat.MaxBodyBytes, int64(32768); got != want {
+			t.Fatalf("original Agents.Heartbeat.MaxBodyBytes = %d, want %d", got, want)
+		}
 		if got, want := original.Session.Limits.Timeout, time.Minute; got != want {
 			t.Fatalf("original Session.Limits.Timeout = %s, want %s", got, want)
 		}

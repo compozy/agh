@@ -3,7 +3,9 @@
     "pages": [
         "index",
         "events",
+        "health",
         "history",
+        "inspect",
         "list",
         "new",
         "prompt",
@@ -11,6 +13,7 @@
         "resume",
         "status",
         "stop",
-        "wait"
+        "wait",
+        "soul"
     ]
 }

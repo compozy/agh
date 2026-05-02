@@ -433,6 +433,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/{agent_name}/soul/validate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate a proposed Soul body for an agent definition */
+    post: operations["validateAgentDefinitionSoul"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/{name}": {
     parameters: {
       query?: never;
@@ -8475,6 +8492,196 @@ export interface operations {
       };
       /** @description Soul authoring conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  validateAgentDefinitionSoul: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          body?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent or workspace not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
