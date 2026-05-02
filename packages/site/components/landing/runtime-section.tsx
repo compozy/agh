@@ -11,7 +11,7 @@ const FEATURES = [
     description:
       "Every session gets a per-session event DB plus an entry in the global catalog. Resume after a restart, re-read the full history, or fork a new session from any point.",
     cite: {
-      href: "/runtime",
+      href: "/runtime/core/sessions/lifecycle",
       label: "sessions lifecycle",
     },
   },
@@ -21,7 +21,7 @@ const FEATURES = [
     title: "Three operator surfaces, one daemon",
     description:
       "CLI over a Unix socket. HTTP + SSE API on :2123. A React 19 web UI with ten feature modules. All read from the same state.",
-    cite: { href: "/runtime", label: "daemon surfaces" },
+    cite: { href: "/runtime/core/operations/daemon", label: "daemon surfaces" },
   },
   {
     icon: <ShieldCheck className="h-4 w-4" />,
@@ -29,7 +29,7 @@ const FEATURES = [
     title: "Permission modes with an audit trail",
     description:
       "AGH enforces session permission modes, keeps workspace boundaries intact, and records every approval decision.",
-    cite: { href: "/runtime", label: "permissions" },
+    cite: { href: "/runtime/core/sessions/permissions", label: "permissions" },
   },
 ];
 

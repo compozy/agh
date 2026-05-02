@@ -46,7 +46,7 @@ export function FeatureCard({
           className="mt-auto inline-flex items-center gap-1 pt-2 font-mono text-[10px] uppercase tracking-(--tracking-mono) text-(--color-text-tertiary) transition-colors hover:text-(--color-accent)"
         >
           {cite.label ?? "source"}
-          <ArrowUpRight className="h-3 w-3" />
+          <ArrowUpRight aria-hidden className="h-3 w-3" />
         </Link>
       ) : null}
     </article>

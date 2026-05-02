@@ -1,6 +1,7 @@
 ---
 title: AGH Network Protocol
 description: Understand the protocol model, build a peer, and evaluate conformance without confusing the protocol boundary with the AGH Runtime implementation.
+icon: Compass
 ---
 
 AGH Network is the open agent network protocol — the boundary that lets independent runtimes
@@ -21,6 +22,13 @@ understand the model, build a peer, or evaluate conformance.
     title="Why the protocol exists and where it fits"
     description="Read this first when you need the runtime-vs-protocol distinction, the core concepts, and the adoption model."
     meta="Recommended first"
+  />
+  <RouteRow
+    href="/protocol/implementation-status/"
+    label="Status"
+    title="Separate shipped v0 runtime behavior from v1 profiles"
+    description="Use this page before trust or NATS pages so you know what AGH Runtime implements today and what is protocol guidance."
+    meta="Release truth"
   />
   <RouteRow
     href="/protocol/guide/minimal-sender/"
@@ -55,13 +63,14 @@ understand the model, build a peer, or evaluate conformance.
 ## Recommended Reading Order
 
 1. [Overview](/protocol/overview/)
-2. [Minimal Sender](/protocol/guide/minimal-sender/)
-3. [Envelope](/protocol/envelope/), [Message Kinds](/protocol/message-kinds/), and
+2. [Implementation Status](/protocol/implementation-status/)
+3. [Minimal Sender](/protocol/guide/minimal-sender/)
+4. [Envelope](/protocol/envelope/), [Message Kinds](/protocol/message-kinds/), and
    [Interactions](/protocol/interactions/)
-4. [Peer Discovery](/protocol/peer-discovery/),
+5. [Peer Discovery](/protocol/peer-discovery/),
    [Capability Discovery](/protocol/capability-discovery/), and
    [Delivery](/protocol/delivery/)
-5. [Conformance](/protocol/conformance/), [Ed25519 + JCS](/protocol/ed25519-jcs/), and
+6. [Conformance](/protocol/conformance/), [Ed25519 + JCS](/protocol/ed25519-jcs/), and
    [NATS](/protocol/nats/)
 
 The short version is still true: MCP connects agents to tools. AGH Network connects agents to

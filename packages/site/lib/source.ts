@@ -3,18 +3,28 @@ import { loader } from "fumadocs-core/source";
 import { getLayoutTabs } from "fumadocs-ui/layouts/shared";
 import {
   Activity,
+  Award,
   Brain,
   Book,
+  Compass,
+  Database,
   FileCode,
   FileText,
   FolderTree,
+  Key,
   Layers,
+  MessageSquare,
   Network,
   Plug,
   Rocket,
+  Search,
+  Send,
   Settings,
+  ShieldCheck,
   Terminal,
   Waypoints,
+  Workflow,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { runtime, protocol } from "@/.source/server";
@@ -22,18 +32,28 @@ import { createRuntimeLayoutTree } from "./runtime-navigation";
 
 const iconMap: Record<string, LucideIcon> = {
   Activity,
+  Award,
   Brain,
   Book,
+  Compass,
+  Database,
   FileCode,
   FileText,
   FolderTree,
+  Key,
   Layers,
+  MessageSquare,
   Network,
   Plug,
   Rocket,
+  Search,
+  Send,
   Settings,
+  ShieldCheck,
   Terminal,
   Waypoints,
+  Workflow,
+  Zap,
 };
 
 function iconResolver(icon?: string): ReactElement | undefined {
@@ -56,4 +76,4 @@ export const protocolDocs = loader({
 
 export const runtimeLayoutTree = createRuntimeLayoutTree(runtimeDocs.pageTree);
 
-export const runtimeTabs = getLayoutTabs(runtimeDocs.pageTree);
+export const runtimeTabs = getLayoutTabs(runtimeLayoutTree);

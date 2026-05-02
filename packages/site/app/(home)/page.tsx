@@ -15,7 +15,7 @@ import {
 
 export default function HomePage() {
   return (
-    <main className="site-home">
+    <main id="main-content" className="site-home">
       <Hero />
       <SupportedAgents />
       <NetworkSection />

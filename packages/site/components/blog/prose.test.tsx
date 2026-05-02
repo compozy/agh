@@ -9,7 +9,7 @@ describe("blog prose code", () => {
     const code = screen.getByText("agh-network/v0");
 
     expect(code.className).toContain("border-(--color-divider)");
-    expect(code.className).toContain("bg-[rgba(44,44,46,0.78)]");
+    expect(code.className).toContain("bg-(--color-surface-elevated)");
   });
 
   it("does not apply inline code chrome inside highlighted fenced code blocks", () => {
@@ -23,7 +23,7 @@ describe("blog prose code", () => {
 
     expect(code).not.toBeNull();
     expect(code?.className).not.toContain("border-(--color-divider)");
-    expect(code?.className).not.toContain("bg-[rgba(44,44,46,0.78)]");
+    expect(code?.className).not.toContain("bg-(--color-surface-elevated)");
     expect(code?.className).toContain("text-inherit");
   });
 });

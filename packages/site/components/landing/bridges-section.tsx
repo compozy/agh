@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { Pill } from "@agh/ui";
 import {
@@ -18,52 +19,52 @@ type Bridge = {
   id: string;
   name: string;
   logo: ReactNode;
-  status: "live" | "next";
+  status: "alpha" | "planned";
 };
 
 const BRIDGES: Bridge[] = [
-  { id: "slack", name: "Slack", logo: <SlackLogo className="h-7 w-7" />, status: "live" },
+  { id: "slack", name: "Slack", logo: <SlackLogo className="h-7 w-7" />, status: "alpha" },
   {
     id: "discord",
     name: "Discord",
     logo: <DiscordLogo className="h-7 w-7" />,
-    status: "live",
+    status: "alpha",
   },
   {
     id: "telegram",
     name: "Telegram",
     logo: <TelegramLogo className="h-7 w-7" />,
-    status: "live",
+    status: "alpha",
   },
   {
     id: "whatsapp",
     name: "WhatsApp",
     logo: <WhatsAppLogo className="h-7 w-7" />,
-    status: "next",
+    status: "planned",
   },
   {
     id: "teams",
     name: "Microsoft Teams",
     logo: <MicrosoftTeamsLogo className="h-7 w-7" />,
-    status: "next",
+    status: "planned",
   },
   {
     id: "google-chat",
     name: "Google Chat",
     logo: <GoogleChatLogo className="h-7 w-7" />,
-    status: "next",
+    status: "planned",
   },
   {
     id: "github",
     name: "GitHub",
-    logo: <GithubLogo className="h-7 w-7 text-(--color-text-primary)" />,
-    status: "next",
+    logo: <GithubLogo aria-hidden className="h-7 w-7 text-(--color-text-primary)" />,
+    status: "planned",
   },
   {
     id: "linear",
     name: "Linear",
     logo: <LinearLogo className="h-7 w-7" mode="dark" />,
-    status: "next",
+    status: "planned",
   },
 ];
 
@@ -73,7 +74,7 @@ export function BridgesSection() {
       <SectionHeader
         align="start"
         eyebrow="Bridges"
-        title="Your users live on these. Now so do your agents."
+        title="Your users work in these channels. Your agents can meet them there."
         description="Webhooks in, sessions out. Responses stream back to the original thread. No serverless glue, no second runtime — the bridge adapter runs inside the daemon."
       />
 
@@ -83,13 +84,13 @@ export function BridgesSection() {
             <article className="group relative flex h-full flex-col items-start gap-3 rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas) p-5 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-divider))]">
               <div className="flex items-center justify-between self-stretch">
                 <div className="flex h-10 w-10 items-center justify-center">{bridge.logo}</div>
-                {bridge.status === "live" ? (
-                  <Pill mono tone="success">
-                    live
+                {bridge.status === "alpha" ? (
+                  <Pill mono tone="accent">
+                    alpha
                   </Pill>
                 ) : (
                   <Pill mono tone="neutral">
-                    next
+                    planned
                   </Pill>
                 )}
               </div>
@@ -119,7 +120,7 @@ export function BridgesSection() {
           <FlowArrow label="session" />
           <FlowNode title="Agent" sub="claude / codex / …" />
           <FlowArrow label="stream" />
-          <FlowNode title="Thread reply" sub="live updates" />
+          <FlowNode title="Thread reply" sub="streamed updates" />
         </div>
       </div>
 
@@ -127,6 +128,23 @@ export function BridgesSection() {
         Every bridge is a workspace-scoped adapter. One platform message maps to one durable
         session, so a user thread keeps its context across restarts.
       </p>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+        <Link
+          href="/runtime/core/bridges/setup"
+          className="inline-flex items-center gap-2 rounded-lg border border-(--color-accent) px-4 py-2 text-[13px] font-medium text-(--color-accent) transition-colors hover:bg-(--color-accent-tint)"
+        >
+          Configure Slack, Discord, or Telegram
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </Link>
+        <Link
+          href="/runtime/core/extensions"
+          className="inline-flex items-center gap-2 rounded-lg border border-(--color-divider) px-4 py-2 text-[13px] font-medium text-(--color-text-primary) transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-divider))] hover:text-(--color-accent)"
+        >
+          Build a bridge adapter
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </Link>
+      </div>
     </SectionFrame>
   );
 }
@@ -166,7 +184,7 @@ function FlowArrow({ label }: { label: string }) {
       <span className="font-mono text-[9px] uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
         {label}
       </span>
-      <ArrowRight className="h-4 w-4 text-(--color-accent)" />
+      <ArrowRight aria-hidden className="h-4 w-4 text-(--color-accent)" />
     </div>
   );
 }

@@ -10,7 +10,7 @@ export default function Error({
   const detail = error.digest ? `Digest ${error.digest}` : "Runtime boundary failure";
 
   return (
-    <main className="flex min-h-[calc(100dvh-3.5rem)] items-center px-4 py-20">
+    <main id="main-content" className="flex min-h-[calc(100dvh-3.5rem)] items-center px-4 py-20">
       <section className="mx-auto w-full max-w-[760px] rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-8 md:p-10">
         <p className="font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-danger)">
           Render failure

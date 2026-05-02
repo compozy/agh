@@ -3,6 +3,8 @@ import { RootProvider } from "fumadocs-ui/provider/next";
 import { runtimeLayoutTree, runtimeTabs } from "@/lib/source";
 import { baseOptions } from "@/lib/layout.shared";
 import { DocsHeader } from "@/components/site/docs-header";
+import { SidebarSectionLabel } from "@/components/site/sidebar-section-label";
+import { CompactFolder, CompactItem } from "@/components/site/sidebar-compact-tree";
 import type { ReactNode } from "react";
 
 export default function RuntimeDocsLayout({ children }: { children: ReactNode }) {
@@ -21,6 +23,13 @@ export default function RuntimeDocsLayout({ children }: { children: ReactNode })
           mode: "auto",
         }}
         slots={{ header: DocsHeader }}
+        sidebar={{
+          components: {
+            Separator: SidebarSectionLabel,
+            Item: CompactItem,
+            Folder: CompactFolder,
+          },
+        }}
         tree={runtimeLayoutTree}
         tabs={runtimeTabs}
         tabMode="navbar"

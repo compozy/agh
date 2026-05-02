@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArchiveRow } from "@/components/blog/archive-row";
 import { CategoryPill } from "@/components/blog/category-pill";
+import { BlogEmptyState } from "@/components/blog/empty-state";
 import { categoryLabel } from "@/components/blog/format";
 import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
 import {
@@ -79,12 +79,13 @@ export default async function CategoryArchivePage({ params }: PageProps) {
       <section className="px-4 pt-10 pb-20">
         <div className="mx-auto max-w-(--site-layout-width)">
           {posts.length === 0 ? (
-            <p className="rounded-xl border border-(--color-divider) bg-(--color-surface) p-6 text-sm text-(--color-text-secondary)">
-              No posts in this category yet.{" "}
-              <Link href="/blog" className="text-(--color-accent)">
-                Browse all posts →
-              </Link>
-            </p>
+            <BlogEmptyState
+              eyebrow="Category pending"
+              title={`${categoryLabel(category)} posts are not published yet.`}
+              description="This category is part of the public archive, but no post has been filed here yet. Browse the full blog archive or subscribe to the feed to catch the next entry."
+              primaryAction={{ href: "/blog", label: "Browse all posts" }}
+              secondaryAction={{ href: "/blog/feed.xml", label: "Subscribe via RSS" }}
+            />
           ) : (
             <div className="border-t border-(--color-divider)">
               {posts.map(post => (

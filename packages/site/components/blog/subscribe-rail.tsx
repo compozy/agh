@@ -7,7 +7,10 @@ import { MonoEyebrow } from "./mono-eyebrow";
 export function SubscribeRail() {
   const releasesUrl = `${siteConfig.githubUrl}/releases`;
   return (
-    <aside className="rounded-xl border border-(--color-divider) bg-(--color-canvas-deep) p-5">
+    <aside
+      aria-label="Blog subscription links"
+      className="rounded-xl border border-(--color-divider) bg-(--color-canvas-deep) p-5"
+    >
       <MonoEyebrow tone="accent" tracking="wide">
         Stay current
       </MonoEyebrow>
@@ -32,6 +35,7 @@ export function SubscribeRail() {
           href={releasesUrl}
           target="_blank"
           rel="noreferrer noopener"
+          aria-label="Watch releases on GitHub"
           className="inline-flex items-center justify-between rounded-lg border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-2.5 text-sm font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-hover)"
         >
           <span className="inline-flex items-center gap-2">

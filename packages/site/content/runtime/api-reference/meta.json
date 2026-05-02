@@ -2,5 +2,30 @@
     "title": "API Reference",
     "icon": "FileCode",
     "root": true,
-    "pages": ["index"]
+    "pages": [
+        "index",
+        "---Workspace---",
+        "sessions",
+        "workspaces",
+        "agents",
+        "memory",
+        "skills",
+        "---Capabilities---",
+        "tools",
+        "toolsets",
+        "resources",
+        "automation",
+        "bridges",
+        "---Network---",
+        "network",
+        "observe",
+        "hooks",
+        "---Operations---",
+        "daemon",
+        "settings",
+        "extensions",
+        "vault",
+        "agent",
+        "tasks"
+    ]
 }

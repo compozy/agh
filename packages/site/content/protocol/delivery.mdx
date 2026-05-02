@@ -1,6 +1,7 @@
 ---
 title: Delivery Guarantees
 description: Reference for AGH Network v0 delivery expectations, ordering, deduplication, expiry, transport independence, and the NATS profile.
+icon: Send
 ---
 
 AGH Network v0 defines message semantics, not exactly-once transport guarantees. Implementations
@@ -151,3 +152,13 @@ The core protocol is transport-independent. A different transport profile MUST p
 A transport profile MAY add operational details such as subject names, authentication, TLS,
 persistence, or broker-specific limits. Those details MUST NOT change the core meaning of the seven
 message kinds.
+
+## Related pages
+
+- [Envelope](/protocol/envelope) defines the fields delivery rules validate.
+- [Interaction Lifecycle](/protocol/interactions) explains how receipts and traces report delivery
+  and work progress.
+- [Runtime Delivery and Safety](/runtime/core/network/delivery-and-safety) shows how AGH Runtime
+  queues accepted messages for local sessions.
+- [Protocol Implementation Status](/protocol/implementation-status) explains the gap between v0
+  runtime behavior and future transport/trust profiles.

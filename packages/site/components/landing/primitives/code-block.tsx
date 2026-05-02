@@ -46,8 +46,7 @@ export function CodeBlock({
       await navigator.clipboard.writeText(code);
       setCopyState("copied");
       scheduleReset();
-    } catch (error) {
-      void error;
+    } catch {
       setCopyState("failed");
       scheduleReset();
     }
@@ -86,11 +85,11 @@ export function CodeBlock({
               )}
             >
               {copyState === "copied" ? (
-                <Check className="size-3" />
+                <Check aria-hidden className="size-3" />
               ) : copyState === "failed" ? (
-                <AlertTriangle className="size-3" />
+                <AlertTriangle aria-hidden className="size-3" />
               ) : (
-                <Copy className="size-3" />
+                <Copy aria-hidden className="size-3" />
               )}
             </Button>
           ) : null}

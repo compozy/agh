@@ -20,6 +20,7 @@ export default async function Page(props: PageProps) {
 
   return (
     <DocsPage
+      id="main-content"
       toc={page.data.toc}
       breadcrumb={{ enabled: true }}
       className="px-4 pt-8 pb-12 md:px-6 xl:layout:[--fd-toc-width:14rem] xl:pt-10"

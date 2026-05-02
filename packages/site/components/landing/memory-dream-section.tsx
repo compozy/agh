@@ -60,7 +60,7 @@ export function MemoryDreamSection() {
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-(--color-accent) transition-colors hover:text-(--color-accent-hover)"
             >
               Read the memory and dream guide
-              <ArrowUpRight className="h-4 w-4" />
+              <ArrowUpRight aria-hidden className="h-4 w-4" />
             </Link>
           </div>
           <div className="mt-12 hidden lg:block">

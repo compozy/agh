@@ -1,16 +1,21 @@
 {
     "pages": [
         "overview",
+        "implementation-status",
+        "---Wire Format---",
         "envelope",
         "message-kinds",
         "interactions",
         "peer-discovery",
         "capability-discovery",
+        "---Transport---",
         "delivery",
-        "examples",
+        "nats",
+        "---Trust---",
         "ed25519-jcs",
         "verification",
-        "nats",
+        "---Build---",
+        "examples",
         "conformance",
         "guide"
     ]

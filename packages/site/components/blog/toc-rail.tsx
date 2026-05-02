@@ -17,6 +17,7 @@ export function TocRail({ items }: TocRailProps) {
 
   useEffect(() => {
     if (items.length === 0) return;
+    if (typeof IntersectionObserver === "undefined") return;
     const ids = items.map(item => item.url.replace(/^#/, ""));
     const observer = new IntersectionObserver(
       entries => {
@@ -39,7 +40,7 @@ export function TocRail({ items }: TocRailProps) {
   if (items.length === 0) return null;
 
   return (
-    <aside className="sticky top-20 self-start">
+    <aside aria-label="Blog table of contents" className="sticky top-20 self-start">
       <MonoEyebrow tracking="wide">On this page</MonoEyebrow>
       <ul className="mt-4 flex flex-col gap-2.5">
         {items.map(item => {
@@ -49,6 +50,7 @@ export function TocRail({ items }: TocRailProps) {
             <li key={item.url}>
               <Link
                 href={item.url}
+                aria-current={isActive ? "location" : undefined}
                 className={cn(
                   "block text-[13px] leading-[1.4] transition-colors",
                   isActive

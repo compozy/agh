@@ -13,7 +13,7 @@ const FEATURES = [
     title: "Typed dispatch on every state transition",
     description:
       "Not an event bus. ~24 typed lifecycle hooks fire at the call site that owns the transition — session, prompt, tool, permission, autonomy. Hooks can deny or narrow, never bypass.",
-    cite: { href: "/runtime", label: "hooks catalog" },
+    cite: { href: "/runtime/core/hooks", label: "hooks catalog" },
   },
   {
     icon: <Sparkles className="h-4 w-4" />,
@@ -21,7 +21,7 @@ const FEATURES = [
     title: "Drop-in SKILL.md bundles",
     description:
       "Share reusable instruction sets with YAML frontmatter and Markdown body. Bundled defaults + global + workspace scopes.",
-    cite: { href: "/runtime", label: "skills guide" },
+    cite: { href: "/runtime/core/skills", label: "skills guide" },
   },
   {
     icon: <Timer className="h-4 w-4" />,
@@ -29,7 +29,7 @@ const FEATURES = [
     title: "Cron + webhook + event triggers",
     description:
       "Durable jobs and triggers stored in SQLite. Schedule work. Delegate to peers. Track runs.",
-    cite: { href: "/runtime", label: "automation" },
+    cite: { href: "/runtime/core/automation", label: "automation" },
   },
   {
     icon: <Box className="h-4 w-4" />,
@@ -37,7 +37,7 @@ const FEATURES = [
     title: "Run agents away from the host filesystem",
     description:
       "Stay local when isolation isn't needed, or bind a workspace to a Daytona sandbox with explicit sync, lifecycle, and provider metadata.",
-    cite: { href: "/runtime", label: "sandbox profiles" },
+    cite: { href: "/runtime/core/sandbox/profiles", label: "sandbox profiles" },
   },
   {
     icon: <Plug className="h-4 w-4" />,
@@ -72,7 +72,7 @@ export function ExtensibilitySection() {
         ))}
         <article className="group relative flex min-h-[220px] flex-col items-start justify-center gap-4 rounded-(--radius-diagram) border border-dashed border-(--color-divider) bg-transparent p-6 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_55%,var(--color-divider))] hover:bg-[color-mix(in_srgb,var(--color-accent)_4%,transparent)]">
           <span className="flex h-12 w-12 items-center justify-center rounded-[12px] border border-dashed border-(--color-divider) text-(--color-text-secondary) transition-colors group-hover:border-(--color-accent) group-hover:text-(--color-accent)">
-            <BookOpen className="h-5 w-5" />
+            <BookOpen aria-hidden className="h-5 w-5" />
           </span>
           <p className="font-mono text-[10px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
             Reference
@@ -88,7 +88,10 @@ export function ExtensibilitySection() {
             className="mt-1 inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent) before:absolute before:inset-0 before:rounded-(--radius-diagram) before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)"
           >
             Read extensions docs
-            <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            <ArrowUpRight
+              aria-hidden
+              className="h-3.5 w-3.5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+            />
           </Link>
         </article>
       </div>

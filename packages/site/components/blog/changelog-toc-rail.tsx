@@ -1,7 +1,6 @@
 import type { Release } from "#site/content";
 import { cn } from "@agh/ui";
 import Link from "next/link";
-import { siteConfig } from "@/lib/site-config";
 import { MonoEyebrow } from "./mono-eyebrow";
 
 export interface ChangelogTocRailProps {
@@ -10,9 +9,8 @@ export interface ChangelogTocRailProps {
 }
 
 export function ChangelogTocRail({ releases, activeVersion }: ChangelogTocRailProps) {
-  const docsUrl = `${siteConfig.url}/runtime`;
   return (
-    <aside className="sticky top-20 flex flex-col gap-9 self-start">
+    <aside aria-label="Changelog versions" className="sticky top-20 flex flex-col gap-9 self-start">
       <div>
         <MonoEyebrow tracking="wide">All versions</MonoEyebrow>
         <ul className="mt-4 flex flex-col gap-2.5">
@@ -22,6 +20,7 @@ export function ChangelogTocRail({ releases, activeVersion }: ChangelogTocRailPr
               <li key={release.version}>
                 <Link
                   href={`#${release.version}`}
+                  aria-current={isActive ? "location" : undefined}
                   className={cn(
                     "block font-mono text-[13px] tracking-[0.02em]",
                     isActive
@@ -44,7 +43,7 @@ export function ChangelogTocRail({ releases, activeVersion }: ChangelogTocRailPr
           One binary, one daemon. Pull the latest from Go and restart the process.
         </p>
         <Link
-          href={docsUrl}
+          href="/runtime/core/getting-started/installation"
           className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-(--color-accent)"
         >
           Install instructions →

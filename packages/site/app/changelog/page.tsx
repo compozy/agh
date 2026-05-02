@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Rss } from "lucide-react";
+import { ArrowUpRight, Rss } from "lucide-react";
 import { ChangelogTocRail } from "@/components/blog/changelog-toc-rail";
 import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
 import { ReleaseEntry } from "@/components/blog/release-entry";
@@ -30,8 +30,8 @@ export default function ChangelogPage() {
             Every alpha, on the wire.
           </h1>
           <p className="mt-5 max-w-[58ch] text-lg leading-[1.6] text-(--color-text-secondary)">
-            We ship in the open and log every change here. New behavior, breaking moves, and
-            engineering notes — sourced from the same git history that ships the binary.
+            AGH ships in the open and logs every change here. New behavior, breaking moves, and
+            engineering notes are sourced from the same git history that ships the binary.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
@@ -57,9 +57,39 @@ export default function ChangelogPage() {
         <div className="mx-auto grid max-w-(--site-layout-width) gap-12 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div>
             {releases.length === 0 ? (
-              <p className="mt-12 rounded-xl border border-(--color-divider) bg-(--color-surface) p-6 text-sm text-(--color-text-secondary)">
-                Releases appear here as they ship.
-              </p>
+              <section className="mt-12 rounded-xl border border-(--color-divider) bg-(--color-surface) p-6">
+                <MonoEyebrow tone="accent">Release notes pending</MonoEyebrow>
+                <h2 className="mt-4 max-w-[24ch] font-sans text-[clamp(1.55rem,3vw,2rem)] font-semibold leading-[1.1] tracking-[-0.025em] text-(--color-text-primary)">
+                  Follow the alpha while the first changelog entries are prepared.
+                </h2>
+                <p className="mt-4 max-w-[62ch] text-sm leading-[1.7] text-(--color-text-secondary)">
+                  Published entries will appear here once tagged release notes land in the content
+                  layer. Until then, use the install guide for the current runtime path, read the
+                  launch post for product context, or watch GitHub releases for tagged artifacts.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link
+                    href="/runtime/core/getting-started/installation"
+                    className="inline-flex h-9 items-center justify-center rounded-lg border border-(--color-divider) px-3.5 font-sans text-sm font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-hover)"
+                  >
+                    Install the runtime
+                  </Link>
+                  <Link
+                    href="/blog/introducing-agh-the-first-agent-network-protocol"
+                    className="inline-flex h-9 items-center justify-center rounded-lg border border-(--color-divider) px-3.5 font-sans text-sm font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-hover)"
+                  >
+                    Read the launch post
+                  </Link>
+                  <Link
+                    href={githubReleases}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-(--color-divider) px-3.5 font-sans text-sm font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-hover)"
+                  >
+                    Watch GitHub releases <ArrowUpRight size={13} aria-hidden />
+                  </Link>
+                </div>
+              </section>
             ) : (
               releases.map(release => <ReleaseEntry key={release.version} release={release} />)
             )}

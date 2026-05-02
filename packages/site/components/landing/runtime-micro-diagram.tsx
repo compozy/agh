@@ -28,7 +28,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
       )}
       aria-hidden="true"
     >
-      <svg viewBox="0 0 240 320" className="h-full w-full">
+      <svg aria-hidden="true" focusable="false" viewBox="0 0 240 320" className="h-full w-full">
         {/* Daemon box */}
         <rect
           x={20}

@@ -11,7 +11,29 @@ function loadMermaid() {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: "strict",
-          theme: "dark",
+          theme: "base",
+          themeVariables: {
+            background: "#0E0E0F",
+            primaryColor: "#1E1C1B",
+            primaryBorderColor: "#E8572A",
+            primaryTextColor: "#E5E5E7",
+            secondaryColor: "#2E2C2B",
+            tertiaryColor: "#17110F",
+            lineColor: "#8E8E93",
+            textColor: "#E5E5E7",
+            mainBkg: "#1E1C1B",
+            nodeBorder: "#E8572A",
+            clusterBkg: "#17110F",
+            clusterBorder: "#3C3A39",
+            edgeLabelBackground: "#17110F",
+            actorBkg: "#1E1C1B",
+            actorBorder: "#E8572A",
+            actorTextColor: "#E5E5E7",
+            noteBkgColor: "#1E1C1B",
+            noteBorderColor: "#3C3A39",
+            noteTextColor: "#8E8E93",
+            fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+          },
         });
         return mermaid;
       })
@@ -40,7 +62,7 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
       .then(async mermaid => {
         const rendered = await mermaid.render(diagramId, chart);
         if (!active) return;
-        setSVG(rendered.svg);
+        setSVG(rendered.svg.replace("<svg ", '<svg class="agh-mermaid-svg" data-theme="agh" '));
       })
       .catch(err => {
         if (!active) return;
@@ -56,8 +78,9 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
     <figure className="not-prose my-6 overflow-x-auto rounded-lg border border-(--color-divider) bg-(--color-surface) p-4">
       {svg ? (
         <div
-          aria-label="Mermaid diagram"
-          className="[&_svg]:h-auto [&_svg]:max-w-full"
+          aria-label={caption ? `Diagram: ${caption}` : "Mermaid diagram"}
+          className="agh-mermaid [&_svg]:h-auto [&_svg]:max-w-full"
+          role="img"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       ) : error ? (
@@ -68,7 +91,7 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
           <p className="mt-2 text-sm leading-6 text-(--color-text-secondary)">
             Mermaid could not render this diagram in the current browser session.
           </p>
-          <pre className="mt-4 overflow-x-auto rounded-md border border-(--color-divider) bg-[rgba(255,255,255,0.03)] p-3 text-xs leading-6 text-(--color-text-secondary)">
+          <pre className="mt-4 overflow-x-auto rounded-md border border-(--color-divider) bg-(--color-canvas-deep) p-3 text-xs leading-6 text-(--color-text-secondary)">
             <code>{chart}</code>
           </pre>
           <p className="mt-3 text-sm leading-6 text-(--color-text-tertiary)">{error}</p>

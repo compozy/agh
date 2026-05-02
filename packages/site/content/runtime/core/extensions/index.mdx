@@ -7,11 +7,20 @@ An extension is one installable unit that ships runtime capabilities behind a si
 operator installs, enables, and removes the bundle as a whole; AGH wires the contained resources
 into the runtime registry only while the extension is enabled.
 
+Use extensions when a capability should travel between machines or teams with one install command.
+If the work is only a local instruction set, a skill may be enough. If it includes multiple resources,
+provider-specific bridge code, or a daemon-facing Host API service, an extension gives that package a
+manifest, trust tier, enablement state, and operational lifecycle.
+
 <OperatorNote>
   Resource-only extensions ship files AGH already loads (skills, agents, hooks, MCP servers).
   Subprocess extensions also run code over JSON-RPC and call the daemon through the Host API after
   capability checks. The trust tier of the source determines which extensions are even eligible.
 </OperatorNote>
+
+The install page is for operators who need to add, enable, disable, inspect, update, or remove an
+extension. The develop page is for authors who need the manifest shape, resource layout, subprocess
+lifecycle, and permission model before packaging an extension for a registry.
 
 <figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
   <img

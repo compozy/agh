@@ -31,6 +31,7 @@ function SandboxDiagram() {
     <div
       className="relative min-h-[360px] overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface) p-5"
       aria-label="AGH sandbox lifecycle diagram"
+      role="img"
     >
       <div className="absolute inset-x-5 top-5 h-px bg-(--color-divider)" />
       <div className="grid h-full min-h-[320px] grid-rows-[auto_1fr_auto] gap-5">

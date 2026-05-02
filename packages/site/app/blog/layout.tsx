@@ -12,7 +12,9 @@ export default function BlogLayout({ children }: { children: ReactNode }) {
         header: HomeHeader,
       }}
     >
-      <div className="site-home min-h-full bg-(--color-canvas)">{children}</div>
+      <main id="main-content" className="site-home min-h-full bg-(--color-canvas)">
+        {children}
+      </main>
     </HomeLayout>
   );
 }

@@ -1,6 +1,7 @@
 ---
 title: Envelope Specification
 description: Reference for the AGH Network v0 JSON envelope, field requirements, validation order, schema, and annotated examples.
+icon: FileText
 ---
 
 Every AGH Network message is a UTF-8 JSON object called an envelope. The envelope carries routing,
@@ -201,3 +202,13 @@ Senders SHOULD set `expires_at` on messages that become unsafe or misleading aft
 Receivers MUST reject messages whose `expires_at` has passed. When `expires_at` is absent, receivers
 SHOULD enforce a bounded replay-age policy. The AGH reference implementation defaults that policy to
 300 seconds.
+
+## Related pages
+
+- [Message Kinds](/protocol/message-kinds) describes the body contract selected by `kind`.
+- [Delivery](/protocol/delivery) explains how `id`, `expires_at`, and route tokens affect receiver
+  behavior.
+- [Signature Verification](/protocol/verification) covers proof handling for implementers of trust
+  profiles.
+- [Minimal Sender](/protocol/guide/minimal-sender) turns this envelope shape into a small working
+  sender.

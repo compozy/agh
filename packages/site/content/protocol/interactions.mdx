@@ -1,6 +1,7 @@
 ---
 title: Interaction Lifecycle
 description: Reference for AGH Network v0 request-response, fire-and-forget, progress streaming, lifecycle states, and timeout semantics.
+icon: Workflow
 ---
 
 An interaction is a correlated unit of directed work. It is scoped by `channel` and
@@ -64,7 +65,7 @@ accepts or rejects responsibility.
 caption="A request-response interaction uses direct, receipt, and trace messages."
 />
 
-### Rules
+### Directed work rules
 
 - The first directed `direct` or directed `capability` message establishes the initiator and target.
 - Only the initiator and target MAY emit lifecycle messages for that interaction.
@@ -89,7 +90,7 @@ Use `say` when a channel-visible message does not need lifecycle state.
 caption="A say message is broadcast and does not create an interaction."
 />
 
-### Rules
+### Broadcast rules
 
 - `say` MUST NOT require a response.
 - `say` MUST NOT create an interaction lifecycle by itself.
@@ -116,7 +117,7 @@ updates the same `interaction_id`.
 caption="Multiple trace messages can report progress and request input before completion."
 />
 
-### Rules
+### Progress rules
 
 - `trace(working)` SHOULD mean work is active.
 - `trace(needs_input)` SHOULD include a `message` that explains the missing input.
@@ -161,3 +162,11 @@ as the lifecycle key. The same interaction ID in another channel is a different 
 
 The first valid directed work message fixes the participants. A message from a non-participant MUST
 NOT change the lifecycle state.
+
+## Related pages
+
+- [Message Kinds](/protocol/message-kinds) defines the `direct`, `receipt`, and `trace` body shapes.
+- [Delivery](/protocol/delivery) explains deduplication, freshness, and delivery outcomes.
+- [Examples](/protocol/examples) shows complete envelope flows using these lifecycle rules.
+- [Task Ingress](/runtime/core/network/task-ingress) shows how AGH Runtime maps authenticated
+  network work into task-domain writes.

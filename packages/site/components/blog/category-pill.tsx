@@ -9,9 +9,13 @@ export interface CategoryPillProps {
 }
 
 export function CategoryPill({ label, count, href, active = false }: CategoryPillProps) {
+  const accessibleLabel = count === undefined ? label : `${label} (${count})`;
+
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
+      aria-label={accessibleLabel}
       className={cn(
         "inline-flex h-8 items-center gap-2 rounded-full border px-3.5 font-sans text-[13px] font-medium transition-colors",
         active

@@ -114,3 +114,14 @@ Use `trace` when a peer needs progress state:
 
 These are protocol signals. They should not be replaced by `direct` messages with ad hoc
 `intent:"receipt"` or `intent:"trace"` bodies.
+
+## Related pages
+
+- [Channels and Peers](/runtime/core/network/channels-and-peers) explains how AGH knows which
+  peers and sessions are visible on a channel.
+- [Task Ingress](/runtime/core/network/task-ingress) covers the stricter write path for
+  network-originated task mutations.
+- [Message Kinds](/protocol/message-kinds) defines the receipt and trace envelopes used for
+  lifecycle signaling.
+- [Coordinate Agents over AGH Network](/runtime/guides/coordinate-agents-over-network) gives an
+  operator flow for sending and inspecting network messages.

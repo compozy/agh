@@ -58,7 +58,7 @@ export function DocsHeader(props: ComponentProps<"header">) {
                 "-ms-1.5 text-fd-muted-foreground data-[collapsed=false]:hidden max-md:hidden"
               )}
             >
-              <SidebarIcon />
+              <SidebarIcon aria-hidden />
             </sidebarSlots.collapseTrigger>
           )}
           {slots.navTitle && (
@@ -118,7 +118,7 @@ export function DocsHeader(props: ComponentProps<"header">) {
                   })
                 )}
               >
-                <SidebarIcon />
+                <SidebarIcon aria-hidden />
               </sidebarSlots.trigger>
             )}
           </div>
@@ -132,7 +132,7 @@ export function DocsHeader(props: ComponentProps<"header">) {
                   "text-fd-muted-foreground rounded-full -me-1.5"
                 )}
               >
-                <SidebarIcon />
+                <SidebarIcon aria-hidden />
               </sidebarSlots.collapseTrigger>
             )}
           </div>

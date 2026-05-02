@@ -7,11 +7,21 @@ This section is for keeping AGH running. It covers daemon supervision, database 
 diagnostic flow when something misbehaves, and the production readiness checklist before AGH runs
 unattended in a real environment.
 
+Use it after the happy path works. Getting started pages show how to launch the daemon; operations
+pages show how to prove it is healthy, where state lives, what to back up, and which checks matter
+before a long-running agent workflow depends on AGH. Most operators should read the daemon page once,
+then keep troubleshooting and production readiness nearby for incidents and release preparation.
+
 <OperatorNote>
   Start with `agh daemon status`, `agh observe health`, and the `$AGH_HOME/logs/agh.log` file for
   any operational issue. Most failures resolve from those three signals before anything deeper is
   needed.
 </OperatorNote>
+
+The database page is intentionally separate from the daemon page because AGH has two persistence
+layers: the global catalog and per-session event stores. When a session looks wrong in the UI or CLI,
+check daemon health first, then inspect the relevant database path with the backup and recovery rules
+from this section.
 
 <figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
   <img

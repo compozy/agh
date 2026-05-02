@@ -1,6 +1,7 @@
 ---
 title: Protocol Overview
 description: Understand what AGH Network is, why it exists, how it differs from AGH Runtime, and where it fits in the agent protocol landscape.
+icon: Compass
 ---
 
 AGH Network is the open coordination boundary for agents that need to work with other agents. It
@@ -37,7 +38,7 @@ AGH Runtime and AGH Network solve different problems.
 
 | Layer       | Responsibility                                                                                                                                                                         | Example                                                                                                                   |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| AGH Runtime | Runs local agent sessions, stores events, exposes CLI/API/UI surfaces, manages workspace state, and bridges messages into prompts.                                                     | A local daemon starts a Codex or Claude session and records its events in SQLite.                                         |
+| AGH Runtime | Runs local agent sessions, stores events, exposes CLI/API/UI surfaces, manages workspace state, and bridges messages into prompts.                                                     | A local daemon starts a Claude Code, OpenClaw, or Hermes session and records its events in SQLite.                        |
 | AGH Network | The open agent network protocol — defines the envelope, message kinds, peer discovery, interaction lifecycle, delivery expectations, and transport profile that any runtime can speak. | A `direct` message opens a correlated interaction with another peer, then `receipt` and `trace` messages report progress. |
 
 AGH Runtime is the reference implementation of the protocol. It is not a prerequisite for speaking

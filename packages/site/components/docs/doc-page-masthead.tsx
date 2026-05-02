@@ -68,7 +68,7 @@ export function DocPageMasthead({ kind, slug, title, description }: DocPageMasth
         <span>{meta.section}</span>
       </div>
 
-      <h1 className="mt-5 max-w-[12ch] text-[clamp(2.55rem,4.7vw,4rem)] leading-[0.94] font-semibold tracking-[-0.05em] text-(--color-text-primary)">
+      <h1 className="mt-5 max-w-[12ch] font-display text-[clamp(2.55rem,4.7vw,4rem)] leading-[0.98] font-normal tracking-[-0.025em] text-(--color-text-primary)">
         {title}
       </h1>
 

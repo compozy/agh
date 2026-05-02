@@ -1,0 +1,136 @@
+---
+title: Coordinate Agents over AGH Network
+description: Turn durable AGH sessions into peers, inspect channels, send a network envelope, and follow receipts and traces.
+---
+
+This guide shows the operator path for agent-to-agent coordination from inside AGH Runtime. It is
+not the protocol reference. Use it when you want sessions to find peers, send work, and leave
+evidence through the daemon-owned network runtime.
+
+<OperatorNote label="Protocol boundary">
+  AGH Runtime is the reference implementation. AGH Network is the open protocol. This guide uses the
+  runtime CLI to operate the implementation; the protocol docs define the wire contract other
+  runtimes can speak.
+</OperatorNote>
+
+## What you will have at the end
+
+You will know how to:
+
+- check whether the network runtime is active
+- list channels and peers visible to the daemon
+- send one envelope through AGH Runtime
+- inspect queued inbound messages for a session
+- route from runtime commands into the protocol reference
+
+## 1. Check network status
+
+```bash
+agh network status -o json
+```
+
+What happened: the CLI asked the daemon-owned network runtime for its current channel, peer, and
+queue state. If the daemon is not running, start there:
+
+```bash
+agh daemon status
+agh daemon start
+```
+
+## 2. Inspect channels
+
+```bash
+agh network channels -o json
+```
+
+Channels scope discovery, routing, and interactions. Use them to keep coordination tied to a
+specific workspace, task, or operator intent instead of broadcasting everything globally.
+
+## 3. Inspect visible peers
+
+List peers across the runtime:
+
+```bash
+agh network peers -o json
+```
+
+List peers in one channel:
+
+```bash
+agh network peers release-readiness -o json
+```
+
+What happened: AGH returned local and remote peer records known to the daemon. A peer card is a
+claim about profiles and capabilities; it is not proof that the peer is trustworthy.
+
+## 4. Send one envelope
+
+For direct runtime operation, use the network CLI:
+
+```bash
+agh network send \
+  --session sess_1234 \
+  --channel release-readiness \
+  --to reviewer-agent \
+  --kind direct \
+  --body '{"task":"Review the release checklist and report blockers."}'
+```
+
+What happened: AGH wrapped the request in a network envelope, routed it through the daemon-owned
+network runtime, and made the interaction observable through runtime state.
+
+Open the protocol pages when you need the exact wire contract:
+
+- [Envelope Specification](/protocol/envelope)
+- [Message Kinds](/protocol/message-kinds)
+- [Interaction Lifecycle](/protocol/interactions)
+
+## 5. Inspect inbound messages for a session
+
+```bash
+agh network inbox --session sess_1234 -o json
+```
+
+What happened: AGH returned queued inbound network messages for one managed session. Use this when
+you need to verify whether delivery reached the runtime before investigating the agent prompt path.
+
+## Operator checkpoints
+
+| Checkpoint                   | Evidence                                   |
+| ---------------------------- | ------------------------------------------ |
+| Daemon is reachable          | `agh daemon status -o json`                |
+| Network runtime is active    | `agh network status -o json`               |
+| Channel exists or is visible | `agh network channels -o json`             |
+| Peer is discoverable         | `agh network peers <channel> -o json`      |
+| Message reached the runtime  | `agh network inbox --session <id> -o json` |
+| Session acted on the message | `agh session events <session-id>`          |
+
+## Common failures
+
+| Symptom                                          | Likely cause                                                                   | First command                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| No peers appear                                  | The session has not joined the expected channel or the remote peer is offline. | `agh network peers -o json`                             |
+| Message is sent but no session responds          | The peer is visible but no managed session consumed the inbound queue.         | `agh network inbox --session <id> -o json`              |
+| Interaction has no progress                      | The receiver has not emitted `receipt` or `trace` updates.                     | `agh session events <session-id>`                       |
+| Protocol example does not match runtime behavior | You may be reading wire reference instead of runtime CLI behavior.             | [Network CLI Reference](/runtime/cli-reference/network) |
+
+## When to use protocol docs instead
+
+Use runtime docs when you operate AGH itself. Use protocol docs when you implement or test another
+runtime that needs to speak `agh-network/v0`.
+
+Recommended protocol path:
+
+1. [Protocol Overview](/protocol/overview)
+2. [Minimal Sender](/protocol/guide/minimal-sender)
+3. [NATS Transport](/protocol/guide/nats-transport)
+4. [Conformance Levels](/protocol/conformance)
+
+## Next steps
+
+- Use [Capability Discovery](/protocol/capability-discovery) when peers need to advertise reusable
+  capabilities.
+- Use [Delivery and Safety](/runtime/core/network/delivery-and-safety) when inbound network content
+  needs to become session work safely.
+- Use [Task Ingress](/runtime/core/network/task-ingress) when authenticated peers should create or
+  advance task work.

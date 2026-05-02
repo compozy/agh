@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Rss } from "lucide-react";
 import { CategoryPill } from "@/components/blog/category-pill";
 import { ChangelogRail } from "@/components/blog/changelog-rail";
+import { BlogEmptyState } from "@/components/blog/empty-state";
 import { FeaturedPost } from "@/components/blog/featured-post";
 import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
 import { PostCard } from "@/components/blog/post-card";
@@ -92,9 +93,13 @@ export default function BlogIndexPage() {
                 <PostCard key={post.slug} post={post} />
               ))}
               {grid.length === 0 && (
-                <p className="rounded-xl border border-(--color-divider) bg-(--color-surface) p-6 text-sm text-(--color-text-secondary)">
-                  More notes are on the way. Subscribe via RSS to catch the next one.
-                </p>
+                <BlogEmptyState
+                  eyebrow="Archive pending"
+                  title="More field notes are being prepared."
+                  description="The featured post is the full archive for now. Use the RSS feed to catch the next runtime note, protocol note, or release receipt as soon as it is published."
+                  primaryAction={{ href: "/blog/feed.xml", label: "Subscribe via RSS" }}
+                  secondaryAction={{ href: "/changelog", label: "Open the changelog" }}
+                />
               )}
             </div>
             <div className="flex flex-col gap-5">

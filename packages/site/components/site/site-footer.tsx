@@ -73,7 +73,7 @@ export function SiteFooter() {
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)/50"
               )}
             >
-              <GithubLogo className="h-4 w-4" />
+              <GithubLogo aria-hidden className="h-4 w-4" />
             </a>
           </div>
 

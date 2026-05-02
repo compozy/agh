@@ -11,7 +11,7 @@ type Approach = {
   coordination: string;
   deployment: string;
   agents: string;
-  /** Whether this approach ships a cross-runtime protocol today. */
+  /** Whether this approach exposes an implemented cross-runtime protocol. */
   crossRuntime: boolean;
   highlight?: boolean;
 };
@@ -48,7 +48,7 @@ const APPROACHES: Approach[] = [
     approach: "AGH",
     focus: "Run + connect real agent CLIs",
     agentModel: "Your existing ACP agents",
-    coordination: "agh-network/v0 — shipped",
+    coordination: "agh-network/v0 — implemented",
     deployment: "Local-first, single binary",
     agents: `${PROVIDERS.length} ACP drivers`,
     crossRuntime: true,
@@ -59,7 +59,7 @@ const APPROACHES: Approach[] = [
 const DIMENSIONS = [
   { key: "focus" as const, label: "Primary focus" },
   { key: "agentModel" as const, label: "Agent model" },
-  { key: "agents" as const, label: "Agents today" },
+  { key: "agents" as const, label: "Agent support" },
   { key: "coordination" as const, label: "Coordination" },
   { key: "deployment" as const, label: "Deployment" },
 ];
@@ -71,7 +71,7 @@ export function Comparison() {
         align="start"
         eyebrow="Positioning"
         title="Other tools stop at the runtime boundary."
-        description="AGH is the only approach with a shipped cross-runtime protocol. The rest centralize coordination or skip it entirely."
+        description="AGH is the only approach here with an implemented cross-runtime protocol. The rest centralize coordination or skip it entirely."
       />
 
       <div className="mt-10 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-surface)">

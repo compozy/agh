@@ -147,15 +147,16 @@ the prompt. A useful index entry is short and points to one file:
 
 Index behavior:
 
-| Behavior            | Current implementation                                                                                   |
-| ------------------- | -------------------------------------------------------------------------------------------------------- |
-| Missing `MEMORY.md` | Treated as empty; no memory section is injected for that scope.                                          |
-| Prompt limits       | Loaded indexes are capped at 200 lines and 25 KB before injection.                                       |
-| Write behavior      | `agh memory write` validates and writes the memory file. It does not automatically add a new index line. |
-| Delete behavior     | Deleting a memory file also removes index lines that link to that filename.                              |
-| Full file content   | Not injected. Agents read full files on demand with `agh memory read <filename>`.                        |
+| Behavior            | Current implementation                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Missing `MEMORY.md` | AGH synthesizes an index from memory-file frontmatter for that scope and can warn when an existing index is stale.            |
+| Prompt limits       | Loaded indexes are capped at 200 lines and 25 KB before injection.                                                            |
+| Write behavior      | `agh memory write` validates the memory file, writes it, and synchronizes the scope index so new entries become discoverable. |
+| Delete behavior     | Deleting a memory file also removes index lines that link to that filename.                                                   |
+| Full file content   | Not injected. Agents read full files on demand with `agh memory read <filename>`.                                             |
 
-Dream consolidation is the normal way to tighten memory files and rebuild indexes over time.
+Dream consolidation is the normal way to tighten memory files over time. Manual writes and deletes
+still keep the index synchronized so the next session can discover changed memories.
 
 ## Operator Visibility
 

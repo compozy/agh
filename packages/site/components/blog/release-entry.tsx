@@ -1,8 +1,7 @@
 import type { Release } from "#site/content";
 import { ArrowUpRight } from "lucide-react";
-import { formatDate } from "./format";
+import { DateStamp } from "./date-stamp";
 import { MonoBadge, type MonoBadgeTone } from "./mono-badge";
-import { MonoEyebrow } from "./mono-eyebrow";
 
 export interface ReleaseEntryProps {
   release: Release;
@@ -40,7 +39,7 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
       className="grid scroll-mt-24 gap-8 border-t border-(--color-divider) py-12 lg:grid-cols-[160px_minmax(0,1fr)] lg:gap-12"
     >
       <div className="flex flex-col gap-3 lg:sticky lg:top-24 lg:self-start">
-        <MonoEyebrow tracking="wide">{formatDate(release.date)}</MonoEyebrow>
+        <DateStamp date={release.date} tracking="wide" />
         <div className="flex items-center gap-2">
           <MonoBadge tone={statusTone[release.status]}>{release.version}</MonoBadge>
           <MonoBadge tone="neutral">{release.status.toUpperCase()}</MonoBadge>
@@ -50,6 +49,7 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
             href={release.compareUrl}
             target="_blank"
             rel="noreferrer noopener"
+            aria-label={`Compare ${release.version} on GitHub`}
             className="inline-flex items-center gap-1.5 text-xs text-(--color-text-secondary) hover:text-(--color-text-primary)"
           >
             Compare on GitHub <ArrowUpRight size={12} aria-hidden />

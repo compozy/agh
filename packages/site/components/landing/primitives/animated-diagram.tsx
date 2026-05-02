@@ -58,7 +58,12 @@ export function AnimatedDiagram({
   }, [threshold, reducedMotion]);
 
   return (
-    <div ref={ref} className={cn("relative", className)} aria-label={ariaLabel}>
+    <div
+      ref={ref}
+      className={cn("relative", className)}
+      aria-label={ariaLabel}
+      role={ariaLabel ? "group" : undefined}
+    >
       {children({ active, reducedMotion })}
     </div>
   );

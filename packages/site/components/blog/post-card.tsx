@@ -1,8 +1,9 @@
 import type { Post } from "#site/content";
 import { Clock } from "lucide-react";
 import Link from "next/link";
+import { DateStamp } from "./date-stamp";
 import { BulletDivider } from "./divider";
-import { categoryLabel, formatDate, formatReadingTime } from "./format";
+import { categoryLabel, formatReadingTime } from "./format";
 import { MonoEyebrow } from "./mono-eyebrow";
 
 export interface PostCardProps {
@@ -15,7 +16,7 @@ export function PostCard({ post }: PostCardProps) {
       <div className="flex items-center gap-2.5">
         <MonoEyebrow tone="accent">{categoryLabel(post.category)}</MonoEyebrow>
         <BulletDivider />
-        <MonoEyebrow tone="neutral">{formatDate(post.date)}</MonoEyebrow>
+        <DateStamp date={post.date} />
       </div>
       <h3 className="mt-4 font-sans text-[20px] font-medium leading-[1.25] tracking-[-0.02em] text-(--color-text-primary) transition-colors group-hover:text-(--color-accent)">
         <Link href={post.permalink}>{post.title}</Link>

@@ -1,7 +1,8 @@
 import type { Post } from "#site/content";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { categoryLabel, formatDateCompact, formatReadingTime } from "./format";
+import { DateStamp } from "./date-stamp";
+import { categoryLabel, formatReadingTime } from "./format";
 
 export interface ArchiveRowProps {
   post: Post;
@@ -11,12 +12,10 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
   return (
     <Link
       href={post.permalink}
-      className="group grid grid-cols-[88px_minmax(0,1fr)_140px_70px_16px] items-start gap-6 border-b border-(--color-divider) py-5 transition-colors hover:bg-(--color-surface)"
+      className="group grid grid-cols-1 items-start gap-3 border-b border-(--color-divider) py-5 transition-colors hover:bg-(--color-surface) sm:grid-cols-[104px_minmax(0,1fr)] sm:gap-x-5 lg:grid-cols-[88px_minmax(0,1fr)_minmax(96px,140px)_70px_16px] lg:gap-6"
     >
-      <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-(--color-text-tertiary)">
-        {formatDateCompact(post.date)}
-      </span>
-      <div>
+      <DateStamp date={post.date} format="compact" className="sm:pt-1" />
+      <div className="min-w-0">
         <p className="font-sans text-[19px] font-medium leading-[1.3] tracking-[-0.02em] text-(--color-text-primary) group-hover:text-(--color-accent)">
           {post.title}
         </p>
@@ -39,16 +38,16 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
           </div>
         )}
       </div>
-      <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-(--color-text-label)">
+      <span className="min-w-0 truncate font-mono text-[11px] uppercase tracking-[0.06em] text-(--color-text-label) sm:col-start-2 lg:col-start-auto lg:pt-1">
         {post.author}
       </span>
-      <span className="font-mono text-[11px] tracking-[0.04em] text-(--color-text-tertiary)">
+      <span className="font-mono text-[11px] tracking-[0.04em] text-(--color-text-tertiary) sm:col-start-2 lg:col-start-auto lg:pt-1">
         {formatReadingTime(post.metadata.readingTime)}
       </span>
       <ArrowUpRight
         size={16}
         aria-hidden
-        className="self-center text-(--color-text-tertiary) group-hover:text-(--color-accent)"
+        className="hidden self-center text-(--color-text-tertiary) group-hover:text-(--color-accent) lg:block"
       />
     </Link>
   );

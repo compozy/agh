@@ -94,7 +94,7 @@ export function ArchitectureDiagram() {
                   refY="3"
                   orient="auto"
                 >
-                  <path d="M0,0 L8,3 L0,6" fill="#3A3A3C" />
+                  <path d="M0,0 L8,3 L0,6" fill="#3C3A39" />
                 </marker>
               </defs>
 
@@ -117,7 +117,7 @@ export function ArchitectureDiagram() {
                   { label: "Automations", x: 640 },
                 ].map(client => (
                   <g key={client.label}>
-                    <rect x={client.x - 60} y={36} width={120} height={36} rx={8} fill="#2C2C2E" />
+                    <rect x={client.x - 60} y={36} width={120} height={36} rx={8} fill="#2E2C2B" />
                     <text
                       x={client.x}
                       y={58}
@@ -141,7 +141,7 @@ export function ArchitectureDiagram() {
                   y1={72}
                   x2={x}
                   y2={108}
-                  stroke="#3A3A3C"
+                  stroke="#3C3A39"
                   strokeWidth={1}
                   markerEnd="url(#arrowhead)"
                 />
@@ -189,7 +189,7 @@ export function ArchitectureDiagram() {
                 height={240}
                 rx={12}
                 fill="none"
-                stroke="#3A3A3C"
+                stroke="#3C3A39"
                 strokeWidth={1}
               />
               <text
@@ -205,7 +205,7 @@ export function ArchitectureDiagram() {
               </text>
 
               {/* API Layer */}
-              <rect x={80} y={148} width={300} height={36} rx={8} fill="#2C2C2E" />
+              <rect x={80} y={148} width={300} height={36} rx={8} fill="#2E2C2B" />
               <text
                 x={230}
                 y={170}
@@ -218,7 +218,7 @@ export function ArchitectureDiagram() {
                 Operator Surfaces
               </text>
 
-              <rect x={420} y={148} width={300} height={36} rx={8} fill="#2C2C2E" />
+              <rect x={420} y={148} width={300} height={36} rx={8} fill="#2E2C2B" />
               <text
                 x={570}
                 y={170}
@@ -237,7 +237,7 @@ export function ArchitectureDiagram() {
                 y1={184}
                 x2={230}
                 y2={210}
-                stroke="#3A3A3C"
+                stroke="#3C3A39"
                 strokeWidth={1}
                 markerEnd="url(#arrowhead)"
               />
@@ -246,7 +246,7 @@ export function ArchitectureDiagram() {
                 y1={184}
                 x2={570}
                 y2={210}
-                stroke="#3A3A3C"
+                stroke="#3C3A39"
                 strokeWidth={1}
                 markerEnd="url(#arrowhead)"
               />
@@ -258,8 +258,8 @@ export function ArchitectureDiagram() {
                 width={640}
                 height={40}
                 rx={8}
-                fill="#1C1C1E"
-                stroke="#3A3A3C"
+                fill="#1E1C1B"
+                stroke="#3C3A39"
                 strokeWidth={1}
               />
               <text
@@ -288,11 +288,11 @@ export function ArchitectureDiagram() {
                     y1={252}
                     x2={mod.x}
                     y2={276}
-                    stroke="#3A3A3C"
+                    stroke="#3C3A39"
                     strokeWidth={1}
                     markerEnd="url(#arrowhead)"
                   />
-                  <rect x={mod.x - 56} y={278} width={112} height={32} rx={6} fill="#2C2C2E" />
+                  <rect x={mod.x - 56} y={278} width={112} height={32} rx={6} fill="#2E2C2B" />
                   <text
                     x={mod.x}
                     y={298}
@@ -326,7 +326,7 @@ export function ArchitectureDiagram() {
                 y1={350}
                 x2={400}
                 y2={362}
-                stroke="#3A3A3C"
+                stroke="#3C3A39"
                 strokeWidth={1}
                 markerEnd="url(#arrowhead)"
               />
@@ -367,11 +367,11 @@ export function ArchitectureDiagram() {
                     y1={424}
                     x2={peer.x}
                     y2={444}
-                    stroke="#3A3A3C"
+                    stroke="#3C3A39"
                     strokeWidth={1}
                     markerEnd="url(#arrowhead)"
                   />
-                  <rect x={peer.x - 48} y={446} width={96} height={28} rx={6} fill="#2C2C2E" />
+                  <rect x={peer.x - 48} y={446} width={96} height={28} rx={6} fill="#2E2C2B" />
                   <text
                     x={peer.x}
                     y={464}

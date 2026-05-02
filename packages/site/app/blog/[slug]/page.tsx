@@ -4,13 +4,21 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
 import { AuthorMeta } from "@/components/blog/author-meta";
 import { ContinueReading } from "@/components/blog/continue-reading";
+import { DateStamp } from "@/components/blog/date-stamp";
 import { BulletDivider } from "@/components/blog/divider";
-import { categoryLabel, formatDate, formatReadingTime } from "@/components/blog/format";
+import { categoryLabel, formatReadingTime } from "@/components/blog/format";
 import { MdxContent } from "@/components/blog/mdx-content";
 import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
 import { TocRail } from "@/components/blog/toc-rail";
 import { flattenToc } from "@/components/blog/toc-utils";
-import { allPosts, authorByHandle, authorInitial, postBySlug, relatedPosts } from "@/lib/blog";
+import {
+  allPosts,
+  authorByHandle,
+  authorInitial,
+  blogPostCover,
+  postBySlug,
+  relatedPosts,
+} from "@/lib/blog";
 import { createPageMetadata } from "@/lib/site-config";
 
 interface PageProps {
@@ -25,10 +33,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const post = postBySlug(slug);
   if (!post) return {};
+  const cover = blogPostCover(post);
   return createPageMetadata({
     title: post.title,
     description: post.description,
     path: post.permalink,
+    image: cover
+      ? {
+          url: cover.src,
+          alt: cover.alt,
+          width: cover.width,
+          height: cover.height,
+        }
+      : undefined,
   });
 }
 
@@ -59,7 +76,7 @@ export default async function BlogPostPage({ params }: PageProps) {
               <BulletDivider />
               <MonoEyebrow>{categoryLabel(post.category)}</MonoEyebrow>
               <BulletDivider />
-              <MonoEyebrow>{formatDate(post.date)}</MonoEyebrow>
+              <DateStamp date={post.date} />
               <BulletDivider />
               <span className="inline-flex items-center gap-1.5 text-[11px] text-(--color-text-tertiary)">
                 <Clock size={11} aria-hidden />

@@ -28,7 +28,7 @@ export function NetworkSection() {
             <span className="font-mono text-[0.85em] tracking-[-0.02em] text-(--color-accent)">
               agh-network/v0
             </span>{" "}
-            — shipping today.
+            — implemented in the alpha runtime.
           </>
         }
         description={
@@ -52,29 +52,29 @@ export function NetworkSection() {
 
       <div className="mt-12 grid gap-4 md:grid-cols-3">
         <FeatureCard
-          eyebrow="CLI today"
-          title="Real commands, not docs-ware"
+          eyebrow="CLI surface"
+          title="Implemented commands"
           description={
             <>
               <code className="font-mono text-(--color-text-primary)">
                 agh network status | peers | channels | send | inbox
               </code>{" "}
-              work in <code className="font-mono text-(--color-text-primary)">main</code> today.
+              are implemented runtime commands, not narrative-only examples.
             </>
           }
-          cite={{ href: "/runtime", label: "internal/cli/network.go" }}
+          cite={{ href: "/runtime/guides/coordinate-agents-over-network", label: "Network guide" }}
         />
         <FeatureCard
           eyebrow="Transport"
           title="NATS under the hood, JSON over the wire"
           description="Stand up a peer with a NATS URL, a shared key, and a channel name. No new infra to learn."
-          cite={{ href: "/protocol/overview", label: "envelope.go" }}
+          cite={{ href: "/protocol/overview", label: "Protocol overview" }}
         />
         <FeatureCard
           eyebrow="Auditable"
           title="Receipts are first-class"
           description="Every delegation returns a receipt with status and trace IDs. Every message is persisted to the audit log."
-          cite={{ href: "/protocol/overview", label: "audit log" }}
+          cite={{ href: "/protocol/delivery", label: "Delivery semantics" }}
         />
       </div>
 
@@ -83,14 +83,15 @@ export function NetworkSection() {
           <p>
             Every other agent tool stops at the single-runtime boundary. AGH Network is the open
             agent network protocol — so a coder on your laptop can hand work to a deployer on CI,
-            watch progress, and collect a signed receipt without either side changing stacks.
+            watch progress, and collect a receipt with trace IDs without either side changing
+            stacks.
           </p>
           <Link
             href="/protocol"
             className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-(--color-accent) transition-colors hover:text-(--color-accent-hover)"
           >
             Read the full agh-network/v0 spec
-            <ArrowUpRight className="h-4 w-4" />
+            <ArrowUpRight aria-hidden className="h-4 w-4" />
           </Link>
         </div>
         <CodeBlock code={NETWORK_CODE} caption="agh network" shell />

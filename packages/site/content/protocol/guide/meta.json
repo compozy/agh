@@ -1,4 +1,5 @@
 {
     "title": "Implementation Guide",
+    "icon": "Book",
     "pages": ["minimal-sender", "nats-transport", "trust-verification", "testing"]
 }

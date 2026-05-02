@@ -103,7 +103,7 @@ export function AutonomyKernelSection() {
           className="inline-flex items-center gap-1.5 text-sm font-medium text-(--color-accent) transition-colors hover:text-(--color-accent-hover)"
         >
           Read the autonomy kernel guide
-          <ArrowUpRight className="h-4 w-4" />
+          <ArrowUpRight aria-hidden className="h-4 w-4" />
         </Link>
       </div>
     </SectionFrame>

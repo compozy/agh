@@ -1,106 +1,51 @@
 ---
 title: API Reference
-description: Current HTTP and SSE surface map for the AGH daemon, including the route families that back the web UI, automation, and integrations.
+description: Per-tag HTTP and SSE reference for the AGH daemon, generated from the canonical OpenAPI contract on every site build.
 ---
 
-The AGH daemon already exposes a real `/api` surface. This page is the current route map for that
-surface while the full per-endpoint reference is being prepared.
+The AGH daemon ships a single HTTP surface under `/api`. This reference is built from
+`openapi/agh.json` at every site build, so each request and response schema below matches the
+binary you are running.
 
-Use the API when you are:
-
-- building automation around the local daemon
-- integrating another client with AGH Runtime
-- consuming live SSE streams
-- matching web UI behavior from your own scripts or tools
-
-<OperatorNote>
-  The CLI and the HTTP API operate the same daemon state. Use the CLI reference for end-to-end
-  workflows and this page when you need to understand the route families and streaming endpoints.
+<OperatorNote label="How this reference stays truthful">
+  Every endpoint page is generated from `openapi/agh.json`, which is rewritten by `make codegen`
+  from the Go HTTP contract. Drift is enforced by `make codegen-check` in CI, so what you read here
+  matches the daemon you build from this checkout.
 </OperatorNote>
 
-## Core Route Families
+The CLI and the HTTP API operate the same daemon state. Use the
+[CLI reference](/runtime/cli-reference) for end-to-end recipes; use the per-tag pages here when
+you need request bodies, response schemas, status codes, or SSE event shapes.
 
-| Area       | Base path                      | Use it for                                                                                              |
-| ---------- | ------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| Sessions   | `/api/sessions`                | Create, inspect, stop, resume, prompt, stream, and replay sessions.                                     |
-| Workspaces | `/api/workspaces`              | Register, resolve, inspect, update, and remove workspace definitions.                                   |
-| Agents     | `/api/agents`                  | List resolved agent definitions and inspect one agent by name.                                          |
-| Memory     | `/api/memory`                  | Read, write, delete, search, reindex, consolidate, inspect health, and list redacted operation history. |
-| Skills     | `/api/skills`                  | List skills, inspect one skill, fetch body content, and toggle runtime state.                           |
-| Automation | `/api/automation`              | Manage jobs, triggers, and run history.                                                                 |
-| Tasks      | `/api/tasks`, `/api/task-runs` | Create tasks, manage task runs, inspect task trees, and triage work.                                    |
-| Bridges    | `/api/bridges`                 | Create bridge instances, inspect health, manage routes, and test delivery.                              |
-| Network    | `/api/network`                 | Inspect network status, peers, channels, inboxes, and send envelopes.                                   |
-| Observe    | `/api/observe`                 | Query global event streams, health, and task dashboard views.                                           |
-| Hooks      | `/api/hooks`                   | Inspect the hook catalog, hook runs, and supported hook events.                                         |
-| Extensions | `/api/extensions`              | Install, list, enable, disable, and inspect extension state.                                            |
-| Settings   | `/api/settings`                | Read and mutate daemon settings surfaces used by the web UI.                                            |
-| Vault      | `/api/vault`                   | List redacted secret metadata, write new secret values, and delete refs without exposing plaintext.     |
-| Resources  | `/api/resources`               | Read and mutate desired-state resource objects on the local control plane.                              |
-| Bundles    | `/api/bundles`                 | Preview and activate bundle-driven runtime behavior.                                                    |
-| Webhooks   | `/api/webhooks`                | Receive signed external events that can activate automation.                                            |
+## Recommended Entry Points
 
-## Streaming Endpoints
+### Automating session work
 
-These routes are especially important when you are building live operator tooling:
+1. [Sessions](/runtime/api-reference/sessions) — `POST /api/sessions`, `POST /api/sessions/{id}/prompt`, `GET /api/sessions/{id}/events`, `GET /api/sessions/{id}/stream`, `POST /api/sessions/{id}/resume`.
+2. [Agents](/runtime/api-reference/agents) — list and inspect resolved agent definitions.
+3. [Memory](/runtime/api-reference/memory) — read, write, search, and consolidate persistent context.
 
-| Endpoint                                   | Stream type   | What it emits                                         |
-| ------------------------------------------ | ------------- | ----------------------------------------------------- |
-| `GET /api/sessions/:id/stream`             | SSE           | Persisted session events with replay support.         |
-| `POST /api/sessions/:id/prompt`            | AI SDK stream | Live prompt-response stream for one interactive turn. |
-| `GET /api/observe/events/stream`           | SSE           | Global observability event stream.                    |
-| `GET /api/bridges/health/stream`           | SSE           | Bridge health snapshots and updates.                  |
-| `GET /api/settings/observability/log-tail` | SSE           | Live daemon log tail for the settings surface.        |
+### Building operational dashboards
 
-## Recommended API Entry Points
+1. [Observe](/runtime/api-reference/observe) — global health, event stream, task dashboard.
+2. [Memory](/runtime/api-reference/memory) — health and redacted operation history.
+3. [Bridges](/runtime/api-reference/bridges) — health snapshots and SSE updates.
 
-### If you are automating session work
+### Integrating runtime configuration
 
-1. `POST /api/sessions`
-2. `POST /api/sessions/:id/prompt`
-3. `GET /api/sessions/:id/events`
-4. `GET /api/sessions/:id/stream`
-5. `POST /api/sessions/:id/resume`
+1. [Settings](/runtime/api-reference/settings) — read and mutate daemon settings.
+2. [Vault](/runtime/api-reference/vault) — list metadata, write new refs, delete refs (no plaintext ever leaves the daemon).
+3. [Workspaces](/runtime/api-reference/workspaces) and [Skills](/runtime/api-reference/skills) — register and inspect operator surfaces.
 
-### If you are building operational dashboards
+### Managing extensible desired state
 
-1. `GET /api/observe/health`
-2. `GET /api/observe/events`
-3. `GET /api/observe/tasks/dashboard`
-4. `GET /api/memory/health`
-5. `GET /api/memory/history`
-6. `GET /api/bridges/health/stream`
+1. [Resources](/runtime/api-reference/resources) — read and mutate desired-state objects.
+2. [Automation](/runtime/api-reference/automation) — jobs, triggers, runs.
+3. [Extensions](/runtime/api-reference/extensions) — install, enable, disable, inspect extensions.
 
-### If you are integrating runtime configuration
-
-1. `GET /api/settings/*`
-2. `PATCH /api/settings/*`
-3. `GET /api/vault/secrets`
-4. `PUT /api/vault/secrets`
-5. `GET /api/workspaces`
-6. `GET /api/agents`
-7. `GET /api/skills`
-
-### If you are managing Vault refs
-
-1. `GET /api/vault/secrets?namespace=sessions`
-2. `GET /api/vault/secrets/metadata?ref=vault:sessions/<session_id>/<name>`
-3. `PUT /api/vault/secrets`
-4. `DELETE /api/vault/secrets?ref=vault:sessions/<session_id>/<name>`
-
-Vault read responses contain only `ref`, `namespace`, `kind`, `present`, `created_at`, and
-`updated_at`. The write request accepts `secret_value`, but no HTTP, UDS, CLI, or web response
-returns that value.
-
-HTTP Vault routes use the daemon's privileged loopback guard for metadata reads and mutations. Use
-UDS for local agent automation when the daemon HTTP listener is bound outside loopback.
-
-## Until the Full Endpoint Reference Lands
-
-- Use the [CLI Reference](/runtime/cli-reference) for the easiest end-to-end examples.
-- Use [Session Events](/runtime/core/sessions/events) for the most detailed explanation of the two
-  session streaming models.
-- Use [Automation](/runtime/core/automation/jobs) and [Bridges](/runtime/core/bridges) to
-  understand the runtime behavior behind the API families.
-- Use [Vault](/runtime/core/configuration/vault) when an integration needs encrypted
-  AGH-managed secret refs instead of daemon environment variables.
+<OperatorNote>
+  Vault read responses contain only `ref`, `namespace`, `kind`, `present`, `created_at`, and
+  `updated_at`. Write requests accept `secret_value`, but no HTTP, UDS, CLI, or web response ever
+  returns that value. Use UDS for local agent automation when the daemon HTTP listener is bound
+  outside loopback.
+</OperatorNote>

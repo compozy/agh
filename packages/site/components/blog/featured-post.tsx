@@ -3,23 +3,13 @@ import { ArrowUpRight, Clock } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { AuthorMeta } from "./author-meta";
+import { DateStamp } from "./date-stamp";
 import { BulletDivider } from "./divider";
-import { categoryLabel, formatDate, formatReadingTime } from "./format";
+import { categoryLabel, formatReadingTime } from "./format";
 import { KindChip, type WireKind } from "./kind-chip";
 import { MonoBadge } from "./mono-badge";
 import { MonoEyebrow } from "./mono-eyebrow";
-
-const FEATURED_COVER_BY_SLUG: Record<
-  string,
-  { src: string; alt: string; width: number; height: number }
-> = {
-  "posts/introducing-agh-the-first-agent-network-protocol": {
-    src: "/static/blog/introducing-agh-cover.png",
-    alt: "agh-network/v0 — three peers exchanging direct, receipt, and trace envelopes",
-    width: 1600,
-    height: 1000,
-  },
-};
+import { blogPostCover } from "@/lib/blog";
 
 export interface FeaturedPostProps {
   post: Post;
@@ -38,7 +28,7 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
           <BulletDivider />
           <MonoEyebrow>{categoryLabel(post.category)}</MonoEyebrow>
           <BulletDivider />
-          <MonoEyebrow tone="neutral">{formatDate(post.date)}</MonoEyebrow>
+          <DateStamp date={post.date} />
         </div>
         <h2 className="mt-6 max-w-[20ch] font-display text-[clamp(2rem,3.4vw,2.8rem)] font-normal leading-[1.02] tracking-[-0.03em] text-(--color-text-primary)">
           <Link href={post.permalink} className="transition-colors hover:text-(--color-accent)">
@@ -89,16 +79,7 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
 function resolveFeaturedCover(
   post: Post
 ): { src: string; alt: string; width: number; height: number } | null {
-  if (post.cover?.src) {
-    return {
-      src: post.cover.src,
-      alt: `${post.title} cover art`,
-      width: post.cover.width,
-      height: post.cover.height,
-    };
-  }
-
-  return FEATURED_COVER_BY_SLUG[post.slug] ?? null;
+  return blogPostCover(post);
 }
 
 interface FeaturedCoverProps {
@@ -143,9 +124,9 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
       <div className="flex items-center justify-between">
         <MonoEyebrow tracking="wide">agh-network/v0</MonoEyebrow>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-(--color-success)" />
-          <MonoEyebrow tone="success" tracking="wide">
-            LIVE
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-(--color-accent)" />
+          <MonoEyebrow tone="accent" tracking="wide">
+            ALPHA
           </MonoEyebrow>
         </span>
       </div>

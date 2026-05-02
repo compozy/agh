@@ -1,17 +1,27 @@
 import type { Release } from "#site/content";
 import Link from "next/link";
-import { formatDateCompact } from "./format";
-import { MonoBadge } from "./mono-badge";
+import { DateStamp } from "./date-stamp";
+import { MonoBadge, type MonoBadgeTone } from "./mono-badge";
 import { MonoEyebrow } from "./mono-eyebrow";
 
 export interface ChangelogRailProps {
   releases: Release[];
 }
 
+const statusTone: Record<Release["status"], MonoBadgeTone> = {
+  stable: "success",
+  beta: "info",
+  alpha: "accent",
+  breaking: "danger",
+};
+
 export function ChangelogRail({ releases }: ChangelogRailProps) {
   const items = releases.slice(0, 4);
   return (
-    <aside className="rounded-xl border border-(--color-divider) bg-(--color-surface) p-5">
+    <aside
+      aria-label="Recent changelog releases"
+      className="rounded-xl border border-(--color-divider) bg-(--color-surface) p-5"
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-(--color-success)" />
@@ -32,17 +42,21 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
               idx < items.length - 1 ? "border-b border-(--color-divider)" : ""
             }`}
           >
-            <span className="w-20 shrink-0">
-              <MonoBadge tone="success">{release.version}</MonoBadge>
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="font-sans text-[13px] leading-[1.4] text-(--color-text-primary)">
-                {release.summary}
-              </p>
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.06em] text-(--color-text-tertiary)">
-                {formatDateCompact(release.date)} · {new Date(release.date).getFullYear()}
-              </p>
-            </div>
+            <Link href={`/changelog#${release.version}`} className="flex min-w-0 flex-1 gap-3">
+              <span className="w-20 shrink-0">
+                <MonoBadge tone={statusTone[release.status]}>{release.version}</MonoBadge>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-sans text-[13px] leading-[1.4] text-(--color-text-primary)">
+                  {release.summary}
+                </span>
+                <DateStamp
+                  date={release.date}
+                  format="compact-year"
+                  className="mt-1 block text-[10px]"
+                />
+              </span>
+            </Link>
           </li>
         ))}
       </ul>

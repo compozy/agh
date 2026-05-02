@@ -45,6 +45,21 @@ describe("Mermaid", () => {
       expect(screen.getByLabelText("Mermaid diagram")).toBeTruthy();
     });
     expect(mermaidMock.initialize).toHaveBeenCalledTimes(2);
+    expect(mermaidMock.initialize).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        securityLevel: "strict",
+        theme: "base",
+        themeVariables: expect.objectContaining({
+          background: "#0E0E0F",
+          primaryBorderColor: "#E8572A",
+          primaryTextColor: "#E5E5E7",
+          lineColor: "#8E8E93",
+          actorBorder: "#E8572A",
+          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        }),
+      })
+    );
     expect(mermaidMock.render).toHaveBeenCalledWith(
       expect.stringContaining("agh-mermaid-"),
       "graph TD; B-->C"

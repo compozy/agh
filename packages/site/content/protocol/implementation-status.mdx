@@ -1,0 +1,104 @@
+---
+title: Implementation Status
+description: What AGH Runtime implements today for agh-network/v0, and which protocol pages describe v1 trust and transport profiles.
+icon: Activity
+---
+
+This page separates shipped AGH Runtime behavior from protocol profiles that are documented for
+implementers and future compatibility.
+
+<OperatorNote label="Read this before trust pages">
+  The current AGH Runtime implementation is `agh-network/v0`. It preserves `proof` as opaque JSON
+  and does not verify Ed25519 signatures. Pages that say v1, trust, or verified identity are
+  protocol contracts for implementers, not current AGH Runtime behavior.
+</OperatorNote>
+
+## Status at a glance
+
+| Area                  | Current AGH Runtime                                                                                                   | Protocol docs                                          |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Protocol identifier   | `agh-network/v0`                                                                                                      | v0 core pages plus v1 trust pages                      |
+| Message kinds         | `greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`                                                   | [Message Kinds](/protocol/message-kinds)               |
+| Envelope validation   | Implemented for v0 core fields, freshness, IDs, routing, body shape, and lifecycle requirements                       | [Envelope](/protocol/envelope)                         |
+| Peer discovery        | Implemented through Peer Cards, `greet`, `whois`, and capability projections                                          | [Peer Discovery](/protocol/peer-discovery)             |
+| Capability discovery  | Implemented for brief Peer Card projection, rich catalog retrieval, and capability transfer semantics                 | [Capability Discovery](/protocol/capability-discovery) |
+| Runtime transport     | AGH Runtime owns daemon network operations through CLI/API and embedded runtime plumbing                              | [Runtime Network](/runtime/core/network)               |
+| NATS tutorial/profile | Documented for implementers; current runtime docs should be treated as the shipped operator path                      | [NATS](/protocol/nats)                                 |
+| Ed25519 + JCS trust   | Not verified by current AGH Runtime; `proof` is preserved as opaque JSON                                              | [Ed25519 + JCS](/protocol/ed25519-jcs)                 |
+| Trust states          | Not a current runtime routing gate; v1 contract for implementers                                                      | [Signature Verification](/protocol/verification)       |
+| Conformance suite     | Repository tests cover the AGH Runtime v0 implementation; standalone third-party conformance suite is not shipped yet | [Conformance](/protocol/conformance)                   |
+
+## Current v0 runtime behavior
+
+The shipped runtime validates and routes v0 envelopes. It supports:
+
+- the seven core message kinds
+- channel-scoped peer discovery
+- directed work through `direct`
+- admission and progress through `receipt` and `trace`
+- capability advertisement and transfer
+- duplicate, expiry, unsupported-kind, not-target, not-found, busy, and internal rejection reasons
+- audit records for sent, received, delivered, ignored, and rejected network behavior
+
+Use runtime docs when you operate AGH itself:
+
+- [Network Overview](/runtime/core/network)
+- [Channels and Peers](/runtime/core/network/channels-and-peers)
+- [Delivery and Safety](/runtime/core/network/delivery-and-safety)
+- [Task Ingress](/runtime/core/network/task-ingress)
+- [Network CLI Reference](/runtime/cli-reference/network)
+
+## Protocol pages that are current v0 reference
+
+Read these when you need the implemented wire model:
+
+<RouteList>
+  <RouteRow
+    href="/protocol/envelope"
+    label="v0 Core"
+    title="Envelope Specification"
+    description="Top-level JSON shape, required fields, freshness, correlation, extension, and proof-placeholder behavior."
+    meta="Implemented core"
+  />
+  <RouteRow
+    href="/protocol/message-kinds"
+    label="v0 Core"
+    title="Message Kinds"
+    description="The seven message kinds, their required body fields, and examples with `proof: null`."
+    meta="Implemented core"
+  />
+  <RouteRow
+    href="/protocol/interactions"
+    label="v0 Core"
+    title="Interaction Lifecycle"
+    description="How `direct`, `receipt`, and `trace` correlate delegated work and progress."
+    meta="Implemented core"
+  />
+  <RouteRow
+    href="/protocol/capability-discovery"
+    label="v0 Core"
+    title="Capability Discovery"
+    description="How Peer Cards and `whois` expose brief capability claims and richer catalogs."
+    meta="Implemented core"
+  />
+</RouteList>
+
+## Protocol pages that describe v1 profiles
+
+These pages are still useful, but read them as implementer contracts and future-compatible design
+profiles:
+
+| Page                                                           | What it describes                                                                | Current runtime note                                |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------- |
+| [Ed25519 + JCS Trust Profile](/protocol/ed25519-jcs)           | How a peer signs an envelope with Ed25519 over JCS-canonical JSON.               | AGH Runtime does not verify this profile yet.       |
+| [Signature Verification](/protocol/verification)               | How a receiver classifies `verified`, `unverified`, and `rejected` trust states. | AGH Runtime v0 routes opaque `proof` values.        |
+| [NATS Transport Binding](/protocol/nats)                       | Subject mapping, route tokens, request-reply posture, and v1 prefix behavior.    | Use runtime network docs for AGH operator behavior. |
+| [Trust Verification Guide](/protocol/guide/trust-verification) | A tutorial for implementing the trust profile outside current AGH Runtime.       | Third-party/future-profile path.                    |
+
+## Choosing the right page
+
+- If you are operating AGH today, start with [Coordinate Agents over AGH Network](/runtime/guides/coordinate-agents-over-network).
+- If you are implementing the v0 wire shape, start with [Minimal Sender](/protocol/guide/minimal-sender).
+- If you are adding NATS to a peer, read [NATS Transport](/protocol/guide/nats-transport) after the minimal sender.
+- If you are designing verified identities, read [Ed25519 + JCS](/protocol/ed25519-jcs) and [Signature Verification](/protocol/verification) as v1 profile docs.
+- If you want to make a public compatibility claim, read [Conformance Levels](/protocol/conformance) and state which pieces you have tested.

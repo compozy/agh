@@ -58,9 +58,9 @@ describe("Hero", () => {
 
   it("renders four proof-of-life signal tiles", () => {
     render(<Hero />);
-    expect(screen.getByText("agh-network/v0 — shipping today")).toBeDefined();
+    expect(screen.getByText("agh-network/v0 — alpha runtime")).toBeDefined();
     expect(screen.getByText(`${PROVIDERS.length} ACP drivers supported`)).toBeDefined();
-    expect(screen.getByText("18 built-in tools, one registry")).toBeDefined();
+    expect(screen.getByText("Tool registry, one control path")).toBeDefined();
     expect(screen.getByText("Single binary, no infra")).toBeDefined();
   });
 });
@@ -244,7 +244,7 @@ describe("RuntimeMicroDiagram", () => {
 });
 
 describe("BridgesSection", () => {
-  it("renders the live bridges with brand logos and the catalogued set", () => {
+  it("renders the bridge catalog with brand logos and release-safe copy", () => {
     render(<BridgesSection />);
     const expected = [
       "Slack",
@@ -259,13 +259,31 @@ describe("BridgesSection", () => {
     for (const name of expected) {
       expect(screen.getByText(name)).toBeDefined();
     }
-    expect(screen.getByText("Your users live on these. Now so do your agents.")).toBeDefined();
+    expect(
+      screen.getByText("Your users work in these channels. Your agents can meet them there.")
+    ).toBeDefined();
+    expect(screen.queryByText("Your users live on these. Now so do your agents.")).toBeNull();
   });
 
-  it("marks the three live bridges separately from the next batch", () => {
+  it("marks the three alpha bridges separately from the planned batch", () => {
     render(<BridgesSection />);
-    expect(screen.getAllByText("live").length).toBe(3);
-    expect(screen.getAllByText("next").length).toBe(5);
+    expect(screen.getAllByText("alpha").length).toBe(3);
+    expect(screen.getAllByText("planned").length).toBe(5);
+    expect(screen.queryByText("live")).toBeNull();
+    expect(screen.queryByText("next")).toBeNull();
+  });
+
+  it("links bridge readers to operator setup and adapter docs", () => {
+    render(<BridgesSection />);
+
+    expect(
+      screen
+        .getByRole("link", { name: "Configure Slack, Discord, or Telegram" })
+        .getAttribute("href")
+    ).toBe("/runtime/core/bridges/setup");
+    expect(screen.getByRole("link", { name: "Build a bridge adapter" }).getAttribute("href")).toBe(
+      "/runtime/core/extensions"
+    );
   });
 });
 
@@ -298,7 +316,7 @@ describe("ExtensibilitySection", () => {
 describe("NetworkSection", () => {
   it("renders the protocol walkthrough and supporting cards", () => {
     render(<NetworkSection />);
-    expect(screen.getByText("Real commands, not docs-ware")).toBeDefined();
+    expect(screen.getByText("Implemented commands")).toBeDefined();
     expect(screen.getByText("NATS under the hood, JSON over the wire")).toBeDefined();
     expect(screen.getByText("Receipts are first-class")).toBeDefined();
     expect(screen.getByLabelText(/Pause walkthrough|Play walkthrough/)).toBeDefined();
@@ -352,7 +370,7 @@ describe("InstallSection", () => {
 });
 
 describe("Comparison", () => {
-  it("renders the four named approaches and the Agents today column", () => {
+  it("renders the four named approaches and the agent support column", () => {
     render(<Comparison />);
     expect(screen.getByText("Other tools stop at the runtime boundary.")).toBeDefined();
     for (const name of ["Letta", "LangGraph / CrewAI", "OpenAI Assistants / Devin", "AGH"]) {

@@ -8,6 +8,18 @@ typed indexes so agents can rediscover knowledge without replaying past transcri
 keeps two scopes — global and workspace — and a consolidation loop that prunes and merges what is
 no longer load-bearing.
 
+Use this section when an agent should carry durable project knowledge across sessions, when a
+workspace needs facts that should not live in a prompt, or when consolidation changed a memory file
+and you need to understand why. Memory is not a transcript archive. It is a curated working set:
+small enough for agents to read, typed enough to inspect, and scoped enough that one project does not
+leak into another.
+
+<OperatorNote>
+  Start with the system page for CLI/API surfaces and storage layout. Use scopes when a memory lands
+  in the wrong place. Use dream consolidation only after you understand the files AGH is allowed to
+  rewrite, then use best practices to keep future memories short and verifiable.
+</OperatorNote>
+
 <figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--color-divider) bg-(--color-surface) p-2">
   <img
     src="/images/runtime/memory-overview-storyboard-v1.png"

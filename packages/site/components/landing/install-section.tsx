@@ -108,7 +108,7 @@ export function InstallSection() {
         align="center"
         eyebrow="Getting started"
         title="Three commands. First session in under a minute."
-        description="macOS and Linux today. Install with curl, use a package manager, or build from a source checkout if you are already inside the repository."
+        description="macOS and Linux. Install with curl, use a package manager, or build from a source checkout if you are already inside the repository."
       />
 
       <div className="mx-auto mt-10 w-full max-w-[760px]">

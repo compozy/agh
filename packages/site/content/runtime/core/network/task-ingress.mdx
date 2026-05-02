@@ -70,3 +70,14 @@ Rejected task ingress records a normalized reason. Common reasons include:
 Accepted task ingress records the action, peer ID, channel, request ID, and the resulting task or
 run identifiers. This makes network-originated task writes inspectable without reading session
 transcripts.
+
+## Related pages
+
+- [Channels and Peers](/runtime/core/network/channels-and-peers) explains the visibility check task
+  ingress depends on.
+- [Delivery and Safety](/runtime/core/network/delivery-and-safety) covers ordinary message delivery
+  before a peer asks the daemon to mutate task state.
+- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) explains the task-run ownership
+  model that ingress can enqueue into.
+- [Message Kinds](/protocol/message-kinds) documents the network envelopes peers use before they
+  reach runtime task ingress.

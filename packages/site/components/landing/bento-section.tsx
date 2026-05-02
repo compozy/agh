@@ -1,7 +1,7 @@
 import { Database, FileCode2, Layers, Network, Plug } from "lucide-react";
 
 const cardBase =
-  "group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-[#11100f] p-7 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-8 xl:p-10";
+  "group relative isolate min-w-0 overflow-hidden rounded-(--radius-diagram) border border-(--color-divider) bg-(--color-canvas-deep) p-7 transition-colors hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-divider))] sm:p-8 xl:p-10";
 
 const labelBase =
   "mb-5 flex items-center gap-3 font-mono text-[11px] font-semibold uppercase tracking-(--tracking-mono) text-(--color-accent)";

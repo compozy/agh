@@ -286,7 +286,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
               onClick={() => dispatch({ type: "prev" })}
               aria-label="Previous step"
             >
-              <ArrowLeftRight className="rotate-180" />
+              <ArrowLeftRight aria-hidden className="rotate-180" />
             </Button>
             <Button
               variant="outline"
@@ -295,7 +295,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
               aria-label={state.playing ? "Pause walkthrough" : "Play walkthrough"}
               className="font-mono text-[10px] uppercase tracking-(--tracking-mono)"
             >
-              {state.playing ? <Pause /> : <Play />}
+              {state.playing ? <Pause aria-hidden /> : <Play aria-hidden />}
               {state.playing ? "pause" : "play"}
             </Button>
             <Button
@@ -304,7 +304,7 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
               onClick={() => dispatch({ type: "next" })}
               aria-label="Next step"
             >
-              <ArrowLeftRight />
+              <ArrowLeftRight aria-hidden />
             </Button>
             <span className="ml-2 font-mono text-[10px] tracking-(--tracking-mono) text-(--color-text-tertiary)">
               {state.step + 1} / {STEPS.length}

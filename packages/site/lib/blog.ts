@@ -2,6 +2,16 @@ import { authors, posts, releases, type Author, type Post, type Release } from "
 
 export const BLOG_CATEGORIES = ["protocol", "runtime", "engineering", "network"] as const;
 export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
+export type BlogCover = { src: string; alt: string; width: number; height: number };
+
+const FEATURED_COVER_BY_SLUG: Record<string, BlogCover> = {
+  "posts/introducing-agh-the-first-agent-network-protocol": {
+    src: "/static/blog/introducing-agh-cover.png",
+    alt: "agh-network/v0 — three peers exchanging direct, receipt, and trace envelopes",
+    width: 1600,
+    height: 1000,
+  },
+};
 
 const sortedPostsCache = [...posts].sort(
   (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -37,6 +47,19 @@ export function categoryCounts(): Record<BlogCategory, number> {
 
 export function featuredPost(): Post | undefined {
   return sortedPostsCache.find(post => post.featured) ?? sortedPostsCache[0];
+}
+
+export function blogPostCover(post: Pick<Post, "cover" | "slug" | "title">): BlogCover | null {
+  if (post.cover?.src) {
+    return {
+      src: post.cover.src,
+      alt: `${post.title} cover art`,
+      width: post.cover.width,
+      height: post.cover.height,
+    };
+  }
+
+  return FEATURED_COVER_BY_SLUG[post.slug] ?? null;
 }
 
 export function relatedPosts(post: Post, limit = 3): Post[] {

@@ -39,11 +39,15 @@ export const PROVIDERS: Provider[] = [
   { id: "codex", name: "Codex", logo: <OpenAILogo className="h-6 w-6" mode="dark" /> },
   { id: "gemini", name: "Gemini CLI", logo: <GeminiLogo className="h-6 w-6" /> },
   { id: "opencode", name: "OpenCode", logo: <OpenCodeLogo className={logoClassName} /> },
-  { id: "copilot", name: "Copilot CLI", logo: <GithubLogo className={logoClassName} /> },
-  { id: "cursor", name: "Cursor", logo: <CursorLogo className={logoClassName} /> },
+  {
+    id: "copilot",
+    name: "GitHub Copilot CLI",
+    logo: <GithubLogo aria-hidden className={logoClassName} />,
+  },
+  { id: "cursor", name: "Cursor Agent", logo: <CursorLogo className={logoClassName} /> },
   { id: "kiro", name: "Kiro CLI", logo: <KiroLogo className="h-6 w-6" /> },
   { id: "pi", name: "Pi", logo: <PiLogo className="h-6 w-6" /> },
-  { id: "blackbox", name: "Blackbox AI", logo: <BlackboxLogo className={logoClassName} /> },
+  { id: "blackbox", name: "BLACKBOX AI", logo: <BlackboxLogo className={logoClassName} /> },
   { id: "cline", name: "Cline", logo: <ClineLogo className={logoClassName} /> },
   { id: "goose", name: "Goose", logo: <GooseLogo className={logoClassName} /> },
   { id: "hermes", name: "Hermes", logo: <HermesLogo className={logoClassName} /> },
@@ -54,10 +58,10 @@ export const PROVIDERS: Provider[] = [
   { id: "qoder", name: "Qoder CLI", logo: <QoderLogo className={logoClassName} /> },
   { id: "qwen-code", name: "Qwen Code", logo: <QwenLogo className={logoClassName} /> },
   { id: "openrouter", name: "OpenRouter", logo: <OpenRouterLogo className={logoClassName} /> },
-  { id: "zai", name: "Z.AI", logo: <ZAILogo className={logoClassName} /> },
-  { id: "moonshot", name: "Moonshot", logo: <KimiLogo className={logoClassName} /> },
+  { id: "zai", name: "z.ai", logo: <ZAILogo className={logoClassName} /> },
+  { id: "moonshot", name: "Moonshot / Kimi", logo: <KimiLogo className={logoClassName} /> },
   {
-    id: "vercel",
+    id: "vercel-ai-gateway",
     name: "Vercel AI Gateway",
     logo: <VercelLogo className={logoClassName} />,
   },
@@ -68,7 +72,7 @@ export const PROVIDERS: Provider[] = [
 ];
 
 /**
- * Compact strip showing which agent CLIs work today. Frames each CLI as a
+ * Compact strip showing which agent CLIs are supported. Frames each CLI as a
  * peer on AGH Network — the strip's job is to make the operator see their
  * existing CLI as the entry point to the network.
  */
@@ -89,7 +93,7 @@ export function SupportedAgents() {
             className="mt-3 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-(--tracking-mono) text-(--color-text-secondary) transition-colors hover:text-(--color-accent)"
           >
             Read more about providers
-            <ArrowUpRight className="h-3 w-3" />
+            <ArrowUpRight aria-hidden className="h-3 w-3" />
           </Link>
         </div>
 

@@ -25,12 +25,16 @@ function isActive(pathname: string, href: string) {
 }
 
 function HeaderLink({ href, label, pathname }: { href: string; label: string; pathname: string }) {
+  const active = isActive(pathname, href);
+  const current = active ? (pathname === href ? "page" : "location") : undefined;
+
   return (
     <Link
       href={href}
+      aria-current={current}
       className={cn(
         "inline-flex items-center rounded-full px-3 py-1.5 text-sm text-(--color-text-secondary) transition-colors hover:text-(--color-text-primary)",
-        isActive(pathname, href) && "bg-[rgba(232,87,42,0.12)] text-(--color-accent)"
+        active && "bg-[rgba(232,87,42,0.12)] text-(--color-accent)"
       )}
     >
       {label}
@@ -46,7 +50,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
     <header
       {...props}
       className={cn(
-        "sticky top-0 z-40 border-b border-(--color-divider) bg-[rgba(18,18,18,0.92)] px-4 backdrop-blur-xl",
+        "sticky top-0 z-40 border-b border-(--color-divider) bg-[rgba(20,19,18,0.92)] px-4 backdrop-blur-xl",
         props.className
       )}
     >
@@ -66,7 +70,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
             <>
               <slots.searchTrigger.full
                 hideIfDisabled
-                className="hidden min-w-[220px] rounded-full border border-(--color-divider) bg-[rgba(28,28,30,0.92)] ps-2.5 lg:flex"
+                className="hidden min-w-[220px] rounded-full border border-(--color-divider) bg-(--color-surface) ps-2.5 lg:flex"
               />
               <slots.searchTrigger.sm
                 hideIfDisabled
@@ -97,7 +101,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
                 })
               )}
             >
-              <GithubLogo className="h-4 w-4" />
+              <GithubLogo aria-hidden className="h-4 w-4" />
             </a>
           )}
         </div>

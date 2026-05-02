@@ -4,7 +4,7 @@ import { PROVIDERS } from "./supported-agents";
 
 const signalItems = [
   {
-    label: "agh-network/v0 — shipping today",
+    label: "agh-network/v0 — alpha runtime",
     detail: "Seven message kinds. NATS-backed wire. Audited delivery.",
   },
   {
@@ -12,8 +12,8 @@ const signalItems = [
     detail: `Claude Code, OpenClaw, Hermes, and ${PROVIDERS.length - 3} more.`,
   },
   {
-    label: "18 built-in tools, one registry",
-    detail: "Native Go, MCP servers, and TS/Go extensions through one canonical ToolID.",
+    label: "Tool registry, one control path",
+    detail: "Native Go tools, MCP servers, and extensions through canonical ToolIDs.",
   },
   {
     label: "Single binary, no infra",
