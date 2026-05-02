@@ -100,12 +100,35 @@ func TestAuthoredContextPayloadJSONShapeAndRedaction(t *testing.T) {
 			)
 		}
 
-		safePayload := map[string]any{
-			"claim_token_hash":  "sha256:redacted",
+		secretRefPayload := map[string]any{
 			"client_secret_ref": "vault://providers/openai",
 		}
+		if err := ValidateAuthoredContextRedacted(secretRefPayload); !errors.Is(err, ErrUnsafeAuthoredContextPayload) {
+			t.Fatalf(
+				"ValidateAuthoredContextRedacted(secret ref) error = %v, want ErrUnsafeAuthoredContextPayload",
+				err,
+			)
+		}
+
+		bindingPayload := map[string]any{
+			"diagnostics": []string{
+				"failed to resolve env:OPENAI_API_KEY",
+				"oauth_code=oauth-raw pkce_verifier=pkce-raw",
+			},
+		}
+		if err := ValidateAuthoredContextRedacted(bindingPayload); !errors.Is(err, ErrUnsafeAuthoredContextPayload) {
+			t.Fatalf(
+				"ValidateAuthoredContextRedacted(secret binding) error = %v, want ErrUnsafeAuthoredContextPayload",
+				err,
+			)
+		}
+
+		safePayload := map[string]any{
+			"claim_token_hash": "sha256:redacted",
+			"safe_status":      "redacted",
+		}
 		if err := ValidateAuthoredContextRedacted(safePayload); err != nil {
-			t.Fatalf("ValidateAuthoredContextRedacted(safe redacted refs) error = %v", err)
+			t.Fatalf("ValidateAuthoredContextRedacted(safe redacted payload) error = %v", err)
 		}
 	})
 }
@@ -184,6 +207,36 @@ func TestAuthoredContextDomainConversions(t *testing.T) {
 		})
 		if !errors.Is(err, ErrInvalidAuthoredContextEnum) {
 			t.Fatalf("SessionHealthPayloadFromDomain() error = %v, want ErrInvalidAuthoredContextEnum", err)
+		}
+	})
+
+	t.Run("Should redact session health last error before returning public payload", func(t *testing.T) {
+		t.Parallel()
+
+		payload, err := SessionHealthPayloadFromDomain(heartbeatpkg.SessionHealth{
+			SessionID:       "sess-1",
+			WorkspaceID:     "ws-1",
+			AgentName:       "coder",
+			State:           heartbeatpkg.SessionHealthStateIdle,
+			Health:          heartbeatpkg.SessionHealthDegraded,
+			EligibleForWake: true,
+			LastError:       `failed oauth_code=oauth-raw secret_ref=env:OPENAI_API_KEY Bearer bearer-raw`,
+			UpdatedAt:       time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("SessionHealthPayloadFromDomain() error = %v", err)
+		}
+		for _, leaked := range []string{
+			"oauth-raw",
+			"env:OPENAI_API_KEY",
+			"bearer-raw",
+		} {
+			if strings.Contains(payload.LastError, leaked) {
+				t.Fatalf("SessionHealthPayloadFromDomain().LastError = %q leaked %q", payload.LastError, leaked)
+			}
+		}
+		if err := ValidateAuthoredContextRedacted(payload); err != nil {
+			t.Fatalf("ValidateAuthoredContextRedacted(session health payload) error = %v", err)
 		}
 	})
 

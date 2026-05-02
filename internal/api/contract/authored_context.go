@@ -7,9 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/diagnostics"
 	heartbeatpkg "github.com/pedronauck/agh/internal/heartbeat"
 	soulpkg "github.com/pedronauck/agh/internal/soul"
 )
+
+const maxAuthoredContextLastErrorBytes = 2048
 
 var (
 	// ErrUnsafeAuthoredContextPayload reports raw credentials or disallowed prompt data in a public DTO.
@@ -1057,7 +1060,7 @@ func SessionHealthPayloadFromDomain(health heartbeatpkg.SessionHealth) (SessionH
 		IneligibilityReason: reason,
 		LastActivityAt:      authoredTimePtr(normalized.LastActivityAt),
 		LastPresenceAt:      authoredTimePtr(normalized.LastPresenceAt),
-		LastError:           normalized.LastError,
+		LastError:           sanitizeAuthoredContextLastError(normalized.LastError),
 		UpdatedAt:           normalized.UpdatedAt.UTC(),
 	}, nil
 }
@@ -1249,8 +1252,17 @@ func isUnsafeAuthoredContextKey(key string) bool {
 		"access_token",
 		"refresh_token",
 		"id_token",
+		"authorization_code",
+		"oauth_code",
+		"code_verifier",
+		"pkce_verifier",
+		"mcp_auth_token",
 		"api_key",
 		"secret",
+		"secret_ref",
+		"client_secret_ref",
+		"webhook_secret_ref",
+		"secret_binding",
 		"token",
 		"client_secret",
 		"provider_credentials",
@@ -1267,10 +1279,20 @@ func isUnsafeAuthoredContextString(value string) bool {
 	trimmed := strings.TrimSpace(value)
 	lower := strings.ToLower(trimmed)
 	return strings.Contains(lower, "agh_claim_") ||
+		strings.Contains(lower, "env:") ||
+		strings.Contains(lower, "vault:") ||
 		strings.HasPrefix(trimmed, "sk-") ||
 		strings.HasPrefix(trimmed, "github_pat_") ||
 		strings.HasPrefix(trimmed, "xoxb-") ||
 		strings.HasPrefix(trimmed, "xoxp-")
+}
+
+func sanitizeAuthoredContextLastError(value string) string {
+	redacted := diagnostics.RedactAndBound(value, maxAuthoredContextLastErrorBytes)
+	if isUnsafeAuthoredContextString(redacted) {
+		return "[REDACTED]"
+	}
+	return redacted
 }
 
 func validationStatus(present bool, active bool, valid bool) AuthoredValidationStatus {
