@@ -17,6 +17,7 @@ type configOverlay struct {
 	Daemon        daemonOverlay              `toml:"daemon"`
 	HTTP          httpOverlay                `toml:"http"`
 	Defaults      defaultsOverlay            `toml:"defaults"`
+	Agents        agentsOverlay              `toml:"agents"`
 	Limits        limitsOverlay              `toml:"limits"`
 	Session       sessionOverlay             `toml:"session"`
 	Permissions   permissionsOverlay         `toml:"permissions"`
@@ -48,6 +49,16 @@ type defaultsOverlay struct {
 	Agent    *string `toml:"agent"`
 	Provider *string `toml:"provider"`
 	Sandbox  *string `toml:"sandbox"`
+}
+
+type agentsOverlay struct {
+	Soul soulOverlay `toml:"soul"`
+}
+
+type soulOverlay struct {
+	Enabled                *bool  `toml:"enabled"`
+	MaxBodyBytes           *int64 `toml:"max_body_bytes"`
+	ContextProjectionBytes *int64 `toml:"context_projection_bytes"`
 }
 
 type limitsOverlay struct {
@@ -309,6 +320,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)
 	o.Defaults.Apply(&dst.Defaults)
+	o.Agents.Apply(&dst.Agents)
 	o.Limits.Apply(&dst.Limits)
 	o.Session.Apply(&dst.Session)
 	o.Permissions.Apply(&dst.Permissions)
@@ -370,6 +382,22 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 	}
 	if o.Sandbox != nil {
 		dst.Sandbox = *o.Sandbox
+	}
+}
+
+func (o agentsOverlay) Apply(dst *AgentsConfig) {
+	o.Soul.Apply(&dst.Soul)
+}
+
+func (o soulOverlay) Apply(dst *SoulConfig) {
+	if o.Enabled != nil {
+		dst.Enabled = *o.Enabled
+	}
+	if o.MaxBodyBytes != nil {
+		dst.MaxBodyBytes = *o.MaxBodyBytes
+	}
+	if o.ContextProjectionBytes != nil {
+		dst.ContextProjectionBytes = *o.ContextProjectionBytes
 	}
 }
 

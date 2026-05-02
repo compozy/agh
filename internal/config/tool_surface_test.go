@@ -27,6 +27,21 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueInt,
 		},
 		{
+			name: "Should allow soul enabled mutation",
+			path: "agents.soul.enabled",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow soul max body limit mutation",
+			path: "agents.soul.max_body_bytes",
+			kind: ConfigValueInt64,
+		},
+		{
+			name: "Should allow soul context projection mutation",
+			path: "agents.soul.context_projection_bytes",
+			kind: ConfigValueInt64,
+		},
+		{
 			name:   "Should reject daemon socket trust root",
 			path:   "daemon.socket",
 			denial: ConfigPathTrustForbidden,
@@ -191,6 +206,14 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 	agent, ok := EntryByPath(entries, "defaults.agent")
 	if !ok || agent.Value != "planner" {
 		t.Fatalf("EntryByPath(defaults.agent) = %#v/%v, want planner", agent, ok)
+	}
+	soulEnabled, ok := EntryByPath(entries, "agents.soul.enabled")
+	if !ok || soulEnabled.Value != true {
+		t.Fatalf("EntryByPath(agents.soul.enabled) = %#v/%v, want true", soulEnabled, ok)
+	}
+	soulMaxBody, ok := EntryByPath(entries, "agents.soul.max_body_bytes")
+	if !ok || soulMaxBody.Value != int64(32768) {
+		t.Fatalf("EntryByPath(agents.soul.max_body_bytes) = %#v/%v, want 32768", soulMaxBody, ok)
 	}
 	env, ok := EntryByPath(entries, "sandboxes.dev.env.TOKEN")
 	if !ok || env.Value != RedactedValue() || !env.Redacted {

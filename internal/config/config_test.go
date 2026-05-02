@@ -40,6 +40,11 @@ port = 3030
 agent = "researcher"
 provider = "claude"
 
+[agents.soul]
+enabled = false
+max_body_bytes = 16384
+context_projection_bytes = 1024
+
 [limits]
 max_sessions = 11
 max_concurrent_agents = 22
@@ -147,6 +152,15 @@ max_queue_depth = 250
 	}
 	if cfg.Defaults.Provider != "claude" {
 		t.Fatalf("Load() Defaults.Provider = %q, want %q", cfg.Defaults.Provider, "claude")
+	}
+	if cfg.Agents.Soul.Enabled {
+		t.Fatal("Load() Agents.Soul.Enabled = true, want false")
+	}
+	if got, want := cfg.Agents.Soul.MaxBodyBytes, int64(16384); got != want {
+		t.Fatalf("Load() Agents.Soul.MaxBodyBytes = %d, want %d", got, want)
+	}
+	if got, want := cfg.Agents.Soul.ContextProjectionBytes, int64(1024); got != want {
+		t.Fatalf("Load() Agents.Soul.ContextProjectionBytes = %d, want %d", got, want)
 	}
 	if cfg.Limits.MaxSessions != 11 || cfg.Limits.MaxConcurrentAgents != 22 {
 		t.Fatalf("Load() Limits = %#v", cfg.Limits)
@@ -421,6 +435,76 @@ func TestSandboxProfileValidationRejectsInvalidBackend(t *testing.T) {
 	}
 }
 
+func TestDefaultWithHomeIncludesSoulDefaults(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	cfg := DefaultWithHome(homePaths)
+	if !cfg.Agents.Soul.Enabled {
+		t.Fatal("DefaultWithHome() Agents.Soul.Enabled = false, want true")
+	}
+	if got, want := cfg.Agents.Soul.MaxBodyBytes, int64(32768); got != want {
+		t.Fatalf("DefaultWithHome() Agents.Soul.MaxBodyBytes = %d, want %d", got, want)
+	}
+	if got, want := cfg.Agents.Soul.ContextProjectionBytes, int64(2048); got != want {
+		t.Fatalf("DefaultWithHome() Agents.Soul.ContextProjectionBytes = %d, want %d", got, want)
+	}
+}
+
+func TestSoulConfigValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		config  SoulConfig
+		wantErr string
+	}{
+		{
+			name:    "Should reject zero max body bytes",
+			config:  SoulConfig{Enabled: true, MaxBodyBytes: 0, ContextProjectionBytes: 1},
+			wantErr: "agents.soul.max_body_bytes",
+		},
+		{
+			name:    "Should reject zero context projection bytes",
+			config:  SoulConfig{Enabled: true, MaxBodyBytes: 1, ContextProjectionBytes: 0},
+			wantErr: "agents.soul.context_projection_bytes",
+		},
+		{
+			name:    "Should reject context projection above max body bytes",
+			config:  SoulConfig{Enabled: true, MaxBodyBytes: 10, ContextProjectionBytes: 11},
+			wantErr: "agents.soul.context_projection_bytes must be <=",
+		},
+		{
+			name:   "Should accept disabled soul with valid limits",
+			config: SoulConfig{Enabled: false, MaxBodyBytes: 10, ContextProjectionBytes: 5},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.config.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("Validate() error = nil, want non-nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestLoadDreamAgentInheritsCustomizedDefaultAgentWhenUnspecified(t *testing.T) {
 	homeRoot := filepath.Join(t.TempDir(), "home")
 	t.Setenv("AGH_HOME", homeRoot)
@@ -637,6 +721,45 @@ base_url = "https://workspace.example.test/api/v1"
 	}
 	if got, want := cfg.Skills.DisabledSkills, []string{"workspace-skill"}; !slices.Equal(got, want) {
 		t.Fatalf("Load() Skills.DisabledSkills = %#v, want %#v", got, want)
+	}
+}
+
+func TestLoadWorkspaceOverridesAgentsSoulConfig(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[agents.soul]
+enabled = false
+max_body_bytes = 40000
+context_projection_bytes = 2000
+`)
+	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[agents.soul]
+context_projection_bytes = 4096
+`)
+
+	cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+
+	if cfg.Agents.Soul.Enabled {
+		t.Fatal("LoadForHome() Agents.Soul.Enabled = true, want global false")
+	}
+	if got, want := cfg.Agents.Soul.MaxBodyBytes, int64(40000); got != want {
+		t.Fatalf("LoadForHome() Agents.Soul.MaxBodyBytes = %d, want %d", got, want)
+	}
+	if got, want := cfg.Agents.Soul.ContextProjectionBytes, int64(4096); got != want {
+		t.Fatalf("LoadForHome() Agents.Soul.ContextProjectionBytes = %d, want %d", got, want)
 	}
 }
 

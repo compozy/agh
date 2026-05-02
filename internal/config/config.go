@@ -48,6 +48,18 @@ type DefaultsConfig struct {
 	Sandbox  string `toml:"sandbox,omitempty"`
 }
 
+// AgentsConfig holds authored agent context settings.
+type AgentsConfig struct {
+	Soul SoulConfig `toml:"soul"`
+}
+
+// SoulConfig controls optional SOUL.md parsing and projection limits.
+type SoulConfig struct {
+	Enabled                bool  `toml:"enabled"`
+	MaxBodyBytes           int64 `toml:"max_body_bytes"`
+	ContextProjectionBytes int64 `toml:"context_projection_bytes"`
+}
+
 // LimitsConfig defines runtime safety bounds.
 type LimitsConfig struct {
 	MaxSessions         int `toml:"max_sessions"`
@@ -220,6 +232,7 @@ type Config struct {
 	Daemon        DaemonConfig              `toml:"daemon"`
 	HTTP          HTTPConfig                `toml:"http"`
 	Defaults      DefaultsConfig            `toml:"defaults"`
+	Agents        AgentsConfig              `toml:"agents"`
 	Limits        LimitsConfig              `toml:"limits"`
 	Session       SessionConfig             `toml:"session"`
 	Permissions   PermissionsConfig         `toml:"permissions"`
@@ -397,6 +410,9 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Defaults: DefaultsConfig{
 			Agent: DefaultAgentName,
 		},
+		Agents: AgentsConfig{
+			Soul: DefaultSoulConfig(),
+		},
 		Limits: LimitsConfig{
 			MaxSessions:         10,
 			MaxConcurrentAgents: 20,
@@ -521,6 +537,9 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 		return err
 	}
 	if err := c.Memory.Validate(); err != nil {
+		return err
+	}
+	if err := c.Agents.Validate(); err != nil {
 		return err
 	}
 	if err := c.Skills.Validate(); err != nil {
@@ -762,6 +781,41 @@ func (c DefaultsConfig) Validate() error {
 	}
 
 	return nil
+}
+
+// DefaultSoulConfig returns the built-in Agent Soul resolver limits.
+func DefaultSoulConfig() SoulConfig {
+	return SoulConfig{
+		Enabled:                true,
+		MaxBodyBytes:           32768,
+		ContextProjectionBytes: 2048,
+	}
+}
+
+// Validate ensures authored agent context settings are internally consistent.
+func (c AgentsConfig) Validate() error {
+	return c.Soul.Validate()
+}
+
+// Validate ensures SOUL.md limits are internally consistent.
+func (c SoulConfig) Validate() error {
+	switch {
+	case c.MaxBodyBytes <= 0:
+		return fmt.Errorf("agents.soul.max_body_bytes must be positive: %d", c.MaxBodyBytes)
+	case c.ContextProjectionBytes <= 0:
+		return fmt.Errorf(
+			"agents.soul.context_projection_bytes must be positive: %d",
+			c.ContextProjectionBytes,
+		)
+	case c.ContextProjectionBytes > c.MaxBodyBytes:
+		return fmt.Errorf(
+			"agents.soul.context_projection_bytes must be <= agents.soul.max_body_bytes: %d > %d",
+			c.ContextProjectionBytes,
+			c.MaxBodyBytes,
+		)
+	default:
+		return nil
+	}
 }
 
 // Validate ensures the configured limits are positive.
