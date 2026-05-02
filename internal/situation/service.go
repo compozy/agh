@@ -638,13 +638,13 @@ func (s *Service) soulSnapshotsValue() SoulSnapshotStore {
 	return s.soulSnapshots
 }
 
-func (s *Service) soulPayload(ctx context.Context, info *session.Info) contract.AgentSoulPayload {
+func (s *Service) soulPayload(ctx context.Context, info *session.Info) contract.AgentSoulSectionPayload {
 	if info == nil || strings.TrimSpace(info.SoulSnapshotID) == "" {
-		return contract.AgentSoulPayload{}
+		return contract.AgentSoulSectionPayload{}
 	}
 	store := s.soulSnapshotsValue()
 	if store == nil {
-		return contract.AgentSoulPayload{
+		return contract.AgentSoulSectionPayload{
 			Present:    true,
 			Active:     true,
 			Valid:      true,
@@ -655,9 +655,9 @@ func (s *Service) soulPayload(ctx context.Context, info *session.Info) contract.
 	snapshot, err := store.GetSoulSnapshot(ctx, info.SoulSnapshotID)
 	if err != nil {
 		if isContextError(err) {
-			return contract.AgentSoulPayload{}
+			return contract.AgentSoulSectionPayload{}
 		}
-		return contract.AgentSoulPayload{
+		return contract.AgentSoulSectionPayload{
 			Present:    true,
 			Active:     true,
 			Valid:      false,
@@ -695,13 +695,13 @@ func sessionPayload(info *session.Info) contract.AgentSessionPayload {
 	}
 }
 
-func soulPayloadFromSnapshot(snapshot *soul.Snapshot) contract.AgentSoulPayload {
+func soulPayloadFromSnapshot(snapshot *soul.Snapshot) contract.AgentSoulSectionPayload {
 	if snapshot == nil || strings.TrimSpace(snapshot.ID) == "" {
-		return contract.AgentSoulPayload{}
+		return contract.AgentSoulSectionPayload{}
 	}
 	profile, err := snapshot.ProfileEnvelope()
 	if err != nil {
-		return contract.AgentSoulPayload{
+		return contract.AgentSoulSectionPayload{
 			Present:    true,
 			Active:     false,
 			Valid:      false,
@@ -709,20 +709,35 @@ func soulPayloadFromSnapshot(snapshot *soul.Snapshot) contract.AgentSoulPayload 
 			Digest:     strings.TrimSpace(snapshot.Digest),
 		}
 	}
-	return contract.AgentSoulPayload{
-		Enabled:      profile.Compact.Enabled,
-		Present:      profile.Compact.Present,
-		Active:       profile.Compact.Active,
-		Valid:        profile.Valid,
-		SnapshotID:   strings.TrimSpace(snapshot.ID),
-		Digest:       firstTrimmed(profile.Compact.Digest, snapshot.Digest),
-		SourcePath:   firstTrimmed(profile.Compact.SourcePath, snapshot.SourcePath),
-		Role:         strings.TrimSpace(profile.Compact.Role),
-		Tone:         append([]string(nil), profile.Compact.Tone...),
-		Principles:   append([]string(nil), profile.Compact.Principles...),
-		Truncated:    profile.Compact.Truncated || snapshot.Truncated,
-		MaxBytes:     profile.Compact.MaxBytes,
-		MaxBodyBytes: profile.Compact.MaxBodyBytes,
+	return contract.AgentSoulSectionPayload{
+		Enabled:          profile.Compact.Enabled,
+		Present:          profile.Compact.Present,
+		Active:           profile.Compact.Active,
+		Valid:            profile.Valid,
+		ValidationStatus: soulValidationStatus(profile.Present, profile.Active, profile.Valid),
+		SnapshotID:       strings.TrimSpace(snapshot.ID),
+		Digest:           firstTrimmed(profile.Compact.Digest, snapshot.Digest),
+		ConfigDigest:     strings.TrimSpace(profile.ConfigProvenance.Digest),
+		SourcePath:       firstTrimmed(profile.Compact.SourcePath, snapshot.SourcePath),
+		Role:             strings.TrimSpace(profile.Compact.Role),
+		Tone:             append([]string(nil), profile.Compact.Tone...),
+		Principles:       append([]string(nil), profile.Compact.Principles...),
+		Truncated:        profile.Compact.Truncated || snapshot.Truncated,
+		MaxBytes:         profile.Compact.MaxBytes,
+		MaxBodyBytes:     profile.Compact.MaxBodyBytes,
+	}
+}
+
+func soulValidationStatus(present bool, active bool, valid bool) contract.AuthoredValidationStatus {
+	switch {
+	case !present:
+		return contract.AuthoredValidationMissing
+	case !valid:
+		return contract.AuthoredValidationInvalid
+	case !active:
+		return contract.AuthoredValidationInactive
+	default:
+		return contract.AuthoredValidationValid
 	}
 }
 

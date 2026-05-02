@@ -4755,6 +4755,11 @@ Review the workspace changes carefully.
 	if err != nil {
 		t.Fatalf("globaldb.OpenGlobalDB() error = %v", err)
 	}
+	t.Cleanup(func() {
+		if err := registry.Close(testutil.Context(t)); err != nil {
+			t.Errorf("registry.Close() cleanup error = %v", err)
+		}
+	})
 	if err := registry.InsertWorkspace(testutil.Context(t), resolvedWorkspace.Workspace); err != nil {
 		t.Fatalf("registry.InsertWorkspace() error = %v", err)
 	}
@@ -4791,7 +4796,6 @@ Review the workspace changes carefully.
 		observepkg.WithStartTime(baseNow),
 	)
 	if err != nil {
-		_ = registry.Close(testutil.Context(t))
 		t.Fatalf("observe.New() error = %v", err)
 	}
 	t.Cleanup(func() {

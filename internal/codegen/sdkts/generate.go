@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/hooks"
@@ -425,19 +426,30 @@ func isEnumType(t reflect.Type) bool {
 }
 
 var enumValuesRegistry = map[reflect.Type][]string{
-	reflect.TypeFor[extensionprotocol.HostAPIMethod](): hostAPIMethodValues(),
-	reflect.TypeFor[hooks.HookEvent]():                 hookEventValues(),
-	reflect.TypeFor[hooks.HookEventFamily]():           hookEventFamilyValues(),
-	reflect.TypeFor[hooks.HookMode]():                  hookModeValues(),
-	reflect.TypeFor[hooks.HookRunOutcome]():            hookOutcomeValues(),
-	reflect.TypeFor[hooks.HookSkillSource]():           hookSkillSourceValues(),
-	reflect.TypeFor[hooks.HookExecutorKind]():          hookExecutorKindValues(),
-	reflect.TypeFor[hooks.HookSource]():                hookSourceValues(),
-	reflect.TypeFor[memory.Type]():                     memoryTypeValues(),
-	reflect.TypeFor[memory.Scope]():                    memoryScopeValues(),
-	reflect.TypeFor[session.State]():                   sessionStateValues(),
-	reflect.TypeFor[store.StopReason]():                stopReasonValues(),
-	reflect.TypeFor[tools.ToolSource]():                toolSourceValues(),
+	reflect.TypeFor[apicontract.AuthoredValidationStatus]():         apicontract.AuthoredValidationStatusValues(),
+	reflect.TypeFor[apicontract.AuthoredDiagnosticSeverity]():       apicontract.AuthoredDiagnosticSeverityValues(),
+	reflect.TypeFor[apicontract.AgentSoulRevisionAction]():          apicontract.AgentSoulRevisionActionValues(),
+	reflect.TypeFor[apicontract.HeartbeatRevisionOperation]():       apicontract.HeartbeatRevisionOperationValues(),
+	reflect.TypeFor[apicontract.HeartbeatActorKind]():               apicontract.HeartbeatActorKindValues(),
+	reflect.TypeFor[apicontract.SessionHealthState]():               apicontract.SessionHealthStateValues(),
+	reflect.TypeFor[apicontract.SessionHealthStatus]():              apicontract.SessionHealthStatusValues(),
+	reflect.TypeFor[apicontract.SessionHealthIneligibilityReason](): apicontract.SessionHealthIneligibilityReasonValues(),
+	reflect.TypeFor[apicontract.HeartbeatWakeSource]():              apicontract.HeartbeatWakeSourceValues(),
+	reflect.TypeFor[apicontract.HeartbeatWakeResult]():              apicontract.HeartbeatWakeResultValues(),
+	reflect.TypeFor[apicontract.HeartbeatWakeReason]():              apicontract.HeartbeatWakeReasonValues(),
+	reflect.TypeFor[extensionprotocol.HostAPIMethod]():              hostAPIMethodValues(),
+	reflect.TypeFor[hooks.HookEvent]():                              hookEventValues(),
+	reflect.TypeFor[hooks.HookEventFamily]():                        hookEventFamilyValues(),
+	reflect.TypeFor[hooks.HookMode]():                               hookModeValues(),
+	reflect.TypeFor[hooks.HookRunOutcome]():                         hookOutcomeValues(),
+	reflect.TypeFor[hooks.HookSkillSource]():                        hookSkillSourceValues(),
+	reflect.TypeFor[hooks.HookExecutorKind]():                       hookExecutorKindValues(),
+	reflect.TypeFor[hooks.HookSource]():                             hookSourceValues(),
+	reflect.TypeFor[memory.Type]():                                  memoryTypeValues(),
+	reflect.TypeFor[memory.Scope]():                                 memoryScopeValues(),
+	reflect.TypeFor[session.State]():                                sessionStateValues(),
+	reflect.TypeFor[store.StopReason]():                             stopReasonValues(),
+	reflect.TypeFor[tools.ToolSource]():                             toolSourceValues(),
 }
 
 func enumValuesForType(t reflect.Type) []string {

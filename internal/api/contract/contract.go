@@ -48,6 +48,7 @@ type SessionPayload struct {
 	Activity     *RuntimeActivityPayload `json:"activity,omitempty"`
 	Sandbox      *SessionSandboxPayload  `json:"sandbox,omitempty"`
 	Lineage      *SessionLineagePayload  `json:"lineage,omitempty"`
+	Health       *SessionHealthPayload   `json:"health,omitempty"`
 	CreatedAt    time.Time               `json:"created_at"`
 	UpdatedAt    time.Time               `json:"updated_at"`
 }

@@ -78,23 +78,6 @@ type AgentSessionPayload struct {
 	UpdatedAt time.Time              `json:"updated_at"`
 }
 
-// AgentSoulPayload is the compact, context-safe Soul projection for `/agent/context`.
-type AgentSoulPayload struct {
-	Enabled      bool     `json:"enabled"`
-	Present      bool     `json:"present"`
-	Active       bool     `json:"active"`
-	Valid        bool     `json:"valid"`
-	SnapshotID   string   `json:"snapshot_id,omitempty"`
-	Digest       string   `json:"digest,omitempty"`
-	SourcePath   string   `json:"source_path,omitempty"`
-	Role         string   `json:"role,omitempty"`
-	Tone         []string `json:"tone"`
-	Principles   []string `json:"principles"`
-	Truncated    bool     `json:"truncated,omitempty"`
-	MaxBytes     int64    `json:"max_bytes,omitempty"`
-	MaxBodyBytes int64    `json:"max_body_bytes,omitempty"`
-}
-
 // SessionLineagePayload exposes safe parent/child lineage metadata for spawned sessions.
 type SessionLineagePayload struct {
 	ParentSessionID  string                       `json:"parent_session_id,omitempty"`
@@ -262,7 +245,7 @@ type AgentContextPayload struct {
 	Self                AgentIdentityPayload                   `json:"self"`
 	Workspace           AgentWorkspacePayload                  `json:"workspace"`
 	Session             AgentSessionPayload                    `json:"session"`
-	Soul                AgentSoulPayload                       `json:"soul"`
+	Soul                AgentSoulSectionPayload                `json:"soul"`
 	Task                AgentTaskContextPayload                `json:"task"`
 	CoordinationChannel AgentCoordinationChannelContextPayload `json:"coordination_channel"`
 	InboxSummary        AgentInboxSummaryPayload               `json:"inbox_summary"`

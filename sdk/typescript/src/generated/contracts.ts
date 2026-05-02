@@ -195,6 +195,150 @@ export interface AgentPreStartPayload {
   model?: string;
 }
 
+export interface AgentSoulDeleteRequest {
+  workspace_id?: string;
+  agent_name: string;
+  expected_digest: string;
+}
+
+export interface AgentSoulHistoryRequest {
+  workspace_id?: string;
+  agent_name: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export type AgentSoulRevisionAction = "put" | "delete" | "rollback";
+
+export type AuthoredDiagnosticSeverity = "info" | "warning" | "error";
+
+export interface AuthoredContextDiagnosticPayload {
+  code: string;
+  severity: AuthoredDiagnosticSeverity;
+  message: string;
+  field?: string;
+  section?: string;
+  source_path?: string;
+  line?: number;
+  column?: number;
+  owner_surface?: string;
+}
+
+export interface AuthoredContextActorPayload {
+  kind: string;
+  ref?: string;
+}
+
+export interface AgentSoulRevisionPayload {
+  id: string;
+  agent_name: string;
+  source_path: string;
+  action: AgentSoulRevisionAction;
+  previous_digest?: string;
+  new_digest?: string;
+  diagnostics?: AuthoredContextDiagnosticPayload[];
+  actor: AuthoredContextActorPayload;
+  origin?: AuthoredContextActorPayload;
+  created_at: ISODateTime;
+}
+
+export interface AgentSoulHistoryResponse {
+  revisions: AgentSoulRevisionPayload[];
+  next_cursor?: string;
+}
+
+export type AuthoredValidationStatus = "missing" | "inactive" | "valid" | "invalid";
+
+export interface AgentSoulFrontmatterPayload {
+  version?: string;
+  role?: string;
+  tone?: string[];
+  principles?: string[];
+  constraints?: string[];
+  collaboration?: string[];
+  memory_policy?: string[];
+  tags?: string[];
+}
+
+export interface AuthoredContextLimitsPayload {
+  max_body_bytes: number;
+  context_projection_bytes?: number;
+  max_bytes?: number;
+}
+
+export interface AgentSoulConfigProvenancePayload {
+  digest: string;
+  source?: string;
+  enabled: boolean;
+  max_body_bytes: number;
+  context_projection_bytes: number;
+}
+
+export interface AgentSoulPayload {
+  agent_name?: string;
+  enabled: boolean;
+  present: boolean;
+  active: boolean;
+  valid: boolean;
+  validation_status: AuthoredValidationStatus;
+  snapshot_id?: string;
+  revision_id?: string;
+  digest?: string;
+  source_path?: string;
+  frontmatter: AgentSoulFrontmatterPayload;
+  body?: string;
+  truncated?: boolean;
+  limits: AuthoredContextLimitsPayload;
+  config_provenance: AgentSoulConfigProvenancePayload;
+  diagnostics?: AuthoredContextDiagnosticPayload[];
+  created_at?: ISODateTime;
+}
+
+export interface AgentSoulMutationResponse {
+  soul: AgentSoulPayload;
+  revision: AgentSoulRevisionPayload;
+}
+
+export interface AgentSoulPutRequest {
+  workspace_id?: string;
+  agent_name: string;
+  body: string;
+  expected_digest: string;
+  idempotency_key?: string;
+}
+
+export interface AgentSoulRollbackRequest {
+  workspace_id?: string;
+  agent_name: string;
+  revision_id: string;
+  expected_digest: string;
+  idempotency_key?: string;
+}
+
+export interface AgentSoulSectionPayload {
+  enabled: boolean;
+  present: boolean;
+  active: boolean;
+  valid: boolean;
+  validation_status?: AuthoredValidationStatus;
+  snapshot_id?: string;
+  digest?: string;
+  config_digest?: string;
+  source_path?: string;
+  role?: string;
+  tone: string[];
+  principles: string[];
+  truncated?: boolean;
+  max_bytes?: number;
+  max_body_bytes?: number;
+}
+
+export interface AgentSoulValidateRequest {
+  workspace_id?: string;
+  agent_name?: string;
+  body?: string;
+}
+
 export interface AgentSpawnedPatch {
   labels?: Record<string, string>;
 }
@@ -1008,6 +1152,291 @@ export interface ToolResult {
 
 export interface ExtensionToolCallResponse {
   result: ToolResult;
+}
+
+export interface HeartbeatDeleteRequest {
+  workspace_id?: string;
+  agent_name: string;
+  expected_digest: string;
+}
+
+export interface HeartbeatHistoryRequest {
+  workspace_id?: string;
+  agent_name: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export type HeartbeatRevisionOperation = "write" | "delete" | "rollback";
+
+export type HeartbeatActorKind = "user" | "agent" | "extension" | "system";
+
+export interface HeartbeatActorPayload {
+  kind: HeartbeatActorKind;
+  ref?: string;
+}
+
+export interface HeartbeatRevisionPayload {
+  id: string;
+  agent_name: string;
+  source_path: string;
+  operation: HeartbeatRevisionOperation;
+  previous_digest?: string;
+  new_digest?: string;
+  new_snapshot_id?: string;
+  actor: HeartbeatActorPayload;
+  created_at: ISODateTime;
+}
+
+export interface HeartbeatHistoryResponse {
+  revisions: HeartbeatRevisionPayload[];
+  next_cursor?: string;
+}
+
+export interface HeartbeatTimeWindowPayload {
+  timezone: string;
+  start: string;
+  end: string;
+}
+
+export interface HeartbeatFrontmatterPreferencesPayload {
+  min_interval?: string;
+  active_hours?: HeartbeatTimeWindowPayload[];
+  quiet_windows?: HeartbeatTimeWindowPayload[];
+}
+
+export interface HeartbeatContextProjectionPayload {
+  include?: string[];
+}
+
+export interface HeartbeatFrontmatterPayload {
+  version: number;
+  enabled: boolean;
+  summary?: string;
+  preferences: HeartbeatFrontmatterPreferencesPayload;
+  context: HeartbeatContextProjectionPayload;
+}
+
+export interface HeartbeatPreferencesPayload {
+  min_interval: string;
+  active_hours?: HeartbeatTimeWindowPayload[];
+  quiet_windows?: HeartbeatTimeWindowPayload[];
+  context: HeartbeatContextProjectionPayload;
+}
+
+export interface HeartbeatConfigSubsetPayload {
+  enabled: boolean;
+  max_body_bytes: number;
+  context_projection_bytes: number;
+  min_interval: string;
+  default_interval: string;
+  wake_cooldown: string;
+  max_wakes_per_cycle: number;
+  active_session_only: boolean;
+  allow_active_hours_preferences: boolean;
+  wake_event_retention: string;
+  session_health_stale_after: string;
+  session_health_hook_min_interval: string;
+}
+
+export interface HeartbeatConfigProvenancePayload {
+  digest: string;
+  subset: HeartbeatConfigSubsetPayload;
+}
+
+export interface HeartbeatPromptContributionPayload {
+  active: boolean;
+  digest?: string;
+  config_digest?: string;
+  source_path?: string;
+  summary?: string;
+  guidance_markdown?: string;
+  preferences: HeartbeatPreferencesPayload;
+  truncated: boolean;
+  max_bytes: number;
+  max_body_bytes: number;
+  diagnostics?: AuthoredContextDiagnosticPayload[];
+  context: HeartbeatContextProjectionPayload;
+}
+
+export interface HeartbeatPolicyPayload {
+  agent_name?: string;
+  enabled: boolean;
+  present: boolean;
+  active: boolean;
+  valid: boolean;
+  validation_status: AuthoredValidationStatus;
+  source_path?: string;
+  digest?: string;
+  config_digest?: string;
+  snapshot_id?: string;
+  schema_version: number;
+  summary?: string;
+  guidance_markdown?: string;
+  frontmatter: HeartbeatFrontmatterPayload;
+  preferences: HeartbeatPreferencesPayload;
+  config_provenance: HeartbeatConfigProvenancePayload;
+  prompt: HeartbeatPromptContributionPayload;
+  diagnostics?: AuthoredContextDiagnosticPayload[];
+  limits: AuthoredContextLimitsPayload;
+  created_at?: ISODateTime;
+}
+
+export interface HeartbeatMutationResponse {
+  heartbeat: HeartbeatPolicyPayload;
+  revision: HeartbeatRevisionPayload;
+}
+
+export interface HeartbeatPutRequest {
+  workspace_id?: string;
+  agent_name: string;
+  body: string;
+  expected_digest: string;
+  idempotency_key?: string;
+}
+
+export interface HeartbeatRollbackRequest {
+  workspace_id?: string;
+  agent_name: string;
+  revision_id?: string;
+  target_digest?: string;
+  expected_digest: string;
+  idempotency_key?: string;
+}
+
+export interface HeartbeatStatusRequest {
+  workspace_id?: string;
+  agent_name: string;
+  session_id?: string;
+  include_session_health?: boolean;
+  include_recent_wake_events?: boolean;
+}
+
+export type HeartbeatWakeResult = "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+
+export type HeartbeatWakeReason =
+  | "wake_sent"
+  | "heartbeat_disabled"
+  | "heartbeat_invalid"
+  | "heartbeat_no_policy"
+  | "heartbeat_rate_limited"
+  | "heartbeat_no_eligible_session"
+  | "cooldown_active"
+  | "quiet_window"
+  | "session_not_found"
+  | "session_unhealthy"
+  | "session_not_attachable"
+  | "session_prompt_active"
+  | "session_prompt_active_race"
+  | "synthetic_prompt_failed"
+  | "wake_coalesced";
+
+export interface HeartbeatWakeStatePayload {
+  workspace_id?: string;
+  agent_name?: string;
+  session_id: string;
+  policy_snapshot_id?: string;
+  last_wake_at?: ISODateTime;
+  next_allowed_at?: ISODateTime;
+  coalesced_count: number;
+  last_result: HeartbeatWakeResult;
+  last_reason?: HeartbeatWakeReason;
+  updated_at: ISODateTime;
+}
+
+export type HeartbeatWakeSource = "scheduler" | "manual" | "harness_reentry";
+
+export interface HeartbeatWakeEventPayload {
+  id: string;
+  workspace_id?: string;
+  agent_name?: string;
+  session_id?: string;
+  policy_snapshot_id?: string;
+  source: HeartbeatWakeSource;
+  result: HeartbeatWakeResult;
+  reason: HeartbeatWakeReason;
+  synthetic_prompt_id?: string;
+  created_at: ISODateTime;
+  expires_at: ISODateTime;
+}
+
+export type SessionHealthState = "idle" | "prompting" | "stopped" | "detached";
+
+export type SessionHealthStatus = "healthy" | "degraded" | "stale" | "dead" | "unknown";
+
+export type SessionHealthIneligibilityReason =
+  | "session_prompt_active"
+  | "session_not_attachable"
+  | "session_unhealthy"
+  | "session_health_stale"
+  | "session_health_hung"
+  | "session_health_dead"
+  | "session_health_unknown";
+
+export interface SessionHealthPayload {
+  session_id: string;
+  workspace_id: string;
+  agent_name: string;
+  state: SessionHealthState;
+  health: SessionHealthStatus;
+  active_prompt: boolean;
+  attachable: boolean;
+  eligible_for_wake: boolean;
+  ineligibility_reason?: SessionHealthIneligibilityReason;
+  last_activity_at?: ISODateTime;
+  last_presence_at?: ISODateTime;
+  last_error?: string;
+  updated_at: ISODateTime;
+}
+
+export interface HeartbeatStatusResponse {
+  agent_name: string;
+  source_path?: string;
+  enabled: boolean;
+  present: boolean;
+  active: boolean;
+  valid: boolean;
+  validation_status: AuthoredValidationStatus;
+  digest?: string;
+  config_digest?: string;
+  snapshot_id?: string;
+  summary?: string;
+  preferences: HeartbeatPreferencesPayload;
+  diagnostics?: AuthoredContextDiagnosticPayload[];
+  wake_state?: HeartbeatWakeStatePayload;
+  wake_events?: HeartbeatWakeEventPayload[];
+  session_health?: SessionHealthPayload;
+  revision_cursor?: string;
+}
+
+export interface HeartbeatValidateRequest {
+  workspace_id?: string;
+  agent_name?: string;
+  body: string;
+}
+
+export interface HeartbeatWakeDecisionPayload {
+  wake_event_id?: string;
+  result: HeartbeatWakeResult;
+  reason: HeartbeatWakeReason;
+  policy_snapshot_id?: string;
+  policy_digest?: string;
+  config_digest?: string;
+  synthetic_prompt_id?: string;
+  diagnostics?: AuthoredContextDiagnosticPayload[];
+}
+
+export interface HeartbeatWakeRequest {
+  workspace_id?: string;
+  agent_name: string;
+  session_id: string;
+  source: HeartbeatWakeSource;
+  dry_run?: boolean;
+  idempotency_key?: string;
+}
+
+export interface HeartbeatWakeResponse {
+  decision: HeartbeatWakeDecisionPayload;
 }
 
 export type HookMode = "sync" | "async";
@@ -2063,6 +2492,20 @@ export interface SessionEventsParams {
   since: ISODateTime;
 }
 
+export interface SessionHealthResponse {
+  health: SessionHealthPayload;
+}
+
+export interface SessionInspectResponse {
+  session_id: string;
+  health: SessionHealthPayload;
+  wake_state?: HeartbeatWakeStatePayload;
+  wake_events?: HeartbeatWakeEventPayload[];
+  policy_digest?: string;
+  config_digest?: string;
+  diagnostics?: AuthoredContextDiagnosticPayload[];
+}
+
 export interface SessionLifecyclePayload {
   event: HookEvent;
   timestamp: ISODateTime;
@@ -2222,6 +2665,11 @@ export interface SessionPromptResult {
   turn_id: string;
 }
 
+export interface SessionSoulRefreshRequest {
+  expected_digest: string;
+  idempotency_key?: string;
+}
+
 export type State = "starting" | "active" | "stopping" | "stopped";
 
 export type StopReason =
@@ -2248,6 +2696,20 @@ export interface SessionStatus {
   stop_detail?: string;
   acp_session_id?: string;
   created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+export interface SessionStatusResponse {
+  session_id: string;
+  workspace_id: string;
+  agent_name: string;
+  state: SessionHealthState;
+  health: SessionHealthStatus;
+  active_prompt: boolean;
+  attachable: boolean;
+  eligible_for_wake: boolean;
+  ineligibility_reason?: SessionHealthIneligibilityReason;
+  wake_state?: HeartbeatWakeStatePayload;
   updated_at: ISODateTime;
 }
 

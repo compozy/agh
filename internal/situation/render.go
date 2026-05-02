@@ -196,7 +196,7 @@ func hasSession(payload contract.AgentSessionPayload) bool {
 	return strings.TrimSpace(payload.ID) != ""
 }
 
-func hasSoul(payload contract.AgentSoulPayload) bool {
+func hasSoul(payload contract.AgentSoulSectionPayload) bool {
 	return payload.Enabled ||
 		payload.Present ||
 		payload.Active ||

@@ -3,6 +3,7 @@ package contract
 import (
 	"fmt"
 
+	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/memory"
@@ -42,6 +43,38 @@ var sdkRootTypes = []NamedType{
 	{Name: "ResourcesListParams", Value: ResourcesListParams{}},
 	{Name: "ResourceSnapshotRecord", Value: ResourceSnapshotRecord{}},
 	{Name: "ResourcesSnapshotParams", Value: ResourcesSnapshotParams{}},
+	{Name: "AuthoredValidationStatus", Value: apicontract.AuthoredValidationStatus("")},
+	{Name: "AuthoredDiagnosticSeverity", Value: apicontract.AuthoredDiagnosticSeverity("")},
+	{Name: "AuthoredContextDiagnosticPayload", Value: apicontract.AuthoredContextDiagnosticPayload{}},
+	{Name: "AgentSoulSectionPayload", Value: apicontract.AgentSoulSectionPayload{}},
+	{Name: "AgentSoulPayload", Value: apicontract.AgentSoulPayload{}},
+	{Name: "AgentSoulValidateRequest", Value: apicontract.AgentSoulValidateRequest{}},
+	{Name: "AgentSoulPutRequest", Value: apicontract.AgentSoulPutRequest{}},
+	{Name: "AgentSoulDeleteRequest", Value: apicontract.AgentSoulDeleteRequest{}},
+	{Name: "AgentSoulRollbackRequest", Value: apicontract.AgentSoulRollbackRequest{}},
+	{Name: "AgentSoulHistoryRequest", Value: apicontract.AgentSoulHistoryRequest{}},
+	{Name: "AgentSoulHistoryResponse", Value: apicontract.AgentSoulHistoryResponse{}},
+	{Name: "AgentSoulMutationResponse", Value: apicontract.AgentSoulMutationResponse{}},
+	{Name: "SessionSoulRefreshRequest", Value: apicontract.SessionSoulRefreshRequest{}},
+	{Name: "HeartbeatPolicyPayload", Value: apicontract.HeartbeatPolicyPayload{}},
+	{Name: "HeartbeatValidateRequest", Value: apicontract.HeartbeatValidateRequest{}},
+	{Name: "HeartbeatPutRequest", Value: apicontract.HeartbeatPutRequest{}},
+	{Name: "HeartbeatDeleteRequest", Value: apicontract.HeartbeatDeleteRequest{}},
+	{Name: "HeartbeatRollbackRequest", Value: apicontract.HeartbeatRollbackRequest{}},
+	{Name: "HeartbeatHistoryRequest", Value: apicontract.HeartbeatHistoryRequest{}},
+	{Name: "HeartbeatHistoryResponse", Value: apicontract.HeartbeatHistoryResponse{}},
+	{Name: "HeartbeatMutationResponse", Value: apicontract.HeartbeatMutationResponse{}},
+	{Name: "HeartbeatStatusRequest", Value: apicontract.HeartbeatStatusRequest{}},
+	{Name: "HeartbeatStatusResponse", Value: apicontract.HeartbeatStatusResponse{}},
+	{Name: "HeartbeatWakeRequest", Value: apicontract.HeartbeatWakeRequest{}},
+	{Name: "HeartbeatWakeResponse", Value: apicontract.HeartbeatWakeResponse{}},
+	{Name: "SessionHealthPayload", Value: apicontract.SessionHealthPayload{}},
+	{Name: "SessionHealthResponse", Value: apicontract.SessionHealthResponse{}},
+	{Name: "SessionStatusResponse", Value: apicontract.SessionStatusResponse{}},
+	{Name: "SessionInspectResponse", Value: apicontract.SessionInspectResponse{}},
+	{Name: "HeartbeatWakeStatePayload", Value: apicontract.HeartbeatWakeStatePayload{}},
+	{Name: "HeartbeatWakeEventPayload", Value: apicontract.HeartbeatWakeEventPayload{}},
+	{Name: "HeartbeatWakeDecisionPayload", Value: apicontract.HeartbeatWakeDecisionPayload{}},
 	{Name: "ShutdownRequest", Value: subprocess.ShutdownRequest{}},
 	{Name: "ShutdownResponse", Value: subprocess.ShutdownResponse{}},
 	{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},

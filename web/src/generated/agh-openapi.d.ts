@@ -123,6 +123,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent/soul": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect the resolved Soul read model for the calling agent */
+    get: operations["getAgentSoul"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent/soul/validate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate a proposed Soul body or the calling agent's current Soul */
+    post: operations["validateAgentSoul"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent/spawn": {
     parameters: {
       query?: never;
@@ -236,6 +270,163 @@ export interface paths {
     get: operations["listAgents"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{agent_name}/heartbeat": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect the resolved Heartbeat policy for an agent definition */
+    get: operations["getAgentHeartbeat"];
+    /** Create or replace HEARTBEAT.md through managed authoring */
+    put: operations["putAgentHeartbeat"];
+    post?: never;
+    /** Delete HEARTBEAT.md through managed authoring */
+    delete: operations["deleteAgentHeartbeat"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{agent_name}/heartbeat/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List managed HEARTBEAT.md authoring revisions */
+    get: operations["listAgentHeartbeatHistory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{agent_name}/heartbeat/rollback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Rollback HEARTBEAT.md through managed authoring */
+    post: operations["rollbackAgentHeartbeat"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{agent_name}/heartbeat/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read Heartbeat policy status, wake state, and optional session health */
+    get: operations["getAgentHeartbeatStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{agent_name}/heartbeat/validate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate a proposed HEARTBEAT.md body */
+    post: operations["validateAgentHeartbeat"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{agent_name}/heartbeat/wake": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request one advisory Heartbeat wake for an eligible session */
+    post: operations["wakeAgentHeartbeat"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{agent_name}/soul": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect the resolved Soul read model for an agent definition */
+    get: operations["getAgentDefinitionSoul"];
+    /** Create or replace SOUL.md through managed authoring */
+    put: operations["putAgentSoul"];
+    post?: never;
+    /** Delete SOUL.md through managed authoring */
+    delete: operations["deleteAgentSoul"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{agent_name}/soul/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List managed SOUL.md authoring revisions */
+    get: operations["listAgentSoulHistory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{agent_name}/soul/rollback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Rollback SOUL.md through managed authoring */
+    post: operations["rollbackAgentSoul"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1271,6 +1462,74 @@ export interface paths {
     };
     /** Get the canonical transcript for one session */
     get: operations["getSessionTranscript"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/health": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read metadata-only session health and wake eligibility */
+    get: operations["getSessionHealth"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/inspect": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect session health, wake audit, and policy correlation metadata */
+    get: operations["inspectSession"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/soul/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Refresh an idle session's Soul snapshot through body-level CAS */
+    post: operations["refreshSessionSoul"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read compact session status and wake eligibility */
+    get: operations["getSessionStatus"];
     put?: never;
     post?: never;
     delete?: never;
@@ -3047,6 +3306,7 @@ export interface operations {
               };
               soul: {
                 active: boolean;
+                config_digest?: string;
                 digest?: string;
                 enabled: boolean;
                 /** Format: int64 */
@@ -3061,6 +3321,8 @@ export interface operations {
                 tone: string[];
                 truncated?: boolean;
                 valid: boolean;
+                /** @enum {string} */
+                validation_status?: "missing" | "inactive" | "valid" | "invalid";
               };
               task: {
                 available: boolean;
@@ -3225,6 +3487,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path */
         workspace?: string;
+        /** @description Include metadata-only session health when available */
+        include_health?: boolean;
       };
       header?: never;
       path?: never;
@@ -3546,6 +3810,340 @@ export interface operations {
       };
     };
   };
+  getAgentSoul: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Caller session or agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul is invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  validateAgentSoul: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          body?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Caller session or agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   spawnAgentSession: {
     parameters: {
       query?: never;
@@ -3654,6 +4252,34 @@ export interface operations {
                   crash_bundle_path?: string;
                   kind: string;
                   summary?: string;
+                } | null;
+                health?: {
+                  active_prompt: boolean;
+                  agent_name: string;
+                  attachable: boolean;
+                  eligible_for_wake: boolean;
+                  /** @enum {string} */
+                  health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                  /** @enum {string} */
+                  ineligibility_reason?:
+                    | "session_prompt_active"
+                    | "session_not_attachable"
+                    | "session_unhealthy"
+                    | "session_health_stale"
+                    | "session_health_hung"
+                    | "session_health_dead"
+                    | "session_health_unknown";
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_error?: string;
+                  /** Format: date-time */
+                  last_presence_at?: string | null;
+                  session_id: string;
+                  /** @enum {string} */
+                  state: "idle" | "prompting" | "stopped" | "detached";
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id: string;
                 } | null;
                 id: string;
                 lineage?: {
@@ -4809,6 +5435,3116 @@ export interface operations {
               tools?: string[];
               toolsets?: string[];
             }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getAgentHeartbeat: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            config_digest?: string;
+            config_provenance: {
+              digest: string;
+              subset: {
+                active_session_only: boolean;
+                allow_active_hours_preferences: boolean;
+                /** Format: int64 */
+                context_projection_bytes: number;
+                default_interval: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes: number;
+                max_wakes_per_cycle: number;
+                min_interval: string;
+                session_health_hook_min_interval: string;
+                session_health_stale_after: string;
+                wake_cooldown: string;
+                wake_event_retention: string;
+              };
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              context: {
+                include?: string[];
+              };
+              enabled: boolean;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                min_interval?: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              summary?: string;
+              version: number;
+            };
+            guidance_markdown?: string;
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            preferences: {
+              active_hours?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+              context: {
+                include?: string[];
+              };
+              min_interval: string;
+              quiet_windows?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+            };
+            present: boolean;
+            prompt: {
+              active: boolean;
+              config_digest?: string;
+              context: {
+                include?: string[];
+              };
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              guidance_markdown?: string;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes: number;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                context: {
+                  include?: string[];
+                };
+                min_interval: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              source_path?: string;
+              summary?: string;
+              truncated: boolean;
+            };
+            schema_version: number;
+            snapshot_id?: string;
+            source_path?: string;
+            summary?: string;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Heartbeat policy is invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            config_digest?: string;
+            config_provenance: {
+              digest: string;
+              subset: {
+                active_session_only: boolean;
+                allow_active_hours_preferences: boolean;
+                /** Format: int64 */
+                context_projection_bytes: number;
+                default_interval: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes: number;
+                max_wakes_per_cycle: number;
+                min_interval: string;
+                session_health_hook_min_interval: string;
+                session_health_stale_after: string;
+                wake_cooldown: string;
+                wake_event_retention: string;
+              };
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              context: {
+                include?: string[];
+              };
+              enabled: boolean;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                min_interval?: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              summary?: string;
+              version: number;
+            };
+            guidance_markdown?: string;
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            preferences: {
+              active_hours?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+              context: {
+                include?: string[];
+              };
+              min_interval: string;
+              quiet_windows?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+            };
+            present: boolean;
+            prompt: {
+              active: boolean;
+              config_digest?: string;
+              context: {
+                include?: string[];
+              };
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              guidance_markdown?: string;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes: number;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                context: {
+                  include?: string[];
+                };
+                min_interval: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              source_path?: string;
+              summary?: string;
+              truncated: boolean;
+            };
+            schema_version: number;
+            snapshot_id?: string;
+            source_path?: string;
+            summary?: string;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putAgentHeartbeat: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          body: string;
+          expected_digest: string;
+          idempotency_key?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            heartbeat: {
+              active: boolean;
+              agent_name?: string;
+              config_digest?: string;
+              config_provenance: {
+                digest: string;
+                subset: {
+                  active_session_only: boolean;
+                  allow_active_hours_preferences: boolean;
+                  /** Format: int64 */
+                  context_projection_bytes: number;
+                  default_interval: string;
+                  enabled: boolean;
+                  /** Format: int64 */
+                  max_body_bytes: number;
+                  max_wakes_per_cycle: number;
+                  min_interval: string;
+                  session_health_hook_min_interval: string;
+                  session_health_stale_after: string;
+                  wake_cooldown: string;
+                  wake_event_retention: string;
+                };
+              };
+              /** Format: date-time */
+              created_at?: string | null;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              enabled: boolean;
+              frontmatter: {
+                context: {
+                  include?: string[];
+                };
+                enabled: boolean;
+                preferences: {
+                  active_hours?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                  min_interval?: string;
+                  quiet_windows?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                };
+                summary?: string;
+                version: number;
+              };
+              guidance_markdown?: string;
+              limits: {
+                /** Format: int64 */
+                context_projection_bytes?: number;
+                /** Format: int64 */
+                max_body_bytes: number;
+                /** Format: int64 */
+                max_bytes?: number;
+              };
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                context: {
+                  include?: string[];
+                };
+                min_interval: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              present: boolean;
+              prompt: {
+                active: boolean;
+                config_digest?: string;
+                context: {
+                  include?: string[];
+                };
+                diagnostics?: {
+                  code: string;
+                  column?: number;
+                  field?: string;
+                  line?: number;
+                  message: string;
+                  owner_surface?: string;
+                  section?: string;
+                  /** @enum {string} */
+                  severity: "info" | "warning" | "error";
+                  source_path?: string;
+                }[];
+                digest?: string;
+                guidance_markdown?: string;
+                /** Format: int64 */
+                max_body_bytes: number;
+                /** Format: int64 */
+                max_bytes: number;
+                preferences: {
+                  active_hours?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                  context: {
+                    include?: string[];
+                  };
+                  min_interval: string;
+                  quiet_windows?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                };
+                source_path?: string;
+                summary?: string;
+                truncated: boolean;
+              };
+              schema_version: number;
+              snapshot_id?: string;
+              source_path?: string;
+              summary?: string;
+              valid: boolean;
+              /** @enum {string} */
+              validation_status: "missing" | "inactive" | "valid" | "invalid";
+            };
+            revision: {
+              actor: {
+                /** @enum {string} */
+                kind: "user" | "agent" | "extension" | "system";
+                ref?: string;
+              };
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              new_digest?: string;
+              new_snapshot_id?: string;
+              /** @enum {string} */
+              operation: "write" | "delete" | "rollback";
+              previous_digest?: string;
+              source_path: string;
+            };
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Heartbeat authoring conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Heartbeat validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            config_digest?: string;
+            config_provenance: {
+              digest: string;
+              subset: {
+                active_session_only: boolean;
+                allow_active_hours_preferences: boolean;
+                /** Format: int64 */
+                context_projection_bytes: number;
+                default_interval: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes: number;
+                max_wakes_per_cycle: number;
+                min_interval: string;
+                session_health_hook_min_interval: string;
+                session_health_stale_after: string;
+                wake_cooldown: string;
+                wake_event_retention: string;
+              };
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              context: {
+                include?: string[];
+              };
+              enabled: boolean;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                min_interval?: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              summary?: string;
+              version: number;
+            };
+            guidance_markdown?: string;
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            preferences: {
+              active_hours?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+              context: {
+                include?: string[];
+              };
+              min_interval: string;
+              quiet_windows?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+            };
+            present: boolean;
+            prompt: {
+              active: boolean;
+              config_digest?: string;
+              context: {
+                include?: string[];
+              };
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              guidance_markdown?: string;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes: number;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                context: {
+                  include?: string[];
+                };
+                min_interval: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              source_path?: string;
+              summary?: string;
+              truncated: boolean;
+            };
+            schema_version: number;
+            snapshot_id?: string;
+            source_path?: string;
+            summary?: string;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteAgentHeartbeat: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          expected_digest: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            heartbeat: {
+              active: boolean;
+              agent_name?: string;
+              config_digest?: string;
+              config_provenance: {
+                digest: string;
+                subset: {
+                  active_session_only: boolean;
+                  allow_active_hours_preferences: boolean;
+                  /** Format: int64 */
+                  context_projection_bytes: number;
+                  default_interval: string;
+                  enabled: boolean;
+                  /** Format: int64 */
+                  max_body_bytes: number;
+                  max_wakes_per_cycle: number;
+                  min_interval: string;
+                  session_health_hook_min_interval: string;
+                  session_health_stale_after: string;
+                  wake_cooldown: string;
+                  wake_event_retention: string;
+                };
+              };
+              /** Format: date-time */
+              created_at?: string | null;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              enabled: boolean;
+              frontmatter: {
+                context: {
+                  include?: string[];
+                };
+                enabled: boolean;
+                preferences: {
+                  active_hours?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                  min_interval?: string;
+                  quiet_windows?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                };
+                summary?: string;
+                version: number;
+              };
+              guidance_markdown?: string;
+              limits: {
+                /** Format: int64 */
+                context_projection_bytes?: number;
+                /** Format: int64 */
+                max_body_bytes: number;
+                /** Format: int64 */
+                max_bytes?: number;
+              };
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                context: {
+                  include?: string[];
+                };
+                min_interval: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              present: boolean;
+              prompt: {
+                active: boolean;
+                config_digest?: string;
+                context: {
+                  include?: string[];
+                };
+                diagnostics?: {
+                  code: string;
+                  column?: number;
+                  field?: string;
+                  line?: number;
+                  message: string;
+                  owner_surface?: string;
+                  section?: string;
+                  /** @enum {string} */
+                  severity: "info" | "warning" | "error";
+                  source_path?: string;
+                }[];
+                digest?: string;
+                guidance_markdown?: string;
+                /** Format: int64 */
+                max_body_bytes: number;
+                /** Format: int64 */
+                max_bytes: number;
+                preferences: {
+                  active_hours?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                  context: {
+                    include?: string[];
+                  };
+                  min_interval: string;
+                  quiet_windows?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                };
+                source_path?: string;
+                summary?: string;
+                truncated: boolean;
+              };
+              schema_version: number;
+              snapshot_id?: string;
+              source_path?: string;
+              summary?: string;
+              valid: boolean;
+              /** @enum {string} */
+              validation_status: "missing" | "inactive" | "valid" | "invalid";
+            };
+            revision: {
+              actor: {
+                /** @enum {string} */
+                kind: "user" | "agent" | "extension" | "system";
+                ref?: string;
+              };
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              new_digest?: string;
+              new_snapshot_id?: string;
+              /** @enum {string} */
+              operation: "write" | "delete" | "rollback";
+              previous_digest?: string;
+              source_path: string;
+            };
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent, workspace, or policy not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Heartbeat authoring conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid Heartbeat delete request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listAgentHeartbeatHistory: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Maximum number of revisions to return */
+        limit?: number;
+        /** @description Revision cursor */
+        cursor?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            next_cursor?: string;
+            revisions: {
+              actor: {
+                /** @enum {string} */
+                kind: "user" | "agent" | "extension" | "system";
+                ref?: string;
+              };
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              new_digest?: string;
+              new_snapshot_id?: string;
+              /** @enum {string} */
+              operation: "write" | "delete" | "rollback";
+              previous_digest?: string;
+              source_path: string;
+            }[];
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid Heartbeat history request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  rollbackAgentHeartbeat: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          expected_digest: string;
+          idempotency_key?: string;
+          revision_id?: string;
+          target_digest?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            heartbeat: {
+              active: boolean;
+              agent_name?: string;
+              config_digest?: string;
+              config_provenance: {
+                digest: string;
+                subset: {
+                  active_session_only: boolean;
+                  allow_active_hours_preferences: boolean;
+                  /** Format: int64 */
+                  context_projection_bytes: number;
+                  default_interval: string;
+                  enabled: boolean;
+                  /** Format: int64 */
+                  max_body_bytes: number;
+                  max_wakes_per_cycle: number;
+                  min_interval: string;
+                  session_health_hook_min_interval: string;
+                  session_health_stale_after: string;
+                  wake_cooldown: string;
+                  wake_event_retention: string;
+                };
+              };
+              /** Format: date-time */
+              created_at?: string | null;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              enabled: boolean;
+              frontmatter: {
+                context: {
+                  include?: string[];
+                };
+                enabled: boolean;
+                preferences: {
+                  active_hours?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                  min_interval?: string;
+                  quiet_windows?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                };
+                summary?: string;
+                version: number;
+              };
+              guidance_markdown?: string;
+              limits: {
+                /** Format: int64 */
+                context_projection_bytes?: number;
+                /** Format: int64 */
+                max_body_bytes: number;
+                /** Format: int64 */
+                max_bytes?: number;
+              };
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                context: {
+                  include?: string[];
+                };
+                min_interval: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              present: boolean;
+              prompt: {
+                active: boolean;
+                config_digest?: string;
+                context: {
+                  include?: string[];
+                };
+                diagnostics?: {
+                  code: string;
+                  column?: number;
+                  field?: string;
+                  line?: number;
+                  message: string;
+                  owner_surface?: string;
+                  section?: string;
+                  /** @enum {string} */
+                  severity: "info" | "warning" | "error";
+                  source_path?: string;
+                }[];
+                digest?: string;
+                guidance_markdown?: string;
+                /** Format: int64 */
+                max_body_bytes: number;
+                /** Format: int64 */
+                max_bytes: number;
+                preferences: {
+                  active_hours?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                  context: {
+                    include?: string[];
+                  };
+                  min_interval: string;
+                  quiet_windows?: {
+                    end: string;
+                    start: string;
+                    timezone: string;
+                  }[];
+                };
+                source_path?: string;
+                summary?: string;
+                truncated: boolean;
+              };
+              schema_version: number;
+              snapshot_id?: string;
+              source_path?: string;
+              summary?: string;
+              valid: boolean;
+              /** @enum {string} */
+              validation_status: "missing" | "inactive" | "valid" | "invalid";
+            };
+            revision: {
+              actor: {
+                /** @enum {string} */
+                kind: "user" | "agent" | "extension" | "system";
+                ref?: string;
+              };
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              id: string;
+              new_digest?: string;
+              new_snapshot_id?: string;
+              /** @enum {string} */
+              operation: "write" | "delete" | "rollback";
+              previous_digest?: string;
+              source_path: string;
+            };
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent, workspace, revision, or snapshot not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Heartbeat authoring conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Heartbeat validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            config_digest?: string;
+            config_provenance: {
+              digest: string;
+              subset: {
+                active_session_only: boolean;
+                allow_active_hours_preferences: boolean;
+                /** Format: int64 */
+                context_projection_bytes: number;
+                default_interval: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes: number;
+                max_wakes_per_cycle: number;
+                min_interval: string;
+                session_health_hook_min_interval: string;
+                session_health_stale_after: string;
+                wake_cooldown: string;
+                wake_event_retention: string;
+              };
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              context: {
+                include?: string[];
+              };
+              enabled: boolean;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                min_interval?: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              summary?: string;
+              version: number;
+            };
+            guidance_markdown?: string;
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            preferences: {
+              active_hours?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+              context: {
+                include?: string[];
+              };
+              min_interval: string;
+              quiet_windows?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+            };
+            present: boolean;
+            prompt: {
+              active: boolean;
+              config_digest?: string;
+              context: {
+                include?: string[];
+              };
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              guidance_markdown?: string;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes: number;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                context: {
+                  include?: string[];
+                };
+                min_interval: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              source_path?: string;
+              summary?: string;
+              truncated: boolean;
+            };
+            schema_version: number;
+            snapshot_id?: string;
+            source_path?: string;
+            summary?: string;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getAgentHeartbeatStatus: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Session id for wake state and health */
+        session_id?: string;
+        /** @description Include session health when a session id is supplied */
+        include_session_health?: boolean;
+        /** @description Include recent wake audit rows */
+        include_recent_wake_events?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name: string;
+            config_digest?: string;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            preferences: {
+              active_hours?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+              context: {
+                include?: string[];
+              };
+              min_interval: string;
+              quiet_windows?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+            };
+            present: boolean;
+            revision_cursor?: string;
+            session_health?: {
+              active_prompt: boolean;
+              agent_name: string;
+              attachable: boolean;
+              eligible_for_wake: boolean;
+              /** @enum {string} */
+              health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+              /** @enum {string} */
+              ineligibility_reason?:
+                | "session_prompt_active"
+                | "session_not_attachable"
+                | "session_unhealthy"
+                | "session_health_stale"
+                | "session_health_hung"
+                | "session_health_dead"
+                | "session_health_unknown";
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_error?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
+              session_id: string;
+              /** @enum {string} */
+              state: "idle" | "prompting" | "stopped" | "detached";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            } | null;
+            snapshot_id?: string;
+            source_path?: string;
+            summary?: string;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+            wake_events?: {
+              agent_name?: string;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              expires_at: string;
+              id: string;
+              policy_snapshot_id?: string;
+              /** @enum {string} */
+              reason:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              session_id?: string;
+              /** @enum {string} */
+              source: "scheduler" | "manual" | "harness_reentry";
+              synthetic_prompt_id?: string;
+              workspace_id?: string;
+            }[];
+            wake_state?: {
+              agent_name?: string;
+              coalesced_count: number;
+              /** @enum {string} */
+              last_reason?:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              /** Format: date-time */
+              last_wake_at?: string | null;
+              /** Format: date-time */
+              next_allowed_at?: string | null;
+              policy_snapshot_id?: string;
+              session_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            } | null;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent, workspace, or session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Heartbeat status request is invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  validateAgentHeartbeat: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          body: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            config_digest?: string;
+            config_provenance: {
+              digest: string;
+              subset: {
+                active_session_only: boolean;
+                allow_active_hours_preferences: boolean;
+                /** Format: int64 */
+                context_projection_bytes: number;
+                default_interval: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes: number;
+                max_wakes_per_cycle: number;
+                min_interval: string;
+                session_health_hook_min_interval: string;
+                session_health_stale_after: string;
+                wake_cooldown: string;
+                wake_event_retention: string;
+              };
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              context: {
+                include?: string[];
+              };
+              enabled: boolean;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                min_interval?: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              summary?: string;
+              version: number;
+            };
+            guidance_markdown?: string;
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            preferences: {
+              active_hours?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+              context: {
+                include?: string[];
+              };
+              min_interval: string;
+              quiet_windows?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+            };
+            present: boolean;
+            prompt: {
+              active: boolean;
+              config_digest?: string;
+              context: {
+                include?: string[];
+              };
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              guidance_markdown?: string;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes: number;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                context: {
+                  include?: string[];
+                };
+                min_interval: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              source_path?: string;
+              summary?: string;
+              truncated: boolean;
+            };
+            schema_version: number;
+            snapshot_id?: string;
+            source_path?: string;
+            summary?: string;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Heartbeat validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            config_digest?: string;
+            config_provenance: {
+              digest: string;
+              subset: {
+                active_session_only: boolean;
+                allow_active_hours_preferences: boolean;
+                /** Format: int64 */
+                context_projection_bytes: number;
+                default_interval: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes: number;
+                max_wakes_per_cycle: number;
+                min_interval: string;
+                session_health_hook_min_interval: string;
+                session_health_stale_after: string;
+                wake_cooldown: string;
+                wake_event_retention: string;
+              };
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              context: {
+                include?: string[];
+              };
+              enabled: boolean;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                min_interval?: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              summary?: string;
+              version: number;
+            };
+            guidance_markdown?: string;
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            preferences: {
+              active_hours?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+              context: {
+                include?: string[];
+              };
+              min_interval: string;
+              quiet_windows?: {
+                end: string;
+                start: string;
+                timezone: string;
+              }[];
+            };
+            present: boolean;
+            prompt: {
+              active: boolean;
+              config_digest?: string;
+              context: {
+                include?: string[];
+              };
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              guidance_markdown?: string;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes: number;
+              preferences: {
+                active_hours?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+                context: {
+                  include?: string[];
+                };
+                min_interval: string;
+                quiet_windows?: {
+                  end: string;
+                  start: string;
+                  timezone: string;
+                }[];
+              };
+              source_path?: string;
+              summary?: string;
+              truncated: boolean;
+            };
+            schema_version: number;
+            snapshot_id?: string;
+            source_path?: string;
+            summary?: string;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  wakeAgentHeartbeat: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          dry_run?: boolean;
+          idempotency_key?: string;
+          session_id: string;
+          /** @enum {string} */
+          source: "scheduler" | "manual" | "harness_reentry";
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            decision: {
+              config_digest?: string;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              policy_digest?: string;
+              policy_snapshot_id?: string;
+              /** @enum {string} */
+              reason:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              synthetic_prompt_id?: string;
+              wake_event_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent, workspace, policy, or session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Wake skipped or coalesced by policy and health gates */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            decision: {
+              config_digest?: string;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              policy_digest?: string;
+              policy_snapshot_id?: string;
+              /** @enum {string} */
+              reason:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              synthetic_prompt_id?: string;
+              wake_event_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid Heartbeat wake request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getAgentDefinitionSoul: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul is invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  putAgentSoul: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          body: string;
+          expected_digest: string;
+          idempotency_key?: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            revision: {
+              /** @enum {string} */
+              action: "put" | "delete" | "rollback";
+              actor: {
+                kind: string;
+                ref?: string;
+              };
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              id: string;
+              new_digest?: string;
+              origin?: {
+                kind: string;
+                ref?: string;
+              } | null;
+              previous_digest?: string;
+              source_path: string;
+            };
+            soul: {
+              active: boolean;
+              agent_name?: string;
+              body?: string;
+              config_provenance: {
+                /** Format: int64 */
+                context_projection_bytes: number;
+                digest: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes: number;
+                source?: string;
+              };
+              /** Format: date-time */
+              created_at?: string | null;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              enabled: boolean;
+              frontmatter: {
+                collaboration?: string[];
+                constraints?: string[];
+                memory_policy?: string[];
+                principles?: string[];
+                role?: string;
+                tags?: string[];
+                tone?: string[];
+                version?: string;
+              };
+              limits: {
+                /** Format: int64 */
+                context_projection_bytes?: number;
+                /** Format: int64 */
+                max_body_bytes: number;
+                /** Format: int64 */
+                max_bytes?: number;
+              };
+              present: boolean;
+              revision_id?: string;
+              snapshot_id?: string;
+              source_path?: string;
+              truncated?: boolean;
+              valid: boolean;
+              /** @enum {string} */
+              validation_status: "missing" | "inactive" | "valid" | "invalid";
+            };
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul authoring conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteAgentSoul: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          expected_digest: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            revision: {
+              /** @enum {string} */
+              action: "put" | "delete" | "rollback";
+              actor: {
+                kind: string;
+                ref?: string;
+              };
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              id: string;
+              new_digest?: string;
+              origin?: {
+                kind: string;
+                ref?: string;
+              } | null;
+              previous_digest?: string;
+              source_path: string;
+            };
+            soul: {
+              active: boolean;
+              agent_name?: string;
+              body?: string;
+              config_provenance: {
+                /** Format: int64 */
+                context_projection_bytes: number;
+                digest: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes: number;
+                source?: string;
+              };
+              /** Format: date-time */
+              created_at?: string | null;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              enabled: boolean;
+              frontmatter: {
+                collaboration?: string[];
+                constraints?: string[];
+                memory_policy?: string[];
+                principles?: string[];
+                role?: string;
+                tags?: string[];
+                tone?: string[];
+                version?: string;
+              };
+              limits: {
+                /** Format: int64 */
+                context_projection_bytes?: number;
+                /** Format: int64 */
+                max_body_bytes: number;
+                /** Format: int64 */
+                max_bytes?: number;
+              };
+              present: boolean;
+              revision_id?: string;
+              snapshot_id?: string;
+              source_path?: string;
+              truncated?: boolean;
+              valid: boolean;
+              /** @enum {string} */
+              validation_status: "missing" | "inactive" | "valid" | "invalid";
+            };
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent, workspace, or Soul file not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul authoring conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid Soul delete request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listAgentSoulHistory: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Maximum number of revisions to return */
+        limit?: number;
+        /** @description Revision cursor */
+        cursor?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            next_cursor?: string;
+            revisions: {
+              /** @enum {string} */
+              action: "put" | "delete" | "rollback";
+              actor: {
+                kind: string;
+                ref?: string;
+              };
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              id: string;
+              new_digest?: string;
+              origin?: {
+                kind: string;
+                ref?: string;
+              } | null;
+              previous_digest?: string;
+              source_path: string;
+            }[];
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid Soul history request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  rollbackAgentSoul: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        agent_name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name: string;
+          expected_digest: string;
+          idempotency_key?: string;
+          revision_id: string;
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            revision: {
+              /** @enum {string} */
+              action: "put" | "delete" | "rollback";
+              actor: {
+                kind: string;
+                ref?: string;
+              };
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              id: string;
+              new_digest?: string;
+              origin?: {
+                kind: string;
+                ref?: string;
+              } | null;
+              previous_digest?: string;
+              source_path: string;
+            };
+            soul: {
+              active: boolean;
+              agent_name?: string;
+              body?: string;
+              config_provenance: {
+                /** Format: int64 */
+                context_projection_bytes: number;
+                digest: string;
+                enabled: boolean;
+                /** Format: int64 */
+                max_body_bytes: number;
+                source?: string;
+              };
+              /** Format: date-time */
+              created_at?: string | null;
+              diagnostics?: {
+                code: string;
+                column?: number;
+                field?: string;
+                line?: number;
+                message: string;
+                owner_surface?: string;
+                section?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source_path?: string;
+              }[];
+              digest?: string;
+              enabled: boolean;
+              frontmatter: {
+                collaboration?: string[];
+                constraints?: string[];
+                memory_policy?: string[];
+                principles?: string[];
+                role?: string;
+                tags?: string[];
+                tone?: string[];
+                version?: string;
+              };
+              limits: {
+                /** Format: int64 */
+                context_projection_bytes?: number;
+                /** Format: int64 */
+                max_body_bytes: number;
+                /** Format: int64 */
+                max_bytes?: number;
+              };
+              present: boolean;
+              revision_id?: string;
+              snapshot_id?: string;
+              source_path?: string;
+              truncated?: boolean;
+              valid: boolean;
+              /** @enum {string} */
+              validation_status: "missing" | "inactive" | "valid" | "invalid";
+            };
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent, workspace, or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul authoring conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
           };
         };
       };
@@ -9888,6 +13624,34 @@ export interface operations {
                   kind: string;
                   summary?: string;
                 } | null;
+                health?: {
+                  active_prompt: boolean;
+                  agent_name: string;
+                  attachable: boolean;
+                  eligible_for_wake: boolean;
+                  /** @enum {string} */
+                  health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                  /** @enum {string} */
+                  ineligibility_reason?:
+                    | "session_prompt_active"
+                    | "session_not_attachable"
+                    | "session_unhealthy"
+                    | "session_health_stale"
+                    | "session_health_hung"
+                    | "session_health_dead"
+                    | "session_health_unknown";
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_error?: string;
+                  /** Format: date-time */
+                  last_presence_at?: string | null;
+                  session_id: string;
+                  /** @enum {string} */
+                  state: "idle" | "prompting" | "stopped" | "detached";
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id: string;
+                } | null;
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
@@ -10105,6 +13869,34 @@ export interface operations {
                   crash_bundle_path?: string;
                   kind: string;
                   summary?: string;
+                } | null;
+                health?: {
+                  active_prompt: boolean;
+                  agent_name: string;
+                  attachable: boolean;
+                  eligible_for_wake: boolean;
+                  /** @enum {string} */
+                  health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                  /** @enum {string} */
+                  ineligibility_reason?:
+                    | "session_prompt_active"
+                    | "session_not_attachable"
+                    | "session_unhealthy"
+                    | "session_health_stale"
+                    | "session_health_hung"
+                    | "session_health_dead"
+                    | "session_health_unknown";
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_error?: string;
+                  /** Format: date-time */
+                  last_presence_at?: string | null;
+                  session_id: string;
+                  /** @enum {string} */
+                  state: "idle" | "prompting" | "stopped" | "detached";
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id: string;
                 } | null;
                 id: string;
                 lineage?: {
@@ -12343,6 +16135,34 @@ export interface operations {
                 kind: string;
                 summary?: string;
               } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
+              } | null;
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
@@ -12496,6 +16316,34 @@ export interface operations {
                 crash_bundle_path?: string;
                 kind: string;
                 summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
               } | null;
               id: string;
               lineage?: {
@@ -12663,6 +16511,34 @@ export interface operations {
                 crash_bundle_path?: string;
                 kind: string;
                 summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
               } | null;
               id: string;
               lineage?: {
@@ -13236,6 +17112,34 @@ export interface operations {
                 crash_bundle_path?: string;
                 kind: string;
                 summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
               } | null;
               id: string;
               lineage?: {
@@ -14057,6 +17961,587 @@ export interface operations {
               }[];
               role: string;
             }[];
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSessionHealth: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            health: {
+              active_prompt: boolean;
+              agent_name: string;
+              attachable: boolean;
+              eligible_for_wake: boolean;
+              /** @enum {string} */
+              health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+              /** @enum {string} */
+              ineligibility_reason?:
+                | "session_prompt_active"
+                | "session_not_attachable"
+                | "session_unhealthy"
+                | "session_health_stale"
+                | "session_health_hung"
+                | "session_health_dead"
+                | "session_health_unknown";
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_error?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
+              session_id: string;
+              /** @enum {string} */
+              state: "idle" | "prompting" | "stopped" | "detached";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  inspectSession: {
+    parameters: {
+      query?: {
+        /** @description Include recent wake audit rows */
+        include_recent_wake_events?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            config_digest?: string;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            health: {
+              active_prompt: boolean;
+              agent_name: string;
+              attachable: boolean;
+              eligible_for_wake: boolean;
+              /** @enum {string} */
+              health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+              /** @enum {string} */
+              ineligibility_reason?:
+                | "session_prompt_active"
+                | "session_not_attachable"
+                | "session_unhealthy"
+                | "session_health_stale"
+                | "session_health_hung"
+                | "session_health_dead"
+                | "session_health_unknown";
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_error?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
+              session_id: string;
+              /** @enum {string} */
+              state: "idle" | "prompting" | "stopped" | "detached";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            };
+            policy_digest?: string;
+            session_id: string;
+            wake_events?: {
+              agent_name?: string;
+              /** Format: date-time */
+              created_at: string;
+              /** Format: date-time */
+              expires_at: string;
+              id: string;
+              policy_snapshot_id?: string;
+              /** @enum {string} */
+              reason:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              session_id?: string;
+              /** @enum {string} */
+              source: "scheduler" | "manual" | "harness_reentry";
+              synthetic_prompt_id?: string;
+              workspace_id?: string;
+            }[];
+            wake_state?: {
+              agent_name?: string;
+              coalesced_count: number;
+              /** @enum {string} */
+              last_reason?:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              /** Format: date-time */
+              last_wake_at?: string | null;
+              /** Format: date-time */
+              next_allowed_at?: string | null;
+              policy_snapshot_id?: string;
+              session_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            } | null;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  refreshSessionSoul: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          expected_digest: string;
+          idempotency_key?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Session is not idle or Soul digest is stale */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Soul validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active: boolean;
+            agent_name?: string;
+            body?: string;
+            config_provenance: {
+              /** Format: int64 */
+              context_projection_bytes: number;
+              digest: string;
+              enabled: boolean;
+              /** Format: int64 */
+              max_body_bytes: number;
+              source?: string;
+            };
+            /** Format: date-time */
+            created_at?: string | null;
+            diagnostics?: {
+              code: string;
+              column?: number;
+              field?: string;
+              line?: number;
+              message: string;
+              owner_surface?: string;
+              section?: string;
+              /** @enum {string} */
+              severity: "info" | "warning" | "error";
+              source_path?: string;
+            }[];
+            digest?: string;
+            enabled: boolean;
+            frontmatter: {
+              collaboration?: string[];
+              constraints?: string[];
+              memory_policy?: string[];
+              principles?: string[];
+              role?: string;
+              tags?: string[];
+              tone?: string[];
+              version?: string;
+            };
+            limits: {
+              /** Format: int64 */
+              context_projection_bytes?: number;
+              /** Format: int64 */
+              max_body_bytes: number;
+              /** Format: int64 */
+              max_bytes?: number;
+            };
+            present: boolean;
+            revision_id?: string;
+            snapshot_id?: string;
+            source_path?: string;
+            truncated?: boolean;
+            valid: boolean;
+            /** @enum {string} */
+            validation_status: "missing" | "inactive" | "valid" | "invalid";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSessionStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_prompt: boolean;
+            agent_name: string;
+            attachable: boolean;
+            eligible_for_wake: boolean;
+            /** @enum {string} */
+            health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+            /** @enum {string} */
+            ineligibility_reason?:
+              | "session_prompt_active"
+              | "session_not_attachable"
+              | "session_unhealthy"
+              | "session_health_stale"
+              | "session_health_hung"
+              | "session_health_dead"
+              | "session_health_unknown";
+            session_id: string;
+            /** @enum {string} */
+            state: "idle" | "prompting" | "stopped" | "detached";
+            /** Format: date-time */
+            updated_at: string;
+            wake_state?: {
+              agent_name?: string;
+              coalesced_count: number;
+              /** @enum {string} */
+              last_reason?:
+                | "wake_sent"
+                | "heartbeat_disabled"
+                | "heartbeat_invalid"
+                | "heartbeat_no_policy"
+                | "heartbeat_rate_limited"
+                | "heartbeat_no_eligible_session"
+                | "cooldown_active"
+                | "quiet_window"
+                | "session_not_found"
+                | "session_unhealthy"
+                | "session_not_attachable"
+                | "session_prompt_active"
+                | "session_prompt_active_race"
+                | "synthetic_prompt_failed"
+                | "wake_coalesced";
+              /** @enum {string} */
+              last_result: "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
+              /** Format: date-time */
+              last_wake_at?: string | null;
+              /** Format: date-time */
+              next_allowed_at?: string | null;
+              policy_snapshot_id?: string;
+              session_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            } | null;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
           };
         };
       };
@@ -28294,6 +32779,34 @@ export interface operations {
                 crash_bundle_path?: string;
                 kind: string;
                 summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
               } | null;
               id: string;
               lineage?: {
