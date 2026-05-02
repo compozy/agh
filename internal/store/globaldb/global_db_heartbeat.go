@@ -947,7 +947,7 @@ func scanHeartbeatRevision(scanner rowScanner) (heartbeat.Revision, error) {
 	revision.PreviousDigest = heartbeatNullStringValue(previousDigest)
 	revision.NewDigest = heartbeatNullStringValue(newDigest)
 	revision.NewSnapshotID = heartbeatNullStringValue(newSnapshotID)
-	revision.Body = heartbeatNullStringValue(body)
+	revision.Body = heartbeatNullTextValue(body)
 	revision.ActorKind = heartbeat.ActorKind(actorKind)
 	revision.CreatedAt = createdAt
 	if err := revision.Validate(); err != nil {
@@ -1135,4 +1135,11 @@ func heartbeatNullStringValue(value sql.NullString) string {
 		return ""
 	}
 	return strings.TrimSpace(value.String)
+}
+
+func heartbeatNullTextValue(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.String
 }
