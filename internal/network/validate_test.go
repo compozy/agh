@@ -29,7 +29,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 		wantType reflect.Type
 	}{
 		{
-			name: "greet",
+			name: "Should normalize greet envelopes",
 			envelope: Envelope{
 				Protocol: " agh-network/v0 ",
 				ID:       " msg_greet_01 ",
@@ -53,7 +53,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 			wantType: reflect.TypeFor[GreetBody](),
 		},
 		{
-			name: "whois response",
+			name: "Should normalize whois response envelopes",
 			envelope: Envelope{
 				Protocol: "agh-network/v0",
 				ID:       "msg_whois_01",
@@ -78,7 +78,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 			wantType: reflect.TypeFor[WhoisBody](),
 		},
 		{
-			name: "say",
+			name: "Should normalize say envelopes",
 			envelope: Envelope{
 				Protocol: "agh-network/v0",
 				ID:       "msg_say_01",
@@ -95,7 +95,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 			wantType: reflect.TypeFor[SayBody](),
 		},
 		{
-			name: "direct",
+			name: "Should normalize direct envelopes",
 			envelope: Envelope{
 				Protocol:      "agh-network/v0",
 				ID:            "msg_direct_01",
@@ -115,7 +115,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 			wantType: reflect.TypeFor[DirectBody](),
 		},
 		{
-			name: "capability",
+			name: "Should normalize capability envelopes",
 			envelope: Envelope{
 				Protocol: "agh-network/v0",
 				ID:       "msg_capability_01",
@@ -136,7 +136,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 			wantType: reflect.TypeFor[CapabilityBody](),
 		},
 		{
-			name: "receipt",
+			name: "Should normalize receipt envelopes",
 			envelope: Envelope{
 				Protocol:      "agh-network/v0",
 				ID:            "msg_receipt_01",
@@ -156,7 +156,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 			wantType: reflect.TypeFor[ReceiptBody](),
 		},
 		{
-			name: "trace",
+			name: "Should normalize trace envelopes",
 			envelope: Envelope{
 				Protocol:      "agh-network/v0",
 				ID:            "msg_trace_01",
@@ -233,7 +233,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		wantMatch string
 	}{
 		{
-			name: "legacy recipe kind is rejected",
+			name: "Should reject legacy recipe kinds",
 			mutate: func(env Envelope) Envelope {
 				env.Kind = Kind("recipe")
 				env.To = nil
@@ -249,7 +249,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: `kind="recipe"`,
 		},
 		{
-			name: "invalid channel",
+			name: "Should reject invalid channels",
 			mutate: func(env Envelope) Envelope {
 				env.Channel = "bad.channel"
 				return env
@@ -258,7 +258,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "channel",
 		},
 		{
-			name: "invalid from",
+			name: "Should reject invalid from peer IDs",
 			mutate: func(env Envelope) Envelope {
 				env.From = "BadPeer"
 				return env
@@ -267,7 +267,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "peer_id",
 		},
 		{
-			name: "invalid to",
+			name: "Should reject invalid destination peer IDs",
 			mutate: func(env Envelope) Envelope {
 				env.To = stringPtr("missing channel")
 				return env
@@ -276,7 +276,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "to",
 		},
 		{
-			name: "missing interaction id",
+			name: "Should reject missing interaction IDs",
 			mutate: func(env Envelope) Envelope {
 				env.InteractionID = nil
 				return env
@@ -285,7 +285,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "interaction_id",
 		},
 		{
-			name: "whois response missing reply_to",
+			name: "Should reject whois responses without reply_to",
 			mutate: func(env Envelope) Envelope {
 				env.Kind = KindWhois
 				env.To = nil
@@ -306,7 +306,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "reply_to",
 		},
 		{
-			name: "expired message",
+			name: "Should reject expired messages",
 			mutate: func(env Envelope) Envelope {
 				env.ExpiresAt = int64Ptr(now.Add(-time.Second).Unix())
 				return env
@@ -315,7 +315,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "expires_at",
 		},
 		{
-			name: "replay too old",
+			name: "Should reject replay timestamps that are too old",
 			mutate: func(env Envelope) Envelope {
 				env.ExpiresAt = nil
 				env.TS = now.Add(-10 * time.Minute).Unix()
@@ -325,7 +325,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "max_replay_age",
 		},
 		{
-			name: "future timestamp outside replay window",
+			name: "Should reject future timestamps outside the replay window",
 			mutate: func(env Envelope) Envelope {
 				env.ExpiresAt = nil
 				env.TS = now.Add(10 * time.Minute).Unix()
@@ -335,7 +335,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "max_replay_age",
 		},
 		{
-			name: "greet task write without proof",
+			name: "Should reject greet task write capabilities without proof",
 			mutate: func(env Envelope) Envelope {
 				env.Kind = KindGreet
 				env.To = nil
@@ -355,7 +355,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "requires proof",
 		},
 		{
-			name: "raw secret in body",
+			name: "Should reject raw secrets in the body payload",
 			mutate: func(env Envelope) Envelope {
 				env.Body = mustRawJSON(t, map[string]any{
 					"text":         "please review auth.go",
@@ -367,7 +367,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "raw secret material",
 		},
 		{
-			name: "raw secret in body key",
+			name: "Should reject raw secrets in body keys",
 			mutate: func(env Envelope) Envelope {
 				env.Body = mustRawJSON(t, map[string]any{
 					"agh_claim_secret-token": "",
@@ -379,7 +379,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "raw secret material",
 		},
 		{
-			name: "raw secret in ext",
+			name: "Should reject raw secrets in extensions",
 			mutate: func(env Envelope) Envelope {
 				env.Ext = ExtensionMap{
 					"agh.handoff": mustRawJSON(t, map[string]any{
@@ -392,7 +392,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "raw secret material",
 		},
 		{
-			name: "raw secret in proof",
+			name: "Should reject raw secrets in proofs",
 			mutate: func(env Envelope) Envelope {
 				proof := Proof{
 					"agh.proof": mustRawJSON(t, map[string]any{
@@ -406,7 +406,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "network proof",
 		},
 		{
-			name: "accepted receipt with reason code",
+			name: "Should reject accepted receipts with reason codes",
 			mutate: func(env Envelope) Envelope {
 				env.Kind = KindReceipt
 				env.From = "reviewer.sess-xyz"
@@ -421,7 +421,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "accepted receipt",
 		},
 		{
-			name: "capability digest mismatch",
+			name: "Should reject capability digest mismatches",
 			mutate: func(env Envelope) Envelope {
 				capability := canonicalCapabilityPayload(t, CapabilityEnvelopePayload{
 					ID:               "review-fix",
@@ -443,7 +443,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "canonical digest",
 		},
 		{
-			name: "capability missing nested capability object",
+			name: "Should reject capability bodies without nested capability objects",
 			mutate: func(env Envelope) Envelope {
 				env.Kind = KindCapability
 				env.InteractionID = nil
@@ -459,7 +459,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: `{"capability":{...}}`,
 		},
 		{
-			name: "capability missing outcome",
+			name: "Should reject capabilities without outcomes",
 			mutate: func(env Envelope) Envelope {
 				env.Kind = KindCapability
 				env.InteractionID = nil
@@ -523,15 +523,24 @@ func TestRouteTokenKnownVectors(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
+		name   string
 		peerID string
 		want   string
 	}{
-		{peerID: "reviewer.sess-xyz", want: "790dd5515558f7784877abcbca51c5ba"},
-		{peerID: "coder.sess-abc", want: "07f9c1120ea61cb8f1a14ebec70c8912"},
+		{
+			name:   "Should return the known route token for reviewer.sess-xyz",
+			peerID: "reviewer.sess-xyz",
+			want:   "790dd5515558f7784877abcbca51c5ba",
+		},
+		{
+			name:   "Should return the known route token for coder.sess-abc",
+			peerID: "coder.sess-abc",
+			want:   "07f9c1120ea61cb8f1a14ebec70c8912",
+		},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.peerID, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			got, err := RouteToken(tc.peerID)
@@ -548,8 +557,11 @@ func TestRouteTokenKnownVectors(t *testing.T) {
 func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	raw := []byte(`{
+	t.Run("Should preserve opaque ext keys on round trip", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+		raw := []byte(`{
 	  "protocol": "agh-network/v0",
 	  "id": "msg_direct_ext_01",
 	  "kind": "direct",
@@ -572,27 +584,28 @@ func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 	  }
 	}`)
 
-	env, err := ParseEnvelope(raw, ValidateOptions{Now: now})
-	if err != nil {
-		t.Fatalf("ParseEnvelope() error = %v", err)
-	}
-	if env.Proof == nil {
-		t.Fatalf("ParseEnvelope().Proof = nil, want preserved proof payload")
-	}
+		env, err := ParseEnvelope(raw, ValidateOptions{Now: now})
+		if err != nil {
+			t.Fatalf("ParseEnvelope() error = %v", err)
+		}
+		if env.Proof == nil {
+			t.Fatalf("ParseEnvelope().Proof = nil, want preserved proof payload")
+		}
 
-	encoded, err := json.Marshal(env)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
+		encoded, err := json.Marshal(env)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
 
-	roundTripped, err := ParseEnvelope(encoded, ValidateOptions{Now: now})
-	if err != nil {
-		t.Fatalf("ParseEnvelope(round trip) error = %v", err)
-	}
+		roundTripped, err := ParseEnvelope(encoded, ValidateOptions{Now: now})
+		if err != nil {
+			t.Fatalf("ParseEnvelope(round trip) error = %v", err)
+		}
 
-	if !reflect.DeepEqual(extSnapshot(env.Ext), extSnapshot(roundTripped.Ext)) {
-		t.Fatalf("Ext round-trip mismatch = %#v, want %#v", extSnapshot(roundTripped.Ext), extSnapshot(env.Ext))
-	}
+		if !reflect.DeepEqual(extSnapshot(env.Ext), extSnapshot(roundTripped.Ext)) {
+			t.Fatalf("Ext round-trip mismatch = %#v, want %#v", extSnapshot(roundTripped.Ext), extSnapshot(env.Ext))
+		}
+	})
 }
 
 func mustRawJSON(t *testing.T, value any) json.RawMessage {
