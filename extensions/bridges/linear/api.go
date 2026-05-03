@@ -81,6 +81,22 @@ type linearGraphQLResponse[T any] struct {
 	Errors []linearGraphQLError `json:"errors,omitempty"`
 }
 
+func linearCredentialedHTTPClient(base *http.Client) *http.Client {
+	if base == nil {
+		return &http.Client{
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+	}
+
+	client := *base
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return &client
+}
+
 func (c *linearClient) ValidateAuth(ctx context.Context) (*linearViewer, error) {
 	type viewerResponse struct {
 		Viewer struct {
@@ -302,7 +318,7 @@ func doLinearGraphQL[T any](ctx context.Context, c *linearClient, request linear
 	httpRequest.Header.Set("Content-Type", "application/json")
 	httpRequest.Header.Set("Authorization", "Bearer "+c.authToken(ctx))
 
-	httpResponse, err := c.httpClient.Do(httpRequest)
+	httpResponse, err := linearCredentialedHTTPClient(c.httpClient).Do(httpRequest)
 	if err != nil {
 		return zero, classifyLinearTransportError(err)
 	}
@@ -383,7 +399,7 @@ func (c *linearClient) ensureOAuthToken(ctx context.Context) string {
 	}
 	httpRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	httpResponse, err := c.httpClient.Do(httpRequest)
+	httpResponse, err := linearCredentialedHTTPClient(c.httpClient).Do(httpRequest)
 	if err != nil {
 		cache.token = ""
 		cache.expiresAt = time.Time{}

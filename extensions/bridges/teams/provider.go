@@ -42,7 +42,12 @@ const (
 
 var messageIDStripPattern = regexp.MustCompile(`;messageid=.+$`)
 
-var teamsAuthHTTPClient = &http.Client{Timeout: 10 * time.Second}
+var teamsAuthHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
 
 type teamsProvider struct {
 	sdk     *bridgesdk.Runtime
@@ -2187,6 +2192,22 @@ func fetchTeamsJWKS(ctx context.Context, jwksURL string) (*teamsJWKS, error) {
 	return &keys, nil
 }
 
+func teamsCredentialedHTTPClient(base *http.Client) *http.Client {
+	if base == nil {
+		return &http.Client{
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+	}
+
+	client := *base
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return &client
+}
+
 func (k teamsJWKS) keyByID(keyID string) (*teamsJWK, error) {
 	for idx := range k.Keys {
 		if strings.TrimSpace(k.Keys[idx].Kid) == keyID ||
@@ -2343,7 +2364,7 @@ func (c *teamsBotClient) accessToken(ctx context.Context) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := c.httpClient.Do(req)
+	resp, err := teamsCredentialedHTTPClient(c.httpClient).Do(req)
 	if err != nil {
 		return "", err
 	}

@@ -741,6 +741,114 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 	mu.Unlock()
 }
 
+func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not follow OpenID metadata redirects", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			mu       sync.Mutex
+			evilHits int
+		)
+		evil := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			mu.Lock()
+			evilHits++
+			mu.Unlock()
+			http.Error(w, "unexpected redirect follow", http.StatusInternalServerError)
+		}))
+		defer evil.Close()
+
+		trusted := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, evil.URL, http.StatusTemporaryRedirect)
+		}))
+		defer trusted.Close()
+
+		if _, err := fetchTeamsOpenIDMetadata(context.Background(), trusted.URL); err == nil {
+			t.Fatal("fetchTeamsOpenIDMetadata(redirect) error = nil, want non-nil")
+		}
+
+		mu.Lock()
+		got := evilHits
+		mu.Unlock()
+		if got != 0 {
+			t.Fatalf("redirect target hits = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should not follow JWKS redirects", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			mu       sync.Mutex
+			evilHits int
+		)
+		evil := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			mu.Lock()
+			evilHits++
+			mu.Unlock()
+			http.Error(w, "unexpected redirect follow", http.StatusInternalServerError)
+		}))
+		defer evil.Close()
+
+		trusted := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, evil.URL, http.StatusTemporaryRedirect)
+		}))
+		defer trusted.Close()
+
+		if _, err := fetchTeamsJWKS(context.Background(), trusted.URL); err == nil {
+			t.Fatal("fetchTeamsJWKS(redirect) error = nil, want non-nil")
+		}
+
+		mu.Lock()
+		got := evilHits
+		mu.Unlock()
+		if got != 0 {
+			t.Fatalf("redirect target hits = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should not follow token redirects", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			mu       sync.Mutex
+			evilHits int
+		)
+		evil := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			mu.Lock()
+			evilHits++
+			mu.Unlock()
+			http.Error(w, "unexpected redirect follow", http.StatusInternalServerError)
+		}))
+		defer evil.Close()
+
+		trusted := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, evil.URL, http.StatusTemporaryRedirect)
+		}))
+		defer trusted.Close()
+
+		client := &teamsBotClient{
+			cfg: resolvedInstanceConfig{
+				tokenURL:    trusted.URL,
+				appID:       "app-id",
+				appPassword: "app-password",
+			},
+			httpClient: http.DefaultClient,
+		}
+		if _, err := client.accessToken(context.Background()); err == nil {
+			t.Fatal("accessToken(redirect) error = nil, want non-nil")
+		}
+
+		mu.Lock()
+		got := evilHits
+		mu.Unlock()
+		if got != 0 {
+			t.Fatalf("redirect target hits = %d, want 0", got)
+		}
+	})
+}
+
 func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
 	env := setProviderTestEnv(t)
 	listenAddr := reserveListenAddr(t)

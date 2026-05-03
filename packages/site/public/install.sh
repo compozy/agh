@@ -2,7 +2,7 @@
 set -eu
 
 RELEASE_REPO="compozy/agh"
-COSIGN_CERT_IDENTITY_REGEXP='^https://github\.com/compozy/agh/\.github/workflows/release\.yml@refs/(heads/main|tags/v[0-9][A-Za-z0-9._-]*)$'
+COSIGN_CERT_IDENTITY_REGEXP='^https://github\.com/compozy/agh/\.github/workflows/release\.yml@refs/tags/v[0-9][A-Za-z0-9._-]*$'
 COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"
 VERSION="${AGH_VERSION:-latest}"
 INSTALL_DIR="${AGH_INSTALL_DIR:-}"
@@ -45,6 +45,22 @@ log() {
 fail() {
   printf 'agh installer: %s\n' "$*" >&2
   exit 1
+}
+
+resolve_latest_release_tag() {
+  resolved_url="$(
+    curl -fsSL -o /dev/null -w '%{url_effective}' \
+      "https://github.com/${RELEASE_REPO}/releases/latest"
+  )" || fail "failed to resolve latest release"
+  resolved_tag="${resolved_url##*/}"
+  case "$resolved_tag" in
+    v[0-9]*)
+      printf '%s\n' "$resolved_tag"
+      ;;
+    *)
+      fail "latest release resolved to unexpected ref: ${resolved_url}"
+      ;;
+  esac
 }
 
 need_arg() {
@@ -155,6 +171,16 @@ fi
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v tar >/dev/null 2>&1 || fail "tar is required"
 command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify release provenance"
+
+if [ "$VERSION" = "latest" ]; then
+  VERSION="$(resolve_latest_release_tag)"
+  BASE_URL="https://github.com/${RELEASE_REPO}/releases/download/${VERSION}"
+  ARCHIVE_URL="${BASE_URL}/${ARCHIVE_NAME}"
+  CHECKSUM_URL="${BASE_URL}/checksums.txt"
+  SIGNATURE_URL="${BASE_URL}/checksums.txt.sig"
+  CERTIFICATE_URL="${BASE_URL}/checksums.txt.pem"
+  log "resolved latest release to ${VERSION}"
+fi
 
 if command -v sha256sum >/dev/null 2>&1; then
   CHECKSUM_CMD="sha256sum"

@@ -65,11 +65,13 @@ describe("public install contract", () => {
     expect(script).toContain('SIGNATURE_URL="${BASE_URL}/checksums.txt.sig"');
     expect(script).toContain('CERTIFICATE_URL="${BASE_URL}/checksums.txt.pem"');
     expect(script).toContain(
-      "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/agh/\\.github/workflows/release\\.yml@refs/(heads/main|tags/v[0-9][A-Za-z0-9._-]*)$'"
+      "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/agh/\\.github/workflows/release\\.yml@refs/tags/v[0-9][A-Za-z0-9._-]*$'"
     );
     expect(script).toContain(
       'COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"'
     );
+    expect(script).toContain("resolve_latest_release_tag()");
+    expect(script).toContain('VERSION="$(resolve_latest_release_tag)"');
     expect(script).toContain("COSIGN_EXPERIMENTAL=1 cosign verify-blob");
     expect(script).toContain('--certificate-identity-regexp "$COSIGN_CERT_IDENTITY_REGEXP"');
     expect(script).toContain('--certificate-oidc-issuer "$COSIGN_CERT_OIDC_ISSUER"');

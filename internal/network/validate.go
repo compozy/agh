@@ -374,6 +374,13 @@ func validateEnvelopeContainsNoRawSecrets(env Envelope) error {
 	if envelopeRawValueContainsSecret(env.Body) {
 		return fmt.Errorf("%w: raw secret material is not allowed in network body", ErrInvalidBody)
 	}
+	if env.Proof != nil {
+		for _, raw := range *env.Proof {
+			if envelopeRawValueContainsSecret(raw) {
+				return fmt.Errorf("%w: raw secret material is not allowed in network proof", ErrInvalidBody)
+			}
+		}
+	}
 	for _, raw := range env.Ext {
 		if envelopeRawValueContainsSecret(raw) {
 			return fmt.Errorf("%w: raw secret material is not allowed in network ext", ErrInvalidBody)

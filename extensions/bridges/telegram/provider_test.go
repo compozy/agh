@@ -267,8 +267,9 @@ func TestVerifyWebhookSecret(t *testing.T) {
 	if err := verifyWebhookSecret(context.Background(), req, nil, "wrong"); err == nil {
 		t.Fatal("verifyWebhookSecret(invalid) error = nil, want non-nil")
 	}
-	if err := verifyWebhookSecret(context.Background(), req, nil, ""); err == nil {
-		t.Fatal("verifyWebhookSecret(missing configured secret) error = nil, want non-nil")
+	if err := verifyWebhookSecret(context.Background(), req, nil, ""); err == nil ||
+		!strings.Contains(err.Error(), "webhook secret is required") {
+		t.Fatalf("verifyWebhookSecret(missing configured secret) error = %v, want missing-secret error", err)
 	}
 }
 

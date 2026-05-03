@@ -380,6 +380,20 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "raw secret material",
 		},
 		{
+			name: "raw secret in proof",
+			mutate: func(env Envelope) Envelope {
+				proof := Proof{
+					"agh.proof": mustRawJSON(t, map[string]any{
+						"access_token": "provider-token",
+					}),
+				}
+				env.Proof = &proof
+				return env
+			},
+			wantErr:   ErrInvalidBody,
+			wantMatch: "network proof",
+		},
+		{
 			name: "accepted receipt with reason code",
 			mutate: func(env Envelope) Envelope {
 				env.Kind = KindReceipt
