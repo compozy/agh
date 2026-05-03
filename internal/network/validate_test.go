@@ -367,6 +367,18 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "raw secret material",
 		},
 		{
+			name: "raw secret in body key",
+			mutate: func(env Envelope) Envelope {
+				env.Body = mustRawJSON(t, map[string]any{
+					"agh_claim_secret-token": "",
+					"text":                   "please review auth.go",
+				})
+				return env
+			},
+			wantErr:   ErrInvalidBody,
+			wantMatch: "raw secret material",
+		},
+		{
 			name: "raw secret in ext",
 			mutate: func(env Envelope) Envelope {
 				env.Ext = ExtensionMap{
@@ -479,6 +491,32 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNormalizeEnvelopeAllowsWhitespaceOnlyStrings(t *testing.T) {
+	t.Run("Should allow whitespace-only optional fields", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+		opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
+
+		envelope := Envelope{
+			Protocol: "agh-network/v0",
+			ID:       "msg_say_whitespace_01",
+			Kind:     KindSay,
+			Channel:  "builders",
+			From:     "coder.sess-abc",
+			TS:       now.Unix(),
+			Body: mustRawJSON(t, map[string]any{
+				"text":    "progress update",
+				"summary": "   ",
+			}),
+		}
+
+		if _, err := NormalizeEnvelope(envelope, opts); err != nil {
+			t.Fatalf("NormalizeEnvelope(whitespace-only optional field) error = %v", err)
+		}
+	})
 }
 
 func TestRouteTokenKnownVectors(t *testing.T) {

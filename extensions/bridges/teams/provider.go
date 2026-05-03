@@ -32,6 +32,7 @@ import (
 const (
 	teamsListenAddrEnv            = "AGH_BRIDGE_TEAMS_LISTEN_ADDR"
 	teamsOpenIDMetadataURLEnv     = "AGH_BRIDGE_TEAMS_OPENID_METADATA_URL"
+	teamsTestLoopbackAuthEnv      = "AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
 	teamsDefaultOpenIDMetadata    = "https://login.botframework.com/v1/.well-known/openidconfiguration"
 	teamsDefaultServiceURL        = "https://smba.trafficmanager.net/teams/"
 	teamsDefaultScope             = "https://api.botframework.com/.default"
@@ -2830,10 +2831,14 @@ func validTeamsCredentialedURL(value string) bool {
 	case "https":
 		return host == "login.botframework.com" || host == "login.microsoftonline.com"
 	case "http":
-		return isLoopbackTeamsHost(host)
+		return teamsLoopbackCredentialedURLsEnabledForTesting() && isLoopbackTeamsHost(host)
 	default:
 		return false
 	}
+}
+
+func teamsLoopbackCredentialedURLsEnabledForTesting() bool {
+	return strings.TrimSpace(os.Getenv(teamsTestLoopbackAuthEnv)) == "1"
 }
 
 func isLoopbackTeamsHost(host string) bool {

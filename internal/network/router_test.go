@@ -1364,6 +1364,16 @@ func TestRouterConstructionAndHelperErrors(t *testing.T) {
 		t.Fatalf("replayDeadline(clamped).UTC() = %s, want %s", got, want)
 	}
 
+	pastExpiry := future.Add(-time.Second).Unix()
+	deadline = replayDeadline(
+		Envelope{TS: future.Add(-time.Minute).Unix(), ExpiresAt: &pastExpiry},
+		future,
+		time.Minute,
+	)
+	if got, want := deadline, time.Unix(future.Unix()+1, 0).UTC(); !got.Equal(want) {
+		t.Fatalf("replayDeadline(min future clamp).UTC() = %s, want %s", got, want)
+	}
+
 	futureTimestamp := future.Add(10 * time.Minute)
 	deadline = replayDeadline(Envelope{TS: futureTimestamp.Unix()}, future, time.Minute)
 	if got, want := deadline, futureTimestamp.Add(time.Minute).UTC(); !got.Equal(want) {

@@ -67,6 +67,7 @@ describe("public install contract", () => {
     expect(script).toContain(
       "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/agh/\\.github/workflows/release\\.yml@refs/tags/v[0-9][A-Za-z0-9._-]*$'"
     );
+    expect(script).toContain("v[0-9][A-Za-z0-9._-]*)");
     expect(script).toContain(
       'COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"'
     );

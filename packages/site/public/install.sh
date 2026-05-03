@@ -54,7 +54,7 @@ resolve_latest_release_tag() {
   )" || fail "failed to resolve latest release"
   resolved_tag="${resolved_url##*/}"
   case "$resolved_tag" in
-    v[0-9]*)
+    v[0-9][A-Za-z0-9._-]*)
       printf '%s\n' "$resolved_tag"
       ;;
     *)

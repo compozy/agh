@@ -29,6 +29,11 @@ import (
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
+func enableTeamsLoopbackCredentialedURLsForTesting(t *testing.T) {
+	t.Helper()
+	t.Setenv(teamsTestLoopbackAuthEnv, "1")
+}
+
 func TestMapTeamsActivityFamiliesAndDMPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -742,11 +747,9 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 }
 
 func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
-	t.Parallel()
+	enableTeamsLoopbackCredentialedURLsForTesting(t)
 
 	t.Run("Should not follow OpenID metadata redirects", func(t *testing.T) {
-		t.Parallel()
-
 		var (
 			mu       sync.Mutex
 			evilHits int
@@ -764,8 +767,13 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 		}))
 		defer trusted.Close()
 
-		if _, err := fetchTeamsOpenIDMetadata(context.Background(), trusted.URL); err == nil {
-			t.Fatal("fetchTeamsOpenIDMetadata(redirect) error = nil, want non-nil")
+		_, err := fetchTeamsOpenIDMetadata(context.Background(), trusted.URL)
+		var httpErr *bridgesdk.HTTPError
+		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTemporaryRedirect {
+			t.Fatalf(
+				"fetchTeamsOpenIDMetadata(redirect) error = %v, want blocked redirect HTTP 307",
+				err,
+			)
 		}
 
 		mu.Lock()
@@ -777,8 +785,6 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 	})
 
 	t.Run("Should not follow JWKS redirects", func(t *testing.T) {
-		t.Parallel()
-
 		var (
 			mu       sync.Mutex
 			evilHits int
@@ -796,8 +802,10 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 		}))
 		defer trusted.Close()
 
-		if _, err := fetchTeamsJWKS(context.Background(), trusted.URL); err == nil {
-			t.Fatal("fetchTeamsJWKS(redirect) error = nil, want non-nil")
+		_, err := fetchTeamsJWKS(context.Background(), trusted.URL)
+		var httpErr *bridgesdk.HTTPError
+		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTemporaryRedirect {
+			t.Fatalf("fetchTeamsJWKS(redirect) error = %v, want blocked redirect HTTP 307", err)
 		}
 
 		mu.Lock()
@@ -809,8 +817,6 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 	})
 
 	t.Run("Should not follow token redirects", func(t *testing.T) {
-		t.Parallel()
-
 		var (
 			mu       sync.Mutex
 			evilHits int
@@ -836,8 +842,10 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 			},
 			httpClient: http.DefaultClient,
 		}
-		if _, err := client.accessToken(context.Background()); err == nil {
-			t.Fatal("accessToken(redirect) error = nil, want non-nil")
+		_, err := client.accessToken(context.Background())
+		var httpErr *bridgesdk.HTTPError
+		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTemporaryRedirect {
+			t.Fatalf("accessToken(redirect) error = %v, want blocked redirect HTTP 307", err)
 		}
 
 		mu.Lock()
@@ -931,8 +939,6 @@ func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
 }
 
 func TestClassifyTeamsHTTPErrorAndHelpers(t *testing.T) {
-	t.Parallel()
-
 	rate := classifyTeamsHTTPError(http.StatusTooManyRequests, "5", "slow down")
 	var rateErr *bridgesdk.RateLimitError
 	if !errors.As(rate, &rateErr) {
@@ -969,8 +975,12 @@ func TestClassifyTeamsHTTPErrorAndHelpers(t *testing.T) {
 	if !validTeamsCredentialedURL("https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token") {
 		t.Fatal("validTeamsCredentialedURL(microsoftonline) = false, want true")
 	}
+	if validTeamsCredentialedURL("http://127.0.0.1:3000/openid") {
+		t.Fatal("validTeamsCredentialedURL(loopback http without opt-in) = true, want false")
+	}
+	enableTeamsLoopbackCredentialedURLsForTesting(t)
 	if !validTeamsCredentialedURL("http://127.0.0.1:3000/openid") {
-		t.Fatal("validTeamsCredentialedURL(loopback http) = false, want true")
+		t.Fatal("validTeamsCredentialedURL(loopback http with opt-in) = false, want true")
 	}
 	if validTeamsCredentialedURL("https://evil.example/openid") {
 		t.Fatal("validTeamsCredentialedURL(untrusted https host) = true, want false")
@@ -1467,7 +1477,7 @@ func TestHandleBridgesDeliverCoverageAndRunCommand(t *testing.T) {
 }
 
 func TestTeamsOpenIDAndAuthHelperCoverage(t *testing.T) {
-	t.Parallel()
+	enableTeamsLoopbackCredentialedURLsForTesting(t)
 
 	if _, err := fetchTeamsOpenIDMetadata(context.Background(), ""); err == nil {
 		t.Fatal("fetchTeamsOpenIDMetadata(empty) error = nil, want non-nil")
@@ -1900,6 +1910,7 @@ type teamsProviderAPICall struct {
 
 func newTeamsProviderServer(t *testing.T, _ teamsProviderServerConfig) *teamsProviderServer {
 	t.Helper()
+	enableTeamsLoopbackCredentialedURLsForTesting(t)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -2289,6 +2300,7 @@ func testInitializeRequest(
 
 func setProviderTestEnv(t *testing.T) markerEnv {
 	t.Helper()
+	enableTeamsLoopbackCredentialedURLsForTesting(t)
 
 	root := filepath.Join(t.TempDir(), "markers")
 	env := markerEnv{

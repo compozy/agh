@@ -402,7 +402,7 @@ func envelopeRawValueContainsSecret(raw json.RawMessage) bool {
 }
 
 func envelopeValueContainsSecret(key string, value any) bool {
-	if envelopeKeyCarriesRawSecret(key) && envelopeValueIsNonEmpty(value) {
+	if envelopeStringContainsSecret(key) || (envelopeKeyCarriesRawSecret(key) && envelopeValueIsNonEmpty(value)) {
 		return true
 	}
 
@@ -431,6 +431,9 @@ func envelopeValueContainsSecret(key string, value any) bool {
 }
 
 func envelopeStringContainsSecret(value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return false
+	}
 	return taskpkg.RedactClaimTokens(value) != value || diagnostics.Redact(value) != value
 }
 

@@ -938,8 +938,9 @@ func replayDeadline(envelope Envelope, now time.Time, maxReplayAge time.Duration
 			deadline = expiresAt
 		}
 	}
-	if deadline.Before(now) {
-		return now.UTC()
+	minDeadline := time.Unix(now.Unix()+1, 0).UTC()
+	if deadline.Before(minDeadline) {
+		return minDeadline
 	}
 	return deadline
 }
