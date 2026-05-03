@@ -3,40 +3,33 @@
 package subprocess
 
 import (
-	"errors"
-	"os"
 	"os/exec"
+	"syscall"
 	"time"
+
+	"github.com/pedronauck/agh/internal/procutil"
 )
 
-var errForceManagedProcessGroupExitUnsupported = errors.New("subprocess: force-managed process-group exit is not supported on Windows")
+func configureManagedCommand(cmd *exec.Cmd) {
+	procutil.ConfigureCommandProcessGroup(cmd)
+}
 
-func configureManagedCommand(_ *exec.Cmd) {}
+func registerManagedCommand(cmd *exec.Cmd) error {
+	return procutil.RegisterCommandProcessGroup(cmd)
+}
 
 func terminateManagedProcess(cmd *exec.Cmd) error {
-	return signalManagedProcess(cmd, os.Kill)
+	return signalManagedProcess(cmd, syscall.SIGTERM)
 }
 
 func killManagedProcess(cmd *exec.Cmd) error {
-	return signalManagedProcess(cmd, os.Kill)
+	return signalManagedProcess(cmd, syscall.SIGKILL)
 }
 
-func signalManagedProcess(cmd *exec.Cmd, sig os.Signal) error {
-	if cmd == nil || cmd.Process == nil {
-		return nil
-	}
-	if err := cmd.Process.Signal(sig); err != nil {
-		if errors.Is(err, os.ErrProcessDone) {
-			return nil
-		}
-		return err
-	}
-	return nil
+func signalManagedProcess(cmd *exec.Cmd, sig syscall.Signal) error {
+	return procutil.SignalCommandProcessGroup(cmd, sig)
 }
 
-// Windows does not yet provide process-group parity for managed subprocesses in
-// this phase. Keep the fallback explicit and compile-safe instead of implying
-// Unix-equivalent behavior.
-func forceManagedProcessGroupExit(_ *exec.Cmd, _ time.Duration) error {
-	return errForceManagedProcessGroupExitUnsupported
+func forceManagedProcessGroupExit(cmd *exec.Cmd, timeout time.Duration) error {
+	return procutil.KillCommandProcessGroupAndWait(cmd, timeout)
 }

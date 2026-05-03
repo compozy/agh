@@ -78,6 +78,27 @@ func TestApprovalTokenStoreRejectsMismatchedAndExpiredTokens(t *testing.T) {
 		}
 		requireToolReason(t, store.ConsumeToolApproval(t.Context(), scope, mismatched), ReasonApprovalTokenMismatch)
 
+		mismatchedAgent := CallRequest{
+			ToolID:        ToolIDSkillView,
+			SessionID:     "sess-1",
+			WorkspaceID:   "ws-1",
+			AgentName:     "reviewer",
+			Input:         []byte(`{"message":"hello"}`),
+			ApprovalToken: grant.ApprovalToken,
+		}
+		requireToolReason(
+			t,
+			store.ConsumeToolApproval(t.Context(), scope, mismatchedAgent),
+			ReasonApprovalTokenMismatch,
+		)
+
+		_, err = store.CreateToolApproval(t.Context(), Scope{SessionID: "sess-1"}, ApprovalRequest{
+			ToolID:    ToolIDSkillView,
+			SessionID: "sess-2",
+			Input:     []byte(`{"message":"hello"}`),
+		})
+		requireToolReason(t, err, ReasonApprovalTokenMismatch)
+
 		now = now.Add(2 * time.Second)
 		expired := CallRequest{
 			ToolID:        ToolIDSkillView,

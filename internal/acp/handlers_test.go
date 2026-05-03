@@ -783,6 +783,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	aghDir := t.TempDir()
 	writeFakeAGHBinary(t, aghDir, "printf network-ok")
 	t.Setenv("PATH", aghDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("OPENAI_API_KEY", "sk-network-secret")
 
 	turnSource = "network"
 	firstTurn, err := proc.beginPrompt("turn-network-1", 4)
@@ -795,6 +796,10 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		Command:   "agh",
 		Args:      []string{"network", "status"},
 		Cwd:       acpsdk.Ptr(proc.Cwd),
+		Env: []acpsdk.EnvVariable{
+			{Name: "AGH_HOME", Value: "/tmp/redirected"},
+			{Name: "SAFE_NETWORK_OVERRIDE", Value: "blocked"},
+		},
 	})
 	if err != nil {
 		t.Fatalf("handleCreateTerminal(allowlisted network command) error = %v", err)
@@ -809,6 +814,15 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	}
 	if networkTerm.ownerTurnID != "turn-network-1" {
 		t.Fatalf("network terminal ownerTurnID = %q, want %q", networkTerm.ownerTurnID, "turn-network-1")
+	}
+	if got, ok := envValue(networkTerm.cmd.Env, "OPENAI_API_KEY"); ok {
+		t.Fatalf("network terminal OPENAI_API_KEY = %q, want filtered", got)
+	}
+	if got, ok := envValue(networkTerm.cmd.Env, "AGH_HOME"); ok {
+		t.Fatalf("network terminal AGH_HOME = %q, want request env ignored", got)
+	}
+	if got, ok := envValue(networkTerm.cmd.Env, "SAFE_NETWORK_OVERRIDE"); ok {
+		t.Fatalf("network terminal SAFE_NETWORK_OVERRIDE = %q, want request env ignored", got)
 	}
 
 	if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{

@@ -94,9 +94,12 @@ func (h *BaseHandlers) CreateToolApproval(c *gin.Context) {
 		return
 	}
 	scope := h.operatorToolScope(c)
-	scope.SessionID = firstNonEmpty(req.SessionID, scope.SessionID)
-	scope.WorkspaceID = firstNonEmpty(req.WorkspaceID, scope.WorkspaceID)
-	scope.AgentName = firstNonEmpty(req.AgentName, scope.AgentName)
+	effectiveScope, err := approvalScopeFromRequest(scope, req)
+	if err != nil {
+		h.respondToolError(c, err)
+		return
+	}
+	scope = effectiveScope
 	if _, err := h.Tools.Get(c.Request.Context(), scope, id); err != nil {
 		h.respondToolError(c, err)
 		return
@@ -420,6 +423,44 @@ func toolScopeFromSearch(scope toolspkg.Scope, req contract.ToolSearchRequest) t
 	scope.SessionID = firstNonEmpty(req.SessionID, scope.SessionID)
 	scope.AgentName = firstNonEmpty(req.AgentName, scope.AgentName)
 	return scope
+}
+
+func approvalScopeFromRequest(
+	scope toolspkg.Scope,
+	req contract.ToolApprovalRequest,
+) (toolspkg.Scope, error) {
+	sessionID, err := approvalScopeField("session_id", scope.SessionID, req.SessionID)
+	if err != nil {
+		return toolspkg.Scope{}, err
+	}
+	workspaceID, err := approvalScopeField("workspace_id", scope.WorkspaceID, req.WorkspaceID)
+	if err != nil {
+		return toolspkg.Scope{}, err
+	}
+	agentName, err := approvalScopeField("agent_name", scope.AgentName, req.AgentName)
+	if err != nil {
+		return toolspkg.Scope{}, err
+	}
+	scope.SessionID = sessionID
+	scope.WorkspaceID = workspaceID
+	scope.AgentName = agentName
+	return scope, nil
+}
+
+func approvalScopeField(field string, scoped string, requested string) (string, error) {
+	scoped = strings.TrimSpace(scoped)
+	requested = strings.TrimSpace(requested)
+	if scoped != "" && requested != "" && requested != scoped {
+		return "", toolspkg.NewValidationError(
+			field,
+			toolspkg.ReasonApprovalTokenMismatch,
+			field+" does not match approval scope",
+		)
+	}
+	if requested != "" {
+		return requested, nil
+	}
+	return scoped, nil
 }
 
 // respondToolError serializes stable tool errors without backend error text.

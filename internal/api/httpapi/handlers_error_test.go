@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -383,7 +384,7 @@ func TestCORSMiddlewareRejectsDisallowedOrigins(t *testing.T) {
 	}
 }
 
-func TestCORSMiddlewareAllowsLoopbackOrigins(t *testing.T) {
+func TestCORSMiddlewareRejectsDifferentLoopbackOrigins(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -401,11 +402,41 @@ func TestCORSMiddlewareAllowsLoopbackOrigins(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, req)
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
 	}
-	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
-		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, "http://localhost:3000")
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want empty", got)
+	}
+}
+
+func TestRequestBodyLimitRejectsOversizedAPIRequests(t *testing.T) {
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"http://127.0.0.1/api/sessions",
+		strings.NewReader(strings.Repeat("x", int(maxAPIRequestBodyBytes)+1)),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf(
+			"status = %d, want %d; body=%s",
+			recorder.Code,
+			http.StatusRequestEntityTooLarge,
+			recorder.Body.String(),
+		)
+	}
+
+	var payload contract.ErrorPayload
+	decodeJSONResponse(t, recorder, &payload)
+	if payload.Error != errRequestBodyTooLarge.Error() {
+		t.Fatalf("error = %q, want %q", payload.Error, errRequestBodyTooLarge.Error())
 	}
 }
 

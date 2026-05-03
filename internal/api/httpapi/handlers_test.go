@@ -303,7 +303,7 @@ func TestRegisterRoutesSkipsNilHandlers(t *testing.T) {
 	}
 }
 
-func TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost(t *testing.T) {
+func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
@@ -353,14 +353,19 @@ func TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost(t *testi
 	for _, path := range tests {
 		t.Run(path, func(t *testing.T) {
 			recorder := performRequest(t, engine, http.MethodGet, path, nil)
-			if recorder.Code != http.StatusOK {
+			if recorder.Code != http.StatusForbidden {
 				t.Fatalf(
 					"GET %s status = %d, want %d; body=%s",
 					path,
 					recorder.Code,
-					http.StatusOK,
+					http.StatusForbidden,
 					recorder.Body.String(),
 				)
+			}
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if payload.Error != errLoopbackAPIRequired.Error() {
+				t.Fatalf("error = %q, want %q", payload.Error, errLoopbackAPIRequired.Error())
 			}
 		})
 	}
@@ -374,6 +379,11 @@ func TestSettingsAndExtensionReadRoutesRemainAvailableOnNonLoopbackHost(t *testi
 				http.StatusForbidden,
 				recorder.Body.String(),
 			)
+		}
+		var payload contract.ErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if payload.Error != errLoopbackAPIRequired.Error() {
+			t.Fatalf("error = %q, want %q", payload.Error, errLoopbackAPIRequired.Error())
 		}
 	})
 }
@@ -465,8 +475,8 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 
 			var payload contract.ErrorPayload
 			decodeJSONResponse(t, recorder, &payload)
-			if payload.Error != errLoopbackMutationRequired.Error() {
-				t.Fatalf("error = %q, want %q", payload.Error, errLoopbackMutationRequired.Error())
+			if payload.Error != errLoopbackAPIRequired.Error() {
+				t.Fatalf("error = %q, want %q", payload.Error, errLoopbackAPIRequired.Error())
 			}
 		})
 	}
@@ -1333,7 +1343,11 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 					Timestamp:  time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC),
 					Title:      "read_file",
 					ToolCallID: "call-1",
-					Raw:        json.RawMessage(`{"tool_input":{"path":"README.md"}}`),
+					Raw: json.RawMessage(
+						`{"access_token":"provider-token","note":"agh_claim_RAWTOKEN123",` +
+							`"authorization":"Bearer provider-token","tool_input":` +
+							`{"path":"README.md","client_secret":"secret-value"}}`,
+					),
 				}
 				ch <- acp.AgentEvent{
 					Type:       "done",
@@ -1397,8 +1411,21 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 		if got, want := secondInput["path"], "README.md"; got != want {
 			t.Fatalf("second tool input path = %#v, want %q", got, want)
 		}
+		if got, want := secondInput["client_secret"], "[REDACTED]"; got != want {
+			t.Fatalf("second tool input client_secret = %#v, want %q", got, want)
+		}
 		if got, want := toolInputs[1]["toolName"], "read_file"; got != want {
 			t.Fatalf("second tool input toolName = %#v, want %q", got, want)
+		}
+		for _, leaked := range []string{
+			"provider-token",
+			"secret-value",
+			"agh_claim_RAWTOKEN123",
+			"Bearer provider-token",
+		} {
+			if strings.Contains(recorder.Body.String(), leaked) {
+				t.Fatalf("prompt SSE leaked %q in body=%s", leaked, recorder.Body.String())
+			}
 		}
 	})
 }
@@ -1833,14 +1860,14 @@ func TestCORSHeadersPresentOnResponses(t *testing.T) {
 		"http://127.0.0.1/api/sessions",
 		http.NoBody,
 	)
-	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Origin", "http://127.0.0.1")
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
-		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, "http://localhost:3000")
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "http://127.0.0.1" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, "http://127.0.0.1")
 	}
 }
 

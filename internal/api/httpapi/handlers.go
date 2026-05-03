@@ -3,6 +3,7 @@ package httpapi
 import (
 	"io/fs"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,6 +77,13 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 	if cfg.httpPort <= 0 {
 		cfg.httpPort = cfg.config.HTTP.Port
 	}
+	boundHost := strings.TrimSpace(cfg.boundHost)
+	if boundHost == "" {
+		boundHost = strings.TrimSpace(cfg.config.HTTP.Host)
+	}
+	if boundHost == "" {
+		boundHost = "localhost"
+	}
 
 	return &Handlers{
 		BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{
@@ -122,7 +130,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		staticFS:     cfg.staticFS,
 		resourceAuth: append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
 		Extensions:   cfg.extensions,
-		boundHost:    cfg.boundHost,
+		boundHost:    boundHost,
 	}
 }
 

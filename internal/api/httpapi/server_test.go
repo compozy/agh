@@ -627,7 +627,7 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 	}
 }
 
-func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *testing.T) {
+func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
@@ -686,10 +686,10 @@ func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *te
 		name string
 		path string
 	}{
-		{name: "Should allow reading the general settings section", path: "/api/settings/general"},
-		{name: "Should allow reading restart status", path: "/api/settings/actions/restart/op-123"},
-		{name: "Should allow listing extensions", path: "/api/extensions"},
-		{name: "Should allow reading extension status", path: "/api/extensions/demo"},
+		{name: "Should block reading the general settings section", path: "/api/settings/general"},
+		{name: "Should block reading restart status", path: "/api/settings/actions/restart/op-123"},
+		{name: "Should block listing extensions", path: "/api/extensions"},
+		{name: "Should block reading extension status", path: "/api/extensions/demo"},
 	}
 	for _, tc := range readCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -703,9 +703,14 @@ func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *te
 			defer func() {
 				_ = resp.Body.Close()
 			}()
-			if got, want := resp.StatusCode, http.StatusOK; got != want {
+			if got, want := resp.StatusCode, http.StatusForbidden; got != want {
 				body, _ := io.ReadAll(resp.Body)
 				t.Fatalf("GET %s status = %d, want %d; body=%s", tc.path, got, want, string(body))
+			}
+			var payload contract.ErrorPayload
+			decodeServerJSON(t, resp, &payload)
+			if got, want := payload.Error, errLoopbackAPIRequired.Error(); got != want {
+				t.Fatalf("payload.Error = %q, want %q", got, want)
 			}
 		})
 	}
@@ -727,7 +732,7 @@ func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *te
 		}
 		var payload contract.ErrorPayload
 		decodeServerJSON(t, resp, &payload)
-		if got, want := payload.Error, errLoopbackMutationRequired.Error(); got != want {
+		if got, want := payload.Error, errLoopbackAPIRequired.Error(); got != want {
 			t.Fatalf("payload.Error = %q, want %q", got, want)
 		}
 	})
@@ -749,7 +754,7 @@ func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *te
 		}
 		var payload contract.ErrorPayload
 		decodeServerJSON(t, resp, &payload)
-		if got, want := payload.Error, errLoopbackMutationRequired.Error(); got != want {
+		if got, want := payload.Error, errLoopbackAPIRequired.Error(); got != want {
 			t.Fatalf("payload.Error = %q, want %q", got, want)
 		}
 	})
@@ -817,7 +822,7 @@ func TestNonLoopbackServerBlocksSettingsAndExtensionMutationsButKeepsReads(t *te
 			}
 			var payload contract.ErrorPayload
 			decodeServerJSON(t, resp, &payload)
-			if got, want := payload.Error, errLoopbackMutationRequired.Error(); got != want {
+			if got, want := payload.Error, errLoopbackAPIRequired.Error(); got != want {
 				t.Fatalf("payload.Error = %q, want %q", got, want)
 			}
 		})

@@ -163,7 +163,10 @@ func InstallMarketplaceManaged(
 		return nil, err
 	}
 
-	finalDir := ManagedInstallPath(homePaths, manifest.Name)
+	finalDir, err := ManagedInstallPathChecked(homePaths, manifest.Name)
+	if err != nil {
+		return nil, err
+	}
 	if err := registrypkg.MoveInstalledDir(result.InstallPath, finalDir, false); err != nil {
 		return nil, fmt.Errorf("extension: move %q into managed install path: %w", manifest.Name, err)
 	}

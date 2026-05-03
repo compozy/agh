@@ -292,6 +292,9 @@ func doLinearGraphQL[T any](ctx context.Context, c *linearClient, request linear
 		return zero, fmt.Errorf("linear: marshal graphql request: %w", err)
 	}
 
+	if !validLinearCredentialedURL(c.cfg.apiBaseURL) {
+		return zero, &bridgesdk.PermanentError{Err: errors.New("linear: api base url is invalid")}
+	}
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.graphqlURL(), bytes.NewReader(payload))
 	if err != nil {
 		return zero, fmt.Errorf("linear: build graphql request: %w", err)
@@ -362,6 +365,11 @@ func (c *linearClient) ensureOAuthToken(ctx context.Context) string {
 	values.Set("client_secret", c.cfg.clientSecret)
 	values.Set("scope", strings.Join(defaultLinearOAuthScopes(c.cfg.mode), ","))
 
+	if !validLinearCredentialedURL(c.cfg.oauthTokenURL) {
+		cache.token = ""
+		cache.expiresAt = time.Time{}
+		return ""
+	}
 	httpRequest, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,

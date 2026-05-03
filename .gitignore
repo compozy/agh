@@ -15,6 +15,7 @@ coverage.html
 .codex/hooks/
 .codex/loops/
 .codex/CONTINUITY*
+.codex/security-reports/*
 .resources/
 .old_project/
 node_modules/

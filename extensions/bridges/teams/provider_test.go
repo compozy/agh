@@ -855,6 +855,21 @@ func TestClassifyTeamsHTTPErrorAndHelpers(t *testing.T) {
 	if validTeamsServiceURL("http://example.test") {
 		t.Fatal("validTeamsServiceURL(http) = true, want false")
 	}
+	if !validTeamsCredentialedURL("https://login.botframework.com/v1/.well-known/openidconfiguration") {
+		t.Fatal("validTeamsCredentialedURL(botframework) = false, want true")
+	}
+	if !validTeamsCredentialedURL("https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token") {
+		t.Fatal("validTeamsCredentialedURL(microsoftonline) = false, want true")
+	}
+	if !validTeamsCredentialedURL("http://127.0.0.1:3000/openid") {
+		t.Fatal("validTeamsCredentialedURL(loopback http) = false, want true")
+	}
+	if validTeamsCredentialedURL("https://evil.example/openid") {
+		t.Fatal("validTeamsCredentialedURL(untrusted https host) = true, want false")
+	}
+	if validTeamsCredentialedURL("http://169.254.169.254/latest/meta-data") {
+		t.Fatal("validTeamsCredentialedURL(link-local http) = true, want false")
+	}
 }
 
 func TestProviderHelperStateAndShutdown(t *testing.T) {

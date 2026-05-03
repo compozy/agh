@@ -56,6 +56,20 @@ func TestManagedInstallHelpers(t *testing.T) {
 	); got != want {
 		t.Fatalf("ManagedInstallPath() = %q, want %q", got, want)
 	}
+	if got, err := ManagedInstallPathChecked(homePaths, " test-ext "); err != nil || got != filepath.Join(
+		homePaths.HomeDir,
+		managedInstallDirName,
+		"test-ext",
+	) {
+		t.Fatalf("ManagedInstallPathChecked() = %q, %v; want contained path", got, err)
+	}
+	for _, name := range []string{"../escape", "nested/name", `nested\name`, ".", "..", "/abs"} {
+		t.Run("Should reject unsafe name "+name, func(t *testing.T) {
+			if got, err := ManagedInstallPathChecked(homePaths, name); err == nil {
+				t.Fatalf("ManagedInstallPathChecked(%q) = %q, nil; want error", name, got)
+			}
+		})
+	}
 
 	stagingDir, err := NewManagedInstallStagingDir(homePaths)
 	if err != nil {
@@ -66,6 +80,36 @@ func TestManagedInstallHelpers(t *testing.T) {
 	}
 	if err := os.RemoveAll(stagingDir); err != nil {
 		t.Fatalf("os.RemoveAll(stagingDir) error = %v", err)
+	}
+}
+
+func TestInstallLocalManagedRejectsUnsafeManifestName(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	registry := managedInstallRegistryStub{
+		installFn: func(*Manifest, string, string, ...InstallOption) error {
+			t.Fatal("Install should not be called for unsafe managed extension names")
+			return nil
+		},
+	}
+
+	err = InstallLocalManaged(
+		homePaths,
+		registry,
+		&Manifest{Name: "../escape", Version: "1.0.0"},
+		filepath.Join(t.TempDir(), "missing-source"),
+		"sha256:unused",
+	)
+	if err == nil {
+		t.Fatal("InstallLocalManaged() error = nil, want unsafe name rejection")
+	}
+	escapedPath := filepath.Join(homePaths.HomeDir, "..", "escape")
+	if _, statErr := os.Stat(escapedPath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("os.Stat(%q) error = %v, want not exists", escapedPath, statErr)
 	}
 }
 

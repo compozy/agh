@@ -19,7 +19,7 @@ const primaryInstallCommand = "curl -fsSL https://agh.network/install.sh | sh";
 const packageInstallCommand = "brew install --cask pedronauck/agh/agh";
 const sourceInstallCommand = "go build -o ./bin/agh ./cmd/agh";
 const installOptions = ["--version", "--dir", "--skip-bootstrap", "--dry-run", "--help"];
-const installEnvVars = ["AGH_VERSION", "AGH_INSTALL_DIR", "AGH_RELEASE_REPO", "AGH_SKIP_BOOTSTRAP"];
+const installEnvVars = ["AGH_VERSION", "AGH_INSTALL_DIR", "AGH_SKIP_BOOTSTRAP"];
 
 function readSiteFile(path: string): string {
   return readFileSync(path, "utf8");
@@ -32,7 +32,6 @@ function runInstallScript(args: string[]) {
     encoding: "utf8",
     env: {
       ...process.env,
-      AGH_RELEASE_REPO: "compozy/agh",
       AGH_SKIP_BOOTSTRAP: "",
     },
   });
@@ -43,14 +42,37 @@ describe("public install contract", () => {
     const script = readSiteFile(installScriptPath);
     const downloadIndex = script.indexOf('curl -fsSL "$ARCHIVE_URL" -o "$ARCHIVE_PATH"');
     const checksumDownloadIndex = script.indexOf('curl -fsSL "$CHECKSUM_URL" -o "$CHECKSUM_PATH"');
-    const checksumVerifyIndex = script.indexOf("verifying checksum");
+    const signatureDownloadIndex = script.indexOf(
+      'curl -fsSL "$SIGNATURE_URL" -o "$SIGNATURE_PATH"'
+    );
+    const certificateDownloadIndex = script.indexOf(
+      'curl -fsSL "$CERTIFICATE_URL" -o "$CERTIFICATE_PATH"'
+    );
+    const provenanceVerifyIndex = script.indexOf("verifying checksum provenance");
+    const checksumVerifyIndex = script.indexOf('log "verifying checksum"');
     const extractIndex = script.indexOf('tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"');
 
     expect(script.startsWith("#!/bin/sh\nset -eu\n")).toBe(true);
+    expect(script).toContain('RELEASE_REPO="compozy/agh"');
+    expect(script).not.toContain("AGH_RELEASE_REPO");
     expect(script).toContain('BASE_URL="https://github.com/${RELEASE_REPO}/releases');
     expect(script).not.toContain("http://");
     expect(script).toContain('command -v curl >/dev/null 2>&1 || fail "curl is required"');
     expect(script).toContain('command -v tar >/dev/null 2>&1 || fail "tar is required"');
+    expect(script).toContain(
+      'command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify release provenance"'
+    );
+    expect(script).toContain('SIGNATURE_URL="${BASE_URL}/checksums.txt.sig"');
+    expect(script).toContain('CERTIFICATE_URL="${BASE_URL}/checksums.txt.pem"');
+    expect(script).toContain(
+      "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/agh/\\.github/workflows/release\\.yml@refs/(heads/main|tags/v[0-9][A-Za-z0-9._-]*)$'"
+    );
+    expect(script).toContain(
+      'COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"'
+    );
+    expect(script).toContain("COSIGN_EXPERIMENTAL=1 cosign verify-blob");
+    expect(script).toContain('--certificate-identity-regexp "$COSIGN_CERT_IDENTITY_REGEXP"');
+    expect(script).toContain('--certificate-oidc-issuer "$COSIGN_CERT_OIDC_ISSUER"');
     expect(script).toContain('CHECKSUM_CMD="sha256sum"');
     expect(script).toContain('CHECKSUM_CMD="shasum"');
     expect(script).toContain("shasum -a 256 -c - >/dev/null");
@@ -62,7 +84,10 @@ describe("public install contract", () => {
     expect(script).toContain('"$TARGET" install </dev/tty >/dev/tty');
     expect(downloadIndex).toBeGreaterThan(-1);
     expect(checksumDownloadIndex).toBeGreaterThan(downloadIndex);
-    expect(checksumVerifyIndex).toBeGreaterThan(checksumDownloadIndex);
+    expect(signatureDownloadIndex).toBeGreaterThan(checksumDownloadIndex);
+    expect(certificateDownloadIndex).toBeGreaterThan(signatureDownloadIndex);
+    expect(provenanceVerifyIndex).toBeGreaterThan(certificateDownloadIndex);
+    expect(checksumVerifyIndex).toBeGreaterThan(provenanceVerifyIndex);
     expect(extractIndex).toBeGreaterThan(checksumVerifyIndex);
   });
 
@@ -123,5 +148,6 @@ describe("public install contract", () => {
     for (const envVar of ["AGH_VERSION", "AGH_INSTALL_DIR", "AGH_SKIP_BOOTSTRAP"]) {
       expect(installPage, envVar).toContain(envVar);
     }
+    expect(installPage).toContain("cosign");
   });
 });

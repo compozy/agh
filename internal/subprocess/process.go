@@ -178,11 +178,8 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 		handle, err := cfg.ProcessRegistry.Register(ctx, recordCfg)
 		if err != nil {
 			cancelLifecycle()
-			if killErr := killManagedProcess(cmd); killErr != nil && runtime.logger != nil {
-				runtime.logger.Warn("subprocess: cleanup after process registry failure", "error", killErr)
-			}
-			if waitErr := cmd.Wait(); waitErr != nil && runtime.logger != nil {
-				runtime.logger.Warn("subprocess: wait after process registry failure", "error", waitErr)
+			if cleanupErr := cleanupStartedManagedCommand(cmd); cleanupErr != nil && runtime.logger != nil {
+				runtime.logger.Warn("subprocess: cleanup after process registry failure", "error", cleanupErr)
 			}
 			return nil, err
 		}
@@ -267,8 +264,32 @@ func startManagedCommand(cfg LaunchConfig) (*exec.Cmd, io.WriteCloser, io.ReadCl
 	if err := cmd.Start(); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("subprocess: start %q: %w", cfg.Command, err)
 	}
+	if err := registerManagedCommand(cmd); err != nil {
+		cleanupErr := cleanupStartedManagedCommand(cmd)
+		return nil, nil, nil, nil, errors.Join(
+			fmt.Errorf("subprocess: register process tree for %q: %w", cfg.Command, err),
+			cleanupErr,
+		)
+	}
 
 	return cmd, stdin, stdout, stderr, nil
+}
+
+func cleanupStartedManagedCommand(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+	var errs []error
+	if err := killManagedProcess(cmd); err != nil {
+		errs = append(errs, fmt.Errorf("subprocess: kill after start cleanup: %w", err))
+	}
+	if err := cmd.Wait(); err != nil {
+		errs = append(errs, fmt.Errorf("subprocess: wait after start cleanup: %w", err))
+	}
+	if err := forceManagedProcessGroupExit(cmd, defaultProcessGroupWait); err != nil {
+		errs = append(errs, fmt.Errorf("subprocess: wait for process tree after start cleanup: %w", err))
+	}
+	return errors.Join(errs...)
 }
 
 func resolvedCommand(command string, args []string) (string, []string, error) {

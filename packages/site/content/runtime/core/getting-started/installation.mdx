@@ -12,6 +12,8 @@ your first durable session.
 Make sure you have:
 
 - **macOS or Linux**. AGH currently targets local-first Unix-like environments.
+- **Release verification tools**. The curl installer requires `curl`, `tar`, `cosign`, and either
+  `sha256sum` or `shasum`.
 - **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
   ACP-compatible agent runtime you already use.
 - **Provider credentials available to the daemon**. Direct `env:` refs read API keys from the
@@ -34,9 +36,9 @@ This is the recommended path on macOS and Linux:
 curl -fsSL https://agh.network/install.sh | sh
 ```
 
-The installer detects your platform, downloads the matching GitHub release archive, verifies it
-against `checksums.txt`, installs `agh`, runs `agh version`, and opens `agh install` when an
-interactive terminal is available.
+The installer detects your platform, downloads the matching GitHub release archive, verifies
+`checksums.txt` with its cosign signature, verifies the archive checksum, installs `agh`, runs
+`agh version`, and opens `agh install` when an interactive terminal is available.
 
 Use flags when you need a pinned or scripted install:
 

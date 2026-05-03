@@ -13,6 +13,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/workref"
@@ -546,10 +547,7 @@ func (m *Manager) sessionStartOpts(
 }
 
 func sessionStartEnv(base []string, session *Session) []string {
-	env := append([]string(nil), base...)
-	if len(env) == 0 {
-		env = os.Environ()
-	}
+	env := procutil.FilteredDaemonEnv(base)
 	if session == nil {
 		return env
 	}

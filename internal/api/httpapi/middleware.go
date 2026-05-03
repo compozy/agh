@@ -18,6 +18,14 @@ var errLoopbackMutationRequired = errors.New(
 	"remote HTTP settings and extension mutations are disabled in v1 unless the daemon is bound to a loopback host",
 )
 
+var errLoopbackAPIRequired = errors.New(
+	"remote HTTP API access is disabled unless the daemon is bound to a loopback host",
+)
+
+var errRequestBodyTooLarge = errors.New("request body too large")
+
+const maxAPIRequestBodyBytes int64 = 4 << 20
+
 func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	if logger == nil {
 		logger = slog.Default()
@@ -82,8 +90,6 @@ func resolveAllowedOrigin(origin string, requestScheme string, requestHost strin
 	boundSpec, ok := canonicalOriginFromHost(boundHost, requestSpec.scheme, requestSpec.port)
 	switch {
 	case originSpec.canonical == requestSpec.canonical:
-		return origin, true
-	case originSpec.loopback && requestSpec.loopback && originSpec.scheme == requestSpec.scheme:
 		return origin, true
 	case ok && !boundSpec.wildcard && originSpec.canonical == boundSpec.canonical:
 		return origin, true
@@ -231,6 +237,38 @@ func errorMiddleware() gin.HandlerFunc {
 			return
 		}
 		core.RespondError(c, http.StatusInternalServerError, c.Errors.Last(), true)
+	}
+}
+
+func requestBodyLimitMiddleware(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if maxBytes <= 0 || c.Request == nil || c.Request.Body == nil || c.Request.Body == http.NoBody {
+			c.Next()
+			return
+		}
+		if !strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.Next()
+			return
+		}
+		if c.Request.ContentLength > maxBytes {
+			core.RespondError(c, http.StatusRequestEntityTooLarge, errRequestBodyTooLarge, false)
+			c.Abort()
+			return
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Next()
+	}
+}
+
+func loopbackAPIGuard(boundHost string) gin.HandlerFunc {
+	allowed := isLoopbackHost(canonicalHost(boundHost))
+	return func(c *gin.Context) {
+		if allowed {
+			c.Next()
+			return
+		}
+		core.RespondError(c, http.StatusForbidden, errLoopbackAPIRequired, false)
+		c.Abort()
 	}
 }
 

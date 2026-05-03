@@ -325,6 +325,61 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "max_replay_age",
 		},
 		{
+			name: "future timestamp outside replay window",
+			mutate: func(env Envelope) Envelope {
+				env.ExpiresAt = nil
+				env.TS = now.Add(10 * time.Minute).Unix()
+				return env
+			},
+			wantErr:   ErrReplayTooOld,
+			wantMatch: "max_replay_age",
+		},
+		{
+			name: "greet task write without proof",
+			mutate: func(env Envelope) Envelope {
+				env.Kind = KindGreet
+				env.To = nil
+				env.InteractionID = nil
+				env.Body = mustRawJSON(t, map[string]any{
+					"peer_card": map[string]any{
+						"peer_id":               "coder.sess-abc",
+						"profiles_supported":    []string{"agh-network/v0"},
+						"capabilities":          []string{networkTaskWriteCapability},
+						"artifacts_supported":   []string{"capability"},
+						"trust_modes_supported": []string{"unverified"},
+					},
+				})
+				return env
+			},
+			wantErr:   ErrVerificationFailed,
+			wantMatch: "requires proof",
+		},
+		{
+			name: "raw secret in body",
+			mutate: func(env Envelope) Envelope {
+				env.Body = mustRawJSON(t, map[string]any{
+					"text":         "please review auth.go",
+					"access_token": "provider-token",
+				})
+				return env
+			},
+			wantErr:   ErrInvalidBody,
+			wantMatch: "raw secret material",
+		},
+		{
+			name: "raw secret in ext",
+			mutate: func(env Envelope) Envelope {
+				env.Ext = ExtensionMap{
+					"agh.handoff": mustRawJSON(t, map[string]any{
+						"note": "Bearer provider-token",
+					}),
+				}
+				return env
+			},
+			wantErr:   ErrInvalidBody,
+			wantMatch: "raw secret material",
+		},
+		{
 			name: "accepted receipt with reason code",
 			mutate: func(env Envelope) Envelope {
 				env.Kind = KindReceipt

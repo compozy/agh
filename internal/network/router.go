@@ -932,6 +932,10 @@ func subjectForEnvelope(envelope Envelope) (string, error) {
 
 func replayDeadline(envelope Envelope, now time.Time, maxReplayAge time.Duration) time.Time {
 	deadline := time.Unix(envelope.TS, 0).Add(maxReplayAge).UTC()
+	maxDeadline := now.Add(maxReplayAge).UTC()
+	if deadline.After(maxDeadline) {
+		deadline = maxDeadline
+	}
 	if envelope.ExpiresAt != nil {
 		expiresAt := time.Unix(*envelope.ExpiresAt, 0).UTC()
 		if expiresAt.Before(deadline) {
@@ -939,7 +943,7 @@ func replayDeadline(envelope Envelope, now time.Time, maxReplayAge time.Duration
 		}
 	}
 	if deadline.Before(now) {
-		return now.Add(maxReplayAge).UTC()
+		return now.UTC()
 	}
 	return deadline
 }

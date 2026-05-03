@@ -416,6 +416,7 @@ func newTestRouter(t *testing.T, handlers *Handlers) *gin.Engine {
 		boundHost = handlers.boundHost
 	}
 	engine.Use(corsMiddleware(boundHost))
+	engine.Use(requestBodyLimitMiddleware(maxAPIRequestBodyBytes))
 	engine.Use(errorMiddleware())
 	RegisterRoutes(engine, handlers)
 	return engine

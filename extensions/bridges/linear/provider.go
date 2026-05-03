@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -772,8 +773,12 @@ func resolveLinearInstanceConfig(
 		resolved.configError = errors.New("linear: webhook path is required")
 	case resolved.apiBaseURL == "":
 		resolved.configError = errors.New("linear: api base url is required")
+	case !validLinearCredentialedURL(resolved.apiBaseURL):
+		resolved.configError = fmt.Errorf("linear: api base url %q is invalid", resolved.apiBaseURL)
 	case resolved.authMode == linearAuthModeOAuth && resolved.oauthTokenURL == "":
 		resolved.configError = errors.New("linear: oauth token url is required for oauth auth_mode")
+	case resolved.authMode == linearAuthModeOAuth && !validLinearCredentialedURL(resolved.oauthTokenURL):
+		resolved.configError = fmt.Errorf("linear: oauth token url %q is invalid", resolved.oauthTokenURL)
 	}
 
 	return resolved
@@ -1454,6 +1459,30 @@ func linearDefaultOAuthTokenURL() string {
 
 func linearOAuthTokenURLEnvName() string {
 	return strings.Join([]string{"AGH", "BRIDGE", "LINEAR", "TOKEN", "URL"}, "_")
+}
+
+func validLinearCredentialedURL(value string) bool {
+	parsed, err := url.Parse(normalizeURL(value))
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	switch parsed.Scheme {
+	case "https":
+		return host == "api.linear.app"
+	case "http":
+		return isLoopbackBridgeHost(host)
+	default:
+		return false
+	}
+}
+
+func isLoopbackBridgeHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func managedInstancesToInstances(managed []subprocess.InitializeBridgeManagedInstance) []bridgepkg.BridgeInstance {

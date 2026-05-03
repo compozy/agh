@@ -267,6 +267,9 @@ func TestVerifyWebhookSecret(t *testing.T) {
 	if err := verifyWebhookSecret(context.Background(), req, nil, "wrong"); err == nil {
 		t.Fatal("verifyWebhookSecret(invalid) error = nil, want non-nil")
 	}
+	if err := verifyWebhookSecret(context.Background(), req, nil, ""); err == nil {
+		t.Fatal("verifyWebhookSecret(missing configured secret) error = nil, want non-nil")
+	}
 }
 
 func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
@@ -532,6 +535,7 @@ func TestRuntimeDeliveriesCallTelegramBotAPI(t *testing.T) {
 	managed := testBridgeRuntime(now, "brg-1")
 	managed.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
 		{BindingName: "bot_token", Kind: "token", Value: "telegram-token"},
+		{BindingName: "webhook_secret", Kind: "token", Value: "top-secret"},
 	}
 
 	mustHandle(
@@ -636,6 +640,7 @@ func TestHandleShutdownWritesMarker(t *testing.T) {
 	managed := testBridgeRuntime(now, "brg-1")
 	managed.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
 		{BindingName: "bot_token", Kind: "token", Value: "telegram-token"},
+		{BindingName: "webhook_secret", Kind: "token", Value: "top-secret"},
 	}
 
 	mustHandle(
@@ -1515,6 +1520,7 @@ func testBridgeRuntime(
 		},
 		BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 			{BindingName: "bot_token", Kind: "token", Value: "telegram-token"},
+			{BindingName: "webhook_secret", Kind: "token", Value: "top-secret"},
 		},
 	}
 }

@@ -486,6 +486,7 @@ func (s *Server) ensureEngine() {
 	s.engine.Use(gin.Recovery())
 	s.engine.Use(requestLoggingMiddleware(s.logger))
 	s.engine.Use(corsMiddleware(s.host))
+	s.engine.Use(requestBodyLimitMiddleware(maxAPIRequestBodyBytes))
 	s.engine.Use(errorMiddleware())
 }
 

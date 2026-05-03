@@ -15,6 +15,7 @@ import (
 )
 
 const managedInstallDirName = "extensions"
+const invalidManagedInstallName = "_invalid-extension-name"
 
 type installPackageManifest struct {
 	Dependencies         map[string]string `json:"dependencies"`
@@ -33,7 +34,34 @@ func ManagedInstallRoot(homePaths aghconfig.HomePaths) string {
 
 // ManagedInstallPath returns the AGH-managed directory for one installed extension.
 func ManagedInstallPath(homePaths aghconfig.HomePaths, name string) string {
-	return filepath.Join(ManagedInstallRoot(homePaths), strings.TrimSpace(name))
+	path, err := ManagedInstallPathChecked(homePaths, name)
+	if err != nil {
+		return filepath.Join(ManagedInstallRoot(homePaths), invalidManagedInstallName)
+	}
+	return path
+}
+
+// ManagedInstallPathChecked returns the contained managed directory for one installed extension.
+func ManagedInstallPathChecked(homePaths aghconfig.HomePaths, name string) (string, error) {
+	root := filepath.Clean(ManagedInstallRoot(homePaths))
+	if strings.TrimSpace(root) == "" || root == managedInstallDirName {
+		return "", errors.New("extension: managed install home path is required")
+	}
+
+	safeName, err := validateManagedInstallName(name)
+	if err != nil {
+		return "", err
+	}
+
+	finalDir := filepath.Join(root, safeName)
+	rel, err := filepath.Rel(root, finalDir)
+	if err != nil {
+		return "", fmt.Errorf("extension: resolve managed install path for %q: %w", safeName, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("extension: managed extension name %q escapes install root", name)
+	}
+	return finalDir, nil
 }
 
 // NewManagedInstallStagingDir creates an empty staging directory under the managed extension root.
@@ -58,6 +86,10 @@ func InstallLocalManaged(
 	opts ...InstallOption,
 ) error {
 	normalizedChecksum, err := validateManagedInstallInput(registry, manifest, checksum)
+	if err != nil {
+		return err
+	}
+	finalDir, err := ManagedInstallPathChecked(homePaths, manifest.Name)
 	if err != nil {
 		return err
 	}
@@ -89,7 +121,6 @@ func InstallLocalManaged(
 		return err
 	}
 
-	finalDir := ManagedInstallPath(homePaths, manifest.Name)
 	if err := registrypkg.MoveInstalledDir(stagingDir, finalDir, false); err != nil {
 		return fmt.Errorf("extension: move local extension %q into managed install path: %w", manifest.Name, err)
 	}
@@ -126,6 +157,9 @@ func validateManagedInstallInput(
 	if manifest == nil {
 		return "", errors.New("extension: manifest is required")
 	}
+	if _, err := validateManagedInstallName(manifest.Name); err != nil {
+		return "", err
+	}
 
 	normalizedChecksum := strings.ToLower(strings.TrimSpace(checksum))
 	if normalizedChecksum == "" {
@@ -139,6 +173,24 @@ func validateManagedInstallInput(
 	}
 
 	return normalizedChecksum, nil
+}
+
+func validateManagedInstallName(name string) (string, error) {
+	trimmed := strings.TrimSpace(name)
+	switch {
+	case trimmed == "":
+		return "", errors.New("extension: managed extension name is required")
+	case trimmed == "." || trimmed == "..":
+		return "", fmt.Errorf("extension: managed extension name %q is reserved", name)
+	case filepath.IsAbs(trimmed):
+		return "", fmt.Errorf("extension: managed extension name %q must be relative", name)
+	case strings.Contains(trimmed, "/") || strings.Contains(trimmed, `\`):
+		return "", fmt.Errorf("extension: managed extension name %q must be a single path segment", name)
+	case filepath.Clean(trimmed) != trimmed:
+		return "", fmt.Errorf("extension: managed extension name %q is not normalized", name)
+	default:
+		return trimmed, nil
+	}
 }
 
 func removeManagedInstallOnError(finalDir string, baseErr error, contextSuffix string) error {

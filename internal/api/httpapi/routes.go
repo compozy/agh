@@ -9,6 +9,11 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	}
 
 	api := router.Group("/api")
+	registerWebhookRoutes(api, handlers)
+
+	if !isLoopbackHost(canonicalHost(handlers.boundHost)) {
+		api = api.Group("", loopbackAPIGuard(handlers.boundHost))
+	}
 
 	registerBridgeRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
@@ -28,7 +33,6 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
 	registerVaultRoutes(api, handlers)
-	registerWebhookRoutes(api, handlers)
 
 	if engine, ok := router.(*gin.Engine); ok {
 		engine.NoRoute(handlers.serveStaticRoute)

@@ -13,7 +13,9 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/network/rules"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 var (
@@ -220,6 +222,9 @@ func validateEnvelopeBodyAndFreshness(env Envelope, opts ValidateOptions) error 
 	if err := validateKindEnvelopeRules(env); err != nil {
 		return err
 	}
+	if err := validateEnvelopeContainsNoRawSecrets(env); err != nil {
+		return err
+	}
 	return validateEnvelopeFreshness(env, opts)
 }
 
@@ -292,6 +297,9 @@ func validateKindEnvelopeRules(env Envelope) error {
 		if typed.PeerCard.PeerID != env.From {
 			return fmt.Errorf("%w: greet peer_card.peer_id must match from", ErrInvalidBody)
 		}
+		if err := validatePeerCardPrivilegedCapabilities(typed.PeerCard, env.Proof); err != nil {
+			return err
+		}
 	case WhoisBody:
 		if typed.Type == WhoisTypeResponse {
 			if env.ReplyTo == nil {
@@ -302,6 +310,9 @@ func validateKindEnvelopeRules(env Envelope) error {
 			}
 			if typed.PeerCard.PeerID != env.From {
 				return fmt.Errorf("%w: whois response peer_card.peer_id must match from", ErrInvalidBody)
+			}
+			if err := validatePeerCardPrivilegedCapabilities(*typed.PeerCard, env.Proof); err != nil {
+				return err
 			}
 		}
 	case DirectBody:
@@ -326,6 +337,10 @@ func validateKindEnvelopeRules(env Envelope) error {
 
 func validateEnvelopeFreshness(env Envelope, opts ValidateOptions) error {
 	nowUnix := opts.Now.Unix()
+	maxAge := int64(opts.MaxReplayAge / time.Second)
+	if maxAge > 0 && env.TS-nowUnix > maxAge {
+		return fmt.Errorf("%w: ts=%d max_replay_age=%s", ErrReplayTooOld, env.TS, opts.MaxReplayAge)
+	}
 
 	if env.ExpiresAt != nil {
 		if *env.ExpiresAt <= nowUnix {
@@ -334,12 +349,124 @@ func validateEnvelopeFreshness(env Envelope, opts ValidateOptions) error {
 		return nil
 	}
 
-	maxAge := int64(opts.MaxReplayAge / time.Second)
 	if maxAge > 0 && nowUnix-env.TS > maxAge {
 		return fmt.Errorf("%w: ts=%d max_replay_age=%s", ErrReplayTooOld, env.TS, opts.MaxReplayAge)
 	}
 
 	return nil
+}
+
+func validatePeerCardPrivilegedCapabilities(card PeerCard, proof *Proof) error {
+	if !containsString(card.Capabilities, networkTaskWriteCapability) {
+		return nil
+	}
+	if proof == nil || len(*proof) == 0 {
+		return fmt.Errorf(
+			"%w: peer_card capability %q requires proof",
+			ErrVerificationFailed,
+			networkTaskWriteCapability,
+		)
+	}
+	return nil
+}
+
+func validateEnvelopeContainsNoRawSecrets(env Envelope) error {
+	if envelopeRawValueContainsSecret(env.Body) {
+		return fmt.Errorf("%w: raw secret material is not allowed in network body", ErrInvalidBody)
+	}
+	for _, raw := range env.Ext {
+		if envelopeRawValueContainsSecret(raw) {
+			return fmt.Errorf("%w: raw secret material is not allowed in network ext", ErrInvalidBody)
+		}
+	}
+	return nil
+}
+
+func envelopeRawValueContainsSecret(raw json.RawMessage) bool {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return false
+	}
+
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return envelopeStringContainsSecret(string(raw))
+	}
+	return envelopeValueContainsSecret("", value)
+}
+
+func envelopeValueContainsSecret(key string, value any) bool {
+	if envelopeKeyCarriesRawSecret(key) && envelopeValueIsNonEmpty(value) {
+		return true
+	}
+
+	switch typed := value.(type) {
+	case nil:
+		return false
+	case string:
+		return envelopeStringContainsSecret(typed)
+	case []any:
+		for _, item := range typed {
+			if envelopeValueContainsSecret("", item) {
+				return true
+			}
+		}
+		return false
+	case map[string]any:
+		for nestedKey, nestedValue := range typed {
+			if envelopeValueContainsSecret(nestedKey, nestedValue) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func envelopeStringContainsSecret(value string) bool {
+	return taskpkg.RedactClaimTokens(value) != value || diagnostics.Redact(value) != value
+}
+
+func envelopeValueIsNonEmpty(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(typed) != ""
+	case []any:
+		return len(typed) > 0
+	case map[string]any:
+		return len(typed) > 0
+	default:
+		return true
+	}
+}
+
+func envelopeKeyCarriesRawSecret(key string) bool {
+	normalized := strings.NewReplacer("_", "", "-", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(key)))
+	if normalized == "" || strings.Contains(normalized, "hash") {
+		return false
+	}
+	switch normalized {
+	case "apikey",
+		"accesstoken",
+		"refreshtoken",
+		"mcpauthtoken",
+		"oauthcode",
+		"authorizationcode",
+		"codeverifier",
+		"pkceverifier",
+		"secretbinding",
+		"clientsecret",
+		"authorization",
+		"password",
+		"secret",
+		"token",
+		"claimtoken":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeAndValidateGreetBody(body *GreetBody) error {

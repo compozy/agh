@@ -19,6 +19,7 @@ import (
 	"github.com/kballard/go-shellquote"
 	"golang.org/x/sys/execabs"
 
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/toolruntime"
 )
 
@@ -675,7 +676,11 @@ func (m *terminalManager) create(
 	}
 	configureManagedCommand(cmd)
 	cmd.Dir = cwd
-	cmd.Env = mergeCommandEnv(os.Environ(), request.Env)
+	requestEnv := request.Env
+	if ownership.networkOwned {
+		requestEnv = nil
+	}
+	cmd.Env = mergeCommandEnv(procutil.FilteredDaemonEnv(os.Environ()), requestEnv)
 
 	term := &managedTerminal{
 		id:             fmt.Sprintf("term-%d", m.nextID.Add(1)),
@@ -692,14 +697,15 @@ func (m *terminalManager) create(
 	if err := cmd.Start(); err != nil {
 		return acpsdk.CreateTerminalResponse{}, fmt.Errorf("acp: start terminal command %q: %w", argv[0], err)
 	}
+	if err := registerManagedCommand(cmd); err != nil {
+		cleanupErr := cleanupStartedTerminalCommand(cmd)
+		return acpsdk.CreateTerminalResponse{}, errors.Join(
+			fmt.Errorf("acp: register terminal process tree for %q: %w", argv[0], err),
+			cleanupErr,
+		)
+	}
 	if err := m.registerTerminalProcess(ctx, term, cwd, argv); err != nil {
-		if killErr := killManagedProcess(cmd); killErr != nil {
-			m.logTerminalKillError(term.id, "registration cleanup", killErr)
-		}
-		if waitErr := cmd.Wait(); waitErr != nil {
-			m.logTerminalKillError(term.id, "registration wait cleanup", waitErr)
-		}
-		return acpsdk.CreateTerminalResponse{}, err
+		return acpsdk.CreateTerminalResponse{}, errors.Join(err, cleanupStartedTerminalCommand(cmd))
 	}
 	if m.ctx != nil {
 		watchTerminalShutdown(m.ctx, term.done, func() {
@@ -718,6 +724,23 @@ func (m *terminalManager) create(
 	go term.wait(waitCtx)
 
 	return acpsdk.CreateTerminalResponse{TerminalId: term.id}, nil
+}
+
+func cleanupStartedTerminalCommand(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+	var errs []error
+	if err := killManagedProcess(cmd); err != nil {
+		errs = append(errs, fmt.Errorf("acp: kill terminal after start cleanup: %w", err))
+	}
+	if err := cmd.Wait(); err != nil {
+		errs = append(errs, fmt.Errorf("acp: wait terminal after start cleanup: %w", err))
+	}
+	if err := forceManagedProcessGroupExit(cmd, 250*time.Millisecond); err != nil {
+		errs = append(errs, fmt.Errorf("acp: wait for terminal process tree after start cleanup: %w", err))
+	}
+	return errors.Join(errs...)
 }
 
 func (m *terminalManager) registerTerminalProcess(

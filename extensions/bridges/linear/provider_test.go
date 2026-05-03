@@ -33,8 +33,8 @@ func TestResolveLinearInstanceConfigValidatesProviderOwnedModes(t *testing.T) {
 		webhookSecret: "webhook-secret",
 		apiKey:        "linear-api-key",
 	}, resolveLinearEnv{
-		apiBaseURL: "https://linear.example/api/",
-		tokenURL:   "https://linear.example/oauth/token/",
+		apiBaseURL: "https://api.linear.app/api/",
+		tokenURL:   "https://api.linear.app/oauth/token/",
 	})
 	if cfg.configError != nil {
 		t.Fatalf("resolveLinearInstanceConfig(valid comments/api_key) configError = %v", cfg.configError)
@@ -51,7 +51,7 @@ func TestResolveLinearInstanceConfigValidatesProviderOwnedModes(t *testing.T) {
 	if got, want := cfg.webhookPath, "/linear"; got != want {
 		t.Fatalf("webhookPath = %q, want %q", got, want)
 	}
-	if got, want := cfg.apiBaseURL, "https://linear.example/api"; got != want {
+	if got, want := cfg.apiBaseURL, "https://api.linear.app/api"; got != want {
 		t.Fatalf("apiBaseURL = %q, want %q", got, want)
 	}
 
@@ -66,7 +66,7 @@ func TestResolveLinearInstanceConfigValidatesProviderOwnedModes(t *testing.T) {
 		clientID:      "client-id",
 		clientSecret:  "client-secret",
 	}, resolveLinearEnv{
-		tokenURL: "https://linear.example/oauth/token",
+		tokenURL: "https://api.linear.app/oauth/token",
 	})
 	if cfg.configError != nil {
 		t.Fatalf("resolveLinearInstanceConfig(valid agent_sessions/oauth) configError = %v", cfg.configError)
@@ -76,6 +76,15 @@ func TestResolveLinearInstanceConfigValidatesProviderOwnedModes(t *testing.T) {
 	}
 	if got, want := cfg.authMode, linearAuthModeOAuth; got != want {
 		t.Fatalf("authMode = %q, want %q", got, want)
+	}
+	if !validLinearCredentialedURL("http://127.0.0.1:3000") {
+		t.Fatal("validLinearCredentialedURL(loopback http) = false, want true")
+	}
+	if validLinearCredentialedURL("http://169.254.169.254/latest/meta-data") {
+		t.Fatal("validLinearCredentialedURL(link-local http) = true, want false")
+	}
+	if validLinearCredentialedURL("https://evil.example/graphql") {
+		t.Fatal("validLinearCredentialedURL(untrusted https host) = true, want false")
 	}
 
 	invalidCases := []struct {

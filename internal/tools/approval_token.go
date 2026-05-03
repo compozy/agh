@@ -61,6 +61,7 @@ type approvalTokenRecord struct {
 	toolID      ToolID
 	sessionID   string
 	workspaceID string
+	agentName   string
 	inputDigest string
 	expiresAt   time.Time
 }
@@ -127,10 +128,14 @@ func (s *ApprovalTokenStore) CreateToolApproval(
 	if err := contextErr(ctx, req.ToolID); err != nil {
 		return ApprovalGrant{}, err
 	}
-	req = normalizeApprovalRequest(scope, req)
 	if err := req.ToolID.Validate(); err != nil {
 		return ApprovalGrant{}, invalidInputError(req.ToolID, "tool id is invalid", err)
 	}
+	normalizedReq, err := normalizeApprovalRequest(scope, req)
+	if err != nil {
+		return ApprovalGrant{}, invalidInputError(req.ToolID, "approval scope is invalid", err)
+	}
+	req = normalizedReq
 	if strings.TrimSpace(req.SessionID) == "" {
 		return ApprovalGrant{}, invalidInputError(
 			req.ToolID,
@@ -158,6 +163,7 @@ func (s *ApprovalTokenStore) CreateToolApproval(
 		toolID:      req.ToolID,
 		sessionID:   strings.TrimSpace(req.SessionID),
 		workspaceID: strings.TrimSpace(req.WorkspaceID),
+		agentName:   strings.TrimSpace(req.AgentName),
 		inputDigest: inputDigest,
 		expiresAt:   now.Add(s.ttl),
 	}
@@ -246,17 +252,35 @@ func ApprovalInputDigest(input json.RawMessage, suppliedDigest string) (string, 
 	return computed, nil
 }
 
-func normalizeApprovalRequest(scope Scope, req ApprovalRequest) ApprovalRequest {
-	if req.SessionID == "" {
-		req.SessionID = scope.SessionID
+func normalizeApprovalRequest(scope Scope, req ApprovalRequest) (ApprovalRequest, error) {
+	sessionID, err := approvalScopeValue("session_id", scope.SessionID, req.SessionID)
+	if err != nil {
+		return ApprovalRequest{}, err
 	}
-	if req.WorkspaceID == "" {
-		req.WorkspaceID = scope.WorkspaceID
+	workspaceID, err := approvalScopeValue("workspace_id", scope.WorkspaceID, req.WorkspaceID)
+	if err != nil {
+		return ApprovalRequest{}, err
 	}
-	if req.AgentName == "" {
-		req.AgentName = scope.AgentName
+	agentName, err := approvalScopeValue("agent_name", scope.AgentName, req.AgentName)
+	if err != nil {
+		return ApprovalRequest{}, err
 	}
-	return req
+	req.SessionID = sessionID
+	req.WorkspaceID = workspaceID
+	req.AgentName = agentName
+	return req, nil
+}
+
+func approvalScopeValue(field string, scoped string, requested string) (string, error) {
+	scoped = strings.TrimSpace(scoped)
+	requested = strings.TrimSpace(requested)
+	if scoped != "" && requested != "" && requested != scoped {
+		return "", NewValidationError(field, ReasonApprovalTokenMismatch, field+" does not match approval scope")
+	}
+	if requested != "" {
+		return requested, nil
+	}
+	return scoped, nil
 }
 
 func randomApprovalToken(random io.Reader) (string, error) {
@@ -282,6 +306,9 @@ func approvalTokenRecordMatches(record approvalTokenRecord, call CallRequest, in
 		return false
 	}
 	if strings.TrimSpace(record.workspaceID) != strings.TrimSpace(call.WorkspaceID) {
+		return false
+	}
+	if strings.TrimSpace(record.agentName) != strings.TrimSpace(call.AgentName) {
 		return false
 	}
 	return subtle.ConstantTimeCompare([]byte(record.inputDigest), []byte(inputDigest)) == 1

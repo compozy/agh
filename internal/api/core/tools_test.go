@@ -219,6 +219,27 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 			t.Fatal("approval-required tool executed without token")
 		}
 
+		conflictResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/tools/ext__ask_tool/approvals?session_id=sess-query",
+			[]byte(`{"session_id":"sess-body","workspace_id":"ws-1","input":{"message":"hello"}}`),
+		)
+		if conflictResp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"approval scope conflict status = %d, want %d; body=%s",
+				conflictResp.Code,
+				http.StatusBadRequest,
+				conflictResp.Body.String(),
+			)
+		}
+		var conflict contract.ToolErrorResponse
+		decodeToolJSON(t, conflictResp.Body.Bytes(), &conflict)
+		if !containsReason(conflict.Error.ReasonCodes, toolspkg.ReasonApprovalTokenMismatch) {
+			t.Fatalf("approval scope conflict error = %#v, want token mismatch reason", conflict.Error)
+		}
+
 		approvalResp := performRequest(
 			t,
 			engine,

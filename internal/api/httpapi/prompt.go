@@ -13,6 +13,8 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
+	"github.com/pedronauck/agh/internal/diagnostics"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 type promptRequest struct {
@@ -586,17 +588,17 @@ func agentEventPayloadFromEvent(event acp.AgentEvent) agentEventPayload {
 		SessionID:  base.SessionID,
 		TurnID:     base.TurnID,
 		RequestID:  base.RequestID,
-		Text:       base.Text,
-		Title:      base.Title,
+		Text:       redactPromptString(base.Text),
+		Title:      redactPromptString(base.Title),
 		ToolCallID: base.ToolCallID,
-		StopReason: base.StopReason,
-		Action:     base.Action,
-		Resource:   base.Resource,
-		Decision:   base.Decision,
-		Error:      base.Error,
+		StopReason: redactPromptString(base.StopReason),
+		Action:     redactPromptString(base.Action),
+		Resource:   redactPromptString(base.Resource),
+		Decision:   redactPromptString(base.Decision),
+		Error:      redactPromptString(base.Error),
 		Usage:      tokenUsagePayloadFromUsage(event.Usage),
 		Runtime:    base.Runtime,
-		Raw:        base.Raw,
+		Raw:        redactPromptRaw(base.Raw),
 	}
 	if !event.Timestamp.IsZero() {
 		payload.Timestamp = event.Timestamp.UTC().Format(time.RFC3339Nano)
@@ -643,7 +645,7 @@ func normalizedToolInput(event acp.AgentEvent) (any, bool) {
 		return nil, false
 	}
 
-	return input, true
+	return redactPromptValue(input), true
 }
 
 func rawEventMap(raw json.RawMessage) map[string]any {
@@ -680,6 +682,78 @@ func firstNonNil(values ...any) (any, bool) {
 		}
 	}
 	return nil, false
+}
+
+func redactPromptRaw(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err == nil {
+		redacted, marshalErr := json.Marshal(redactPromptValue(payload))
+		if marshalErr == nil {
+			return redacted
+		}
+	}
+	return core.PayloadJSON(redactPromptString(string(raw)))
+}
+
+func redactPromptValue(value any) any {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case string:
+		return redactPromptString(typed)
+	case map[string]any:
+		redacted := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			if promptKeyCarriesSecret(key) {
+				redacted[key] = "[REDACTED]"
+				continue
+			}
+			redacted[key] = redactPromptValue(nested)
+		}
+		return redacted
+	case []any:
+		redacted := make([]any, 0, len(typed))
+		for _, nested := range typed {
+			redacted = append(redacted, redactPromptValue(nested))
+		}
+		return redacted
+	default:
+		return typed
+	}
+}
+
+func redactPromptString(value string) string {
+	return diagnostics.Redact(taskpkg.RedactClaimTokens(value))
+}
+
+func promptKeyCarriesSecret(key string) bool {
+	normalized := strings.NewReplacer("_", "", "-", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(key)))
+	if normalized == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"apikey",
+		"accesstoken",
+		"refreshtoken",
+		"mcpauthtoken",
+		"oauthcode",
+		"authorizationcode",
+		"codeverifier",
+		"pkceverifier",
+		"secretbinding",
+		"authorization",
+		"password",
+		"secret",
+		"token",
+	} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func stringValue(value any) string {

@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 
-RELEASE_REPO="${AGH_RELEASE_REPO:-compozy/agh}"
+RELEASE_REPO="compozy/agh"
+COSIGN_CERT_IDENTITY_REGEXP='^https://github\.com/compozy/agh/\.github/workflows/release\.yml@refs/(heads/main|tags/v[0-9][A-Za-z0-9._-]*)$'
+COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"
 VERSION="${AGH_VERSION:-latest}"
 INSTALL_DIR="${AGH_INSTALL_DIR:-}"
 SKIP_BOOTSTRAP="false"
@@ -29,8 +31,10 @@ Options:
 Environment:
   AGH_VERSION           Same as --version.
   AGH_INSTALL_DIR       Same as --dir.
-  AGH_RELEASE_REPO      Release repo to download from. Default: compozy/agh.
   AGH_SKIP_BOOTSTRAP=1  Same as --skip-bootstrap.
+
+Requires:
+  curl, tar, cosign, and sha256sum or shasum.
 USAGE
 }
 
@@ -123,6 +127,8 @@ fi
 
 ARCHIVE_URL="${BASE_URL}/${ARCHIVE_NAME}"
 CHECKSUM_URL="${BASE_URL}/checksums.txt"
+SIGNATURE_URL="${BASE_URL}/checksums.txt.sig"
+CERTIFICATE_URL="${BASE_URL}/checksums.txt.pem"
 
 if [ "$INSTALL_DIR" = "" ]; then
   if [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
@@ -148,6 +154,7 @@ fi
 
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v tar >/dev/null 2>&1 || fail "tar is required"
+command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify release provenance"
 
 if command -v sha256sum >/dev/null 2>&1; then
   CHECKSUM_CMD="sha256sum"
@@ -171,11 +178,23 @@ trap cleanup EXIT INT TERM
 
 ARCHIVE_PATH="${TMP_DIR}/${ARCHIVE_NAME}"
 CHECKSUM_PATH="${TMP_DIR}/checksums.txt"
+SIGNATURE_PATH="${TMP_DIR}/checksums.txt.sig"
+CERTIFICATE_PATH="${TMP_DIR}/checksums.txt.pem"
 EXTRACT_DIR="${TMP_DIR}/extract"
 
 log "downloading archive"
 curl -fsSL "$ARCHIVE_URL" -o "$ARCHIVE_PATH"
 curl -fsSL "$CHECKSUM_URL" -o "$CHECKSUM_PATH"
+curl -fsSL "$SIGNATURE_URL" -o "$SIGNATURE_PATH"
+curl -fsSL "$CERTIFICATE_URL" -o "$CERTIFICATE_PATH"
+
+log "verifying checksum provenance"
+COSIGN_EXPERIMENTAL=1 cosign verify-blob \
+  --certificate "$CERTIFICATE_PATH" \
+  --signature "$SIGNATURE_PATH" \
+  --certificate-identity-regexp "$COSIGN_CERT_IDENTITY_REGEXP" \
+  --certificate-oidc-issuer "$COSIGN_CERT_OIDC_ISSUER" \
+  "$CHECKSUM_PATH" >/dev/null
 
 CHECKSUM_LINE="$(awk -v file="$ARCHIVE_NAME" '$2 == file { print; found=1; exit } END { if (!found) exit 1 }' "$CHECKSUM_PATH" || true)"
 [ "$CHECKSUM_LINE" != "" ] || fail "checksums.txt does not include ${ARCHIVE_NAME}"

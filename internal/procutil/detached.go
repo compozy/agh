@@ -7,7 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/pedronauck/agh/internal/diagnostics"
 )
+
+const maxDetachedCommandErrorBytes = 4 * 1024
 
 // DetachedLaunchRequest describes one detached process launch with log capture.
 type DetachedLaunchRequest struct {
@@ -83,9 +87,9 @@ func resolveLaunchBinary(binary string) (string, error) {
 
 func launchSandbox(sandbox []string) []string {
 	if len(sandbox) > 0 {
-		return append([]string(nil), sandbox...)
+		return FilteredDaemonEnv(sandbox)
 	}
-	return os.Environ()
+	return FilteredDaemonEnv(nil)
 }
 
 func launchArgv(binary string, args []string) []string {
@@ -102,7 +106,7 @@ func attachCommandLog(err error, logPath string, logOffset int64) error {
 	if readErr != nil {
 		return err
 	}
-	text = recentCommandError(text)
+	text = diagnostics.RedactAndBound(recentCommandError(text), maxDetachedCommandErrorBytes)
 	if text == "" {
 		return err
 	}

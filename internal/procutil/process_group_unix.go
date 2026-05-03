@@ -34,6 +34,11 @@ func ConfigureCommandProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Setpgid = true
 }
 
+// RegisterCommandProcessGroup keeps Unix parity with Windows job registration.
+func RegisterCommandProcessGroup(_ *exec.Cmd) error {
+	return nil
+}
+
 // SignalCommandProcessGroup delivers sig to the command's process group.
 func SignalCommandProcessGroup(cmd *exec.Cmd, sig syscall.Signal) error {
 	if cmd == nil || cmd.Process == nil || cmd.Process.Pid <= 0 {

@@ -746,8 +746,11 @@ func validateTelegramResolvedConfig(resolved *resolvedInstanceConfig) {
 	if resolved == nil {
 		return
 	}
-	if resolved.webhookPath == "" {
+	switch {
+	case resolved.webhookPath == "":
 		resolved.configError = errors.New("telegram: webhook path is required")
+	case strings.TrimSpace(resolved.listenAddr) != "" && strings.TrimSpace(resolved.webhookSecret) == "":
+		resolved.configError = errors.New("telegram: webhook secret is required when webhook listener is enabled")
 	}
 }
 
@@ -1587,7 +1590,7 @@ func resolveTelegramThreadID(threadID string, chatID string) int64 {
 func verifyWebhookSecret(_ context.Context, req *http.Request, _ []byte, secret string) error {
 	trimmedSecret := strings.TrimSpace(secret)
 	if trimmedSecret == "" {
-		return nil
+		return errors.New("telegram: webhook secret is required")
 	}
 	if req == nil {
 		return errors.New("telegram: webhook request is required")
