@@ -104,11 +104,11 @@ unless you intentionally place AGH behind a protected reverse proxy.
 
 ## Agent fails to spawn
 
-| Field      | What to check                                                                                                                                                                             |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | Session creation fails with an ACP subprocess or initialize error. Logs mention `acp: start subprocess`, `initialize session`, `command not found`, or `permission denied`.               |
-| Diagnosis  | The provider command cannot be parsed or executed, the workspace path is invalid, required provider environment variables are missing, or the upstream ACP runtime failed initialization. |
-| Resolution | Validate the agent definition, provider command, daemon environment, and workspace paths; then restart or recreate the session.                                                           |
+| Field      | What to check                                                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | Session creation fails with an ACP subprocess or initialize error. Logs mention `acp: start subprocess`, `initialize session`, `command not found`, or `permission denied`.                      |
+| Diagnosis  | The provider command cannot be parsed or executed, the workspace path is invalid, a bound secret is missing, native provider login is absent, or the upstream ACP runtime failed initialization. |
+| Resolution | Validate the agent definition, provider command, auth mode/status, daemon environment, and workspace paths; then restart or recreate the session.                                                |
 
 Commands:
 
@@ -122,10 +122,20 @@ command -v gemini
 ```
 
 Agent subprocesses inherit the daemon environment and receive provider credentials from bound
-`credential_slots`. If a provider uses an `env:NAME` secret ref, set that variable in the shell or
-service manager that starts the daemon. If it uses a `vault:providers/<provider>/<slot>` ref, save
-the credential through the settings API or web provider editor and confirm the provider status
-reports the credential as present.
+`credential_slots` only when `auth_mode = "bound_secret"`. If a provider uses an `env:NAME` secret
+ref, set that variable in the shell or service manager that starts the daemon. If it uses a
+`vault:providers/<provider>/<slot>` ref, save the credential through the settings API or web
+provider editor and confirm the provider status reports the credential as present.
+
+Native ACP providers use their own CLI login/session state. Check them with:
+
+```bash
+agh provider auth status <provider>
+agh provider auth login <provider>
+```
+
+`agh provider auth login` requires the provider to define `auth_login_command`; otherwise run the
+provider's own login command, such as `claude auth login`, `codex login`, or `opencode auth login`.
 
 See [Spawning](/runtime/core/agents/spawning) for the exact launch and ACP negotiation flow.
 
@@ -206,5 +216,5 @@ keys in the same environment.
 ## Related pages
 
 - [Daemon Operations](/runtime/core/operations/daemon) covers lock, socket, logs, and service manager behavior.
-- [Database Operations](/runtime/core/operations/database) covers backup and inspection procedures.
+- [Database Operations](/runtime/core/operations/database) covers backup and inspection steps.
 - [Production Checklist](/runtime/core/operations/production) turns these checks into a readiness gate.

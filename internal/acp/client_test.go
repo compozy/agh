@@ -623,6 +623,56 @@ func TestStartResumeApproveReadsSetsReadOnlyLikeSessionModeWhenSupported(t *test
 	}
 }
 
+func TestStartSetsPreferredSessionModelWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		scenario      string
+		resumeSession string
+		preferred     string
+		wantSession   string
+	}{
+		{
+			name:        "Should set preferred model for new sessions",
+			scenario:    "stream_updates",
+			preferred:   "openrouter/openai/gpt-5.4",
+			wantSession: "sess-new",
+		},
+		{
+			name:          "Should set preferred model for resumed sessions",
+			scenario:      "load_session",
+			resumeSession: "sess-existing",
+			preferred:     "anthropic/claude-opus-4-7",
+			wantSession:   "sess-existing",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			captureFile := filepath.Join(t.TempDir(), "session-set-model.jsonl")
+			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{
+				ResumeSessionID: tc.resumeSession,
+				PreferredModel:  tc.preferred,
+				Env:             helperEnvWithCapture(tc.scenario, "", captureFile),
+			})
+			defer stopProcess(t, driver, proc)
+
+			params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetModel)
+			request := decodeCapturedSetSessionModelRequest(t, params)
+			if got := request.SessionID; got != tc.wantSession {
+				t.Fatalf("set-model session id = %q, want %q", got, tc.wantSession)
+			}
+			if got := request.ModelID; got != tc.preferred {
+				t.Fatalf("set-model model id = %q, want %q", got, tc.preferred)
+			}
+		})
+	}
+}
+
 func TestStartWithEmptyAdditionalDirsKeepsBaselinePayload(t *testing.T) {
 	t.Parallel()
 
@@ -1032,6 +1082,9 @@ func startHelperProcess(
 	if overrides.SystemPrompt != "" {
 		opts.SystemPrompt = overrides.SystemPrompt
 	}
+	if overrides.PreferredModel != "" {
+		opts.PreferredModel = overrides.PreferredModel
+	}
 	opts.ResumeSessionID = overrides.ResumeSessionID
 
 	proc, err := driver.Start(testutil.Context(t), opts)
@@ -1277,6 +1330,11 @@ type capturedSetSessionModeRequest struct {
 	ModeID    string `json:"modeId"`
 }
 
+type capturedSetSessionModelRequest struct {
+	SessionID string `json:"sessionId"`
+	ModelID   string `json:"modelId"`
+}
+
 func captureRequestParams(t *testing.T, path string, method string) map[string]json.RawMessage {
 	t.Helper()
 
@@ -1351,6 +1409,23 @@ func decodeCapturedSetSessionModeRequest(
 	var request capturedSetSessionModeRequest
 	if err := json.Unmarshal(raw, &request); err != nil {
 		t.Fatalf("json.Unmarshal(set-session-mode request) error = %v", err)
+	}
+	return request
+}
+
+func decodeCapturedSetSessionModelRequest(
+	t *testing.T,
+	params map[string]json.RawMessage,
+) capturedSetSessionModelRequest {
+	t.Helper()
+
+	raw, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("json.Marshal(set-session-model params) error = %v", err)
+	}
+	var request capturedSetSessionModelRequest
+	if err := json.Unmarshal(raw, &request); err != nil {
+		t.Fatalf("json.Unmarshal(set-session-model request) error = %v", err)
 	}
 	return request
 }
@@ -1673,6 +1748,13 @@ func (a *helperACPAgent) SetSessionMode(
 	acpsdk.SetSessionModeRequest,
 ) (acpsdk.SetSessionModeResponse, error) {
 	return acpsdk.SetSessionModeResponse{}, nil
+}
+
+func (a *helperACPAgent) SetSessionModel(
+	context.Context,
+	acpsdk.SetSessionModelRequest,
+) (acpsdk.SetSessionModelResponse, error) {
+	return acpsdk.SetSessionModelResponse{}, nil
 }
 
 func helperModeState(id string) *acpsdk.SessionModeState {

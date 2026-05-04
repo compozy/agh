@@ -96,6 +96,17 @@ const (
 	SettingsStreamTransportSSE SettingsStreamTransport = "sse"
 )
 
+type SettingsUpdateStatusKind string
+
+const (
+	SettingsUpdateStatusCurrent     SettingsUpdateStatusKind = "current"
+	SettingsUpdateStatusAvailable   SettingsUpdateStatusKind = "available"
+	SettingsUpdateStatusUpdated     SettingsUpdateStatusKind = "updated"
+	SettingsUpdateStatusDeferred    SettingsUpdateStatusKind = "deferred"
+	SettingsUpdateStatusUnsupported SettingsUpdateStatusKind = "unsupported"
+	SettingsUpdateStatusFailed      SettingsUpdateStatusKind = "failed"
+)
+
 type SettingsSectionResponseMetaPayload struct {
 	Section         SettingsSectionName `json:"section"`
 	Scope           SettingsScopeKind   `json:"scope"`
@@ -350,6 +361,11 @@ type SettingsProviderSettingsPayload struct {
 	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
 	Transport       string                                  `json:"transport,omitempty"`
 	BaseURL         string                                  `json:"base_url,omitempty"`
+	AuthMode        string                                  `json:"auth_mode,omitempty"`
+	EnvPolicy       string                                  `json:"env_policy,omitempty"`
+	HomePolicy      string                                  `json:"home_policy,omitempty"`
+	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
+	AuthLoginCmd    string                                  `json:"auth_login_command,omitempty"`
 	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
 }
 
@@ -371,6 +387,16 @@ type SettingsProviderCredentialStatusPayload struct {
 	Source    string `json:"source,omitempty"`
 }
 
+type SettingsProviderAuthStatusPayload struct {
+	Mode       string `json:"mode"`
+	EnvPolicy  string `json:"env_policy"`
+	HomePolicy string `json:"home_policy"`
+	State      string `json:"state"`
+	Message    string `json:"message,omitempty"`
+	StatusCmd  string `json:"status_command,omitempty"`
+	LoginCmd   string `json:"login_command,omitempty"`
+}
+
 type SettingsProviderSecretWritePayload struct {
 	Name      string `json:"name,omitempty"`
 	SecretRef string `json:"secret_ref"`
@@ -389,6 +415,7 @@ type SettingsProviderItemPayload struct {
 	Default          bool                                      `json:"default"`
 	CommandAvailable bool                                      `json:"command_available"`
 	Credentials      []SettingsProviderCredentialStatusPayload `json:"credentials,omitempty"`
+	AuthStatus       *SettingsProviderAuthStatusPayload        `json:"auth_status,omitempty"`
 	SourceMetadata   SettingsSourceMetadataPayload             `json:"source_metadata"`
 	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitempty"`
 }
@@ -673,4 +700,18 @@ type RestartActionStatus struct {
 	StartedAt          time.Time              `json:"started_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
 	CompletedAt        *time.Time             `json:"completed_at,omitempty"`
+}
+
+type SettingsUpdateResponse struct {
+	Supported      bool                     `json:"supported"`
+	Managed        bool                     `json:"managed"`
+	InstallMethod  string                   `json:"install_method"`
+	CurrentVersion string                   `json:"current_version"`
+	LatestVersion  string                   `json:"latest_version,omitempty"`
+	Available      bool                     `json:"available"`
+	Status         SettingsUpdateStatusKind `json:"status"`
+	Recommendation string                   `json:"recommendation,omitempty"`
+	ReleaseURL     string                   `json:"release_url,omitempty"`
+	CheckedAt      *time.Time               `json:"checked_at,omitempty"`
+	LastError      string                   `json:"last_error,omitempty"`
 }

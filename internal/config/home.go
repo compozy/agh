@@ -79,6 +79,24 @@ func ResolveHomePaths() (HomePaths, error) {
 	return resolveHomePaths(processEnvLookup)
 }
 
+// ResolveHomePathsForWorkspace resolves the canonical AGH home layout while
+// honoring AGH_HOME from the supplied workspace .env when the process env omits it.
+func ResolveHomePathsForWorkspace(workspaceRoot string) (HomePaths, error) {
+	workspaceRoot, err := resolveWorkspaceRoot(workspaceRoot)
+	if err != nil {
+		return HomePaths{}, err
+	}
+	lookup := processEnvLookup
+	dotenvLookup, err := loadDotEnvLookup(workspaceRoot)
+	if err != nil {
+		return HomePaths{}, err
+	}
+	if dotenvLookup != nil {
+		lookup = layeredEnvLookup(processEnvLookup, dotenvLookup)
+	}
+	return resolveHomePaths(lookup)
+}
+
 func resolveHomePaths(lookup envLookup) (HomePaths, error) {
 	homeDir, err := resolveHomeDir(lookup)
 	if err != nil {

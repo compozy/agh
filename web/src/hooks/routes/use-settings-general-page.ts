@@ -4,6 +4,7 @@ import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
   SettingsApiError,
   useSettingsGeneral,
+  useSettingsUpdate,
   useUpdateSettingsGeneral,
   type SettingsGeneralSection,
   type SettingsUpdateGeneralRequest,
@@ -13,6 +14,7 @@ type GeneralConfig = SettingsGeneralSection["config"];
 
 export function useSettingsGeneralPage() {
   const query = useSettingsGeneral();
+  const update = useSettingsUpdate();
   const mutation = useUpdateSettingsGeneral();
   const page = useSettingsPage({ currentSlug: "general" });
 
@@ -78,5 +80,6 @@ export function useSettingsGeneralPage() {
     lastAppliedLabel,
     handleRetry,
     restart: page.restart,
+    update,
   };
 }

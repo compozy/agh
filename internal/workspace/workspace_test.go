@@ -161,6 +161,9 @@ func TestResolvedWorkspaceZeroValue(t *testing.T) {
 	if resolved.Agents != nil {
 		t.Fatalf("ResolvedWorkspace.Agents = %#v, want nil", resolved.Agents)
 	}
+	if resolved.AgentDiagnostics != nil {
+		t.Fatalf("ResolvedWorkspace.AgentDiagnostics = %#v, want nil", resolved.AgentDiagnostics)
+	}
 	if resolved.Skills != nil {
 		t.Fatalf("ResolvedWorkspace.Skills = %#v, want nil", resolved.Skills)
 	}
@@ -205,6 +208,7 @@ func TestWorkspaceStructSurface(t *testing.T) {
 				{name: "Workspace", fieldType: reflect.TypeFor[workspace.Workspace](), embedded: true},
 				{name: "Config", fieldType: reflect.TypeFor[aghconfig.Config]()},
 				{name: "Agents", fieldType: reflect.TypeFor[[]aghconfig.AgentDef]()},
+				{name: "AgentDiagnostics", fieldType: reflect.TypeFor[[]workspace.AgentDiagnostic]()},
 				{name: "Skills", fieldType: reflect.TypeFor[[]workspace.SkillPath]()},
 				{name: "Sandbox", fieldType: reflect.TypeFor[sandbox.Resolved]()},
 				{name: "ResolvedAt", fieldType: reflect.TypeFor[time.Time]()},

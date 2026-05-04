@@ -135,7 +135,7 @@ func TestTriggerEngineIntegrationWebhookDispatchesExactlyOnce(t *testing.T) {
 	}
 
 	payload := []byte(`{"payload":"deploy"}`)
-	signature, err := SignWebhookPayload("shared-secret", now, payload)
+	signature, err := SignWebhookPayload(testWebhookSecretValue(trigger.WebhookSecretRef), now, payload)
 	if err != nil {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}

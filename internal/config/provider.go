@@ -22,6 +22,38 @@ const (
 	ProviderHarnessPiACP ProviderHarness = "pi_acp"
 )
 
+// ProviderAuthMode identifies who owns launch-time provider authentication.
+type ProviderAuthMode string
+
+const (
+	// ProviderAuthModeNativeCLI lets the provider CLI use its own login/session state.
+	ProviderAuthModeNativeCLI ProviderAuthMode = "native_cli"
+	// ProviderAuthModeBoundSecret injects explicitly configured credential slots at launch.
+	ProviderAuthModeBoundSecret ProviderAuthMode = "bound_secret"
+	// ProviderAuthModeNone launches the provider without AGH-managed credentials.
+	ProviderAuthModeNone ProviderAuthMode = "none"
+)
+
+// ProviderEnvPolicy identifies which daemon environment is inherited by a provider process.
+type ProviderEnvPolicy string
+
+const (
+	// ProviderEnvPolicyFiltered removes secret-shaped daemon variables but keeps operator context.
+	ProviderEnvPolicyFiltered ProviderEnvPolicy = "filtered"
+	// ProviderEnvPolicyIsolated keeps only a fixed operational allowlist.
+	ProviderEnvPolicyIsolated ProviderEnvPolicy = "isolated"
+)
+
+// ProviderHomePolicy identifies whether provider CLI state comes from the operator home or an isolated home.
+type ProviderHomePolicy string
+
+const (
+	// ProviderHomePolicyOperator lets native CLIs read their existing operator login state.
+	ProviderHomePolicyOperator ProviderHomePolicy = "operator"
+	// ProviderHomePolicyIsolated points native CLIs at an AGH-owned provider home.
+	ProviderHomePolicyIsolated ProviderHomePolicy = "isolated"
+)
+
 // ProviderCredentialSlot describes one launch-time secret binding needed by a provider.
 type ProviderCredentialSlot struct {
 	Name      string `toml:"name"`
@@ -40,6 +72,12 @@ type ProviderConfig struct {
 	RuntimeProvider string                   `toml:"runtime_provider,omitempty"`
 	Transport       string                   `toml:"transport,omitempty"`
 	BaseURL         string                   `toml:"base_url,omitempty"`
+	AuthMode        ProviderAuthMode         `toml:"auth_mode,omitempty"`
+	EnvPolicy       ProviderEnvPolicy        `toml:"env_policy,omitempty"`
+	HomePolicy      ProviderHomePolicy       `toml:"home_policy,omitempty"`
+	AuthStatusCmd   string                   `toml:"auth_status_command,omitempty"`
+	AuthLoginCmd    string                   `toml:"auth_login_command,omitempty"`
+	SessionMCP      *bool                    `toml:"session_mcp,omitempty"`
 	Aliases         []string                 `toml:"aliases,omitempty"`
 	CredentialSlots []ProviderCredentialSlot `toml:"credential_slots,omitempty"`
 	MCPServers      []MCPServer              `toml:"mcp_servers,omitempty"`
@@ -107,6 +145,12 @@ type ResolvedAgent struct {
 	RuntimeProvider string
 	Transport       string
 	BaseURL         string
+	AuthMode        ProviderAuthMode
+	EnvPolicy       ProviderEnvPolicy
+	HomePolicy      ProviderHomePolicy
+	AuthStatusCmd   string
+	AuthLoginCmd    string
+	SessionMCP      bool
 	CredentialSlots []ProviderCredentialSlot
 	MCPServers      []MCPServer
 	Prompt          string
@@ -118,6 +162,7 @@ var ErrProviderUnavailable = errors.New("provider unavailable")
 
 const (
 	piACPCommand             = "npx -y pi-acp@latest"
+	piACPAuthLoginCommand    = piACPCommand + " --terminal-login"
 	providerAPIKeyCredential = "api_key"
 )
 
@@ -167,27 +212,18 @@ var builtinProviders = map[string]ProviderConfig{
 		DisplayName:  "Claude Code",
 		Harness:      ProviderHarnessACP,
 		DefaultModel: "claude-sonnet-4-6",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlotWithRequired(envVarName("ANTHROPIC", "API", "KEY"), false),
-		},
 	},
 	"codex": {
 		Command:      "npx -y @zed-industries/codex-acp@latest",
 		DisplayName:  "Codex",
 		Harness:      ProviderHarnessACP,
 		DefaultModel: "gpt-5.4",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlotWithRequired(envVarName("OPENAI", "API", "KEY"), false),
-		},
 	},
 	"gemini": {
 		Command:      "gemini --acp",
 		DisplayName:  "Gemini CLI",
 		Harness:      ProviderHarnessACP,
 		DefaultModel: "gemini-3.1-pro-preview",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlotWithRequired(envVarName("GEMINI", "API", "KEY"), false),
-		},
 	},
 	"opencode": {
 		Command:     "npx -y opencode-ai@latest acp",
@@ -198,9 +234,6 @@ var builtinProviders = map[string]ProviderConfig{
 		Command:     "blackbox --experimental-acp",
 		DisplayName: "BLACKBOX AI",
 		Harness:     ProviderHarnessACP,
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlotWithRequired(envVarName("BLACKBOX", "API", "KEY"), false),
-		},
 	},
 	"cline": {
 		Command:     "npx -y cline@latest --acp",
@@ -226,14 +259,12 @@ var builtinProviders = map[string]ProviderConfig{
 		Command:     "kimi acp",
 		DisplayName: "Kimi CLI",
 		Harness:     ProviderHarnessACP,
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlotWithRequired(envVarName("KIMI", "API", "KEY"), false),
-		},
 	},
 	"openclaw": {
 		Command:     "openclaw acp",
 		DisplayName: "OpenClaw",
 		Harness:     ProviderHarnessACP,
+		SessionMCP:  boolRef(false),
 	},
 	"openhands": {
 		Command:     "openhands acp",
@@ -244,9 +275,6 @@ var builtinProviders = map[string]ProviderConfig{
 		Command:     "npx -y @qoder-ai/qodercli@latest --acp",
 		DisplayName: "Qoder CLI",
 		Harness:     ProviderHarnessACP,
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlotWithRequired(envVarName("QODER", "PERSONAL", "ACCESS", "TOKEN"), false),
-		},
 	},
 	"qwen-code": {
 		Command:      "npx -y @qwen-code/qwen-code@latest --acp --experimental-skills",
@@ -275,9 +303,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "anthropic",
 		DefaultModel:    "claude-opus-4-7",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlot(envVarName("ANTHROPIC", "API", "KEY")),
-		},
+		AuthLoginCmd:    piACPAuthLoginCommand,
 	},
 	"openrouter": {
 		Command:         piACPCommand,
@@ -285,9 +311,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "openrouter",
 		DefaultModel:    "openai/gpt-5.4",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlot(envVarName("OPENROUTER", "API", "KEY")),
-		},
+		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("OPENROUTER_API_KEY")},
 	},
 	"zai": {
 		Command:         piACPCommand,
@@ -295,9 +319,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "zai",
 		DefaultModel:    "glm-4.6",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlot(envVarName("ZAI", "API", "KEY")),
-		},
+		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("ZAI_API_KEY")},
 	},
 	"moonshot": {
 		Command:         piACPCommand,
@@ -305,9 +327,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "kimi-coding",
 		DefaultModel:    "kimi-k2-thinking",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlot(envVarName("KIMI", "API", "KEY")),
-		},
+		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("KIMI_API_KEY")},
 	},
 	"vercel-ai-gateway": {
 		Command:         piACPCommand,
@@ -315,9 +335,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "vercel-ai-gateway",
 		DefaultModel:    "anthropic/claude-opus-4-7",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlot(envVarName("AI", "GATEWAY", "API", "KEY")),
-		},
+		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("AI_GATEWAY_API_KEY")},
 	},
 	"xai": {
 		Command:         piACPCommand,
@@ -325,9 +343,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "xai",
 		DefaultModel:    "grok-4-fast-non-reasoning",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlot(envVarName("XAI", "API", "KEY")),
-		},
+		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("XAI_API_KEY")},
 	},
 	"minimax": {
 		Command:         piACPCommand,
@@ -335,9 +351,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "minimax",
 		DefaultModel:    "MiniMax-M2.1",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlot(envVarName("MINIMAX", "API", "KEY")),
-		},
+		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("MINIMAX_API_KEY")},
 	},
 	"mistral": {
 		Command:         piACPCommand,
@@ -345,9 +359,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "mistral",
 		DefaultModel:    "devstral-medium-latest",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlot(envVarName("MISTRAL", "API", "KEY")),
-		},
+		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("MISTRAL_API_KEY")},
 	},
 	"groq": {
 		Command:         piACPCommand,
@@ -355,9 +367,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "groq",
 		DefaultModel:    "openai/gpt-oss-120b",
-		CredentialSlots: []ProviderCredentialSlot{
-			apiKeyCredentialSlot(envVarName("GROQ", "API", "KEY")),
-		},
+		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("GROQ_API_KEY")},
 	},
 }
 
@@ -379,10 +389,6 @@ func CanonicalProviderName(name string) string {
 		return canonical
 	}
 	return trimmed
-}
-
-func envVarName(parts ...string) string {
-	return strings.Join(parts, "_")
 }
 
 func apiKeyCredentialSlot(targetEnv string) ProviderCredentialSlot {
@@ -480,7 +486,38 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		)
 	}
 
-	resolved := ResolvedAgent{
+	resolved := resolvedAgentFromProvider(
+		agent,
+		providerName,
+		provider,
+		resolvedPermissions,
+		command,
+		model,
+		mcpServers,
+	)
+
+	if strings.TrimSpace(resolved.Command) == "" {
+		return ResolvedAgent{}, fmt.Errorf("provider %q command is required", providerName)
+	}
+	if strings.TrimSpace(resolved.Permissions) != "" {
+		if err := PermissionMode(resolved.Permissions).Validate("agent.permissions"); err != nil {
+			return ResolvedAgent{}, err
+		}
+	}
+
+	return resolved, nil
+}
+
+func resolvedAgentFromProvider(
+	agent AgentDef,
+	providerName string,
+	provider ProviderConfig,
+	resolvedPermissions string,
+	command string,
+	model string,
+	mcpServers []MCPServer,
+) ResolvedAgent {
+	return ResolvedAgent{
 		Name:            agent.Name,
 		Provider:        providerName,
 		Command:         command,
@@ -494,21 +531,16 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		RuntimeProvider: provider.RuntimeProviderName(providerName),
 		Transport:       strings.TrimSpace(provider.Transport),
 		BaseURL:         strings.TrimSpace(provider.BaseURL),
+		AuthMode:        provider.EffectiveAuthMode(),
+		EnvPolicy:       provider.EffectiveEnvPolicy(),
+		HomePolicy:      provider.EffectiveHomePolicy(),
+		AuthStatusCmd:   strings.TrimSpace(provider.AuthStatusCmd),
+		AuthLoginCmd:    strings.TrimSpace(provider.AuthLoginCmd),
+		SessionMCP:      provider.SessionMCPEnabled(),
 		CredentialSlots: provider.EffectiveCredentialSlots(),
 		MCPServers:      mergeMCPServerLayers(mcpServers, provider.MCPServers, agent.MCPServers),
 		Prompt:          agent.Prompt,
 	}
-
-	if strings.TrimSpace(resolved.Command) == "" {
-		return ResolvedAgent{}, fmt.Errorf("provider %q command is required", providerName)
-	}
-	if strings.TrimSpace(resolved.Permissions) != "" {
-		if err := PermissionMode(resolved.Permissions).Validate("agent.permissions"); err != nil {
-			return ResolvedAgent{}, err
-		}
-	}
-
-	return resolved, nil
 }
 
 // ResolveSessionAgent resolves a parsed agent definition for one session.
@@ -564,6 +596,24 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	}
 	if strings.TrimSpace(override.BaseURL) != "" {
 		merged.BaseURL = override.BaseURL
+	}
+	if override.AuthMode != "" {
+		merged.AuthMode = override.AuthMode
+	}
+	if override.EnvPolicy != "" {
+		merged.EnvPolicy = override.EnvPolicy
+	}
+	if override.HomePolicy != "" {
+		merged.HomePolicy = override.HomePolicy
+	}
+	if strings.TrimSpace(override.AuthStatusCmd) != "" {
+		merged.AuthStatusCmd = override.AuthStatusCmd
+	}
+	if strings.TrimSpace(override.AuthLoginCmd) != "" {
+		merged.AuthLoginCmd = override.AuthLoginCmd
+	}
+	if override.SessionMCP != nil {
+		merged.SessionMCP = boolRef(*override.SessionMCP)
 	}
 	if len(override.Aliases) > 0 {
 		merged.Aliases = cloneStrings(override.Aliases)
@@ -722,6 +772,33 @@ func (p ProviderConfig) RequiresRuntimeModel() bool {
 	return p.EffectiveHarness() == ProviderHarnessPiACP
 }
 
+// EffectiveAuthMode returns the configured auth owner or the slot-derived default.
+func (p ProviderConfig) EffectiveAuthMode() ProviderAuthMode {
+	if p.AuthMode != "" {
+		return p.AuthMode
+	}
+	if len(p.EffectiveCredentialSlots()) > 0 {
+		return ProviderAuthModeBoundSecret
+	}
+	return ProviderAuthModeNativeCLI
+}
+
+// EffectiveEnvPolicy returns the configured provider environment inheritance policy.
+func (p ProviderConfig) EffectiveEnvPolicy() ProviderEnvPolicy {
+	if p.EnvPolicy != "" {
+		return p.EnvPolicy
+	}
+	return ProviderEnvPolicyFiltered
+}
+
+// EffectiveHomePolicy returns the configured provider home inheritance policy.
+func (p ProviderConfig) EffectiveHomePolicy() ProviderHomePolicy {
+	if p.HomePolicy != "" {
+		return p.HomePolicy
+	}
+	return ProviderHomePolicyOperator
+}
+
 // RuntimeProviderName returns the downstream runtime provider id for harnesses that need one.
 func (p ProviderConfig) RuntimeProviderName(providerName string) string {
 	if runtimeProvider := strings.TrimSpace(p.RuntimeProvider); runtimeProvider != "" {
@@ -738,6 +815,14 @@ func (p ProviderConfig) EffectiveCredentialSlots() []ProviderCredentialSlot {
 	return nil
 }
 
+// SessionMCPEnabled reports whether AGH should pass per-session MCP servers to the provider.
+func (p ProviderConfig) SessionMCPEnabled() bool {
+	if p.SessionMCP == nil {
+		return true
+	}
+	return *p.SessionMCP
+}
+
 // Validate reports whether the harness is supported.
 func (h ProviderHarness) Validate(path string) error {
 	switch h {
@@ -745,6 +830,36 @@ func (h ProviderHarness) Validate(path string) error {
 		return nil
 	default:
 		return fmt.Errorf("%s must be one of acp or pi_acp", path)
+	}
+}
+
+// Validate reports whether the provider auth mode is supported.
+func (m ProviderAuthMode) Validate(path string) error {
+	switch m {
+	case "", ProviderAuthModeNativeCLI, ProviderAuthModeBoundSecret, ProviderAuthModeNone:
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of native_cli, bound_secret, or none", path)
+	}
+}
+
+// Validate reports whether the provider env policy is supported.
+func (p ProviderEnvPolicy) Validate(path string) error {
+	switch p {
+	case "", ProviderEnvPolicyFiltered, ProviderEnvPolicyIsolated:
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of filtered or isolated", path)
+	}
+}
+
+// Validate reports whether the provider home policy is supported.
+func (p ProviderHomePolicy) Validate(path string) error {
+	switch p {
+	case "", ProviderHomePolicyOperator, ProviderHomePolicyIsolated:
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of operator or isolated", path)
 	}
 }
 
@@ -868,11 +983,24 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 	if err := provider.EffectiveHarness().Validate(fmt.Sprintf("providers.%s.harness", name)); err != nil {
 		return err
 	}
+	if err := provider.EffectiveAuthMode().Validate(fmt.Sprintf("providers.%s.auth_mode", name)); err != nil {
+		return err
+	}
+	if err := provider.EffectiveEnvPolicy().Validate(fmt.Sprintf("providers.%s.env_policy", name)); err != nil {
+		return err
+	}
+	if err := provider.EffectiveHomePolicy().Validate(fmt.Sprintf("providers.%s.home_policy", name)); err != nil {
+		return err
+	}
 	if provider.EffectiveHarness() == ProviderHarnessPiACP &&
 		strings.TrimSpace(provider.RuntimeProviderName(name)) == "" {
 		return fmt.Errorf("providers.%s.runtime_provider is required for pi_acp providers", name)
 	}
-	for i, slot := range provider.EffectiveCredentialSlots() {
+	slots, err := validateProviderAuthSlots(name, provider)
+	if err != nil {
+		return err
+	}
+	for i, slot := range slots {
 		if err := slot.Validate(fmt.Sprintf("providers.%s.credential_slots[%d]", name, i)); err != nil {
 			return err
 		}
@@ -885,6 +1013,42 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 	}
 
 	return nil
+}
+
+func validateProviderAuthSlots(name string, provider ProviderConfig) ([]ProviderCredentialSlot, error) {
+	authMode := provider.EffectiveAuthMode()
+	slots := provider.EffectiveCredentialSlots()
+	if builtinNativeAuthProvider(name) && provider.AuthMode == "" && len(slots) > 0 {
+		return nil, fmt.Errorf(
+			"providers.%s.auth_mode must be %q before credential_slots can override native CLI authentication",
+			name,
+			ProviderAuthModeBoundSecret,
+		)
+	}
+	switch authMode {
+	case ProviderAuthModeBoundSecret:
+		if len(slots) == 0 {
+			return nil, fmt.Errorf("providers.%s.credential_slots is required when auth_mode is bound_secret", name)
+		}
+	case ProviderAuthModeNativeCLI:
+		if len(slots) > 0 {
+			return nil, fmt.Errorf(
+				"providers.%s.credential_slots requires auth_mode = %q; native_cli uses provider-owned login state",
+				name,
+				ProviderAuthModeBoundSecret,
+			)
+		}
+	case ProviderAuthModeNone:
+		if len(slots) > 0 {
+			return nil, fmt.Errorf("providers.%s.credential_slots cannot be set when auth_mode is none", name)
+		}
+	}
+	return slots, nil
+}
+
+func builtinNativeAuthProvider(name string) bool {
+	builtin, ok := builtinProviders[name]
+	return ok && builtin.EffectiveAuthMode() == ProviderAuthModeNativeCLI
 }
 
 func mergeMCPServer(base MCPServer, override MCPServer) MCPServer {
@@ -971,10 +1135,27 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 		RuntimeProvider: src.RuntimeProvider,
 		Transport:       src.Transport,
 		BaseURL:         src.BaseURL,
+		AuthMode:        src.AuthMode,
+		EnvPolicy:       src.EnvPolicy,
+		HomePolicy:      src.HomePolicy,
+		AuthStatusCmd:   src.AuthStatusCmd,
+		AuthLoginCmd:    src.AuthLoginCmd,
+		SessionMCP:      cloneBoolRef(src.SessionMCP),
 		Aliases:         cloneStrings(src.Aliases),
 		CredentialSlots: cloneProviderCredentialSlots(src.CredentialSlots),
 		MCPServers:      cloneMCPServers(src.MCPServers),
 	}
+}
+
+func boolRef(value bool) *bool {
+	return &value
+}
+
+func cloneBoolRef(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	return boolRef(*src)
 }
 
 func cloneProviderCredentialSlots(src []ProviderCredentialSlot) []ProviderCredentialSlot {

@@ -61,7 +61,7 @@ export default function BlogIndexPage() {
             <span className="mx-1 inline-block h-4 w-px bg-(--color-divider)" />
             <Link
               href="/blog/feed.xml"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-sans text-[13px] text-(--color-text-tertiary) hover:text-(--color-text-primary)"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-sans text-[13px] text-(--color-text-secondary) hover:text-(--color-text-primary)"
             >
               <Rss size={12} aria-hidden />
               <span className="font-mono text-[11px] uppercase tracking-[0.06em]">RSS</span>
@@ -84,7 +84,7 @@ export default function BlogIndexPage() {
             <div className="flex items-center gap-3">
               <MonoEyebrow tracking="wide">LATEST</MonoEyebrow>
               <span className="inline-block h-px w-9 bg-(--color-divider)" />
-              <span className="text-[13px] text-(--color-text-tertiary)">Newest first</span>
+              <span className="text-[13px] text-(--color-text-secondary)">Newest first</span>
             </div>
           </div>
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">

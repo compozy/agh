@@ -40,6 +40,7 @@ export type {
   SettingsSectionSlug,
   SettingsSkillsSection,
   SettingsSourceKind,
+  SettingsUpdateStatus,
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
@@ -77,6 +78,7 @@ export {
   getSettingsProvider,
   getSettingsRestartStatus,
   getSettingsSkills,
+  getSettingsUpdate,
   listSettingsSandboxes,
   listSettingsExtensions,
   listSettingsHooks,
@@ -118,6 +120,7 @@ export {
   settingsProvidersListOptions,
   settingsRestartStatusOptions,
   settingsSkillsOptions,
+  settingsUpdateOptions,
 } from "./lib/query-options";
 export {
   isFailedRestart,
@@ -144,6 +147,7 @@ export {
   useSettingsNetwork,
   useSettingsObservability,
   useSettingsSkills,
+  useSettingsUpdate,
 } from "./hooks/use-settings-sections";
 export {
   useSettingsSandbox,

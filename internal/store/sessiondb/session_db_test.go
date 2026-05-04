@@ -32,6 +32,18 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	assertSynchronousNormal(t, sessionDB.db)
 }
 
+func TestOpenSessionDBDisablesAutomaticWALCheckpoints(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should defer WAL checkpoints until explicit close", func(t *testing.T) {
+		t.Parallel()
+
+		sessionDB := openTestSessionDB(t, "sess-wal-checkpoint")
+
+		assertWALAutoCheckpoint(t, sessionDB.db, 0)
+	})
+}
+
 func TestOpenSessionDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testing.T) {
 	t.Parallel()
 
@@ -575,6 +587,18 @@ func assertSynchronousNormal(t *testing.T, db *sql.DB) {
 	}
 	if synchronous != 1 {
 		t.Fatalf("synchronous = %d, want 1 (NORMAL)", synchronous)
+	}
+}
+
+func assertWALAutoCheckpoint(t *testing.T, db *sql.DB, want int) {
+	t.Helper()
+
+	var pages int
+	if err := db.QueryRowContext(testutil.Context(t), "PRAGMA wal_autocheckpoint").Scan(&pages); err != nil {
+		t.Fatalf("QueryRowContext(wal_autocheckpoint) error = %v", err)
+	}
+	if pages != want {
+		t.Fatalf("wal_autocheckpoint = %d, want %d", pages, want)
 	}
 }
 

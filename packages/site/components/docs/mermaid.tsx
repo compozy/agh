@@ -62,7 +62,12 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
       .then(async mermaid => {
         const rendered = await mermaid.render(diagramId, chart);
         if (!active) return;
-        setSVG(rendered.svg.replace("<svg ", '<svg class="agh-mermaid-svg" data-theme="agh" '));
+        setSVG(
+          rendered.svg.replace(
+            "<svg ",
+            '<svg aria-hidden="true" class="agh-mermaid-svg" data-theme="agh" '
+          )
+        );
       })
       .catch(err => {
         if (!active) return;

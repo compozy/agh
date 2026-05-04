@@ -77,7 +77,7 @@ export function MessageAgent({
   const ts: CSSProperties = {
     fontFamily: TOKENS.fontSans,
     fontSize: 10,
-    color: TOKENS.textTertiary,
+    color: TOKENS.textLabel,
     fontVariantNumeric: "tabular-nums",
   };
   const body: CSSProperties = {

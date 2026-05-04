@@ -425,6 +425,13 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 			fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err),
 		)
 	}
+	if err := d.applySessionModel(ctx, process, normalized.PreferredModel); err != nil {
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session model negotiation failed",
+			fmt.Errorf("acp: set session model for %q: %w", normalized.AgentName, err),
+		)
+	}
 	return nil
 }
 
@@ -464,6 +471,13 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 			fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err),
 		)
 	}
+	if err := d.applySessionModel(ctx, process, normalized.PreferredModel); err != nil {
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session model negotiation failed",
+			fmt.Errorf("acp: set session model for %q: %w", normalized.AgentName, err),
+		)
+	}
 	return nil
 }
 
@@ -488,6 +502,27 @@ func (d *Driver) applySessionMode(
 		acpsdk.SetSessionModeRequest{
 			SessionId: acpsdk.SessionId(process.SessionID),
 			ModeId:    acpsdk.SessionModeId(modeID),
+		},
+	)
+	return err
+}
+
+func (d *Driver) applySessionModel(ctx context.Context, process *AgentProcess, preferredModel string) error {
+	if ctx == nil || process == nil || process.conn == nil {
+		return nil
+	}
+	modelID := strings.TrimSpace(preferredModel)
+	if modelID == "" {
+		return nil
+	}
+
+	_, err := acpsdk.SendRequest[acpsdk.SetSessionModelResponse](
+		process.conn,
+		ctx,
+		acpsdk.AgentMethodSessionSetModel,
+		acpsdk.SetSessionModelRequest{
+			SessionId: acpsdk.SessionId(process.SessionID),
+			ModelId:   acpsdk.ModelId(modelID),
 		},
 	)
 	return err
@@ -945,6 +980,7 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 		normalized.MCPServers = append([]aghconfig.MCPServer(nil), normalized.MCPServers...)
 	}
 	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
+	normalized.PreferredModel = strings.TrimSpace(normalized.PreferredModel)
 
 	return normalized, nil
 }

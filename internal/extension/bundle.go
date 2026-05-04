@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,9 @@ import (
 	"github.com/BurntSushi/toml"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/heartbeat"
+	"github.com/pedronauck/agh/internal/soul"
 )
 
 var (
@@ -32,9 +36,24 @@ type BundleProfile struct {
 	Name        string               `toml:"name"                  json:"name"`
 	Description string               `toml:"description,omitempty" json:"description,omitempty"`
 	Channels    BundleChannelsConfig `toml:"channels"              json:"channels"`
+	Agents      []BundleAgent        `toml:"agents,omitempty"      json:"agents,omitempty"`
 	Jobs        []BundleJob          `toml:"jobs,omitempty"        json:"jobs,omitempty"`
 	Triggers    []BundleTrigger      `toml:"triggers,omitempty"    json:"triggers,omitempty"`
 	Bridges     []BundleBridgePreset `toml:"bridges,omitempty"     json:"bridges,omitempty"`
+}
+
+// BundleAgent declares one activation-scoped agent packaged by a bundle profile.
+type BundleAgent struct {
+	Path      string              `toml:"path,omitempty" json:"path,omitempty"`
+	Agent     aghconfig.AgentDef  `toml:"-"              json:"agent"`
+	Soul      *BundleAgentSidecar `toml:"-"              json:"soul,omitempty"`
+	Heartbeat *BundleAgentSidecar `toml:"-"              json:"heartbeat,omitempty"`
+}
+
+// BundleAgentSidecar stores immutable packaged authored-context content.
+type BundleAgentSidecar struct {
+	SourcePath string `toml:"-" json:"source_path"`
+	Body       string `toml:"-" json:"body"`
 }
 
 // BundleChannelsConfig declares the canonical channels packaged by a profile.
@@ -110,9 +129,14 @@ type bundleRawProfile struct {
 	Name        string               `toml:"name"                  json:"name"`
 	Description string               `toml:"description,omitempty" json:"description,omitempty"`
 	Channels    BundleChannelsConfig `toml:"channels"              json:"channels"`
+	Agents      []bundleRawAgent     `toml:"agents,omitempty"      json:"agents,omitempty"`
 	Jobs        []bundleRawJob       `toml:"jobs,omitempty"        json:"jobs,omitempty"`
 	Triggers    []bundleRawTrigger   `toml:"triggers,omitempty"    json:"triggers,omitempty"`
 	Bridges     []BundleBridgePreset `toml:"bridges,omitempty"     json:"bridges,omitempty"`
+}
+
+type bundleRawAgent struct {
+	Path string `toml:"path" json:"path"`
 }
 
 type bundleRawJob struct {
@@ -139,9 +163,12 @@ type bundleRawTrigger struct {
 }
 
 // LoadBundleSpecs resolves and validates bundle resources declared by a manifest.
-func LoadBundleSpecs(rootDir string, manifest *Manifest) ([]BundleSpec, error) {
+func LoadBundleSpecs(ctx context.Context, rootDir string, manifest *Manifest) ([]BundleSpec, error) {
 	if manifest == nil || len(manifest.Resources.Bundles) == 0 {
 		return nil, nil
+	}
+	if ctx == nil {
+		return nil, errors.New("extension: bundle load context is required")
 	}
 
 	loaded := make(map[string]BundleSpec)
@@ -155,7 +182,7 @@ func LoadBundleSpecs(rootDir string, manifest *Manifest) ([]BundleSpec, error) {
 			return nil, err
 		}
 		for _, file := range files {
-			spec, err := loadBundleSpecAtPath(file)
+			spec, err := loadBundleSpecAtPath(ctx, rootDir, file)
 			if err != nil {
 				return nil, err
 			}
@@ -209,6 +236,9 @@ func (b BundleSpec) Validate(manifest *Manifest) error {
 func (p BundleProfile) Validate(bundleName string, manifest *Manifest) error {
 	channelNames, err := p.validateChannels(bundleName)
 	if err != nil {
+		return err
+	}
+	if err := p.validateAgents(bundleName); err != nil {
 		return err
 	}
 	if err := p.validateJobs(bundleName, channelNames); err != nil {
@@ -336,6 +366,53 @@ func (p BundleProfile) validateBridges(bundleName string, manifest *Manifest) er
 		seenBridges[bridgeName] = struct{}{}
 		if err := bridge.Validate(bundleName, p.Name, manifest); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func (p BundleProfile) validateAgents(bundleName string) error {
+	seenAgents := make(map[string]struct{}, len(p.Agents))
+	for idx, agent := range p.Agents {
+		name := strings.TrimSpace(agent.Agent.Name)
+		if name == "" {
+			return fmt.Errorf(
+				"%w: bundle %q profile %q agents[%d].AGENT.md name is required",
+				ErrBundleInvalid,
+				bundleName,
+				p.Name,
+				idx,
+			)
+		}
+		key := bundleLookupKey(name)
+		if _, exists := seenAgents[key]; exists {
+			return fmt.Errorf(
+				"%w: bundle %q profile %q agent %q is duplicated",
+				ErrBundleInvalid,
+				bundleName,
+				p.Name,
+				name,
+			)
+		}
+		seenAgents[key] = struct{}{}
+		if strings.TrimSpace(agent.Path) == "" {
+			return fmt.Errorf(
+				"%w: bundle %q profile %q agent %q path is required",
+				ErrBundleInvalid,
+				bundleName,
+				p.Name,
+				name,
+			)
+		}
+		if err := agent.Agent.Validate(); err != nil {
+			return fmt.Errorf(
+				"%w: bundle %q profile %q agent %q: %w",
+				ErrBundleInvalid,
+				bundleName,
+				p.Name,
+				name,
+				err,
+			)
 		}
 	}
 	return nil
@@ -474,12 +551,12 @@ func (b BundleBridgePreset) Validate(bundleName string, profileName string, mani
 	return nil
 }
 
-func loadBundleSpecAtPath(path string) (BundleSpec, error) {
+func loadBundleSpecAtPath(ctx context.Context, rootDir string, path string) (BundleSpec, error) {
 	switch strings.ToLower(filepath.Ext(strings.TrimSpace(path))) {
 	case ".toml":
-		return loadBundleTOML(path)
+		return loadBundleTOML(ctx, rootDir, path)
 	case ".json":
-		return loadBundleJSON(path)
+		return loadBundleJSON(ctx, rootDir, path)
 	default:
 		return BundleSpec{}, fmt.Errorf("%w: unsupported bundle path %q", ErrBundleInvalid, path)
 	}
@@ -489,7 +566,7 @@ func bundleLookupKey(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
 }
 
-func loadBundleTOML(path string) (BundleSpec, error) {
+func loadBundleTOML(ctx context.Context, rootDir string, path string) (BundleSpec, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return BundleSpec{}, fmt.Errorf("extension: read bundle %q: %w", path, err)
@@ -499,10 +576,10 @@ func loadBundleTOML(path string) (BundleSpec, error) {
 	if _, err := toml.Decode(string(data), &doc); err != nil {
 		return BundleSpec{}, fmt.Errorf("extension: decode bundle %q: %w", path, err)
 	}
-	return doc.toBundleSpec()
+	return doc.toBundleSpec(ctx, bundleAgentRoot(rootDir, path))
 }
 
-func loadBundleJSON(path string) (BundleSpec, error) {
+func loadBundleJSON(ctx context.Context, rootDir string, path string) (BundleSpec, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return BundleSpec{}, fmt.Errorf("extension: read bundle %q: %w", path, err)
@@ -512,10 +589,17 @@ func loadBundleJSON(path string) (BundleSpec, error) {
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return BundleSpec{}, fmt.Errorf("extension: decode bundle %q: %w", path, err)
 	}
-	return doc.toBundleSpec()
+	return doc.toBundleSpec(ctx, bundleAgentRoot(rootDir, path))
 }
 
-func (d bundleDocument) toBundleSpec() (BundleSpec, error) {
+func bundleAgentRoot(rootDir string, bundlePath string) string {
+	if strings.TrimSpace(rootDir) != "" {
+		return rootDir
+	}
+	return filepath.Dir(strings.TrimSpace(bundlePath))
+}
+
+func (d bundleDocument) toBundleSpec(ctx context.Context, rootDir string) (BundleSpec, error) {
 	name, err := mergeManifestValue("bundle.name", d.Name, d.Bundle.Name)
 	if err != nil {
 		return BundleSpec{}, err
@@ -539,12 +623,16 @@ func (d bundleDocument) toBundleSpec() (BundleSpec, error) {
 		Profiles:    make([]BundleProfile, 0, len(profiles)),
 	}
 	for _, profile := range profiles {
-		spec.Profiles = append(spec.Profiles, profile.toBundleProfile())
+		bundleProfile, err := profile.toBundleProfile(ctx, rootDir)
+		if err != nil {
+			return BundleSpec{}, err
+		}
+		spec.Profiles = append(spec.Profiles, bundleProfile)
 	}
 	return spec, nil
 }
 
-func (p bundleRawProfile) toBundleProfile() BundleProfile {
+func (p bundleRawProfile) toBundleProfile(ctx context.Context, rootDir string) (BundleProfile, error) {
 	profile := BundleProfile{
 		Name:        strings.TrimSpace(p.Name),
 		Description: strings.TrimSpace(p.Description),
@@ -552,9 +640,17 @@ func (p bundleRawProfile) toBundleProfile() BundleProfile {
 			Primary: strings.TrimSpace(p.Channels.Primary),
 			Items:   normalizeBundleChannels(p.Channels.Items),
 		},
+		Agents:   make([]BundleAgent, 0, len(p.Agents)),
 		Jobs:     make([]BundleJob, 0, len(p.Jobs)),
 		Triggers: make([]BundleTrigger, 0, len(p.Triggers)),
 		Bridges:  normalizeBundleBridges(p.Bridges),
+	}
+	for _, agent := range p.Agents {
+		loaded, err := loadBundleAgent(ctx, rootDir, agent.Path)
+		if err != nil {
+			return BundleProfile{}, err
+		}
+		profile.Agents = append(profile.Agents, loaded)
 	}
 	for _, job := range p.Jobs {
 		profile.Jobs = append(profile.Jobs, job.toBundleJob())
@@ -562,7 +658,7 @@ func (p bundleRawProfile) toBundleProfile() BundleProfile {
 	for _, trigger := range p.Triggers {
 		profile.Triggers = append(profile.Triggers, trigger.toBundleTrigger())
 	}
-	return profile
+	return profile, nil
 }
 
 func (j bundleRawJob) toBundleJob() BundleJob {
@@ -598,6 +694,115 @@ func (t bundleRawTrigger) toBundleTrigger() BundleTrigger {
 		trigger.Enabled = *t.Enabled
 	}
 	return trigger
+}
+
+func loadBundleAgent(ctx context.Context, rootDir string, path string) (BundleAgent, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return BundleAgent{}, fmt.Errorf("%w: profile agent path is required", ErrBundleInvalid)
+	}
+	if filepath.IsAbs(trimmed) {
+		return BundleAgent{}, fmt.Errorf("%w: profile agent path %q must be relative", ErrBundleInvalid, trimmed)
+	}
+	agentDir, err := resolvePathWithinRoot(rootDir, trimmed)
+	if err != nil {
+		return BundleAgent{}, err
+	}
+	if err := ensureBundleAgentPathWithinRoot(rootDir, agentDir, trimmed); err != nil {
+		return BundleAgent{}, err
+	}
+	info, err := os.Stat(agentDir)
+	if err != nil {
+		return BundleAgent{}, fmt.Errorf("extension: stat bundle agent %q: %w", trimmed, err)
+	}
+	if !info.IsDir() {
+		return BundleAgent{}, fmt.Errorf("%w: profile agent path %q must be a directory", ErrBundleInvalid, trimmed)
+	}
+
+	agentPath := filepath.Join(agentDir, "AGENT.md")
+	agent, err := aghconfig.LoadAgentDefFile(agentPath)
+	if err != nil {
+		return BundleAgent{}, fmt.Errorf("%w: load profile agent %q: %w", ErrBundleInvalid, trimmed, err)
+	}
+	loaded := BundleAgent{
+		Path:  filepath.ToSlash(filepath.Clean(trimmed)),
+		Agent: aghconfig.CloneAgentDef(agent),
+	}
+	if loaded.Soul, err = loadBundleAgentSoulSidecar(ctx, agentDir, loaded.Path); err != nil {
+		return BundleAgent{}, err
+	}
+	if loaded.Heartbeat, err = loadBundleAgentHeartbeatSidecar(ctx, agentDir, loaded.Path); err != nil {
+		return BundleAgent{}, err
+	}
+	return loaded, nil
+}
+
+func ensureBundleAgentPathWithinRoot(rootDir string, agentDir string, original string) error {
+	root, err := filepath.EvalSymlinks(filepath.Clean(strings.TrimSpace(rootDir)))
+	if err != nil {
+		return fmt.Errorf("extension: resolve bundle root symlink: %w", err)
+	}
+	target, err := filepath.EvalSymlinks(filepath.Clean(strings.TrimSpace(agentDir)))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("extension: resolve bundle agent path %q symlink: %w", original, err)
+	}
+	rel, err := filepath.Rel(root, target)
+	if err != nil {
+		return fmt.Errorf("extension: resolve bundle agent path %q: %w", original, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("%w: profile agent path %q escapes extension root", ErrBundleInvalid, original)
+	}
+	return nil
+}
+
+func loadBundleAgentSoulSidecar(
+	ctx context.Context,
+	agentDir string,
+	agentRelPath string,
+) (*BundleAgentSidecar, error) {
+	sourcePath := filepath.ToSlash(filepath.Join(agentRelPath, soul.FileName))
+	body, err := os.ReadFile(filepath.Join(agentDir, soul.FileName))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("%w: read profile agent %s: %w", ErrBundleInvalid, sourcePath, err)
+	}
+	if _, err := soul.Parse(ctx, soul.ParseRequest{
+		SourcePath: sourcePath,
+		Content:    body,
+		Config:     aghconfig.DefaultSoulConfig(),
+	}); err != nil {
+		return nil, fmt.Errorf("%w: profile agent %s: %w", ErrBundleInvalid, sourcePath, err)
+	}
+	return &BundleAgentSidecar{SourcePath: sourcePath, Body: string(body)}, nil
+}
+
+func loadBundleAgentHeartbeatSidecar(
+	ctx context.Context,
+	agentDir string,
+	agentRelPath string,
+) (*BundleAgentSidecar, error) {
+	sourcePath := filepath.ToSlash(filepath.Join(agentRelPath, heartbeat.FileName))
+	body, err := os.ReadFile(filepath.Join(agentDir, heartbeat.FileName))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("%w: read profile agent %s: %w", ErrBundleInvalid, sourcePath, err)
+	}
+	if _, err := heartbeat.Parse(ctx, heartbeat.ParseRequest{
+		SourcePath: sourcePath,
+		Content:    body,
+		Config:     aghconfig.DefaultHeartbeatConfig(),
+	}); err != nil {
+		return nil, fmt.Errorf("%w: profile agent %s: %w", ErrBundleInvalid, sourcePath, err)
+	}
+	return &BundleAgentSidecar{SourcePath: sourcePath, Body: string(body)}, nil
 }
 
 func collectBundleFiles(root string) ([]string, error) {

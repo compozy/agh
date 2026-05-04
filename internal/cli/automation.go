@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	"github.com/spf13/cobra"
 )
@@ -1231,7 +1232,7 @@ func automationJobBundle(item JobRecord) outputBundle {
 
 func automationJobListBundle(items []JobRecord) outputBundle {
 	return listBundle(
-		items,
+		contract.JobsResponse{Jobs: items},
 		items,
 		"Automation Jobs",
 		[]string{
@@ -1371,7 +1372,7 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 
 func automationTriggerListBundle(items []TriggerRecord) outputBundle {
 	return listBundle(
-		items,
+		contract.TriggersResponse{Triggers: items},
 		items,
 		"Automation Triggers",
 		[]string{"ID", "Name", "Event", "Scope", "Workspace", "Agent", "Enabled", "Source"},
@@ -1460,7 +1461,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 
 func automationRunListBundle(items []RunRecord) outputBundle {
 	return listBundle(
-		items,
+		contract.RunsResponse{Runs: items},
 		items,
 		"Automation Runs",
 		[]string{

@@ -36,7 +36,7 @@ instructions for agents.
 
 ## Complete Annotated Example
 
-```markdown
+```text
 ---
 # Required. Used as the skill catalog key.
 name: docs-search
@@ -70,7 +70,7 @@ metadata:
 
 Use this skill when the user asks for an answer that must be grounded in repository docs.
 
-## Workflow
+## Sequence
 
 1. Search the relevant docs before answering.
 2. Prefer current source and active task documents over archived notes.
@@ -200,7 +200,7 @@ Useful skill bodies usually contain:
 | ------------ | ------------------------------------------------------------- |
 | When to use  | Trigger conditions for activating the skill.                  |
 | Inputs       | Files, commands, external systems, or assumptions to inspect. |
-| Workflow     | Ordered steps the agent should follow.                        |
+| Sequence     | Ordered steps the agent should follow.                        |
 | Verification | Concrete checks that prove the skill's work is correct.       |
 | Edge cases   | Mistakes to avoid.                                            |
 | Resources    | Relative files the agent can read from the skill directory.   |

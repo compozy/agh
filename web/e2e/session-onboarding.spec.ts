@@ -18,6 +18,10 @@ const browserLifecycleFixture = path.resolve(
 const browserLifecycleAgent = "browser-lifecycle-agent";
 const browserLifecyclePrompt = "run browser lifecycle flow";
 
+function browserLifecycleSessionPath(sessionId: string): string {
+  return `/agents/${browserLifecycleAgent}/sessions/${sessionId}`;
+}
+
 test.use({
   runtimeOptions: {
     seed: {
@@ -42,9 +46,12 @@ test("operator can onboard, create a session, submit work, approve a permission 
 
   await expect(ui.workspaceOnboarding).toBeHidden();
   await expect(ui.appSidebar).toBeVisible();
-  await expect(ui.newSessionButton(browserLifecycleAgent)).toBeVisible();
+  await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
 
-  await ui.newSessionButton(browserLifecycleAgent).click();
+  await ui.agentRow(browserLifecycleAgent).click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${browserLifecycleAgent}`);
+  await expect(ui.agentPageNewSession).toBeVisible();
+  await ui.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
   await expect(appPage.getByTestId("session-create-agent-select")).toHaveValue(
@@ -61,7 +68,9 @@ test("operator can onboard, create a session, submit work, approve a permission 
   const sessionId = createPayload.session?.id ?? "";
   expect(sessionId).not.toBe("");
 
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/session/${sessionId}`);
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(browserLifecycleSessionPath(sessionId));
   await expect(ui.chatHeader).toBeVisible();
   await expect(ui.composerTextarea).toBeVisible();
   await expect(ui.stopButton).toBeVisible();

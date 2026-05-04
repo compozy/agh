@@ -36,6 +36,10 @@ const draftTitle = "Draft handoff smoke task";
 const draftDescription =
   "Saved intent for ADR-010 bookend coverage. No run should be queued until publish.";
 
+function handoffAgentSessionPath(sessionId: string): string {
+  return `/agents/${handoffAgentName}/sessions/${sessionId}`;
+}
+
 test.use({
   runtimeOptions: {
     seed: {
@@ -187,6 +191,8 @@ test("approving an agent-created approval task is the coordinator-handoff bounda
 
   await tasksUI.navTasks.click();
   await expect(appPage).toHaveURL(/\/tasks$/);
+  await tasksUI.modeList.click();
+  await expect(tasksUI.modeList).toHaveAttribute("aria-pressed", "true");
 
   const approvalTaskRunsBefore = await runtime.requestJSON<{
     runs: Array<{ id: string }>;
@@ -236,9 +242,11 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
 
   await expect(sessionUI.appSidebar).toBeVisible();
 
-  const newSessionButton = sessionUI.newSessionButton(handoffAgentName);
-  await expect(newSessionButton).toBeVisible();
-  await newSessionButton.click();
+  await expect(sessionUI.agentRow(handoffAgentName)).toBeVisible();
+  await sessionUI.agentRow(handoffAgentName).click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${handoffAgentName}`);
+  await expect(sessionUI.agentPageNewSession).toBeVisible();
+  await sessionUI.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
   await expect(appPage.getByTestId("session-create-agent-select")).toHaveValue(handoffAgentName);
@@ -250,8 +258,16 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
 
-  await expect.poll(() => new URL(appPage.url()).pathname).toMatch(/^\/session\/[^/]+$/);
-  const sessionId = new URL(appPage.url()).pathname.replace(/^\/session\//, "");
+  let sessionId = "";
+  await expect
+    .poll(() => {
+      const pathname = new URL(appPage.url()).pathname;
+      const prefix = `/agents/${handoffAgentName}/sessions/`;
+      sessionId = pathname.startsWith(prefix) ? pathname.slice(prefix.length) : "";
+      return sessionId;
+    })
+    .not.toBe("");
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(handoffAgentSessionPath(sessionId));
 
   await expect(sessionUI.chatHeader).toBeVisible();
 

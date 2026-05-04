@@ -233,6 +233,15 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		wantMatch string
 	}{
 		{
+			name: "Should reject protocol v1 envelopes",
+			mutate: func(env Envelope) Envelope {
+				env.Protocol = "agh-network/v1"
+				return env
+			},
+			wantErr:   ErrInvalidField,
+			wantMatch: "protocol",
+		},
+		{
 			name: "Should reject legacy recipe kinds",
 			mutate: func(env Envelope) Envelope {
 				env.Kind = Kind("recipe")
@@ -261,6 +270,15 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			name: "Should reject invalid from peer IDs",
 			mutate: func(env Envelope) Envelope {
 				env.From = "BadPeer"
+				return env
+			},
+			wantErr:   ErrInvalidField,
+			wantMatch: "peer_id",
+		},
+		{
+			name: "Should reject verified-format identities without proof",
+			mutate: func(env Envelope) Envelope {
+				env.From = "alice@39f713d0a644253f04529421b9f51b9b"
 				return env
 			},
 			wantErr:   ErrInvalidField,
@@ -384,6 +402,19 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 				env.Ext = ExtensionMap{
 					"agh.handoff": mustRawJSON(t, map[string]any{
 						"note": "Bearer provider-token",
+					}),
+				}
+				return env
+			},
+			wantErr:   ErrInvalidBody,
+			wantMatch: "raw secret material",
+		},
+		{
+			name: "Should reject raw claim tokens in extensions",
+			mutate: func(env Envelope) Envelope {
+				env.Ext = ExtensionMap{
+					"agh.metadata": mustRawJSON(t, map[string]any{
+						"claim_token": "agh_claim_NET05TOKEN123",
 					}),
 				}
 				return env

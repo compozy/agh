@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 )
@@ -242,23 +243,42 @@ func TestExtensionStatusCodeMappings(t *testing.T) {
 func TestApproveSessionHandler(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldReportApproveSessionAsNotImplemented", func(t *testing.T) {
+	t.Run("ShouldValidateAndRouteApprovalRequests", func(t *testing.T) {
 		t.Parallel()
 
+		var (
+			gotID  string
+			gotReq acp.ApproveRequest
+		)
 		homePaths := newTestHomePaths(t)
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+			ApproveFn: func(_ context.Context, id string, req acp.ApproveRequest) error {
+				gotID = id
+				gotReq = req
+				return nil
+			},
+		}, stubObserver{}, homePaths))
 
-		recorder := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-1/approve", nil)
-		if recorder.Code != http.StatusNotImplemented {
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/sessions/sess-1/approve",
+			[]byte(`{"request_id":"req-1","turn_id":"turn-1","decision":"allow-once"}`),
+		)
+		if recorder.Code != http.StatusOK {
 			t.Fatalf(
 				"approve status = %d, want %d; body=%s",
 				recorder.Code,
-				http.StatusNotImplemented,
+				http.StatusOK,
 				recorder.Body.String(),
 			)
 		}
-		if !strings.Contains(strings.ToLower(recorder.Body.String()), "not implemented") {
-			t.Fatalf("approve body = %q, want substring %q", recorder.Body.String(), "not implemented")
+		if gotID != "sess-1" {
+			t.Fatalf("approve id = %q, want sess-1", gotID)
+		}
+		if gotReq.RequestID != "req-1" || gotReq.TurnID != "turn-1" || gotReq.Decision != "allow-once" {
+			t.Fatalf("approve request = %#v", gotReq)
 		}
 	})
 }

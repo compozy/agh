@@ -76,9 +76,37 @@ func TestAtomicWriteFileDoesNotCorruptTargetOnFailure(t *testing.T) {
 func TestAtomicWriteFileRejectsBlankPath(t *testing.T) {
 	t.Parallel()
 
-	if err := AtomicWriteFile("   ", []byte("content"), 0o644); err == nil {
-		t.Fatal("AtomicWriteFile(blank path) error = nil, want non-nil")
-	}
+	t.Run("Should reject blank paths with invalid path sentinel", func(t *testing.T) {
+		t.Parallel()
+
+		err := AtomicWriteFile("   ", []byte("content"), 0o644)
+		if !errors.Is(err, ErrInvalidPath) {
+			t.Fatalf("AtomicWriteFile(blank path) error = %v, want ErrInvalidPath", err)
+		}
+	})
+}
+
+func TestAtomicWriteFileRejectsNullBytePath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject NUL bytes before creating filesystem artifacts", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		invalidName := "leak" + "\x00" + ".txt"
+		err := AtomicWriteFile(filepath.Join(dir, invalidName), []byte("content"), 0o644)
+		if !errors.Is(err, ErrInvalidPath) {
+			t.Fatalf("AtomicWriteFile(NUL path) error = %v, want ErrInvalidPath", err)
+		}
+
+		matches, globErr := filepath.Glob(filepath.Join(dir, "leak*"))
+		if globErr != nil {
+			t.Fatalf("filepath.Glob(leak*) error = %v", globErr)
+		}
+		if len(matches) != 0 {
+			t.Fatalf("leak artifacts = %#v, want none", matches)
+		}
+	})
 }
 
 func TestAtomicWriteFilePreservesLiteralWhitespaceInPath(t *testing.T) {

@@ -243,6 +243,30 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report degraded memory health when dream status fails", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, workspace, trigger := setup(t)
+		trigger.LastErr = errors.New("dream status failed")
+		query := url.Values{}
+		query.Set("workspace", workspace)
+		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health?"+query.Encode(), nil)
+		if healthResp.Code != http.StatusOK {
+			t.Fatalf(
+				"memory health status = %d, want %d; body=%s",
+				healthResp.Code,
+				http.StatusOK,
+				healthResp.Body.String(),
+			)
+		}
+
+		var payload contract.MemoryHealthPayload
+		testutil.DecodeJSONResponse(t, healthResp, &payload)
+		if payload.Status != "degraded" || !strings.Contains(payload.Reason, "dream status failed") {
+			t.Fatalf("memory health payload = %#v, want degraded dream status failure", payload)
+		}
+	})
+
 	t.Run("Should report unavailable memory health when store is missing", func(t *testing.T) {
 		t.Parallel()
 

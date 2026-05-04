@@ -19,6 +19,7 @@ home defaults to `~/.agh` and can be changed with `AGH_HOME`.
 | `$AGH_HOME/daemon.json`                     | Global           | Daemon discovery metadata.                           |
 | `$AGH_HOME/logs/agh.log`                    | Global           | Structured daemon log file.                          |
 | `$AGH_HOME/logs/network.audit`              | Global           | Append-only network audit file.                      |
+| `$AGH_HOME/providers/<provider>/`           | Provider         | Isolated provider home when `home_policy` is set.    |
 | `$AGH_HOME/sessions/<session-id>/events.db` | Session          | Per-session event database.                          |
 | `$AGH_HOME/sessions/<session-id>/meta.json` | Session          | Per-session metadata.                                |
 | `$AGH_HOME/agents/<name>/AGENT.md`          | Global agent     | User-wide agent definition.                          |
@@ -40,6 +41,7 @@ home defaults to `~/.agh` and can be changed with `AGH_HOME`.
 | `$AGH_HOME/agents/`     | yes                    | Global agent definitions.                                                     |
 | `$AGH_HOME/skills/`     | yes                    | Global user and marketplace skills.                                           |
 | `$AGH_HOME/memory/`     | yes                    | Default global memory directory. Can be overridden by `[memory].global_dir`.  |
+| `$AGH_HOME/providers/`  | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
 | `$AGH_HOME/sessions/`   | yes                    | Parent directory for per-session state.                                       |
 | `$AGH_HOME/logs/`       | yes                    | Parent directory for daemon logs and network audit output.                    |
 | `$AGH_HOME/extensions/` | no                     | Managed installed extension root. Created when installing managed extensions. |
@@ -57,6 +59,17 @@ directories. Individual files are created by the features that own them.
 | `$AGH_HOME/daemon.json`        | JSON               | Discovery file containing daemon PID, HTTP port, start time, and optional network diagnostics.                                                                                                              |
 | `$AGH_HOME/logs/agh.log`       | log file           | Structured daemon log file path from the home layout.                                                                                                                                                       |
 | `$AGH_HOME/logs/network.audit` | log file           | Append-only network audit file.                                                                                                                                                                             |
+
+## Provider Home Files
+
+When a provider sets `home_policy = "isolated"`, AGH creates a private provider home under
+`$AGH_HOME/providers/<provider>` with `0700` permissions. The launch environment points `HOME`,
+`PROVIDER_HOME`, XDG directories, and known provider-specific variables such as
+`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `OPENCODE_CONFIG_DIR` at that directory. AGH never copies
+credentials from the operator home into an isolated provider home.
+
+The default `home_policy = "operator"` does not create this directory and lets native ACP CLIs use
+their existing login/session state.
 
 ## Session Files
 

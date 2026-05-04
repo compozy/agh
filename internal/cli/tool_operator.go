@@ -31,6 +31,13 @@ type toolInvokeFlags struct {
 	sensitiveInputFields []string
 }
 
+type toolApprovalFlags struct {
+	scope       toolScopeFlags
+	input       string
+	inputFile   string
+	inputDigest string
+}
+
 type toolCommandError struct {
 	response ToolErrorResponseRecord
 	err      error
@@ -137,6 +144,56 @@ func newToolInfoCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	scope.bind(cmd)
+	return cmd
+}
+
+func newToolApproveCommand(deps commandDeps) *cobra.Command {
+	var flags toolApprovalFlags
+	cmd := &cobra.Command{
+		Use:   "approve <tool_id>",
+		Short: "Mint a one-shot approval token for one tool invocation",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, err := parseToolIDArg(args[0])
+			if err != nil {
+				return writeToolCommandError(cmd, err)
+			}
+			input, err := resolveToolApprovalInput(cmd, flags)
+			if err != nil {
+				return writeToolCommandError(cmd, toolValidationCommandError(id, "tool approval input is invalid", err))
+			}
+			if strings.TrimSpace(flags.scope.sessionID) == "" {
+				return writeToolCommandError(cmd, toolValidationCommandError(
+					id,
+					"tool approval scope is invalid",
+					toolspkg.NewValidationError(
+						"session_id",
+						toolspkg.ReasonSchemaInvalid,
+						"session id is required",
+					),
+				))
+			}
+			return runToolCommand(cmd, deps, func(client DaemonClient) error {
+				request := ToolApprovalRequest{
+					SessionID:   strings.TrimSpace(flags.scope.sessionID),
+					WorkspaceID: strings.TrimSpace(flags.scope.workspaceID),
+					AgentName:   strings.TrimSpace(flags.scope.agentName),
+					Input:       input,
+					InputDigest: strings.TrimSpace(flags.inputDigest),
+				}
+				approval, err := client.CreateToolApproval(cmd.Context(), id.String(), request)
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, toolApprovalBundle(approval))
+			})
+		},
+	}
+	flags.scope.bind(cmd)
+	cmd.Flags().StringVar(&flags.input, "input", "", "Inline JSON input")
+	cmd.Flags().StringVar(&flags.inputFile, "input-file", "", "Path to JSON input file, or '-' for stdin")
+	cmd.Flags().StringVar(&flags.inputDigest, "input-digest", "", "Precomputed input digest")
+	mustMarkFlagRequired(cmd, "session")
 	return cmd
 }
 
@@ -322,6 +379,25 @@ func resolveToolInvokeInput(cmd *cobra.Command, flags toolInvokeFlags) (json.Raw
 	return json.RawMessage(`{}`), nil
 }
 
+func resolveToolApprovalInput(cmd *cobra.Command, flags toolApprovalFlags) (json.RawMessage, error) {
+	inlineChanged := cmd.Flags().Lookup("input") != nil && cmd.Flags().Lookup("input").Changed
+	inputFile := strings.TrimSpace(flags.inputFile)
+	if inlineChanged && inputFile != "" {
+		return nil, toolspkg.NewValidationError(
+			"input",
+			toolspkg.ReasonSchemaInvalid,
+			"provide --input or --input-file, not both",
+		)
+	}
+	if inlineChanged {
+		return parseToolInputJSON("input", flags.input)
+	}
+	if inputFile != "" {
+		return readToolInputFile(cmd, inputFile)
+	}
+	return nil, nil
+}
+
 func readToolInputFile(cmd *cobra.Command, path string) (json.RawMessage, error) {
 	var payload []byte
 	var err error
@@ -498,6 +574,34 @@ func toolInfoBundle(response *ToolResponseRecord) outputBundle {
 					toolAvailabilitySummary(tool.Availability),
 					formatBool(tool.Decision.Callable),
 					joinReasons(tool.Availability.ReasonCodes, tool.Decision.ReasonCodes),
+				},
+			), nil
+		},
+	}
+}
+
+func toolApprovalBundle(response ToolApprovalRecord) outputBundle {
+	return outputBundle{
+		jsonValue: struct {
+			Approval ToolApprovalRecord `json:"approval"`
+		}{Approval: response},
+		human: func() (string, error) {
+			return renderHumanSection("Tool Approval", []keyValue{
+				{Label: "Tool ID", Value: response.ToolID.String()},
+				{Label: "Approval Token", Value: stringOrDash(response.ApprovalToken)},
+				{Label: "Input Digest", Value: stringOrDash(response.InputDigest)},
+				{Label: "Expires", Value: stringOrDash(formatTime(response.ExpiresAt))},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"tool_approval",
+				[]string{"tool_id", "approval_token", "input_digest", "expires_at"},
+				[]string{
+					response.ToolID.String(),
+					response.ApprovalToken,
+					response.InputDigest,
+					formatTime(response.ExpiresAt),
 				},
 			), nil
 		},

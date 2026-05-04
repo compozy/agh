@@ -1,11 +1,8 @@
 import { ArrowUpRight, Rss } from "lucide-react";
 import Link from "next/link";
-import { GithubLogo } from "@agh/ui/logos";
-import { siteConfig } from "@/lib/site-config";
 import { MonoEyebrow } from "./mono-eyebrow";
 
 export function SubscribeRail() {
-  const releasesUrl = `${siteConfig.githubUrl}/releases`;
   return (
     <aside
       aria-label="Blog subscription links"
@@ -32,15 +29,13 @@ export function SubscribeRail() {
           <ArrowUpRight size={14} aria-hidden className="text-(--color-text-tertiary)" />
         </Link>
         <Link
-          href={releasesUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-          aria-label="Watch releases on GitHub"
+          href="/changelog"
+          aria-label="Read the changelog"
           className="inline-flex items-center justify-between rounded-lg border border-(--color-divider) bg-(--color-surface-elevated) px-3 py-2.5 text-sm font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-hover)"
         >
           <span className="inline-flex items-center gap-2">
-            <GithubLogo aria-hidden className="h-3.5 w-3.5" />
-            <span>Watch releases on GitHub</span>
+            <ArrowUpRight size={14} aria-hidden />
+            <span>Read the changelog</span>
           </span>
           <ArrowUpRight size={14} aria-hidden className="text-(--color-text-tertiary)" />
         </Link>

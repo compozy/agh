@@ -2,6 +2,7 @@
     "title": "Session",
     "pages": [
         "index",
+        "approve",
         "events",
         "health",
         "history",

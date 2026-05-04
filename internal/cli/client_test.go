@@ -1193,6 +1193,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"agents":[{"name":"coder","provider":"fake","prompt":"hi"}],"skills":[{"name":"review","dir":"/workspace/project/.agh/skills/review","source":"workspace"}]}`,
 					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"agents":[{"name":"coder","provider":"fake","prompt":"hi"}],"skills":[{"name":"review","dir":"/workspace/project/.agh/skills/review","source":"workspace"}]}`,
+					), nil
 				case req.Method == http.MethodPatch && req.URL.Path == "/api/workspaces/ws-1":
 					body, err := io.ReadAll(req.Body)
 					if err != nil {
@@ -1521,6 +1526,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	workspaceDetail, err := client.GetWorkspace(ctx, "alpha")
 	if err != nil || workspaceDetail.Workspace.ID != "ws-1" || len(workspaceDetail.Skills) != 1 {
 		t.Fatalf("GetWorkspace() = %#v, %v", workspaceDetail, err)
+	}
+
+	workspaceDetailByPath, err := client.GetWorkspace(ctx, "/workspace/project")
+	if err != nil || workspaceDetailByPath.Workspace.ID != "ws-1" || len(workspaceDetailByPath.Skills) != 1 {
+		t.Fatalf("GetWorkspace(path) = %#v, %v", workspaceDetailByPath, err)
 	}
 
 	updatedWorkspace, err := client.UpdateWorkspace(ctx, "ws-1", WorkspaceUpdateRequest{Name: ptr("beta")})

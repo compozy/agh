@@ -302,6 +302,20 @@ func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
 	}
 }
 
+// AgentPayloadFromDiagnostic converts a malformed workspace agent diagnostic into a payload row.
+func AgentPayloadFromDiagnostic(diagnostic workspacepkg.AgentDiagnostic) contract.AgentPayload {
+	return contract.AgentPayload{
+		Name:     diagnostic.Name,
+		Provider: "",
+		Prompt:   "",
+		Diagnostics: []contract.AgentDiagnosticPayload{{
+			Path:      diagnostic.Path,
+			ErrorKind: diagnostic.ErrorKind,
+			Message:   diagnostic.Message,
+		}},
+	}
+}
+
 // AgentPayloadsFromDefs converts a list of agent definitions into response payloads.
 func AgentPayloadsFromDefs(agents []aghconfig.AgentDef) []contract.AgentPayload {
 	payload := make([]contract.AgentPayload, 0, len(agents))
@@ -861,6 +875,9 @@ func sessionProviderOptionPayloadFromConfig(
 		Harness:         string(resolved.EffectiveHarness()),
 		RuntimeProvider: strings.TrimSpace(resolved.RuntimeProviderName(providerName)),
 		DefaultModel:    strings.TrimSpace(resolved.DefaultModel),
+		AuthMode:        string(resolved.EffectiveAuthMode()),
+		EnvPolicy:       string(resolved.EffectiveEnvPolicy()),
+		HomePolicy:      string(resolved.EffectiveHomePolicy()),
 	}, true
 }
 
@@ -1176,6 +1193,23 @@ func SettingsRestartActionStatusFromOperation(operation SettingsRestartOperation
 	}
 }
 
+// SettingsUpdateResponseFromStatus converts the daemon-owned update snapshot into the transport payload.
+func SettingsUpdateResponseFromStatus(status SettingsUpdateStatus) contract.SettingsUpdateResponse {
+	return contract.SettingsUpdateResponse{
+		Supported:      status.Supported,
+		Managed:        status.Managed,
+		InstallMethod:  strings.TrimSpace(status.InstallMethod),
+		CurrentVersion: strings.TrimSpace(status.CurrentVersion),
+		LatestVersion:  strings.TrimSpace(status.LatestVersion),
+		Available:      status.Available,
+		Status:         contract.SettingsUpdateStatusKind(strings.TrimSpace(status.Status)),
+		Recommendation: strings.TrimSpace(status.Recommendation),
+		ReleaseURL:     strings.TrimSpace(status.ReleaseURL),
+		CheckedAt:      cloneTimePointer(status.CheckedAt),
+		LastError:      strings.TrimSpace(status.LastError),
+	}
+}
+
 func settingsSectionMetaPayload(envelope settingspkg.SectionEnvelope) contract.SettingsSectionResponseMetaPayload {
 	return contract.SettingsSectionResponseMetaPayload{
 		Section:         contract.SettingsSectionName(envelope.Section),
@@ -1488,6 +1522,7 @@ func settingsProviderItemPayload(value settingspkg.ProviderItem) contract.Settin
 		Default:          value.Default,
 		CommandAvailable: value.CommandAvailable,
 		Credentials:      settingsProviderCredentialStatusPayloads(value.Credentials),
+		AuthStatus:       settingsProviderAuthStatusPayload(value.AuthStatus),
 		SourceMetadata:   settingsSourceMetadataPayload(value.SourceMetadata),
 	}
 	if value.Fallback != nil {
@@ -1508,6 +1543,11 @@ func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contrac
 		RuntimeProvider: strings.TrimSpace(value.RuntimeProvider),
 		Transport:       strings.TrimSpace(value.Transport),
 		BaseURL:         strings.TrimSpace(value.BaseURL),
+		AuthMode:        string(value.AuthMode),
+		EnvPolicy:       string(value.EnvPolicy),
+		HomePolicy:      string(value.HomePolicy),
+		AuthStatusCmd:   strings.TrimSpace(value.AuthStatusCmd),
+		AuthLoginCmd:    strings.TrimSpace(value.AuthLoginCmd),
 		CredentialSlots: settingsProviderCredentialSlotPayloads(value.CredentialSlots),
 	}
 }
@@ -1529,6 +1569,21 @@ func settingsProviderCredentialSlotPayloads(
 		})
 	}
 	return payloads
+}
+
+func settingsProviderAuthStatusPayload(
+	value settingspkg.ProviderAuthStatus,
+) *contract.SettingsProviderAuthStatusPayload {
+	payload := contract.SettingsProviderAuthStatusPayload{
+		Mode:       string(value.Mode),
+		EnvPolicy:  string(value.EnvPolicy),
+		HomePolicy: string(value.HomePolicy),
+		State:      strings.TrimSpace(value.State),
+		Message:    strings.TrimSpace(value.Message),
+		StatusCmd:  strings.TrimSpace(value.StatusCmd),
+		LoginCmd:   strings.TrimSpace(value.LoginCmd),
+	}
+	return &payload
 }
 
 func settingsProviderCredentialStatusPayloads(

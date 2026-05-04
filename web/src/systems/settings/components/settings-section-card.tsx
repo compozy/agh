@@ -25,7 +25,7 @@ function SettingsSectionCard({
       )}
       {...props}
     >
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
           <span className="font-mono text-[11px] font-semibold uppercase tracking-[var(--tracking-mono)] text-[color:var(--color-text-label)]">
             {eyebrow}
@@ -36,7 +36,9 @@ function SettingsSectionCard({
             </span>
           ) : null}
         </div>
-        {headerAction ? <div className="shrink-0 self-start">{headerAction}</div> : null}
+        {headerAction ? (
+          <div className="w-full self-start lg:w-auto lg:shrink-0">{headerAction}</div>
+        ) : null}
       </div>
       <div className="flex flex-col gap-4">{children}</div>
     </section>

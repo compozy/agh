@@ -61,6 +61,7 @@ type StartOpts struct {
 	MCPServers      []aghconfig.MCPServer
 	Permissions     aghconfig.PermissionMode
 	SystemPrompt    string
+	PreferredModel  string
 	ResumeSessionID string
 	Launcher        sandbox.Launcher
 	ToolHost        sandbox.ToolHost

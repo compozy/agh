@@ -48,6 +48,22 @@ type DefaultsConfig struct {
 	Sandbox  string `toml:"sandbox,omitempty"`
 }
 
+// ValidationError preserves the config path for agent-parseable validation failures.
+type ValidationError struct {
+	Path    string
+	Message string
+}
+
+func (e ValidationError) Error() string {
+	if strings.TrimSpace(e.Path) == "" {
+		return e.Message
+	}
+	if strings.TrimSpace(e.Message) == "" {
+		return e.Path
+	}
+	return e.Path + " " + e.Message
+}
+
 // AgentsConfig holds authored agent context settings.
 type AgentsConfig struct {
 	Soul      SoulConfig      `toml:"soul"`
@@ -795,7 +811,7 @@ func (c HTTPConfig) Validate() error {
 // Validate ensures the default agent setting is present.
 func (c DefaultsConfig) Validate() error {
 	if strings.TrimSpace(c.Agent) == "" {
-		return errors.New("defaults.agent is required")
+		return ValidationError{Path: "defaults.agent", Message: "is required"}
 	}
 
 	return nil

@@ -91,8 +91,10 @@ describe("SessionChatRuntimeProvider", () => {
     const firstRender = renderSessionThread();
 
     await waitFor(() => {
-      expect(screen.getByText("Finish the remaining Storybook tasks.")).toBeInTheDocument();
-      expect(screen.getByText("Storybook rollout")).toBeInTheDocument();
+      expect(
+        screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+      ).toBeInTheDocument();
+      expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
     });
 
     firstRender.unmount();
@@ -100,8 +102,10 @@ describe("SessionChatRuntimeProvider", () => {
     renderSessionThread();
 
     await waitFor(() => {
-      expect(screen.getByText("Finish the remaining Storybook tasks.")).toBeInTheDocument();
-      expect(screen.getByText("Storybook rollout")).toBeInTheDocument();
+      expect(
+        screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+      ).toBeInTheDocument();
+      expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
     });
 
     expect(

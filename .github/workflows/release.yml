@@ -250,8 +250,16 @@ jobs:
             exit 1
           fi
           sh -n packages/site/public/install.sh
+          if ! grep -q 'checksums.txt.sigstore.json' packages/site/public/install.sh; then
+            echo "::error::install.sh must verify checksums.txt with checksums.txt.sigstore.json"
+            exit 1
+          fi
           if ! grep -q 'packages/site/public/install.sh' .goreleaser.yml; then
             echo "::error::.goreleaser.yml must upload packages/site/public/install.sh as a release extra file"
+            exit 1
+          fi
+          if ! grep -q -- '--bundle=\${signature}' .goreleaser.yml; then
+            echo "::error::.goreleaser.yml must sign checksums with a Sigstore bundle artifact"
             exit 1
           fi
 

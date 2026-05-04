@@ -2,21 +2,29 @@ package bundles
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/testutil"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestBundleActivationOwnedKindAllowlist(t *testing.T) {
 	t.Parallel()
 
 	for _, kind := range []resources.ResourceKind{
+		aghconfig.AgentResourceKind,
+		soul.ResourceKind,
+		heartbeat.ResourceKind,
 		automationpkg.JobResourceKind,
 		automationpkg.TriggerResourceKind,
 		bridgepkg.BridgeInstanceResourceKind,
@@ -65,7 +73,7 @@ func TestBundleActivationBuildComposesTypedBundleDependency(t *testing.T) {
 	if got, want := plan.Revision(), int64(9); got != want {
 		t.Fatalf("plan.Revision() = %d, want %d", got, want)
 	}
-	if got, want := plan.OperationCount(), 3; got != want {
+	if got, want := plan.OperationCount(), 6; got != want {
 		t.Fatalf("plan.OperationCount() = %d, want %d", got, want)
 	}
 	if err := service.Apply(context.Background(), plan); err != nil {
@@ -98,12 +106,13 @@ func TestBundleServiceReconcileLoadsBundleResourcesOncePerRun(t *testing.T) {
 			OwnerProvidesBridgeAdapter: true,
 		},
 	}}
-	store.activations[ActivationResourceID("marketing-team", "marketing", "default", ScopeGlobal, "")] = Activation{
-		ID:            ActivationResourceID("marketing-team", "marketing", "default", ScopeGlobal, ""),
+	store.activations[ActivationResourceID("marketing-team", "marketing", "default", ScopeWorkspace, "ws-2")] = Activation{
+		ID:            ActivationResourceID("marketing-team", "marketing", "default", ScopeWorkspace, "ws-2"),
 		ExtensionName: "marketing-team",
 		BundleName:    "marketing",
 		ProfileName:   "default",
-		Scope:         ScopeGlobal,
+		Scope:         ScopeWorkspace,
+		WorkspaceID:   "ws-2",
 	}
 	store.activations[ActivationResourceID("marketing-team", "marketing", "default", ScopeWorkspace, "ws-1")] = Activation{
 		ID:            ActivationResourceID("marketing-team", "marketing", "default", ScopeWorkspace, "ws-1"),
@@ -117,12 +126,23 @@ func TestBundleServiceReconcileLoadsBundleResourcesOncePerRun(t *testing.T) {
 	service := NewService(
 		store,
 		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "marketing-team"}}},
-		func(name string) (*extensionpkg.Extension, error) {
+		func(_ context.Context, name string) (*extensionpkg.Extension, error) {
 			if name != "marketing-team" {
 				return nil, extensionpkg.ErrExtensionNotFound
 			}
 			return ext, nil
 		},
+		WithWorkspaceResolver(memoryWorkspaceResolver{
+			resolveFn: func(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      strings.TrimSpace(idOrPath),
+						RootDir: filepath.Join(t.TempDir(), idOrPath),
+						Name:    strings.TrimSpace(idOrPath),
+					},
+				}, nil
+			},
+		}),
 		WithConfiguredDefaultChannel("default"),
 		WithNow(func() time.Time {
 			return time.Date(2026, 4, 14, 22, 0, 0, 0, time.UTC)
@@ -175,12 +195,23 @@ func TestBundleServiceListActivationsLoadsBundleResourcesOncePerRun(t *testing.T
 	service := NewService(
 		store,
 		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "marketing-team"}}},
-		func(name string) (*extensionpkg.Extension, error) {
+		func(_ context.Context, name string) (*extensionpkg.Extension, error) {
 			if name != "marketing-team" {
 				return nil, extensionpkg.ErrExtensionNotFound
 			}
 			return ext, nil
 		},
+		WithWorkspaceResolver(memoryWorkspaceResolver{
+			resolveFn: func(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      strings.TrimSpace(idOrPath),
+						RootDir: filepath.Join(t.TempDir(), idOrPath),
+						Name:    strings.TrimSpace(idOrPath),
+					},
+				}, nil
+			},
+		}),
 		WithConfiguredDefaultChannel("default"),
 		WithLogger(discardBundleTestLogger()),
 		WithNow(func() time.Time {

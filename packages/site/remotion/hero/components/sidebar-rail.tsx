@@ -58,7 +58,7 @@ export function SidebarRail({ activeAgent }: SidebarRailProps) {
           height: 34,
           borderRadius: 999,
           backgroundColor: TOKENS.surfaceElevated,
-          color: active ? TOKENS.textPrimary : TOKENS.textTertiary,
+          color: active ? TOKENS.textPrimary : TOKENS.textLabel,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -75,7 +75,7 @@ export function SidebarRail({ activeAgent }: SidebarRailProps) {
           width: 8,
           height: 8,
           borderRadius: 999,
-          backgroundColor: active ? TOKENS.success : TOKENS.textTertiary,
+          backgroundColor: active ? TOKENS.success : TOKENS.textLabel,
           border: `2px solid ${TOKENS.canvas}`,
         };
         return (

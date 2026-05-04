@@ -10,11 +10,14 @@ import (
 	"slices"
 	"strings"
 
+	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/soul"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -57,6 +60,7 @@ type agentSkillDesiredResources struct {
 }
 
 type agentSkillSourceSyncer struct {
+	raw        resources.RawStore
 	agentStore resources.Store[aghconfig.AgentDef]
 	agentCodec resources.KindCodec[aghconfig.AgentDef]
 	skillStore resources.Store[skillspkg.SkillResourceSpec]
@@ -110,6 +114,30 @@ func newAgentProjector(catalog *resourceCatalog[aghconfig.AgentDef]) resources.T
 	}
 }
 
+func newSoulProjector(catalog *resourceCatalog[soul.ResourceSpec]) resources.TypedProjector[soul.ResourceSpec] {
+	if catalog == nil {
+		return nil
+	}
+	return &resourceCatalogProjector[soul.ResourceSpec]{
+		kind:      soul.ResourceKind,
+		catalog:   catalog,
+		cloneSpec: cloneSoulResourceSpec,
+	}
+}
+
+func newHeartbeatProjector(
+	catalog *resourceCatalog[heartbeat.ResourceSpec],
+) resources.TypedProjector[heartbeat.ResourceSpec] {
+	if catalog == nil {
+		return nil
+	}
+	return &resourceCatalogProjector[heartbeat.ResourceSpec]{
+		kind:      heartbeat.ResourceKind,
+		catalog:   catalog,
+		cloneSpec: cloneHeartbeatResourceSpec,
+	}
+}
+
 func newSkillProjector(registry *skillspkg.Registry) resources.TypedProjector[skillspkg.SkillResourceSpec] {
 	if registry == nil {
 		return nil
@@ -159,14 +187,32 @@ func (p *skillResourceProjector) Apply(ctx context.Context, plan resources.Proje
 }
 
 type resourceAgentCatalog struct {
-	catalog *resourceCatalog[aghconfig.AgentDef]
+	catalog          *resourceCatalog[aghconfig.AgentDef]
+	soulCatalog      *resourceCatalog[soul.ResourceSpec]
+	heartbeatCatalog *resourceCatalog[heartbeat.ResourceSpec]
 }
 
-func agentCatalogDependency(catalog *resourceCatalog[aghconfig.AgentDef]) *resourceAgentCatalog {
+var _ session.AgentArtifactResolver = (*resourceAgentCatalog)(nil)
+var _ heartbeat.PolicyResolver = (*resourceAgentCatalog)(nil)
+
+type agentSidecarCatalogs struct {
+	soul      *resourceCatalog[soul.ResourceSpec]
+	heartbeat *resourceCatalog[heartbeat.ResourceSpec]
+}
+
+func agentCatalogDependency(
+	catalog *resourceCatalog[aghconfig.AgentDef],
+	sidecars ...agentSidecarCatalogs,
+) *resourceAgentCatalog {
 	if catalog == nil {
 		return nil
 	}
-	return &resourceAgentCatalog{catalog: catalog}
+	dependency := &resourceAgentCatalog{catalog: catalog}
+	if len(sidecars) > 0 {
+		dependency.soulCatalog = sidecars[0].soul
+		dependency.heartbeatCatalog = sidecars[0].heartbeat
+	}
+	return dependency
 }
 
 func (c *resourceAgentCatalog) ResolveAgent(
@@ -180,8 +226,8 @@ func (c *resourceAgentCatalog) ResolveAgent(
 	if c == nil || c.catalog == nil {
 		return resolveAgentFromWorkspaceSnapshot(target, resolved)
 	}
-	if agent, ok := c.lookupAgent(target, resolved); ok {
-		return agent, nil
+	if record, ok := c.lookupAgentRecord(target, resolved); ok {
+		return cloneAgentDef(record.Spec), nil
 	}
 	if resolved != nil {
 		return resolveAgentFromWorkspaceSnapshot(target, resolved)
@@ -189,12 +235,12 @@ func (c *resourceAgentCatalog) ResolveAgent(
 	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
-func (c *resourceAgentCatalog) lookupAgent(
+func (c *resourceAgentCatalog) lookupAgentRecord(
 	target string,
 	resolved *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, bool) {
+) (resources.Record[aghconfig.AgentDef], bool) {
 	if c == nil || c.catalog == nil {
-		return aghconfig.AgentDef{}, false
+		return resources.Record[aghconfig.AgentDef]{}, false
 	}
 
 	workspaceID := ""
@@ -204,10 +250,10 @@ func (c *resourceAgentCatalog) lookupAgent(
 
 	var (
 		globalKey      string
-		globalAgent    aghconfig.AgentDef
+		globalAgent    resources.Record[aghconfig.AgentDef]
 		globalFound    bool
 		workspaceKey   string
-		workspaceAgent aghconfig.AgentDef
+		workspaceAgent resources.Record[aghconfig.AgentDef]
 		workspaceFound bool
 	)
 
@@ -221,7 +267,7 @@ func (c *resourceAgentCatalog) lookupAgent(
 		case resources.ResourceScopeKindGlobal:
 			if !globalFound || sortKey > globalKey {
 				globalKey = sortKey
-				globalAgent = cloneAgentDef(record.Spec)
+				globalAgent = record
 				globalFound = true
 			}
 		case resources.ResourceScopeKindWorkspace:
@@ -230,7 +276,7 @@ func (c *resourceAgentCatalog) lookupAgent(
 			}
 			if !workspaceFound || sortKey > workspaceKey {
 				workspaceKey = sortKey
-				workspaceAgent = cloneAgentDef(record.Spec)
+				workspaceAgent = record
 				workspaceFound = true
 			}
 		}
@@ -242,7 +288,7 @@ func (c *resourceAgentCatalog) lookupAgent(
 	if globalFound {
 		return globalAgent, true
 	}
-	return aghconfig.AgentDef{}, false
+	return resources.Record[aghconfig.AgentDef]{}, false
 }
 
 func resolveAgentFromWorkspaceSnapshot(
@@ -258,6 +304,160 @@ func resolveAgentFromWorkspaceSnapshot(
 		}
 	}
 	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
+}
+
+func (c *resourceAgentCatalog) ResolveAgentArtifacts(
+	name string,
+	resolved *workspacepkg.ResolvedWorkspace,
+) (session.AgentArtifacts, error) {
+	target := strings.TrimSpace(name)
+	if target == "" {
+		return session.AgentArtifacts{}, errors.New("session: agent name is required")
+	}
+	if c == nil || c.catalog == nil {
+		agent, err := resolveAgentFromWorkspaceSnapshot(target, resolved)
+		if err != nil {
+			return session.AgentArtifacts{}, err
+		}
+		return session.AgentArtifacts{Agent: agent}, nil
+	}
+	record, ok := c.lookupAgentRecord(target, resolved)
+	if !ok {
+		agent, err := resolveAgentFromWorkspaceSnapshot(target, resolved)
+		if err != nil {
+			return session.AgentArtifacts{}, err
+		}
+		return session.AgentArtifacts{Agent: agent}, nil
+	}
+	artifacts := session.AgentArtifacts{
+		Agent:        cloneAgentDef(record.Spec),
+		ResourceID:   strings.TrimSpace(record.ID),
+		OwnerKind:    string(record.Owner.Kind.Normalize()),
+		OwnerID:      strings.TrimSpace(record.Owner.ID),
+		Scope:        record.Scope.Normalize(),
+		PackageOwned: record.Owner.Kind.Normalize() == bundlepkg.BundleActivationOwnerKind,
+	}
+	if c.soulCatalog != nil {
+		if spec, ok := c.lookupSoulForAgent(record); ok {
+			artifacts.SoulSourcePath = spec.SourcePath
+			artifacts.SoulBody = spec.Body
+		}
+	}
+	if c.heartbeatCatalog != nil {
+		if spec, ok := c.lookupHeartbeatForAgent(record); ok {
+			artifacts.HeartbeatSourcePath = spec.SourcePath
+			artifacts.HeartbeatBody = spec.Body
+		}
+	}
+	return artifacts, nil
+}
+
+func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
+	ctx context.Context,
+	target heartbeat.AuthoringTarget,
+) (heartbeat.ResolvedPolicy, bool, error) {
+	if ctx == nil {
+		return heartbeat.ResolvedPolicy{}, false, errors.New("daemon: heartbeat policy context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return heartbeat.ResolvedPolicy{}, false, err
+	}
+	config := target.Config
+	if config == (aghconfig.HeartbeatConfig{}) {
+		config = aghconfig.DefaultHeartbeatConfig()
+	}
+	workspace := &workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      strings.TrimSpace(target.WorkspaceID),
+			RootDir: strings.TrimSpace(target.WorkspaceRoot),
+		},
+		Config: aghconfig.Config{
+			Agents: aghconfig.AgentsConfig{Heartbeat: config},
+		},
+	}
+	artifacts, err := c.ResolveAgentArtifacts(target.AgentName, workspace)
+	if err != nil {
+		if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			return heartbeat.ResolvedPolicy{}, false, nil
+		}
+		return heartbeat.ResolvedPolicy{}, false, err
+	}
+	if !artifacts.PackageOwned {
+		return heartbeat.ResolvedPolicy{}, false, nil
+	}
+	sourcePath := strings.TrimSpace(artifacts.HeartbeatSourcePath)
+	if strings.TrimSpace(artifacts.HeartbeatBody) == "" {
+		policy, emptyErr := heartbeat.Empty(config, sourcePath)
+		return policy, true, emptyErr
+	}
+	policy, parseErr := heartbeat.Parse(ctx, heartbeat.ParseRequest{
+		SourcePath:    sourcePath,
+		WorkspaceRoot: strings.TrimSpace(target.WorkspaceRoot),
+		Content:       []byte(artifacts.HeartbeatBody),
+		Config:        config,
+	})
+	return policy, true, parseErr
+}
+
+func (c *resourceAgentCatalog) lookupSoulForAgent(
+	agent resources.Record[aghconfig.AgentDef],
+) (soul.ResourceSpec, bool) {
+	if c == nil || c.soulCatalog == nil {
+		return soul.ResourceSpec{}, false
+	}
+	var (
+		bestKey string
+		best    soul.ResourceSpec
+		found   bool
+	)
+	for _, record := range c.soulCatalog.Snapshot() {
+		if !sidecarRecordMatchesAgent(record.Scope, record.Owner, record.Spec.AgentResourceID, agent) {
+			continue
+		}
+		sortKey := sidecarRecordSortKey(record)
+		if !found || sortKey > bestKey {
+			bestKey = sortKey
+			best = cloneSoulResourceSpec(record.Spec)
+			found = true
+		}
+	}
+	return best, found
+}
+
+func (c *resourceAgentCatalog) lookupHeartbeatForAgent(
+	agent resources.Record[aghconfig.AgentDef],
+) (heartbeat.ResourceSpec, bool) {
+	if c == nil || c.heartbeatCatalog == nil {
+		return heartbeat.ResourceSpec{}, false
+	}
+	var (
+		bestKey string
+		best    heartbeat.ResourceSpec
+		found   bool
+	)
+	for _, record := range c.heartbeatCatalog.Snapshot() {
+		if !sidecarRecordMatchesAgent(record.Scope, record.Owner, record.Spec.AgentResourceID, agent) {
+			continue
+		}
+		sortKey := sidecarRecordSortKey(record)
+		if !found || sortKey > bestKey {
+			bestKey = sortKey
+			best = cloneHeartbeatResourceSpec(record.Spec)
+			found = true
+		}
+	}
+	return best, found
+}
+
+func sidecarRecordMatchesAgent(
+	scope resources.ResourceScope,
+	owner resources.ResourceOwner,
+	agentResourceID string,
+	agent resources.Record[aghconfig.AgentDef],
+) bool {
+	return strings.TrimSpace(agentResourceID) == strings.TrimSpace(agent.ID) &&
+		scope.Normalize() == agent.Scope.Normalize() &&
+		owner.Normalize() == agent.Owner.Normalize()
 }
 
 func (c *resourceAgentCatalog) ListAgents(ctx context.Context) ([]aghconfig.AgentDef, error) {
@@ -339,6 +539,7 @@ func (c *resourceAgentCatalog) agentsForWorkspace(resolved *workspacepkg.Resolve
 }
 
 func newAgentSkillSourceSyncer(
+	raw resources.RawStore,
 	agentStore resources.Store[aghconfig.AgentDef],
 	agentCodec resources.KindCodec[aghconfig.AgentDef],
 	skillStore resources.Store[skillspkg.SkillResourceSpec],
@@ -350,7 +551,7 @@ func newAgentSkillSourceSyncer(
 	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
 	providers ...agentSkillDeclarationProvider,
 ) agentSkillPublisher {
-	if agentStore == nil || agentCodec == nil || skillStore == nil || skillCodec == nil ||
+	if raw == nil || agentStore == nil || agentCodec == nil || skillStore == nil || skillCodec == nil ||
 		mcpStore == nil || mcpCodec == nil {
 		return nil
 	}
@@ -358,6 +559,7 @@ func newAgentSkillSourceSyncer(
 		logger = slog.Default()
 	}
 	return &agentSkillSourceSyncer{
+		raw:        raw,
 		agentStore: agentStore,
 		agentCodec: agentCodec,
 		skillStore: skillStore,
@@ -512,11 +714,14 @@ func (s *agentSkillSourceSyncer) syncAgents(
 	desired map[string]desiredAgentResource,
 ) (bool, error) {
 	source := s.actor.Source
-	current, err := s.agentStore.List(ctx, s.actor, resources.ResourceFilter{Source: &source})
+	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{
+		Kind:   aghconfig.AgentResourceKind,
+		Source: &source,
+	})
 	if err != nil {
 		return false, fmt.Errorf("daemon: list managed agents: %w", err)
 	}
-	currentByID := make(map[string]resources.Record[aghconfig.AgentDef], len(current))
+	currentByID := make(map[string]resources.RawRecord, len(current))
 	for _, record := range current {
 		currentByID[record.ID] = record
 	}
@@ -524,7 +729,7 @@ func (s *agentSkillSourceSyncer) syncAgents(
 	changed := false
 	for id, desiredAgent := range desired {
 		existing, ok := currentByID[id]
-		if ok && s.sameAgent(existing, desiredAgent.scope, desiredAgent.encoded) {
+		if ok && sameManagedRawRecord(existing, desiredAgent.scope, desiredAgent.encoded) {
 			delete(currentByID, id)
 			continue
 		}
@@ -557,11 +762,14 @@ func (s *agentSkillSourceSyncer) syncSkills(
 	desired map[string]desiredSkillResource,
 ) (bool, error) {
 	source := s.actor.Source
-	current, err := s.skillStore.List(ctx, s.actor, resources.ResourceFilter{Source: &source})
+	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{
+		Kind:   skillspkg.SkillResourceKind,
+		Source: &source,
+	})
 	if err != nil {
 		return false, fmt.Errorf("daemon: list managed skills: %w", err)
 	}
-	currentByID := make(map[string]resources.Record[skillspkg.SkillResourceSpec], len(current))
+	currentByID := make(map[string]resources.RawRecord, len(current))
 	for _, record := range current {
 		currentByID[record.ID] = record
 	}
@@ -569,7 +777,7 @@ func (s *agentSkillSourceSyncer) syncSkills(
 	changed := false
 	for id, desiredSkill := range desired {
 		existing, ok := currentByID[id]
-		if ok && s.sameSkill(existing, desiredSkill.scope, desiredSkill.encoded) {
+		if ok && sameManagedRawRecord(existing, desiredSkill.scope, desiredSkill.encoded) {
 			delete(currentByID, id)
 			continue
 		}
@@ -602,11 +810,14 @@ func (s *agentSkillSourceSyncer) syncMCPServers(
 	desired map[string]desiredMCPServerResource,
 ) (bool, error) {
 	source := s.actor.Source
-	current, err := s.mcpStore.List(ctx, s.actor, resources.ResourceFilter{Source: &source})
+	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{
+		Kind:   aghconfig.MCPServerResourceKind,
+		Source: &source,
+	})
 	if err != nil {
 		return false, fmt.Errorf("daemon: list agent/skill mcp servers: %w", err)
 	}
-	currentByID := make(map[string]resources.Record[aghconfig.MCPServer], len(current))
+	currentByID := make(map[string]resources.RawRecord, len(current))
 	for _, record := range current {
 		currentByID[record.ID] = record
 	}
@@ -614,7 +825,7 @@ func (s *agentSkillSourceSyncer) syncMCPServers(
 	changed := false
 	for id, desiredServer := range desired {
 		existing, ok := currentByID[id]
-		if ok && s.sameMCPServer(existing, desiredServer.scope, desiredServer.encoded) {
+		if ok && sameManagedRawRecord(existing, desiredServer.scope, desiredServer.encoded) {
 			delete(currentByID, id)
 			continue
 		}
@@ -642,49 +853,15 @@ func (s *agentSkillSourceSyncer) syncMCPServers(
 	return changed, nil
 }
 
-func (s *agentSkillSourceSyncer) sameAgent(
-	record resources.Record[aghconfig.AgentDef],
+func sameManagedRawRecord(
+	record resources.RawRecord,
 	scope resources.ResourceScope,
 	encoded []byte,
 ) bool {
 	if record.Scope != scope {
 		return false
 	}
-	currentEncoded, err := s.agentCodec.Encode(record.Spec)
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(currentEncoded, encoded)
-}
-
-func (s *agentSkillSourceSyncer) sameSkill(
-	record resources.Record[skillspkg.SkillResourceSpec],
-	scope resources.ResourceScope,
-	encoded []byte,
-) bool {
-	if record.Scope != scope {
-		return false
-	}
-	currentEncoded, err := s.skillCodec.Encode(record.Spec)
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(currentEncoded, encoded)
-}
-
-func (s *agentSkillSourceSyncer) sameMCPServer(
-	record resources.Record[aghconfig.MCPServer],
-	scope resources.ResourceScope,
-	encoded []byte,
-) bool {
-	if record.Scope != scope {
-		return false
-	}
-	currentEncoded, err := s.mcpCodec.Encode(record.Spec)
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(currentEncoded, encoded)
+	return bytes.Equal(record.SpecJSON, encoded)
 }
 
 func (d *Daemon) newAgentSkillPublisher(
@@ -728,6 +905,7 @@ func (d *Daemon) newAgentSkillPublisher(
 	}
 
 	return newAgentSkillSourceSyncer(
+		state.resourceKernel,
 		agentStore,
 		agentCodec,
 		skillStore,
@@ -811,7 +989,7 @@ func extensionAgentSkillDeclarationProvider(
 	runtime func() extensionRuntime,
 	logger *slog.Logger,
 ) agentSkillDeclarationProvider {
-	return func(_ context.Context) (agentSkillDesiredResources, error) {
+	return func(ctx context.Context) (agentSkillDesiredResources, error) {
 		if registry == nil || runtime == nil {
 			return agentSkillDesiredResources{}, nil
 		}
@@ -834,7 +1012,7 @@ func extensionAgentSkillDeclarationProvider(
 			if !info.Enabled {
 				continue
 			}
-			ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
+			ext, err := loadExtensionSnapshot(ctx, registry, manager, logger, info.Name)
 			if err != nil {
 				return agentSkillDesiredResources{}, fmt.Errorf(
 					"daemon: load extension %q for agent/skill sync: %w",
@@ -974,51 +1152,25 @@ func validateAndEncodeSkill(
 }
 
 func cloneAgentDef(agent aghconfig.AgentDef) aghconfig.AgentDef {
-	return aghconfig.AgentDef{
-		Name:         strings.TrimSpace(agent.Name),
-		Provider:     strings.TrimSpace(agent.Provider),
-		Command:      strings.TrimSpace(agent.Command),
-		Model:        strings.TrimSpace(agent.Model),
-		Tools:        slices.Clone(agent.Tools),
-		Toolsets:     slices.Clone(agent.Toolsets),
-		DenyTools:    slices.Clone(agent.DenyTools),
-		Permissions:  strings.TrimSpace(agent.Permissions),
-		MCPServers:   cloneMCPServers(agent.MCPServers),
-		Hooks:        cloneHookDecls(agent.Hooks),
-		Capabilities: agent.Capabilities.Clone(),
-		Prompt:       strings.TrimSpace(agent.Prompt),
-		SourcePath:   strings.TrimSpace(agent.SourcePath),
+	return aghconfig.CloneAgentDef(agent)
+}
+
+func cloneSoulResourceSpec(spec soul.ResourceSpec) soul.ResourceSpec {
+	return soul.ResourceSpec{
+		AgentName:       strings.TrimSpace(spec.AgentName),
+		AgentResourceID: strings.TrimSpace(spec.AgentResourceID),
+		SourcePath:      strings.TrimSpace(spec.SourcePath),
+		Body:            spec.Body,
 	}
 }
 
-func cloneMCPServers(src []aghconfig.MCPServer) []aghconfig.MCPServer {
-	if len(src) == 0 {
-		return nil
+func cloneHeartbeatResourceSpec(spec heartbeat.ResourceSpec) heartbeat.ResourceSpec {
+	return heartbeat.ResourceSpec{
+		AgentName:       strings.TrimSpace(spec.AgentName),
+		AgentResourceID: strings.TrimSpace(spec.AgentResourceID),
+		SourcePath:      strings.TrimSpace(spec.SourcePath),
+		Body:            spec.Body,
 	}
-	cloned := make([]aghconfig.MCPServer, 0, len(src))
-	for _, server := range src {
-		cloned = append(cloned, cloneDaemonMCPServer(server))
-	}
-	return cloned
-}
-
-func cloneHookDecls(src []hookspkg.HookDecl) []hookspkg.HookDecl {
-	if len(src) == 0 {
-		return nil
-	}
-	cloned := make([]hookspkg.HookDecl, 0, len(src))
-	for _, decl := range src {
-		next := decl
-		next.Args = slices.Clone(decl.Args)
-		next.Env = cloneStringMap(decl.Env)
-		next.Metadata = cloneStringMap(decl.Metadata)
-		if decl.Matcher.ToolReadOnly != nil {
-			value := *decl.Matcher.ToolReadOnly
-			next.Matcher.ToolReadOnly = &value
-		}
-		cloned = append(cloned, next)
-	}
-	return cloned
 }
 
 func cloneSkillResourceSpec(src skillspkg.SkillResourceSpec) skillspkg.SkillResourceSpec {
@@ -1034,5 +1186,13 @@ func agentRecordSortKey(record resources.Record[aghconfig.AgentDef]) string {
 		strings.TrimSpace(record.Scope.ID) + "\x00" +
 		string(record.Source.Kind.Normalize()) + "\x00" +
 		strings.TrimSpace(record.Source.ID) + "\x00" +
+		strings.TrimSpace(record.ID)
+}
+
+func sidecarRecordSortKey[T any](record resources.Record[T]) string {
+	return string(record.Scope.Kind.Normalize()) + "\x00" +
+		strings.TrimSpace(record.Scope.ID) + "\x00" +
+		string(record.Owner.Kind.Normalize()) + "\x00" +
+		strings.TrimSpace(record.Owner.ID) + "\x00" +
 		strings.TrimSpace(record.ID)
 }

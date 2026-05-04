@@ -607,7 +607,7 @@ func (r *bridgeRuntime) ListProviders(ctx context.Context) ([]bridgepkg.BridgePr
 	extensions := r.extensionRuntime()
 	providers := make([]bridgepkg.BridgeProvider, 0, len(infos))
 	for idx := range infos {
-		provider, ok := r.bridgeProviderFromInfo(&infos[idx], extensions)
+		provider, ok := r.bridgeProviderFromInfo(ctx, &infos[idx], extensions)
 		if !ok {
 			continue
 		}
@@ -630,6 +630,7 @@ func (r *bridgeRuntime) extensionRuntime() extensionRuntime {
 }
 
 func (r *bridgeRuntime) bridgeProviderFromInfo(
+	ctx context.Context,
 	info *extensionpkg.ExtensionInfo,
 	extensions extensionRuntime,
 ) (*bridgepkg.BridgeProvider, bool) {
@@ -637,7 +638,7 @@ func (r *bridgeRuntime) bridgeProviderFromInfo(
 		return nil, false
 	}
 
-	ext, err := loadExtensionSnapshot(r.registry, extensions, r.logger, info.Name)
+	ext, err := loadExtensionSnapshot(ctx, r.registry, extensions, r.logger, info.Name)
 	if err != nil {
 		r.logger.Warn("daemon: skip invalid bridge provider extension", "extension_name", info.Name, "error", err)
 		return nil, false

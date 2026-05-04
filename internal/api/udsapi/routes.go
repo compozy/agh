@@ -334,6 +334,7 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings := api.Group("/settings")
 
 	settings.GET("/general", handlers.GetSettingsGeneral)
+	settings.GET("/update", handlers.GetSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", handlers.UpdateSettingsMemory)

@@ -465,13 +465,18 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		)
 
 		resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health", nil)
-		if resp.Code != http.StatusInternalServerError {
+		if resp.Code != http.StatusOK {
 			t.Fatalf(
 				"health status = %d, want %d; body=%s",
 				resp.Code,
-				http.StatusInternalServerError,
+				http.StatusOK,
 				resp.Body.String(),
 			)
+		}
+		var payload contract.HealthResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Memory.Status != "unavailable" || payload.Memory.Reason == "" {
+			t.Fatalf("health memory = %#v, want structured unavailable memory payload", payload.Memory)
 		}
 	})
 

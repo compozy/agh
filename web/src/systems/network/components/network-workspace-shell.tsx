@@ -8,7 +8,7 @@ import {
   SendHorizontal,
   Sparkles,
   Users,
-  Workflow,
+  Waypoints,
 } from "lucide-react";
 
 import {
@@ -432,7 +432,7 @@ function NetworkMessageList({
         <Empty
           className="max-w-md"
           description="This room has no persisted traffic yet. Send the first message to materialize the next step."
-          icon={Workflow}
+          icon={Waypoints}
           title="No timeline events yet"
         />
       </div>
@@ -613,7 +613,7 @@ export function NetworkWorkspaceShell({
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Workflow className="size-4 text-[color:var(--color-text-secondary)]" />
+                <Waypoints className="size-4 text-[color:var(--color-text-secondary)]" />
                 <span className="font-mono text-[13px] font-semibold text-[color:var(--color-text-primary)]">
                   agh-network
                 </span>
@@ -712,7 +712,7 @@ export function NetworkWorkspaceShell({
             <Empty
               className="max-w-lg"
               description={roomError.message}
-              icon={Workflow}
+              icon={Waypoints}
               title="Unable to load this room"
             />
           </div>
@@ -721,7 +721,7 @@ export function NetworkWorkspaceShell({
             <Empty
               className="max-w-lg"
               description="Choose a channel or direct-message room to inspect the live network timeline."
-              icon={Workflow}
+              icon={Waypoints}
               title="Select a room"
             />
           </div>

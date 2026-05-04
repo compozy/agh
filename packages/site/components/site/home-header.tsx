@@ -34,7 +34,7 @@ function HeaderLink({ href, label, pathname }: { href: string; label: string; pa
       aria-current={current}
       className={cn(
         "inline-flex items-center rounded-full px-3 py-1.5 text-sm text-(--color-text-secondary) transition-colors hover:text-(--color-text-primary)",
-        active && "bg-[rgba(232,87,42,0.12)] text-(--color-accent)"
+        active && "bg-(--color-surface-elevated) text-(--color-text-primary)"
       )}
     >
       {label}
@@ -91,7 +91,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
               href={baseOptions.githubUrl}
               target="_blank"
               rel="noreferrer noopener"
-              aria-label="GitHub repository"
+              aria-label="Compozy on GitHub"
               className={cn(
                 buttonVariants({
                   variant: "ghost",

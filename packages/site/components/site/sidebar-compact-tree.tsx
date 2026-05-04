@@ -8,9 +8,9 @@ import {
   SidebarItem,
   useFolderDepth,
 } from "fumadocs-ui/components/sidebar/base";
-import { usePathname } from "fumadocs-core/framework";
 import { cn } from "@agh/ui";
 import type { Folder, Item } from "fumadocs-core/page-tree";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 function normalize(href: string): string {

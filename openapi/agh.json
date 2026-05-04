@@ -5837,6 +5837,28 @@
                                                         },
                                                         "type": "array"
                                                     },
+                                                    "diagnostics": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "error_kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "message": {
+                                                                    "type": "string"
+                                                                },
+                                                                "path": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "error_kind",
+                                                                "message",
+                                                                "path"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
                                                     "mcp_servers": {
                                                         "items": {
                                                             "properties": {
@@ -14909,6 +14931,28 @@
                                                     },
                                                     "type": "array"
                                                 },
+                                                "diagnostics": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "error_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "path": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "error_kind",
+                                                            "message",
+                                                            "path"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "mcp_servers": {
                                                     "items": {
                                                         "properties": {
@@ -21801,6 +21845,2010 @@
                 },
                 "summary": "Resolve a typed outbound delivery target for a bridge instance",
                 "tags": ["bridges"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/bundles/activations": {
+            "get": {
+                "operationId": "listBundleActivations",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "activations": {
+                                            "items": {
+                                                "properties": {
+                                                    "agents": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "has_heartbeat": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "has_soul": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "model": {
+                                                                    "type": "string"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "provider": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": ["id", "name"],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
+                                                    "bind_primary_channel_as_default": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "bridges": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "display_name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "extension_name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "platform": {
+                                                                    "type": "string"
+                                                                },
+                                                                "secret_slots": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "description": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "kind": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "name": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "kind",
+                                                                            "name"
+                                                                        ],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "display_name",
+                                                                "extension_name",
+                                                                "id",
+                                                                "name",
+                                                                "platform"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
+                                                    "bundle_description": {
+                                                        "type": "string"
+                                                    },
+                                                    "bundle_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "channels": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "description": {
+                                                                    "type": "string"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "primary": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": ["name"],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
+                                                    "created_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "extension_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "inventory": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "resource_id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "resource_kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "resource_name": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "resource_id",
+                                                                "resource_kind",
+                                                                "resource_name"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
+                                                    "jobs": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "agent_name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "enabled": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "agent_name",
+                                                                "enabled",
+                                                                "id",
+                                                                "name"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
+                                                    "profile_description": {
+                                                        "type": "string"
+                                                    },
+                                                    "profile_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "scope": {
+                                                        "type": "string"
+                                                    },
+                                                    "triggers": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "agent_name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "enabled": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "event": {
+                                                                    "type": "string"
+                                                                },
+                                                                "id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "agent_name",
+                                                                "enabled",
+                                                                "event",
+                                                                "id",
+                                                                "name"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
+                                                    "updated_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "workspace_id": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "bind_primary_channel_as_default",
+                                                    "bundle_name",
+                                                    "created_at",
+                                                    "extension_name",
+                                                    "id",
+                                                    "profile_name",
+                                                    "scope",
+                                                    "updated_at"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["activations"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bundle service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List active bundle preset activations",
+                "tags": ["bundles"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "post": {
+                "operationId": "activateBundle",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "bind_primary_channel_as_default": {
+                                        "type": "boolean"
+                                    },
+                                    "bundle_name": {
+                                        "type": "string"
+                                    },
+                                    "extension_name": {
+                                        "type": "string"
+                                    },
+                                    "profile_name": {
+                                        "type": "string"
+                                    },
+                                    "scope": {
+                                        "type": "string"
+                                    },
+                                    "workspace": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "bind_primary_channel_as_default",
+                                    "bundle_name",
+                                    "extension_name",
+                                    "profile_name"
+                                ],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "activation": {
+                                            "properties": {
+                                                "agents": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "has_heartbeat": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "has_soul": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "model": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["id", "name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bind_primary_channel_as_default": {
+                                                    "type": "boolean"
+                                                },
+                                                "bridges": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "display_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "extension_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "platform": {
+                                                                "type": "string"
+                                                            },
+                                                            "secret_slots": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "description": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "kind": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": ["kind", "name"],
+                                                                    "type": "object"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "display_name",
+                                                            "extension_name",
+                                                            "id",
+                                                            "name",
+                                                            "platform"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bundle_description": {
+                                                    "type": "string"
+                                                },
+                                                "bundle_name": {
+                                                    "type": "string"
+                                                },
+                                                "channels": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "primary": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "extension_name": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "inventory": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "resource_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "resource_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "resource_name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "resource_id",
+                                                            "resource_kind",
+                                                            "resource_name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "jobs": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "enabled": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "enabled",
+                                                            "id",
+                                                            "name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "profile_description": {
+                                                    "type": "string"
+                                                },
+                                                "profile_name": {
+                                                    "type": "string"
+                                                },
+                                                "scope": {
+                                                    "type": "string"
+                                                },
+                                                "triggers": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "enabled": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "event": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "enabled",
+                                                            "event",
+                                                            "id",
+                                                            "name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "bind_primary_channel_as_default",
+                                                "bundle_name",
+                                                "created_at",
+                                                "extension_name",
+                                                "id",
+                                                "profile_name",
+                                                "scope",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["activation"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid activation request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Extension, bundle, profile, or workspace not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Activation conflict"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid bundle resource reference"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bundle service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Activate one extension bundle preset",
+                "tags": ["bundles"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/bundles/activations/{id}": {
+            "delete": {
+                "operationId": "deleteBundleActivation",
+                "parameters": [
+                    {
+                        "description": "Bundle activation id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Activation not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bundle service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Deactivate one bundle preset and remove owned projected resources",
+                "tags": ["bundles"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "get": {
+                "operationId": "getBundleActivation",
+                "parameters": [
+                    {
+                        "description": "Bundle activation id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "activation": {
+                                            "properties": {
+                                                "agents": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "has_heartbeat": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "has_soul": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "model": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["id", "name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bind_primary_channel_as_default": {
+                                                    "type": "boolean"
+                                                },
+                                                "bridges": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "display_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "extension_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "platform": {
+                                                                "type": "string"
+                                                            },
+                                                            "secret_slots": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "description": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "kind": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": ["kind", "name"],
+                                                                    "type": "object"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "display_name",
+                                                            "extension_name",
+                                                            "id",
+                                                            "name",
+                                                            "platform"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bundle_description": {
+                                                    "type": "string"
+                                                },
+                                                "bundle_name": {
+                                                    "type": "string"
+                                                },
+                                                "channels": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "primary": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "extension_name": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "inventory": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "resource_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "resource_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "resource_name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "resource_id",
+                                                            "resource_kind",
+                                                            "resource_name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "jobs": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "enabled": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "enabled",
+                                                            "id",
+                                                            "name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "profile_description": {
+                                                    "type": "string"
+                                                },
+                                                "profile_name": {
+                                                    "type": "string"
+                                                },
+                                                "scope": {
+                                                    "type": "string"
+                                                },
+                                                "triggers": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "enabled": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "event": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "enabled",
+                                                            "event",
+                                                            "id",
+                                                            "name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "bind_primary_channel_as_default",
+                                                "bundle_name",
+                                                "created_at",
+                                                "extension_name",
+                                                "id",
+                                                "profile_name",
+                                                "scope",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["activation"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Activation not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bundle service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get one bundle activation",
+                "tags": ["bundles"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "patch": {
+                "operationId": "updateBundleActivation",
+                "parameters": [
+                    {
+                        "description": "Bundle activation id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "bind_primary_channel_as_default": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": ["bind_primary_channel_as_default"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "activation": {
+                                            "properties": {
+                                                "agents": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "has_heartbeat": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "has_soul": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "model": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["id", "name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bind_primary_channel_as_default": {
+                                                    "type": "boolean"
+                                                },
+                                                "bridges": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "display_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "extension_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "platform": {
+                                                                "type": "string"
+                                                            },
+                                                            "secret_slots": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "description": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "kind": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": ["kind", "name"],
+                                                                    "type": "object"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "display_name",
+                                                            "extension_name",
+                                                            "id",
+                                                            "name",
+                                                            "platform"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bundle_description": {
+                                                    "type": "string"
+                                                },
+                                                "bundle_name": {
+                                                    "type": "string"
+                                                },
+                                                "channels": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "primary": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "extension_name": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "inventory": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "resource_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "resource_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "resource_name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "resource_id",
+                                                            "resource_kind",
+                                                            "resource_name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "jobs": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "enabled": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "enabled",
+                                                            "id",
+                                                            "name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "profile_description": {
+                                                    "type": "string"
+                                                },
+                                                "profile_name": {
+                                                    "type": "string"
+                                                },
+                                                "scope": {
+                                                    "type": "string"
+                                                },
+                                                "triggers": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "enabled": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "event": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "enabled",
+                                                            "event",
+                                                            "id",
+                                                            "name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "bind_primary_channel_as_default",
+                                                "bundle_name",
+                                                "created_at",
+                                                "extension_name",
+                                                "id",
+                                                "profile_name",
+                                                "scope",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["activation"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid update request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Activation not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Activation conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bundle service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Update mutable bundle activation overlays",
+                "tags": ["bundles"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/bundles/catalog": {
+            "get": {
+                "operationId": "listBundleCatalog",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "bundles": {
+                                            "items": {
+                                                "properties": {
+                                                    "bundle_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "description": {
+                                                        "type": "string"
+                                                    },
+                                                    "extension_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "profiles": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "agent_count": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "bridge_count": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "channels": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "description": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "name": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "primary": {
+                                                                                "type": "boolean"
+                                                                            }
+                                                                        },
+                                                                        "required": ["name"],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
+                                                                },
+                                                                "description": {
+                                                                    "type": "string"
+                                                                },
+                                                                "job_count": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "primary_channel": {
+                                                                    "type": "string"
+                                                                },
+                                                                "trigger_count": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "required": ["name"],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    }
+                                                },
+                                                "required": ["bundle_name", "extension_name"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["bundles"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bundle service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List available extension bundle presets",
+                "tags": ["bundles"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/bundles/network/settings": {
+            "get": {
+                "operationId": "getBundleNetworkSettings",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "network": {
+                                            "properties": {
+                                                "configured_default_channel": {
+                                                    "type": "string"
+                                                },
+                                                "declared_channels": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "activation_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "bundle_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "extension_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "primary": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "profile_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "workspace_id": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "effective_default_channel": {
+                                                    "type": "string"
+                                                },
+                                                "effective_default_source": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["network"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bundle service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get bundle-derived network defaults and declared channels",
+                "tags": ["bundles"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/bundles/preview": {
+            "post": {
+                "operationId": "previewBundleActivation",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "bind_primary_channel_as_default": {
+                                        "type": "boolean"
+                                    },
+                                    "bundle_name": {
+                                        "type": "string"
+                                    },
+                                    "extension_name": {
+                                        "type": "string"
+                                    },
+                                    "profile_name": {
+                                        "type": "string"
+                                    },
+                                    "scope": {
+                                        "type": "string"
+                                    },
+                                    "workspace": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "bind_primary_channel_as_default",
+                                    "bundle_name",
+                                    "extension_name",
+                                    "profile_name"
+                                ],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "activation": {
+                                            "properties": {
+                                                "agents": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "has_heartbeat": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "has_soul": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "model": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["id", "name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bind_primary_channel_as_default": {
+                                                    "type": "boolean"
+                                                },
+                                                "bridges": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "display_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "extension_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "platform": {
+                                                                "type": "string"
+                                                            },
+                                                            "secret_slots": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "description": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "kind": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": ["kind", "name"],
+                                                                    "type": "object"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "display_name",
+                                                            "extension_name",
+                                                            "id",
+                                                            "name",
+                                                            "platform"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "bundle_description": {
+                                                    "type": "string"
+                                                },
+                                                "bundle_name": {
+                                                    "type": "string"
+                                                },
+                                                "channels": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "primary": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "created_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "extension_name": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "inventory": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "resource_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "resource_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "resource_name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "resource_id",
+                                                            "resource_kind",
+                                                            "resource_name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "jobs": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "enabled": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "enabled",
+                                                            "id",
+                                                            "name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "profile_description": {
+                                                    "type": "string"
+                                                },
+                                                "profile_name": {
+                                                    "type": "string"
+                                                },
+                                                "scope": {
+                                                    "type": "string"
+                                                },
+                                                "triggers": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "agent_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "enabled": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "event": {
+                                                                "type": "string"
+                                                            },
+                                                            "id": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "agent_name",
+                                                            "enabled",
+                                                            "event",
+                                                            "id",
+                                                            "name"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "updated_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "bind_primary_channel_as_default",
+                                                "bundle_name",
+                                                "created_at",
+                                                "extension_name",
+                                                "id",
+                                                "profile_name",
+                                                "scope",
+                                                "updated_at"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["activation"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid activation request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Extension, bundle, profile, or workspace not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Activation conflict"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid bundle resource reference"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bundle service is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Preview one bundle activation without mutating runtime resources",
+                "tags": ["bundles"],
                 "x-agh-transports": ["http", "uds"]
             }
         },
@@ -32026,7 +34074,7 @@
                 },
                 "summary": "Approve or deny an interactive permission request",
                 "tags": ["sessions"],
-                "x-agh-transports": ["http"]
+                "x-agh-transports": ["http", "uds"]
             }
         },
         "/api/sessions/{id}/events": {
@@ -40446,6 +42494,39 @@
                                         "providers": {
                                             "items": {
                                                 "properties": {
+                                                    "auth_status": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "env_policy": {
+                                                                "type": "string"
+                                                            },
+                                                            "home_policy": {
+                                                                "type": "string"
+                                                            },
+                                                            "login_command": {
+                                                                "type": "string"
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "mode": {
+                                                                "type": "string"
+                                                            },
+                                                            "state": {
+                                                                "type": "string"
+                                                            },
+                                                            "status_command": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "env_policy",
+                                                            "home_policy",
+                                                            "mode",
+                                                            "state"
+                                                        ],
+                                                        "type": "object"
+                                                    },
                                                     "command_available": {
                                                         "type": "boolean"
                                                     },
@@ -40493,6 +42574,15 @@
                                                         "properties": {
                                                             "settings": {
                                                                 "properties": {
+                                                                    "auth_login_command": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "auth_mode": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "auth_status_command": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "base_url": {
                                                                         "type": "string"
                                                                     },
@@ -40534,7 +42624,13 @@
                                                                     "display_name": {
                                                                         "type": "string"
                                                                     },
+                                                                    "env_policy": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "harness": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "home_policy": {
                                                                         "type": "string"
                                                                     },
                                                                     "runtime_provider": {
@@ -40581,6 +42677,15 @@
                                                     },
                                                     "settings": {
                                                         "properties": {
+                                                            "auth_login_command": {
+                                                                "type": "string"
+                                                            },
+                                                            "auth_mode": {
+                                                                "type": "string"
+                                                            },
+                                                            "auth_status_command": {
+                                                                "type": "string"
+                                                            },
                                                             "base_url": {
                                                                 "type": "string"
                                                             },
@@ -40622,7 +42727,13 @@
                                                             "display_name": {
                                                                 "type": "string"
                                                             },
+                                                            "env_policy": {
+                                                                "type": "string"
+                                                            },
                                                             "harness": {
+                                                                "type": "string"
+                                                            },
+                                                            "home_policy": {
                                                                 "type": "string"
                                                             },
                                                             "runtime_provider": {
@@ -40929,6 +43040,39 @@
                                     "properties": {
                                         "provider": {
                                             "properties": {
+                                                "auth_status": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "env_policy": {
+                                                            "type": "string"
+                                                        },
+                                                        "home_policy": {
+                                                            "type": "string"
+                                                        },
+                                                        "login_command": {
+                                                            "type": "string"
+                                                        },
+                                                        "message": {
+                                                            "type": "string"
+                                                        },
+                                                        "mode": {
+                                                            "type": "string"
+                                                        },
+                                                        "state": {
+                                                            "type": "string"
+                                                        },
+                                                        "status_command": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "env_policy",
+                                                        "home_policy",
+                                                        "mode",
+                                                        "state"
+                                                    ],
+                                                    "type": "object"
+                                                },
                                                 "command_available": {
                                                     "type": "boolean"
                                                 },
@@ -40976,6 +43120,15 @@
                                                     "properties": {
                                                         "settings": {
                                                             "properties": {
+                                                                "auth_login_command": {
+                                                                    "type": "string"
+                                                                },
+                                                                "auth_mode": {
+                                                                    "type": "string"
+                                                                },
+                                                                "auth_status_command": {
+                                                                    "type": "string"
+                                                                },
                                                                 "base_url": {
                                                                     "type": "string"
                                                                 },
@@ -41017,7 +43170,13 @@
                                                                 "display_name": {
                                                                     "type": "string"
                                                                 },
+                                                                "env_policy": {
+                                                                    "type": "string"
+                                                                },
                                                                 "harness": {
+                                                                    "type": "string"
+                                                                },
+                                                                "home_policy": {
                                                                     "type": "string"
                                                                 },
                                                                 "runtime_provider": {
@@ -41061,6 +43220,15 @@
                                                 },
                                                 "settings": {
                                                     "properties": {
+                                                        "auth_login_command": {
+                                                            "type": "string"
+                                                        },
+                                                        "auth_mode": {
+                                                            "type": "string"
+                                                        },
+                                                        "auth_status_command": {
+                                                            "type": "string"
+                                                        },
                                                         "base_url": {
                                                             "type": "string"
                                                         },
@@ -41102,7 +43270,13 @@
                                                         "display_name": {
                                                             "type": "string"
                                                         },
+                                                        "env_policy": {
+                                                            "type": "string"
+                                                        },
                                                         "harness": {
+                                                            "type": "string"
+                                                        },
+                                                        "home_policy": {
                                                             "type": "string"
                                                         },
                                                         "runtime_provider": {
@@ -41286,6 +43460,15 @@
                                     },
                                     "settings": {
                                         "properties": {
+                                            "auth_login_command": {
+                                                "type": "string"
+                                            },
+                                            "auth_mode": {
+                                                "type": "string"
+                                            },
+                                            "auth_status_command": {
+                                                "type": "string"
+                                            },
                                             "base_url": {
                                                 "type": "string"
                                             },
@@ -41327,7 +43510,13 @@
                                             "display_name": {
                                                 "type": "string"
                                             },
+                                            "env_policy": {
+                                                "type": "string"
+                                            },
                                             "harness": {
+                                                "type": "string"
+                                            },
+                                            "home_policy": {
                                                 "type": "string"
                                             },
                                             "runtime_provider": {
@@ -42718,6 +44907,114 @@
                     }
                 },
                 "summary": "Update the skills settings section",
+                "tags": ["settings"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/settings/update": {
+            "get": {
+                "operationId": "getSettingsUpdate",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "available": {
+                                            "type": "boolean"
+                                        },
+                                        "checked_at": {
+                                            "format": "date-time",
+                                            "nullable": true,
+                                            "type": "string"
+                                        },
+                                        "current_version": {
+                                            "type": "string"
+                                        },
+                                        "install_method": {
+                                            "type": "string"
+                                        },
+                                        "last_error": {
+                                            "type": "string"
+                                        },
+                                        "latest_version": {
+                                            "type": "string"
+                                        },
+                                        "managed": {
+                                            "type": "boolean"
+                                        },
+                                        "recommendation": {
+                                            "type": "string"
+                                        },
+                                        "release_url": {
+                                            "type": "string"
+                                        },
+                                        "status": {
+                                            "enum": [
+                                                "current",
+                                                "available",
+                                                "updated",
+                                                "deferred",
+                                                "unsupported",
+                                                "failed"
+                                            ],
+                                            "type": "string"
+                                        },
+                                        "supported": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "available",
+                                        "current_version",
+                                        "install_method",
+                                        "managed",
+                                        "status",
+                                        "supported"
+                                    ],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Update surface unavailable"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Read the current AGH software update status",
                 "tags": ["settings"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -62342,6 +64639,28 @@
                                                         },
                                                         "type": "array"
                                                     },
+                                                    "diagnostics": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "error_kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "message": {
+                                                                    "type": "string"
+                                                                },
+                                                                "path": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "error_kind",
+                                                                "message",
+                                                                "path"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
                                                     "mcp_servers": {
                                                         "items": {
                                                             "properties": {
@@ -62453,13 +64772,22 @@
                                         "providers": {
                                             "items": {
                                                 "properties": {
+                                                    "auth_mode": {
+                                                        "type": "string"
+                                                    },
                                                     "default_model": {
                                                         "type": "string"
                                                     },
                                                     "display_name": {
                                                         "type": "string"
                                                     },
+                                                    "env_policy": {
+                                                        "type": "string"
+                                                    },
                                                     "harness": {
+                                                        "type": "string"
+                                                    },
+                                                    "home_policy": {
                                                         "type": "string"
                                                     },
                                                     "name": {
@@ -63141,6 +65469,9 @@
         },
         {
             "name": "bridges"
+        },
+        {
+            "name": "bundles"
         },
         {
             "name": "daemon"

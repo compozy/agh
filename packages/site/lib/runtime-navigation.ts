@@ -54,7 +54,10 @@ const CORE_SECTIONS: CoreSection[] = [
 
 export const API_SECTIONS: CoreSection[] = [
   { label: "Workspace", ids: ["sessions", "workspaces", "agents", "memory", "skills"] },
-  { label: "Capabilities", ids: ["tools", "toolsets", "resources", "automation", "bridges"] },
+  {
+    label: "Capabilities",
+    ids: ["tools", "toolsets", "resources", "bundles", "automation", "bridges"],
+  },
   { label: "Network", ids: ["network", "observe", "hooks"] },
   { label: "Operations", ids: ["daemon", "settings", "extensions", "vault", "agent", "tasks"] },
 ];

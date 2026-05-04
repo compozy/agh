@@ -70,7 +70,7 @@ Required fields:
 
 Example `user` memory:
 
-```markdown
+```text
 ---
 name: Review Style
 description: User wants concise review findings with file references first
@@ -83,7 +83,7 @@ short unless the user asks for deeper explanation.
 
 Example `feedback` memory:
 
-```markdown
+```text
 ---
 name: Test Integrity
 description: Production bugs must be fixed instead of weakening tests
@@ -96,7 +96,7 @@ the suite green.
 
 Example `project` memory:
 
-```markdown
+```text
 ---
 name: Runtime Docs Location
 description: Runtime documentation pages live in the Fumadocs runtime collection
@@ -110,7 +110,7 @@ Protocol pages live in a separate `/protocol/*` collection.
 
 Example `reference` memory:
 
-```markdown
+```text
 ---
 name: Session Events API
 description: Stored session events are available through the stream endpoint
@@ -190,7 +190,7 @@ This memory block is assembled before the agent's `AGENT.md` body. The skills ca
 after the base prompt when skills are enabled, so memory gives the agent durable context before it
 starts applying reusable skills.
 
-## Basic Workflow
+## Basic usage
 
 Write a global preference:
 

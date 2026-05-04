@@ -178,6 +178,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/settings/sandboxes",
 		"GET /api/settings/sandboxes/:name",
 		"GET /api/settings/general",
+		"GET /api/settings/update",
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
 		"GET /api/settings/mcp-servers",

@@ -799,6 +799,94 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/bundles/activations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List active bundle preset activations */
+    get: operations["listBundleActivations"];
+    put?: never;
+    /** Activate one extension bundle preset */
+    post: operations["activateBundle"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/bundles/activations/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one bundle activation */
+    get: operations["getBundleActivation"];
+    put?: never;
+    post?: never;
+    /** Deactivate one bundle preset and remove owned projected resources */
+    delete: operations["deleteBundleActivation"];
+    options?: never;
+    head?: never;
+    /** Update mutable bundle activation overlays */
+    patch: operations["updateBundleActivation"];
+    trace?: never;
+  };
+  "/api/bundles/catalog": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List available extension bundle presets */
+    get: operations["listBundleCatalog"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/bundles/network/settings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get bundle-derived network defaults and declared channels */
+    get: operations["getBundleNetworkSettings"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/bundles/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview one bundle activation without mutating runtime resources */
+    post: operations["previewBundleActivation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/daemon/status": {
     parameters: {
       query?: never;
@@ -1872,6 +1960,23 @@ export interface paths {
     head?: never;
     /** Update the skills settings section */
     patch: operations["updateSettingsSkills"];
+    trace?: never;
+  };
+  "/api/settings/update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the current AGH software update status */
+    get: operations["getSettingsUpdate"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/skills": {
@@ -5420,6 +5525,11 @@ export interface operations {
             agents: {
               command?: string;
               deny_tools?: string[];
+              diagnostics?: {
+                error_kind: string;
+                message: string;
+                path: string;
+              }[];
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -8799,6 +8909,11 @@ export interface operations {
             agent: {
               command?: string;
               deny_tools?: string[];
+              diagnostics?: {
+                error_kind: string;
+                message: string;
+                path: string;
+              }[];
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -12185,6 +12300,902 @@ export interface operations {
         };
       };
       /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listBundleActivations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            activations: {
+              agents?: {
+                has_heartbeat?: boolean;
+                has_soul?: boolean;
+                id: string;
+                model?: string;
+                name: string;
+                provider?: string;
+              }[];
+              bind_primary_channel_as_default: boolean;
+              bridges?: {
+                display_name: string;
+                extension_name: string;
+                id: string;
+                name: string;
+                platform: string;
+                secret_slots?: {
+                  description?: string;
+                  kind: string;
+                  name: string;
+                }[];
+              }[];
+              bundle_description?: string;
+              bundle_name: string;
+              channels?: {
+                description?: string;
+                name: string;
+                primary?: boolean;
+              }[];
+              /** Format: date-time */
+              created_at: string;
+              extension_name: string;
+              id: string;
+              inventory?: {
+                resource_id: string;
+                resource_kind: string;
+                resource_name: string;
+              }[];
+              jobs?: {
+                agent_name: string;
+                enabled: boolean;
+                id: string;
+                name: string;
+              }[];
+              profile_description?: string;
+              profile_name: string;
+              scope: string;
+              triggers?: {
+                agent_name: string;
+                enabled: boolean;
+                event: string;
+                id: string;
+                name: string;
+              }[];
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bundle service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  activateBundle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          bind_primary_channel_as_default: boolean;
+          bundle_name: string;
+          extension_name: string;
+          profile_name: string;
+          scope?: string;
+          workspace?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            activation: {
+              agents?: {
+                has_heartbeat?: boolean;
+                has_soul?: boolean;
+                id: string;
+                model?: string;
+                name: string;
+                provider?: string;
+              }[];
+              bind_primary_channel_as_default: boolean;
+              bridges?: {
+                display_name: string;
+                extension_name: string;
+                id: string;
+                name: string;
+                platform: string;
+                secret_slots?: {
+                  description?: string;
+                  kind: string;
+                  name: string;
+                }[];
+              }[];
+              bundle_description?: string;
+              bundle_name: string;
+              channels?: {
+                description?: string;
+                name: string;
+                primary?: boolean;
+              }[];
+              /** Format: date-time */
+              created_at: string;
+              extension_name: string;
+              id: string;
+              inventory?: {
+                resource_id: string;
+                resource_kind: string;
+                resource_name: string;
+              }[];
+              jobs?: {
+                agent_name: string;
+                enabled: boolean;
+                id: string;
+                name: string;
+              }[];
+              profile_description?: string;
+              profile_name: string;
+              scope: string;
+              triggers?: {
+                agent_name: string;
+                enabled: boolean;
+                event: string;
+                id: string;
+                name: string;
+              }[];
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid activation request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Extension, bundle, profile, or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Activation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid bundle resource reference */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bundle service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getBundleActivation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bundle activation id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            activation: {
+              agents?: {
+                has_heartbeat?: boolean;
+                has_soul?: boolean;
+                id: string;
+                model?: string;
+                name: string;
+                provider?: string;
+              }[];
+              bind_primary_channel_as_default: boolean;
+              bridges?: {
+                display_name: string;
+                extension_name: string;
+                id: string;
+                name: string;
+                platform: string;
+                secret_slots?: {
+                  description?: string;
+                  kind: string;
+                  name: string;
+                }[];
+              }[];
+              bundle_description?: string;
+              bundle_name: string;
+              channels?: {
+                description?: string;
+                name: string;
+                primary?: boolean;
+              }[];
+              /** Format: date-time */
+              created_at: string;
+              extension_name: string;
+              id: string;
+              inventory?: {
+                resource_id: string;
+                resource_kind: string;
+                resource_name: string;
+              }[];
+              jobs?: {
+                agent_name: string;
+                enabled: boolean;
+                id: string;
+                name: string;
+              }[];
+              profile_description?: string;
+              profile_name: string;
+              scope: string;
+              triggers?: {
+                agent_name: string;
+                enabled: boolean;
+                event: string;
+                id: string;
+                name: string;
+              }[];
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Activation not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bundle service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteBundleActivation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bundle activation id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Activation not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bundle service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateBundleActivation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bundle activation id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          bind_primary_channel_as_default: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            activation: {
+              agents?: {
+                has_heartbeat?: boolean;
+                has_soul?: boolean;
+                id: string;
+                model?: string;
+                name: string;
+                provider?: string;
+              }[];
+              bind_primary_channel_as_default: boolean;
+              bridges?: {
+                display_name: string;
+                extension_name: string;
+                id: string;
+                name: string;
+                platform: string;
+                secret_slots?: {
+                  description?: string;
+                  kind: string;
+                  name: string;
+                }[];
+              }[];
+              bundle_description?: string;
+              bundle_name: string;
+              channels?: {
+                description?: string;
+                name: string;
+                primary?: boolean;
+              }[];
+              /** Format: date-time */
+              created_at: string;
+              extension_name: string;
+              id: string;
+              inventory?: {
+                resource_id: string;
+                resource_kind: string;
+                resource_name: string;
+              }[];
+              jobs?: {
+                agent_name: string;
+                enabled: boolean;
+                id: string;
+                name: string;
+              }[];
+              profile_description?: string;
+              profile_name: string;
+              scope: string;
+              triggers?: {
+                agent_name: string;
+                enabled: boolean;
+                event: string;
+                id: string;
+                name: string;
+              }[];
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid update request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Activation not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Activation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bundle service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listBundleCatalog: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            bundles: {
+              bundle_name: string;
+              description?: string;
+              extension_name: string;
+              profiles?: {
+                agent_count?: number;
+                bridge_count?: number;
+                channels?: {
+                  description?: string;
+                  name: string;
+                  primary?: boolean;
+                }[];
+                description?: string;
+                job_count?: number;
+                name: string;
+                primary_channel?: string;
+                trigger_count?: number;
+              }[];
+            }[];
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bundle service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getBundleNetworkSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            network: {
+              configured_default_channel?: string;
+              declared_channels?: {
+                activation_id?: string;
+                bundle_name?: string;
+                description?: string;
+                extension_name?: string;
+                name: string;
+                primary?: boolean;
+                profile_name?: string;
+                workspace_id?: string;
+              }[];
+              effective_default_channel?: string;
+              effective_default_source?: string;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bundle service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  previewBundleActivation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          bind_primary_channel_as_default: boolean;
+          bundle_name: string;
+          extension_name: string;
+          profile_name: string;
+          scope?: string;
+          workspace?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            activation: {
+              agents?: {
+                has_heartbeat?: boolean;
+                has_soul?: boolean;
+                id: string;
+                model?: string;
+                name: string;
+                provider?: string;
+              }[];
+              bind_primary_channel_as_default: boolean;
+              bridges?: {
+                display_name: string;
+                extension_name: string;
+                id: string;
+                name: string;
+                platform: string;
+                secret_slots?: {
+                  description?: string;
+                  kind: string;
+                  name: string;
+                }[];
+              }[];
+              bundle_description?: string;
+              bundle_name: string;
+              channels?: {
+                description?: string;
+                name: string;
+                primary?: boolean;
+              }[];
+              /** Format: date-time */
+              created_at: string;
+              extension_name: string;
+              id: string;
+              inventory?: {
+                resource_id: string;
+                resource_kind: string;
+                resource_name: string;
+              }[];
+              jobs?: {
+                agent_name: string;
+                enabled: boolean;
+                id: string;
+                name: string;
+              }[];
+              profile_description?: string;
+              profile_name: string;
+              scope: string;
+              triggers?: {
+                agent_name: string;
+                enabled: boolean;
+                event: string;
+                id: string;
+                name: string;
+              }[];
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid activation request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Extension, bundle, profile, or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Activation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid bundle resource reference */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Bundle service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -21259,6 +22270,15 @@ export interface operations {
             /** @enum {string} */
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             providers: {
+              auth_status?: {
+                env_policy: string;
+                home_policy: string;
+                login_command?: string;
+                message?: string;
+                mode: string;
+                state: string;
+                status_command?: string;
+              } | null;
               command_available: boolean;
               credentials?: {
                 kind?: string;
@@ -21272,6 +22292,9 @@ export interface operations {
               default: boolean;
               fallback?: {
                 settings: {
+                  auth_login_command?: string;
+                  auth_mode?: string;
+                  auth_status_command?: string;
                   base_url?: string;
                   command?: string;
                   credential_slots?: {
@@ -21283,7 +22306,9 @@ export interface operations {
                   }[];
                   default_model?: string;
                   display_name?: string;
+                  env_policy?: string;
                   harness?: string;
+                  home_policy?: string;
                   runtime_provider?: string;
                   transport?: string;
                 };
@@ -21302,6 +22327,9 @@ export interface operations {
               } | null;
               name: string;
               settings: {
+                auth_login_command?: string;
+                auth_mode?: string;
+                auth_status_command?: string;
                 base_url?: string;
                 command?: string;
                 credential_slots?: {
@@ -21313,7 +22341,9 @@ export interface operations {
                 }[];
                 default_model?: string;
                 display_name?: string;
+                env_policy?: string;
                 harness?: string;
+                home_policy?: string;
                 runtime_provider?: string;
                 transport?: string;
               };
@@ -21395,6 +22425,15 @@ export interface operations {
         content: {
           "application/json": {
             provider: {
+              auth_status?: {
+                env_policy: string;
+                home_policy: string;
+                login_command?: string;
+                message?: string;
+                mode: string;
+                state: string;
+                status_command?: string;
+              } | null;
               command_available: boolean;
               credentials?: {
                 kind?: string;
@@ -21408,6 +22447,9 @@ export interface operations {
               default: boolean;
               fallback?: {
                 settings: {
+                  auth_login_command?: string;
+                  auth_mode?: string;
+                  auth_status_command?: string;
                   base_url?: string;
                   command?: string;
                   credential_slots?: {
@@ -21419,7 +22461,9 @@ export interface operations {
                   }[];
                   default_model?: string;
                   display_name?: string;
+                  env_policy?: string;
                   harness?: string;
+                  home_policy?: string;
                   runtime_provider?: string;
                   transport?: string;
                 };
@@ -21438,6 +22482,9 @@ export interface operations {
               } | null;
               name: string;
               settings: {
+                auth_login_command?: string;
+                auth_mode?: string;
+                auth_status_command?: string;
                 base_url?: string;
                 command?: string;
                 credential_slots?: {
@@ -21449,7 +22496,9 @@ export interface operations {
                 }[];
                 default_model?: string;
                 display_name?: string;
+                env_policy?: string;
                 harness?: string;
+                home_policy?: string;
                 runtime_provider?: string;
                 transport?: string;
               };
@@ -21540,6 +22589,9 @@ export interface operations {
             value: string;
           }[];
           settings: {
+            auth_login_command?: string;
+            auth_mode?: string;
+            auth_status_command?: string;
             base_url?: string;
             command?: string;
             credential_slots?: {
@@ -21551,7 +22603,9 @@ export interface operations {
             }[];
             default_model?: string;
             display_name?: string;
+            env_policy?: string;
             harness?: string;
+            home_policy?: string;
             runtime_provider?: string;
             transport?: string;
           };
@@ -22339,6 +23393,68 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSettingsUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available: boolean;
+            /** Format: date-time */
+            checked_at?: string | null;
+            current_version: string;
+            install_method: string;
+            last_error?: string;
+            latest_version?: string;
+            managed: boolean;
+            recommendation?: string;
+            release_url?: string;
+            /** @enum {string} */
+            status: "current" | "available" | "updated" | "deferred" | "unsupported" | "failed";
+            supported: boolean;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Update surface unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -32949,6 +34065,11 @@ export interface operations {
             agents?: {
               command?: string;
               deny_tools?: string[];
+              diagnostics?: {
+                error_kind: string;
+                message: string;
+                path: string;
+              }[];
               mcp_servers?: {
                 args?: string[];
                 auth?: {
@@ -32982,9 +34103,12 @@ export interface operations {
               toolsets?: string[];
             }[];
             providers?: {
+              auth_mode?: string;
               default_model?: string;
               display_name?: string;
+              env_policy?: string;
               harness?: string;
+              home_policy?: string;
               name: string;
               runtime_provider?: string;
             }[];

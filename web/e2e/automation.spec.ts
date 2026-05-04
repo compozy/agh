@@ -22,6 +22,10 @@ const automationTaskFixture = path.resolve(
 
 const automationAgentName = "browser-automation-runner";
 
+function automationSessionPath(sessionId: string): string {
+  return `/agents/${automationAgentName}/sessions/${sessionId}`;
+}
+
 test.use({
   runtimeOptions: {
     seed: {
@@ -137,7 +141,7 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
 
   await expect
     .poll(() => new URL(appPage.url()).pathname)
-    .toBe(`/session/${uiTriggeredRun.session_id}`);
+    .toBe(automationSessionPath(uiTriggeredRun.session_id));
   await expect(sessionUI.chatHeader).toBeVisible();
   await expect(sessionUI.chatView).toContainText(browserAutomationOperatorFlowScenario.job.prompt);
   await expect(sessionUI.chatView).toContainText(

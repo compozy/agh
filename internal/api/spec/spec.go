@@ -83,6 +83,7 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[contract.SettingsSourceKind]():               settingsSourceKindValues(),
 	reflect.TypeFor[contract.RestartOperationStatus]():           restartOperationStatusValues(),
 	reflect.TypeFor[contract.SettingsStreamTransport]():          settingsStreamTransportValues(),
+	reflect.TypeFor[contract.SettingsUpdateStatusKind]():         settingsUpdateStatusValues(),
 	reflect.TypeFor[resources.ResourceScopeKind]():               resourceScopeKindValues(),
 	reflect.TypeFor[bridgepkg.Scope]():                           bridgeScopeValues(),
 	reflect.TypeFor[bridgepkg.BridgeInstanceSource]():            bridgeInstanceSourceValues(),
@@ -173,6 +174,7 @@ func Document() (*openapi3.T, error) {
 			{Name: "agents"},
 			{Name: "automation"},
 			{Name: "bridges"},
+			{Name: "bundles"},
 			{Name: "daemon"},
 			{Name: "network"},
 			{Name: "extensions"},
@@ -1427,6 +1429,143 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
+		Path:        "/api/bundles/catalog",
+		OperationID: "listBundleCatalog",
+		Summary:     "List available extension bundle presets",
+		Tags:        []string{"bundles"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.BundlesCatalogResponse{}},
+			{Status: 503, Description: "Bundle service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/bundles/preview",
+		OperationID: "previewBundleActivation",
+		Summary:     "Preview one bundle activation without mutating runtime resources",
+		Tags:        []string{"bundles"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.ActivateBundleRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.BundlePreviewResponse{}},
+			{Status: 400, Description: "Invalid activation request", Body: contract.ErrorPayload{}},
+			{
+				Status:      404,
+				Description: "Extension, bundle, profile, or workspace not found",
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 409, Description: "Activation conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid bundle resource reference", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Bundle service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/bundles/activations",
+		OperationID: "listBundleActivations",
+		Summary:     "List active bundle preset activations",
+		Tags:        []string{"bundles"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.BundleActivationsResponse{}},
+			{Status: 503, Description: "Bundle service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/bundles/activations",
+		OperationID: "activateBundle",
+		Summary:     "Activate one extension bundle preset",
+		Tags:        []string{"bundles"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.ActivateBundleRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: "Created", Body: contract.BundleActivationResponse{}},
+			{Status: 400, Description: "Invalid activation request", Body: contract.ErrorPayload{}},
+			{
+				Status:      404,
+				Description: "Extension, bundle, profile, or workspace not found",
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 409, Description: "Activation conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid bundle resource reference", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Bundle service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/bundles/activations/{id}",
+		OperationID: "getBundleActivation",
+		Summary:     "Get one bundle activation",
+		Tags:        []string{"bundles"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Bundle activation id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.BundleActivationResponse{}},
+			{Status: 404, Description: "Activation not found", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Bundle service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PATCH",
+		Path:        "/api/bundles/activations/{id}",
+		OperationID: "updateBundleActivation",
+		Summary:     "Update mutable bundle activation overlays",
+		Tags:        []string{"bundles"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Bundle activation id"),
+		},
+		RequestBody: contract.UpdateBundleActivationRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.BundleActivationResponse{}},
+			{Status: 400, Description: "Invalid update request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Activation not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Activation conflict", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Bundle service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "DELETE",
+		Path:        "/api/bundles/activations/{id}",
+		OperationID: "deleteBundleActivation",
+		Summary:     "Deactivate one bundle preset and remove owned projected resources",
+		Tags:        []string{"bundles"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Bundle activation id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: "No Content"},
+			{Status: 404, Description: "Activation not found", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Bundle service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/bundles/network/settings",
+		OperationID: "getBundleNetworkSettings",
+		Summary:     "Get bundle-derived network defaults and declared channels",
+		Tags:        []string{"bundles"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.BundleNetworkSettingsResponse{}},
+			{Status: 503, Description: "Bundle service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
 		Path:        "/api/hooks/catalog",
 		OperationID: "getHookCatalog",
 		Summary:     "List the resolved hook catalog",
@@ -2132,7 +2271,7 @@ var operationRegistry = []OperationSpec{
 		OperationID: "approveSession",
 		Summary:     "Approve or deny an interactive permission request",
 		Tags:        []string{"sessions"},
-		Transports:  []Transport{TransportHTTP},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("id", "Session id"),
 		},
@@ -2861,6 +3000,19 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      "GET",
+		Path:        "/api/settings/update",
+		OperationID: "getSettingsUpdate",
+		Summary:     "Read the current AGH software update status",
+		Tags:        []string{"settings"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsUpdateResponse{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Update surface unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      "POST",
 		Path:        "/api/settings/actions/restart",
 		OperationID: "triggerSettingsRestart",
@@ -3586,6 +3738,17 @@ func restartOperationStatusValues() []string {
 func settingsStreamTransportValues() []string {
 	return []string{
 		string(contract.SettingsStreamTransportSSE),
+	}
+}
+
+func settingsUpdateStatusValues() []string {
+	return []string{
+		string(contract.SettingsUpdateStatusCurrent),
+		string(contract.SettingsUpdateStatusAvailable),
+		string(contract.SettingsUpdateStatusUpdated),
+		string(contract.SettingsUpdateStatusDeferred),
+		string(contract.SettingsUpdateStatusUnsupported),
+		string(contract.SettingsUpdateStatusFailed),
 	}
 }
 

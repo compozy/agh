@@ -9,11 +9,17 @@ import (
 	"strings"
 )
 
+// ErrInvalidPath reports a path that cannot be represented safely by the filesystem boundary.
+var ErrInvalidPath = errors.New("fileutil: invalid path")
+
 // AtomicWriteFile writes content to path via temp-file-and-rename.
 // It always syncs the temp file before rename for durability.
 func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
 	if strings.TrimSpace(path) == "" {
-		return errors.New("fileutil: path is required")
+		return fmt.Errorf("%w: path is required", ErrInvalidPath)
+	}
+	if strings.ContainsRune(path, 0) {
+		return fmt.Errorf("%w: path contains NUL byte", ErrInvalidPath)
 	}
 
 	dir := filepath.Dir(path)
@@ -48,7 +54,10 @@ func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
 // AtomicRemoveFile removes a file and syncs its parent directory.
 func AtomicRemoveFile(path string) error {
 	if strings.TrimSpace(path) == "" {
-		return errors.New("fileutil: path is required")
+		return fmt.Errorf("%w: path is required", ErrInvalidPath)
+	}
+	if strings.ContainsRune(path, 0) {
+		return fmt.Errorf("%w: path contains NUL byte", ErrInvalidPath)
 	}
 	info, err := os.Lstat(path)
 	if err != nil {

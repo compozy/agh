@@ -618,7 +618,19 @@ func migrateUnifiedSecretRefs(ctx context.Context, tx *sql.Tx) error {
 		return err
 	}
 	if _, hasSecretRef := bridgeColumns["secret_ref"]; !hasSecretRef {
-		return errors.New("store: bridge_secret_bindings schema is stale; recreate the AGH database")
+		if _, hasLegacyVaultRef := bridgeColumns["vault_ref"]; hasLegacyVaultRef {
+			if _, err := tx.ExecContext(
+				ctx,
+				`ALTER TABLE bridge_secret_bindings RENAME COLUMN vault_ref TO secret_ref`,
+			); err != nil {
+				return fmt.Errorf(
+					"store: rename bridge_secret_bindings.vault_ref to secret_ref: %w",
+					err,
+				)
+			}
+		} else {
+			return errors.New("store: bridge_secret_bindings schema is stale; recreate the AGH database")
+		}
 	}
 
 	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS automation_trigger_webhook_secrets`); err != nil {

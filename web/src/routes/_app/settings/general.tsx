@@ -1,10 +1,10 @@
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, ExternalLink, Loader2 } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
 import { Button, Input, PillGroup } from "@agh/ui";
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
-import type { SettingsGeneralSection } from "@/systems/settings";
+import type { SettingsGeneralSection, SettingsUpdateStatus } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsNumberInput,
@@ -26,6 +26,7 @@ const PERMISSION_MODES = ["deny-all", "approve-reads", "approve-all"] as const;
 type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 type GeneralConfig = SettingsGeneralSection["config"];
+type UpdateQuery = ReturnType<typeof useSettingsGeneralPage>["update"];
 
 function parseSessionTimeoutSeconds(raw: string): number {
   if (!raw) return 0;
@@ -41,6 +42,17 @@ function parseSessionTimeoutSeconds(raw: string): number {
 function formatSessionTimeout(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0s";
   return `${Math.floor(seconds)}s`;
+}
+
+function formatUpdateTimestamp(value?: string | null): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleString();
+}
+
+function formatUpdateStatus(status?: SettingsUpdateStatus["status"]): string {
+  if (!status) return "unknown";
+  return status.replace(/-/g, " ");
 }
 
 function GeneralSettingsPage() {
@@ -89,7 +101,7 @@ function GeneralSettingsPage() {
     );
   }
 
-  const { envelope, draft, setDraft, restart } = page;
+  const { envelope, draft, setDraft, restart, update } = page;
   const runtime = envelope.runtime;
   const configPaths = envelope.config_paths;
 
@@ -128,6 +140,7 @@ function GeneralSettingsPage() {
       }
     >
       <RuntimeSection envelope={envelope} />
+      <SoftwareUpdateSection update={update} />
       <DefaultsSection draft={draft} setDraft={setDraft} />
       <PermissionsSection draft={draft} setDraft={setDraft} />
       <SessionSection
@@ -166,6 +179,121 @@ function RuntimeSection({ envelope }: { envelope: SettingsGeneralSection }) {
           value={`${runtime.active_agents} / ${envelope.config.limits.max_concurrent_agents} max`}
         />
       </SettingsStatGrid>
+    </SettingsSectionCard>
+  );
+}
+
+function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
+  const snapshot = update.data ?? null;
+  const transportError =
+    update.error instanceof Error ? update.error.message : "Failed to load update status";
+  const releaseLink = snapshot?.release_url ? (
+    <a
+      href={snapshot.release_url}
+      rel="noreferrer"
+      target="_blank"
+      className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[color:var(--color-divider)] bg-[color:var(--color-surface-elevated)] px-3 py-1.5 text-xs font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-hover)]"
+      data-testid="settings-page-general-update-release-link"
+    >
+      <ExternalLink className="size-3.5 text-[color:var(--color-text-tertiary)]" />
+      Release notes
+    </a>
+  ) : null;
+  const refreshIndicator = update.isFetching ? (
+    <span className="inline-flex items-center gap-1.5 text-xs text-[color:var(--color-text-secondary)]">
+      <Loader2 className="size-3.5 animate-spin text-[color:var(--color-text-tertiary)]" />
+      Checking
+    </span>
+  ) : null;
+  const retryButton = update.error ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => void update.refetch()}
+      data-testid="settings-page-general-update-retry"
+    >
+      Retry
+    </Button>
+  ) : null;
+  const statusValue = snapshot
+    ? formatUpdateStatus(snapshot.status)
+    : update.isLoading || update.isFetching
+      ? "checking"
+      : "unavailable";
+  const lastError = snapshot?.last_error ?? (snapshot ? null : transportError);
+
+  return (
+    <SettingsSectionCard
+      eyebrow="Software update"
+      note="Read-only. AGH self-updates direct-binary installs on macOS and Linux; managed installs return exact upgrade guidance."
+      headerAction={
+        releaseLink || refreshIndicator || retryButton ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {releaseLink}
+            {refreshIndicator}
+            {retryButton}
+          </div>
+        ) : undefined
+      }
+    >
+      <SettingsStatGrid>
+        <SettingsStatItem
+          label="Status"
+          value={statusValue}
+          detail={snapshot?.supported ? undefined : "manual update path"}
+          data-testid="settings-page-general-update-status"
+        />
+        <SettingsStatItem
+          label="Current version"
+          value={snapshot?.current_version ?? "—"}
+          data-testid="settings-page-general-update-current-version"
+        />
+        <SettingsStatItem
+          label="Latest stable"
+          value={snapshot?.latest_version ?? "—"}
+          data-testid="settings-page-general-update-latest-version"
+        />
+        <SettingsStatItem
+          label="Install method"
+          value={snapshot?.install_method ?? "—"}
+          data-testid="settings-page-general-update-install-method"
+        />
+        <SettingsStatItem
+          label="Managed"
+          value={snapshot ? (snapshot.managed ? "yes" : "no") : "—"}
+          data-testid="settings-page-general-update-managed"
+        />
+        <SettingsStatItem
+          label="Last checked"
+          value={formatUpdateTimestamp(snapshot?.checked_at)}
+          data-testid="settings-page-general-update-checked-at"
+        />
+      </SettingsStatGrid>
+      {snapshot?.recommendation ? (
+        <SettingsFieldRow
+          data-testid="settings-page-general-update-recommendation"
+          label="Next action"
+          description="Exact command or package-manager path for this install"
+          control={
+            <span className="max-w-[34rem] font-mono text-xs text-[color:var(--color-text-primary)]">
+              {snapshot.recommendation}
+            </span>
+          }
+        />
+      ) : null}
+      {lastError ? (
+        <SettingsFieldRow
+          data-testid="settings-page-general-update-last-error"
+          label="Last error"
+          description="The last update refresh that failed"
+          control={
+            <span className="max-w-[34rem] font-mono text-xs text-[color:var(--color-danger)]">
+              {lastError}
+            </span>
+          }
+        />
+      ) : null}
     </SettingsSectionCard>
   );
 }
@@ -245,6 +373,7 @@ function PermissionsSection({ draft, setDraft }: DraftSectionProps) {
   return (
     <SettingsSectionCard eyebrow="Permissions" note="tool approval policy">
       <PillGroup
+        className="max-w-full flex-wrap"
         data-testid="settings-page-general-permissions-group"
         aria-label="Tool approval policy"
         value={draft.permissions.mode}
@@ -280,7 +409,7 @@ function SessionSection({
         error={timeoutError}
         hint="SECONDS"
         control={
-          <div className="flex items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center gap-2">
             <SettingsNumberInput
               min={0}
               className="w-28"

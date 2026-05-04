@@ -10,6 +10,7 @@
         "restart",
         "routes",
         "test-delivery",
-        "update"
+        "update",
+        "secret-bindings"
     ]
 }

@@ -66,7 +66,10 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		Config:            &state.cfg,
 		Sessions:          state.sessions,
 		WorkspaceResolver: state.workspaceResolver,
-		AgentResolver:     agentCatalogDependency(state.agentCatalog),
+		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
 		ApprovalAvailable: true,
 		DefaultToolsets: []toolspkg.ToolsetID{
 			toolspkg.ToolsetIDBootstrap,

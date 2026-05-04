@@ -746,7 +746,7 @@ function RateLimitRow({
       error={errorMessage}
       hint="LIMIT"
       control={
-        <div className="flex items-center gap-1.5">
+        <div className="flex max-w-full flex-wrap items-center gap-1.5">
           <SettingsNumberInput
             min={0}
             className="w-16 font-mono"
@@ -811,7 +811,7 @@ function SaveControls({
   const disabled = !isDirty || isSaving || isInvalid || !canMutate;
   return (
     <div
-      className="flex items-center gap-2"
+      className="flex max-w-full flex-wrap items-center gap-2"
       data-testid="settings-page-hooks-extensions-policy-controls"
       data-dirty={isDirty ? "true" : "false"}
     >

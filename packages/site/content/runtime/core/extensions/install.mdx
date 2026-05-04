@@ -35,6 +35,11 @@ Deterministic denials include `EXTENSION_SOURCE_FORBIDDEN`, `EXTENSION_APPROVAL_
 `EXTENSION_NOT_INSTALLED`, and `EXTENSION_VALIDATION_FAILED`. Marketplace trust roots and raw
 marketplace credentials stay on operator surfaces and are not exposed as tool inputs.
 
+Extension bundles have their own UDS-backed CLI surface. After installing an extension, agents can
+inspect and manage preset activations with `agh bundle catalog`, `agh bundle preview`,
+`agh bundle activate`, `agh bundle list`, `agh bundle get`, `agh bundle update`,
+`agh bundle deactivate`, and `agh bundle network-settings`.
+
 ## Install From A Local Directory
 
 A local extension directory must contain `extension.toml` or `extension.json`.

@@ -8,7 +8,7 @@ description: "Show one workspace with resolved details"
 Show one workspace with resolved details
 
 ```
-agh workspace info <name-or-id> [flags]
+agh workspace info [name-or-id] [flags]
 ```
 
 ### Examples
@@ -17,6 +17,9 @@ agh workspace info <name-or-id> [flags]
   # Show workspace paths, agents, and skills by name
   agh workspace info checkout-api
 
+  # Resolve the current directory as a workspace
+  agh workspace info
+
   # Emit resolved workspace details as JSON
   agh workspace info ws_1234 -o json
 ```
@@ -24,7 +27,8 @@ agh workspace info <name-or-id> [flags]
 ### Options
 
 ```
-  -h, --help   help for info
+  -h, --help               help for info
+      --workspace string   Workspace root/name/id to inspect when no positional ref is supplied
 ```
 
 ### Options inherited from parent commands
@@ -46,5 +50,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh workspace info <name-or-id> -o json
+agh workspace info [name-or-id] -o json
 ```

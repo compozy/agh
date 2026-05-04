@@ -27,26 +27,30 @@ subprocesses, and lets some extension providers use process-level overrides.
 
 ## Provider credential variables
 
-Provider config binds launch-time credentials through `credential_slots`. Each slot names a target
-environment variable and resolves its value from either `env:NAME` or an encrypted AGH secret ref
-such as `vault:providers/openrouter/api-key`. AGH injects only the bound value into the provider
+Provider config binds launch-time credentials only when a provider uses
+`auth_mode = "bound_secret"`. Each `credential_slots` entry names a target environment variable and
+resolves its value from either `env:NAME` or an encrypted AGH secret ref such as
+`vault:providers/openrouter/api-key`. AGH injects only the bound value into the provider
 subprocess.
 
-| Variable                      | Default provider       | Default | Valid values             | Description                                          |
-| ----------------------------- | ---------------------- | ------- | ------------------------ | ---------------------------------------------------- |
-| `ANTHROPIC_API_KEY`           | `claude`, `pi`         | unset   | Provider-specific token. | Anthropic-compatible API key target.                 |
-| `OPENAI_API_KEY`              | `codex`                | unset   | Provider-specific token. | OpenAI API key target.                               |
-| `GEMINI_API_KEY`              | `gemini`               | unset   | Provider-specific token. | Gemini API key target.                               |
-| `BLACKBOX_API_KEY`            | `blackbox`             | unset   | Provider-specific token. | BLACKBOX AI key target.                              |
-| `KIMI_API_KEY`                | `kimi-cli`, `moonshot` | unset   | Provider-specific token. | Kimi CLI and Moonshot/Kimi API key target.           |
-| `QODER_PERSONAL_ACCESS_TOKEN` | `qoder`                | unset   | Provider-specific token. | Qoder CLI personal access token target.              |
-| `OPENROUTER_API_KEY`          | `openrouter`           | unset   | Provider-specific token. | OpenRouter API key target for the Pi harness.        |
-| `ZAI_API_KEY`                 | `zai`                  | unset   | Provider-specific token. | z.ai API key target for the Pi harness.              |
-| `AI_GATEWAY_API_KEY`          | `vercel-ai-gateway`    | unset   | Provider-specific token. | Vercel AI Gateway API key target for the Pi harness. |
-| `XAI_API_KEY`                 | `xai`                  | unset   | Provider-specific token. | xAI API key target for the Pi harness.               |
-| `MINIMAX_API_KEY`             | `minimax`              | unset   | Provider-specific token. | MiniMax API key target for the Pi harness.           |
-| `MISTRAL_API_KEY`             | `mistral`              | unset   | Provider-specific token. | Mistral API key target for the Pi harness.           |
-| `GROQ_API_KEY`                | `groq`                 | unset   | Provider-specific token. | Groq API key target for the Pi harness.              |
+Direct ACP providers such as Claude Code, OpenClaw, Hermes, Codex, Gemini CLI, OpenCode, Kimi CLI,
+Qoder, and similar CLIs use `auth_mode = "native_cli"` by default. The direct `pi` provider also
+uses Pi's `/login` and auth file by default. Wrapped API-key providers such as OpenRouter, z.ai,
+Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq default to
+`auth_mode = "bound_secret"`: AGH exposes them directly, launches Pi under the hood, and injects
+the configured provider key.
+
+| Variable             | Default provider    | Default | Valid values             | Description                                                                           |
+| -------------------- | ------------------- | ------- | ------------------------ | ------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`  | `pi`                | unset   | Provider-specific token. | Optional Pi-owned env credential for direct `pi`, or an explicit bound-secret target. |
+| `OPENROUTER_API_KEY` | `openrouter`        | unset   | Provider-specific token. | Default AGH-managed credential target for the OpenRouter wrapper.                     |
+| `ZAI_API_KEY`        | `zai`               | unset   | Provider-specific token. | Default AGH-managed credential target for the z.ai wrapper.                           |
+| `KIMI_API_KEY`       | `moonshot`          | unset   | Provider-specific token. | Default AGH-managed credential target for the Moonshot/Kimi wrapper.                  |
+| `AI_GATEWAY_API_KEY` | `vercel-ai-gateway` | unset   | Provider-specific token. | Default AGH-managed credential target for the Vercel AI Gateway wrapper.              |
+| `XAI_API_KEY`        | `xai`               | unset   | Provider-specific token. | Default AGH-managed credential target for the xAI wrapper.                            |
+| `MINIMAX_API_KEY`    | `minimax`           | unset   | Provider-specific token. | Default AGH-managed credential target for the MiniMax wrapper.                        |
+| `MISTRAL_API_KEY`    | `mistral`           | unset   | Provider-specific token. | Default AGH-managed credential target for the Mistral wrapper.                        |
+| `GROQ_API_KEY`       | `groq`              | unset   | Provider-specific token. | Default AGH-managed credential target for the Groq wrapper.                           |
 
 `AGH_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, AGH creates
 `$AGH_HOME/vault.key` with `0600` permissions the first time it needs to encrypt or decrypt a
@@ -85,21 +89,35 @@ export AGH_DEPLOY_WEBHOOK_SECRET="replace-with-secret"
 
 ## Variables AGH Injects Into Agent Sessions
 
-Managed ACP agent subprocesses inherit the daemon environment. AGH then applies these changes:
+Managed ACP agent subprocesses start from the provider's `env_policy`. `filtered` inherits the
+daemon environment after removing secret-shaped variables; `isolated` keeps only a fixed
+operational allowlist. AGH then applies these changes:
 
-| Variable               | Type          | Default                                        | Valid values                        | Description                                                                        |
-| ---------------------- | ------------- | ---------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------- |
-| `AGH_SESSION_ID`       | string        | set for every managed session                  | Session ID.                         | Injected into the agent process and read by `agh whoami`.                          |
-| `AGH_AGENT`            | string        | resolved agent name                            | Agent name.                         | Injected for agent identity metadata.                                              |
-| `AGH_AGENT_NAME`       | string        | resolved agent name                            | Agent name.                         | Injected for agent identity metadata.                                              |
-| `AGH_PROVIDER`         | string        | resolved provider id                           | Provider id.                        | Injected for provider-aware tools and diagnostics.                                 |
-| `AGH_PROVIDER_HARNESS` | string        | resolved provider harness                      | `acp`, `pi_acp`.                    | Injected for provider-aware tools and diagnostics.                                 |
-| `AGH_MODEL`            | string        | resolved model                                 | Provider model string.              | Injected for provider-aware tools and diagnostics.                                 |
-| `PI_CODING_AGENT_DIR`  | path          | set only for `pi_acp` providers                | Session-local directory.            | Points Pi at the isolated `settings.json` and `models.json` materialized by AGH.   |
-| `AGH_SESSION_CHANNEL`  | string        | unset unless the session has a network channel | Network channel name.               | Injected for channel sessions. Stale values are removed for non-channel sessions.  |
-| `AGH_PEER_ID`          | string        | unset unless the session has a network channel | `<agent-name>.<session-id>`         | Injected for channel sessions. Stale values are removed for non-channel sessions.  |
-| `AGH_BIN`              | absolute path | current AGH executable                         | Existing executable path.           | Injected into ACP provider subprocesses so agents can call the same AGH binary.    |
-| `PATH`                 | path list     | inherited                                      | Path list for the operating system. | The directory containing `AGH_BIN` is prepended and duplicate entries are removed. |
+| Variable                   | Type          | Default                                                              | Valid values                          | Description                                                                        |
+| -------------------------- | ------------- | -------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------- |
+| `AGH_SESSION_ID`           | string        | set for every managed session                                        | Session ID.                           | Injected into the agent process and read by `agh whoami`.                          |
+| `AGH_AGENT`                | string        | resolved agent name                                                  | Agent name.                           | Injected for agent identity metadata.                                              |
+| `AGH_AGENT_NAME`           | string        | resolved agent name                                                  | Agent name.                           | Injected for agent identity metadata.                                              |
+| `AGH_PROVIDER`             | string        | resolved provider id                                                 | Provider id.                          | Injected for provider-aware tools and diagnostics.                                 |
+| `AGH_PROVIDER_HARNESS`     | string        | resolved provider harness                                            | `acp`, `pi_acp`.                      | Injected for provider-aware tools and diagnostics.                                 |
+| `AGH_PROVIDER_AUTH_MODE`   | string        | resolved provider auth mode                                          | `native_cli`, `bound_secret`, `none`. | Identifies whether auth is native CLI, AGH-bound secret, or none.                  |
+| `AGH_PROVIDER_ENV_POLICY`  | string        | resolved provider env policy                                         | `filtered`, `isolated`.               | Identifies which daemon environment policy was used.                               |
+| `AGH_PROVIDER_HOME_POLICY` | string        | resolved provider home policy                                        | `operator`, `isolated`.               | Identifies whether the provider uses operator or isolated home state.              |
+| `AGH_MODEL`                | string        | resolved model                                                       | Provider model string.                | Injected for provider-aware tools and diagnostics.                                 |
+| `PROVIDER_HOME`            | path          | set only when `home_policy = "isolated"`                             | AGH-owned provider home.              | Points generic provider CLIs at `$AGH_HOME/providers/<provider>`.                  |
+| `HOME`                     | path          | provider home when isolated, otherwise parent.                       | Existing path.                        | Redirected to provider home only for isolated provider-home launches.              |
+| `XDG_CONFIG_HOME`          | path          | set only when provider home is isolated                              | Provider config directory.            | Generic config location under the isolated provider home.                          |
+| `XDG_DATA_HOME`            | path          | set only when provider home is isolated                              | Provider data directory.              | Generic data location under the isolated provider home.                            |
+| `XDG_CACHE_HOME`           | path          | set only when provider home is isolated                              | Provider cache directory.             | Generic cache location under the isolated provider home.                           |
+| `CLAUDE_CONFIG_DIR`        | path          | set only for isolated `claude` providers                             | Provider Claude config directory.     | Points Claude Code at isolated AGH-owned auth/config state.                        |
+| `CODEX_HOME`               | path          | set only for isolated `codex` providers                              | Provider Codex home directory.        | Points Codex at isolated AGH-owned auth/config state.                              |
+| `PROVIDER_CODEX_HOME`      | path          | set only for isolated `codex` providers                              | Provider Codex home directory.        | Mirrors `CODEX_HOME` for QA and provider-launch diagnostics.                       |
+| `OPENCODE_CONFIG_DIR`      | path          | set only for isolated `opencode` providers                           | Provider OpenCode config directory.   | Points OpenCode at isolated AGH-owned auth/config state.                           |
+| `PI_CODING_AGENT_DIR`      | path          | set for native Pi isolated home or Pi-backed `bound_secret` sessions | Pi auth/config directory.             | Points Pi at the isolated native auth store or bound-secret runtime config.        |
+| `AGH_SESSION_CHANNEL`      | string        | unset unless the session has a network channel                       | Network channel name.                 | Injected for channel sessions. Stale values are removed for non-channel sessions.  |
+| `AGH_PEER_ID`              | string        | unset unless the session has a network channel                       | `<agent-name>.<session-id>`           | Injected for channel sessions. Stale values are removed for non-channel sessions.  |
+| `AGH_BIN`                  | absolute path | current AGH executable                                               | Existing executable path.             | Injected into ACP provider subprocesses so agents can call the same AGH binary.    |
+| `PATH`                     | path list     | inherited or allowlisted                                             | Path list for the operating system.   | The directory containing `AGH_BIN` is prepended and duplicate entries are removed. |
 
 ## Hook Subprocess Environment
 

@@ -194,6 +194,53 @@ func TestLocalToolHostWriteTextFile(t *testing.T) {
 	}
 }
 
+func TestLocalToolHostRejectsNullBytePaths(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		run  func(*testing.T, *localToolHost) error
+	}{
+		{
+			name: "Should reject NUL bytes for read tool paths",
+			run: func(t *testing.T, host *localToolHost) error {
+				_, err := host.ReadTextFile(testutil.Context(t), "leak\x00.txt")
+				return err
+			},
+		},
+		{
+			name: "Should reject NUL bytes for write tool paths",
+			run: func(t *testing.T, host *localToolHost) error {
+				return host.WriteTextFile(testutil.Context(t), "leak\x00.txt", "saved")
+			},
+		},
+		{
+			name: "Should reject NUL bytes for direct resolution",
+			run: func(_ *testing.T, host *localToolHost) error {
+				_, err := host.ResolvePath("leak\x00.txt")
+				return err
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			host, root := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+			err := tc.run(t, host)
+			if !errors.Is(err, ErrInvalidPath) {
+				t.Fatalf("null-byte path error = %v, want ErrInvalidPath", err)
+			}
+			matches, globErr := filepath.Glob(filepath.Join(root, "leak*"))
+			if globErr != nil {
+				t.Fatalf("filepath.Glob(leak*) error = %v", globErr)
+			}
+			if len(matches) != 0 {
+				t.Fatalf("leak artifacts = %#v, want none", matches)
+			}
+		})
+	}
+}
+
 func TestLocalToolHostResolvePath(t *testing.T) {
 	t.Parallel()
 

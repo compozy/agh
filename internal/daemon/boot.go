@@ -16,6 +16,7 @@ import (
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
@@ -32,6 +33,7 @@ import (
 	"github.com/pedronauck/agh/internal/situation"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
+	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/toolruntime"
@@ -82,6 +84,8 @@ type bootState struct {
 	resourceKernel      *resources.Kernel
 	resourceCodecs      *resources.CodecRegistry
 	agentCatalog        *resourceCatalog[aghconfig.AgentDef]
+	soulCatalog         *resourceCatalog[soul.ResourceSpec]
+	heartbeatCatalog    *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog         *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog    *resourceCatalog[aghconfig.MCPServer]
 	agentSkillResources agentSkillPublisher
@@ -192,6 +196,9 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootFinalize(ctx, state) },
 	}
 	for _, step := range steps {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("daemon: boot canceled: %w", err)
+		}
 		if err := step(); err != nil {
 			return err
 		}
@@ -339,7 +346,10 @@ func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 			return state.workspaceResolver
 		},
 		AgentResolverFunc: func() situation.AgentResolver {
-			return agentCatalogDependency(state.agentCatalog)
+			return agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+				soul:      state.soulCatalog,
+				heartbeat: state.heartbeatCatalog,
+			})
 		},
 		SkillRegistryFunc: func() situation.SkillRegistry {
 			return skillRegistryDependency(state.skillsRegistry)
@@ -518,6 +528,8 @@ func (d *Daemon) bootRuntimeServices(
 		)
 	}
 	state.agentCatalog = newResourceCatalog(cloneAgentDef)
+	state.soulCatalog = newResourceCatalog(cloneSoulResourceSpec)
+	state.heartbeatCatalog = newResourceCatalog(cloneHeartbeatResourceSpec)
 
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
 	if err != nil {
@@ -659,19 +671,22 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		StartupPromptOverlay: state.startupOverlay,
 		PromptInputAugmenter: state.promptAugmenter,
 		MemoryStore:          state.memoryStore,
-		AgentResolver:        agentCatalogDependency(state.agentCatalog),
-		SkillRegistry:        skillRegistryDependency(state.skillsRegistry),
-		MCPResolver:          mcpResolverDependency(state.mcpResolver),
-		WorkspaceResolver:    state.workspaceResolver,
-		SandboxRegistry:      state.sandboxRegistry,
-		SessionSupervision:   state.cfg.Session.Supervision,
-		SessionHealthConfig:  state.cfg.Agents.Heartbeat,
-		ProcessRegistry:      state.processRegistry,
-		HostedMCP:            hostedMCPLauncher(state.hostedMCP),
-		ProviderSecrets:      sessionProviderVaultDependency(state.providerVault),
-		SoulStore:            soulSnapshotStoreDependency(state.registry),
-		SoulRunChecker:       soulRunActivityCheckerDependency(state.registry),
-		SessionHealthStore:   sessionHealthStoreDependency(state.registry),
+		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+		SkillRegistry:       skillRegistryDependency(state.skillsRegistry),
+		MCPResolver:         mcpResolverDependency(state.mcpResolver),
+		WorkspaceResolver:   state.workspaceResolver,
+		SandboxRegistry:     state.sandboxRegistry,
+		SessionSupervision:  state.cfg.Session.Supervision,
+		SessionHealthConfig: state.cfg.Agents.Heartbeat,
+		ProcessRegistry:     state.processRegistry,
+		HostedMCP:           hostedMCPLauncher(state.hostedMCP),
+		ProviderSecrets:     sessionProviderVaultDependency(state.providerVault),
+		SoulStore:           soulSnapshotStoreDependency(state.registry),
+		SoulRunChecker:      soulRunActivityCheckerDependency(state.registry),
+		SessionHealthStore:  sessionHealthStoreDependency(state.registry),
 	}
 }
 
@@ -828,19 +843,25 @@ func (d *Daemon) runtimeDeps(ctx context.Context, state *bootState, sessions Ses
 		MemoryStore:       state.memoryStore,
 		WorkspaceResolver: state.workspaceResolver,
 		WorkspaceService:  state.workspaceResolver,
-		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
-		AgentContext:      state.situationContext,
-		SoulAuthoring:     authoredContext.SoulAuthoring,
-		SoulRefresher:     authoredContext.SoulRefresher,
-		HeartbeatAuthor:   authoredContext.HeartbeatAuthoring,
-		HeartbeatStatus:   authoredContext.HeartbeatStatus,
-		HeartbeatWake:     authoredContext.HeartbeatWake,
-		SessionHealth:     authoredContext.SessionHealth,
-		WakeEvents:        authoredContext.WakeEvents,
+		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+		AgentContext:    state.situationContext,
+		SoulAuthoring:   authoredContext.SoulAuthoring,
+		SoulRefresher:   authoredContext.SoulRefresher,
+		HeartbeatAuthor: authoredContext.HeartbeatAuthoring,
+		HeartbeatStatus: authoredContext.HeartbeatStatus,
+		HeartbeatWake:   authoredContext.HeartbeatWake,
+		SessionHealth:   authoredContext.SessionHealth,
+		WakeEvents:      authoredContext.WakeEvents,
 		CoordinatorConfig: newCoordinatorConfigResolver(
 			&state.cfg,
 			state.workspaceResolver,
-			agentCatalogDependency(state.agentCatalog),
+			agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+				soul:      state.soulCatalog,
+				heartbeat: state.heartbeatCatalog,
+			}),
 		),
 		SkillsRegistry: skillsRegistryAPI(state.skillsRegistry),
 		ToolRegistry:   state.toolRegistry,
@@ -903,6 +924,12 @@ func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *br
 		return err
 	}
 	if err := registerDaemonResourceCodec(registry, "agent", aghconfig.NewAgentResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "agent soul", soul.NewResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "agent heartbeat", heartbeat.NewResourceCodec); err != nil {
 		return err
 	}
 	if err := registerDaemonResourceCodec(registry, "skill", skills.NewResourceCodec); err != nil {
@@ -996,6 +1023,12 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 	if state.agentCatalog == nil {
 		state.agentCatalog = newResourceCatalog(cloneAgentDef)
 	}
+	if state.soulCatalog == nil {
+		state.soulCatalog = newResourceCatalog(cloneSoulResourceSpec)
+	}
+	if state.heartbeatCatalog == nil {
+		state.heartbeatCatalog = newResourceCatalog(cloneHeartbeatResourceSpec)
+	}
 	if state.toolCatalog == nil {
 		state.toolCatalog = newResourceCatalog(cloneToolSpec)
 	}
@@ -1011,6 +1044,8 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 		CodecRegistry:    state.resourceCodecs,
 		Hooks:            state.hookDispatcher,
 		AgentCatalog:     state.agentCatalog,
+		SoulCatalog:      state.soulCatalog,
+		HeartbeatCatalog: state.heartbeatCatalog,
 		ToolCatalog:      state.toolCatalog,
 		MCPServerCatalog: state.mcpServerCatalog,
 		SkillsRegistry:   state.skillsRegistry,
@@ -1311,8 +1346,8 @@ func (d *Daemon) bootBundles(_ context.Context, state *bootState) error {
 	service := bundlepkg.NewService(
 		resourceStore,
 		extRegistry,
-		func(name string) (*extensionpkg.Extension, error) {
-			return loadExtensionSnapshot(extRegistry, state.currentExtensionRuntime(), state.logger, name)
+		func(ctx context.Context, name string) (*extensionpkg.Extension, error) {
+			return loadExtensionSnapshot(ctx, extRegistry, state.currentExtensionRuntime(), state.logger, name)
 		},
 		bundlepkg.WithWorkspaceResolver(state.workspaceResolver),
 		bundlepkg.WithConfiguredDefaultChannel(state.cfg.Network.DefaultChannel),
@@ -1611,7 +1646,7 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 	return nil
 }
 
-func (d *Daemon) bootSettings(_ context.Context, state *bootState) error {
+func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	if state == nil {
 		return errors.New("daemon: boot settings state is required")
 	}
@@ -1637,8 +1672,15 @@ func (d *Daemon) bootSettings(_ context.Context, state *bootState) error {
 		return fmt.Errorf("daemon: create settings service: %w", err)
 	}
 
+	updateManager, err := newSettingsUpdateManager(d)
+	if err != nil {
+		return fmt.Errorf("daemon: create settings update manager: %w", err)
+	}
+	updateManager.PrimeInstallDetection(ctx)
+
 	state.deps.Settings = service
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}
+	state.deps.SettingsUpdate = settingsUpdateController{manager: updateManager}
 	return nil
 }
 
@@ -1725,6 +1767,8 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.observer = state.observer
 	d.resourceReconcile = state.resourceReconcile
 	d.agentCatalog = state.agentCatalog
+	d.soulCatalog = state.soulCatalog
+	d.heartbeatCatalog = state.heartbeatCatalog
 	d.toolCatalog = state.toolCatalog
 	d.mcpServerCatalog = state.mcpServerCatalog
 	d.automation = state.automation

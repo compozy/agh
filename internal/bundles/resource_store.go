@@ -11,7 +11,10 @@ import (
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/soul"
 )
 
 // ResourceStore persists bundles, activations, and owned activation fan-out through canonical resources.
@@ -20,6 +23,12 @@ type ResourceStore struct {
 	bundleCodec     resources.KindCodec[BundleResourceSpec]
 	activations     resources.Store[ActivationResourceSpec]
 	activationCodec resources.KindCodec[ActivationResourceSpec]
+	agents          resources.Store[aghconfig.AgentDef]
+	agentCodec      resources.KindCodec[aghconfig.AgentDef]
+	souls           resources.Store[soul.ResourceSpec]
+	soulCodec       resources.KindCodec[soul.ResourceSpec]
+	heartbeats      resources.Store[heartbeat.ResourceSpec]
+	heartbeatCodec  resources.KindCodec[heartbeat.ResourceSpec]
 	jobs            resources.Store[automationpkg.Job]
 	jobCodec        resources.KindCodec[automationpkg.Job]
 	triggers        resources.Store[automationpkg.Trigger]
@@ -37,6 +46,12 @@ type ResourceStoreConfig struct {
 	BundleCodec     resources.KindCodec[BundleResourceSpec]
 	Activations     resources.Store[ActivationResourceSpec]
 	ActivationCodec resources.KindCodec[ActivationResourceSpec]
+	Agents          resources.Store[aghconfig.AgentDef]
+	AgentCodec      resources.KindCodec[aghconfig.AgentDef]
+	Souls           resources.Store[soul.ResourceSpec]
+	SoulCodec       resources.KindCodec[soul.ResourceSpec]
+	Heartbeats      resources.Store[heartbeat.ResourceSpec]
+	HeartbeatCodec  resources.KindCodec[heartbeat.ResourceSpec]
 	Jobs            resources.Store[automationpkg.Job]
 	JobCodec        resources.KindCodec[automationpkg.Job]
 	Triggers        resources.Store[automationpkg.Trigger]
@@ -51,6 +66,9 @@ type ResourceStoreConfig struct {
 var _ Store = (*ResourceStore)(nil)
 
 var bundleActivationOwnedKindAllowlist = map[resources.ResourceKind]struct{}{
+	aghconfig.AgentResourceKind:          {},
+	soul.ResourceKind:                    {},
+	heartbeat.ResourceKind:               {},
 	automationpkg.JobResourceKind:        {},
 	automationpkg.TriggerResourceKind:    {},
 	bridgepkg.BridgeInstanceResourceKind: {},
@@ -75,6 +93,15 @@ func NewResourceStore(cfg ResourceStoreConfig) (*ResourceStore, error) {
 	if cfg.ActivationCodec == nil {
 		return nil, errors.New("bundles: activation resource codec is required")
 	}
+	if cfg.Agents == nil || cfg.AgentCodec == nil {
+		return nil, errors.New("bundles: agent resource store and codec are required")
+	}
+	if cfg.Souls == nil || cfg.SoulCodec == nil {
+		return nil, errors.New("bundles: soul resource store and codec are required")
+	}
+	if cfg.Heartbeats == nil || cfg.HeartbeatCodec == nil {
+		return nil, errors.New("bundles: heartbeat resource store and codec are required")
+	}
 	if cfg.Jobs == nil || cfg.JobCodec == nil {
 		return nil, errors.New("bundles: automation job resource store and codec are required")
 	}
@@ -95,6 +122,12 @@ func NewResourceStore(cfg ResourceStoreConfig) (*ResourceStore, error) {
 		bundleCodec:     cfg.BundleCodec,
 		activations:     cfg.Activations,
 		activationCodec: cfg.ActivationCodec,
+		agents:          cfg.Agents,
+		agentCodec:      cfg.AgentCodec,
+		souls:           cfg.Souls,
+		soulCodec:       cfg.SoulCodec,
+		heartbeats:      cfg.Heartbeats,
+		heartbeatCodec:  cfg.HeartbeatCodec,
 		jobs:            cfg.Jobs,
 		jobCodec:        cfg.JobCodec,
 		triggers:        cfg.Triggers,
@@ -219,6 +252,16 @@ func (s *ResourceStore) ListBundleResources(
 	return records, nil
 }
 
+func (s *ResourceStore) ListAgentResources(
+	ctx context.Context,
+) ([]resources.Record[aghconfig.AgentDef], error) {
+	records, err := s.agents.List(ctx, s.actor, resources.ResourceFilter{Kind: aghconfig.AgentResourceKind})
+	if err != nil {
+		return nil, fmt.Errorf("bundles: list agent resources: %w", err)
+	}
+	return records, nil
+}
+
 func (s *ResourceStore) ListBundleActivationInventory(
 	ctx context.Context,
 	activationID string,
@@ -228,55 +271,138 @@ func (s *ResourceStore) ListBundleActivationInventory(
 		return nil, err
 	}
 	items := make([]InventoryItem, 0)
-	jobRecords, err := s.jobs.List(ctx, s.actor, resources.ResourceFilter{
-		Kind:  automationpkg.JobResourceKind,
-		Owner: &owner,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("bundles: list owned automation jobs: %w", err)
+	collectors := []func(context.Context, resources.ResourceOwner) ([]InventoryItem, error){
+		s.listOwnedAgentInventory,
+		s.listOwnedSoulInventory,
+		s.listOwnedHeartbeatInventory,
+		s.listOwnedJobInventory,
+		s.listOwnedTriggerInventory,
+		s.listOwnedBridgeInventory,
 	}
-	for _, record := range jobRecords {
-		items = append(items, InventoryItem{
-			ActivationID:  owner.ID,
-			ResourceKind:  string(automationpkg.JobResourceKind),
-			ResourceID:    record.ID,
-			ResourceName:  record.Spec.Name,
-			RecordedAtUTC: record.UpdatedAt,
-		})
-	}
-	triggerRecords, err := s.triggers.List(ctx, s.actor, resources.ResourceFilter{
-		Kind:  automationpkg.TriggerResourceKind,
-		Owner: &owner,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("bundles: list owned automation triggers: %w", err)
-	}
-	for _, record := range triggerRecords {
-		items = append(items, InventoryItem{
-			ActivationID:  owner.ID,
-			ResourceKind:  string(automationpkg.TriggerResourceKind),
-			ResourceID:    record.ID,
-			ResourceName:  record.Spec.Name,
-			RecordedAtUTC: record.UpdatedAt,
-		})
-	}
-	bridgeRecords, err := s.bridges.List(ctx, s.actor, resources.ResourceFilter{
-		Kind:  bridgepkg.BridgeInstanceResourceKind,
-		Owner: &owner,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("bundles: list owned bridge instances: %w", err)
-	}
-	for _, record := range bridgeRecords {
-		items = append(items, InventoryItem{
-			ActivationID:  owner.ID,
-			ResourceKind:  string(bridgepkg.BridgeInstanceResourceKind),
-			ResourceID:    record.ID,
-			ResourceName:  record.Spec.DisplayName,
-			RecordedAtUTC: record.UpdatedAt,
-		})
+	for _, collect := range collectors {
+		collected, err := collect(ctx, owner)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, collected...)
 	}
 	slices.SortFunc(items, compareInventoryItems)
+	return items, nil
+}
+
+func (s *ResourceStore) listOwnedAgentInventory(
+	ctx context.Context,
+	owner resources.ResourceOwner,
+) ([]InventoryItem, error) {
+	return listOwnedInventoryForKind(
+		ctx,
+		s.agents,
+		s.actor,
+		owner,
+		aghconfig.AgentResourceKind,
+		"agents",
+		func(spec aghconfig.AgentDef) string { return spec.Name },
+	)
+}
+
+func (s *ResourceStore) listOwnedSoulInventory(
+	ctx context.Context,
+	owner resources.ResourceOwner,
+) ([]InventoryItem, error) {
+	return listOwnedInventoryForKind(
+		ctx,
+		s.souls,
+		s.actor,
+		owner,
+		soul.ResourceKind,
+		"soul resources",
+		func(spec soul.ResourceSpec) string { return spec.AgentName },
+	)
+}
+
+func (s *ResourceStore) listOwnedHeartbeatInventory(
+	ctx context.Context,
+	owner resources.ResourceOwner,
+) ([]InventoryItem, error) {
+	return listOwnedInventoryForKind(
+		ctx,
+		s.heartbeats,
+		s.actor,
+		owner,
+		heartbeat.ResourceKind,
+		"heartbeat resources",
+		func(spec heartbeat.ResourceSpec) string { return spec.AgentName },
+	)
+}
+
+func (s *ResourceStore) listOwnedJobInventory(
+	ctx context.Context,
+	owner resources.ResourceOwner,
+) ([]InventoryItem, error) {
+	return listOwnedInventoryForKind(
+		ctx,
+		s.jobs,
+		s.actor,
+		owner,
+		automationpkg.JobResourceKind,
+		"automation jobs",
+		func(spec automationpkg.Job) string { return spec.Name },
+	)
+}
+
+func (s *ResourceStore) listOwnedTriggerInventory(
+	ctx context.Context,
+	owner resources.ResourceOwner,
+) ([]InventoryItem, error) {
+	return listOwnedInventoryForKind(
+		ctx,
+		s.triggers,
+		s.actor,
+		owner,
+		automationpkg.TriggerResourceKind,
+		"automation triggers",
+		func(spec automationpkg.Trigger) string { return spec.Name },
+	)
+}
+
+func (s *ResourceStore) listOwnedBridgeInventory(
+	ctx context.Context,
+	owner resources.ResourceOwner,
+) ([]InventoryItem, error) {
+	return listOwnedInventoryForKind(
+		ctx,
+		s.bridges,
+		s.actor,
+		owner,
+		bridgepkg.BridgeInstanceResourceKind,
+		"bridge instances",
+		func(spec bridgepkg.BridgeInstanceSpec) string { return spec.DisplayName },
+	)
+}
+
+func listOwnedInventoryForKind[T any](
+	ctx context.Context,
+	store resources.Store[T],
+	actor resources.MutationActor,
+	owner resources.ResourceOwner,
+	kind resources.ResourceKind,
+	label string,
+	resourceName func(T) string,
+) ([]InventoryItem, error) {
+	records, err := store.List(ctx, actor, resources.ResourceFilter{Kind: kind, Owner: &owner})
+	if err != nil {
+		return nil, fmt.Errorf("bundles: list owned %s: %w", label, err)
+	}
+	items := make([]InventoryItem, 0, len(records))
+	for _, record := range records {
+		items = append(items, InventoryItem{
+			ActivationID:  owner.ID,
+			ResourceKind:  string(kind),
+			ResourceID:    record.ID,
+			ResourceName:  resourceName(record.Spec),
+			RecordedAtUTC: record.UpdatedAt,
+		})
+	}
 	return items, nil
 }
 
@@ -284,7 +410,16 @@ func (s *ResourceStore) ApplyBundleActivationResources(
 	ctx context.Context,
 	plan BundleActivationResourcePlan,
 ) error {
-	changed := make(map[resources.ResourceKind]struct{}, 3)
+	changed := make(map[resources.ResourceKind]struct{}, 6)
+	if err := s.syncOwnedAgentResources(ctx, plan, changed); err != nil {
+		return err
+	}
+	if err := s.syncOwnedSoulResources(ctx, plan, changed); err != nil {
+		return err
+	}
+	if err := s.syncOwnedHeartbeatResources(ctx, plan, changed); err != nil {
+		return err
+	}
 	if err := s.syncOwnedJobResources(ctx, plan, changed); err != nil {
 		return err
 	}
@@ -295,6 +430,121 @@ func (s *ResourceStore) ApplyBundleActivationResources(
 		return err
 	}
 	return s.triggerChangedKinds(ctx, changed)
+}
+
+func (s *ResourceStore) syncOwnedAgentResources(
+	ctx context.Context,
+	plan BundleActivationResourcePlan,
+	changed map[resources.ResourceKind]struct{},
+) error {
+	desired := make(map[string]map[string]ownedAgentResource)
+	for _, agent := range plan.desiredAgents {
+		ownerID := strings.TrimSpace(plan.agentOwners[strings.TrimSpace(agent.ID)])
+		if ownerID == "" {
+			return fmt.Errorf("bundles: owned agent %q has no activation owner", agent.ID)
+		}
+		if desired[ownerID] == nil {
+			desired[ownerID] = make(map[string]ownedAgentResource)
+		}
+		desired[ownerID][agent.ID] = agent
+	}
+	return syncOwnedResources(
+		aghconfig.AgentResourceKind,
+		plan.activeActivationIDs,
+		changed,
+		func(owner resources.ResourceOwner) ([]resources.Record[aghconfig.AgentDef], error) {
+			return s.agents.List(ctx, s.actor, resources.ResourceFilter{
+				Kind:  aghconfig.AgentResourceKind,
+				Owner: &owner,
+			})
+		},
+		func(ownerID string, current map[string]resources.Record[aghconfig.AgentDef]) error {
+			return s.upsertOwnedAgents(ctx, ownerID, current, desired[ownerID], changed)
+		},
+		func(ownerID string) resources.MutationActor { return activationResourceActor(s.actor, ownerID) },
+		func(actor resources.MutationActor, stale resources.Record[aghconfig.AgentDef]) error {
+			return s.agents.Delete(ctx, actor, stale.ID, stale.Version)
+		},
+		func() ([]resources.Record[aghconfig.AgentDef], error) {
+			return s.agents.List(ctx, s.actor, resources.ResourceFilter{Kind: aghconfig.AgentResourceKind})
+		},
+	)
+}
+
+func (s *ResourceStore) syncOwnedSoulResources(
+	ctx context.Context,
+	plan BundleActivationResourcePlan,
+	changed map[resources.ResourceKind]struct{},
+) error {
+	desired := make(map[string]map[string]ownedSoulResource)
+	for _, spec := range plan.desiredSouls {
+		ownerID := strings.TrimSpace(plan.soulOwners[strings.TrimSpace(spec.ID)])
+		if ownerID == "" {
+			return fmt.Errorf("bundles: owned soul resource %q has no activation owner", spec.ID)
+		}
+		if desired[ownerID] == nil {
+			desired[ownerID] = make(map[string]ownedSoulResource)
+		}
+		desired[ownerID][spec.ID] = spec
+	}
+	return syncOwnedResources(
+		soul.ResourceKind,
+		plan.activeActivationIDs,
+		changed,
+		func(owner resources.ResourceOwner) ([]resources.Record[soul.ResourceSpec], error) {
+			return s.souls.List(ctx, s.actor, resources.ResourceFilter{Kind: soul.ResourceKind, Owner: &owner})
+		},
+		func(ownerID string, current map[string]resources.Record[soul.ResourceSpec]) error {
+			return s.upsertOwnedSouls(ctx, ownerID, current, desired[ownerID], changed)
+		},
+		func(ownerID string) resources.MutationActor { return activationResourceActor(s.actor, ownerID) },
+		func(actor resources.MutationActor, stale resources.Record[soul.ResourceSpec]) error {
+			return s.souls.Delete(ctx, actor, stale.ID, stale.Version)
+		},
+		func() ([]resources.Record[soul.ResourceSpec], error) {
+			return s.souls.List(ctx, s.actor, resources.ResourceFilter{Kind: soul.ResourceKind})
+		},
+	)
+}
+
+func (s *ResourceStore) syncOwnedHeartbeatResources(
+	ctx context.Context,
+	plan BundleActivationResourcePlan,
+	changed map[resources.ResourceKind]struct{},
+) error {
+	desired := make(map[string]map[string]ownedHeartbeatResource)
+	for _, spec := range plan.desiredHeartbeats {
+		ownerID := strings.TrimSpace(plan.heartbeatOwners[strings.TrimSpace(spec.ID)])
+		if ownerID == "" {
+			return fmt.Errorf("bundles: owned heartbeat resource %q has no activation owner", spec.ID)
+		}
+		if desired[ownerID] == nil {
+			desired[ownerID] = make(map[string]ownedHeartbeatResource)
+		}
+		desired[ownerID][spec.ID] = spec
+	}
+	return syncOwnedResources(
+		heartbeat.ResourceKind,
+		plan.activeActivationIDs,
+		changed,
+		func(owner resources.ResourceOwner) ([]resources.Record[heartbeat.ResourceSpec], error) {
+			return s.heartbeats.List(
+				ctx,
+				s.actor,
+				resources.ResourceFilter{Kind: heartbeat.ResourceKind, Owner: &owner},
+			)
+		},
+		func(ownerID string, current map[string]resources.Record[heartbeat.ResourceSpec]) error {
+			return s.upsertOwnedHeartbeats(ctx, ownerID, current, desired[ownerID], changed)
+		},
+		func(ownerID string) resources.MutationActor { return activationResourceActor(s.actor, ownerID) },
+		func(actor resources.MutationActor, stale resources.Record[heartbeat.ResourceSpec]) error {
+			return s.heartbeats.Delete(ctx, actor, stale.ID, stale.Version)
+		},
+		func() ([]resources.Record[heartbeat.ResourceSpec], error) {
+			return s.heartbeats.List(ctx, s.actor, resources.ResourceFilter{Kind: heartbeat.ResourceKind})
+		},
+	)
 }
 
 func (s *ResourceStore) syncOwnedJobResources(
@@ -448,6 +698,108 @@ func (s *ResourceStore) upsertOwnedJobs(
 	return deleteStaleOwnedRecords(ctx, actor, current, changed, automationpkg.JobResourceKind, s.jobs.Delete)
 }
 
+func (s *ResourceStore) upsertOwnedAgents(
+	ctx context.Context,
+	ownerID string,
+	current map[string]resources.Record[aghconfig.AgentDef],
+	desired map[string]ownedAgentResource,
+	changed map[resources.ResourceKind]struct{},
+) error {
+	actor := activationResourceActor(s.actor, ownerID)
+	for id, desiredAgent := range desired {
+		spec := desiredAgent.Spec
+		scope := desiredAgent.Scope.Normalize()
+		existing, ok := current[id]
+		if ok && existing.Scope == scope && s.sameAgent(existing, spec) {
+			delete(current, id)
+			continue
+		}
+		expectedVersion := int64(0)
+		if ok {
+			expectedVersion = existing.Version
+		}
+		if _, err := s.agents.Put(ctx, actor, resources.Draft[aghconfig.AgentDef]{
+			ID:              id,
+			Scope:           scope,
+			ExpectedVersion: expectedVersion,
+			Spec:            spec,
+		}); err != nil {
+			return fmt.Errorf("bundles: upsert owned agent %q: %w", id, err)
+		}
+		changed[aghconfig.AgentResourceKind] = struct{}{}
+		delete(current, id)
+	}
+	return deleteStaleOwnedRecords(ctx, actor, current, changed, aghconfig.AgentResourceKind, s.agents.Delete)
+}
+
+func (s *ResourceStore) upsertOwnedSouls(
+	ctx context.Context,
+	ownerID string,
+	current map[string]resources.Record[soul.ResourceSpec],
+	desired map[string]ownedSoulResource,
+	changed map[resources.ResourceKind]struct{},
+) error {
+	actor := activationResourceActor(s.actor, ownerID)
+	for id, desiredSoul := range desired {
+		spec := desiredSoul.Spec
+		scope := desiredSoul.Scope.Normalize()
+		existing, ok := current[id]
+		if ok && existing.Scope == scope && s.sameSoul(existing, spec) {
+			delete(current, id)
+			continue
+		}
+		expectedVersion := int64(0)
+		if ok {
+			expectedVersion = existing.Version
+		}
+		if _, err := s.souls.Put(ctx, actor, resources.Draft[soul.ResourceSpec]{
+			ID:              id,
+			Scope:           scope,
+			ExpectedVersion: expectedVersion,
+			Spec:            spec,
+		}); err != nil {
+			return fmt.Errorf("bundles: upsert owned soul resource %q: %w", id, err)
+		}
+		changed[soul.ResourceKind] = struct{}{}
+		delete(current, id)
+	}
+	return deleteStaleOwnedRecords(ctx, actor, current, changed, soul.ResourceKind, s.souls.Delete)
+}
+
+func (s *ResourceStore) upsertOwnedHeartbeats(
+	ctx context.Context,
+	ownerID string,
+	current map[string]resources.Record[heartbeat.ResourceSpec],
+	desired map[string]ownedHeartbeatResource,
+	changed map[resources.ResourceKind]struct{},
+) error {
+	actor := activationResourceActor(s.actor, ownerID)
+	for id, desiredHeartbeat := range desired {
+		spec := desiredHeartbeat.Spec
+		scope := desiredHeartbeat.Scope.Normalize()
+		existing, ok := current[id]
+		if ok && existing.Scope == scope && s.sameHeartbeat(existing, spec) {
+			delete(current, id)
+			continue
+		}
+		expectedVersion := int64(0)
+		if ok {
+			expectedVersion = existing.Version
+		}
+		if _, err := s.heartbeats.Put(ctx, actor, resources.Draft[heartbeat.ResourceSpec]{
+			ID:              id,
+			Scope:           scope,
+			ExpectedVersion: expectedVersion,
+			Spec:            spec,
+		}); err != nil {
+			return fmt.Errorf("bundles: upsert owned heartbeat resource %q: %w", id, err)
+		}
+		changed[heartbeat.ResourceKind] = struct{}{}
+		delete(current, id)
+	}
+	return deleteStaleOwnedRecords(ctx, actor, current, changed, heartbeat.ResourceKind, s.heartbeats.Delete)
+}
+
 func (s *ResourceStore) upsertOwnedTriggers(
 	ctx context.Context,
 	ownerID string,
@@ -581,6 +933,27 @@ func deleteStaleOwnedRecords[T any](
 
 func (s *ResourceStore) sameJob(record resources.Record[automationpkg.Job], desired automationpkg.Job) bool {
 	return sameEncodedSpec(s.jobCodec, record.Scope, record.Spec, desired)
+}
+
+func (s *ResourceStore) sameAgent(
+	record resources.Record[aghconfig.AgentDef],
+	desired aghconfig.AgentDef,
+) bool {
+	return sameEncodedSpec(s.agentCodec, record.Scope, record.Spec, desired)
+}
+
+func (s *ResourceStore) sameSoul(
+	record resources.Record[soul.ResourceSpec],
+	desired soul.ResourceSpec,
+) bool {
+	return sameEncodedSpec(s.soulCodec, record.Scope, record.Spec, desired)
+}
+
+func (s *ResourceStore) sameHeartbeat(
+	record resources.Record[heartbeat.ResourceSpec],
+	desired heartbeat.ResourceSpec,
+) bool {
+	return sameEncodedSpec(s.heartbeatCodec, record.Scope, record.Spec, desired)
 }
 
 func (s *ResourceStore) sameTrigger(

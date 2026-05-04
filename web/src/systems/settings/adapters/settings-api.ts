@@ -30,6 +30,7 @@ import type {
   SettingsRestartResponse,
   SettingsRestartStatus,
   SettingsSkillsSection,
+  SettingsUpdateStatus,
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
@@ -105,6 +106,19 @@ export async function updateSettingsGeneral(
   }
 
   return requireResponseData(data, response, "Failed to update general settings");
+}
+
+export async function getSettingsUpdate(signal?: AbortSignal): Promise<SettingsUpdateStatus> {
+  const { data, error, response } = await apiClient.GET("/api/settings/update", { signal });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to load update status", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to load update status");
 }
 
 export async function getSettingsMemory(signal?: AbortSignal): Promise<SettingsMemorySection> {

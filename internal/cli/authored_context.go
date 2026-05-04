@@ -341,6 +341,7 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 	var (
 		input          authoredBodyInput
 		expectedDigest string
+		ifMatchDigest  string
 		idempotencyKey string
 	)
 	cmd := &cobra.Command{
@@ -361,7 +362,10 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			digest := optionalStringFlag(cmd, "expected-digest", expectedDigest)
+			digest, err := optionalExpectedDigestFlag(cmd, expectedDigest, ifMatchDigest)
+			if err != nil {
+				return err
+			}
 			record, err := client.PutAgentHeartbeat(cmd.Context(), args[0], AgentHeartbeatPutRequest{
 				WorkspaceID:    workspace,
 				AgentName:      args[0],
@@ -378,12 +382,14 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 	addWorkspaceFlag(cmd)
 	addAuthoredBodyFlags(cmd, &input)
 	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Expected current Heartbeat digest for CAS")
+	cmd.Flags().StringVar(&ifMatchDigest, "if-match", "", "Alias for --expected-digest")
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	return cmd
 }
 
 func newAgentHeartbeatDeleteCommand(deps commandDeps) *cobra.Command {
 	var expectedDigest string
+	var ifMatchDigest string
 	cmd := &cobra.Command{
 		Use:     "delete <agent>",
 		Short:   "Delete HEARTBEAT.md through managed authoring",
@@ -398,7 +404,7 @@ func newAgentHeartbeatDeleteCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			digest, err := changedStringFlag(cmd, "expected-digest", expectedDigest)
+			digest, err := changedExpectedDigestFlag(cmd, expectedDigest, ifMatchDigest)
 			if err != nil {
 				return err
 			}
@@ -415,6 +421,7 @@ func newAgentHeartbeatDeleteCommand(deps commandDeps) *cobra.Command {
 	}
 	addWorkspaceFlag(cmd)
 	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Expected current Heartbeat digest for CAS")
+	cmd.Flags().StringVar(&ifMatchDigest, "if-match", "", "Alias for --expected-digest")
 	return cmd
 }
 
@@ -460,6 +467,7 @@ func newAgentHeartbeatRollbackCommand(deps commandDeps) *cobra.Command {
 		revisionID     string
 		targetDigest   string
 		expectedDigest string
+		ifMatchDigest  string
 		idempotencyKey string
 	)
 	cmd := &cobra.Command{
@@ -493,7 +501,7 @@ func newAgentHeartbeatRollbackCommand(deps commandDeps) *cobra.Command {
 					return errors.New("cli: --target-digest cannot be empty")
 				}
 			}
-			digest, err := changedStringFlag(cmd, "expected-digest", expectedDigest)
+			digest, err := changedExpectedDigestFlag(cmd, expectedDigest, ifMatchDigest)
 			if err != nil {
 				return err
 			}
@@ -515,6 +523,7 @@ func newAgentHeartbeatRollbackCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&revisionID, "revision-id", "", "Managed Heartbeat revision id to restore")
 	cmd.Flags().StringVar(&targetDigest, "target-digest", "", "Heartbeat snapshot digest to restore")
 	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Expected current Heartbeat digest for CAS")
+	cmd.Flags().StringVar(&ifMatchDigest, "if-match", "", "Alias for --expected-digest")
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	return cmd
 }
@@ -754,6 +763,32 @@ func optionalStringFlag(cmd *cobra.Command, name string, value string) string {
 		return ""
 	}
 	return strings.TrimSpace(value)
+}
+
+func optionalExpectedDigestFlag(cmd *cobra.Command, expectedDigest string, ifMatchDigest string) (string, error) {
+	expectedChanged := cmd.Flags().Changed("expected-digest")
+	ifMatchChanged := cmd.Flags().Changed("if-match")
+	if expectedChanged && ifMatchChanged {
+		return "", errors.New("cli: use only one of --expected-digest or --if-match")
+	}
+	if ifMatchChanged {
+		return strings.TrimSpace(ifMatchDigest), nil
+	}
+	if expectedChanged {
+		return strings.TrimSpace(expectedDigest), nil
+	}
+	return "", nil
+}
+
+func changedExpectedDigestFlag(cmd *cobra.Command, expectedDigest string, ifMatchDigest string) (string, error) {
+	digest, err := optionalExpectedDigestFlag(cmd, expectedDigest, ifMatchDigest)
+	if err != nil {
+		return "", err
+	}
+	if !cmd.Flags().Changed("expected-digest") && !cmd.Flags().Changed("if-match") {
+		return "", errors.New("cli: --expected-digest or --if-match is required")
+	}
+	return digest, nil
 }
 
 func changedNonEmptyStringFlag(cmd *cobra.Command, name string, value string) (string, error) {

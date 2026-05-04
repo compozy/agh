@@ -102,6 +102,34 @@ func TestPrepareRuntimeLayoutOverridesCallerHomeState(t *testing.T) {
 	}
 }
 
+func TestRuntimeHarnessHTTPReadinessProbeRequirement(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		host string
+		want bool
+	}{
+		{name: "ShouldProbeLoopbackIPv4HTTP", host: "127.0.0.1", want: true},
+		{name: "ShouldProbeLoopbackIPv6HTTP", host: "::1", want: true},
+		{name: "ShouldProbeLocalhostHTTP", host: "localhost", want: true},
+		{name: "ShouldProbeDefaultEmptyHostHTTP", host: "", want: true},
+		{name: "ShouldSkipWildcardIPv4HTTP", host: "0.0.0.0", want: false},
+		{name: "ShouldSkipWildcardIPv6HTTP", host: "::", want: false},
+		{name: "ShouldSkipNonLoopbackHTTP", host: "192.0.2.10", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := runtimeHarnessRequiresHTTPReadinessProbe(tt.host); got != tt.want {
+				t.Fatalf("runtimeHarnessRequiresHTTPReadinessProbe(%q) = %t, want %t", tt.host, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRuntimeHarnessWriteRuntimeManifestIncludesPathsAndTransportMetadata(t *testing.T) {
 	t.Parallel()
 

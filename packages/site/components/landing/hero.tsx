@@ -34,7 +34,7 @@ export function Hero() {
       <div className="relative mx-auto max-w-(--site-layout-width)">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:items-center lg:gap-14">
           <div className="order-2 lg:order-0 lg:pr-2">
-            <div className="flex items-center gap-3 font-mono text-[11px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-tertiary)">
+            <div className="flex items-center gap-3 font-mono text-[11px] font-medium uppercase tracking-(--tracking-mono) text-(--color-text-label)">
               <span className="text-(--color-accent)">AGH</span>
               <span className="h-px w-10 bg-(--color-divider)" />
               <span>Artificial General Hivemind</span>

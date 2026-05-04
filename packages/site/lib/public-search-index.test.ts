@@ -29,19 +29,19 @@ const mockedDocs = vi.hoisted(() => ({
   ],
   runtimePages: [
     {
-      url: "/runtime/how-to-use-these-docs",
-      data: {
-        title: "How to Use These Docs",
-        description: "Choose the right AGH documentation path for your goal.",
-        structuredData: { headings: [{ content: "Choose a path" }] },
-      },
-    },
-    {
       url: "/runtime/use-cases/prepare-a-project-workspace",
       data: {
         title: "Prepare a Project Workspace",
         description: "Register a project workspace and run a first smoke-test session.",
         structuredData: { headings: [{ content: "Setup" }] },
+      },
+    },
+    {
+      url: "/runtime/how-to-use-these-docs",
+      data: {
+        title: "How to Use These Docs",
+        description: "Choose the right AGH documentation path for your goal.",
+        structuredData: { headings: [{ content: "Choose a path" }] },
       },
     },
   ],
@@ -69,7 +69,7 @@ vi.mock("fumadocs-core/search/server", () => ({
 }));
 
 describe("public search index", () => {
-  it("indexes runtime and protocol docs with stable route metadata", async () => {
+  it("indexes runtime and protocol docs with stable sorted route metadata", async () => {
     const route = await import("@/app/api/search/route");
 
     expect(route.revalidate).toBe(false);

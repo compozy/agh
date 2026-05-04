@@ -22,6 +22,10 @@ const createdDraftDescription =
   "Use the shared browser lane to capture fresh Tasks evidence for task_19.";
 const createdDraftTitle = "Draft Tasks browser evidence rollout";
 
+function tasksSessionPath(sessionId: string): string {
+  return `/agents/${tasksSessionAgentName}/sessions/${sessionId}`;
+}
+
 test.use({
   runtimeOptions: {
     seed: {
@@ -54,6 +58,8 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await tasksUI.navTasks.click();
 
   await expect(appPage).toHaveURL(/\/tasks$/);
+  await expect(tasksUI.modeKanban).toHaveAttribute("aria-pressed", "true");
+  await tasksUI.modeList.click();
   await expect(tasksUI.modeList).toHaveAttribute("aria-pressed", "true");
   await expect(tasksUI.taskCard(seeded.referenceTask.id)).toBeVisible();
   await expect(tasksUI.taskCard(seeded.approvalTask.id)).toBeVisible();
@@ -157,7 +163,9 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await browserArtifacts.captureScreenshot("tasks-run-detail", appPage);
 
   await tasksUI.runSessionDrilldown.click();
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/session/${seeded.session.id}`);
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(tasksSessionPath(seeded.session.id));
   await expect(sessionUI.chatHeader).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-linked-session", appPage);
 

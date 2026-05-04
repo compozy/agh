@@ -45,7 +45,15 @@ func authoredContextRuntimeDeps(ctx context.Context, state *bootState, sessions 
 	deps.SoulRefresher = soulRefresherDependency(sessions)
 	deps.HeartbeatAuthoring = heartbeatAuthoringServiceDependency(state.registry, state.logger)
 	deps.SessionHealth = sessionHealthReaderDependency(sessions)
-	deps.HeartbeatStatus = heartbeatStatusServiceDependency(state.registry, sessions, state.logger)
+	deps.HeartbeatStatus = heartbeatStatusServiceDependency(
+		state.registry,
+		sessions,
+		agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+		state.logger,
+	)
 	deps.HeartbeatWake = heartbeatWakeServiceDependency(
 		ctx,
 		state.registry,
@@ -98,15 +106,19 @@ func heartbeatAuthoringServiceDependency(store any, logger *slog.Logger) core.He
 func heartbeatStatusServiceDependency(
 	store any,
 	sessions SessionManager,
+	policyResolver heartbeat.PolicyResolver,
 	logger *slog.Logger,
 ) core.HeartbeatStatusService {
 	statusStore, ok := store.(heartbeat.StatusStore)
 	if !ok {
 		return nil
 	}
-	options := make([]heartbeat.StatusOption, 0, 1)
+	options := make([]heartbeat.StatusOption, 0, 2)
 	if reader, ok := sessions.(heartbeat.SessionHealthReader); ok {
 		options = append(options, heartbeat.WithHeartbeatStatusSessionHealthReader(reader))
+	}
+	if policyResolver != nil {
+		options = append(options, heartbeat.WithHeartbeatStatusPolicyResolver(policyResolver))
 	}
 	service, err := heartbeat.NewManagedHeartbeatStatusService(statusStore, options...)
 	if err != nil {

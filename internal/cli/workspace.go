@@ -3,9 +3,11 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -95,28 +97,83 @@ func newWorkspaceListCommand(deps commandDeps) *cobra.Command {
 }
 
 func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "info <name-or-id>",
+	var workspaceRef string
+	cmd := &cobra.Command{
+		Use:   "info [name-or-id]",
 		Short: "Show one workspace with resolved details",
 		Example: `  # Show workspace paths, agents, and skills by name
   agh workspace info checkout-api
 
+  # Resolve the current directory as a workspace
+  agh workspace info
+
   # Emit resolved workspace details as JSON
   agh workspace info ws_1234 -o json`,
-		Args: exactOneNonBlankArg(),
+		Args: cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
 
-			detail, err := client.GetWorkspace(cmd.Context(), args[0])
+			resolved, err := resolveWorkspaceInfoRef(deps, args, workspaceRef)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, workspaceDetailBundle(detail))
+			detail, err := client.GetWorkspace(cmd.Context(), resolved.Ref)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, workspaceDetailBundle(detail, resolved.Source))
 		},
 	}
+	cmd.Flags().
+		StringVar(
+			&workspaceRef,
+			"workspace",
+			"",
+			"Workspace root/name/id to inspect when no positional ref is supplied",
+		)
+	return cmd
+}
+
+type workspaceInfoRef struct {
+	Ref    string
+	Source string
+}
+
+func resolveWorkspaceInfoRef(deps commandDeps, args []string, workspaceFlag string) (workspaceInfoRef, error) {
+	if len(args) > 0 {
+		ref := strings.TrimSpace(args[0])
+		if ref == "" {
+			return workspaceInfoRef{}, errors.New("cli: workspace reference is required")
+		}
+		return workspaceInfoRef{Ref: ref, Source: "positional"}, nil
+	}
+	if trimmed := strings.TrimSpace(workspaceFlag); trimmed != "" {
+		if isPathLikeWorkspaceRef(trimmed) {
+			resolved, err := aghconfig.ResolvePath(trimmed)
+			if err != nil {
+				return workspaceInfoRef{}, err
+			}
+			return workspaceInfoRef{Ref: resolved, Source: "flag"}, nil
+		}
+		return workspaceInfoRef{Ref: trimmed, Source: "flag"}, nil
+	}
+	if trimmed := strings.TrimSpace(deps.getenv("AGH_WORKSPACE")); trimmed != "" {
+		return workspaceInfoRef{Ref: trimmed, Source: "env"}, nil
+	}
+	cwd, err := currentWorkingDirectory(deps)
+	if err != nil {
+		return workspaceInfoRef{}, err
+	}
+	return workspaceInfoRef{Ref: cwd, Source: "cwd"}, nil
+}
+
+func isPathLikeWorkspaceRef(ref string) bool {
+	return filepath.IsAbs(ref) ||
+		strings.HasPrefix(ref, ".") ||
+		strings.Contains(ref, string(filepath.Separator))
 }
 
 func workspaceEditFlagsChanged(cmd *cobra.Command) bool {
@@ -299,9 +356,21 @@ func workspaceListBundle(items []WorkspaceRecord) outputBundle {
 	)
 }
 
-func workspaceDetailBundle(detail WorkspaceDetailRecord) outputBundle {
+type workspaceDetailOutput struct {
+	WorkspaceDetailRecord
+	ResolutionSource string `json:"resolution_source,omitempty"`
+}
+
+func workspaceDetailBundle(detail WorkspaceDetailRecord, resolutionSource ...string) outputBundle {
+	jsonValue := any(detail)
+	if len(resolutionSource) > 0 && strings.TrimSpace(resolutionSource[0]) != "" {
+		jsonValue = workspaceDetailOutput{
+			WorkspaceDetailRecord: detail,
+			ResolutionSource:      strings.TrimSpace(resolutionSource[0]),
+		}
+	}
 	return outputBundle{
-		jsonValue: detail,
+		jsonValue: jsonValue,
 		human:     func() (string, error) { return renderWorkspaceDetailHuman(detail) },
 		toon:      func() (string, error) { return renderWorkspaceDetailToon(detail) },
 	}

@@ -47,6 +47,7 @@ type BaseHandlerConfig struct {
 	Bundles                      BundleService
 	Settings                     SettingsService
 	SettingsRestart              SettingsRestartController
+	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
@@ -94,6 +95,7 @@ type BaseHandlers struct {
 	Bundles                      BundleService
 	Settings                     SettingsService
 	SettingsRestart              SettingsRestartController
+	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
@@ -181,6 +183,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Bundles:                      cfg.Bundles,
 		Settings:                     cfg.Settings,
 		SettingsRestart:              cfg.SettingsRestart,
+		SettingsUpdate:               cfg.SettingsUpdate,
 		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
 		AgentCatalog:                 cfg.AgentCatalog,
@@ -548,12 +551,12 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 // ListAgents returns all readable agent definitions in home paths.
 func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
-		agentDefs, err := h.workspaceAgentDefs(c.Request.Context(), workspaceRef)
+		agentDefs, diagnostics, err := h.workspaceAgentDefsWithDiagnostics(c.Request.Context(), workspaceRef)
 		if err != nil {
 			h.respondError(c, statusForAgentWorkspaceError(err), err)
 			return
 		}
-		h.respondAgentDefs(c, agentDefs)
+		h.respondAgentDefs(c, agentDefs, diagnostics)
 		return
 	}
 
@@ -648,18 +651,26 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 }
 
 func (h *BaseHandlers) workspaceAgentDefs(ctx context.Context, workspaceRef string) ([]aghconfig.AgentDef, error) {
+	agents, _, err := h.workspaceAgentDefsWithDiagnostics(ctx, workspaceRef)
+	return agents, err
+}
+
+func (h *BaseHandlers) workspaceAgentDefsWithDiagnostics(
+	ctx context.Context,
+	workspaceRef string,
+) ([]aghconfig.AgentDef, []workspacepkg.AgentDiagnostic, error) {
 	if h.Workspaces == nil {
-		return nil, fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable)
+		return nil, nil, fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	agents, err := h.workspaceDetailAgents(ctx, &resolved)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return agents, nil
+	return agents, append([]workspacepkg.AgentDiagnostic(nil), resolved.AgentDiagnostics...), nil
 }
 
 func (h *BaseHandlers) workspaceAgentDef(
@@ -690,10 +701,23 @@ func (h *BaseHandlers) workspaceAgentDef(
 	)
 }
 
-func (h *BaseHandlers) respondAgentDefs(c *gin.Context, agentDefs []aghconfig.AgentDef) {
-	agents := make([]contract.AgentPayload, 0, len(agentDefs))
+func (h *BaseHandlers) respondAgentDefs(
+	c *gin.Context,
+	agentDefs []aghconfig.AgentDef,
+	diagnostics ...[]workspacepkg.AgentDiagnostic,
+) {
+	diagnosticCount := 0
+	for _, group := range diagnostics {
+		diagnosticCount += len(group)
+	}
+	agents := make([]contract.AgentPayload, 0, len(agentDefs)+diagnosticCount)
 	for _, agent := range agentDefs {
 		agents = append(agents, AgentPayloadFromDef(agent))
+	}
+	for _, group := range diagnostics {
+		for _, diagnostic := range group {
+			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic))
+		}
 	}
 	sort.Slice(agents, func(i, j int) bool {
 		return agents[i].Name < agents[j].Name

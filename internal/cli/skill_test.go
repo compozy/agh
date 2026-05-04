@@ -935,6 +935,20 @@ func TestSkillRemoveCommandRefusesNonMarketplaceSkill(t *testing.T) {
 	}
 }
 
+func TestSkillRemoveCommandRefusesBundledSkill(t *testing.T) {
+	t.Parallel()
+
+	env := newSkillTestEnv(t, nil)
+
+	_, _, err := executeRootCommand(t, env.deps, "skill", "remove", "agh-tools-guide")
+	if err == nil {
+		t.Fatal("skill remove bundled error = nil, want failure")
+	}
+	if !strings.Contains(err.Error(), `skill "agh-tools-guide" is not a marketplace-installed skill`) {
+		t.Fatalf("skill remove bundled error = %v, want marketplace refusal", err)
+	}
+}
+
 func TestSkillRemoveCommandDeletesMarketplaceSkillDirectory(t *testing.T) {
 	t.Parallel()
 

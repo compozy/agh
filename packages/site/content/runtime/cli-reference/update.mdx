@@ -1,20 +1,35 @@
 ---
 title: "agh update"
-description: "Report how to update the AGH binary"
+description: "Check for and apply the latest stable AGH release"
 ---
 
 ## agh update
 
-Report how to update the AGH binary
+Check for and apply the latest stable AGH release
+
+### Synopsis
+
+Check GitHub Releases for the latest stable AGH build and apply it when this install supports
+self-update. Managed installs return the exact package-manager upgrade path instead of mutating
+files directly.
 
 ```
 agh update [flags]
 ```
 
+### Examples
+
+```
+agh update
+  agh update --check
+  agh update -o json
+```
+
 ### Options
 
 ```
-  -h, --help   help for update
+      --check   Check for a newer stable release without changing files
+  -h, --help    help for update
 ```
 
 ### Options inherited from parent commands

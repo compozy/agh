@@ -24,6 +24,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			transports []Transport
 		}{
 			{path: "/api/settings/general", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/update", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/general", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/memory", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/memory", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
@@ -213,6 +214,36 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"starting",
 			"stopping",
 			"waiting_release",
+		)
+
+		updateStatus := operationFor(t, doc, "/api/settings/update", "GET")
+		updateStatusSchema := jsonResponseSchema(t, updateStatus, 200)
+		assertRequired(
+			t,
+			updateStatusSchema,
+			"supported",
+			"managed",
+			"install_method",
+			"current_version",
+			"available",
+			"status",
+		)
+		assertNotRequired(
+			t,
+			updateStatusSchema,
+			"latest_version",
+			"recommendation",
+			"release_url",
+			"checked_at",
+			"last_error",
+		)
+		assertEnumValues(t, propertySchema(t, updateStatusSchema, "status"),
+			"available",
+			"current",
+			"deferred",
+			"failed",
+			"unsupported",
+			"updated",
 		)
 	})
 

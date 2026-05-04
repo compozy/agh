@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
+	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/spf13/cobra"
 )
 
@@ -26,6 +28,8 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSkillRemoveCommand(deps))
 	cmd.AddCommand(newSkillUpdateCommand(deps))
 	cmd.AddCommand(newSkillCreateCommand(deps))
+	cmd.AddCommand(newSkillEnableCommand(deps))
+	cmd.AddCommand(newSkillDisableCommand(deps))
 	return cmd
 }
 
@@ -345,6 +349,61 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
+func newSkillEnableCommand(deps commandDeps) *cobra.Command {
+	return newSkillActionCommand(deps, "enable <name>", "Enable a daemon-managed skill", func(
+		ctx context.Context,
+		client DaemonClient,
+		name string,
+		query SkillQuery,
+	) (SkillActionRecord, error) {
+		return client.EnableSkill(ctx, name, query)
+	})
+}
+
+func newSkillDisableCommand(deps commandDeps) *cobra.Command {
+	return newSkillActionCommand(deps, "disable <name>", "Disable a daemon-managed skill", func(
+		ctx context.Context,
+		client DaemonClient,
+		name string,
+		query SkillQuery,
+	) (SkillActionRecord, error) {
+		return client.DisableSkill(ctx, name, query)
+	})
+}
+
+func newSkillActionCommand(
+	deps commandDeps,
+	use string,
+	short string,
+	action func(context.Context, DaemonClient, string, SkillQuery) (SkillActionRecord, error),
+) *cobra.Command {
+	var workspaceRef string
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			actionName := strings.Fields(use)[0]
+			result, err := action(
+				cmd.Context(),
+				client,
+				args[0],
+				SkillQuery{Workspace: strings.TrimSpace(workspaceRef)},
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, skillActionBundle(args[0], actionName, result))
+		},
+	}
+	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace id, name, or path")
+	return cmd
+}
+
 func newSkillSearchCommand(deps commandDeps) *cobra.Command {
 	limit := defaultMarketplaceSearchLim
 
@@ -420,12 +479,20 @@ func newSkillRemoveCommand(deps commandDeps) *cobra.Command {
 
 			item, err := removeMarketplaceSkill(runtime.HomePaths.SkillsDir, name)
 			if err != nil {
+				if bundledSkillExists(name) {
+					return fmt.Errorf("skill %q is not a marketplace-installed skill", name)
+				}
 				return err
 			}
 
 			return writeCommandOutput(cmd, skillRemoveBundle(item))
 		},
 	}
+}
+
+func bundledSkillExists(name string) bool {
+	_, err := skillbundled.LoadContent(name)
+	return err == nil
 }
 
 func newSkillUpdateCommand(deps commandDeps) *cobra.Command {

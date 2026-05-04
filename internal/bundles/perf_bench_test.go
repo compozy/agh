@@ -8,7 +8,10 @@ import (
 
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/resources"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
+
+const benchmarkOperationsPerActivation = 6
 
 func BenchmarkServiceListActivationsLargeCatalog(b *testing.B) {
 	b.ReportAllocs()
@@ -38,7 +41,7 @@ func BenchmarkServiceBuildLargeCatalog(b *testing.B) {
 		if err != nil {
 			b.Fatalf("Build() error: %v", err)
 		}
-		if got, want := plan.OperationCount(), len(activationRecords)*3; got != want {
+		if got, want := plan.OperationCount(), len(activationRecords)*benchmarkOperationsPerActivation; got != want {
 			b.Fatalf("plan.OperationCount() = %d, want %d", got, want)
 		}
 	}
@@ -55,13 +58,24 @@ func newBenchmarkBundleService(bundleCount int, activationCount int) (*Service, 
 	service := NewService(
 		store,
 		staticExtensionLister{},
-		func(string) (*extensionpkg.Extension, error) {
+		func(context.Context, string) (*extensionpkg.Extension, error) {
 			return nil, extensionpkg.ErrExtensionNotFound
 		},
 		WithConfiguredDefaultChannel("default"),
 		WithLogger(discardBundleTestLogger()),
 		WithNow(func() time.Time {
 			return time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+		}),
+		WithWorkspaceResolver(memoryWorkspaceResolver{
+			resolveFn: func(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      idOrPath,
+						Name:    idOrPath,
+						RootDir: fmt.Sprintf("/tmp/agh-benchmark/%s", idOrPath),
+					},
+				}, nil
+			},
 		}),
 	)
 	return service, len(activations)

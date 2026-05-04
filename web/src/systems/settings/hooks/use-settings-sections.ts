@@ -8,10 +8,15 @@ import {
   settingsNetworkOptions,
   settingsObservabilityOptions,
   settingsSkillsOptions,
+  settingsUpdateOptions,
 } from "../lib/query-options";
 
 export function useSettingsGeneral() {
   return useQuery(settingsGeneralOptions());
+}
+
+export function useSettingsUpdate() {
+  return useQuery(settingsUpdateOptions());
 }
 
 export function useSettingsMemory() {

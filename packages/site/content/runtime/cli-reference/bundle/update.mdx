@@ -1,0 +1,42 @@
+---
+title: "agh bundle update"
+description: "Update bundle activation overlays"
+---
+
+## agh bundle update
+
+Update bundle activation overlays
+
+```
+agh bundle update <activation-id> [flags]
+```
+
+### Options
+
+```
+      --bind-primary-channel-as-default   Bind the bundle primary channel as the effective default
+      --clear-primary-channel-default     Clear the bundle default-channel bind
+  -h, --help                              help for update
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh bundle update <activation-id> -o json
+```

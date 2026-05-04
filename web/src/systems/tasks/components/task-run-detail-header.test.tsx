@@ -4,8 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => {
-    const { params: _params, to: _to, ...domRest } = rest as Record<string, unknown>;
-    return <a {...domRest}>{children}</a>;
+    const { params, to, ...domRest } = rest as Record<string, unknown>;
+    return (
+      <a data-params={JSON.stringify(params ?? {})} data-to={String(to ?? "")} {...domRest}>
+        {children}
+      </a>
+    );
   },
 }));
 
@@ -47,6 +51,35 @@ describe("TaskRunDetailHeader", () => {
     expect(screen.getByTestId("task-run-detail-title")).toHaveTextContent("Run run_7k2m9x");
     expect(screen.getByTestId("task-run-detail-meta")).toHaveTextContent("attempt 2");
     expect(screen.getByTestId("task-run-detail-meta")).toHaveTextContent("session sess_jf8d21");
+  });
+
+  it("links to the session permalink when the run lacks hydrated agent metadata", () => {
+    render(<TaskRunDetailHeader run={buildRun()} />);
+    const link = screen.getByTestId("task-run-detail-open-session");
+    expect(link).toHaveAttribute("data-to", "/session/$id");
+    expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "sess_jf8d21" }));
+  });
+
+  it("links to the canonical agent session route when hydrated metadata is available", () => {
+    render(
+      <TaskRunDetailHeader
+        run={
+          {
+            ...buildRun(),
+            session: {
+              session_id: "sess_jf8d21",
+              agent_name: "Coder",
+            },
+          } as unknown as TaskRunDetailView
+        }
+      />
+    );
+    const link = screen.getByTestId("task-run-detail-open-session");
+    expect(link).toHaveAttribute("data-to", "/agents/$name/sessions/$id");
+    expect(link).toHaveAttribute(
+      "data-params",
+      JSON.stringify({ name: "Coder", id: "sess_jf8d21" })
+    );
   });
 
   it("fires cancel callback when the Kill run button is clicked", () => {

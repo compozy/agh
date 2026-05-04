@@ -184,6 +184,7 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *aghconfig.Config)
 			Default:          strings.TrimSpace(cfg.Defaults.Provider) == name,
 			CommandAvailable: s.commandAvailable(resolved.Command),
 			Credentials:      credentials,
+			AuthStatus:       providerAuthStatus(resolved, credentials),
 		}
 
 		if overlay, ok := cfg.Providers[name]; ok {
@@ -219,8 +220,45 @@ func providerSettingsFromConfig(name string, provider aghconfig.ProviderConfig) 
 		RuntimeProvider: provider.RuntimeProviderName(name),
 		Transport:       strings.TrimSpace(provider.Transport),
 		BaseURL:         strings.TrimSpace(provider.BaseURL),
+		AuthMode:        provider.EffectiveAuthMode(),
+		EnvPolicy:       provider.EffectiveEnvPolicy(),
+		HomePolicy:      provider.EffectiveHomePolicy(),
+		AuthStatusCmd:   strings.TrimSpace(provider.AuthStatusCmd),
+		AuthLoginCmd:    strings.TrimSpace(provider.AuthLoginCmd),
 		CredentialSlots: provider.EffectiveCredentialSlots(),
 	}
+}
+
+func providerAuthStatus(
+	provider aghconfig.ProviderConfig,
+	credentials []ProviderCredentialStatus,
+) ProviderAuthStatus {
+	status := ProviderAuthStatus{
+		Mode:       provider.EffectiveAuthMode(),
+		EnvPolicy:  provider.EffectiveEnvPolicy(),
+		HomePolicy: provider.EffectiveHomePolicy(),
+		StatusCmd:  strings.TrimSpace(provider.AuthStatusCmd),
+		LoginCmd:   strings.TrimSpace(provider.AuthLoginCmd),
+	}
+	switch status.Mode {
+	case aghconfig.ProviderAuthModeBoundSecret:
+		for _, credential := range credentials {
+			if credential.Required && !credential.Present {
+				status.State = "missing_required"
+				status.Message = "Missing required AGH-managed provider credential."
+				return status
+			}
+		}
+		status.State = "present"
+		status.Message = "Required AGH-managed provider credentials are present."
+	case aghconfig.ProviderAuthModeNone:
+		status.State = "none"
+		status.Message = "Provider starts without AGH-managed authentication."
+	default:
+		status.State = "native_cli"
+		status.Message = "Provider owns authentication through its native CLI login state."
+	}
+	return status
 }
 
 func providerFallbackFromBuiltin(name string, builtin aghconfig.ProviderConfig) *ProviderFallback {
@@ -1039,6 +1077,21 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 	}
 	if strings.TrimSpace(settings.BaseURL) != "" {
 		values["base_url"] = strings.TrimSpace(settings.BaseURL)
+	}
+	if settings.AuthMode != "" {
+		values["auth_mode"] = string(settings.AuthMode)
+	}
+	if settings.EnvPolicy != "" {
+		values["env_policy"] = string(settings.EnvPolicy)
+	}
+	if settings.HomePolicy != "" {
+		values["home_policy"] = string(settings.HomePolicy)
+	}
+	if strings.TrimSpace(settings.AuthStatusCmd) != "" {
+		values["auth_status_command"] = strings.TrimSpace(settings.AuthStatusCmd)
+	}
+	if strings.TrimSpace(settings.AuthLoginCmd) != "" {
+		values["auth_login_command"] = strings.TrimSpace(settings.AuthLoginCmd)
 	}
 	if len(settings.CredentialSlots) > 0 {
 		values["credential_slots"] = providerCredentialSlotMaps(settings.CredentialSlots)

@@ -144,6 +144,15 @@ func writeJSONLine(cmd *cobra.Command, value any) error {
 	return encoder.Encode(value)
 }
 
+func writeJSONLines[T any](cmd *cobra.Command, items []T) error {
+	for _, item := range items {
+		if err := writeJSONLine(cmd, item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func writeJSON(cmd *cobra.Command, value any) error {
 	encoder := json.NewEncoder(cmd.OutOrStdout())
 	encoder.SetEscapeHTML(false)

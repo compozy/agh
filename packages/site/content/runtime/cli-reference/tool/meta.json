@@ -1,4 +1,4 @@
 {
     "title": "Tool",
-    "pages": ["index", "info", "invoke", "list", "search"]
+    "pages": ["index", "approve", "info", "invoke", "list", "search"]
 }

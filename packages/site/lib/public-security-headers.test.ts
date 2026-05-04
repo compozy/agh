@@ -71,6 +71,7 @@ describe("public security headers", () => {
     expect(csp.get("font-src")).toEqual(["'self'"]);
     expect(csp.get("connect-src")).toEqual(["'self'"]);
     expect(csp.get("img-src")).toEqual(["'self'", "data:", "blob:"]);
+    expect(csp.get("media-src")).toEqual(["'self'", "data:"]);
     expect(csp.get("script-src")).toEqual(["'self'", "'unsafe-inline'"]);
     expect(csp.get("style-src")).toEqual(["'self'", "'unsafe-inline'"]);
     expect([...csp.values()].flat()).not.toContain("'unsafe-eval'");
@@ -90,5 +91,15 @@ describe("public security headers", () => {
     expect(installHeaders?.get("Cache-Control")).toBe("public, max-age=300, must-revalidate");
     expect(installHeaders?.has("Content-Security-Policy")).toBe(false);
     expect(installHeaders?.has("X-Content-Type-Options")).toBe(false);
+  });
+
+  it("declares content types for static export assets without reliable local inference", () => {
+    const openGraphHeaders = headersByRoute().get("/opengraph-image");
+    expect(openGraphHeaders).toBeDefined();
+    expect(openGraphHeaders?.get("Content-Type")).toBe("image/png");
+
+    const feedHeaders = headersByRoute().get("/blog/feed.xml");
+    expect(feedHeaders).toBeDefined();
+    expect(feedHeaders?.get("Content-Type")).toBe("application/rss+xml; charset=utf-8");
   });
 });

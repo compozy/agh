@@ -88,6 +88,7 @@ trusted_sources = ["mcp:linear", "extension:linear"]
 
 	[providers.claude]
 	default_model = "claude-opus"
+	auth_mode = "bound_secret"
 	[[providers.claude.credential_slots]]
 	name = "api_key"
 	target_env = "ANTHROPIC_KEY"
@@ -830,6 +831,7 @@ port = 2123
 
 	[providers.claude]
 	default_model = "global-model"
+	auth_mode = "bound_secret"
 	[[providers.claude.credential_slots]]
 	name = "api_key"
 	target_env = "GLOBAL_KEY"
@@ -1336,12 +1338,14 @@ max_bytes_per_session = 2048
 
 [providers.claude]
 default_model = "global-model"
+auth_mode = "bound_secret"
 `)
 	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [observability.transcripts]
 segment_bytes = 256
 
 	[providers.claude]
+	auth_mode = "bound_secret"
 	[[providers.claude.credential_slots]]
 	name = "api_key"
 	target_env = "WORKSPACE_KEY"

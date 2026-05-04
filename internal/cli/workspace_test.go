@@ -276,6 +276,98 @@ func TestWorkspaceListInfoAndRemove(t *testing.T) {
 	}
 }
 
+func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		args       []string
+		envValue   string
+		cwd        string
+		wantRef    string
+		wantSource string
+	}{
+		{
+			name:       "Should prefer positional ref over flag and env",
+			args:       []string{"workspace", "info", "ws-alpha", "--workspace", "/workspace/beta", "-o", "json"},
+			envValue:   "ws-env",
+			cwd:        "/workspace/alpha",
+			wantRef:    "ws-alpha",
+			wantSource: "positional",
+		},
+		{
+			name:       "Should use workspace flag when positional is omitted",
+			args:       []string{"workspace", "info", "--workspace", "/workspace/beta", "-o", "json"},
+			envValue:   "ws-env",
+			cwd:        "/workspace/alpha",
+			wantRef:    "/workspace/beta",
+			wantSource: "flag",
+		},
+		{
+			name:       "Should use AGH_WORKSPACE when flag and positional are omitted",
+			args:       []string{"workspace", "info", "-o", "json"},
+			envValue:   "ws-beta",
+			cwd:        "/workspace/alpha",
+			wantRef:    "ws-beta",
+			wantSource: "env",
+		},
+		{
+			name:       "Should fall back to cwd",
+			args:       []string{"workspace", "info", "-o", "json"},
+			cwd:        "/workspace/alpha",
+			wantRef:    "/workspace/alpha",
+			wantSource: "cwd",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var seenRef string
+			deps := newTestDeps(t, &stubClient{
+				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					seenRef = ref
+					return WorkspaceDetailRecord{
+						Workspace: WorkspaceRecord{
+							ID:      "ws_alpha",
+							RootDir: ref,
+							Name:    "alpha",
+						},
+					}, nil
+				},
+			})
+			deps.getwd = func() (string, error) {
+				return tt.cwd, nil
+			}
+			deps.getenv = func(key string) string {
+				if key == "AGH_WORKSPACE" {
+					return tt.envValue
+				}
+				return ""
+			}
+
+			stdout, _, err := executeRootCommand(t, deps, tt.args...)
+			if err != nil {
+				t.Fatalf("executeRootCommand(%v) error = %v", tt.args, err)
+			}
+			if seenRef != tt.wantRef {
+				t.Fatalf("GetWorkspace() ref = %q, want %q", seenRef, tt.wantRef)
+			}
+			var decoded workspaceDetailOutput
+			if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+				t.Fatalf("json.Unmarshal(workspace info) error = %v", err)
+			}
+			if decoded.ResolutionSource != tt.wantSource {
+				t.Fatalf("ResolutionSource = %q, want %q", decoded.ResolutionSource, tt.wantSource)
+			}
+			if decoded.Workspace.RootDir != tt.wantRef {
+				t.Fatalf("Workspace.RootDir = %q, want %q", decoded.Workspace.RootDir, tt.wantRef)
+			}
+		})
+	}
+}
+
 func TestWorkspaceOutputFormats(t *testing.T) {
 	t.Parallel()
 

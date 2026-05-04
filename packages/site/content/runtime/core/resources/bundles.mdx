@@ -1,13 +1,13 @@
 ---
 title: Bundles
-description: Package channels, jobs, triggers, and bridge presets from extensions into activatable runtime profiles.
+description: Package agents, channels, jobs, triggers, and bridge presets from extensions into activatable runtime profiles.
 ---
 
 Bundles are extension-provided presets. A bundle catalog record describes what an extension can
 provide; a bundle activation chooses one profile and asks AGH to project its runtime resources.
 
-Use bundles when a feature should install as a coherent unit: channels, automation jobs, triggers,
-and bridge instances that make sense together.
+Use bundles when a feature should install as a coherent unit: specialized agents, channels,
+automation jobs, triggers, and bridge instances that make sense together.
 
 ## Activation flow
 
@@ -17,6 +17,8 @@ and bridge instances that make sense together.
     Catalog --> Preview[Preview activation]
     Preview --> Activate[bundle.activation resource]
     Activate --> Project[Bundle activation projector]
+    Project --> Agents[agent records]
+    Project --> Sidecars[agent.soul and agent.heartbeat records]
     Project --> Jobs[automation.job records]
     Project --> Triggers[automation.trigger records]
     Project --> Bridges[bridge.instance records]
@@ -27,13 +29,13 @@ and bridge instances that make sense together.
   caption="Bundle activation projects one extension profile into runtime resources and optional network defaults."
 />
 
-| Object            | What it does                                                         |
-| ----------------- | -------------------------------------------------------------------- |
-| Bundle catalog    | Lists extension bundles and profiles available for activation.       |
-| Bundle profile    | Chooses channels, jobs, triggers, and bridges inside one bundle.     |
-| Bundle activation | Records one active profile at global or workspace scope.             |
-| Inventory         | Lists the resources AGH projected from the activation.               |
-| Network settings  | Reports declared channels and the effective default network channel. |
+| Object            | What it does                                                             |
+| ----------------- | ------------------------------------------------------------------------ |
+| Bundle catalog    | Lists extension bundles and profiles available for activation.           |
+| Bundle profile    | Chooses agents, channels, jobs, triggers, and bridges inside one bundle. |
+| Bundle activation | Records one active profile at global or workspace scope.                 |
+| Inventory         | Lists the resources AGH projected from the activation.                   |
+| Network settings  | Reports declared channels and the effective default network channel.     |
 
 ## Operator routes
 
@@ -48,9 +50,25 @@ DELETE /api/bundles/activations/:id
 GET /api/bundles/network/settings
 ```
 
-These routes are available over HTTP and UDS. The generated OpenAPI file is still catching up to the
-full bundle surface, so treat this page and the API route map as the release-truth source for bundle
-route families.
+These routes are available over HTTP and UDS and are included in the generated OpenAPI contract.
+
+## Agent-manageable CLI
+
+The same bundle lifecycle is exposed through UDS-backed CLI commands:
+
+```bash
+agh bundle catalog
+agh bundle preview --extension github --bundle release-readiness --profile default
+agh bundle activate --extension github --bundle release-readiness --profile default --scope workspace --workspace project
+agh bundle list
+agh bundle get act_123
+agh bundle update act_123 --bind-primary-channel-as-default
+agh bundle update act_123 --clear-primary-channel-default
+agh bundle deactivate act_123
+agh bundle network-settings
+```
+
+Use `--json` or `-o toon` when another agent will consume the output.
 
 ## Preview before activation
 
@@ -60,7 +78,7 @@ Content-Type: application/json
 
 {
   "extension_name": "github",
-  "bundle_name": "release-workflow",
+  "bundle_name": "release-readiness",
   "profile_name": "default",
   "scope": "workspace",
   "workspace": "project",
@@ -68,8 +86,8 @@ Content-Type: application/json
 }
 ```
 
-Preview returns the activation payload AGH would create: channels, jobs, triggers, bridges, and
-inventory. It does not mutate the runtime.
+Preview returns the activation payload AGH would create: channels, agents, jobs, triggers, bridges,
+and inventory. It does not mutate the runtime.
 
 ## Activate a profile
 
@@ -79,7 +97,7 @@ Content-Type: application/json
 
 {
   "extension_name": "github",
-  "bundle_name": "release-workflow",
+  "bundle_name": "release-readiness",
   "profile_name": "default",
   "scope": "workspace",
   "workspace": "project",
@@ -87,9 +105,29 @@ Content-Type: application/json
 }
 ```
 
-Activation creates or updates a `bundle.activation` resource. Reconcile then projects the owned
-automation and bridge resources. The response includes the stable activation id and projected
-inventory so operators can audit what changed.
+Activation creates or updates a `bundle.activation` resource. Reconcile then projects owned
+`agent`, `agent.soul`, `agent.heartbeat`, `automation.job`, `automation.trigger`, and
+`bridge.instance` records. The response includes the stable activation id and projected inventory so
+operators can audit what changed.
+
+## Bundle-owned agents and sidecars
+
+Bundle profiles declare activation-scoped agents with `[[profiles.agents]]`:
+
+```toml
+[[profiles.agents]]
+path = "agents/campaign-planner"
+```
+
+The path must point to an extension-local directory with `AGENT.md`. Optional `SOUL.md` and
+`HEARTBEAT.md` files in that directory become package-owned sidecar resources for the same
+activation. They are read by session start, Soul inspection, and Heartbeat status resolution, but
+authoring write/delete/rollback APIs return `409 Conflict` because package sidecars are read-only
+defaults.
+
+Sidecars are paired by agent resource id, owner, and scope. A global sidecar with the same agent
+name cannot attach to a workspace-scoped bundled agent, and one activation cannot leak sidecars into
+another activation.
 
 ## Scope and default channel rules
 
@@ -100,6 +138,8 @@ inventory so operators can audit what changed.
 | Primary channel binding  | Can make the profile's primary channel the effective default channel. |
 | Default channel conflict | Only one active activation can claim the effective default at a time. |
 | Extension dependency     | The bundle must still exist in the installed extension catalog.       |
+| Agent conflict           | A bundled agent name must not collide with another visible agent.     |
+| Agent references         | Jobs and triggers must reference packaged or already-visible agents.  |
 
 ## Deactivation
 
@@ -115,7 +155,8 @@ bundle activations before disabling or removing the extension that owns them.
 | Symptom                                    | Likely cause                                      | First check                                      |
 | ------------------------------------------ | ------------------------------------------------- | ------------------------------------------------ |
 | `404` on preview or activation             | Extension, bundle, profile, or workspace missing. | `GET /api/bundles/catalog` and workspace list.   |
-| `409` on activation                        | Another activation claimed the default channel.   | `GET /api/bundles/network/settings`.             |
+| `409` on activation                        | Default-channel claim or bundled-agent conflict.  | `GET /api/bundles/network/settings` and agents.  |
+| `422` on preview or activation             | Job or trigger references an unavailable agent.   | Preview payload and profile `agent` fields.      |
 | Activation exists but resources are absent | Reconcile failed after writing the activation.    | Activation inventory and daemon resource health. |
 | Extension cannot be disabled               | Active bundle activations still depend on it.     | `GET /api/bundles/activations`.                  |
 | Projected job or bridge should change      | Bundle profile changed or activation is stale.    | Preview the activation, then update/reactivate.  |

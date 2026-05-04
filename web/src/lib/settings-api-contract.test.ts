@@ -12,6 +12,8 @@ type GetSettingsGeneralResponse = OperationResponse<"getSettingsGeneral", 200>;
 type PutSettingsMCPServerQuery = OperationQuery<"putSettingsMCPServer">;
 type PutSettingsMCPServerBody = OperationRequestBody<"putSettingsMCPServer">;
 type ListSettingsMCPServersResponse = OperationResponse<"listSettingsMCPServers", 200>;
+type PutSettingsProviderBody = OperationRequestBody<"putSettingsProvider">;
+type ListSettingsProvidersResponse = OperationResponse<"listSettingsProviders", 200>;
 type GetSettingsObservabilityResponse = OperationResponse<"getSettingsObservability", 200>;
 type TriggerSettingsRestartResponse = OperationResponse<"triggerSettingsRestart", 202>;
 type GetSettingsRestartStatusPath = OperationPath<"getSettingsRestartStatus">;
@@ -157,6 +159,44 @@ describe("settings openapi contract", () => {
           workspace_id?: string;
         }[]
       | undefined
+    >();
+
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["auth_mode"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["env_policy"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["home_policy"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["auth_status_command"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["auth_login_command"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<ListSettingsProvidersResponse["providers"][number]["auth_status"]>().toEqualTypeOf<
+      | {
+          env_policy: string;
+          home_policy: string;
+          login_command?: string;
+          message?: string;
+          mode: string;
+          state: string;
+          status_command?: string;
+        }
+      | null
+      | undefined
+    >();
+    expectTypeOf<PutSettingsProviderBody["settings"]["auth_mode"]>().toEqualTypeOf<
+      string | undefined
+    >();
+    expectTypeOf<PutSettingsProviderBody["settings"]["env_policy"]>().toEqualTypeOf<
+      string | undefined
+    >();
+    expectTypeOf<PutSettingsProviderBody["settings"]["home_policy"]>().toEqualTypeOf<
+      string | undefined
     >();
 
     expectTypeOf<

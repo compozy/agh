@@ -14,6 +14,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	"github.com/pedronauck/agh/internal/procutil"
+	aghupdate "github.com/pedronauck/agh/internal/update"
 	"github.com/pedronauck/agh/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -43,6 +44,7 @@ type commandDeps struct {
 	loadExtensionRegistrySources extensionRegistrySourceLoader
 	loadSkillRegistrySources     skillRegistrySourceLoader
 	resolveHome                  func() (aghconfig.HomePaths, error)
+	resolveHomeForWorkspace      func(workspaceRoot string) (aghconfig.HomePaths, error)
 	ensureHome                   func(aghconfig.HomePaths) error
 	runInstallWizard             installWizardRunner
 	newClient                    func(socketPath string) (DaemonClient, error)
@@ -59,7 +61,9 @@ type commandDeps struct {
 	startTimeout                 time.Duration
 	stopTimeout                  time.Duration
 	spawnDetached                func(context.Context, aghconfig.HomePaths) (daemonProcess, error)
+	newUpdateManager             func(aghconfig.HomePaths) (updateManager, error)
 	newMCPAuthClient             newMCPAuthClientFunc
+	runProviderAuthCommand       providerAuthCommandRunner
 }
 
 // NewRootCommand constructs the AGH v1 CLI command tree.
@@ -101,7 +105,9 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSpawnCommand(deps))
 	cmd.AddCommand(newChannelCommand(deps))
 	cmd.AddCommand(newSessionCommand(deps))
+	cmd.AddCommand(newProviderCommand(deps))
 	cmd.AddCommand(newBridgeCommand(deps))
+	cmd.AddCommand(newBundleCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
 	cmd.AddCommand(newExtensionCommand(deps))
@@ -109,6 +115,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newAutomationCommand(deps))
 	cmd.AddCommand(newTaskCommand(deps))
 	cmd.AddCommand(newSkillCommand(deps))
+	cmd.AddCommand(newResourceCommand(deps))
 	cmd.AddCommand(newMemoryCommand(deps))
 	cmd.AddCommand(newVaultCommand(deps))
 	cmd.AddCommand(newToolCommand(deps))
@@ -179,6 +186,9 @@ func (d commandDeps) withRegistryDefaults() commandDeps {
 	if d.resolveHome == nil {
 		d.resolveHome = aghconfig.ResolveHomePaths
 	}
+	if d.resolveHomeForWorkspace == nil {
+		d.resolveHomeForWorkspace = aghconfig.ResolveHomePathsForWorkspace
+	}
 	if d.ensureHome == nil {
 		d.ensureHome = aghconfig.EnsureHomeLayout
 	}
@@ -193,6 +203,7 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 		d.newClient = NewClient
 	}
 	d = d.withMCPAuthDefaults()
+	d = d.withProviderAuthDefaults()
 	if d.newDaemon == nil {
 		d.newDaemon = func() (daemonRunner, error) {
 			return aghdaemon.New()
@@ -222,6 +233,16 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	if d.spawnDetached == nil {
 		d.spawnDetached = func(ctx context.Context, homePaths aghconfig.HomePaths) (daemonProcess, error) {
 			return spawnDetachedDaemonProcess(ctx, homePaths, d.executable)
+		}
+	}
+	if d.newUpdateManager == nil {
+		d.newUpdateManager = func(homePaths aghconfig.HomePaths) (updateManager, error) {
+			return aghupdate.NewManager(aghupdate.Config{
+				HomePaths:      homePaths,
+				CurrentVersion: version.Current().Version,
+				ExecutablePath: d.executable,
+				Getenv:         d.getenv,
+			})
 		}
 	}
 	return d

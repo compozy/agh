@@ -77,13 +77,77 @@ env = { REPO_ROOT = "{{env:REPO_ROOT}}" }
 Resource paths are resolved inside the extension root. `{{config_dir}}` expands to that root.
 `{{env:NAME}}` expands from the daemon process environment.
 
-| Resource    | Manifest field          | Loaded as                                                               |
-| ----------- | ----------------------- | ----------------------------------------------------------------------- |
-| Skills      | `resources.skills`      | Markdown skill files parsed like normal `SKILL.md` files.               |
-| Agents      | `resources.agents`      | Agent definition markdown files.                                        |
-| Hooks       | `resources.hooks`       | Hook declarations with extension metadata.                              |
-| Bundles     | `resources.bundles`     | Bundle specs that can package channels, automation, and bridge presets. |
-| MCP servers | `resources.mcp_servers` | Named MCP server declarations.                                          |
+| Resource    | Manifest field          | Loaded as                                                                       |
+| ----------- | ----------------------- | ------------------------------------------------------------------------------- |
+| Skills      | `resources.skills`      | Markdown skill files parsed like normal `SKILL.md` files.                       |
+| Agents      | `resources.agents`      | Agent definition markdown files.                                                |
+| Hooks       | `resources.hooks`       | Hook declarations with extension metadata.                                      |
+| Bundles     | `resources.bundles`     | Bundle specs that can package agents, channels, automation, and bridge presets. |
+| MCP servers | `resources.mcp_servers` | Named MCP server declarations.                                                  |
+
+## Bundle Profile Agents
+
+Static `resources.agents` entries are always-on extension agents. Use bundle profile agents when
+the agent should exist only while a bundle profile is active.
+
+```text
+marketing-linear/
+  extension.toml
+  bundles/
+    marketing.toml
+  agents/
+    campaign-planner/
+      AGENT.md
+      mcp.json
+      capabilities.toml
+      SOUL.md
+      HEARTBEAT.md
+```
+
+`bundles/marketing.toml`:
+
+```toml
+name = "marketing-linear"
+description = "Marketing team presets with Linear issue tracking"
+
+[[profiles]]
+name = "default"
+description = "Marketing agents, channels, automation, and Linear bridge"
+
+[profiles.channels]
+primary = "marketing"
+
+[[profiles.channels.items]]
+name = "marketing"
+description = "Marketing team coordination"
+
+[[profiles.agents]]
+path = "agents/campaign-planner"
+
+[[profiles.jobs]]
+name = "daily-campaign-sync"
+agent = "campaign-planner"
+prompt = "Summarize open campaign issues and next actions."
+enabled = true
+
+[profiles.jobs.schedule]
+mode = "every"
+interval = "24h"
+```
+
+The `path` is resolved relative to the extension root, must stay inside that root, and must point
+to a directory containing `AGENT.md`. AGH loads that folder through the same agent loader used for
+normal agents, so `mcp.json`, `capabilities.toml`, and `capabilities/` keep the same behavior.
+
+Optional `SOUL.md` and `HEARTBEAT.md` files in the agent folder are packaged as read-only bundle
+defaults. Activating the profile materializes `agent`, `agent.soul`, and `agent.heartbeat`
+resources owned by the bundle activation. AGH uses synthetic diagnostic paths such as
+`.agh/bundles/<activation-id>/agents/<agent>/SOUL.md`; it does not copy package files into a
+writable workspace folder.
+
+Activation fails when a bundled agent name conflicts with an existing visible agent in the target
+scope, or when a bundled job/trigger references an agent that is neither packaged by the profile nor
+available in the existing agent catalog.
 
 ## Subprocess Extensions
 

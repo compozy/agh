@@ -16,15 +16,9 @@ type LayoutProps = {
   tree?: unknown;
 };
 
-type ProviderProps = {
-  children: ReactNode;
-  theme?: unknown;
-};
-
 const mocks = vi.hoisted(() => ({
   docsLayoutCalls: [] as LayoutProps[],
   homeLayoutCalls: [] as LayoutProps[],
-  rootProviderCalls: [] as ProviderProps[],
   protocolTree: { id: "protocol-tree" },
   runtimeTabs: [{ title: "Runtime", url: "/runtime/" }],
   runtimeTree: { id: "runtime-tree" },
@@ -58,13 +52,6 @@ vi.mock("fumadocs-ui/layouts/notebook", () => ({
   },
 }));
 
-vi.mock("fumadocs-ui/provider/next", () => ({
-  RootProvider: (props: ProviderProps) => {
-    mocks.rootProviderCalls.push(props);
-    return <div data-testid="root-provider">{props.children}</div>;
-  },
-}));
-
 describe("section layouts", () => {
   it("keeps runtime docs in the dark Fumadocs shell with runtime navigation tabs", () => {
     render(
@@ -74,11 +61,6 @@ describe("section layouts", () => {
     );
 
     expect(screen.getByText("Runtime child")).toBeDefined();
-    expect(mocks.rootProviderCalls.at(-1)?.theme).toEqual({
-      defaultTheme: "dark",
-      forcedTheme: "dark",
-      enabled: false,
-    });
 
     const call = mocks.docsLayoutCalls.at(-1);
     expect(call?.tree).toBe(mocks.runtimeTree);
@@ -96,11 +78,6 @@ describe("section layouts", () => {
     );
 
     expect(screen.getByText("Protocol child")).toBeDefined();
-    expect(mocks.rootProviderCalls.at(-1)?.theme).toEqual({
-      defaultTheme: "dark",
-      forcedTheme: "dark",
-      enabled: false,
-    });
 
     const call = mocks.docsLayoutCalls.at(-1);
     expect(call?.tree).toBe(mocks.protocolTree);

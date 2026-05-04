@@ -21,7 +21,7 @@ import (
 
 const (
 	defaultSubprocessHookTimeout = 5 * time.Second
-	subprocessCaptureLimitBytes  = 8 * 1024
+	subprocessCaptureLimitBytes  = 1024 * 1024
 	subprocessCaptureTruncate    = "...[truncated]"
 	subprocessShutdownGrace      = 250 * time.Millisecond
 	subprocessProcessGroupWait   = time.Second

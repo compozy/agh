@@ -422,6 +422,66 @@ func TestSessionEventsFollowUsesSSE(t *testing.T) {
 	}
 }
 
+func TestSessionEventsJSONLOutput(t *testing.T) {
+	t.Run("Should render one persisted session event per JSONL line", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			sessionEventsFn: func(_ context.Context, id string, query SessionEventQuery) ([]SessionEventRecord, error) {
+				if id != "sess-1" {
+					t.Fatalf("SessionEvents() id = %q, want sess-1", id)
+				}
+				if query.Type != "agent_message" {
+					t.Fatalf("SessionEvents() query.Type = %q, want agent_message", query.Type)
+				}
+				return []SessionEventRecord{
+					{
+						ID:        "evt-1",
+						SessionID: id,
+						Sequence:  1,
+						Type:      "agent_message",
+						Timestamp: fixedTestNow,
+					},
+					{
+						ID:        "evt-2",
+						SessionID: id,
+						Sequence:  2,
+						Type:      "done",
+						Timestamp: fixedTestNow,
+					},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"events",
+			"sess-1",
+			"--type",
+			"agent_message",
+			"-o",
+			"jsonl",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session events jsonl) error = %v", err)
+		}
+
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("jsonl line count = %d, want 2; output=%q", len(lines), stdout)
+		}
+		var decoded SessionEventRecord
+		if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(first session event line) error = %v", err)
+		}
+		if decoded.ID != "evt-1" || decoded.Sequence != 1 {
+			t.Fatalf("decoded first event = %#v, want evt-1 sequence 1", decoded)
+		}
+	})
+}
+
 func TestSessionWaitReturnsImmediatelyForStoppedSession(t *testing.T) {
 	t.Parallel()
 
@@ -654,6 +714,81 @@ func TestSessionPromptRendersReturnedEvents(t *testing.T) {
 	if len(decoded) != 1 || decoded[0].Text != "hello back" {
 		t.Fatalf("decoded = %#v, want one agent event", decoded)
 	}
+}
+
+func TestSessionPromptJSONLOutput(t *testing.T) {
+	t.Run("Should stream prompt events as JSONL without buffering the completed turn", func(t *testing.T) {
+		t.Parallel()
+
+		var streamCalled bool
+		deps := newTestDeps(t, &stubClient{
+			promptSessionFn: func(context.Context, string, string) ([]AgentEventRecord, error) {
+				t.Fatal("PromptSession should not be called for prompt -o jsonl")
+				return nil, nil
+			},
+			streamPromptSessionFn: func(_ context.Context, id string, message string, handler SSEHandler) error {
+				streamCalled = true
+				if id != "sess-1" || message != "hello" {
+					t.Fatalf("StreamPromptSession() = (%q, %q), want (sess-1, hello)", id, message)
+				}
+				events := []SSEEvent{
+					{
+						Event: acp.EventTypeAgentMessage,
+						Data: mustJSON(t, AgentEventRecord{
+							Type:      acp.EventTypeAgentMessage,
+							SessionID: id,
+							TurnID:    "turn-1",
+							Timestamp: fixedTestNow,
+							Text:      "hello back",
+						}),
+					},
+					{
+						Event: acp.EventTypeDone,
+						Data: mustJSON(t, AgentEventRecord{
+							Type:       acp.EventTypeDone,
+							SessionID:  id,
+							TurnID:     "turn-1",
+							Timestamp:  fixedTestNow,
+							StopReason: "end_turn",
+						}),
+					},
+				}
+				for _, event := range events {
+					if err := handler(event); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "hello", "-o", "jsonl")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session prompt jsonl) error = %v", err)
+		}
+		if !streamCalled {
+			t.Fatal("StreamPromptSession was not called")
+		}
+
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("jsonl line count = %d, want 2; output=%q", len(lines), stdout)
+		}
+		var first AgentEventRecord
+		if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
+			t.Fatalf("json.Unmarshal(first prompt line) error = %v", err)
+		}
+		if first.Type != acp.EventTypeAgentMessage || first.Text != "hello back" {
+			t.Fatalf("first prompt event = %#v, want agent_message hello back", first)
+		}
+		var second AgentEventRecord
+		if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
+			t.Fatalf("json.Unmarshal(second prompt line) error = %v", err)
+		}
+		if second.Type != acp.EventTypeDone || second.StopReason != "end_turn" {
+			t.Fatalf("second prompt event = %#v, want done end_turn", second)
+		}
+	})
 }
 
 func TestSessionListBundleRendersHumanAndToon(t *testing.T) {

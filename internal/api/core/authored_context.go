@@ -33,12 +33,17 @@ var (
 )
 
 type authoredAgentTarget struct {
-	workspaceID     string
-	workspaceRoot   string
-	agentName       string
-	agentPath       string
-	soulConfig      aghconfig.SoulConfig
-	heartbeatConfig aghconfig.HeartbeatConfig
+	workspaceID         string
+	workspaceRoot       string
+	agentName           string
+	agentPath           string
+	soulConfig          aghconfig.SoulConfig
+	heartbeatConfig     aghconfig.HeartbeatConfig
+	packageOwned        bool
+	soulSourcePath      string
+	soulBody            string
+	heartbeatSourcePath string
+	heartbeatBody       string
 }
 
 // StatusForSoulError maps Soul/session authoring failures to deterministic transport statuses.
@@ -223,6 +228,10 @@ func (h *BaseHandlers) PutAgentSoul(c *gin.Context) {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
 	}
+	if err := target.rejectPackageOwnedSoulMutation(); err != nil {
+		h.respondError(c, StatusForSoulError(err), err)
+		return
+	}
 	result, err := h.SoulAuthoring.Put(c.Request.Context(), soul.PutRequest{
 		Target:         target.soulAuthoringTarget(),
 		Body:           req.Body,
@@ -261,6 +270,10 @@ func (h *BaseHandlers) DeleteAgentSoul(c *gin.Context) {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
 	}
+	if err := target.rejectPackageOwnedSoulMutation(); err != nil {
+		h.respondError(c, StatusForSoulError(err), err)
+		return
+	}
 	result, err := h.SoulAuthoring.Delete(c.Request.Context(), soul.DeleteRequest{
 		Target:         target.soulAuthoringTarget(),
 		ExpectedDigest: strings.TrimSpace(req.ExpectedDigest),
@@ -288,6 +301,17 @@ func (h *BaseHandlers) ListAgentSoulHistory(c *gin.Context) {
 	)
 	if err != nil {
 		h.respondError(c, StatusForSoulError(err), err)
+		return
+	}
+	if target.packageOwned {
+		response := contract.AgentSoulHistoryResponse{
+			Revisions: []contract.AgentSoulRevisionPayload{},
+		}
+		h.respondAuthoredJSON(
+			c,
+			http.StatusOK,
+			response,
+		)
 		return
 	}
 	result, err := h.SoulAuthoring.History(c.Request.Context(), soul.HistoryRequest{
@@ -331,6 +355,10 @@ func (h *BaseHandlers) RollbackAgentSoul(c *gin.Context) {
 		agentName,
 	)
 	if err != nil {
+		h.respondError(c, StatusForSoulError(err), err)
+		return
+	}
+	if err := target.rejectPackageOwnedSoulMutation(); err != nil {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
 	}
@@ -414,6 +442,12 @@ func (h *BaseHandlers) ValidateAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
+	if target.packageOwned {
+		body := req.Body
+		policy, policyErr := target.resolvePackageOwnedHeartbeat(c.Request.Context(), &body)
+		h.respondHeartbeatPolicy(c, target.agentName, &policy, "", policyErr)
+		return
+	}
 	body := req.Body
 	result, err := h.HeartbeatAuthoring.Validate(c.Request.Context(), heartbeat.ValidateRequest{
 		Target: target.heartbeatAuthoringTarget(),
@@ -447,6 +481,10 @@ func (h *BaseHandlers) PutAgentHeartbeat(c *gin.Context) {
 		agentName,
 	)
 	if err != nil {
+		h.respondError(c, StatusForHeartbeatError(err), err)
+		return
+	}
+	if err := target.rejectPackageOwnedHeartbeatMutation(); err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
@@ -487,6 +525,10 @@ func (h *BaseHandlers) DeleteAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
+	if err := target.rejectPackageOwnedHeartbeatMutation(); err != nil {
+		h.respondError(c, StatusForHeartbeatError(err), err)
+		return
+	}
 	result, err := h.HeartbeatAuthoring.Delete(c.Request.Context(), heartbeat.DeleteRequest{
 		Target:         target.heartbeatAuthoringTarget(),
 		ExpectedDigest: strings.TrimSpace(req.ExpectedDigest),
@@ -513,6 +555,17 @@ func (h *BaseHandlers) ListAgentHeartbeatHistory(c *gin.Context) {
 	)
 	if err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
+		return
+	}
+	if target.packageOwned {
+		response := contract.HeartbeatHistoryResponse{
+			Revisions: []contract.HeartbeatRevisionPayload{},
+		}
+		h.respondAuthoredJSON(
+			c,
+			http.StatusOK,
+			response,
+		)
 		return
 	}
 	result, err := h.HeartbeatAuthoring.History(c.Request.Context(), heartbeat.HistoryRequest{
@@ -556,6 +609,10 @@ func (h *BaseHandlers) RollbackAgentHeartbeat(c *gin.Context) {
 		agentName,
 	)
 	if err != nil {
+		h.respondError(c, StatusForHeartbeatError(err), err)
+		return
+	}
+	if err := target.rejectPackageOwnedHeartbeatMutation(); err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
@@ -750,6 +807,11 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 }
 
 func (h *BaseHandlers) inspectSoulTarget(c *gin.Context, target authoredAgentTarget) {
+	if target.packageOwned {
+		resolved, err := target.resolvePackageOwnedSoul(c.Request.Context(), nil)
+		h.respondSoulPayload(c, target.agentName, &resolved, target.soulConfigProvenance(), err)
+		return
+	}
 	if h.SoulAuthoring == nil {
 		h.respondError(c, StatusForSoulError(errSoulAuthoringUnavailable), errSoulAuthoringUnavailable)
 		return
@@ -757,10 +819,19 @@ func (h *BaseHandlers) inspectSoulTarget(c *gin.Context, target authoredAgentTar
 	result, err := h.SoulAuthoring.Validate(c.Request.Context(), soul.ValidateRequest{
 		Target: target.soulAuthoringTarget(),
 	})
-	h.respondSoulPayload(c, target.agentName, &result.Soul, "", target.soulConfigProvenance(), err)
+	h.respondSoulPayload(c, target.agentName, &result.Soul, target.soulConfigProvenance(), err)
 }
 
 func (h *BaseHandlers) validateSoulTarget(c *gin.Context, target authoredAgentTarget, body string) {
+	if target.packageOwned {
+		var bodyPtr *string
+		if strings.TrimSpace(body) != "" {
+			bodyPtr = &body
+		}
+		resolved, err := target.resolvePackageOwnedSoul(c.Request.Context(), bodyPtr)
+		h.respondSoulPayload(c, target.agentName, &resolved, target.soulConfigProvenance(), err)
+		return
+	}
 	if h.SoulAuthoring == nil {
 		h.respondError(c, StatusForSoulError(errSoulAuthoringUnavailable), errSoulAuthoringUnavailable)
 		return
@@ -773,10 +844,15 @@ func (h *BaseHandlers) validateSoulTarget(c *gin.Context, target authoredAgentTa
 		Target: target.soulAuthoringTarget(),
 		Body:   bodyPtr,
 	})
-	h.respondSoulPayload(c, target.agentName, &result.Soul, "", target.soulConfigProvenance(), err)
+	h.respondSoulPayload(c, target.agentName, &result.Soul, target.soulConfigProvenance(), err)
 }
 
 func (h *BaseHandlers) inspectHeartbeatTarget(c *gin.Context, target authoredAgentTarget) {
+	if target.packageOwned && h.HeartbeatStatus == nil {
+		policy, err := target.resolvePackageOwnedHeartbeat(c.Request.Context(), nil)
+		h.respondHeartbeatPolicy(c, target.agentName, &policy, "", err)
+		return
+	}
 	if h.HeartbeatStatus == nil {
 		h.respondError(c, StatusForHeartbeatError(errHeartbeatStatusMissing), errHeartbeatStatusMissing)
 		return
@@ -799,7 +875,6 @@ func (h *BaseHandlers) respondSoulPayload(
 	c *gin.Context,
 	agentName string,
 	resolved *soul.ResolvedSoul,
-	snapshotID string,
 	provenance soul.ConfigProvenance,
 	err error,
 ) {
@@ -807,7 +882,7 @@ func (h *BaseHandlers) respondSoulPayload(
 		h.respondError(c, StatusForSoulError(err), err)
 		return
 	}
-	payload := contract.AgentSoulPayloadFromResolved(agentName, resolved, snapshotID, provenance)
+	payload := contract.AgentSoulPayloadFromResolved(agentName, resolved, "", provenance)
 	status := http.StatusOK
 	if err != nil || resolved == nil || !resolved.Valid {
 		status = http.StatusUnprocessableEntity
@@ -824,7 +899,7 @@ func (h *BaseHandlers) respondSoulMutation(
 	if err != nil {
 		if errors.Is(err, soul.ErrInvalid) {
 			if result != nil {
-				h.respondSoulPayload(c, target.agentName, &result.Soul, "", target.soulConfigProvenance(), err)
+				h.respondSoulPayload(c, target.agentName, &result.Soul, target.soulConfigProvenance(), err)
 				return
 			}
 		}
@@ -925,13 +1000,40 @@ func (h *BaseHandlers) resolveAuthoredAgentTarget(
 		agentPath:       authoredAgentPath(&resolved, name),
 		soulConfig:      resolved.Config.Agents.Soul,
 		heartbeatConfig: resolved.Config.Agents.Heartbeat,
-	}, nil
+	}.withAgentArtifacts(h.AgentCatalog, name, &resolved), nil
+}
+
+func (t authoredAgentTarget) withAgentArtifacts(
+	catalog AgentCatalog,
+	agentName string,
+	resolved *workspacepkg.ResolvedWorkspace,
+) authoredAgentTarget {
+	if catalog == nil {
+		return t
+	}
+	resolver, ok := catalog.(session.AgentArtifactResolver)
+	if !ok {
+		return t
+	}
+	artifacts, err := resolver.ResolveAgentArtifacts(agentName, resolved)
+	if err != nil {
+		return t
+	}
+	if sourcePath := strings.TrimSpace(artifacts.Agent.SourcePath); sourcePath != "" {
+		t.agentPath = sourcePath
+	}
+	t.packageOwned = artifacts.PackageOwned
+	t.soulSourcePath = strings.TrimSpace(artifacts.SoulSourcePath)
+	t.soulBody = artifacts.SoulBody
+	t.heartbeatSourcePath = strings.TrimSpace(artifacts.HeartbeatSourcePath)
+	t.heartbeatBody = artifacts.HeartbeatBody
+	return t
 }
 
 func (t authoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 	return soul.AuthoringTarget{
 		WorkspaceID:   t.workspaceID,
-		WorkspaceRoot: t.workspaceRoot,
+		WorkspaceRoot: authoredContextSourceRoot(t.workspaceRoot, t.agentPath),
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.soulConfig,
@@ -942,11 +1044,65 @@ func (t authoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 func (t authoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
 		WorkspaceID:   t.workspaceID,
-		WorkspaceRoot: t.workspaceRoot,
+		WorkspaceRoot: authoredContextSourceRoot(t.workspaceRoot, t.agentPath),
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.heartbeatConfig,
 	}
+}
+
+func authoredContextSourceRoot(workspaceRoot string, agentPath string) string {
+	root := strings.TrimSpace(workspaceRoot)
+	source := strings.TrimSpace(agentPath)
+	if source == "" || !filepath.IsAbs(source) || pathWithinRoot(root, source) {
+		return root
+	}
+	if derived := trustedRootFromAgentSourcePath(source); derived != "" {
+		return derived
+	}
+	return root
+}
+
+func trustedRootFromAgentSourcePath(agentPath string) string {
+	cleaned := filepath.Clean(strings.TrimSpace(agentPath))
+	if !strings.EqualFold(filepath.Base(cleaned), "AGENT.md") {
+		return ""
+	}
+	agentDir := filepath.Dir(cleaned)
+	agentsDir := filepath.Dir(agentDir)
+	if filepath.Base(agentsDir) != aghconfig.AgentsDirName {
+		return ""
+	}
+	root := filepath.Dir(agentsDir)
+	if filepath.Base(root) == aghconfig.DirName {
+		return filepath.Dir(root)
+	}
+	return root
+}
+
+func pathWithinRoot(root string, sourcePath string) bool {
+	trimmedRoot := strings.TrimSpace(root)
+	trimmedSource := strings.TrimSpace(sourcePath)
+	if trimmedRoot == "" || trimmedSource == "" {
+		return false
+	}
+	absRoot, err := filepath.Abs(filepath.Clean(trimmedRoot))
+	if err != nil {
+		return false
+	}
+	sourceForRoot := filepath.Clean(trimmedSource)
+	if !filepath.IsAbs(sourceForRoot) {
+		sourceForRoot = filepath.Join(absRoot, sourceForRoot)
+	}
+	absSource, err := filepath.Abs(sourceForRoot)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(absRoot, absSource)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 func (t authoredAgentTarget) soulConfigProvenance() soul.ConfigProvenance {
@@ -955,6 +1111,98 @@ func (t authoredAgentTarget) soulConfigProvenance() soul.ConfigProvenance {
 		return soul.ConfigProvenance{}
 	}
 	return provenance
+}
+
+func (t authoredAgentTarget) resolvePackageOwnedSoul(
+	ctx context.Context,
+	body *string,
+) (soul.ResolvedSoul, error) {
+	sourcePath := t.packageOwnedSoulSourcePath()
+	if body != nil {
+		resolved, err := soul.Parse(ctx, soul.ParseRequest{
+			SourcePath:    sourcePath,
+			WorkspaceRoot: t.workspaceRoot,
+			Content:       []byte(*body),
+			Config:        t.soulConfig,
+		})
+		if err != nil {
+			return resolved, err
+		}
+		return resolved, nil
+	}
+	if strings.TrimSpace(t.soulBody) == "" {
+		return soul.Empty(t.soulConfig, sourcePath)
+	}
+	resolved, err := soul.Parse(ctx, soul.ParseRequest{
+		SourcePath:    sourcePath,
+		WorkspaceRoot: t.workspaceRoot,
+		Content:       []byte(t.soulBody),
+		Config:        t.soulConfig,
+	})
+	if err != nil {
+		return resolved, err
+	}
+	return resolved, nil
+}
+
+func (t authoredAgentTarget) resolvePackageOwnedHeartbeat(
+	ctx context.Context,
+	body *string,
+) (heartbeat.ResolvedPolicy, error) {
+	sourcePath := t.packageOwnedHeartbeatSourcePath()
+	if body != nil {
+		policy, err := heartbeat.Parse(ctx, heartbeat.ParseRequest{
+			SourcePath:    sourcePath,
+			WorkspaceRoot: t.workspaceRoot,
+			Content:       []byte(*body),
+			Config:        t.heartbeatConfig,
+		})
+		if err != nil {
+			return policy, err
+		}
+		return policy, nil
+	}
+	if strings.TrimSpace(t.heartbeatBody) == "" {
+		return heartbeat.Empty(t.heartbeatConfig, sourcePath)
+	}
+	policy, err := heartbeat.Parse(ctx, heartbeat.ParseRequest{
+		SourcePath:    sourcePath,
+		WorkspaceRoot: t.workspaceRoot,
+		Content:       []byte(t.heartbeatBody),
+		Config:        t.heartbeatConfig,
+	})
+	if err != nil {
+		return policy, err
+	}
+	return policy, nil
+}
+
+func (t authoredAgentTarget) rejectPackageOwnedSoulMutation() error {
+	if !t.packageOwned {
+		return nil
+	}
+	return fmt.Errorf("%w: package-owned SOUL.md is read-only", soul.ErrAuthoringConflict)
+}
+
+func (t authoredAgentTarget) rejectPackageOwnedHeartbeatMutation() error {
+	if !t.packageOwned {
+		return nil
+	}
+	return fmt.Errorf("%w: package-owned HEARTBEAT.md is read-only", heartbeat.ErrAuthoringConflict)
+}
+
+func (t authoredAgentTarget) packageOwnedSoulSourcePath() string {
+	if sourcePath := strings.TrimSpace(t.soulSourcePath); sourcePath != "" {
+		return sourcePath
+	}
+	return authoredSidecarPath(t.agentPath, soul.FileName)
+}
+
+func (t authoredAgentTarget) packageOwnedHeartbeatSourcePath() string {
+	if sourcePath := strings.TrimSpace(t.heartbeatSourcePath); sourcePath != "" {
+		return sourcePath
+	}
+	return authoredSidecarPath(t.agentPath, heartbeat.FileName)
 }
 
 func (h *BaseHandlers) soulActorForRequest() soul.AuthoringIdentity {
@@ -1298,6 +1546,15 @@ func authoredAgentPath(workspace *workspacepkg.ResolvedWorkspace, agentName stri
 		return filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, name, "AGENT.md")
 	}
 	return ""
+}
+
+func authoredSidecarPath(agentPath string, fileName string) string {
+	trimmedAgentPath := strings.TrimSpace(agentPath)
+	trimmedFileName := strings.TrimSpace(fileName)
+	if trimmedAgentPath == "" {
+		return trimmedFileName
+	}
+	return filepath.ToSlash(filepath.Join(filepath.Dir(trimmedAgentPath), trimmedFileName))
 }
 
 func newAuthoredValidationError(message string) error {

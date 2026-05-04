@@ -158,6 +158,35 @@ func skillCreateBundle(item skillCreateItem) outputBundle {
 	}
 }
 
+func skillActionBundle(name string, action string, record SkillActionRecord) outputBundle {
+	item := struct {
+		Name   string `json:"name"`
+		Action string `json:"action"`
+		OK     bool   `json:"ok"`
+	}{
+		Name:   name,
+		Action: action,
+		OK:     record.OK,
+	}
+	return outputBundle{
+		jsonValue: item,
+		human: func() (string, error) {
+			return renderHumanSection("Skill Action", []keyValue{
+				{Label: "Name", Value: stringOrDash(item.Name)},
+				{Label: "Action", Value: stringOrDash(item.Action)},
+				{Label: "OK", Value: strconv.FormatBool(item.OK)},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject("skill_action", []string{"name", "action", "ok"}, []string{
+				item.Name,
+				item.Action,
+				strconv.FormatBool(item.OK),
+			}), nil
+		},
+	}
+}
+
 func skillInstallBundle(item skillInstallItem) outputBundle {
 	return outputBundle{
 		jsonValue: item,

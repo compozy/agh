@@ -2359,6 +2359,49 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	}
 }
 
+func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "openclaw",
+			Prompt:   "You are helpful.",
+		}},
+	})
+	hosted := &recordingHostedMCPLauncher{
+		server: aghconfig.MCPServer{
+			Name:      "agh-hosted-tools",
+			Transport: aghconfig.MCPServerTransportStdio,
+			Command:   "/bin/agh",
+		},
+	}
+	h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted))
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	got := h.driver.startCalls[0]
+	if got.Command != "openclaw acp" {
+		t.Fatalf("start command = %q, want openclaw acp", got.Command)
+	}
+	if len(got.MCPServers) != 0 {
+		t.Fatalf("start MCPServers = %#v, want none for provider without session MCP support", got.MCPServers)
+	}
+	if requests := hosted.launchRequests(); len(requests) != 0 {
+		t.Fatalf("hosted launch requests = %#v, want none", requests)
+	}
+}
+
 func TestResumePassesMergedSkillMCPServers(t *testing.T) {
 	t.Parallel()
 

@@ -28,7 +28,7 @@ export function Composer({ staticMode = false }: ComposerProps) {
   const input: CSSProperties = {
     flex: 1,
     fontSize: 12,
-    color: TOKENS.textTertiary,
+    color: TOKENS.textLabel,
     fontFamily: TOKENS.fontSans,
     display: "flex",
     alignItems: "center",

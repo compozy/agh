@@ -26,6 +26,20 @@ type RestartBanner = {
   dismiss: ReturnType<typeof vi.fn>;
 };
 
+type UpdateStatus = {
+  supported: boolean;
+  managed: boolean;
+  install_method: string;
+  current_version: string;
+  latest_version?: string;
+  available: boolean;
+  status: string;
+  recommendation?: string;
+  release_url?: string;
+  checked_at?: string | null;
+  last_error?: string;
+};
+
 const envelope = {
   section: "general" as const,
   scope: "global" as const,
@@ -74,6 +88,13 @@ let pageState: {
   handleReset: ReturnType<typeof vi.fn>;
   handleSave: ReturnType<typeof vi.fn>;
   restart: RestartBanner;
+  update: {
+    data: UpdateStatus | null;
+    isLoading: boolean;
+    isFetching: boolean;
+    error: Error | null;
+    refetch: ReturnType<typeof vi.fn>;
+  };
 };
 
 const restartBanner: RestartBanner = {
@@ -130,6 +151,24 @@ beforeEach(() => {
     handleReset: vi.fn(),
     handleSave: vi.fn(),
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
+    update: {
+      data: {
+        supported: true,
+        managed: false,
+        install_method: "direct-binary",
+        current_version: "v1.0.0",
+        latest_version: "v1.1.0",
+        available: true,
+        status: "available",
+        recommendation: "Run `agh update`.",
+        release_url: "https://github.com/compozy/agh/releases/tag/v1.1.0",
+        checked_at: "2026-05-03T19:00:00Z",
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    },
   };
 });
 
@@ -171,6 +210,59 @@ describe("GeneralSettingsPage", () => {
       "aria-pressed",
       "true"
     );
+    expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent(
+      "available"
+    );
+    expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
+      "Run `agh update`."
+    );
+  });
+
+  it("renders manual guidance and the last refresh error for unsupported update snapshots", () => {
+    pageState.update.data = {
+      supported: false,
+      managed: false,
+      install_method: "direct-binary",
+      current_version: "v1.0.0",
+      latest_version: "v1.1.0",
+      available: true,
+      status: "unsupported",
+      recommendation:
+        "Download the latest AGH Windows release archive and replace `agh.exe` manually.",
+      release_url: "https://github.com/compozy/agh/releases/tag/v1.1.0",
+      checked_at: "2026-05-03T19:00:00Z",
+      last_error: "cached refresh failed",
+    };
+
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent(
+      "unsupported"
+    );
+    expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
+      "replace `agh.exe` manually"
+    );
+    expect(screen.getByTestId("settings-page-general-update-last-error")).toHaveTextContent(
+      "cached refresh failed"
+    );
+  });
+
+  it("surfaces transport errors and retries the update query when refresh fails", () => {
+    pageState.update = {
+      data: null,
+      isLoading: false,
+      isFetching: false,
+      error: new Error("update refresh timed out"),
+      refetch: vi.fn(),
+    };
+
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-update-last-error")).toHaveTextContent(
+      "update refresh timed out"
+    );
+    fireEvent.click(screen.getByTestId("settings-page-general-update-retry"));
+    expect(pageState.update.refetch).toHaveBeenCalledTimes(1);
   });
 
   it("exposes the restart action button and triggers the restart mutation on click", () => {

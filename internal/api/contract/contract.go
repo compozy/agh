@@ -148,16 +148,24 @@ type SessionRepairActionPayload struct {
 
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
-	Name        string               `json:"name"`
-	Provider    string               `json:"provider"`
-	Command     string               `json:"command,omitempty"`
-	Model       string               `json:"model,omitempty"`
-	Tools       []string             `json:"tools,omitempty"`
-	Toolsets    []string             `json:"toolsets,omitempty"`
-	DenyTools   []string             `json:"deny_tools,omitempty"`
-	Permissions string               `json:"permissions,omitempty"`
-	MCPServers  []AgentMCPServerJSON `json:"mcp_servers,omitempty"`
-	Prompt      string               `json:"prompt"`
+	Name        string                   `json:"name"`
+	Provider    string                   `json:"provider"`
+	Command     string                   `json:"command,omitempty"`
+	Model       string                   `json:"model,omitempty"`
+	Tools       []string                 `json:"tools,omitempty"`
+	Toolsets    []string                 `json:"toolsets,omitempty"`
+	DenyTools   []string                 `json:"deny_tools,omitempty"`
+	Permissions string                   `json:"permissions,omitempty"`
+	MCPServers  []AgentMCPServerJSON     `json:"mcp_servers,omitempty"`
+	Prompt      string                   `json:"prompt"`
+	Diagnostics []AgentDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
+// AgentDiagnosticPayload reports one malformed agent definition encountered during discovery.
+type AgentDiagnosticPayload struct {
+	Path      string `json:"path"`
+	ErrorKind string `json:"error_kind"`
+	Message   string `json:"message"`
 }
 
 // AgentMCPServerJSON is the shared MCP server response payload.
@@ -797,6 +805,9 @@ type SessionProviderOptionPayload struct {
 	Harness         string `json:"harness,omitempty"`
 	RuntimeProvider string `json:"runtime_provider,omitempty"`
 	DefaultModel    string `json:"default_model,omitempty"`
+	AuthMode        string `json:"auth_mode,omitempty"`
+	EnvPolicy       string `json:"env_policy,omitempty"`
+	HomePolicy      string `json:"home_policy,omitempty"`
 }
 
 // SkillPayload is the HTTP response type for a skill.

@@ -26,6 +26,29 @@ func FilteredDaemonEnv(base []string) []string {
 	return filtered
 }
 
+// IsolatedDaemonEnv returns only the fixed operational environment allowlist
+// needed to launch local subprocesses. It intentionally drops all non-allowlisted
+// daemon variables, including provider CLI credentials.
+func IsolatedDaemonEnv(base []string) []string {
+	env := append([]string(nil), base...)
+	if len(env) == 0 {
+		env = os.Environ()
+	}
+
+	filtered := make([]string, 0, len(env))
+	for _, entry := range env {
+		parts := strings.SplitN(entry, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if !safeDaemonEnvName(strings.ToUpper(strings.TrimSpace(parts[0]))) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	return filtered
+}
+
 // SensitiveEnvName reports whether an environment variable name commonly carries credentials.
 func SensitiveEnvName(name string) bool {
 	normalized := strings.ToUpper(strings.TrimSpace(name))

@@ -213,8 +213,10 @@ sudo systemctl enable --now agh
 sudo systemctl status agh
 ```
 
-Put provider API keys, path overrides, and other daemon environment variables in
-`/etc/agh/agh.env`. Agent subprocesses inherit the daemon environment.
+Put path overrides, daemon environment variables, and any `env:` secrets used by
+`bound_secret` providers in `/etc/agh/agh.env`. Native ACP providers use the service user's own
+CLI login/session state unless their provider config sets `home_policy = "isolated"`. Agent
+subprocesses receive the provider environment selected by `env_policy`.
 
 ## Run under launchd
 

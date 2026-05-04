@@ -21,6 +21,7 @@ import (
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	"github.com/pedronauck/agh/internal/memory"
@@ -32,6 +33,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/situation"
 	"github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -137,6 +139,7 @@ type RuntimeDeps struct {
 	DreamTrigger      DreamTrigger
 	Settings          core.SettingsService
 	SettingsRestart   core.SettingsRestartController
+	SettingsUpdate    core.SettingsUpdateController
 	Vault             core.VaultService
 	Extensions        udsapi.ExtensionService
 	Bundles           core.BundleService
@@ -207,6 +210,8 @@ type resourceReconcileDriverDeps struct {
 	CodecRegistry    *resources.CodecRegistry
 	Hooks            *hookspkg.Hooks
 	AgentCatalog     *resourceCatalog[aghconfig.AgentDef]
+	SoulCatalog      *resourceCatalog[soul.ResourceSpec]
+	HeartbeatCatalog *resourceCatalog[heartbeat.ResourceSpec]
 	ToolCatalog      *resourceCatalog[toolspkg.Tool]
 	MCPServerCatalog *resourceCatalog[aghconfig.MCPServer]
 	SkillsRegistry   *skills.Registry
@@ -369,6 +374,8 @@ type Daemon struct {
 	observer                     Observer
 	resourceReconcile            resources.ReconcileDriver
 	agentCatalog                 *resourceCatalog[aghconfig.AgentDef]
+	soulCatalog                  *resourceCatalog[soul.ResourceSpec]
+	heartbeatCatalog             *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog                  *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog             *resourceCatalog[aghconfig.MCPServer]
 	automation                   automationRuntime
@@ -800,68 +807,99 @@ func appendCoreProjectorRegistrations(
 	registrations []resources.ProjectorRegistration,
 	deps *resourceReconcileDriverDeps,
 ) ([]resources.ProjectorRegistration, error) {
+	var err error
 	if deps.Hooks != nil {
-		codec, err := resources.ResolveCodec[hookspkg.HookDecl](deps.CodecRegistry, hookBindingResourceKind)
-		if err != nil {
-			return nil, err
-		}
-		registration, err := resources.NewTypedProjectorRegistration(codec, newHookBindingProjector(deps.Hooks))
-		if err != nil {
-			return nil, err
-		}
-		registrations = append(registrations, registration)
+		registrations, err = appendTypedProjectorRegistration(
+			registrations,
+			deps.CodecRegistry,
+			hookBindingResourceKind,
+			newHookBindingProjector(deps.Hooks),
+		)
+	}
+	if err != nil {
+		return nil, err
 	}
 	if deps.AgentCatalog != nil {
-		codec, err := resources.ResolveCodec[aghconfig.AgentDef](deps.CodecRegistry, aghconfig.AgentResourceKind)
-		if err != nil {
-			return nil, err
-		}
-		registration, err := resources.NewTypedProjectorRegistration(codec, newAgentProjector(deps.AgentCatalog))
-		if err != nil {
-			return nil, err
-		}
-		registrations = append(registrations, registration)
+		registrations, err = appendTypedProjectorRegistration(
+			registrations,
+			deps.CodecRegistry,
+			aghconfig.AgentResourceKind,
+			newAgentProjector(deps.AgentCatalog),
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if deps.SoulCatalog != nil {
+		registrations, err = appendTypedProjectorRegistration(
+			registrations,
+			deps.CodecRegistry,
+			soul.ResourceKind,
+			newSoulProjector(deps.SoulCatalog),
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if deps.HeartbeatCatalog != nil {
+		registrations, err = appendTypedProjectorRegistration(
+			registrations,
+			deps.CodecRegistry,
+			heartbeat.ResourceKind,
+			newHeartbeatProjector(deps.HeartbeatCatalog),
+		)
+	}
+	if err != nil {
+		return nil, err
 	}
 	if deps.ToolCatalog != nil {
-		codec, err := resources.ResolveCodec[toolspkg.Tool](deps.CodecRegistry, toolspkg.ToolResourceKind)
-		if err != nil {
-			return nil, err
-		}
-		registration, err := resources.NewTypedProjectorRegistration(codec, newToolProjector(deps.ToolCatalog))
-		if err != nil {
-			return nil, err
-		}
-		registrations = append(registrations, registration)
+		registrations, err = appendTypedProjectorRegistration(
+			registrations,
+			deps.CodecRegistry,
+			toolspkg.ToolResourceKind,
+			newToolProjector(deps.ToolCatalog),
+		)
+	}
+	if err != nil {
+		return nil, err
 	}
 	if deps.MCPServerCatalog != nil {
-		codec, err := resources.ResolveCodec[aghconfig.MCPServer](
+		registrations, err = appendTypedProjectorRegistration(
+			registrations,
 			deps.CodecRegistry,
 			aghconfig.MCPServerResourceKind,
-		)
-		if err != nil {
-			return nil, err
-		}
-		registration, err := resources.NewTypedProjectorRegistration(
-			codec,
 			newMCPServerProjector(deps.MCPServerCatalog),
 		)
-		if err != nil {
-			return nil, err
-		}
-		registrations = append(registrations, registration)
+	}
+	if err != nil {
+		return nil, err
 	}
 	if deps.SkillsRegistry != nil {
-		codec, err := resources.ResolveCodec[skills.SkillResourceSpec](deps.CodecRegistry, skills.SkillResourceKind)
-		if err != nil {
-			return nil, err
-		}
-		registration, err := resources.NewTypedProjectorRegistration(codec, newSkillProjector(deps.SkillsRegistry))
-		if err != nil {
-			return nil, err
-		}
-		registrations = append(registrations, registration)
+		return appendTypedProjectorRegistration(
+			registrations,
+			deps.CodecRegistry,
+			skills.SkillResourceKind,
+			newSkillProjector(deps.SkillsRegistry),
+		)
 	}
 	return registrations, nil
+}
+
+func appendTypedProjectorRegistration[T any](
+	registrations []resources.ProjectorRegistration,
+	registry *resources.CodecRegistry,
+	kind resources.ResourceKind,
+	projector resources.TypedProjector[T],
+) ([]resources.ProjectorRegistration, error) {
+	codec, err := resources.ResolveCodec[T](registry, kind)
+	if err != nil {
+		return nil, err
+	}
+	registration, err := resources.NewTypedProjectorRegistration(codec, projector)
+	if err != nil {
+		return nil, err
+	}
+	return append(registrations, registration), nil
 }
 
 func appendAutomationProjectorRegistrations(
@@ -911,83 +949,93 @@ func resourceReconcileActor() resources.MutationActor {
 func (d *Daemon) applyServerFactoryDefaults() {
 	if d.httpFactory == nil {
 		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
-			return httpapi.New(
-				httpapi.WithHomePaths(deps.HomePaths),
-				httpapi.WithConfig(&deps.Config),
-				httpapi.WithLogger(deps.Logger),
-				httpapi.WithStartedAt(deps.StartedAt),
-				httpapi.WithSessionManager(deps.Sessions),
-				httpapi.WithTaskService(deps.Tasks),
-				httpapi.WithNetworkService(deps.Network),
-				httpapi.WithNetworkStore(deps.Registry),
-				httpapi.WithObserver(deps.Observer),
-				httpapi.WithAutomation(deps.Automation),
-				httpapi.WithBridgeService(deps.Bridges),
-				httpapi.WithBundleService(deps.Bundles),
-				httpapi.WithToolRegistry(deps.ToolRegistry),
-				httpapi.WithToolsetRegistry(deps.Toolsets),
-				httpapi.WithToolApprovalIssuer(deps.ToolApprovals),
-				httpapi.WithSettingsService(deps.Settings),
-				httpapi.WithSettingsRestartController(deps.SettingsRestart),
-				httpapi.WithVaultService(deps.Vault),
-				httpapi.WithResourceService(deps.Resources),
-				httpapi.WithWorkspaceResolver(deps.WorkspaceService),
-				httpapi.WithAgentCatalog(deps.AgentCatalog),
-				httpapi.WithAgentContext(deps.AgentContext),
-				httpapi.WithSoulAuthoring(deps.SoulAuthoring),
-				httpapi.WithSoulRefresher(deps.SoulRefresher),
-				httpapi.WithHeartbeatAuthoring(deps.HeartbeatAuthor),
-				httpapi.WithHeartbeatStatus(deps.HeartbeatStatus),
-				httpapi.WithHeartbeatWake(deps.HeartbeatWake),
-				httpapi.WithSessionHealthReader(deps.SessionHealth),
-				httpapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
-				httpapi.WithSkillsRegistry(deps.SkillsRegistry),
-				httpapi.WithMemoryStore(deps.MemoryStore),
-				httpapi.WithDreamTrigger(deps.DreamTrigger),
-				httpapi.WithExtensionService(deps.Extensions),
-			)
+			return httpapi.New(httpServerOptions(&deps)...)
 		}
 	}
 	if d.udsFactory == nil {
 		d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
-			return udsapi.New(
-				udsapi.WithHomePaths(deps.HomePaths),
-				udsapi.WithConfig(&deps.Config),
-				udsapi.WithLogger(deps.Logger),
-				udsapi.WithStartedAt(deps.StartedAt),
-				udsapi.WithSessionManager(deps.Sessions),
-				udsapi.WithTaskService(deps.Tasks),
-				udsapi.WithNetworkService(deps.Network),
-				udsapi.WithNetworkStore(deps.Registry),
-				udsapi.WithObserver(deps.Observer),
-				udsapi.WithAutomation(deps.Automation),
-				udsapi.WithBridgeService(deps.Bridges),
-				udsapi.WithBundleService(deps.Bundles),
-				udsapi.WithToolRegistry(deps.ToolRegistry),
-				udsapi.WithToolsetRegistry(deps.Toolsets),
-				udsapi.WithToolApprovalIssuer(deps.ToolApprovals),
-				udsapi.WithSettingsService(deps.Settings),
-				udsapi.WithSettingsRestartController(deps.SettingsRestart),
-				udsapi.WithVaultService(deps.Vault),
-				udsapi.WithResourceService(deps.Resources),
-				udsapi.WithWorkspaceResolver(deps.WorkspaceService),
-				udsapi.WithAgentCatalog(deps.AgentCatalog),
-				udsapi.WithAgentContext(deps.AgentContext),
-				udsapi.WithSoulAuthoring(deps.SoulAuthoring),
-				udsapi.WithSoulRefresher(deps.SoulRefresher),
-				udsapi.WithHeartbeatAuthoring(deps.HeartbeatAuthor),
-				udsapi.WithHeartbeatStatus(deps.HeartbeatStatus),
-				udsapi.WithHeartbeatWake(deps.HeartbeatWake),
-				udsapi.WithSessionHealthReader(deps.SessionHealth),
-				udsapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
-				udsapi.WithCoordinatorConfig(deps.CoordinatorConfig),
-				udsapi.WithSkillsRegistry(deps.SkillsRegistry),
-				udsapi.WithMemoryStore(deps.MemoryStore),
-				udsapi.WithDreamTrigger(deps.DreamTrigger),
-				udsapi.WithExtensionService(deps.Extensions),
-				udsapi.WithHostedMCP(deps.HostedMCP),
-			)
+			return udsapi.New(udsServerOptions(&deps)...)
 		}
+	}
+}
+
+func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
+	return []httpapi.Option{
+		httpapi.WithHomePaths(deps.HomePaths),
+		httpapi.WithConfig(&deps.Config),
+		httpapi.WithLogger(deps.Logger),
+		httpapi.WithStartedAt(deps.StartedAt),
+		httpapi.WithSessionManager(deps.Sessions),
+		httpapi.WithTaskService(deps.Tasks),
+		httpapi.WithNetworkService(deps.Network),
+		httpapi.WithNetworkStore(deps.Registry),
+		httpapi.WithObserver(deps.Observer),
+		httpapi.WithAutomation(deps.Automation),
+		httpapi.WithBridgeService(deps.Bridges),
+		httpapi.WithBundleService(deps.Bundles),
+		httpapi.WithToolRegistry(deps.ToolRegistry),
+		httpapi.WithToolsetRegistry(deps.Toolsets),
+		httpapi.WithToolApprovalIssuer(deps.ToolApprovals),
+		httpapi.WithSettingsService(deps.Settings),
+		httpapi.WithSettingsRestartController(deps.SettingsRestart),
+		httpapi.WithSettingsUpdateController(deps.SettingsUpdate),
+		httpapi.WithVaultService(deps.Vault),
+		httpapi.WithResourceService(deps.Resources),
+		httpapi.WithWorkspaceResolver(deps.WorkspaceService),
+		httpapi.WithAgentCatalog(deps.AgentCatalog),
+		httpapi.WithAgentContext(deps.AgentContext),
+		httpapi.WithSoulAuthoring(deps.SoulAuthoring),
+		httpapi.WithSoulRefresher(deps.SoulRefresher),
+		httpapi.WithHeartbeatAuthoring(deps.HeartbeatAuthor),
+		httpapi.WithHeartbeatStatus(deps.HeartbeatStatus),
+		httpapi.WithHeartbeatWake(deps.HeartbeatWake),
+		httpapi.WithSessionHealthReader(deps.SessionHealth),
+		httpapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
+		httpapi.WithSkillsRegistry(deps.SkillsRegistry),
+		httpapi.WithMemoryStore(deps.MemoryStore),
+		httpapi.WithDreamTrigger(deps.DreamTrigger),
+		httpapi.WithExtensionService(deps.Extensions),
+	}
+}
+
+func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
+	return []udsapi.Option{
+		udsapi.WithHomePaths(deps.HomePaths),
+		udsapi.WithConfig(&deps.Config),
+		udsapi.WithLogger(deps.Logger),
+		udsapi.WithStartedAt(deps.StartedAt),
+		udsapi.WithSessionManager(deps.Sessions),
+		udsapi.WithTaskService(deps.Tasks),
+		udsapi.WithNetworkService(deps.Network),
+		udsapi.WithNetworkStore(deps.Registry),
+		udsapi.WithObserver(deps.Observer),
+		udsapi.WithAutomation(deps.Automation),
+		udsapi.WithBridgeService(deps.Bridges),
+		udsapi.WithBundleService(deps.Bundles),
+		udsapi.WithToolRegistry(deps.ToolRegistry),
+		udsapi.WithToolsetRegistry(deps.Toolsets),
+		udsapi.WithToolApprovalIssuer(deps.ToolApprovals),
+		udsapi.WithSettingsService(deps.Settings),
+		udsapi.WithSettingsRestartController(deps.SettingsRestart),
+		udsapi.WithSettingsUpdateController(deps.SettingsUpdate),
+		udsapi.WithVaultService(deps.Vault),
+		udsapi.WithResourceService(deps.Resources),
+		udsapi.WithWorkspaceResolver(deps.WorkspaceService),
+		udsapi.WithAgentCatalog(deps.AgentCatalog),
+		udsapi.WithAgentContext(deps.AgentContext),
+		udsapi.WithSoulAuthoring(deps.SoulAuthoring),
+		udsapi.WithSoulRefresher(deps.SoulRefresher),
+		udsapi.WithHeartbeatAuthoring(deps.HeartbeatAuthor),
+		udsapi.WithHeartbeatStatus(deps.HeartbeatStatus),
+		udsapi.WithHeartbeatWake(deps.HeartbeatWake),
+		udsapi.WithSessionHealthReader(deps.SessionHealth),
+		udsapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
+		udsapi.WithCoordinatorConfig(deps.CoordinatorConfig),
+		udsapi.WithSkillsRegistry(deps.SkillsRegistry),
+		udsapi.WithMemoryStore(deps.MemoryStore),
+		udsapi.WithDreamTrigger(deps.DreamTrigger),
+		udsapi.WithExtensionService(deps.Extensions),
+		udsapi.WithHostedMCP(deps.HostedMCP),
 	}
 }
 
@@ -1046,13 +1094,40 @@ func (d *Daemon) Run(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("daemon: run context is required")
 	}
-	if err := d.boot(ctx); err != nil {
+
+	sigCh, stopSignals := d.signalSource()
+	defer stopSignals()
+	runCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+	receivedSignal := make(chan os.Signal, 1)
+	signalDone := make(chan struct{})
+	go func() {
+		defer close(signalDone)
+		select {
+		case <-runCtx.Done():
+			return
+		case sig, ok := <-sigCh:
+			if ok && sig != nil {
+				select {
+				case receivedSignal <- sig:
+				default:
+				}
+				cancelRun()
+			}
+		}
+	}()
+
+	if err := d.boot(runCtx); err != nil {
+		cancelRun()
+		<-signalDone
 		return err
 	}
 	if d.dreamRuntime != nil {
-		d.dreamRuntime.Start(ctx)
+		d.dreamRuntime.Start(runCtx)
 	}
-	if err := d.startObserverRetention(ctx); err != nil {
+	if err := d.startObserverRetention(runCtx); err != nil {
+		cancelRun()
+		<-signalDone
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
 		defer cancel()
 		shutdownErr := d.Shutdown(shutdownCtx)
@@ -1062,16 +1137,13 @@ func (d *Daemon) Run(ctx context.Context) error {
 		)
 	}
 
-	sigCh, stopSignals := d.signalSource()
-	defer stopSignals()
-
 	select {
 	case <-ctx.Done():
-	case sig, ok := <-sigCh:
-		if ok && sig != nil {
-			d.runtimeLogger().Info("daemon: received shutdown signal", "signal", sig.String())
-		}
+	case sig := <-receivedSignal:
+		d.runtimeLogger().Info("daemon: received shutdown signal", "signal", sig.String())
 	}
+	cancelRun()
+	<-signalDone
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
 	defer cancel()

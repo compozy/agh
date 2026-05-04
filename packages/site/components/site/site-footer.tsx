@@ -101,7 +101,7 @@ export function SiteFooter() {
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)/50 focus-visible:rounded-sm"
             )}
           >
-            <span>Alpha · Open source on GitHub</span>
+            <span>Alpha · Compozy on GitHub</span>
             <span aria-hidden="true">→</span>
           </a>
         </div>

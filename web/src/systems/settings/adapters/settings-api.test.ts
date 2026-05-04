@@ -205,6 +205,11 @@ describe("collection endpoints", () => {
           command_available: true,
           settings: {
             command: "codex",
+            auth_mode: "native_cli",
+            env_policy: "filtered",
+            home_policy: "operator",
+            auth_status_command: "codex auth status",
+            auth_login_command: "codex login",
             credential_slots: [
               {
                 name: "api_key",
@@ -219,6 +224,12 @@ describe("collection endpoints", () => {
             available_targets: ["global-config" as const],
             effective_source: { kind: "global-config" as const, scope: "global" as const },
           },
+          auth_status: {
+            mode: "native_cli",
+            env_policy: "filtered",
+            home_policy: "operator",
+            state: "native_cli",
+          },
         },
       ],
     };
@@ -228,6 +239,8 @@ describe("collection endpoints", () => {
 
     expect(result.providers).toHaveLength(1);
     expect(result.providers[0]?.source_metadata.effective_source.kind).toBe("global-config");
+    expect(result.providers[0]?.settings.auth_mode).toBe("native_cli");
+    expect(result.providers[0]?.auth_status?.state).toBe("native_cli");
     await expectFetchRequest({ path: "/api/settings/providers" });
   });
 
@@ -235,12 +248,26 @@ describe("collection endpoints", () => {
     mockJsonResponse({ ...mutationFixture, section: "general" as const });
 
     const result = await putSettingsProvider("openai", {
-      settings: { command: "codex", default_model: "gpt-5" },
+      settings: {
+        command: "codex",
+        default_model: "gpt-5",
+        auth_mode: "native_cli",
+        env_policy: "filtered",
+        home_policy: "operator",
+      },
     });
 
     expect(result.write_target).toBe("global-config");
     await expectFetchRequest({
-      body: { settings: { command: "codex", default_model: "gpt-5" } },
+      body: {
+        settings: {
+          command: "codex",
+          default_model: "gpt-5",
+          auth_mode: "native_cli",
+          env_policy: "filtered",
+          home_policy: "operator",
+        },
+      },
       method: "PUT",
       path: "/api/settings/providers/openai",
     });

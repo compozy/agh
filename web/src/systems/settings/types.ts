@@ -53,6 +53,7 @@ export type SettingsUpdateHooksExtensionsRequest =
 
 export type SettingsRestartResponse = OperationResponse<"triggerSettingsRestart", 202>;
 export type SettingsRestartStatus = OperationResponse<"getSettingsRestartStatus", 200>;
+export type SettingsUpdateStatus = OperationResponse<"getSettingsUpdate", 200>;
 
 export type SettingsMutationResult = OperationResponse<"updateSettingsGeneral", 200>;
 export type SettingsScope = SettingsMutationResult["scope"];

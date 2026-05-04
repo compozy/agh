@@ -6,7 +6,7 @@ description: The accepted SKILL.md frontmatter schema, Markdown body rules, MCP 
 `SKILL.md` is the authoring contract for AGH skills. The file starts with YAML frontmatter, then a
 Markdown body with procedural instructions for the agent.
 
-```markdown
+```text
 ---
 name: refactor-checklist
 description: Review small refactors for behavior, test coverage, and rollback risk.
@@ -102,14 +102,14 @@ metadata:
 
 ## Markdown Body
 
-The body after the closing `---` is the instruction set. Write it as a procedure, not as marketing
+The body after the closing `---` is the instruction set. Write it as concrete steps, not as marketing
 copy. A useful skill body usually includes:
 
 | Section      | Purpose                                                                            |
 | ------------ | ---------------------------------------------------------------------------------- |
 | When to use  | The trigger conditions that tell an agent this skill applies.                      |
 | Inputs       | Files, commands, environment variables, or assumptions the agent should inspect.   |
-| Workflow     | Ordered steps the agent should follow.                                             |
+| Sequence     | Ordered steps the agent should follow.                                             |
 | Verification | How the agent should prove the work is correct.                                    |
 | Edge cases   | Mistakes the skill should prevent.                                                 |
 | Resources    | Relative file names the agent can read with `agh skill view <name> --file <path>`. |
@@ -162,7 +162,7 @@ marketplace skill if it does not match the stored hash.
 
 ## Complete Example: Simple Skill
 
-```markdown
+```text
 ---
 name: refactor-checklist
 description: Review scoped refactors for behavior preservation, tests, and rollback risk.
@@ -173,7 +173,7 @@ version: "1.0.0"
 
 Use this skill when a task changes structure without intending to change behavior.
 
-## Workflow
+## Sequence
 
 1. Identify the public behavior that must stay the same.
 2. Inspect the smallest call path that proves the behavior.
@@ -206,7 +206,7 @@ Then replace the generated `SKILL.md` body with the content above.
 
 `SKILL.md`:
 
-```markdown
+```text
 ---
 name: workspace-files
 description: Inspect workspace files through a filesystem MCP server before changing project structure.
@@ -217,7 +217,7 @@ version: "1.0.0"
 
 Use this skill when the agent needs a structured file inventory before changing project layout.
 
-## Workflow
+## Sequence
 
 1. Use the filesystem MCP server to inspect the target directory.
 2. Compare discovered files with the repository's documented package layout.

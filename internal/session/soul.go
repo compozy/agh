@@ -94,11 +94,11 @@ func (m *Manager) refreshSoulLocked(
 		return SoulRefreshResult{}, err
 	}
 
-	workspaceSnapshot, agentDef, err := m.resolveSoulRefreshTarget(ctx, info)
+	workspaceSnapshot, artifacts, err := m.resolveSoulRefreshTarget(ctx, info)
 	if err != nil {
 		return SoulRefreshResult{}, err
 	}
-	resolved, err := m.resolveSoul(ctx, agentDef, &workspaceSnapshot)
+	resolved, err := m.resolveSoul(ctx, artifacts, &workspaceSnapshot)
 	if err != nil {
 		return SoulRefreshResult{}, fmt.Errorf("session: resolve soul for refresh %q: %w", info.ID, err)
 	}
@@ -250,7 +250,7 @@ func (m *Manager) WithSoulClaimLock(ctx context.Context, sessionID string, fn fu
 func (m *Manager) prepareSessionStartSoul(
 	ctx context.Context,
 	spec *sessionStartSpec,
-	agentDef aghconfig.AgentDef,
+	artifacts AgentArtifacts,
 	now time.Time,
 ) error {
 	if spec == nil {
@@ -260,7 +260,7 @@ func (m *Manager) prepareSessionStartSoul(
 		return m.prepareResumeSoul(ctx, spec)
 	}
 
-	resolved, err := m.resolveSoul(ctx, agentDef, &spec.workspace)
+	resolved, err := m.resolveSoul(ctx, artifacts, &spec.workspace)
 	if err != nil {
 		return fmt.Errorf("session: resolve soul for agent %q: %w", spec.agentName, err)
 	}
@@ -300,17 +300,99 @@ func (m *Manager) prepareResumeSoul(ctx context.Context, spec *sessionStartSpec)
 
 func (m *Manager) resolveSoul(
 	ctx context.Context,
-	agentDef aghconfig.AgentDef,
+	artifacts AgentArtifacts,
 	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
 ) (soul.ResolvedSoul, error) {
 	if workspaceSnapshot == nil {
 		return soul.ResolvedSoul{}, errors.New("session: resolved workspace is required for soul")
 	}
+	config := sessionSoulConfig(workspaceSnapshot.Config.Agents.Soul)
+	if strings.TrimSpace(artifacts.SoulBody) != "" {
+		return soul.Parse(ctx, soul.ParseRequest{
+			SourcePath:    strings.TrimSpace(artifacts.SoulSourcePath),
+			WorkspaceRoot: m.soulSourceRoot(strings.TrimSpace(artifacts.SoulSourcePath), workspaceSnapshot),
+			Content:       []byte(artifacts.SoulBody),
+			Config:        config,
+		})
+	}
+	if artifacts.PackageOwned {
+		return soul.Empty(config, strings.TrimSpace(artifacts.SoulSourcePath))
+	}
+	agentPath := soulAgentPath(artifacts.Agent, workspaceSnapshot)
 	return soul.Resolve(ctx, soul.ResolveRequest{
-		AgentPath:     soulAgentPath(agentDef, workspaceSnapshot),
-		WorkspaceRoot: strings.TrimSpace(workspaceSnapshot.RootDir),
-		Config:        sessionSoulConfig(workspaceSnapshot.Config.Agents.Soul),
+		AgentPath:     agentPath,
+		WorkspaceRoot: m.soulSourceRoot(agentPath, workspaceSnapshot),
+		Config:        config,
 	})
+}
+
+func (m *Manager) soulSourceRoot(
+	sourcePath string,
+	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
+) string {
+	workspaceRoot := ""
+	if workspaceSnapshot != nil {
+		workspaceRoot = strings.TrimSpace(workspaceSnapshot.RootDir)
+	}
+	trimmedSource := strings.TrimSpace(sourcePath)
+	if trimmedSource == "" || !filepath.IsAbs(trimmedSource) {
+		return workspaceRoot
+	}
+
+	for _, root := range trustedSoulSourceRoots(m, workspaceSnapshot) {
+		if pathWithinRoot(root, trimmedSource) {
+			return strings.TrimSpace(root)
+		}
+	}
+	return workspaceRoot
+}
+
+func trustedSoulSourceRoots(
+	manager *Manager,
+	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
+) []string {
+	roots := make([]string, 0, 3)
+	if workspaceSnapshot != nil {
+		if root := strings.TrimSpace(workspaceSnapshot.RootDir); root != "" {
+			roots = append(roots, root)
+		}
+		for _, root := range workspaceSnapshot.AdditionalDirs {
+			if trimmed := strings.TrimSpace(root); trimmed != "" {
+				roots = append(roots, trimmed)
+			}
+		}
+	}
+	if manager != nil {
+		if home := strings.TrimSpace(manager.homePaths.HomeDir); home != "" {
+			roots = append(roots, home)
+		}
+	}
+	return roots
+}
+
+func pathWithinRoot(root string, sourcePath string) bool {
+	trimmedRoot := strings.TrimSpace(root)
+	trimmedSource := strings.TrimSpace(sourcePath)
+	if trimmedRoot == "" || trimmedSource == "" {
+		return false
+	}
+	absRoot, err := filepath.Abs(filepath.Clean(trimmedRoot))
+	if err != nil {
+		return false
+	}
+	sourceForRoot := filepath.Clean(trimmedSource)
+	if !filepath.IsAbs(sourceForRoot) {
+		sourceForRoot = filepath.Join(absRoot, sourceForRoot)
+	}
+	absSource, err := filepath.Abs(sourceForRoot)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(absRoot, absSource)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 func (m *Manager) persistResolvedSoul(
@@ -360,23 +442,23 @@ func (m *Manager) persistResolvedSoul(
 func (m *Manager) resolveSoulRefreshTarget(
 	ctx context.Context,
 	info *Info,
-) (workspacepkg.ResolvedWorkspace, aghconfig.AgentDef, error) {
+) (workspacepkg.ResolvedWorkspace, AgentArtifacts, error) {
 	if info == nil {
-		return workspacepkg.ResolvedWorkspace{}, aghconfig.AgentDef{}, errors.New("session: session info is required")
+		return workspacepkg.ResolvedWorkspace{}, AgentArtifacts{}, errors.New("session: session info is required")
 	}
 	resolvedWorkspace, err := m.resolveSoulRefreshWorkspace(ctx, info)
 	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, aghconfig.AgentDef{}, err
+		return workspacepkg.ResolvedWorkspace{}, AgentArtifacts{}, err
 	}
-	agentDef, err := m.resolveWorkspaceAgent(info.AgentName, &resolvedWorkspace)
+	artifacts, err := m.resolveWorkspaceAgentArtifacts(info.AgentName, &resolvedWorkspace)
 	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, aghconfig.AgentDef{}, fmt.Errorf(
+		return workspacepkg.ResolvedWorkspace{}, AgentArtifacts{}, fmt.Errorf(
 			"session: resolve workspace agent %q for soul refresh: %w",
 			info.AgentName,
 			err,
 		)
 	}
-	return resolvedWorkspace, agentDef, nil
+	return resolvedWorkspace, artifacts, nil
 }
 
 func (m *Manager) resolveSoulRefreshWorkspace(

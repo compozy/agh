@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -1124,6 +1125,86 @@ func TestStoreSearchAndReindex(t *testing.T) {
 				firstReindex.Format(time.RFC3339Nano),
 				secondReindex.Format(time.RFC3339Nano),
 			)
+		}
+	})
+}
+
+func TestStoreConcurrentMutationDerivedState(t *testing.T) {
+	t.Run("Should index and log every concurrent workspace write", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		totalWrites := 512
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		).ForWorkspace(workspaceRoot)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+
+		sem := make(chan struct{}, 32)
+		errCh := make(chan error, totalWrites)
+		var wg sync.WaitGroup
+		for idx := range totalWrites {
+			wg.Go(func() {
+				sem <- struct{}{}
+				defer func() {
+					<-sem
+				}()
+
+				filename := fmt.Sprintf("stress-%04d.md", idx)
+				content := fmt.Appendf(
+					nil,
+					"---\nname: Stress %04d\ndescription: concurrent mutation marker\ntype: project\n---\nconcurrent mutation marker item-%04d\n",
+					idx,
+					idx,
+				)
+				errCh <- store.Write(ScopeWorkspace, filename, content)
+			})
+		}
+		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			if err != nil {
+				t.Fatalf("Store.Write(concurrent) error = %v", err)
+			}
+		}
+
+		stats, err := store.HealthStats(ctx, []string{workspaceRoot})
+		if err != nil {
+			t.Fatalf("Store.HealthStats() error = %v", err)
+		}
+		if stats.IndexedFiles != totalWrites || stats.OrphanedFiles != 0 || stats.OperationCount != totalWrites {
+			t.Fatalf(
+				"HealthStats() = %#v, want indexed=%d orphaned=0 operation_count=%d",
+				stats,
+				totalWrites,
+				totalWrites,
+			)
+		}
+
+		results, err := store.Search(ctx, "concurrent mutation marker", SearchOptions{
+			Scope:     ScopeWorkspace,
+			Workspace: workspaceRoot,
+			Limit:     maxSearchLimit,
+		})
+		if err != nil {
+			t.Fatalf("Store.Search() error = %v", err)
+		}
+		if len(results) != maxSearchLimit {
+			t.Fatalf("len(results) = %d, want %d", len(results), maxSearchLimit)
+		}
+
+		indexBytes, err := os.ReadFile(filepath.Join(store.workspaceDir, indexFilename))
+		if err != nil {
+			t.Fatalf("os.ReadFile(MEMORY.md) error = %v", err)
+		}
+		indexLines := strings.Split(strings.TrimSpace(string(indexBytes)), "\n")
+		if len(indexLines) != totalWrites {
+			t.Fatalf("len(indexLines) = %d, want %d", len(indexLines), totalWrites)
 		}
 	})
 }

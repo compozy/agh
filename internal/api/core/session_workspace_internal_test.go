@@ -221,4 +221,15 @@ func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 			t.Fatalf("payloads[%d].Name = %q, want %q (%#v)", i, got, want.Name, payloads)
 		}
 	}
+	for _, payload := range payloads {
+		if payload.AuthMode == "" {
+			t.Fatalf("provider %q AuthMode = empty, want advertised auth mode", payload.Name)
+		}
+		if payload.EnvPolicy == "" {
+			t.Fatalf("provider %q EnvPolicy = empty, want advertised env policy", payload.Name)
+		}
+		if payload.HomePolicy == "" {
+			t.Fatalf("provider %q HomePolicy = empty, want advertised home policy", payload.Name)
+		}
+	}
 }

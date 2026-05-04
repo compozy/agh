@@ -12,10 +12,12 @@ import {
   NetworkSection,
   SupportedAgents,
 } from "@/components/landing";
+import { WebSiteJsonLd } from "@/components/seo/structured-data";
 
 export default function HomePage() {
   return (
-    <main id="main-content" className="site-home">
+    <>
+      <WebSiteJsonLd />
       <Hero />
       <SupportedAgents />
       <NetworkSection />
@@ -28,6 +30,6 @@ export default function HomePage() {
       <InstallSection />
       <Comparison />
       <FinalCta />
-    </main>
+    </>
   );
 }

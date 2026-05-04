@@ -201,7 +201,7 @@ esac
 Agent definition hooks live in `AGENT.md` frontmatter. AGH automatically scopes them to the agent
 name, so this declaration behaves as if `matcher.agent_name = "reviewer"` were set.
 
-```markdown
+```text
 ---
 name: reviewer
 provider: codex
@@ -270,7 +270,7 @@ The command still follows the hook executor contract: read payload JSON from std
 JSON object to stdout. A separate long-running extension subprocess is optional and is documented in
 [Develop Extensions](/runtime/core/extensions/develop).
 
-## HTTP And Agent Workflows
+## HTTP and agent runtimes
 
 HTTP and agent executors are not implemented hook kinds today. Use one of these patterns instead:
 

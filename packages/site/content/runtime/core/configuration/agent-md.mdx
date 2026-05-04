@@ -22,19 +22,19 @@ The parser is strict. Unknown frontmatter fields fail loading.
 
 ## Quick Reference
 
-| Field         | Type                        | Default                                     | Valid values                                                        | Description                                                    |
-| ------------- | --------------------------- | ------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `name`        | string                      | required                                    | Non-empty. Must match the requested agent name when loaded by name. | Agent identity and discovery key.                              |
-| `provider`    | string                      | `[defaults].provider`                       | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, and API key metadata. |
-| `command`     | string                      | Provider `command`                          | Non-empty when overriding.                                          | Agent-specific ACP launch command.                             |
-| `model`       | string                      | Provider `default_model`                    | Any string.                                                         | Agent-specific model metadata.                                 |
-| `tools`       | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Additional agent tool allowlist grammar.                       |
-| `toolsets`    | string array                | empty                                       | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.           |
-| `deny_tools`  | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.               |
-| `permissions` | string                      | `[permissions].mode`, default `approve-all` | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                |
-| `mcp_servers` | array of MCP server objects | empty                                       | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                       |
-| `hooks`       | array of hook declarations  | empty                                       | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                |
-| Markdown body | Markdown text               | required                                    | Non-empty after trimming.                                           | Startup prompt sent as the agent system prompt.                |
+| Field         | Type                        | Default                                     | Valid values                                                        | Description                                                               |
+| ------------- | --------------------------- | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `name`        | string                      | required                                    | Non-empty. Must match the requested agent name when loaded by name. | Agent identity and discovery key.                                         |
+| `provider`    | string                      | `[defaults].provider`                       | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, auth mode, and runtime metadata. |
+| `command`     | string                      | Provider `command`                          | Non-empty when overriding.                                          | Agent-specific ACP launch command.                                        |
+| `model`       | string                      | Provider `default_model`                    | Any string.                                                         | Agent-specific model metadata.                                            |
+| `tools`       | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Additional agent tool allowlist grammar.                                  |
+| `toolsets`    | string array                | empty                                       | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.                      |
+| `deny_tools`  | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.                          |
+| `permissions` | string                      | `[permissions].mode`, default `approve-all` | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                           |
+| `mcp_servers` | array of MCP server objects | empty                                       | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                                  |
+| `hooks`       | array of hook declarations  | empty                                       | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                           |
+| Markdown body | Markdown text               | required                                    | Non-empty after trimming.                                           | Startup prompt sent as the agent system prompt.                           |
 
 Even when `tools` and `toolsets` are empty, AGH adds the discovery toolsets `agh__bootstrap` and
 `agh__catalog` at runtime unless effective policy denies them. Agents should discover AGH-native
@@ -69,7 +69,7 @@ does not merge lower-precedence definitions.
 
 ## Complete Annotated Example
 
-```markdown
+```text
 ---
 # Required. This must match the directory name when loaded by name.
 name: reviewer
@@ -132,13 +132,13 @@ Put blocking findings first and cite the relevant file or symbol.
 
 ### `provider`
 
-| Attribute    | Value                                                                                                |
-| ------------ | ---------------------------------------------------------------------------------------------------- |
-| Type         | string                                                                                               |
-| Default      | `[defaults].provider`                                                                                |
-| Required     | Required at resolution time unless `[defaults].provider` is set.                                     |
-| Valid values | Built-in provider key or custom `[providers.<name>]` key.                                            |
-| Description  | Selects the provider command, default model, provider MCP servers, and API key environment metadata. |
+| Attribute    | Value                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| Type         | string                                                                                              |
+| Default      | `[defaults].provider`                                                                               |
+| Required     | Required at resolution time unless `[defaults].provider` is set.                                    |
+| Valid values | Built-in provider key or custom `[providers.<name>]` key.                                           |
+| Description  | Selects the provider command, default model, provider MCP servers, auth mode, and runtime metadata. |
 
 ### `command`
 
@@ -245,7 +245,7 @@ frontmatter once their credential slots are configured in `config.toml` or setti
 
 ### Claude
 
-```markdown
+```text
 ---
 name: claude-reviewer
 provider: claude
@@ -258,7 +258,7 @@ Review the requested change for correctness and missing tests.
 
 ### Codex
 
-```markdown
+```text
 ---
 name: codex-builder
 provider: codex
@@ -271,7 +271,7 @@ Implement scoped code changes, run verification, and summarize the diff.
 
 ### Gemini
 
-```markdown
+```text
 ---
 name: gemini-researcher
 provider: gemini
@@ -284,7 +284,7 @@ Analyze the repository context and return concise implementation guidance.
 
 ### OpenCode
 
-```markdown
+```text
 ---
 name: opencode-worker
 provider: opencode
@@ -296,7 +296,7 @@ Work through implementation tasks with a small, reviewable diff.
 
 ### Copilot
 
-```markdown
+```text
 ---
 name: copilot-helper
 provider: copilot
@@ -308,7 +308,7 @@ Inspect the codebase and answer questions with file-backed references.
 
 ### Cursor
 
-```markdown
+```text
 ---
 name: cursor-agent
 provider: cursor
@@ -320,7 +320,7 @@ Make focused edits and keep changes aligned with project conventions.
 
 ### Kiro
 
-```markdown
+```text
 ---
 name: kiro-planner
 provider: kiro
@@ -332,7 +332,7 @@ Turn product requirements into concrete implementation notes.
 
 ### Pi
 
-```markdown
+```text
 ---
 name: pi-assistant
 provider: pi

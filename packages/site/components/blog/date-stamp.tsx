@@ -11,7 +11,7 @@ export interface DateStampProps extends Omit<ComponentProps<"time">, "children" 
 }
 
 const toneClass: Record<MonoEyebrowTone, string> = {
-  neutral: "text-(--color-text-tertiary)",
+  neutral: "text-(--color-text-label)",
   accent: "text-(--color-accent)",
   success: "text-(--color-success)",
   danger: "text-(--color-danger)",

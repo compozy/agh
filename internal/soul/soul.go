@@ -276,6 +276,19 @@ func Parse(ctx context.Context, req ParseRequest) (ResolvedSoul, error) {
 	}, nil
 }
 
+// Empty returns a valid absent SOUL.md resolution for non-filesystem agent sources.
+func Empty(config aghconfig.SoulConfig, sourcePath string) (ResolvedSoul, error) {
+	if err := config.Validate(); err != nil {
+		return ResolvedSoul{}, err
+	}
+	safePath, diagnostic := safeSourcePath(sourcePath, "")
+	result := emptyResult(config, safePath)
+	if diagnostic != nil {
+		return resultWithDiagnostics(&result, []Diagnostic{*diagnostic})
+	}
+	return result, nil
+}
+
 func parseDocument(
 	content []byte,
 	cfg aghconfig.SoulConfig,

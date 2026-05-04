@@ -44,4 +44,6 @@ export const settingsKeys = {
 
   restartRoot: () => [...settingsKeys.all, "restart"] as const,
   restartStatus: (operationId: string) => [...settingsKeys.restartRoot(), operationId] as const,
+
+  updateStatus: () => [...settingsKeys.all, "update"] as const,
 };

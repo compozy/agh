@@ -243,12 +243,32 @@ func ValidateRefNamespace(ref string, namespace string) error {
 // carries durable credential material and should be declared through secret_env.
 func SecretLikeEnvName(name string) bool {
 	normalized := strings.ToUpper(strings.TrimSpace(name))
+	if nonCredentialEnvName(normalized) {
+		return false
+	}
 	for _, needle := range secretLikeEnvNeedles {
 		if strings.Contains(normalized, needle) {
 			return true
 		}
 	}
 	return false
+}
+
+func nonCredentialEnvName(name string) bool {
+	switch {
+	case strings.HasSuffix(name, "_URL"):
+		return true
+	case strings.HasSuffix(name, "_URI"):
+		return true
+	case strings.HasSuffix(name, "_PATH"):
+		return true
+	case strings.HasSuffix(name, "_FILE"):
+		return true
+	case strings.HasSuffix(name, "_DIR"):
+		return true
+	default:
+		return false
+	}
 }
 
 // ValidateNonSecretEnvMap rejects literal env maps that appear to carry secrets.

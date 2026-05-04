@@ -104,6 +104,61 @@ func TestManagerSoulSessionSnapshots(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve global agent soul from home root", func(t *testing.T) {
+		t.Parallel()
+
+		soulStore := newFakeSoulSnapshotStore()
+		h := newHarness(t, WithSoulSnapshotStore(soulStore))
+		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
+		}
+		agentPath := filepath.Join(h.homePaths.AgentsDir, "coder", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(agentPath), 0o755); err != nil {
+			t.Fatalf("MkdirAll(global agent dir) error = %v", err)
+		}
+		if err := os.WriteFile(
+			agentPath,
+			[]byte("---\nname: coder\nprovider: claude\n---\nGlobal prompt.\n"),
+			0o644,
+		); err != nil {
+			t.Fatalf("WriteFile(global agent) error = %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(filepath.Dir(agentPath), soul.FileName),
+			[]byte(validSessionSoul("Global Reviewer", "Use the global agent soul.")),
+			0o644,
+		); err != nil {
+			t.Fatalf("WriteFile(global soul) error = %v", err)
+		}
+		resolved.Agents = []aghconfig.AgentDef{{
+			Name:       "coder",
+			Provider:   "claude",
+			Prompt:     "Global prompt.",
+			SourcePath: agentPath,
+		}}
+		h.resolver.upsert(&resolved)
+
+		session := createSession(t, h)
+		cleanupSessionStop(t, h, session.ID)
+
+		info := session.Info()
+		if info.SoulSnapshotID == "" || info.SoulDigest == "" {
+			t.Fatalf(
+				"session soul fields = snapshot %q digest %q, want global-home snapshot",
+				info.SoulSnapshotID,
+				info.SoulDigest,
+			)
+		}
+		stored, ok := soulStore.snapshot(info.SoulSnapshotID)
+		if !ok {
+			t.Fatalf("snapshot %q was not persisted", info.SoulSnapshotID)
+		}
+		if got, want := stored.SourcePath, "agents/coder/SOUL.md"; got != want {
+			t.Fatalf("stored.SourcePath = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should preserve soul provenance across resume", func(t *testing.T) {
 		t.Parallel()
 

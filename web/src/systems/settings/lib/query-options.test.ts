@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   SETTINGS_QUERY_INTERVALS,
+  shouldRetrySettingsQuery,
   settingsAutomationOptions,
   settingsSandboxDetailOptions,
   settingsGeneralOptions,
@@ -9,6 +10,7 @@ import {
   settingsProviderDetailOptions,
   settingsRestartStatusOptions,
 } from "./query-options";
+import { SettingsApiError } from "../adapters/settings-api";
 
 describe("settings section options", () => {
   it("uses the configured stale and refetch intervals for sections", () => {
@@ -18,6 +20,20 @@ describe("settings section options", () => {
     expect(general.staleTime).toBe(SETTINGS_QUERY_INTERVALS.sectionStaleTime);
     expect(general.refetchInterval).toBe(SETTINGS_QUERY_INTERVALS.sectionRefetchInterval);
     expect(automation.queryKey).toEqual(["settings", "section", "automation"]);
+  });
+
+  it("does not retry policy-blocked settings requests", () => {
+    expect(
+      shouldRetrySettingsQuery(
+        0,
+        new SettingsApiError(
+          "remote HTTP API access is disabled unless the daemon is bound to a loopback host",
+          403
+        )
+      )
+    ).toBe(false);
+    expect(shouldRetrySettingsQuery(0, new Error("temporary failure"))).toBe(true);
+    expect(shouldRetrySettingsQuery(2, new Error("temporary failure"))).toBe(false);
   });
 });
 

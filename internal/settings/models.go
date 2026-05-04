@@ -437,6 +437,11 @@ type ProviderSettings struct {
 	RuntimeProvider string
 	Transport       string
 	BaseURL         string
+	AuthMode        aghconfig.ProviderAuthMode
+	EnvPolicy       aghconfig.ProviderEnvPolicy
+	HomePolicy      aghconfig.ProviderHomePolicy
+	AuthStatusCmd   string
+	AuthLoginCmd    string
 	CredentialSlots []aghconfig.ProviderCredentialSlot
 }
 
@@ -449,6 +454,17 @@ type ProviderCredentialStatus struct {
 	Required  bool
 	Present   bool
 	Source    string
+}
+
+// ProviderAuthStatus is a redacted provider authentication readiness summary.
+type ProviderAuthStatus struct {
+	Mode       aghconfig.ProviderAuthMode
+	EnvPolicy  aghconfig.ProviderEnvPolicy
+	HomePolicy aghconfig.ProviderHomePolicy
+	State      string
+	Message    string
+	StatusCmd  string
+	LoginCmd   string
 }
 
 // ProviderSecretWrite is one write-only provider secret mutation.
@@ -485,6 +501,7 @@ type ProviderItem struct {
 	Default          bool
 	CommandAvailable bool
 	Credentials      []ProviderCredentialStatus
+	AuthStatus       ProviderAuthStatus
 	SourceMetadata   SourceMetadata
 	Fallback         *ProviderFallback
 }

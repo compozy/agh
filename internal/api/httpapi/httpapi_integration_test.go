@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -32,6 +33,7 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
 	"github.com/pedronauck/agh/internal/transcript"
+	vaultpkg "github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -2279,6 +2281,18 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		triggered: true,
 		last:      time.Date(2026, 4, 4, 3, 30, 0, 0, time.UTC),
 	}
+	lookupEnv := func(key string) (string, bool) {
+		value, ok := os.LookupEnv(key)
+		return value, ok && strings.TrimSpace(value) != ""
+	}
+	vaultService, err := vaultpkg.NewService(
+		registry,
+		vaultpkg.NewFileKeyProvider(homePaths.HomeDir, lookupEnv),
+		vaultpkg.WithLookupEnv(lookupEnv),
+	)
+	if err != nil {
+		t.Fatalf("vault.NewService() error = %v", err)
+	}
 
 	automationManager, err := automationpkg.New(
 		automationpkg.WithStore(registry),
@@ -2287,6 +2301,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		automationpkg.WithConfig(cfg.Automation),
 		automationpkg.WithLogger(discardLogger()),
 		automationpkg.WithGlobalWorkspacePath(homePaths.HomeDir),
+		automationpkg.WithWebhookSecretStore(vaultService),
 	)
 	if err != nil {
 		t.Fatalf("automation.New() error = %v", err)
@@ -2333,6 +2348,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		WithResourceService(resourceService),
 		WithAutomation(automationManager),
 		WithBridgeService(bridgeService),
+		WithVaultService(vaultService),
 		WithWorkspaceResolver(resolver),
 		WithMemoryStore(memoryStore),
 		WithDreamTrigger(dreamTrigger),

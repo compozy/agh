@@ -584,7 +584,7 @@ func extensionManifestToolMCPDeclarationProvider(
 	getenv func(string) string,
 	logger *slog.Logger,
 ) toolMCPDeclarationProvider {
-	return func(_ context.Context) (toolMCPDesiredResources, error) {
+	return func(ctx context.Context) (toolMCPDesiredResources, error) {
 		if registry == nil || runtime == nil {
 			return toolMCPDesiredResources{}, nil
 		}
@@ -605,7 +605,7 @@ func extensionManifestToolMCPDeclarationProvider(
 		desired := toolMCPDesiredResources{}
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 		for _, info := range infos {
-			ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
+			ext, err := loadExtensionSnapshot(ctx, registry, manager, logger, info.Name)
 			if err != nil {
 				return toolMCPDesiredResources{}, fmt.Errorf(
 					"daemon: load extension %q for tool/mcp sync: %w",

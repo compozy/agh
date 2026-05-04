@@ -193,12 +193,15 @@ func (d *Daemon) nativeToolsDeps(
 		HomePaths:         d.homePaths,
 		Observer:          state.observer,
 		HookBindings:      state.hookBindings,
-		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
-		HeartbeatStatus:   state.deps.HeartbeatStatus,
-		HeartbeatWake:     state.deps.HeartbeatWake,
-		SessionHealth:     state.deps.SessionHealth,
-		WakeEvents:        state.deps.WakeEvents,
-		Automation:        state.deps.Automation,
+		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+		HeartbeatStatus: state.deps.HeartbeatStatus,
+		HeartbeatWake:   state.deps.HeartbeatWake,
+		SessionHealth:   state.deps.SessionHealth,
+		WakeEvents:      state.deps.WakeEvents,
+		Automation:      state.deps.Automation,
 		AutomationRuntime: func() core.AutomationManager {
 			return state.deps.Automation
 		},
@@ -2070,11 +2073,65 @@ func (n *daemonNativeTools) authoredAgentTarget(
 func (t nativeAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
 		WorkspaceID:   t.workspaceID,
-		WorkspaceRoot: t.workspaceRoot,
+		WorkspaceRoot: nativeAuthoredSourceRoot(t.workspaceRoot, t.agentPath),
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.heartbeatConfig,
 	}
+}
+
+func nativeAuthoredSourceRoot(workspaceRoot string, agentPath string) string {
+	root := strings.TrimSpace(workspaceRoot)
+	source := strings.TrimSpace(agentPath)
+	if source == "" || !filepath.IsAbs(source) || nativePathWithinRoot(root, source) {
+		return root
+	}
+	if derived := nativeTrustedRootFromAgentSourcePath(source); derived != "" {
+		return derived
+	}
+	return root
+}
+
+func nativeTrustedRootFromAgentSourcePath(agentPath string) string {
+	cleaned := filepath.Clean(strings.TrimSpace(agentPath))
+	if !strings.EqualFold(filepath.Base(cleaned), "AGENT.md") {
+		return ""
+	}
+	agentDir := filepath.Dir(cleaned)
+	agentsDir := filepath.Dir(agentDir)
+	if filepath.Base(agentsDir) != aghconfig.AgentsDirName {
+		return ""
+	}
+	root := filepath.Dir(agentsDir)
+	if filepath.Base(root) == aghconfig.DirName {
+		return filepath.Dir(root)
+	}
+	return root
+}
+
+func nativePathWithinRoot(root string, sourcePath string) bool {
+	trimmedRoot := strings.TrimSpace(root)
+	trimmedSource := strings.TrimSpace(sourcePath)
+	if trimmedRoot == "" || trimmedSource == "" {
+		return false
+	}
+	absRoot, err := filepath.Abs(filepath.Clean(trimmedRoot))
+	if err != nil {
+		return false
+	}
+	sourceForRoot := filepath.Clean(trimmedSource)
+	if !filepath.IsAbs(sourceForRoot) {
+		sourceForRoot = filepath.Join(absRoot, sourceForRoot)
+	}
+	absSource, err := filepath.Abs(sourceForRoot)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(absRoot, absSource)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 func nativeAuthoredAgentPath(workspace *workspacepkg.ResolvedWorkspace, agentName string) string {

@@ -1,4 +1,16 @@
 {
     "title": "Skill",
-    "pages": ["index", "create", "info", "install", "list", "remove", "search", "update", "view"]
+    "pages": [
+        "index",
+        "create",
+        "disable",
+        "enable",
+        "info",
+        "install",
+        "list",
+        "remove",
+        "search",
+        "update",
+        "view"
+    ]
 }

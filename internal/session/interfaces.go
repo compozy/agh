@@ -9,6 +9,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/sandbox"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
@@ -70,6 +71,25 @@ type TurnEndNotifier func(sessionID string)
 
 // PromptInputAugmenter can add bounded daemon-local context before prompt dispatch.
 type PromptInputAugmenter func(ctx context.Context, session *Session, message string) (string, error)
+
+// AgentArtifacts returns an agent definition and optional resource-backed authored-context sidecars.
+type AgentArtifacts struct {
+	Agent               aghconfig.AgentDef
+	ResourceID          string
+	OwnerKind           string
+	OwnerID             string
+	Scope               resources.ResourceScope
+	PackageOwned        bool
+	SoulSourcePath      string
+	SoulBody            string
+	HeartbeatSourcePath string
+	HeartbeatBody       string
+}
+
+// AgentArtifactResolver resolves agent provenance and sidecars when available.
+type AgentArtifactResolver interface {
+	ResolveAgentArtifacts(name string, resolved *workspacepkg.ResolvedWorkspace) (AgentArtifacts, error)
+}
 
 func normalizeTurnSource(source TurnSource) TurnSource {
 	switch TurnSource(strings.TrimSpace(string(source))) {

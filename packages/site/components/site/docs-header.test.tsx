@@ -62,11 +62,11 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("fumadocs-core/framework", () => ({
+vi.mock("next/navigation", () => ({
   usePathname: () => "/runtime/cli-reference/agh/",
 }));
 
-vi.mock("fumadocs-core/link", () => ({
+vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: { children: ReactNode; href: string }) => (
     <a href={href} {...props}>
       {children}
@@ -121,7 +121,7 @@ describe("DocsHeader", () => {
       navItems: [
         { text: "Runtime", type: "main", url: "/runtime/" },
         { text: "AGH Network", type: "main", url: "/protocol/" },
-        { label: "GitHub", type: "icon", url: "https://github.com/compozy/agh", icon: "GH" },
+        { label: "GitHub", type: "icon", url: "https://github.com/compozy", icon: "GH" },
         { type: "menu", text: "Ignored menu" },
       ],
       props: {
@@ -163,7 +163,7 @@ describe("DocsHeader", () => {
     );
     expect(screen.queryByText("Ignored menu")).toBeNull();
     expect(screen.getByRole("link", { name: "GitHub" }).getAttribute("href")).toBe(
-      "https://github.com/compozy/agh"
+      "https://github.com/compozy"
     );
     expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(2);
     expect(screen.getByRole("link", { name: "AGH docs home" }).getAttribute("href")).toBe("/");

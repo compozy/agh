@@ -45,14 +45,14 @@ The MVP accepts these coordination message kinds:
 
 Task-bound channel messages carry typed metadata:
 
-| Field                     | Required | Meaning                                                                                               |
-| ------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
-| `task_id`                 | yes      | Task the conversation belongs to.                                                                     |
-| `run_id`                  | yes      | Task run the message is correlated with.                                                              |
-| `workflow_id`             | no       | Workflow correlation when present. Workflow is metadata in the MVP, not a first-class workflow store. |
-| `coordination_channel_id` | yes      | Stable channel binding recorded on the run.                                                           |
-| `message_kind`            | yes      | One of the MVP message kinds.                                                                         |
-| `correlation_id`          | yes      | Message-level correlation, commonly the run ID or a request ID.                                       |
+| Field                     | Required | Meaning                                                                               |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `task_id`                 | yes      | Task the conversation belongs to.                                                     |
+| `run_id`                  | yes      | Task run the message is correlated with.                                              |
+| `workflow_id`             | no       | Optional correlation key. It is metadata in the MVP, not a first-class runtime store. |
+| `coordination_channel_id` | yes      | Stable channel binding recorded on the run.                                           |
+| `message_kind`            | yes      | One of the MVP message kinds.                                                         |
+| `correlation_id`          | yes      | Message-level correlation, commonly the run ID or a request ID.                       |
 
 Raw lease credential fields are rejected in coordination metadata and must not appear in channel
 message bodies, extension metadata, logs, read models, or memory summaries.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
 )
 
@@ -37,6 +38,11 @@ type StatusStore interface {
 // SessionHealthReader provides metadata-only session health for status reads.
 type SessionHealthReader interface {
 	GetSessionHealth(ctx context.Context, sessionID string) (SessionHealth, error)
+}
+
+// PolicyResolver resolves non-filesystem Heartbeat policies, such as package-owned agent resources.
+type PolicyResolver interface {
+	ResolveHeartbeatPolicy(ctx context.Context, target AuthoringTarget) (ResolvedPolicy, bool, error)
 }
 
 // InspectRequest identifies the policy source to inspect.
@@ -105,8 +111,9 @@ func (e *StatusError) Unwrap() error {
 
 // ManagedHeartbeatStatusService composes read-only Heartbeat policy status.
 type ManagedHeartbeatStatusService struct {
-	store        StatusStore
-	healthReader SessionHealthReader
+	store          StatusStore
+	healthReader   SessionHealthReader
+	policyResolver PolicyResolver
 }
 
 var _ StatusService = (*ManagedHeartbeatStatusService)(nil)
@@ -118,6 +125,13 @@ type StatusOption func(*ManagedHeartbeatStatusService)
 func WithHeartbeatStatusSessionHealthReader(reader SessionHealthReader) StatusOption {
 	return func(service *ManagedHeartbeatStatusService) {
 		service.healthReader = reader
+	}
+}
+
+// WithHeartbeatStatusPolicyResolver injects an agent-aware policy resolver.
+func WithHeartbeatStatusPolicyResolver(resolver PolicyResolver) StatusOption {
+	return func(service *ManagedHeartbeatStatusService) {
+		service.policyResolver = resolver
 	}
 }
 
@@ -143,23 +157,11 @@ func (s *ManagedHeartbeatStatusService) Inspect(
 	ctx context.Context,
 	req InspectRequest,
 ) (InspectResult, error) {
-	target, err := resolveStatusTarget(ctx, req.Target)
+	result, _, err := s.inspectResolved(ctx, req.Target)
 	if err != nil {
 		return InspectResult{}, err
 	}
-	policy, err := resolvePolicyForStatus(ctx, target)
-	if err != nil {
-		return InspectResult{}, err
-	}
-	snapshot, err := s.snapshotForPolicy(ctx, target, &policy)
-	if err != nil {
-		return InspectResult{}, err
-	}
-	return InspectResult{
-		AgentName: target.agentName,
-		Policy:    policy,
-		Snapshot:  snapshot,
-	}, nil
+	return result, nil
 }
 
 // Status composes current policy status with wake state and requested session health.
@@ -167,11 +169,7 @@ func (s *ManagedHeartbeatStatusService) Status(
 	ctx context.Context,
 	req StatusRequest,
 ) (StatusResult, error) {
-	inspect, err := s.Inspect(ctx, InspectRequest{Target: req.Target})
-	if err != nil {
-		return StatusResult{}, err
-	}
-	target, err := resolveStatusTarget(ctx, req.Target)
+	inspect, target, err := s.inspectResolved(ctx, req.Target)
 	if err != nil {
 		return StatusResult{}, err
 	}
@@ -186,9 +184,73 @@ func (s *ManagedHeartbeatStatusService) Status(
 	return statusResultFromInspect(&inspect, wakeState, sessionHealth), nil
 }
 
+func (s *ManagedHeartbeatStatusService) inspectResolved(
+	ctx context.Context,
+	target AuthoringTarget,
+) (InspectResult, resolvedAuthoringTarget, error) {
+	resolved, policy, err := s.resolvePolicy(ctx, target)
+	if err != nil {
+		return InspectResult{}, resolvedAuthoringTarget{}, err
+	}
+	snapshot, err := s.snapshotForPolicy(ctx, resolved, &policy)
+	if err != nil {
+		return InspectResult{}, resolvedAuthoringTarget{}, err
+	}
+	return InspectResult{
+		AgentName: resolved.agentName,
+		Policy:    policy,
+		Snapshot:  snapshot,
+	}, resolved, nil
+}
+
+func (s *ManagedHeartbeatStatusService) resolvePolicy(
+	ctx context.Context,
+	target AuthoringTarget,
+) (resolvedAuthoringTarget, ResolvedPolicy, error) {
+	if s != nil && s.policyResolver != nil {
+		policy, ok, err := s.policyResolver.ResolveHeartbeatPolicy(ctx, target)
+		if err != nil {
+			return resolvedAuthoringTarget{}, ResolvedPolicy{}, err
+		}
+		if ok {
+			resolved, resolveErr := resolveStatusTargetForPolicy(target)
+			if resolveErr != nil {
+				return resolvedAuthoringTarget{}, ResolvedPolicy{}, resolveErr
+			}
+			return resolved, policy, nil
+		}
+	}
+	resolved, err := resolveStatusTarget(ctx, target)
+	if err != nil {
+		return resolvedAuthoringTarget{}, ResolvedPolicy{}, err
+	}
+	policy, err := resolvePolicyForStatus(ctx, resolved)
+	if err != nil {
+		return resolvedAuthoringTarget{}, ResolvedPolicy{}, err
+	}
+	return resolved, policy, nil
+}
+
 func resolveStatusTarget(ctx context.Context, target AuthoringTarget) (resolvedAuthoringTarget, error) {
 	service := ManagedHeartbeatAuthoringService{}
 	return service.resolveTarget(ctx, target)
+}
+
+func resolveStatusTargetForPolicy(target AuthoringTarget) (resolvedAuthoringTarget, error) {
+	if target.Config == (aghconfig.HeartbeatConfig{}) {
+		target.Config = aghconfig.DefaultHeartbeatConfig()
+	}
+	normalized, err := normalizeAuthoringTarget(target)
+	if err != nil {
+		return resolvedAuthoringTarget{}, err
+	}
+	return resolvedAuthoringTarget{
+		workspaceID:   normalized.workspaceID,
+		workspaceRoot: normalized.workspaceRoot,
+		agentName:     normalized.agentName,
+		agentPath:     normalized.agentPath,
+		config:        normalized.config,
+	}, nil
 }
 
 func resolvePolicyForStatus(ctx context.Context, target resolvedAuthoringTarget) (ResolvedPolicy, error) {

@@ -1,8 +1,13 @@
+import { LLMCopyButton, OpenWithAI, ViewOptions } from "@/components/docs/page-actions";
+
 interface DocPageMastheadProps {
   kind: "runtime" | "protocol";
   slug: string[];
   title: string;
   description?: string;
+  markdownUrl?: string;
+  pageUrl?: string;
+  githubUrl?: string;
 }
 
 function toLabel(value?: string) {
@@ -57,20 +62,38 @@ function resolveMeta(kind: "runtime" | "protocol", slug: string[]) {
   };
 }
 
-export function DocPageMasthead({ kind, slug, title, description }: DocPageMastheadProps) {
+export function DocPageMasthead({
+  kind,
+  slug,
+  title,
+  description,
+  markdownUrl,
+  pageUrl,
+  githubUrl,
+}: DocPageMastheadProps) {
   const meta = resolveMeta(kind, slug);
+  const showActions = Boolean(markdownUrl && pageUrl && githubUrl);
 
   return (
     <header className="not-prose border-b border-(--color-divider) pb-8">
-      <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-text-tertiary)">
+      <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-text-label)">
         <span className="text-(--color-accent)">{meta.eyebrow}</span>
         <span className="h-px w-8 bg-(--color-divider)" />
         <span>{meta.section}</span>
       </div>
 
-      <h1 className="mt-5 max-w-[12ch] font-display text-[clamp(2.55rem,4.7vw,4rem)] leading-[0.98] font-normal tracking-[-0.025em] text-(--color-text-primary)">
-        {title}
-      </h1>
+      <div className="mt-5 flex flex-col gap-6 md:flex-row md:items-end md:justify-between md:gap-8">
+        <h1 className="max-w-[12ch] font-display text-[clamp(2.55rem,4.7vw,4rem)] leading-[0.98] font-normal tracking-[-0.025em] text-(--color-text-primary)">
+          {title}
+        </h1>
+        {showActions && markdownUrl && pageUrl && githubUrl ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <LLMCopyButton markdownUrl={markdownUrl} />
+            <OpenWithAI pageUrl={pageUrl} />
+            <ViewOptions githubUrl={githubUrl} markdownUrl={markdownUrl} />
+          </div>
+        ) : null}
+      </div>
 
       {description && (
         <p className="mt-4 max-w-[68ch] text-[1.02rem] leading-8 text-(--color-text-secondary)">
@@ -80,13 +103,13 @@ export function DocPageMasthead({ kind, slug, title, description }: DocPageMasth
 
       <dl className="mt-6 grid gap-5 border-t border-(--color-divider) pt-4 md:grid-cols-2 xl:max-w-3xl">
         <div>
-          <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-(--color-text-tertiary)">
+          <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-(--color-text-label)">
             Audience
           </dt>
           <dd className="mt-2 text-sm leading-6 text-(--color-text-secondary)">{meta.audience}</dd>
         </div>
         <div>
-          <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-(--color-text-tertiary)">
+          <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-(--color-text-label)">
             Focus
           </dt>
           <dd className="mt-2 text-sm leading-6 text-(--color-text-secondary)">

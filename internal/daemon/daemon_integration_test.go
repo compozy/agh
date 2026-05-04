@@ -1660,13 +1660,20 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
+	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		SessionID: "sess-sender",
+		PeerID:    "coder.sess-sender",
+		Channel:   "builders",
+	}); err != nil {
+		t.Fatalf("JoinChannel(sender) error = %v", err)
+	}
 
 	body, err := json.Marshal(map[string]any{"text": "hello from network"})
 	if err != nil {
 		t.Fatalf("json.Marshal(body) error = %v", err)
 	}
 	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
-		SessionID: "sess-net",
+		SessionID: "sess-sender",
 		Channel:   "builders",
 		Kind:      network.KindSay,
 		Body:      body,
@@ -1687,8 +1694,8 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("network.Status() error = %v", err)
 	}
-	if status.LocalPeers != 1 || status.Channels != 1 {
-		t.Fatalf("network.Status() = %#v, want 1 local peer and 1 channel", status)
+	if status.LocalPeers != 2 || status.Channels != 1 {
+		t.Fatalf("network.Status() = %#v, want 2 local peers and 1 channel", status)
 	}
 
 	if err := d.Shutdown(testutil.Context(t)); err != nil {
@@ -1760,13 +1767,20 @@ func TestBootNetworkShutdownTracksInterruptedInFlightDelivery(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
+	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		SessionID: "sess-sender",
+		PeerID:    "coder.sess-sender",
+		Channel:   "builders",
+	}); err != nil {
+		t.Fatalf("JoinChannel(sender) error = %v", err)
+	}
 
 	body, err := json.Marshal(map[string]any{"text": "shutdown during delivery"})
 	if err != nil {
 		t.Fatalf("json.Marshal(body) error = %v", err)
 	}
 	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
-		SessionID: "sess-net",
+		SessionID: "sess-sender",
 		Channel:   "builders",
 		Kind:      network.KindSay,
 		Body:      body,

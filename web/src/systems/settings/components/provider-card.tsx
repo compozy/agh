@@ -80,6 +80,18 @@ export function ProviderCard({ provider, onEdit, onDelete }: ProviderCardProps) 
             <EmptyValue />
           )}
         </MetaRow>
+        <MetaRow label="Auth mode" testId={`${testId}-auth-mode`}>
+          {provider.settings.auth_mode ?? <EmptyValue />}
+        </MetaRow>
+        <MetaRow label="Env policy" testId={`${testId}-env-policy`}>
+          {provider.settings.env_policy ?? <EmptyValue />}
+        </MetaRow>
+        <MetaRow label="Home policy" testId={`${testId}-home-policy`}>
+          {provider.settings.home_policy ?? <EmptyValue />}
+        </MetaRow>
+        <MetaRow label="Auth status" testId={`${testId}-auth-status`}>
+          <ProviderAuthStatus provider={provider} />
+        </MetaRow>
         <MetaRow label="Credential slots" testId={`${testId}-api-key`}>
           <CredentialSlots provider={provider} />
         </MetaRow>
@@ -162,6 +174,38 @@ function MetaRow({ label, children, testId }: MetaRowProps) {
 
 function EmptyValue() {
   return <span className="text-[color:var(--color-text-label)]">—</span>;
+}
+
+function ProviderAuthStatus({ provider }: { provider: SettingsProviderEntry }) {
+  const status = provider.auth_status;
+  if (!status) {
+    return <EmptyValue />;
+  }
+  const state = status.state || "unknown";
+  const tone = authStatusTone(state);
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span>{state}</span>
+      <Pill mono tone={tone}>
+        {status.mode}
+      </Pill>
+    </span>
+  );
+}
+
+function authStatusTone(state: string): PillTone {
+  switch (state) {
+    case "authenticated":
+    case "native_cli":
+    case "present":
+    case "none":
+      return "success";
+    case "missing_required":
+    case "needs_login":
+      return "warning";
+    default:
+      return "neutral";
+  }
 }
 
 function CredentialState({

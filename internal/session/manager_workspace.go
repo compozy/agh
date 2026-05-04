@@ -112,14 +112,25 @@ func resolveWorkspaceAgent(
 	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
-func (m *Manager) resolveWorkspaceAgent(
+func (m *Manager) resolveWorkspaceAgentArtifacts(
 	agentName string,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (AgentArtifacts, error) {
 	if m != nil && m.agentResolver != nil {
-		return m.agentResolver.ResolveAgent(agentName, resolvedWorkspace)
+		if resolver, ok := m.agentResolver.(AgentArtifactResolver); ok {
+			return resolver.ResolveAgentArtifacts(agentName, resolvedWorkspace)
+		}
+		agent, err := m.agentResolver.ResolveAgent(agentName, resolvedWorkspace)
+		if err != nil {
+			return AgentArtifacts{}, err
+		}
+		return AgentArtifacts{Agent: agent}, nil
 	}
-	return resolveWorkspaceAgent(agentName, resolvedWorkspace)
+	agent, err := resolveWorkspaceAgent(agentName, resolvedWorkspace)
+	if err != nil {
+		return AgentArtifacts{}, err
+	}
+	return AgentArtifacts{Agent: agent}, nil
 }
 
 func (m *Manager) resolveWorkspaceSessionAgent(

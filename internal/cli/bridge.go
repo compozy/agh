@@ -28,6 +28,7 @@ func newBridgeCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newBridgeDisableCommand(deps))
 	cmd.AddCommand(newBridgeRestartCommand(deps))
 	cmd.AddCommand(newBridgeRoutesCommand(deps))
+	cmd.AddCommand(newBridgeSecretBindingsCommand(deps))
 	cmd.AddCommand(newBridgeTestDeliveryCommand(deps))
 	return cmd
 }
@@ -349,6 +350,96 @@ func newBridgeRoutesCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
+func newBridgeSecretBindingsCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "secret-bindings",
+		Short: "Manage bridge secret bindings",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
+	}
+	cmd.AddCommand(newBridgeSecretBindingsListCommand(deps))
+	cmd.AddCommand(newBridgeSecretBindingsPutCommand(deps))
+	cmd.AddCommand(newBridgeSecretBindingsDeleteCommand(deps))
+	return cmd
+}
+
+func newBridgeSecretBindingsListCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list <id>",
+		Short: "List secret bindings for one bridge instance",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			items, err := client.ListBridgeSecretBindings(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, bridgeSecretBindingListBundle(items))
+		},
+	}
+}
+
+func newBridgeSecretBindingsPutCommand(deps commandDeps) *cobra.Command {
+	var request BridgeSecretBindingRequest
+	var secretValue string
+	cmd := &cobra.Command{
+		Use:   "put <id> <binding-name>",
+		Short: "Create or update one bridge secret binding",
+		Args:  exactTwoNonBlankArgs(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			request.SecretRef = strings.TrimSpace(request.SecretRef)
+			request.Kind = strings.TrimSpace(request.Kind)
+			if cmd.Flags().Changed("secret-value") {
+				trimmed := strings.TrimSpace(secretValue)
+				request.SecretValue = &trimmed
+			}
+			if request.SecretRef == "" {
+				return errors.New("cli: --secret-ref is required")
+			}
+			if request.Kind == "" {
+				return errors.New("cli: --kind is required")
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			item, err := client.PutBridgeSecretBinding(cmd.Context(), args[0], args[1], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, bridgeSecretBindingBundle(item))
+		},
+	}
+	cmd.Flags().StringVar(&request.SecretRef, "secret-ref", "", "Vault secret ref")
+	cmd.Flags().StringVar(&request.Kind, "kind", "", "Binding kind")
+	cmd.Flags().StringVar(&secretValue, "secret-value", "", "Optional secret value to persist")
+	mustMarkFlagRequired(cmd, "secret-ref")
+	mustMarkFlagRequired(cmd, "kind")
+	return cmd
+}
+
+func newBridgeSecretBindingsDeleteCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <id> <binding-name>",
+		Short: "Delete one bridge secret binding",
+		Args:  exactTwoNonBlankArgs(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			if err := client.DeleteBridgeSecretBinding(cmd.Context(), args[0], args[1]); err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, bridgeSecretBindingDeleteBundle(args[0], args[1]))
+		},
+	}
+}
+
 func newBridgeTestDeliveryCommand(deps commandDeps) *cobra.Command {
 	var (
 		message  string
@@ -547,6 +638,98 @@ func bridgeRoutesBundle(routes []BridgeRouteRecord, now func() time.Time) output
 			}
 		},
 	)
+}
+
+func bridgeSecretBindingListBundle(items []BridgeSecretBindingRecord) outputBundle {
+	return listBundle(
+		struct {
+			Bindings []BridgeSecretBindingRecord `json:"bindings"`
+		}{Bindings: items},
+		items,
+		"Bridge Secret Bindings",
+		[]string{"BRIDGE", "NAME", "SECRET REF", "KIND", "UPDATED"},
+		"bridge_secret_bindings",
+		[]string{"bridge_instance_id", "binding_name", "secret_ref", "kind", "updated_at"},
+		func(item BridgeSecretBindingRecord) []string {
+			return []string{
+				stringOrDash(item.BridgeInstanceID),
+				stringOrDash(item.BindingName),
+				stringOrDash(item.SecretRef),
+				stringOrDash(item.Kind),
+				stringOrDash(formatTime(item.UpdatedAt)),
+			}
+		},
+		func(item BridgeSecretBindingRecord) []string {
+			return []string{
+				item.BridgeInstanceID,
+				item.BindingName,
+				item.SecretRef,
+				item.Kind,
+				formatTime(item.UpdatedAt),
+			}
+		},
+	)
+}
+
+func bridgeSecretBindingBundle(item BridgeSecretBindingRecord) outputBundle {
+	return outputBundle{
+		jsonValue: struct {
+			Binding BridgeSecretBindingRecord `json:"binding"`
+		}{Binding: item},
+		human: func() (string, error) {
+			return renderHumanSection("Bridge Secret Binding", []keyValue{
+				{Label: "Bridge", Value: stringOrDash(item.BridgeInstanceID)},
+				{Label: "Name", Value: stringOrDash(item.BindingName)},
+				{Label: "Secret Ref", Value: stringOrDash(item.SecretRef)},
+				{Label: "Kind", Value: stringOrDash(item.Kind)},
+				{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
+				{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"bridge_secret_binding",
+				[]string{"bridge_instance_id", "binding_name", "secret_ref", "kind", "created_at", "updated_at"},
+				[]string{
+					item.BridgeInstanceID,
+					item.BindingName,
+					item.SecretRef,
+					item.Kind,
+					formatTime(item.CreatedAt),
+					formatTime(item.UpdatedAt),
+				},
+			), nil
+		},
+	}
+}
+
+func bridgeSecretBindingDeleteBundle(id string, bindingName string) outputBundle {
+	item := struct {
+		BridgeInstanceID string `json:"bridge_instance_id"`
+		BindingName      string `json:"binding_name"`
+		Status           string `json:"status"`
+	}{
+		BridgeInstanceID: strings.TrimSpace(id),
+		BindingName:      strings.TrimSpace(bindingName),
+		Status:           "deleted",
+	}
+	return outputBundle{
+		jsonValue: item,
+		human: func() (string, error) {
+			return renderHumanSection("Bridge Secret Binding", []keyValue{
+				{Label: "Bridge", Value: stringOrDash(item.BridgeInstanceID)},
+				{Label: "Name", Value: stringOrDash(item.BindingName)},
+				{Label: "Status", Value: item.Status},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"bridge_secret_binding",
+				[]string{"bridge_instance_id", "binding_name", "status"},
+				[]string{item.BridgeInstanceID, item.BindingName, item.Status},
+			), nil
+		},
+	}
 }
 
 func bridgeTestDeliveryBundle(item BridgeTestDeliveryRecord) outputBundle {

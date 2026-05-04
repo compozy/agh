@@ -21,16 +21,20 @@ import (
 	modelpkg "github.com/pedronauck/agh/internal/bundles/model"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/soul"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 var (
-	ErrActivationNotFound = modelpkg.ErrActivationNotFound
-	ErrBundleNotFound     = errors.New("bundles: bundle not found")
-	ErrProfileNotFound    = errors.New("bundles: profile not found")
-	ErrDefaultChannelBusy = errors.New("bundles: effective default channel is already claimed")
-	ErrWebhookUnsupported = errors.New("bundles: bundle webhook triggers are not supported")
+	ErrActivationNotFound     = modelpkg.ErrActivationNotFound
+	ErrBundleNotFound         = errors.New("bundles: bundle not found")
+	ErrProfileNotFound        = errors.New("bundles: profile not found")
+	ErrDefaultChannelBusy     = errors.New("bundles: effective default channel is already claimed")
+	ErrWebhookUnsupported     = errors.New("bundles: bundle webhook triggers are not supported")
+	ErrAgentConflict          = errors.New("bundles: bundle agent conflicts with an existing agent")
+	ErrAgentReferenceNotFound = errors.New("bundles: bundle automation references an unavailable agent")
 )
 
 type Scope = modelpkg.Scope
@@ -81,6 +85,7 @@ type Store interface {
 	ListBundleActivations(ctx context.Context) ([]Activation, error)
 	ListBundleActivationInventory(ctx context.Context, activationID string) ([]InventoryItem, error)
 	ListBundleResources(ctx context.Context) ([]resources.Record[BundleResourceSpec], error)
+	ListAgentResources(ctx context.Context) ([]resources.Record[aghconfig.AgentDef], error)
 	ApplyBundleActivationResources(ctx context.Context, plan BundleActivationResourcePlan) error
 }
 
@@ -88,7 +93,7 @@ type ExtensionInfoLister interface {
 	List() ([]extensionpkg.ExtensionInfo, error)
 }
 
-type ExtensionLoader func(name string) (*extensionpkg.Extension, error)
+type ExtensionLoader func(ctx context.Context, name string) (*extensionpkg.Extension, error)
 
 type Service struct {
 	store             Store
@@ -304,7 +309,7 @@ func (s *Service) ListActivations(ctx context.Context) ([]ActivationPreview, err
 
 	items := make([]ActivationPreview, 0, len(activations))
 	for _, activation := range activations {
-		resolved, resolveErr := s.resolveActivationFromBundleLookup(activation, bundleLookup)
+		resolved, resolveErr := s.resolveActivationFromBundleLookup(ctx, activation, bundleLookup)
 		if resolveErr != nil {
 			return nil, fmt.Errorf("bundles: resolve activation %q for listing: %w", activation.ID, resolveErr)
 		}
@@ -464,15 +469,21 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 	}
 
 	errs := make([]error, 0)
-	jobOwners, triggerOwners, bridgeOwners := ownedResourceMaps(state.inventoryByActivation)
+	owners := ownedResourceMaps(state.inventoryByActivation)
 	if syncErr := s.store.ApplyBundleActivationResources(ctx, BundleActivationResourcePlan{
 		activeActivationIDs: cloneStringSet(state.activeActivationIDs),
+		desiredAgents:       cloneOwnedAgentResources(state.desiredAgents),
+		desiredSouls:        cloneOwnedSoulResources(state.desiredSouls),
+		desiredHeartbeats:   cloneOwnedHeartbeatResources(state.desiredHeartbeats),
 		desiredJobs:         cloneJobsForBundle(state.desiredJobs),
 		desiredTriggers:     cloneTriggersForBundle(state.desiredTriggers),
 		desiredBridges:      cloneBridgeInstancesForBundle(state.desiredBridges),
-		jobOwners:           jobOwners,
-		triggerOwners:       triggerOwners,
-		bridgeOwners:        bridgeOwners,
+		agentOwners:         owners.agents,
+		soulOwners:          owners.souls,
+		heartbeatOwners:     owners.heartbeats,
+		jobOwners:           owners.jobs,
+		triggerOwners:       owners.triggers,
+		bridgeOwners:        owners.bridges,
 	}); syncErr != nil {
 		errs = append(errs, syncErr)
 	}
@@ -486,6 +497,9 @@ type resolvedActivation struct {
 	bundle          extensionpkg.BundleSpec
 	profile         extensionpkg.BundleProfile
 	specContentHash string
+	agents          []ownedAgentResource
+	souls           []ownedSoulResource
+	heartbeats      []ownedHeartbeatResource
 	jobs            []automationpkg.Job
 	triggers        []automationpkg.Trigger
 	bridges         []bridgepkg.BridgeInstance
@@ -502,6 +516,9 @@ type activationDefinition struct {
 
 type reconcileState struct {
 	activeActivationIDs   map[string]struct{}
+	desiredAgents         []ownedAgentResource
+	desiredSouls          []ownedSoulResource
+	desiredHeartbeats     []ownedHeartbeatResource
 	desiredJobs           []automationpkg.Job
 	desiredTriggers       []automationpkg.Trigger
 	desiredBridges        []bridgepkg.BridgeInstance
@@ -509,6 +526,34 @@ type reconcileState struct {
 	declaredChannels      []DeclaredChannel
 	effectiveDefault      string
 	effectiveSource       string
+}
+
+type materializedActivationResources struct {
+	agents     []ownedAgentResource
+	souls      []ownedSoulResource
+	heartbeats []ownedHeartbeatResource
+	jobs       []automationpkg.Job
+	triggers   []automationpkg.Trigger
+	bridges    []bridgepkg.BridgeInstance
+	inventory  []InventoryItem
+}
+
+type ownedAgentResource struct {
+	ID    string
+	Scope resources.ResourceScope
+	Spec  aghconfig.AgentDef
+}
+
+type ownedSoulResource struct {
+	ID    string
+	Scope resources.ResourceScope
+	Spec  soul.ResourceSpec
+}
+
+type ownedHeartbeatResource struct {
+	ID    string
+	Scope resources.ResourceScope
+	Spec  heartbeat.ResourceSpec
 }
 
 func (s *Service) resolveRequest(ctx context.Context, req ActivateRequest) (resolvedActivation, error) {
@@ -564,7 +609,8 @@ func (s *Service) resolveActivation(ctx context.Context, activation Activation) 
 	}
 
 	resolved.channels = declaredChannelsForProfile(activation, definition.bundle, definition.profile)
-	resolved.jobs, resolved.triggers, resolved.bridges, resolved.inventory, err = s.materializeActivationResources(
+	materialized, err := s.materializeActivationResources(
+		ctx,
 		activation,
 		definition.bundleRecord,
 		definition.bundle,
@@ -573,6 +619,16 @@ func (s *Service) resolveActivation(ctx context.Context, activation Activation) 
 	if err != nil {
 		return resolvedActivation{}, err
 	}
+	if err := s.validateActivationAgentBindings(ctx, activation, materialized); err != nil {
+		return resolvedActivation{}, err
+	}
+	resolved.agents = materialized.agents
+	resolved.souls = materialized.souls
+	resolved.heartbeats = materialized.heartbeats
+	resolved.jobs = materialized.jobs
+	resolved.triggers = materialized.triggers
+	resolved.bridges = materialized.bridges
+	resolved.inventory = materialized.inventory
 	return resolved, nil
 }
 
@@ -782,20 +838,160 @@ func declaredChannelsForProfile(
 }
 
 func (s *Service) materializeActivationResources(
+	ctx context.Context,
 	activation Activation,
 	bundleRecord resources.Record[BundleResourceSpec],
 	bundle extensionpkg.BundleSpec,
 	profile extensionpkg.BundleProfile,
-) ([]automationpkg.Job, []automationpkg.Trigger, []bridgepkg.BridgeInstance, []InventoryItem, error) {
+) (materializedActivationResources, error) {
+	scope := resourceScopeForActivation(activation)
+	agentResources, err := materializeActivationAgentResources(activation, bundle, profile, scope)
+	if err != nil {
+		return materializedActivationResources{}, err
+	}
+	jobs, triggers, automationInventory, err := materializeActivationAutomation(activation, bundle, profile)
+	if err != nil {
+		return materializedActivationResources{}, err
+	}
+	bridges, bridgeInventory, err := s.materializeActivationBridges(
+		ctx,
+		activation,
+		bundleRecord,
+		bundle,
+		profile,
+	)
+	if err != nil {
+		return materializedActivationResources{}, err
+	}
+	inventory := make([]InventoryItem, 0, materializedInventoryCapacity(profile))
+	inventory = append(inventory, agentResources.inventory...)
+	inventory = append(inventory, automationInventory...)
+	inventory = append(inventory, bridgeInventory...)
+	return materializedActivationResources{
+		agents:     agentResources.agents,
+		souls:      agentResources.souls,
+		heartbeats: agentResources.heartbeats,
+		jobs:       jobs,
+		triggers:   triggers,
+		bridges:    bridges,
+		inventory:  inventory,
+	}, nil
+}
+
+type materializedAgentResources struct {
+	agents     []ownedAgentResource
+	souls      []ownedSoulResource
+	heartbeats []ownedHeartbeatResource
+	inventory  []InventoryItem
+}
+
+func materializeActivationAgentResources(
+	activation Activation,
+	bundle extensionpkg.BundleSpec,
+	profile extensionpkg.BundleProfile,
+	scope resources.ResourceScope,
+) (materializedAgentResources, error) {
+	result := materializedAgentResources{
+		agents:     make([]ownedAgentResource, 0, len(profile.Agents)),
+		souls:      make([]ownedSoulResource, 0, len(profile.Agents)),
+		heartbeats: make([]ownedHeartbeatResource, 0, len(profile.Agents)),
+		inventory:  make([]InventoryItem, 0, len(profile.Agents)*3),
+	}
+	for _, agentDef := range profile.Agents {
+		agent, agentID, err := materializeAgent(activation, bundle, profile, agentDef)
+		if err != nil {
+			return materializedAgentResources{}, err
+		}
+		result.agents = append(result.agents, ownedAgentResource{ID: agentID, Scope: scope, Spec: agent})
+		result.inventory = append(result.inventory, InventoryItem{
+			ActivationID: activation.ID,
+			ResourceKind: string(aghconfig.AgentResourceKind),
+			ResourceID:   agentID,
+			ResourceName: agent.Name,
+		})
+		result = appendActivationAgentSidecars(result, activation, agent, agentID, agentDef, scope)
+	}
+	return result, nil
+}
+
+func appendActivationAgentSidecars(
+	result materializedAgentResources,
+	activation Activation,
+	agent aghconfig.AgentDef,
+	agentID string,
+	agentDef extensionpkg.BundleAgent,
+	scope resources.ResourceScope,
+) materializedAgentResources {
+	if agentDef.Soul != nil {
+		sidecarID := stableID("sol", activation.ID, agent.Name)
+		result.souls = append(result.souls, ownedSoulResource{
+			ID:    sidecarID,
+			Scope: scope,
+			Spec: soul.ResourceSpec{
+				AgentName:       agent.Name,
+				AgentResourceID: agentID,
+				SourcePath:      bundleAgentSyntheticSourcePath(activation.ID, agent.Name, soul.FileName),
+				Body:            agentDef.Soul.Body,
+			},
+		})
+		result.inventory = appendSidecarInventory(
+			result.inventory,
+			activation.ID,
+			soul.ResourceKind,
+			sidecarID,
+			agent.Name,
+		)
+	}
+	if agentDef.Heartbeat != nil {
+		sidecarID := stableID("hbt", activation.ID, agent.Name)
+		result.heartbeats = append(result.heartbeats, ownedHeartbeatResource{
+			ID:    sidecarID,
+			Scope: scope,
+			Spec: heartbeat.ResourceSpec{
+				AgentName:       agent.Name,
+				AgentResourceID: agentID,
+				SourcePath:      bundleAgentSyntheticSourcePath(activation.ID, agent.Name, heartbeat.FileName),
+				Body:            agentDef.Heartbeat.Body,
+			},
+		})
+		result.inventory = appendSidecarInventory(
+			result.inventory,
+			activation.ID,
+			heartbeat.ResourceKind,
+			sidecarID,
+			agent.Name,
+		)
+	}
+	return result
+}
+
+func appendSidecarInventory(
+	inventory []InventoryItem,
+	activationID string,
+	kind resources.ResourceKind,
+	resourceID string,
+	resourceName string,
+) []InventoryItem {
+	return append(inventory, InventoryItem{
+		ActivationID: activationID,
+		ResourceKind: string(kind),
+		ResourceID:   resourceID,
+		ResourceName: resourceName,
+	})
+}
+
+func materializeActivationAutomation(
+	activation Activation,
+	bundle extensionpkg.BundleSpec,
+	profile extensionpkg.BundleProfile,
+) ([]automationpkg.Job, []automationpkg.Trigger, []InventoryItem, error) {
 	jobs := make([]automationpkg.Job, 0, len(profile.Jobs))
 	triggers := make([]automationpkg.Trigger, 0, len(profile.Triggers))
-	bridges := make([]bridgepkg.BridgeInstance, 0, len(profile.Bridges))
-	inventory := make([]InventoryItem, 0, len(profile.Jobs)+len(profile.Triggers)+len(profile.Bridges))
-
+	inventory := make([]InventoryItem, 0, len(profile.Jobs)+len(profile.Triggers))
 	for _, jobDef := range profile.Jobs {
 		job, err := materializeJob(activation, bundle, profile, jobDef)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, err
 		}
 		jobs = append(jobs, job)
 		inventory = append(inventory, InventoryItem{
@@ -808,7 +1004,7 @@ func (s *Service) materializeActivationResources(
 	for _, triggerDef := range profile.Triggers {
 		trigger, err := materializeTrigger(activation, bundle, profile, triggerDef)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, err
 		}
 		triggers = append(triggers, trigger)
 		inventory = append(inventory, InventoryItem{
@@ -818,10 +1014,22 @@ func (s *Service) materializeActivationResources(
 			ResourceName: trigger.Name,
 		})
 	}
+	return jobs, triggers, inventory, nil
+}
+
+func (s *Service) materializeActivationBridges(
+	ctx context.Context,
+	activation Activation,
+	bundleRecord resources.Record[BundleResourceSpec],
+	bundle extensionpkg.BundleSpec,
+	profile extensionpkg.BundleProfile,
+) ([]bridgepkg.BridgeInstance, []InventoryItem, error) {
+	bridges := make([]bridgepkg.BridgeInstance, 0, len(profile.Bridges))
+	inventory := make([]InventoryItem, 0, len(profile.Bridges))
 	for _, bridgeDef := range profile.Bridges {
-		instance, err := s.materializeBridge(activation, bundleRecord, bundle, profile, bridgeDef)
+		instance, err := s.materializeBridge(ctx, activation, bundleRecord, bundle, profile, bridgeDef)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, err
 		}
 		bridges = append(bridges, instance)
 		inventory = append(inventory, InventoryItem{
@@ -831,10 +1039,175 @@ func (s *Service) materializeActivationResources(
 			ResourceName: instance.DisplayName,
 		})
 	}
-	return jobs, triggers, bridges, inventory, nil
+	return bridges, inventory, nil
+}
+
+func materializedInventoryCapacity(profile extensionpkg.BundleProfile) int {
+	return len(profile.Agents)*3 + len(profile.Jobs) + len(profile.Triggers) + len(profile.Bridges)
+}
+
+func (s *Service) validateActivationAgentBindings(
+	ctx context.Context,
+	activation Activation,
+	materialized materializedActivationResources,
+) error {
+	available, err := s.visibleAgentNames(ctx, activation)
+	if err != nil {
+		return err
+	}
+	for _, agent := range materialized.agents {
+		name := strings.TrimSpace(agent.Spec.Name)
+		if name == "" {
+			continue
+		}
+		if _, exists := available[name]; exists {
+			return fmt.Errorf("%w: %s", ErrAgentConflict, name)
+		}
+		available[name] = struct{}{}
+	}
+	if err := validateAutomationAgentReferences(
+		activation,
+		materialized.jobs,
+		materialized.triggers,
+		available,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) visibleAgentNames(ctx context.Context, activation Activation) (map[string]struct{}, error) {
+	names := make(map[string]struct{})
+	records, err := s.store.ListAgentResources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	currentOwner := ownerForActivation(activation.ID)
+	for _, record := range records {
+		if !agentRecordVisibleToActivation(record, activation) {
+			continue
+		}
+		if record.Owner.Normalize() == currentOwner.Normalize() {
+			continue
+		}
+		name := strings.TrimSpace(record.Spec.Name)
+		if name != "" {
+			names[name] = struct{}{}
+		}
+	}
+	if activation.Scope.Normalize() != ScopeWorkspace {
+		return names, nil
+	}
+	if s.workspaceResolver == nil {
+		return nil, errors.New("bundles: workspace resolver is required to validate workspace-scoped bundle agents")
+	}
+	resolved, err := s.workspaceResolver.Resolve(ctx, activation.WorkspaceID)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"bundles: resolve workspace %q for bundle agent validation: %w",
+			activation.WorkspaceID,
+			err,
+		)
+	}
+	for _, agent := range resolved.Agents {
+		name := strings.TrimSpace(agent.Name)
+		if name != "" {
+			names[name] = struct{}{}
+		}
+	}
+	return names, nil
+}
+
+func agentRecordVisibleToActivation(record resources.Record[aghconfig.AgentDef], activation Activation) bool {
+	scope := record.Scope.Normalize()
+	switch activation.Scope.Normalize() {
+	case ScopeWorkspace:
+		return scope.Kind == resources.ResourceScopeKindGlobal ||
+			(scope.Kind == resources.ResourceScopeKindWorkspace &&
+				strings.TrimSpace(scope.ID) == strings.TrimSpace(activation.WorkspaceID))
+	default:
+		return scope.Kind == resources.ResourceScopeKindGlobal
+	}
+}
+
+func validateAutomationAgentReferences(
+	activation Activation,
+	jobs []automationpkg.Job,
+	triggers []automationpkg.Trigger,
+	available map[string]struct{},
+) error {
+	for _, job := range jobs {
+		agentName := strings.TrimSpace(job.AgentName)
+		if agentName == "" {
+			continue
+		}
+		if _, ok := available[agentName]; !ok {
+			return fmt.Errorf(
+				"%w: activation %q job %q references %q",
+				ErrAgentReferenceNotFound,
+				activation.ID,
+				job.Name,
+				agentName,
+			)
+		}
+	}
+	for _, trigger := range triggers {
+		agentName := strings.TrimSpace(trigger.AgentName)
+		if agentName == "" {
+			continue
+		}
+		if _, ok := available[agentName]; !ok {
+			return fmt.Errorf(
+				"%w: activation %q trigger %q references %q",
+				ErrAgentReferenceNotFound,
+				activation.ID,
+				trigger.Name,
+				agentName,
+			)
+		}
+	}
+	return nil
+}
+
+func validateDesiredAgentScopeConflicts(agents []ownedAgentResource) error {
+	type desiredAgentKey struct {
+		name  string
+		index int
+	}
+	seen := make([]desiredAgentKey, 0, len(agents))
+	for idx, agent := range agents {
+		name := strings.TrimSpace(agent.Spec.Name)
+		if name == "" {
+			continue
+		}
+		scope := agent.Scope.Normalize()
+		for _, existing := range seen {
+			if existing.name != name {
+				continue
+			}
+			if !agentScopesOverlap(scope, agents[existing.index].Scope.Normalize()) {
+				continue
+			}
+			return fmt.Errorf("%w: %s", ErrAgentConflict, name)
+		}
+		seen = append(seen, desiredAgentKey{name: name, index: idx})
+	}
+	return nil
+}
+
+func agentScopesOverlap(left resources.ResourceScope, right resources.ResourceScope) bool {
+	left = left.Normalize()
+	right = right.Normalize()
+	if left.Kind == resources.ResourceScopeKindGlobal || right.Kind == resources.ResourceScopeKindGlobal {
+		return true
+	}
+	return left.Kind == resources.ResourceScopeKindWorkspace &&
+		right.Kind == resources.ResourceScopeKindWorkspace &&
+		strings.TrimSpace(left.ID) == strings.TrimSpace(right.ID)
 }
 
 func (s *Service) materializeBridge(
+	ctx context.Context,
 	activation Activation,
 	bundleRecord resources.Record[BundleResourceSpec],
 	bundle extensionpkg.BundleSpec,
@@ -852,7 +1225,7 @@ func (s *Service) materializeBridge(
 		case strings.EqualFold(extensionName, activation.ExtensionName):
 			platform = strings.TrimSpace(bundleRecord.Spec.OwnerBridgePlatform)
 			if platform == "" {
-				provider, err := s.loadExtension(extensionName)
+				provider, err := s.loadExtension(ctx, extensionName)
 				if err != nil {
 					return bridgepkg.BridgeInstance{}, err
 				}
@@ -861,7 +1234,7 @@ func (s *Service) materializeBridge(
 				}
 			}
 		default:
-			provider, err := s.loadExtension(extensionName)
+			provider, err := s.loadExtension(ctx, extensionName)
 			if err != nil {
 				return bridgepkg.BridgeInstance{}, err
 			}
@@ -971,6 +1344,39 @@ func materializeJob(
 		return automationpkg.Job{}, err
 	}
 	return job, nil
+}
+
+func materializeAgent(
+	activation Activation,
+	bundle extensionpkg.BundleSpec,
+	profile extensionpkg.BundleProfile,
+	def extensionpkg.BundleAgent,
+) (aghconfig.AgentDef, string, error) {
+	agent := aghconfig.CloneAgentDef(def.Agent)
+	agent.Name = strings.TrimSpace(agent.Name)
+	agent.SourcePath = bundleAgentSyntheticSourcePath(activation.ID, agent.Name, "AGENT.md")
+	if err := agent.Validate(); err != nil {
+		return aghconfig.AgentDef{}, "", fmt.Errorf(
+			"bundles: materialize agent %s/%s/%s/%s: %w",
+			activation.ExtensionName,
+			bundle.Name,
+			profile.Name,
+			agent.Name,
+			err,
+		)
+	}
+	return agent, stableID("agt", activation.ID, agent.Name), nil
+}
+
+func bundleAgentSyntheticSourcePath(activationID string, agentName string, filename string) string {
+	return filepath.ToSlash(filepath.Join(
+		".agh",
+		"bundles",
+		strings.TrimSpace(activationID),
+		"agents",
+		strings.TrimSpace(agentName),
+		strings.TrimSpace(filename),
+	))
 }
 
 func materializeTrigger(
@@ -1109,9 +1515,37 @@ func cloneBundleProfile(value extensionpkg.BundleProfile) extensionpkg.BundlePro
 		Primary: strings.TrimSpace(value.Channels.Primary),
 		Items:   append([]extensionpkg.BundleChannel(nil), value.Channels.Items...),
 	}
+	cloned.Agents = cloneBundleAgents(value.Agents)
 	cloned.Jobs = append([]extensionpkg.BundleJob(nil), value.Jobs...)
 	cloned.Triggers = append([]extensionpkg.BundleTrigger(nil), value.Triggers...)
 	cloned.Bridges = append([]extensionpkg.BundleBridgePreset(nil), value.Bridges...)
+	return cloned
+}
+
+func cloneBundleAgents(values []extensionpkg.BundleAgent) []extensionpkg.BundleAgent {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]extensionpkg.BundleAgent, 0, len(values))
+	for _, value := range values {
+		next := extensionpkg.BundleAgent{
+			Path:  strings.TrimSpace(value.Path),
+			Agent: aghconfig.CloneAgentDef(value.Agent),
+		}
+		if value.Soul != nil {
+			next.Soul = &extensionpkg.BundleAgentSidecar{
+				SourcePath: strings.TrimSpace(value.Soul.SourcePath),
+				Body:       value.Soul.Body,
+			}
+		}
+		if value.Heartbeat != nil {
+			next.Heartbeat = &extensionpkg.BundleAgentSidecar{
+				SourcePath: strings.TrimSpace(value.Heartbeat.SourcePath),
+				Body:       value.Heartbeat.Body,
+			}
+		}
+		cloned = append(cloned, next)
+	}
 	return cloned
 }
 

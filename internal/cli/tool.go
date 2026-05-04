@@ -19,6 +19,7 @@ func newToolCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newToolListCommand(deps))
 	cmd.AddCommand(newToolSearchCommand(deps))
 	cmd.AddCommand(newToolInfoCommand(deps))
+	cmd.AddCommand(newToolApproveCommand(deps))
 	cmd.AddCommand(newToolInvokeCommand(deps))
 	cmd.AddCommand(newToolMCPCommand(deps))
 	return cmd

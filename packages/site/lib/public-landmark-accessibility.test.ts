@@ -7,9 +7,8 @@ const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appRoot = resolve(siteRoot, "app");
 
 const mainContentTargets = [
-  "app/(home)/page.tsx",
-  "app/blog/layout.tsx",
-  "app/changelog/layout.tsx",
+  "components/site/home-main-container.tsx",
+  "components/site/docs-main-container.tsx",
   "app/error.tsx",
   "app/not-found.tsx",
   "app/protocol/[[...slug]]/page.tsx",
@@ -53,7 +52,10 @@ describe("public landmark accessibility", () => {
 
   it("keeps every public route family reachable from the skip link", () => {
     const missingTargets = mainContentTargets
-      .filter(path => !readSiteFile(path).includes('id="main-content"'))
+      .filter(path => {
+        const source = readSiteFile(path);
+        return !source.includes('id="main-content"') && !source.includes('id = "main-content"');
+      })
       .map(path => `${path} is missing id="main-content"`);
 
     expect(missingTargets).toEqual([]);
@@ -68,5 +70,13 @@ describe("public landmark accessibility", () => {
     });
 
     expect(unnamedMainTags).toEqual([]);
+  });
+
+  it("wires Fumadocs route layouts through the shared main containers", () => {
+    expect(readSiteFile("app/(home)/layout.tsx")).toContain("HomeMainContainer");
+    expect(readSiteFile("app/blog/layout.tsx")).toContain("HomeMainContainer");
+    expect(readSiteFile("app/changelog/layout.tsx")).toContain("HomeMainContainer");
+    expect(readSiteFile("app/runtime/[[...slug]]/page.tsx")).toContain("DocsMainContainer");
+    expect(readSiteFile("app/protocol/[[...slug]]/page.tsx")).toContain("DocsMainContainer");
   });
 });

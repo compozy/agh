@@ -3,9 +3,21 @@ import { createSearchAPI } from "fumadocs-core/search/server";
 
 export const revalidate = false;
 
+type SearchPage = {
+  url: string;
+};
+
+function byURL(left: SearchPage, right: SearchPage): number {
+  return left.url.localeCompare(right.url);
+}
+
+function sortedByURL<Page extends SearchPage>(pages: Page[]): Page[] {
+  return [...pages].sort(byURL);
+}
+
 const server = createSearchAPI("advanced", {
   indexes: [
-    ...runtimeDocs.getPages().map(page => ({
+    ...sortedByURL(runtimeDocs.getPages()).map(page => ({
       title: page.data.title,
       description: page.data.description,
       structuredData: page.data.structuredData,
@@ -13,7 +25,7 @@ const server = createSearchAPI("advanced", {
       url: page.url,
       tag: "Runtime",
     })),
-    ...protocolDocs.getPages().map(page => ({
+    ...sortedByURL(protocolDocs.getPages()).map(page => ({
       title: page.data.title,
       description: page.data.description,
       structuredData: page.data.structuredData,

@@ -60,6 +60,7 @@ func TestSplitErrors(t *testing.T) {
 	}{
 		{name: "missing", content: "plain body", wantErr: ErrMissing},
 		{name: "unterminated", content: "---\nname: broken", wantErr: ErrUnterminated},
+		{name: "bom", content: "\ufeff---\nname: broken\n---\nbody", wantErr: ErrBOM},
 	}
 
 	for _, tt := range tests {

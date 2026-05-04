@@ -259,13 +259,15 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 		t.Fatalf("taskDetail.Task.Status = %q, want %q", got, want)
 	}
 
-	if err := harness.StopSession(ctx, sessionID); err != nil {
-		t.Fatalf("StopSession(%q) after completion error = %v", sessionID, err)
+	if current, err := harness.GetSession(ctx, sessionID); err == nil && current.State != sessionpkg.StateStopped {
+		if err := harness.StopSession(ctx, sessionID); err != nil {
+			t.Fatalf("StopSession(%q) after completion error = %v", sessionID, err)
+		}
+		waitForRuntimeCondition(t, "nightly task session stopped after completion", 10*time.Second, func() bool {
+			current, err := harness.GetSession(ctx, sessionID)
+			return err == nil && current.State == sessionpkg.StateStopped
+		})
 	}
-	waitForRuntimeCondition(t, "nightly task session stopped after completion", 10*time.Second, func() bool {
-		current, err := harness.GetSession(ctx, sessionID)
-		return err == nil && current.State == sessionpkg.StateStopped
-	})
 
 	meta := mustReadSessionMeta(t, harness, sessionID)
 	if got, want := meta.Channel, "ops-nightly"; got != want {

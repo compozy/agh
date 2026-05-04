@@ -40,6 +40,10 @@ function formatElapsed(startedAt?: string | null, endedAt?: string | null): stri
   return `${seconds}s`;
 }
 
+function normalizeSessionText(value?: string | null): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export function TaskRunDetailHeader({
   run,
   onCancelRun,
@@ -56,6 +60,8 @@ export function TaskRunDetailHeader({
     record.status === "running";
   const elapsed = formatElapsed(record.started_at, record.ended_at);
   const signal = taskStatusSignal(record.status);
+  const linkedSessionID = normalizeSessionText(session?.session_id ?? record.session_id);
+  const linkedSessionAgent = normalizeSessionText(session?.agent_name);
 
   return (
     <header
@@ -96,12 +102,22 @@ export function TaskRunDetailHeader({
                 {elapsed}
               </Pill>
             ) : null}
-            {session?.session_id && session.agent_name ? (
+            {linkedSessionID && linkedSessionAgent ? (
               <Link
                 className="inline-flex items-center gap-1 rounded-md border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:border-[color:var(--color-accent)]"
                 data-testid="task-run-detail-open-session"
-                params={{ name: session.agent_name, id: session.session_id }}
+                params={{ name: linkedSessionAgent, id: linkedSessionID }}
                 to="/agents/$name/sessions/$id"
+              >
+                Open session
+                <ArrowUpRight className="size-3" />
+              </Link>
+            ) : linkedSessionID ? (
+              <Link
+                className="inline-flex items-center gap-1 rounded-md border border-[color:var(--color-divider)] px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--color-accent)] hover:border-[color:var(--color-accent)]"
+                data-testid="task-run-detail-open-session"
+                params={{ id: linkedSessionID }}
+                to="/session/$id"
               >
                 Open session
                 <ArrowUpRight className="size-3" />

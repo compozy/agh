@@ -34,8 +34,8 @@ export function SortPillGroup({ initial = "newest", onChange, className }: SortP
           className={cn(
             "h-5 rounded-full px-2 font-mono text-[10px] font-semibold tracking-[0.08em] transition-colors",
             active === key
-              ? "bg-(--color-accent-tint) text-(--color-accent)"
-              : "text-(--color-text-tertiary) hover:text-(--color-text-primary)"
+              ? "bg-(--color-accent) text-(--color-accent-ink)"
+              : "text-(--color-text-label) hover:text-(--color-text-primary)"
           )}
         >
           {labels[key]}

@@ -496,6 +496,12 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
 							{Name: "qa", Provider: "codex", Prompt: "Stress test the release."},
 						},
+						AgentDiagnostics: []workspacepkg.AgentDiagnostic{{
+							Name:      "broken",
+							Path:      "/workspace/.agh/agents/broken/AGENT.md",
+							ErrorKind: "frontmatter.missing",
+							Message:   "config: missing YAML frontmatter",
+						}},
 					}, nil
 				},
 			},
@@ -521,13 +527,18 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
 			t.Fatalf("json.Unmarshal(list workspace agents) error = %v", err)
 		}
-		if got, want := len(listed.Agents), 3; got != want {
+		if got, want := len(listed.Agents), 4; got != want {
 			t.Fatalf("len(workspace agents) = %d, want %d: %#v", got, want, listed.Agents)
 		}
-		if listed.Agents[0].Name != "extension-agent" ||
-			listed.Agents[1].Name != "founder" ||
-			listed.Agents[2].Name != "qa" {
-			t.Fatalf("workspace agent order = %#v, want extension-agent, founder, qa", listed.Agents)
+		if listed.Agents[0].Name != "broken" ||
+			listed.Agents[1].Name != "extension-agent" ||
+			listed.Agents[2].Name != "founder" ||
+			listed.Agents[3].Name != "qa" {
+			t.Fatalf("workspace agent order = %#v, want broken, extension-agent, founder, qa", listed.Agents)
+		}
+		if len(listed.Agents[0].Diagnostics) != 1 ||
+			listed.Agents[0].Diagnostics[0].ErrorKind != "frontmatter.missing" {
+			t.Fatalf("workspace malformed agent diagnostics = %#v, want frontmatter.missing", listed.Agents[0])
 		}
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/founder?workspace="+workspaceRef, nil)

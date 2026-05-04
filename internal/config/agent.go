@@ -66,6 +66,10 @@ var (
 	ErrMissingAgentFrontmatter = errors.New("config: missing YAML frontmatter")
 	// ErrUnterminatedAgentFrontmatter reports an unterminated YAML frontmatter block in AGENT.md content.
 	ErrUnterminatedAgentFrontmatter = errors.New("config: unterminated YAML frontmatter")
+	// ErrBOMAgentFrontmatter reports a UTF-8 BOM before the YAML frontmatter block.
+	ErrBOMAgentFrontmatter = errors.New("config: UTF-8 BOM before YAML frontmatter")
+	// ErrInvalidAgentFrontmatterKey reports an unsupported frontmatter key shape.
+	ErrInvalidAgentFrontmatterKey = errors.New("config: invalid YAML frontmatter key")
 )
 
 // LoadAgentDef loads an AGENT.md file from the configured AGH home directory.
@@ -306,12 +310,21 @@ func wrapFrontmatterError(err error) error {
 			message: ErrUnterminatedAgentFrontmatter.Error(),
 			causes:  []error{ErrUnterminatedAgentFrontmatter, err},
 		}
+	case errors.Is(err, frontmatter.ErrBOM):
+		return mappedFrontmatterError{
+			message: ErrBOMAgentFrontmatter.Error(),
+			causes:  []error{ErrBOMAgentFrontmatter, err},
+		}
 	default:
 		return err
 	}
 }
 
 func decodeAgentFrontmatter(data []byte, parsed *parsedAgentDef) error {
+	if hasEmbeddedTabFrontmatterKey(data) {
+		return ErrInvalidAgentFrontmatterKey
+	}
+
 	yamlErr := yaml.UnmarshalWithOptions(data, parsed, yaml.Strict())
 	if yamlErr == nil {
 		return nil
@@ -333,6 +346,24 @@ func decodeAgentFrontmatter(data []byte, parsed *parsedAgentDef) error {
 	}
 	*parsed = parsedTOML
 	return nil
+}
+
+func hasEmbeddedTabFrontmatterKey(data []byte) bool {
+	lines := strings.SplitSeq(string(data), "\n")
+	for line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		key, _, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		if strings.Contains(key, "\t") {
+			return true
+		}
+	}
+	return false
 }
 
 type mappedFrontmatterError struct {

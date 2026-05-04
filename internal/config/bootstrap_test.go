@@ -37,6 +37,7 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 	port = 3030
 
 	[providers.claude]
+	auth_mode = "bound_secret"
 	# keep credential slot comment
 	[[providers.claude.credential_slots]]
 	name = "api_key"

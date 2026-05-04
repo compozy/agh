@@ -16,14 +16,17 @@ Make sure you have:
   `sha256sum` or `shasum`.
 - **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
   ACP-compatible agent runtime you already use.
-- **Provider credentials available to the daemon**. Direct `env:` refs read API keys from the
-  daemon environment, while `vault:providers/<provider>/<slot>` refs use encrypted AGH-managed
-  values saved through settings.
+- **At least one provider authenticated in its native way**. Direct ACP providers such as Claude
+  Code, Codex, Gemini CLI, OpenCode, Hermes, and OpenClaw use their own CLI login/session state by
+  default. The direct `pi` provider uses Pi's `/login` and auth file by default. Wrapped API-key
+  providers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and
+  Groq use `auth_mode = "bound_secret"` by default and need an `env:` or
+  `vault:providers/<provider>/<slot>` credential configured for the daemon.
 
-Example:
+Example for a built-in wrapped provider:
 
 ```bash
-export OPENAI_API_KEY="..."
+export OPENROUTER_API_KEY="..."
 ```
 
 ## Install the Binary
@@ -37,8 +40,9 @@ curl -fsSL https://agh.network/install.sh | sh
 ```
 
 The installer detects your platform, downloads the matching GitHub release archive, verifies
-`checksums.txt` with its cosign signature, verifies the archive checksum, installs `agh`, runs
-`agh version`, and opens `agh install` when an interactive terminal is available.
+`checksums.txt` against `checksums.txt.sigstore.json` with `cosign`, verifies the archive checksum,
+installs `agh`, runs `agh version`, and opens `agh install` when an interactive terminal is
+available.
 
 Use flags when you need a pinned or scripted install:
 
@@ -59,8 +63,8 @@ If the target directory is not on your `PATH`, the installer prints the exact di
 
 ### Option 2: package manager releases
 
-Tagged releases publish archive checksums, cosign checksum signatures, SBOMs, a Homebrew cask, and
-Linux `.deb` and `.rpm` packages.
+Tagged releases publish archive checksums, `checksums.txt.sigstore.json`, SBOMs, a Homebrew cask,
+and Linux `.deb` and `.rpm` packages.
 
 ```bash
 brew install --cask pedronauck/agh/agh
@@ -115,10 +119,11 @@ Use `agh config path` to inspect the exact global and workspace config files AGH
 Use `agh config validate --repair-env --workspace <path>` when a workspace `.env` needs an explicit,
 bounded repair.
 
-`agh update` reports whether the binary is managed by a package manager through `AGH_MANAGED`. When
-managed, it defers to that package manager; otherwise it points you at the manual release update
-path. `agh uninstall` removes runtime launch artifacts idempotently and preserves `~/.agh` unless
-you explicitly pass `--purge --force`.
+`agh update` applies the latest stable release for direct-binary macOS and Linux installs. Use
+`agh update --check` when you want a status-only check. Managed installs defer to the package
+manager and return the exact upgrade command instead of mutating files directly. Windows
+direct-binary installs remain manual in this first cut. `agh uninstall` removes runtime launch
+artifacts idempotently and preserves `~/.agh` unless you explicitly pass `--purge --force`.
 
 ## Sanity Check the Runtime Inputs
 
@@ -128,9 +133,11 @@ Before moving to Quick Start, verify these three things:
 2. `agh install` completed, either from the curl installer or manually, and created
    `~/.agh/config.toml`.
 3. `agh config validate` reports a valid config.
-4. Your provider credential is exported in the shell you will use to start the daemon.
+4. Your selected provider is authenticated. For native CLI providers, run the provider's own login
+   command first; for `bound_secret` providers, make sure the daemon can resolve the configured
+   `env:` or `vault:` secret.
 
 ## Next Step
 
 Continue to [Quick Start](/runtime/core/getting-started/quick-start). That tutorial assumes the
-binary works, `~/.agh` exists, and your provider environment is already available to the daemon.
+binary works, `~/.agh` exists, and your selected provider is authenticated.

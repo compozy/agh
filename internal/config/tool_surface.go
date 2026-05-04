@@ -228,9 +228,21 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 		policy.Kind = kind
 		return policy, nil
 	}
-	if len(clean) == 3 && clean[0] == "providers" && clean[2] == "default_model" {
-		policy.Kind = ConfigValueString
-		return policy, nil
+	if len(clean) == 3 && clean[0] == "providers" {
+		switch clean[2] {
+		case "command",
+			"default_model",
+			"auth_mode",
+			"env_policy",
+			"home_policy",
+			"auth_status_command",
+			"auth_login_command":
+			policy.Kind = ConfigValueString
+			return policy, nil
+		case "session_mcp":
+			policy.Kind = ConfigValueBool
+			return policy, nil
+		}
 	}
 	policy.Denial = ConfigPathForbidden
 	return policy, nil

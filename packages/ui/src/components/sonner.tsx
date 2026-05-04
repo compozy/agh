@@ -10,9 +10,10 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 
-function Toaster({ theme = "system", ...props }: ToasterProps) {
+function Toaster({ closeButton = true, theme = "system", ...props }: ToasterProps) {
   return (
     <Sonner
+      closeButton={closeButton}
       theme={theme}
       className="toaster group"
       icons={{

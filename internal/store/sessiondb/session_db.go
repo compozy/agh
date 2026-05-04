@@ -17,11 +17,12 @@ import (
 )
 
 const (
-	defaultWriteBufferSize = 256
-	defaultDrainTimeout    = 5 * time.Second
-	canonicalEventSchema   = "agh.session.event.v1"
-	sessionVacuumMinBytes  = 4 << 20
-	sessionVacuumMinRatio  = 4
+	defaultWriteBufferSize         = 256
+	defaultDrainTimeout            = 5 * time.Second
+	canonicalEventSchema           = "agh.session.event.v1"
+	sessionVacuumMinBytes          = 4 << 20
+	sessionVacuumMinRatio          = 4
+	sessionWALAutoCheckpointPragma = "wal_autocheckpoint(0)"
 )
 
 var sessionSchemaStatements = []string{
@@ -764,25 +765,30 @@ func openSessionSQLiteWithVacuum(
 	path string,
 	vacuumFn sessionVacuumFunc,
 ) (*sql.DB, error) {
-	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		if err := store.RunMigrations(ctx, db, sessionSchemaMigrations); err != nil {
-			return err
-		}
-		if vacuumFn == nil {
+	return store.OpenSQLiteDatabaseWithPragmas(
+		ctx,
+		path,
+		[]string{sessionWALAutoCheckpointPragma},
+		func(ctx context.Context, db *sql.DB) error {
+			if err := store.RunMigrations(ctx, db, sessionSchemaMigrations); err != nil {
+				return err
+			}
+			if vacuumFn == nil {
+				return nil
+			}
+			if err := vacuumFn(ctx, db); err != nil {
+				slog.Default().WarnContext(
+					ctx,
+					"store: skip session sqlite vacuum after non-fatal failure",
+					"path",
+					path,
+					"error",
+					err,
+				)
+			}
 			return nil
-		}
-		if err := vacuumFn(ctx, db); err != nil {
-			slog.Default().WarnContext(
-				ctx,
-				"store: skip session sqlite vacuum after non-fatal failure",
-				"path",
-				path,
-				"error",
-				err,
-			)
-		}
-		return nil
-	})
+		},
+	)
 }
 
 func stripCanonicalEventRawPayloads(ctx context.Context, tx *sql.Tx) error {

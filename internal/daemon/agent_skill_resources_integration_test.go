@@ -93,6 +93,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	)
 
 	syncer := newAgentSkillSourceSyncer(
+		kernel,
 		agentStore,
 		agentCodec,
 		skillStore,
@@ -173,8 +174,8 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveAgent(coder) error = %v", err)
 	}
-	if !slices.Contains(coder.Tools, "lookup") {
-		t.Fatalf("ResolveAgent(coder).Tools = %#v, want lookup tool reference preserved", coder.Tools)
+	if !slices.Contains(coder.Tools, "agh__lookup") {
+		t.Fatalf("ResolveAgent(coder).Tools = %#v, want canonical lookup tool reference preserved", coder.Tools)
 	}
 	if !agentHasMCP(coder, "workspace-agent-mcp") {
 		t.Fatalf("ResolveAgent(coder).MCPServers = %#v, want workspace-agent-mcp", coder.MCPServers)

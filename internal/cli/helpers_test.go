@@ -19,6 +19,9 @@ var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
 	daemonStatusFn              func(context.Context) (DaemonStatus, error)
+	triggerSettingsRestartFn    func(context.Context) (SettingsRestartActionRecord, error)
+	getSettingsRestartStatusFn  func(context.Context, string) (SettingsRestartStatusRecord, error)
+	getSettingsUpdateFn         func(context.Context) (SettingsUpdateRecord, error)
 	listVaultSecretsFn          func(context.Context, VaultListQuery) ([]VaultRecord, error)
 	getVaultSecretFn            func(context.Context, string) (VaultRecord, error)
 	putVaultSecretFn            func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
@@ -33,6 +36,14 @@ type stubClient struct {
 	enableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
 	disableExtensionFn          func(context.Context, string) (ExtensionRecord, error)
 	extensionStatusFn           func(context.Context, string) (ExtensionRecord, error)
+	listBundleCatalogFn         func(context.Context) ([]BundleCatalogRecord, error)
+	previewBundleActivationFn   func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
+	activateBundleFn            func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
+	listBundleActivationsFn     func(context.Context) ([]BundleActivationRecord, error)
+	getBundleActivationFn       func(context.Context, string) (BundleActivationRecord, error)
+	updateBundleActivationFn    func(context.Context, string, UpdateBundleActivationRequest) (BundleActivationRecord, error)
+	deactivateBundleFn          func(context.Context, string) error
+	bundleNetworkSettingsFn     func(context.Context) (BundleNetworkSettingsRecord, error)
 	listBridgesFn               func(context.Context) ([]BridgeRecord, error)
 	createBridgeFn              func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
 	getBridgeFn                 func(context.Context, string) (BridgeRecord, error)
@@ -41,6 +52,9 @@ type stubClient struct {
 	disableBridgeFn             func(context.Context, string) (BridgeRecord, error)
 	restartBridgeFn             func(context.Context, string) (BridgeRecord, error)
 	bridgeRoutesFn              func(context.Context, string) ([]BridgeRouteRecord, error)
+	listBridgeSecretBindingsFn  func(context.Context, string) ([]BridgeSecretBindingRecord, error)
+	putBridgeSecretBindingFn    func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
+	deleteBridgeSecretBindingFn func(context.Context, string, string) error
 	testBridgeDeliveryFn        func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
 	listSessionsFn              func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	createSessionFn             func(context.Context, CreateSessionRequest) (SessionRecord, error)
@@ -52,7 +66,9 @@ type stubClient struct {
 	stopSessionFn               func(context.Context, string) error
 	resumeSessionFn             func(context.Context, string) (SessionRecord, error)
 	repairSessionFn             func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
+	approveSessionFn            func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	promptSessionFn             func(context.Context, string, string) ([]AgentEventRecord, error)
+	streamPromptSessionFn       func(context.Context, string, string, SSEHandler) error
 	sessionEventsFn             func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
 	streamSessionFn             func(context.Context, string, SessionEventQuery, string, SSEHandler) error
 	sessionHistoryFn            func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
@@ -81,12 +97,19 @@ type stubClient struct {
 	rollbackAgentHeartbeatFn  func(context.Context, string, AgentHeartbeatRollbackRequest) (AgentHeartbeatMutationRecord, error)
 	getAgentHeartbeatStatusFn func(context.Context, string, AgentHeartbeatStatusRequest) (AgentHeartbeatStatusRecord, error)
 	wakeAgentHeartbeatFn      func(context.Context, string, AgentHeartbeatWakeRequest) (AgentHeartbeatWakeDecisionRecord, error)
+	listResourcesFn           func(context.Context, ResourceListQuery) ([]ResourceRecord, error)
+	getResourceFn             func(context.Context, string, string) (ResourceRecord, error)
+	putResourceFn             func(context.Context, string, string, ResourcePutRequest) (ResourceRecord, error)
+	deleteResourceFn          func(context.Context, string, string, ResourceDeleteRequest) error
 	listSkillsFn              func(context.Context, SkillQuery) ([]SkillRecord, error)
 	getSkillFn                func(context.Context, string, SkillQuery) (SkillRecord, error)
 	getSkillContentFn         func(context.Context, string, SkillQuery) (string, error)
+	enableSkillFn             func(context.Context, string, SkillQuery) (SkillActionRecord, error)
+	disableSkillFn            func(context.Context, string, SkillQuery) (SkillActionRecord, error)
 	listToolsFn               func(context.Context, ToolQuery) (ToolsResponseRecord, error)
 	searchToolsFn             func(context.Context, ToolSearchRequest) (ToolsResponseRecord, error)
 	getToolFn                 func(context.Context, string, ToolQuery) (ToolResponseRecord, error)
+	createToolApprovalFn      func(context.Context, string, ToolApprovalRequest) (ToolApprovalRecord, error)
 	invokeToolFn              func(context.Context, string, ToolInvokeRequest) (ToolInvokeResponseRecord, error)
 	listToolsetsFn            func(context.Context, ToolQuery) (ToolsetsResponseRecord, error)
 	getToolsetFn              func(context.Context, string, ToolQuery) (ToolsetResponseRecord, error)
@@ -124,9 +147,11 @@ type stubClient struct {
 	createTaskFn              func(context.Context, CreateTaskRequest) (TaskRecord, error)
 	getTaskFn                 func(context.Context, string) (TaskDetailRecord, error)
 	updateTaskFn              func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
+	deleteTaskFn              func(context.Context, string) error
 	publishTaskFn             func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
 	startTaskFn               func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
 	approveTaskFn             func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
+	rejectTaskFn              func(context.Context, string) (TaskRecord, error)
 	cancelTaskFn              func(context.Context, string, CancelTaskRequest) (TaskRecord, error)
 	createChildTaskFn         func(context.Context, string, CreateTaskChildRequest) (TaskRecord, error)
 	addTaskDependencyFn       func(context.Context, string, AddTaskDependencyRequest) (TaskDetailRecord, error)
@@ -160,6 +185,30 @@ func (s *stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
 		return s.daemonStatusFn(ctx)
 	}
 	return DaemonStatus{}, errors.New("unexpected DaemonStatus call")
+}
+
+func (s *stubClient) TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error) {
+	if s.triggerSettingsRestartFn != nil {
+		return s.triggerSettingsRestartFn(ctx)
+	}
+	return SettingsRestartActionRecord{}, errors.New("unexpected TriggerSettingsRestart call")
+}
+
+func (s *stubClient) GetSettingsRestartStatus(
+	ctx context.Context,
+	operationID string,
+) (SettingsRestartStatusRecord, error) {
+	if s.getSettingsRestartStatusFn != nil {
+		return s.getSettingsRestartStatusFn(ctx, operationID)
+	}
+	return SettingsRestartStatusRecord{}, errors.New("unexpected GetSettingsRestartStatus call")
+}
+
+func (s *stubClient) GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error) {
+	if s.getSettingsUpdateFn != nil {
+		return s.getSettingsUpdateFn(ctx)
+	}
+	return SettingsUpdateRecord{}, errors.New("unexpected GetSettingsUpdate call")
 }
 
 func (s *stubClient) ListVaultSecrets(
@@ -278,6 +327,72 @@ func (s *stubClient) ExtensionStatus(ctx context.Context, name string) (Extensio
 	return ExtensionRecord{}, errors.New("unexpected ExtensionStatus call")
 }
 
+func (s *stubClient) ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error) {
+	if s.listBundleCatalogFn != nil {
+		return s.listBundleCatalogFn(ctx)
+	}
+	return nil, errors.New("unexpected ListBundleCatalog call")
+}
+
+func (s *stubClient) PreviewBundleActivation(
+	ctx context.Context,
+	request ActivateBundleRequest,
+) (BundleActivationRecord, error) {
+	if s.previewBundleActivationFn != nil {
+		return s.previewBundleActivationFn(ctx, request)
+	}
+	return BundleActivationRecord{}, errors.New("unexpected PreviewBundleActivation call")
+}
+
+func (s *stubClient) ActivateBundle(
+	ctx context.Context,
+	request ActivateBundleRequest,
+) (BundleActivationRecord, error) {
+	if s.activateBundleFn != nil {
+		return s.activateBundleFn(ctx, request)
+	}
+	return BundleActivationRecord{}, errors.New("unexpected ActivateBundle call")
+}
+
+func (s *stubClient) ListBundleActivations(ctx context.Context) ([]BundleActivationRecord, error) {
+	if s.listBundleActivationsFn != nil {
+		return s.listBundleActivationsFn(ctx)
+	}
+	return nil, errors.New("unexpected ListBundleActivations call")
+}
+
+func (s *stubClient) GetBundleActivation(ctx context.Context, id string) (BundleActivationRecord, error) {
+	if s.getBundleActivationFn != nil {
+		return s.getBundleActivationFn(ctx, id)
+	}
+	return BundleActivationRecord{}, errors.New("unexpected GetBundleActivation call")
+}
+
+func (s *stubClient) UpdateBundleActivation(
+	ctx context.Context,
+	id string,
+	request UpdateBundleActivationRequest,
+) (BundleActivationRecord, error) {
+	if s.updateBundleActivationFn != nil {
+		return s.updateBundleActivationFn(ctx, id, request)
+	}
+	return BundleActivationRecord{}, errors.New("unexpected UpdateBundleActivation call")
+}
+
+func (s *stubClient) DeactivateBundle(ctx context.Context, id string) error {
+	if s.deactivateBundleFn != nil {
+		return s.deactivateBundleFn(ctx, id)
+	}
+	return errors.New("unexpected DeactivateBundle call")
+}
+
+func (s *stubClient) BundleNetworkSettings(ctx context.Context) (BundleNetworkSettingsRecord, error) {
+	if s.bundleNetworkSettingsFn != nil {
+		return s.bundleNetworkSettingsFn(ctx)
+	}
+	return BundleNetworkSettingsRecord{}, errors.New("unexpected BundleNetworkSettings call")
+}
+
 func (s *stubClient) ListBridges(ctx context.Context) ([]BridgeRecord, error) {
 	if s.listBridgesFn != nil {
 		return s.listBridgesFn(ctx)
@@ -339,6 +454,35 @@ func (s *stubClient) BridgeRoutes(ctx context.Context, id string) ([]BridgeRoute
 		return s.bridgeRoutesFn(ctx, id)
 	}
 	return nil, errors.New("unexpected BridgeRoutes call")
+}
+
+func (s *stubClient) ListBridgeSecretBindings(
+	ctx context.Context,
+	id string,
+) ([]BridgeSecretBindingRecord, error) {
+	if s.listBridgeSecretBindingsFn != nil {
+		return s.listBridgeSecretBindingsFn(ctx, id)
+	}
+	return nil, errors.New("unexpected ListBridgeSecretBindings call")
+}
+
+func (s *stubClient) PutBridgeSecretBinding(
+	ctx context.Context,
+	id string,
+	bindingName string,
+	request BridgeSecretBindingRequest,
+) (BridgeSecretBindingRecord, error) {
+	if s.putBridgeSecretBindingFn != nil {
+		return s.putBridgeSecretBindingFn(ctx, id, bindingName, request)
+	}
+	return BridgeSecretBindingRecord{}, errors.New("unexpected PutBridgeSecretBinding call")
+}
+
+func (s *stubClient) DeleteBridgeSecretBinding(ctx context.Context, id string, bindingName string) error {
+	if s.deleteBridgeSecretBindingFn != nil {
+		return s.deleteBridgeSecretBindingFn(ctx, id, bindingName)
+	}
+	return errors.New("unexpected DeleteBridgeSecretBinding call")
 }
 
 func (s *stubClient) TestBridgeDelivery(
@@ -440,6 +584,17 @@ func (s *stubClient) RepairSession(
 	return SessionRepairRecord{}, errors.New("unexpected RepairSession call")
 }
 
+func (s *stubClient) ApproveSession(
+	ctx context.Context,
+	id string,
+	request SessionApprovalRequest,
+) (SessionApprovalRecord, error) {
+	if s.approveSessionFn != nil {
+		return s.approveSessionFn(ctx, id, request)
+	}
+	return SessionApprovalRecord{}, errors.New("unexpected ApproveSession call")
+}
+
 func (s *stubClient) PromptSession(
 	ctx context.Context,
 	id string,
@@ -449,6 +604,18 @@ func (s *stubClient) PromptSession(
 		return s.promptSessionFn(ctx, id, message)
 	}
 	return nil, errors.New("unexpected PromptSession call")
+}
+
+func (s *stubClient) StreamPromptSession(
+	ctx context.Context,
+	id string,
+	message string,
+	handler SSEHandler,
+) error {
+	if s.streamPromptSessionFn != nil {
+		return s.streamPromptSessionFn(ctx, id, message, handler)
+	}
+	return errors.New("unexpected StreamPromptSession call")
 }
 
 func (s *stubClient) SessionEvents(
@@ -696,6 +863,44 @@ func (s *stubClient) WakeAgentHeartbeat(
 	return AgentHeartbeatWakeDecisionRecord{}, errors.New("unexpected WakeAgentHeartbeat call")
 }
 
+func (s *stubClient) ListResources(ctx context.Context, query ResourceListQuery) ([]ResourceRecord, error) {
+	if s.listResourcesFn != nil {
+		return s.listResourcesFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListResources call")
+}
+
+func (s *stubClient) GetResource(ctx context.Context, kind string, id string) (ResourceRecord, error) {
+	if s.getResourceFn != nil {
+		return s.getResourceFn(ctx, kind, id)
+	}
+	return ResourceRecord{}, errors.New("unexpected GetResource call")
+}
+
+func (s *stubClient) PutResource(
+	ctx context.Context,
+	kind string,
+	id string,
+	request ResourcePutRequest,
+) (ResourceRecord, error) {
+	if s.putResourceFn != nil {
+		return s.putResourceFn(ctx, kind, id, request)
+	}
+	return ResourceRecord{}, errors.New("unexpected PutResource call")
+}
+
+func (s *stubClient) DeleteResource(
+	ctx context.Context,
+	kind string,
+	id string,
+	request ResourceDeleteRequest,
+) error {
+	if s.deleteResourceFn != nil {
+		return s.deleteResourceFn(ctx, kind, id, request)
+	}
+	return errors.New("unexpected DeleteResource call")
+}
+
 func (s *stubClient) ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error) {
 	if s.listSkillsFn != nil {
 		return s.listSkillsFn(ctx, query)
@@ -715,6 +920,20 @@ func (s *stubClient) GetSkillContent(ctx context.Context, name string, query Ski
 		return s.getSkillContentFn(ctx, name, query)
 	}
 	return "", errors.New("unexpected GetSkillContent call")
+}
+
+func (s *stubClient) EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
+	if s.enableSkillFn != nil {
+		return s.enableSkillFn(ctx, name, query)
+	}
+	return SkillActionRecord{}, errors.New("unexpected EnableSkill call")
+}
+
+func (s *stubClient) DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
+	if s.disableSkillFn != nil {
+		return s.disableSkillFn(ctx, name, query)
+	}
+	return SkillActionRecord{}, errors.New("unexpected DisableSkill call")
 }
 
 func (s *stubClient) ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error) {
@@ -743,6 +962,17 @@ func (s *stubClient) GetTool(
 		return s.getToolFn(ctx, id, query)
 	}
 	return ToolResponseRecord{}, errors.New("unexpected GetTool call")
+}
+
+func (s *stubClient) CreateToolApproval(
+	ctx context.Context,
+	id string,
+	request ToolApprovalRequest,
+) (ToolApprovalRecord, error) {
+	if s.createToolApprovalFn != nil {
+		return s.createToolApprovalFn(ctx, id, request)
+	}
+	return ToolApprovalRecord{}, errors.New("unexpected CreateToolApproval call")
 }
 
 func (s *stubClient) InvokeTool(
@@ -1098,6 +1328,13 @@ func (s *stubClient) UpdateTask(
 	return TaskRecord{}, errors.New("unexpected UpdateTask call")
 }
 
+func (s *stubClient) DeleteTask(ctx context.Context, id string) error {
+	if s.deleteTaskFn != nil {
+		return s.deleteTaskFn(ctx, id)
+	}
+	return errors.New("unexpected DeleteTask call")
+}
+
 func (s *stubClient) PublishTask(
 	ctx context.Context,
 	id string,
@@ -1129,6 +1366,13 @@ func (s *stubClient) ApproveTask(
 		return s.approveTaskFn(ctx, id, request)
 	}
 	return TaskExecutionRecord{}, errors.New("unexpected ApproveTask call")
+}
+
+func (s *stubClient) RejectTask(ctx context.Context, id string) (TaskRecord, error) {
+	if s.rejectTaskFn != nil {
+		return s.rejectTaskFn(ctx, id)
+	}
+	return TaskRecord{}, errors.New("unexpected RejectTask call")
 }
 
 func (s *stubClient) CancelTask(
@@ -1408,6 +1652,9 @@ func newTestDeps(t *testing.T, client DaemonClient) commandDeps {
 			return aghconfig.DefaultWithHome(homePaths), nil
 		},
 		resolveHome: func() (aghconfig.HomePaths, error) {
+			return homePaths, nil
+		},
+		resolveHomeForWorkspace: func(string) (aghconfig.HomePaths, error) {
 			return homePaths, nil
 		},
 		ensureHome: func(aghconfig.HomePaths) error { return nil },

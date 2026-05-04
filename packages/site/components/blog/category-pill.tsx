@@ -19,18 +19,13 @@ export function CategoryPill({ label, count, href, active = false }: CategoryPil
       className={cn(
         "inline-flex h-8 items-center gap-2 rounded-full border px-3.5 font-sans text-[13px] font-medium transition-colors",
         active
-          ? "border-(--color-accent) bg-(--color-accent-tint) text-(--color-accent)"
+          ? "border-(--color-accent) bg-(--color-surface-elevated) text-(--color-text-primary)"
           : "border-(--color-divider) text-(--color-text-secondary) hover:text-(--color-text-primary)"
       )}
     >
       <span>{label}</span>
       {count !== undefined && (
-        <span
-          className={cn(
-            "font-mono text-[10px] tracking-[0.06em]",
-            active ? "text-(--color-accent)" : "text-(--color-text-tertiary)"
-          )}
-        >
+        <span className="font-mono text-[10px] tracking-[0.06em] text-(--color-text-label)">
           {String(count).padStart(2, "0")}
         </span>
       )}

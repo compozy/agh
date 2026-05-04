@@ -30,31 +30,13 @@ approval_timeout_seconds = 120
 trusted_sources = []
 
 [providers.claude]
-default_model = "claude-sonnet-4-20250514"
-[[providers.claude.credential_slots]]
-name = "api_key"
-target_env = "ANTHROPIC_API_KEY"
-secret_ref = "env:ANTHROPIC_API_KEY"
-kind = "api_key"
-required = true
+default_model = "claude-sonnet-4-6"
 
 [providers.codex]
-default_model = "gpt-4o"
-[[providers.codex.credential_slots]]
-name = "api_key"
-target_env = "OPENAI_API_KEY"
-secret_ref = "env:OPENAI_API_KEY"
-kind = "api_key"
-required = true
+default_model = "gpt-5.4"
 
 [providers.gemini]
-default_model = "gemini-2.5-pro"
-[[providers.gemini.credential_slots]]
-name = "api_key"
-target_env = "GEMINI_API_KEY"
-secret_ref = "env:GEMINI_API_KEY"
-kind = "api_key"
-required = true
+default_model = "gemini-3.1-pro-preview"
 
 [observability]
 enabled = true

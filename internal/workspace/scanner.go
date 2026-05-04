@@ -174,22 +174,24 @@ func scanSkillSource(
 	return nil
 }
 
-func loadAgents(ctx context.Context, candidates []agentCandidate) ([]aghconfig.AgentDef, error) {
+func loadAgents(ctx context.Context, candidates []agentCandidate) ([]aghconfig.AgentDef, []AgentDiagnostic, error) {
 	if len(candidates) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	agents := make([]aghconfig.AgentDef, 0, len(candidates))
+	diagnostics := make([]AgentDiagnostic, 0)
 	seen := make(map[string]struct{}, len(candidates))
 
 	for _, candidate := range candidates {
 		if err := checkContext(ctx); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		agent, err := aghconfig.LoadAgentDefFile(candidate.path)
 		if err != nil {
-			return nil, fmt.Errorf("workspace: load agent definition %q: %w", candidate.path, err)
+			diagnostics = append(diagnostics, agentDiagnosticFromError(candidate.path, err))
+			continue
 		}
 
 		if _, ok := seen[agent.Name]; ok {
@@ -200,7 +202,31 @@ func loadAgents(ctx context.Context, candidates []agentCandidate) ([]aghconfig.A
 		agents = append(agents, agent)
 	}
 
-	return agents, nil
+	return agents, diagnostics, nil
+}
+
+func agentDiagnosticFromError(path string, err error) AgentDiagnostic {
+	return AgentDiagnostic{
+		Name:      filepath.Base(filepath.Dir(path)),
+		Path:      filepath.Clean(path),
+		ErrorKind: agentDiagnosticKind(err),
+		Message:   err.Error(),
+	}
+}
+
+func agentDiagnosticKind(err error) string {
+	switch {
+	case errors.Is(err, aghconfig.ErrMissingAgentFrontmatter):
+		return "frontmatter.missing"
+	case errors.Is(err, aghconfig.ErrUnterminatedAgentFrontmatter):
+		return "frontmatter.unterminated"
+	case errors.Is(err, aghconfig.ErrBOMAgentFrontmatter):
+		return "frontmatter.bom"
+	case errors.Is(err, aghconfig.ErrInvalidAgentFrontmatterKey):
+		return "frontmatter.invalid_key"
+	default:
+		return "frontmatter.invalid"
+	}
 }
 
 func mergeSkillPaths(candidates []skillCandidate) []SkillPath {

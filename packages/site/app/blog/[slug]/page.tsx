@@ -12,6 +12,11 @@ import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
 import { TocRail } from "@/components/blog/toc-rail";
 import { flattenToc } from "@/components/blog/toc-utils";
 import {
+  ArticleJsonLd,
+  BreadcrumbListJsonLd,
+  type BreadcrumbItem,
+} from "@/components/seo/structured-data";
+import {
   allPosts,
   authorByHandle,
   authorInitial,
@@ -46,6 +51,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
           height: cover.height,
         }
       : undefined,
+    keywords: post.tags,
   });
 }
 
@@ -58,9 +64,26 @@ export default async function BlogPostPage({ params }: PageProps) {
   const initial = authorInitial(post.author);
   const related = relatedPosts(post);
   const readingTime = formatReadingTime(post.metadata.readingTime);
+  const cover = blogPostCover(post);
+  const breadcrumbs: BreadcrumbItem[] = [
+    { name: "Home", path: "/" },
+    { name: "Blog", path: "/blog/" },
+    { name: post.title, path: `${post.permalink}/` },
+  ];
 
   return (
     <>
+      <ArticleJsonLd
+        title={post.title}
+        description={post.description}
+        path={post.permalink}
+        imageUrl={cover?.src ?? `/og/blog/${slug}/image.png`}
+        datePublished={post.date}
+        dateModified={post.updated ?? post.date}
+        authorName={author?.name ?? post.author}
+        keywords={post.tags}
+      />
+      <BreadcrumbListJsonLd items={breadcrumbs} />
       <section className="border-b border-(--color-divider) px-4 pt-14 pb-9">
         <div className="mx-auto max-w-(--site-layout-width)">
           <div className="max-w-[760px]">

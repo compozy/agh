@@ -115,7 +115,7 @@ func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolID:    "Read",
+			ToolName:  "Read",
 		},
 	})
 	h.putBinding(t, "perm-resolved", 0, resources.ResourceScope{
@@ -128,7 +128,7 @@ func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolID:    "Read",
+			ToolName:  "Read",
 		},
 	})
 	h.putBinding(t, "perm-denied", 0, resources.ResourceScope{
@@ -141,7 +141,7 @@ func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(
 		ExecutorKind: hookspkg.HookExecutorNative,
 		Matcher: hookspkg.HookMatcher{
 			AgentName: "codex",
-			ToolID:    "Read",
+			ToolName:  "Read",
 		},
 	})
 	if err := h.driver.RunBoot(testutil.Context(t)); err != nil {

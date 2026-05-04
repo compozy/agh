@@ -120,7 +120,7 @@ export function ToolCard({
     transform: `translateY(${translateY}px)`,
   };
   const iconBox: CSSProperties = {
-    color: done ? TOKENS.success : TOKENS.accent,
+    color: done ? TOKENS.success : TOKENS.accentStrong,
     display: "inline-flex",
     alignItems: "center",
     flexShrink: 0,
@@ -153,7 +153,7 @@ export function ToolCard({
     padding: "3px 7px",
     borderRadius: 999,
     backgroundColor: done ? TOKENS.successTint : TOKENS.accentTint,
-    color: done ? TOKENS.success : TOKENS.accent,
+    color: done ? TOKENS.success : TOKENS.accentStrong,
     whiteSpace: "nowrap",
     flexShrink: 0,
   };
