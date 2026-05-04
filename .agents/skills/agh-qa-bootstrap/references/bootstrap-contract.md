@@ -55,7 +55,8 @@ The bootstrap helper writes two canonical artifacts under:
 
 ## Mandatory launch rules
 
-- Provider-backed commands: `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <cmd>`
+- Bound-secret, brokered, or explicitly isolated-home provider commands: `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <cmd>`
+- `native_cli` providers with `home_policy=operator`: preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior
 - Web dev server for isolated daemon QA: `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET" make web-dev`
 - Config mutations such as `agh config set` must run sequentially when they target the same isolated home.
 

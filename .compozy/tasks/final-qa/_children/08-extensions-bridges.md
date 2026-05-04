@@ -88,8 +88,11 @@ QA). Every scenario:
 
 - Runs against an isolated `AGH_HOME` with unique daemon ports + tmux-bridge
   socket (per `agh-worktree-isolation` skill).
-- Sources auth via `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` from a fresh
-  bootstrap manifest (per the provider-home isolation directive).
+- Resolves provider auth from the bootstrap manifest according to each
+  provider contract: bound-secret, brokered, and explicitly isolated-home
+  lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
+  lanes with `home_policy=operator` preserve the operator `HOME` unless the
+  scenario explicitly validates isolated provider-home behavior.
 - Uses real Claude Code (`claude-opus-4-7[1m]` for parent coordinator;
   `claude-sonnet-4-6` for spawned children where indicated) as the
   subprocess agent. Bridges call out to real Slack / Telegram only on the
@@ -127,8 +130,11 @@ explicitly with `EXT_SKIP_LIVE=1` in scenario env.
 - Fresh QA bootstrap via the `agh-qa-bootstrap` skill. `bootstrap-manifest.json`
   exported into shell as `bootstrap.env` before any `agh` command.
 - Unique `AGH_HOME` per worktree.
-- Provider auth staged into `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`. Never
-  point at the user's raw `~/.codex` or `~/.claude`.
+- Bound-secret, brokered, and explicitly isolated-home auth staged into
+  `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
+  `home_policy=operator` intentionally use the operator `HOME` / native login
+  state unless the scenario explicitly validates isolated provider-home
+  behavior.
 - Daemon started in background. HTTP / UDS listeners reachable.
 - `make verify` is green on the SUT branch before QA runs.
 - For bridge live lanes only: credential broker reachable; `EXT_BRIDGE_BROKER_URL`,

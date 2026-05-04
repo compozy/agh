@@ -123,7 +123,11 @@ Bootstrap and isolation discipline (mandatory for every scenario):
 
 - One isolated `AGH_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario (per `agh-worktree-isolation` skill and `agh-qa-bootstrap`).
 - **`AGH_WEB_API_PROXY_TARGET` exported from `bootstrap.env`** before launching either Vite (`make web-dev`) or Playwright (`make test-e2e-web`). Hardcoding `http://localhost:2123` is a blocker (`web/CLAUDE.md` Critical Rules + `web/src/lib/vite-api-proxy-target.ts`).
-- Provider auth staged into `PROVIDER_HOME` only — never read raw `~/.codex` / `~/.claude`.
+- Bound-secret, brokered, and explicitly isolated-home auth staged into
+  `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
+  `home_policy=operator` intentionally use the operator `HOME` / native login
+  state unless the scenario explicitly validates isolated provider-home
+  behavior.
 - Sequential config writes only when targeting the same provider home.
 - Browser context: Playwright Chromium headless by default; `PLAYWRIGHT_HEADFUL=1` for local debugging only; `workers: 1` (per `web/playwright.config.ts:14`); per-scenario timeout 90s with retries 0 locally / 1 in CI; trace/screenshot/video off by default — turn on per-scenario via `test.use({ trace: "retain-on-failure", screenshot: "only-on-failure" })` when capturing evidence.
 
@@ -143,7 +147,10 @@ Per-scenario evidence layout under `.artifacts/qa/<run-id>/ui-XX/`:
 - Fresh QA bootstrap; `bootstrap-manifest.json` saved and `bootstrap.env` exported. `AGH_HOME`, daemon HTTP port, UDS socket, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME`, `AGH_WEB_API_PROXY_TARGET` all set.
 - `make verify` is green on the SUT branch (per the Critical Rules). In particular `make web-build` and `make web-typecheck` MUST be green so the embedded `dist/` is up to date.
 - Daemon running: `agh daemon status -o json` reports `status="running"`.
-- For `real-claude-code` scenarios: `ANTHROPIC_API_KEY` staged inside `PROVIDER_HOME`; `agh provider show claude` reports the expected ACP command.
+- For `real-claude-code` scenarios: direct `claude` auth comes from the
+  effective Claude home for the lane (operator `HOME` by default; isolated
+  `PROVIDER_HOME` only for explicit isolated-home scenarios); `agh provider
+  show claude` reports the expected ACP command.
 - Workspace seed: `$LAB/workspace/` with a `README.md` (≥3 paragraphs), `src/file_a.go`, `src/file_b.go`, and a `generated_long_file.txt` (~2MB) for streaming-volume scenarios.
 - Playwright test binary built with the daemon binary path; `AGH_TEST_DAEMON_BIN` set when running against a pre-built binary.
 - Browser preferences neutral: no extensions, no system zoom override, system locale `en-US`, prefers-reduced-motion `no-preference` for default scenarios; UI-12 explicitly toggles `prefers-reduced-motion: reduce`.
@@ -248,7 +255,8 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - ACP-01 preconditions (Claude Code subprocess reachable; ANTHROPIC_API_KEY in PROVIDER_HOME)
+  - ACP-01 preconditions (Claude Code subprocess reachable; direct `claude`
+    auth resolved from the effective Claude home for the lane)
   - SPA served from runtime.url("/"); workspace exists (use `Use this workspace globally` if onboarding fires)
 code_refs:
   - /Users/pedronauck/Dev/compozy/agh/web/src/routes/_app/agents.$name.sessions.$id.tsx:19-152
@@ -1230,7 +1238,10 @@ cleanup:
 - **Tasks/runs seed (UI-10)**: tasks across all four states (`pending`, `leased`, `completed`, `failed`) with documented `claim_token_hash` (NEVER raw token) and varying `lease_until` distances.
 - **Capability disabled config (UI-11)**: rendered config with `[network] enabled = false`.
 - **claim_token fake (UI-17)**: synthetic prompt fixture with `agh_claim_FAKE_QA_*` token; per ACP-18.
-- **Provider auth**: `ANTHROPIC_API_KEY` for Claude Code only; staged into `PROVIDER_HOME`.
+- **Provider auth**: direct `claude` uses native Claude CLI auth from the
+  effective Claude home for the lane (operator `HOME` by default; isolated
+  `PROVIDER_HOME` only for explicit isolated-home scenarios). Bound-secret
+  lanes stage their credentials into `PROVIDER_HOME`.
 - **Forbidden needles**: `["agh_claim_FAKE_QA_", "agh_claim_TESTONLY_"]` for UI-17; runner sweeps DOM and HAR.
 - **axe-core (UI-12)**: `@axe-core/playwright`; rules pinned to WCAG 2.1 AA; serious/critical filter only.
 - **Mock fixtures (UI-01, UI-06, UI-07, UI-08, UI-10, UI-11, UI-13, UI-14, UI-16, UI-18, UI-19)**: `internal/testutil/acpmock/testdata/*.json` plugged via `runtimeOptions.seed.mockAgents[]` (`web/e2e/fixtures/runtime.ts:21-32`).

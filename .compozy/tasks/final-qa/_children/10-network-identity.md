@@ -109,8 +109,11 @@ QA). Every scenario:
   unique daemon HTTP/UDS port pair, and unique embedded NATS port. Both
   AGH_HOMEs use the worktree-isolation helper (`agh-worktree-isolation`
   skill) so SQLite, ports, and tmux-bridge sockets never collide.
-- Sources auth via `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` from a fresh
-  bootstrap manifest (per the provider-home isolation directive). Live runs
+- Resolves provider auth from the bootstrap manifest according to each
+  provider contract: bound-secret, brokered, and explicitly isolated-home
+  lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
+  lanes with `home_policy=operator` preserve the operator `HOME` unless the
+  scenario explicitly validates isolated provider-home behavior. Live runs
   that exercise real Claude Code peers are gated `live: conditional` — they
   require the credential broker / pooled Claude Code login described in
   `openclaw-qa-patterns.md` §4.
@@ -164,9 +167,11 @@ layer here — driver-agnosticism is covered in module 03 (ACP).
   before any `agh` command.
 - Two unique `AGH_HOME` directories per worktree (per the worktree-isolation
   directive).
-- Provider auth staged into per-instance `PROVIDER_HOME` /
-  `PROVIDER_CODEX_HOME`. Never point at the user's raw `~/.codex` or
-  `~/.claude` (per the provider-home isolation directive).
+- Bound-secret, brokered, and explicitly isolated-home auth staged into
+  per-instance `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli`
+  providers with `home_policy=operator` intentionally use the operator
+  `HOME` / native login state unless the scenario explicitly validates
+  isolated provider-home behavior.
 - Both daemons started in background. HTTP / UDS listeners reachable on
   their unique ports.
 - Each daemon's `network.enabled = true`, `network.port = <unique>`,
@@ -794,7 +799,10 @@ risk: high
 live: conditional
 provider: real-claude-code
 preconditions:
-  - Both AGH_HOMEs have valid `claude` CLI auth in their PROVIDER_HOME.
+  - Both AGH instances have valid `claude` CLI auth in the effective Claude
+    home for the lane: operator `HOME` by default, or per-instance
+    `PROVIDER_HOME` only when the scenario explicitly validates isolated
+    native auth.
   - Both instances have an agent session active in `qa-builders` channel
     with capability `code` advertised in the local Peer Card.
 code_refs:

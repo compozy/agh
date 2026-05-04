@@ -79,8 +79,11 @@ QA), not pytest-style assertions. Every scenario:
 
 - Runs against an isolated `AGH_HOME` with unique daemon ports + tmux-bridge
   socket (per `agh-worktree-isolation`).
-- Sources auth via `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` from a fresh
-  bootstrap manifest (per the provider-home isolation directive).
+- Resolves provider auth from the bootstrap manifest according to each
+  provider contract: bound-secret, brokered, and explicitly isolated-home
+  lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
+  lanes with `home_policy=operator` preserve the operator `HOME` unless the
+  scenario explicitly validates isolated provider-home behavior.
 - Uses real Claude Code (`claude-opus-4-7[1m]` for primary lifecycle stress;
   `claude-sonnet-4-6` for spawned children where indicated) as the
   subprocess driver. Cross-driver parity with OpenClaw / Hermes is already
@@ -111,8 +114,11 @@ The surrounding daemon, observer, store, and logger remain real.
   to `bootstrap-manifest.json`; `bootstrap.env` exported into the shell
   before any `agh` command.
 - Unique `AGH_HOME` per worktree (per the worktree-isolation directive).
-- Provider auth staged into `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`. Never
-  point at the user's raw `~/.codex` or `~/.claude`.
+- Bound-secret, brokered, and explicitly isolated-home auth staged into
+  `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
+  `home_policy=operator` intentionally use the operator `HOME` / native login
+  state unless the scenario explicitly validates isolated provider-home
+  behavior.
 - Daemon started in background. HTTP / UDS listeners reachable.
 - `make verify` is green on the SUT branch before QA runs.
 - `AGH_WEB_API_PROXY_TARGET` exported when the daemon is not on `:2123` so
@@ -640,13 +646,14 @@ steps:
   3. Save audit output to `obs-09-static-audit.txt`.
 expected:
   - Hits are limited to exactly:
-    - `cmd/agh-daytona-sidecar/main.go` lines 459/491 (`log.Printf`) —
-      sidecar bootstrap before logger is wired; documented in §10.
+    - `internal/sandbox/daytona/cmd/agh-daytona-sidecar/main.go` lines
+      459/491 (`log.Printf`) — sidecar bootstrap before logger is wired;
+      documented in §10.
     - `internal/extension/registry.go:539` (`strings.Contains` "no
       such table") — sqlite-error-string exemption; documented in §10.
     - `internal/subprocess/transport.go:253` ("token too long") —
       bufio scanner-error sentinel; documented in §10.
-    - `internal/subprocess/process.go:617` ("file already closed") —
+    - `internal/subprocess/process.go:638` ("file already closed") —
       os.PathError sentinel; documented in §10.
     - `internal/store/globaldb/global_db_task.go:155` and
       `global_db_bridge.go:1128` ("foreign key constraint failed") —
@@ -1315,11 +1322,11 @@ These are the only allowed appearances of `fmt.Println` / `log.Print*` /
 
 | Path:line                                                      | Pattern                                          | Justification                                                                                                                          |
 | -------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `cmd/agh-daytona-sidecar/main.go:459`                          | `log.Printf("%s: %v", logMessage, err)`          | Sidecar bootstrap logging before the slog handler is wired; sidecar is a separate process binary, not the AGH daemon.                  |
-| `cmd/agh-daytona-sidecar/main.go:491`                          | `log.Printf("write JSON response: %v", err)`     | Same — sidecar boundary.                                                                                                               |
+| `internal/sandbox/daytona/cmd/agh-daytona-sidecar/main.go:459` | `log.Printf("%s: %v", logMessage, err)`          | Sidecar bootstrap logging before the slog handler is wired; sidecar is a separate process binary, not the AGH daemon.                  |
+| `internal/sandbox/daytona/cmd/agh-daytona-sidecar/main.go:491` | `log.Printf("write JSON response: %v", err)`     | Same — sidecar boundary.                                                                                                               |
 | `internal/extension/registry.go:539`                           | `strings.Contains(strings.ToLower(err.Error()), "no such table")` | sqlite-specific error string with no exported sentinel; fallback path on first-boot when the table is absent before migrations apply. |
 | `internal/subprocess/transport.go:253`                         | `strings.Contains(err.Error(), "token too long")` | bufio.Scanner returns this string only; no exported sentinel exists upstream.                                                          |
-| `internal/subprocess/process.go:617`                           | `strings.Contains(err.Error(), "file already closed")` | Wraps a `*os.PathError` whose underlying message is the only signal; documented in stdlib.                                             |
+| `internal/subprocess/process.go:638`                           | `strings.Contains(err.Error(), "file already closed")` | Wraps a `*os.PathError` whose underlying message is the only signal; documented in stdlib.                                             |
 | `internal/store/globaldb/global_db_task.go:155`                | `strings.Contains(strings.ToLower(err.Error()), "foreign key constraint failed")` | sqlite returns a string-only error for FK failures; mattn/go-sqlite3 has no exported sentinel.                                         |
 | `internal/store/globaldb/global_db_bridge.go:1128`             | Same pattern                                     | Same sqlite reason.                                                                                                                    |
 | `internal/store/globaldb/global_db_bundles.go:45`              | `strings.Contains(strings.ToLower(err.Error()), "no such table")` | First-boot bootstrap; bundles table may not exist yet if upgrading from an older version.                                              |

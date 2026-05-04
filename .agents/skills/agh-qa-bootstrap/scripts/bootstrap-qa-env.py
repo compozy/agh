@@ -12,6 +12,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -170,6 +171,37 @@ def prepare_provider_home(global_codex_home: Path, provider_home: Path) -> Path:
     return provider_codex_home
 
 
+def write_runtime_config(agh_home: Path, http_port: str, uds_path: str) -> None:
+    config_path = agh_home / "config.toml"
+    config_path.write_text(
+        "[http]\n"
+        'host = "127.0.0.1"\n'
+        f"port = {http_port}\n"
+        "\n"
+        "[daemon]\n"
+        f"socket = {json.dumps(uds_path)}\n",
+        encoding="utf-8",
+    )
+
+
+def validate_runtime_config(config_path: Path, http_port: str, uds_path: str) -> list[str]:
+    if not config_path.is_file():
+        return [f"runtime config missing: {config_path}"]
+    try:
+        with config_path.open("rb") as handle:
+            data = tomllib.load(handle)
+    except tomllib.TOMLDecodeError as err:
+        return [f"runtime config invalid TOML: {err}"]
+    notes: list[str] = []
+    got_port = str(data.get("http", {}).get("port", ""))
+    if got_port != str(http_port):
+        notes.append(f"runtime config http.port={got_port}, manifest AGH_HTTP_PORT={http_port}")
+    got_socket = str(data.get("daemon", {}).get("socket", ""))
+    if got_socket != str(uds_path):
+        notes.append(f"runtime config daemon.socket={got_socket}, manifest AGH_UDS_PATH={uds_path}")
+    return notes
+
+
 def manifest_health(manifest: dict) -> tuple[bool, list[str]]:
     notes: list[str] = []
     env = manifest.get("env")
@@ -207,6 +239,14 @@ def manifest_health(manifest: dict) -> tuple[bool, list[str]]:
     for note in socket_limit_violations(socket_paths):
         healthy = False
         notes.append(note)
+    config_notes = validate_runtime_config(
+        required_paths["AGH_HOME"] / "config.toml",
+        str(env.get("AGH_HTTP_PORT", "")),
+        str(env.get("AGH_UDS_PATH", "")),
+    )
+    if config_notes:
+        healthy = False
+        notes.extend(config_notes)
     return healthy, notes
 
 
@@ -328,6 +368,7 @@ def main() -> int:
             "BROWSER_MODE": "",
             "BROWSER_BLOCKER": "",
         }
+        write_runtime_config(agh_home, env_block["AGH_HTTP_PORT"], env_block["AGH_UDS_PATH"])
 
     env_block["SCENARIO_SLUG"] = workspace_info["SCENARIO_SLUG"]
     env_block["WORKSPACE_PATH"] = str(workspace_path)

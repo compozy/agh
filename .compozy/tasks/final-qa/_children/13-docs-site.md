@@ -161,7 +161,10 @@ Bootstrap and isolation discipline (mandatory):
 - For static-build scenarios: `make codegen` and `make cli-docs` both green, so `openapi/agh.json` and `content/runtime/cli-reference/**` are in lockstep with their sources.
 - For static-build scenarios: `make site-build` green, producing `packages/site/out/`.
 - For headless-browser scenarios: a static server bound to `127.0.0.1:<port>` serving `packages/site/out/`. Playwright (Chromium) installed via `bunx playwright install chromium`.
-- For DOC-19 (real-LLM): `ANTHROPIC_API_KEY` staged inside `PROVIDER_HOME`; `agh provider show claude` reports the expected ACP command.
+- For DOC-19 (real-LLM): direct `claude` auth comes from the effective Claude
+  home for the lane (operator `HOME` by default; isolated `PROVIDER_HOME`
+  only for explicit isolated-home scenarios); `agh provider show claude`
+  reports the expected ACP command.
 
 Per-scenario evidence layout under `.artifacts/qa/<run-id>/doc-XX/`:
 
@@ -970,9 +973,11 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - Bootstrap manifest with isolated `AGH_HOME`, daemon HTTP port, `PROVIDER_HOME` (per `agh-qa-bootstrap` skill)
+  - Bootstrap manifest with isolated `AGH_HOME`, daemon HTTP port, and the
+    effective Claude home for the lane documented (`HOME` by default,
+    `PROVIDER_HOME` only for explicit isolated-home scenarios)
   - Daemon up: `agh daemon status -o json` reports `status="running"`
-  - `ANTHROPIC_API_KEY` staged inside `PROVIDER_HOME`
+  - Direct `claude` auth available in the effective Claude home for the lane
 code_refs:
   - /Users/pedronauck/Dev/compozy/agh/packages/site/components/landing/hero-player.tsx (Remotion Player)
   - /Users/pedronauck/Dev/compozy/agh/packages/site/remotion/hero/composition.tsx

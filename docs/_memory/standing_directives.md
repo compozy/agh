@@ -79,6 +79,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 - Every program ends with a `qa-report` task and a `qa-execution` task. UI-bearing features include browser-based e2e.
 - Use the `real-scenario-qa` skill for release validation; it delegates to `qa-execution` and `qa-report` for inner mechanics.
+- Hermetic QA still respects each provider's auth contract: bound-secret and brokered lanes isolate `PROVIDER_HOME`, while `native_cli` providers with `home_policy=operator` keep the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior.
 - Concrete bug evidence (autonomy task_18 BUG-001/002/003, Hermes BUG-001..007) shows the QA pass surfaces real production bugs the unit/lint/build coverage cannot catch.
 
 **Source:** Codex sessions (most-repeated request); `real-scenario-qa` SKILL.md; autonomy and Hermes QA verification reports.

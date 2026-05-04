@@ -22,6 +22,8 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-012](L-012-techspec-prose-only-rework.md)          | TechSpec without Go interface signatures triggers heavy review rework        | Spec authoring          |
 | [L-013](L-013-prd-must-not-name-implementation.md)    | PRD must not name frameworks, storage, error codes, or file formats          | Spec authoring          |
 | [L-014](L-014-sandbox-vocabulary-drift.md)            | Runtime vocabulary must match public contracts                               | Architecture / Product  |
+| [L-015](L-015-native-provider-auth-boundary.md)       | Provider auth ownership must be explicit                                     | Architecture / Security |
+| [L-016](L-016-native-provider-qa-home-policy.md)      | Native provider QA must respect home policy                                  | Testing / Workflow      |
 
 ## How to use
 

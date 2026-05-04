@@ -44,8 +44,10 @@ Execute QA as a real operator using the product. Smoke checks, unit tests, integ
 2. Run the canonical verification gate once before scenario testing to establish baseline health. Execute in fastest-first order: lint and type-check, then build, then unit tests, then integration tests.
 3. If the baseline fails, read the first failing output carefully and determine whether it is pre-existing or introduced by current work before moving on.
 4. When the project has a Web UI surface, start the dev server in the background using the discovered start command. If the bootstrap manifest exists, export `AGH_WEB_API_PROXY_TARGET` from the manifest before launching the Web server. Confirm readiness by waiting for the server to respond (e.g., `curl -sf -o /dev/null http://localhost:<port>` returns 0, or startup logs emit a ready signal).
-5. Start provider-backed services with the isolated env from the bootstrap manifest when available:
-   `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <command>`
+5. Start provider-backed services according to the provider home policy:
+   - Bound-secret, brokered, or explicitly isolated-home lanes:
+     `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <command>`
+   - `native_cli` providers with `home_policy=operator`: keep the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior.
 6. Start services in the closest supported production-like mode and confirm readiness through observable signals such as health checks, startup logs, or successful handshakes.
 
 **Step 4: Execute CLI and API Flows**

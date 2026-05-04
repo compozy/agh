@@ -889,7 +889,12 @@ Per `agh-qa-bootstrap` and the worktree-isolation directive:
 - **Fixture agents**:
   - `op-x` (claude / claude-sonnet-4-6) and `op-y` (codex / gpt-5.4-mini) — CFG-15.
   - Malformed AGENT.md set (no fence / unterminated / BOM / embedded tab) — CFG-12.
-- **Real Claude Code subagent** — for CFG-04, CFG-06, CFG-08, CFG-10, CFG-11, CFG-15. ACP runtime: `npx -y @agentclientprotocol/claude-agent-acp@latest` (per `provider.go:166`). Lab-key sourced from `PROVIDER_HOME` per `bootstrap-manifest.json`.
+- **Real Claude Code subagent** — for CFG-04, CFG-06, CFG-08, CFG-10,
+  CFG-11, CFG-15. ACP runtime:
+  `npx -y @agentclientprotocol/claude-agent-acp@latest` (per
+  `provider.go:166`). Direct `claude` auth comes from the effective Claude
+  home for the lane: operator `HOME` by default, or isolated `PROVIDER_HOME`
+  only for explicit isolated-home scenarios.
 - **Real Codex subagent** — for CFG-15. ACP runtime: `npx -y @zed-industries/codex-acp@latest` (per `provider.go:174`). Lab-key sourced from `PROVIDER_CODEX_HOME`.
 - **A workspace `.env`** — `/tmp/cfg16/.env` for CFG-16.
 - **Per-lane artifact directory** — `.artifacts/qa/cfg-<run-id>/` containing one `<scenario>-{report,summary,observed-events,output}.{md,json,json,log}` quartet per the openclaw four-artifact contract.

@@ -52,8 +52,10 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 
 1. Pass the resolved `QA_OUTPUT_PATH` to `qa-report` and `qa-execution`.
 2. Downstream QA must execute real operator journeys and live provider-backed agent behavior when reachable. Do not count successful bootstrap, health checks, or generated directories as real-scenario evidence.
-3. When starting provider-backed commands, use the isolated provider env from the manifest:
-   `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <provider-command>`
+3. When starting provider-backed commands, follow the provider's home policy from the manifest/config:
+   - Bound-secret, brokered, or explicitly isolated-home lanes:
+     `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <provider-command>`
+   - `native_cli` providers with `home_policy=operator`: preserve the operator `HOME` / native login state and do **not** rewrite it to `PROVIDER_HOME` unless the scenario explicitly tests isolated provider-home behavior.
 4. When starting `make web-dev` or any Web surface that proxies to the daemon, export:
    `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET"`
 5. Keep `agh config set` and any other config mutation against the same isolated home strictly sequential. Do not parallelize writes against the same config file.
@@ -66,5 +68,5 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 ## Error Handling
 
 - If the bootstrap helper reports `REUSED_LAB=false` because health checks failed, use the fresh manifest it just wrote instead of trying to revive the stale state manually.
-- If the provider fails with global Codex config errors such as malformed `config.toml`, confirm that commands are using `HOME="$PROVIDER_HOME"` and `CODEX_HOME="$PROVIDER_CODEX_HOME"` from the manifest, not the raw global `~/.codex`.
+- If a bound-secret, brokered, or Codex-specific provider fails with global config errors such as malformed `config.toml`, confirm that commands are using the manifest-derived `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`. If a `native_cli` provider with `home_policy=operator` fails, confirm the lane preserved the operator `HOME` instead of incorrectly rewriting it to `PROVIDER_HOME`.
 - If Web flows hit the wrong daemon, confirm `AGH_WEB_API_PROXY_TARGET` matches the manifest and restart the Web dev server with that env.

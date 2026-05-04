@@ -48,8 +48,10 @@ Smoke checks, CRUD-only checks, page-render checks, unit tests, integration test
 1. Use `qa-report` when planning test cases or documenting issues.
 2. Use `qa-execution` when running gates, starting services, exercising CLI/API/Web flows, and writing the verification report.
 3. Use `systematic-debugging` and `no-workarounds` for every unexpected behavior, failed test, flaky runtime, memory spike, bad UX, or integration issue.
-4. When starting provider-backed commands, use the isolated provider env from the manifest:
-   `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <provider-command>`
+4. When starting provider-backed commands, follow the provider home policy:
+   - Bound-secret, brokered, or explicitly isolated-home lanes:
+     `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <provider-command>`
+   - `native_cli` providers with `home_policy=operator`: preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior.
 5. When starting Web flows against an isolated daemon, export:
    `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET"`
 6. Use `browser-use:browser` as the primary Web validation path when the Browser plugin is available. Read and follow that skill before any browser interaction. Use the in-app browser against the local Web app and capture DOM snapshot, screenshot, URL, and visible-state evidence for the tested flows.

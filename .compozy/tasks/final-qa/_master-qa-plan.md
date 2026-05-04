@@ -43,7 +43,7 @@ The QA philosophy AGH is adopting is the synthesis of the openclaw QA framework 
 3. **Tri-state liveness.** Every scenario declares `live: true | false | conditional`. Live runs that need credentials use a pooled credential broker (openclaw pattern, AGH-local SQLite-backed implementation per `08-extensions-bridges.md` §6).
 4. **Evidence is the artifact.** Every scenario lists what to capture: log path, db query, SSE stream snapshot, HAR (web), screenshots (web), goroutine snapshot (where goleak is asserted). Without evidence, "passed" is a claim, not a proof.
 5. **`file:line` citations are mandatory.** Every behavioral claim in this plan and its children cites the implementation it's proving. If the citation rots, the citation rots in the plan, not in a hidden test.
-6. **Hermetic by default.** Every run uses an isolated `AGH_HOME`, isolated NATS port, isolated UDS socket path, isolated `PROVIDER_HOME` and `PROVIDER_CODEX_HOME`. The bootstrap manifest is the source of truth (see §8).
+6. **Hermetic by default, but never against the provider contract.** Every run uses an isolated `AGH_HOME`, isolated NATS port, and isolated UDS socket path. Bound-secret, brokered, and explicitly isolated-home lanes use isolated `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` lanes with `home_policy=operator` preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior. The bootstrap manifest is the source of truth (see §8).
 7. **Truthful UI.** UI elements that the daemon doesn't actually serve must NOT render. The web QA includes a positive audit (`UI-19`) and the cross-cutting plan elevates this into a build-rejecting gate (`XCT-14`).
 8. **Greenfield posture.** No backward-compatibility shims. No "soft" assertions. Failure means we delete the offending code or the offending test, not both.
 9. **Two-touch rule.** If a child surfaces the same defect twice during execution, the third encounter triggers a TechSpec, not a third patch.
@@ -233,8 +233,8 @@ Every QA run starts with `agh-qa-bootstrap`. It produces a `bootstrap-manifest.j
 - `AGH_NATS_PORT` — unique embedded NATS port
 - `AGH_TMUX_SOCKET` — unique tmux-bridge socket path (bridge tests)
 - `AGH_WEB_API_PROXY_TARGET` — derived from above for isolated Web QA
-- `PROVIDER_HOME` — isolated `~/.claude` style root (NEVER the global `~/.codex`)
-- `PROVIDER_CODEX_HOME` — isolated codex root
+- `PROVIDER_HOME` — isolated provider state root for bound-secret, brokered, and explicitly isolated-home lanes
+- `PROVIDER_CODEX_HOME` — isolated Codex root when the lane actually uses Codex-specific auth/config
 - Pooled provider credentials (Slack/Telegram/etc.) leased via the broker (§8.4)
 
 A fresh manifest per pass by default. A previous manifest is reused only when continuing the same active QA session/loop (per the deterministic-bootstrap directive).
@@ -245,7 +245,7 @@ Concurrent runs MUST allocate isolated `AGH_HOME` + ports + sockets per the para
 
 ### 8.3 Provider-home isolation
 
-Provider-backed live scenarios point at `PROVIDER_HOME` and `PROVIDER_CODEX_HOME` derived from the manifest. NEVER the raw global `~/.codex`.
+Provider-backed live scenarios follow each provider's auth contract. Bound-secret, brokered, and explicitly isolated-home lanes point at `PROVIDER_HOME` and `PROVIDER_CODEX_HOME` derived from the manifest. `native_cli` lanes with `home_policy=operator` preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior.
 
 ### 8.4 Credential broker (openclaw pattern, AGH-local)
 

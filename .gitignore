@@ -28,6 +28,7 @@ AGH_HOME
 ai-docs/
 .firecrawl
 .kodebase
+.compozy/tasks/final-qa/_runs
 
 # Next.js
 .next/

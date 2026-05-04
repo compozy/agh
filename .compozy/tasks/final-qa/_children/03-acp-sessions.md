@@ -100,7 +100,14 @@ The module already has thick unit and integration coverage. Real-LLM scenarios m
 
 ## 4. Real-LLM Scenarios
 
-Every scenario runs in a fresh `agh-qa-bootstrap` lab with isolated `AGH_HOME`, daemon port, tmux-bridge socket, and provider-home (`PROVIDER_HOME` / `PROVIDER_CODEX_HOME`). The runner spawns the real binary listed under `provider`. Body redaction defaults on; opt-in capture (`AGH_QA_CAPTURE_CONTENT=1`) for bug reports.
+Every scenario runs in a fresh `agh-qa-bootstrap` lab with isolated `AGH_HOME`,
+daemon port, and tmux-bridge socket. Provider auth follows the resolved
+provider contract: bound-secret, brokered, and explicitly isolated-home lanes
+use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli` lanes with
+`home_policy=operator` preserve the operator `HOME` / native login state unless
+the scenario explicitly validates isolated provider-home behavior. The runner
+spawns the real binary listed under `provider`. Body redaction defaults on;
+opt-in capture (`AGH_QA_CAPTURE_CONTENT=1`) for bug reports.
 
 ```yaml
 id: ACP-01
@@ -112,7 +119,7 @@ coverage:
 live: true
 provider: claude-code
 preconditions:
-  - ANTHROPIC_API_KEY present in PROVIDER_HOME (or `claude` CLI logged in via `claude login` inside PROVIDER_HOME)
+  - Direct `claude` provider authenticated in the effective Claude home for the lane: operator `HOME` by default, or isolated `PROVIDER_HOME` only when the scenario explicitly validates isolated native auth
   - `agh provider show claude` reports command `npx -y @agentclientprotocol/claude-agent-acp@latest`
   - daemon up via bootstrap manifest; `agh daemon status -o json` reports `running`
 preconditions_files: [internal/config/provider.go:165-173]
@@ -298,7 +305,7 @@ provider: claude-code
 preconditions: ACP-01 preconditions
 steps:
   1. Create session S, send 1 prompt (so ACP session id is captured), `agh session stop $S`
-  2. Manually wipe the upstream ACP provider's session storage (e.g. delete `$PROVIDER_HOME/.claude/projects/<S>/...`) so the upstream agent no longer knows the ACP session id
+  2. Manually wipe the upstream ACP provider's session storage (e.g. delete the effective Claude session path for the lane: `$HOME/.claude/projects/<S>/...` on operator-home runs or `$PROVIDER_HOME/.claude/projects/<S>/...` on isolated-home runs) so the upstream agent no longer knows the ACP session id
   3. `agh session resume $S` (which calls `Driver.loadSession` → `acpsdk.AgentMethodSessionLoad`)
   4. Observe behavior
 expected_behavior:
@@ -727,7 +734,7 @@ cleanup: `agh session stop $S`
 - **Bootstrap manifest**: produced by `agh-qa-bootstrap` skill; includes unique `AGH_HOME`, daemon ports, tmux-bridge socket, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` paths, `AGH_WEB_API_PROXY_TARGET` (when web QA also runs).
 - **Workspace seed**: `$LAB/workspace/` with a `README.md` (≥3 paragraphs), `src/file_a.go`, `src/file_b.go`, and a `generated_long_file.txt` (~2MB) for ACP-16.
 - **Skill seed**: 12 enabled skills under `$AGH_HOME/skills/` for ACP-11 (truncation proof).
-- **Provider auth**: `ANTHROPIC_API_KEY` for Claude Code; OpenClaw and Hermes use whatever auth their CLIs expect, staged into `PROVIDER_HOME`. Never read raw `~/.codex` / `~/.claude` (CLAUDE.md "Provider-home isolation").
+- **Provider auth**: direct `claude` uses native Claude CLI auth from the effective Claude home for the lane (operator `HOME` by default; isolated `PROVIDER_HOME` only for explicit isolated-home scenarios). OpenClaw, Hermes, wrapped providers, and brokered credentials follow their own contract and may stage auth into `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` when the lane is bound-secret or explicitly isolated.
 - **Forbidden needles**: `["agh_claim_FAKE_QA_", "agh_claim_TESTONLY_"]` for ACP-18; runner sweeps SSE/events/log files for these and asserts count == 0.
 - **goleak build tag**: `//go:build goleak_check` for ACP-12 to avoid hot-path overhead in production builds.
 

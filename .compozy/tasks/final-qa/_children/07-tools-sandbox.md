@@ -196,7 +196,16 @@ For each gap, the load-bearing AGH claim and the missing test.
 
 ## 4. Real-LLM / Real-Agent Scenarios
 
-Each scenario is a fenced markdown block with `qa-scenario` + `qa-flow`. Numbered TOL-01..TOL-17. Live runs use `agh sessions start --agent claude-code --workspace ./fixtures/<theme>` against a real Claude Code subagent unless tagged `provider: none`. All runs use `agh-qa-bootstrap`-issued `bootstrap-manifest.json` with unique `AGH_HOME`, daemon ports, and `PROVIDER_HOME` / `PROVIDER_CODEX_HOME` per the worktree-isolation directive.
+Each scenario is a fenced markdown block with `qa-scenario` + `qa-flow`.
+Numbered TOL-01..TOL-17. Live runs use
+`agh sessions start --agent claude-code --workspace ./fixtures/<theme>`
+against a real Claude Code subagent unless tagged `provider: none`. All runs
+use `agh-qa-bootstrap`-issued `bootstrap-manifest.json` with unique
+`AGH_HOME`, daemon ports, and provider auth resolved per the provider's
+`home_policy`: bound-secret and explicitly isolated-home lanes use
+`PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli` lanes with
+`home_policy=operator` preserve the operator `HOME` unless the scenario
+explicitly validates isolated provider-home behavior.
 
 ```markdown
 ### TOL-01 — Real Claude Code drives fs/read + fs/write + terminal/create end-to-end

@@ -166,7 +166,11 @@ Bootstrap and isolation discipline (mandatory):
 
 - One isolated `AGH_HOME`, daemon HTTP port, UDS socket path, `tmux-bridge` socket, and `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` per scenario (per `agh-worktree-isolation` skill and `agh-qa-bootstrap`).
 - `AGH_WEB_API_PROXY_TARGET` exported when web QA accompanies a parity scenario (per CLAUDE.md "Isolated Web QA must export `AGH_WEB_API_PROXY_TARGET`").
-- Provider auth staged into `PROVIDER_HOME` only — never read raw `~/.codex` / `~/.claude` (per "Provider-home isolation").
+- Bound-secret, brokered, and explicitly isolated-home auth staged into
+  `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` providers with
+  `home_policy=operator` intentionally use the operator `HOME` / native login
+  state unless the scenario explicitly validates isolated provider-home
+  behavior.
 - Sequential config writes only (no parallel `agh config set` against the same provider — per Workflow Rules).
 
 ## 5. Preconditions (apply to every scenario)
@@ -176,7 +180,10 @@ Bootstrap and isolation discipline (mandatory):
 - Daemon running: `agh daemon status -o json` reports `status="running"`.
 - For HTTP scenarios, the bound HTTP host is reachable on `127.0.0.1:<port>` from the same shell.
 - For UDS scenarios, the UDS path resolved via `cli/root.go:267-286` (`Daemon.Socket` → `HomePaths.DaemonSocket`) is mode `0o600`.
-- For real-LLM scenarios, `ANTHROPIC_API_KEY` is staged inside `PROVIDER_HOME` and `agh provider show claude` reports the expected ACP command.
+- For real-LLM scenarios, the direct `claude` provider is authenticated in the
+  effective Claude home for the lane: operator `HOME` by default, or isolated
+  `PROVIDER_HOME` only when the scenario explicitly validates isolated native
+  auth. `agh provider show claude` reports the expected ACP command.
 
 Per-scenario evidence layout under `.artifacts/qa/<run-id>/api-XX/`:
 
@@ -260,7 +267,9 @@ risk: high
 live: true
 provider: real-claude-code
 preconditions:
-  - ACP-01 preconditions from `03-acp-sessions.md` (Claude Code subprocess reachable; `ANTHROPIC_API_KEY` in PROVIDER_HOME)
+  - ACP-01 preconditions from `03-acp-sessions.md` (Claude Code subprocess
+    reachable; direct `claude` auth resolved from the effective Claude home
+    for the lane)
   - Daemon HTTP and UDS both bound; CLI default UDS socket points at the daemon
 code_refs:
   - /Users/pedronauck/Dev/compozy/agh/internal/api/httpapi/prompt.go:90-156
@@ -946,7 +955,11 @@ cleanup: `agh session stop $S`; kill any leftover background CLI processes.
 
 - **Bootstrap manifest**: produced by `agh-qa-bootstrap`. Includes unique `AGH_HOME`, daemon HTTP port, daemon UDS path, tmux-bridge socket, `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, `AGH_WEB_API_PROXY_TARGET`.
 - **Workspace seed**: `$LAB/workspace/` with `README.md` (≥3 paragraphs), `src/file_a.go`, `src/file_b.go`, `generated_long_file.txt` (~2 MB) for API-06.
-- **Provider auth**: `ANTHROPIC_API_KEY` staged into `PROVIDER_HOME` for `real-claude-code`. Never read raw `~/.codex` / `~/.claude` (per the Provider-home isolation directive).
+- **Provider auth**: direct `claude` uses native Claude CLI auth from the
+  effective Claude home for the lane (operator `HOME` by default; isolated
+  `PROVIDER_HOME` only for explicit isolated-home scenarios). Bound-secret,
+  brokered, and Codex-specific lanes stage auth into `PROVIDER_HOME` /
+  `PROVIDER_CODEX_HOME`.
 - **Golden snapshots** (API-13): seeded under `internal/cli/testdata/golden/` on first run; updated only via explicit opt-in flag `AGH_GOLDEN_UPDATE=1` (similar to vitest snapshot policy).
 - **Boundaries violation fixture** (API-15): planted file `internal/session/boundaries_qa_violation.go` with `//go:build qa_boundary_violation` tag; removed at scenario cleanup.
 - **Forbidden-needle list** (covered by ACP-18 in `03-acp-sessions.md`): `["agh_claim_FAKE_QA_", "agh_claim_TESTONLY_"]` swept across SSE, events.db dumps, daemon log, web SSE, transcripts.
