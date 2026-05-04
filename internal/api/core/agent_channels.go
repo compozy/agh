@@ -796,6 +796,7 @@ func sessionInfoFromAgentCaller(caller agentidentity.Caller) *session.Info {
 		Workspace:        strings.TrimSpace(caller.Session.WorkspacePath),
 		Channel:          strings.TrimSpace(caller.Session.Channel),
 		Type:             caller.Session.Type,
+		Lineage:          store.CloneSessionLineage(caller.Session.Lineage),
 		State:            caller.Session.State,
 		SoulSnapshotID:   strings.TrimSpace(caller.Session.SoulSnapshotID),
 		SoulDigest:       strings.TrimSpace(caller.Session.SoulDigest),

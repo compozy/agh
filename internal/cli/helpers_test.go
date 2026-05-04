@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -22,6 +21,7 @@ type stubClient struct {
 	triggerSettingsRestartFn    func(context.Context) (SettingsRestartActionRecord, error)
 	getSettingsRestartStatusFn  func(context.Context, string) (SettingsRestartStatusRecord, error)
 	getSettingsUpdateFn         func(context.Context) (SettingsUpdateRecord, error)
+	updateSettingsSkillsFn      func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
 	listVaultSecretsFn          func(context.Context, VaultListQuery) ([]VaultRecord, error)
 	getVaultSecretFn            func(context.Context, string) (VaultRecord, error)
 	putVaultSecretFn            func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
@@ -209,6 +209,16 @@ func (s *stubClient) GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecor
 		return s.getSettingsUpdateFn(ctx)
 	}
 	return SettingsUpdateRecord{}, errors.New("unexpected GetSettingsUpdate call")
+}
+
+func (s *stubClient) UpdateSettingsSkills(
+	ctx context.Context,
+	request UpdateSettingsSkillsRequest,
+) (SettingsMutationRecord, error) {
+	if s.updateSettingsSkillsFn != nil {
+		return s.updateSettingsSkillsFn(ctx, request)
+	}
+	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsSkills call")
 }
 
 func (s *stubClient) ListVaultSecrets(
@@ -1694,7 +1704,9 @@ func executeRootCommandWithExit(
 
 	stdout, stderr, err := executeRootCommand(t, deps, args...)
 	if err != nil {
-		return 1, stdout, fmt.Sprintf("%serror: %v\n", stderr, err)
+		var rendered bytes.Buffer
+		rendered.WriteString(stderr)
+		return writeExecutionError(&rendered, args, err), stdout, rendered.String()
 	}
 	return 0, stdout, stderr
 }

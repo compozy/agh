@@ -131,7 +131,7 @@ func TestGlobalDBHeartbeatMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AppliedMigrations() error = %v", err)
 		}
-		if got, want := len(records), 13; got != want {
+		if got, want := len(records), 14; got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
 		if records[11].Version != 12 || records[11].Name != "add_agent_soul_snapshots" {
@@ -139,6 +139,9 @@ func TestGlobalDBHeartbeatMigration(t *testing.T) {
 		}
 		if records[12].Version != 13 || records[12].Name != "add_agent_heartbeat_storage" {
 			t.Fatalf("records[12] = %#v, want Heartbeat storage v13", records[12])
+		}
+		if records[13].Version != 14 || records[13].Name != "add_event_summary_lineage" {
+			t.Fatalf("records[13] = %#v, want event summary lineage v14", records[13])
 		}
 	})
 

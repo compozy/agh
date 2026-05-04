@@ -2,7 +2,9 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 
@@ -102,6 +104,9 @@ func failureKindForError(err error, fallback store.FailureKind) store.FailureKin
 
 	var reqErr *acpsdk.RequestError
 	if errors.As(err, &reqErr) {
+		if fallback == store.FailurePrompt && requestErrorIndicatesSessionLoss(reqErr) {
+			return store.FailureProcess
+		}
 		switch fallback {
 		case store.FailurePrompt, store.FailureLoad:
 			return fallback
@@ -114,6 +119,43 @@ func failureKindForError(err error, fallback store.FailureKind) store.FailureKin
 		return fallback
 	}
 	return store.FailureUnknown
+}
+
+func requestErrorIndicatesSessionLoss(reqErr *acpsdk.RequestError) bool {
+	if reqErr == nil {
+		return false
+	}
+
+	text := strings.ToLower(strings.TrimSpace(requestErrorDiagnosticText(reqErr)))
+	switch {
+	case strings.Contains(text, "process exited unexpectedly"):
+		return true
+	case strings.Contains(text, "peer disconnected before response"):
+		return true
+	case strings.Contains(text, "please start a new session"):
+		return true
+	case strings.Contains(text, "session not found"):
+		return true
+	case strings.Contains(text, "resource not found"):
+		return true
+	default:
+		return false
+	}
+}
+
+func requestErrorDiagnosticText(reqErr *acpsdk.RequestError) string {
+	if reqErr == nil {
+		return ""
+	}
+
+	parts := []string{reqErr.Message}
+	if reqErr.Data != nil {
+		parts = append(parts, fmt.Sprint(reqErr.Data))
+		if payload, err := json.Marshal(reqErr.Data); err == nil {
+			parts = append(parts, string(payload))
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func firstNonEmptyFailureText(values ...string) string {

@@ -14,6 +14,7 @@ import (
 )
 
 const detachedPromptDrainTimeout = 30 * time.Second
+const promptStreamFormatRaw = "raw"
 
 type promptRequest struct {
 	Message string `json:"message"`
@@ -30,6 +31,11 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 
+	if strings.EqualFold(strings.TrimSpace(c.Query("format")), promptStreamFormatRaw) {
+		h.promptSessionRaw(c, req.Message)
+		return
+	}
+
 	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
 	cancelOnReturn := cancelPrompt
 	defer func() {
@@ -38,6 +44,52 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		}
 	}()
 	events, err := h.Sessions.Prompt(promptCtx, c.Param("id"), req.Message)
+	if err != nil {
+		core.RespondError(c, core.StatusForSessionError(err), err, false)
+		return
+	}
+
+	c.Header("x-vercel-ai-ui-message-stream", "v1")
+	writer, err := core.PrepareSSE(c)
+	if err != nil {
+		core.RespondError(c, http.StatusInternalServerError, err, false)
+		return
+	}
+	streamEncoder := core.NewPromptStreamEncoder(h.Now)
+
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			h.drainPromptEventsAsync(promptCtx, events, cancelOnReturn)
+			cancelOnReturn = nil
+			return
+		case <-h.StreamDoneChannel():
+			return
+		case event, ok := <-events:
+			if !ok {
+				if err := streamEncoder.Finish(writer, acp.AgentEvent{}); err != nil {
+					return
+				}
+				return
+			}
+			if err := streamEncoder.Emit(writer, event); err != nil {
+				h.drainPromptEventsAsync(promptCtx, events, cancelOnReturn)
+				cancelOnReturn = nil
+				return
+			}
+		}
+	}
+}
+
+func (h *Handlers) promptSessionRaw(c *gin.Context, message string) {
+	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
+	cancelOnReturn := cancelPrompt
+	defer func() {
+		if cancelOnReturn != nil {
+			cancelOnReturn()
+		}
+	}()
+	events, err := h.Sessions.Prompt(promptCtx, c.Param("id"), message)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return

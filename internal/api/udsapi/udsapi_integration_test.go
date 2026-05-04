@@ -92,17 +92,46 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 		_ = promptResp.Body.Close()
 		t.Fatalf("prompt status = %d, want %d; body=%s", promptResp.StatusCode, http.StatusOK, string(body))
 	}
+	if got := promptResp.Header.Get("x-vercel-ai-ui-message-stream"); got != "v1" {
+		t.Fatalf("x-vercel-ai-ui-message-stream = %q, want v1", got)
+	}
 	promptBody, err := io.ReadAll(promptResp.Body)
 	_ = promptResp.Body.Close()
 	if err != nil {
 		t.Fatalf("io.ReadAll(prompt SSE) error = %v", err)
 	}
 	promptEvents := parseSSE(t, string(promptBody))
-	if len(promptEvents) < 2 {
-		t.Fatalf("prompt SSE events = %d, want at least 2; body=%s", len(promptEvents), string(promptBody))
+	if len(promptEvents) < 5 {
+		t.Fatalf("prompt SSE events = %d, want at least 5; body=%s", len(promptEvents), string(promptBody))
 	}
-	if promptEvents[0].Event != "agent_message" || promptEvents[len(promptEvents)-1].Event != "done" {
-		t.Fatalf("prompt SSE event types = first:%s last:%s", promptEvents[0].Event, promptEvents[len(promptEvents)-1].Event)
+	if string(promptEvents[len(promptEvents)-1].Data) != "[DONE]" {
+		t.Fatalf("last prompt SSE data = %q, want [DONE]", string(promptEvents[len(promptEvents)-1].Data))
+	}
+
+	partTypes := make([]string, 0, len(promptEvents))
+	for _, record := range promptEvents[:len(promptEvents)-1] {
+		if len(record.Data) == 0 || string(record.Data) == "[DONE]" {
+			continue
+		}
+		var payload struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(record.Data, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(prompt part) error = %v; data=%s", err, string(record.Data))
+		}
+		partTypes = append(partTypes, payload.Type)
+	}
+	hasType := func(target string) bool {
+		for _, value := range partTypes {
+			if value == target {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasType("start") || !hasType("text-start") || !hasType("text-delta") ||
+		!hasType("text-end") || !hasType("finish") {
+		t.Fatalf("prompt SSE part types = %#v", partTypes)
 	}
 
 	eventsResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/sessions/"+created.Session.ID+"/events", nil, nil)

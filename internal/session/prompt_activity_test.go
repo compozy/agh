@@ -8,7 +8,9 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
@@ -173,6 +175,185 @@ func TestPromptActivityRuntimeEventDoesNotClearStallState(t *testing.T) {
 	}
 	if meta.Liveness.Activity == nil {
 		t.Fatal("meta.Liveness.Activity = nil, want runtime activity preserved")
+	}
+}
+
+func TestPromptActivitySupervisorMarksUnhealthyProcessAsStalled(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	healthStore := newFakeSessionHealthStore()
+	h := newHarness(t,
+		WithNow(func() time.Time { return now }),
+		WithSessionHealthStore(healthStore),
+	)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	supervisor := newPromptActivitySupervisor(
+		testutil.Context(t),
+		h.manager,
+		session,
+		newPromptTurnDispatchState(session, "turn-unhealthy", TurnSourceUser, "hello"),
+		testSupervisionConfig(),
+	)
+	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
+
+	proc := h.driver.lastProcess()
+	if proc == nil {
+		t.Fatal("lastProcess() = nil, want process")
+	}
+	proc.setHealth(subprocess.HealthState{
+		Healthy:             false,
+		LastCheckedAt:       now.Add(5 * time.Second),
+		ConsecutiveFailures: 2,
+		LastError:           "health_check: context deadline exceeded",
+	})
+
+	supervisor.evaluate(now.Add(6 * time.Second))
+
+	meta := readMeta(t, session.MetaPath())
+	if meta.Liveness == nil {
+		t.Fatal("meta.Liveness = nil, want stalled liveness")
+	}
+	if got, want := meta.Liveness.StallState, store.SessionStallStateDetected; got != want {
+		t.Fatalf("meta.Liveness.StallState = %q, want %q", got, want)
+	}
+	if got, want := meta.Liveness.StallReason, store.SessionStallReasonProcessUnhealthy; got != want {
+		t.Fatalf("meta.Liveness.StallReason = %q, want %q", got, want)
+	}
+	if meta.Liveness.Activity == nil || meta.Liveness.Activity.LastActivityAt == nil ||
+		!meta.Liveness.Activity.LastActivityAt.Equal(now) {
+		t.Fatalf("meta.Liveness.Activity = %#v, want original prompt activity timestamp", meta.Liveness.Activity)
+	}
+
+	warning := readRuntimeEvent(t, supervisor.eventsChannel())
+	if got, want := warning.Type, acp.EventTypeRuntimeWarning; got != want {
+		t.Fatalf("warning event type = %q, want %q", got, want)
+	}
+	if !strings.Contains(warning.Text, "Runtime health check failed") {
+		t.Fatalf("warning.Text = %q, want health failure text", warning.Text)
+	}
+
+	health, err := h.manager.storedSessionHealth(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("storedSessionHealth() error = %v", err)
+	}
+	if health.State != heartbeat.SessionHealthStatePrompting || health.Health != heartbeat.SessionHealthDegraded {
+		t.Fatalf("storedSessionHealth() = %#v, want prompting/degraded", health)
+	}
+}
+
+func TestPromptActivitySupervisorIgnoresSyntheticHeartbeatWhenProcessIsUnhealthy(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	healthStore := newFakeSessionHealthStore()
+	h := newHarness(t,
+		WithNow(func() time.Time { return now }),
+		WithSessionHealthStore(healthStore),
+	)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	supervisor := newPromptActivitySupervisor(
+		testutil.Context(t),
+		h.manager,
+		session,
+		newPromptTurnDispatchState(session, "turn-heartbeat", TurnSourceUser, "hello"),
+		testSupervisionConfig(),
+	)
+	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
+
+	proc := h.driver.lastProcess()
+	if proc == nil {
+		t.Fatal("lastProcess() = nil, want process")
+	}
+	proc.setHealth(subprocess.HealthState{
+		Healthy:             false,
+		LastCheckedAt:       now.Add(5 * time.Second),
+		ConsecutiveFailures: 2,
+		LastError:           "health_check: context deadline exceeded",
+	})
+
+	supervisor.report(acp.PromptActivityReport{
+		Timestamp: now.Add(10 * time.Second),
+		Kind:      runtimeActivityKindAgentWaiting,
+		Detail:    "waiting for provider",
+	})
+
+	meta := readMeta(t, session.MetaPath())
+	if meta.Liveness == nil {
+		t.Fatal("meta.Liveness = nil, want stalled liveness")
+	}
+	if got, want := meta.Liveness.StallReason, store.SessionStallReasonProcessUnhealthy; got != want {
+		t.Fatalf("meta.Liveness.StallReason = %q, want %q", got, want)
+	}
+	if meta.Liveness.Activity == nil {
+		t.Fatal("meta.Liveness.Activity = nil, want original activity preserved")
+	}
+	if got, want := meta.Liveness.Activity.LastActivityKind, runtimeActivityKindPromptStarted; got != want {
+		t.Fatalf("meta.Liveness.Activity.LastActivityKind = %q, want %q", got, want)
+	}
+	if meta.Liveness.Activity.LastActivityAt == nil || !meta.Liveness.Activity.LastActivityAt.Equal(now) {
+		t.Fatalf(
+			"meta.Liveness.Activity.LastActivityAt = %#v, want original prompt activity timestamp",
+			meta.Liveness.Activity.LastActivityAt,
+		)
+	}
+
+	warning := readRuntimeEvent(t, supervisor.eventsChannel())
+	if got, want := warning.Type, acp.EventTypeRuntimeWarning; got != want {
+		t.Fatalf("warning event type = %q, want %q", got, want)
+	}
+}
+
+func TestPromptActivitySupervisorIgnoresUnknownProcessHealthSnapshot(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	h := newHarness(t, WithNow(func() time.Time { return now }))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	supervisor := newPromptActivitySupervisor(
+		testutil.Context(t),
+		h.manager,
+		session,
+		newPromptTurnDispatchState(session, "turn-unknown-health", TurnSourceUser, "hello"),
+		testSupervisionConfig(),
+	)
+	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
+
+	proc := h.driver.lastProcess()
+	if proc == nil {
+		t.Fatal("lastProcess() = nil, want process")
+	}
+	proc.setHealth(subprocess.HealthState{})
+
+	supervisor.evaluate(now.Add(5 * time.Second))
+
+	meta := readMeta(t, session.MetaPath())
+	if meta.Liveness == nil {
+		t.Fatal("meta.Liveness = nil, want liveness")
+	}
+	if got := meta.Liveness.StallState; got != "" {
+		t.Fatalf("meta.Liveness.StallState = %q, want empty", got)
+	}
+	if got := meta.Liveness.StallReason; got != "" {
+		t.Fatalf("meta.Liveness.StallReason = %q, want empty", got)
+	}
+
+	select {
+	case event := <-supervisor.eventsChannel():
+		t.Fatalf("unexpected runtime event for unknown health snapshot: %#v", event)
+	default:
 	}
 }
 

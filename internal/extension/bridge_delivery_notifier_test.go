@@ -97,6 +97,48 @@ func (n *recordingNotifier) snapshot() (created int, stopped int, events []any) 
 	return len(n.created), len(n.stopped), append([]any(nil), n.events...)
 }
 
+type recordingAgentEventNotifier struct {
+	mu            sync.Mutex
+	directCalls   int
+	sessionCalls  int
+	lastSessionID string
+	lastEvent     any
+}
+
+func (n *recordingAgentEventNotifier) OnSessionCreated(context.Context, *session.Session) {}
+
+func (n *recordingAgentEventNotifier) OnSessionStopped(context.Context, *session.Session) {}
+
+func (n *recordingAgentEventNotifier) OnAgentEvent(_ context.Context, _ string, event any) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.directCalls++
+	n.lastEvent = event
+}
+
+func (n *recordingAgentEventNotifier) OnAgentEventForSession(
+	_ context.Context,
+	sess *session.Session,
+	event any,
+) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.sessionCalls++
+	if sess != nil {
+		n.lastSessionID = sess.ID
+	}
+	n.lastEvent = event
+}
+
+func (n *recordingAgentEventNotifier) snapshot() (int, int, string, any) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	return n.directCalls, n.sessionCalls, n.lastSessionID, n.lastEvent
+}
+
 func TestBridgeDeliveryNotifierProjectsEventsAndForwardsLifecycle(t *testing.T) {
 	t.Parallel()
 
@@ -206,11 +248,48 @@ func TestBridgeDeliveryNotifierNilPathsAreNoOps(t *testing.T) {
 	notifier.OnSessionCreated(testutil.Context(t), nil)
 	notifier.OnSessionStopped(testutil.Context(t), nil)
 	notifier.OnAgentEvent(testutil.Context(t), "sess-nil", nil)
+	notifier.OnAgentEventForSession(testutil.Context(t), nil, nil)
 
 	standalone := NewBridgeDeliveryNotifier(nil, nil)
 	standalone.OnSessionCreated(testutil.Context(t), &session.Session{ID: "sess-nil"})
 	standalone.OnSessionStopped(testutil.Context(t), &session.Session{ID: "sess-nil"})
 	standalone.OnAgentEvent(testutil.Context(t), "sess-nil", "ignored")
+	standalone.OnAgentEventForSession(testutil.Context(t), &session.Session{ID: "sess-nil"}, "ignored")
+}
+
+func TestBridgeDeliveryNotifierPreservesAgentEventNotifier(t *testing.T) {
+	t.Parallel()
+
+	downstream := &recordingAgentEventNotifier{}
+	notifier := NewBridgeDeliveryNotifier(nil, downstream)
+
+	aware, ok := any(notifier).(session.AgentEventNotifier)
+	if !ok {
+		t.Fatal("BridgeDeliveryNotifier does not implement session.AgentEventNotifier")
+	}
+
+	event := acp.AgentEvent{Type: "agent_message", TurnID: "turn-aware", Text: "hello"}
+	sess := &session.Session{ID: "sess-aware"}
+	aware.OnAgentEventForSession(testutil.Context(t), sess, event)
+
+	directCalls, sessionCalls, lastSessionID, lastEvent := downstream.snapshot()
+	if directCalls != 0 || sessionCalls != 1 {
+		t.Fatalf(
+			"downstream direct/session agent-event calls = %d/%d, want 0/1",
+			directCalls,
+			sessionCalls,
+		)
+	}
+	if lastSessionID != "sess-aware" {
+		t.Fatalf("downstream last session id = %q, want %q", lastSessionID, "sess-aware")
+	}
+	gotEvent, ok := lastEvent.(acp.AgentEvent)
+	if !ok {
+		t.Fatalf("downstream last event type = %T, want acp.AgentEvent", lastEvent)
+	}
+	if gotEvent.TurnID != "turn-aware" || gotEvent.Text != "hello" {
+		t.Fatalf("downstream last event = %#v, want turn-aware/hello", gotEvent)
+	}
 }
 
 func TestManagerDeliverBridge(t *testing.T) {

@@ -62,6 +62,12 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		if got := envValue(opts.Env, "ANTHROPIC_API_KEY"); got != "parent-secret" {
 			t.Fatalf("ANTHROPIC_API_KEY = %q, want untouched native CLI env", got)
 		}
+		if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-6" {
+			t.Fatalf("ANTHROPIC_MODEL = %q, want claude-sonnet-4-6", got)
+		}
+		if got := envValue(opts.Env, "AGH_MODEL"); got != "claude-sonnet-4-6" {
+			t.Fatalf("AGH_MODEL = %q, want claude-sonnet-4-6", got)
+		}
 		if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
 			t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
 		}
@@ -108,6 +114,9 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		}
 		if got := envValue(opts.Env, "CODEX_HOME"); got != filepath.Join(wantHome, "codex") {
 			t.Fatalf("CODEX_HOME = %q, want isolated codex home", got)
+		}
+		if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != "" {
+			t.Fatalf("ANTHROPIC_MODEL = %q, want empty for codex provider", got)
 		}
 		assertProviderRuntimeFileMode(t, wantHome, 0o700)
 		assertProviderRuntimeFileMode(t, filepath.Join(wantHome, "codex"), 0o700)

@@ -2,13 +2,16 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	aghupdate "github.com/pedronauck/agh/internal/update"
 )
 
@@ -153,6 +156,77 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 				t.Fatalf("config set %s restart_scope = %q, want %q", tt.path, record.RestartScope, tt.wantRestartScope)
 			}
 		})
+	}
+}
+
+func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	var captured UpdateSettingsSkillsRequest
+	client := &stubClient{
+		updateSettingsSkillsFn: func(
+			_ context.Context,
+			request UpdateSettingsSkillsRequest,
+		) (SettingsMutationRecord, error) {
+			captured = request
+			return SettingsMutationRecord{
+				Section:  contract.SettingsSectionName("skills"),
+				Scope:    contract.SettingsScopeKind("global"),
+				Behavior: contract.SettingsMutationBehaviorAppliedNow,
+				Applied:  true,
+			}, nil
+		},
+	}
+
+	deps := newTestDeps(t, client)
+	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+		return aghdaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+
+	out, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"skills.disabled_skills",
+		`["agent-browser"]`,
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config set disabled skills error = %v", err)
+	}
+
+	if got, want := captured.Config.DisabledSkills, []string{
+		"agent-browser",
+	}; strings.Join(
+		got,
+		",",
+	) != strings.Join(
+		want,
+		",",
+	) {
+		t.Fatalf("daemon settings payload disabled_skills = %#v, want %#v", got, want)
+	}
+	if !captured.Config.Enabled {
+		t.Fatal("daemon settings payload unexpectedly disabled skills subsystem")
+	}
+
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+		t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
+	}
+
+	var record configSetRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(config set disabled skills) error = %v", err)
+	}
+	if record.Behavior != string(contract.SettingsMutationBehaviorAppliedNow) || !record.Applied {
+		t.Fatalf("config set disabled skills record = %#v, want applied_now/applied=true", record)
 	}
 }
 

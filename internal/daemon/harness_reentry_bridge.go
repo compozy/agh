@@ -1097,13 +1097,20 @@ func (b *harnessReentryBridge) writeEventSummaryWithContext(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := b.store.WriteEventSummary(ctx, store.EventSummary{
+	summaryPayload := store.EventSummary{
 		SessionID: targetSessionID,
 		Type:      strings.TrimSpace(eventType),
 		AgentName: targetAgentName,
 		Summary:   strings.TrimSpace(summary),
 		Timestamp: timestamp,
-	}); err != nil {
+	}
+	if b.sessions != nil {
+		info, err := b.sessions.Status(ctx, targetSessionID)
+		if err == nil && info != nil {
+			summaryPayload = harnessEventSummaryWithLineage(summaryPayload, info.Lineage)
+		}
+	}
+	if err := b.store.WriteEventSummary(ctx, summaryPayload); err != nil {
 		b.logger.Warn(
 			"daemon: write detached harness event summary failed",
 			"session_id", targetSessionID,

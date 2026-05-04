@@ -143,6 +143,48 @@ func TestWatcherDetectChangesNoFalsePositiveWhenUnchanged(t *testing.T) {
 	}
 }
 
+func TestWatcherDetectChangesUsesDynamicRootsProvider(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should detect workspace skill changes from dynamic roots", func(t *testing.T) {
+		t.Parallel()
+
+		globalRoot := t.TempDir()
+		workspaceRoot := t.TempDir()
+		watcher := newTestWatcher(nil, time.Millisecond, globalRoot)
+		watcher.SetRootsProvider(func(context.Context) ([]string, error) {
+			return []string{workspaceRoot}, nil
+		})
+
+		if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+			t.Fatalf("detectChanges() initial error = %v", err)
+		} else if changed {
+			t.Fatal("detectChanges() initial changed = true, want false")
+		}
+
+		skillPath := writeSkillFile(
+			t,
+			workspaceRoot,
+			filepath.Join("dynamic", skillFileName),
+			skillWithDescription("dynamic", "Workspace dynamic skill"),
+		)
+
+		changed, _, changes, err := watcher.detectChanges(context.Background())
+		if err != nil {
+			t.Fatalf("detectChanges() error = %v", err)
+		}
+		if !changed {
+			t.Fatal("detectChanges() changed = false, want true")
+		}
+		if len(changes) != 1 {
+			t.Fatalf("detectChanges() len(changes) = %d, want 1", len(changes))
+		}
+		if changes[0].path != skillPath || changes[0].action != "added" {
+			t.Fatalf("detectChanges() change = %#v, want added change for %q", changes[0], skillPath)
+		}
+	})
+}
+
 func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
 	t.Parallel()
 

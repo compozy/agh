@@ -271,13 +271,16 @@ func validateSessionSoulProvenance(snapshotID string, digest string) error {
 
 // EventSummary is the global, cross-session observability record for one event.
 type EventSummary struct {
-	ID        string
-	SessionID string
-	Sequence  int64
-	Type      string
-	AgentName string
-	Summary   string
-	Timestamp time.Time
+	ID              string
+	SessionID       string
+	Sequence        int64
+	Type            string
+	AgentName       string
+	ParentSessionID string
+	RootSessionID   string
+	SpawnDepth      int
+	Summary         string
+	Timestamp       time.Time
 }
 
 // Validate ensures the summary contains the required identifying fields.

@@ -10,6 +10,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/subprocess"
 )
 
 const (
@@ -33,11 +34,13 @@ type promptActivitySupervisor struct {
 	config     aghconfig.SessionSupervisionConfig
 	events     chan acp.AgentEvent
 
-	mu        sync.Mutex
-	activity  store.SessionActivityMeta
-	warned    bool
-	timedOut  bool
-	closeOnce sync.Once
+	mu              sync.Mutex
+	activity        store.SessionActivityMeta
+	warned          bool
+	timedOut        bool
+	unhealthy       bool
+	unhealthyWarned bool
+	closeOnce       sync.Once
 }
 
 func newPromptActivitySupervisor(
@@ -177,7 +180,8 @@ func (s *promptActivitySupervisor) evaluate(now time.Time) {
 	if s == nil {
 		return
 	}
-	if s.shouldEmitProgress(now) {
+	processUnhealthy := s.handleUnhealthyProcess(now, true)
+	if !processUnhealthy && s.shouldEmitProgress(now) {
 		s.emitRuntimeEvent(acp.EventTypeRuntimeProgress, s.progressText(now), now)
 	}
 	if s.shouldEmitWarning(now) {
@@ -311,8 +315,14 @@ func (s *promptActivitySupervisor) touchWithTool(
 	if now.IsZero() {
 		now = s.now()
 	}
+	processUnhealthy := s.handleUnhealthyProcess(now, kind == runtimeActivityKindAgentWaiting)
+	if processUnhealthy && kind == runtimeActivityKindAgentWaiting {
+		return
+	}
 
 	s.mu.Lock()
+	s.unhealthy = false
+	s.unhealthyWarned = false
 	s.activity.TurnID = s.turnID
 	s.activity.TurnSource = string(s.turnSource)
 	s.activity.TurnStartedAt = timePtr(s.startedAt)
@@ -370,6 +380,56 @@ func (s *promptActivitySupervisor) emitRuntimeEvent(eventType string, text strin
 	case <-s.ctx.Done():
 	case s.events <- event:
 	}
+}
+
+func (s *promptActivitySupervisor) handleUnhealthyProcess(now time.Time, emitWarning bool) bool {
+	if s == nil || s.manager == nil || s.session == nil {
+		return false
+	}
+	proc := s.session.processHandle()
+	if proc == nil {
+		return false
+	}
+	health, ok := proc.HealthState()
+	if !ok || !processHealthFailureDetected(health) {
+		s.mu.Lock()
+		s.unhealthy = false
+		s.unhealthyWarned = false
+		s.mu.Unlock()
+		return false
+	}
+
+	shouldPersist := false
+	shouldWarn := false
+	s.mu.Lock()
+	if !s.unhealthy {
+		s.unhealthy = true
+		shouldPersist = true
+	}
+	if emitWarning && !s.unhealthyWarned {
+		s.unhealthyWarned = true
+		shouldWarn = true
+	}
+	s.mu.Unlock()
+
+	if shouldPersist {
+		s.session.markRuntimeStalled(store.SessionStallReasonProcessUnhealthy, now)
+		if err := s.manager.writeMeta(s.session); err != nil {
+			s.manager.sessionLogger(s.session).
+				Warn("session: persist unhealthy runtime stall failed", "turn_id", s.turnID, "error", err)
+		}
+		if _, err := s.manager.persistSessionHealthForSession(s.ctx, s.session, now, sessionHealthInput{
+			activePrompt: true,
+			attachable:   sessionAttachable(s.session),
+		}); err != nil {
+			s.manager.sessionLogger(s.session).
+				Warn("session: persist unhealthy runtime health failed", "turn_id", s.turnID, "error", err)
+		}
+	}
+	if shouldWarn {
+		s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, unhealthyProcessText(health), now)
+	}
+	return true
 }
 
 func (s *promptActivitySupervisor) runtimeActivity(now time.Time) acp.RuntimeActivity {
@@ -430,6 +490,28 @@ func (s *promptActivitySupervisor) warningText(now time.Time) string {
 func (s *promptActivitySupervisor) timeoutText(now time.Time) string {
 	activity := s.runtimeActivity(now)
 	return fmt.Sprintf("Runtime activity timed out (%d seconds idle).", activity.IdleSeconds)
+}
+
+func unhealthyProcessText(health subprocess.HealthState) string {
+	parts := []string{"Runtime health check failed; prompt may be stalled."}
+	if detail := strings.TrimSpace(health.Message); detail != "" {
+		parts = append(parts, detail)
+	}
+	if lastErr := strings.TrimSpace(health.LastError); lastErr != "" {
+		parts = append(parts, lastErr)
+	}
+	return strings.Join(parts, " ")
+}
+
+func processHealthFailureDetected(health subprocess.HealthState) bool {
+	if health.Healthy {
+		return false
+	}
+	return !health.LastCheckedAt.IsZero() ||
+		health.ConsecutiveFailures > 0 ||
+		strings.TrimSpace(health.LastError) != "" ||
+		strings.TrimSpace(health.Message) != "" ||
+		len(health.Details) > 0
 }
 
 func (s *promptActivitySupervisor) idleSecondsLocked(now time.Time) int64 {

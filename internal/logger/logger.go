@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+const mirrorToStderrEnvKey = "AGH_INTERNAL_LOG_MIRROR_STDERR"
+
 type options struct {
 	level        string
 	filePath     string
@@ -87,6 +89,45 @@ func New(opts ...Option) (*slog.Logger, func() error, error) {
 	})
 
 	return slog.New(handler), closeFn, nil
+}
+
+// MirrorToStderrEnabled reports whether process-local logging should still be mirrored to stderr.
+func MirrorToStderrEnabled(getenv func(string) string) bool {
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+
+	switch strings.ToLower(strings.TrimSpace(getenv(mirrorToStderrEnvKey))) {
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+// WithMirrorToStderrEnv sets the detached-process env override controlling stderr mirroring.
+func WithMirrorToStderrEnv(sandbox []string, enabled bool) []string {
+	value := "1"
+	if !enabled {
+		value = "0"
+	}
+
+	prefix := mirrorToStderrEnvKey + "="
+	result := make([]string, 0, len(sandbox)+1)
+	replaced := false
+	for _, entry := range sandbox {
+		if strings.HasPrefix(entry, prefix) {
+			result = append(result, prefix+value)
+			replaced = true
+			continue
+		}
+		result = append(result, entry)
+	}
+	if !replaced {
+		result = append(result, prefix+value)
+	}
+
+	return result
 }
 
 // ParseLevel converts the configured string level into slog's level type.

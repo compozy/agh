@@ -283,7 +283,7 @@ func TestPrepareStopWithCauseWrapsStageFailures(t *testing.T) {
 
 				h := newHarness(t)
 				session := createSession(t, h)
-				if _, err := session.beginPromptSetup(); err != nil {
+				if err := session.beginPromptSetup(); err != nil {
 					t.Fatalf("beginPromptSetup() error = %v", err)
 				}
 				ctx, cancel := context.WithCancel(testutil.Context(t))

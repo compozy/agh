@@ -15989,7 +15989,10 @@ export interface operations {
             events: {
               agent_name: string;
               id: string;
+              parent_session_id?: string;
+              root_session_id?: string;
               session_id: string;
+              spawn_depth: number;
               summary?: string;
               /** Format: date-time */
               timestamp: string;
@@ -18030,9 +18033,12 @@ export interface operations {
                 summary?: string;
               } | null;
               id: string;
+              parent_session_id?: string;
+              root_session_id?: string;
               /** Format: int64 */
               sequence: number;
               session_id: string;
+              spawn_depth: number;
               stop_detail?: string;
               /** @enum {string} */
               stop_reason?:
@@ -18139,9 +18145,12 @@ export interface operations {
                   summary?: string;
                 } | null;
                 id: string;
+                parent_session_id?: string;
+                root_session_id?: string;
                 /** Format: int64 */
                 sequence: number;
                 session_id: string;
+                spawn_depth: number;
                 stop_detail?: string;
                 /** @enum {string} */
                 stop_reason?:

@@ -400,14 +400,13 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 
 func streamPromptEventsJSONL(cmd *cobra.Command, client DaemonClient, id string, message string) error {
 	return client.StreamPromptSession(cmd.Context(), id, message, func(event SSEEvent) error {
-		var payload AgentEventRecord
-		if len(event.Data) > 0 {
-			if err := json.Unmarshal(event.Data, &payload); err != nil {
-				return fmt.Errorf("cli: decode prompt event: %w", err)
-			}
+		if len(event.Data) == 0 || strings.TrimSpace(string(event.Data)) == "[DONE]" {
+			return nil
 		}
-		if payload.Type == "" {
-			payload.Type = event.Event
+
+		var payload any
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
+			return fmt.Errorf("cli: decode prompt event: %w", err)
 		}
 		return writeJSONLine(cmd, payload)
 	})

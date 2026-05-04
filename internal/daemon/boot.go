@@ -253,6 +253,7 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 		logger, closeLogger, err = aghlogger.New(
 			aghlogger.WithLevel(cfg.Log.Level),
 			aghlogger.WithFile(d.homePaths.LogFile),
+			aghlogger.WithMirrorToStderr(aghlogger.MirrorToStderrEnabled(os.Getenv)),
 		)
 		if err != nil {
 			return fmt.Errorf("daemon: create logger: %w", err)
@@ -1140,6 +1141,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 			ctx,
 			state.skillsRegistry,
 			state.cfg.Skills.PollInterval,
+			workspaceSkillWatcherRoots(d.homePaths, state.registry),
 			func(refreshCtx context.Context) error {
 				if state.agentSkillResources != nil {
 					if err := state.agentSkillResources.Sync(refreshCtx); err != nil {
@@ -1813,6 +1815,7 @@ func startSkillsWatcher(
 	ctx context.Context,
 	registry *skills.Registry,
 	interval time.Duration,
+	rootsProvider func(context.Context) ([]string, error),
 	afterRefresh func(context.Context) error,
 ) (context.CancelFunc, chan struct{}) {
 	if registry == nil {
@@ -1822,12 +1825,45 @@ func startSkillsWatcher(
 	watcherCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	watcher := skills.NewWatcher(registry, interval)
+	watcher.SetRootsProvider(rootsProvider)
 	watcher.SetAfterRefresh(afterRefresh)
 	go func() {
 		defer close(done)
 		watcher.Start(watcherCtx)
 	}()
 	return cancel, done
+}
+
+func workspaceSkillWatcherRoots(
+	homePaths aghconfig.HomePaths,
+	registry Registry,
+) func(context.Context) ([]string, error) {
+	if registry == nil {
+		return nil
+	}
+
+	return func(ctx context.Context) ([]string, error) {
+		workspaces, err := registry.ListWorkspaces(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: list workspaces for skill watcher: %w", err)
+		}
+
+		roots := make([]string, 0, len(workspaces)*2)
+		for _, workspace := range workspaces {
+			for _, root := range aghconfig.WorkspaceDiscoveryRoots(
+				workspace.RootDir,
+				workspace.AdditionalDirs,
+				homePaths,
+			) {
+				if root.Source == aghconfig.WorkspaceDiscoverySourceGlobal {
+					continue
+				}
+				roots = append(roots, root.SkillsDir())
+			}
+		}
+
+		return roots, nil
+	}
 }
 
 func stopSkillsWatcher(cancel context.CancelFunc, done <-chan struct{}) {

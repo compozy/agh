@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -253,6 +254,127 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	t.Fatalf("persisted events after disconnect = %#v, want tool_result and done", events)
 }
 
+func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	sessionID := createIntegrationSession(t, runtime)
+
+	firstPromptEntered := make(chan struct{})
+	releaseFirstPrompt := make(chan struct{})
+	runtime.driver.promptHook = func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		events := make(chan acp.AgentEvent)
+		go func() {
+			defer close(events)
+			if req.Message != "first prompt" {
+				return
+			}
+
+			close(firstPromptEntered)
+			<-releaseFirstPrompt
+
+			ts := time.Now().UTC()
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: proc.SessionID,
+				TurnID:    req.TurnID,
+				Timestamp: ts,
+				Text:      "first prompt reply",
+			}
+			events <- acp.AgentEvent{
+				Type:       acp.EventTypeDone,
+				SessionID:  proc.SessionID,
+				TurnID:     req.TurnID,
+				Timestamp:  ts,
+				StopReason: "end_turn",
+			}
+		}()
+		return events, nil
+	}
+
+	type promptResult struct {
+		resp *http.Response
+		err  error
+	}
+	firstResultCh := make(chan promptResult, 1)
+	go func() {
+		req, err := http.NewRequest(
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+			strings.NewReader(`{"message":"first prompt"}`),
+		)
+		if err != nil {
+			firstResultCh <- promptResult{err: err}
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := runtime.client.Do(req)
+		firstResultCh <- promptResult{resp: resp, err: err}
+	}()
+
+	<-firstPromptEntered
+
+	secondResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		[]byte(`{"message":"second prompt"}`),
+		nil,
+	)
+	if secondResp.StatusCode != http.StatusConflict {
+		body, _ := io.ReadAll(secondResp.Body)
+		_ = secondResp.Body.Close()
+		t.Fatalf("second prompt status = %d, want %d; body=%s", secondResp.StatusCode, http.StatusConflict, string(body))
+	}
+	var secondErr contract.ErrorPayload
+	decodeHTTPJSON(t, secondResp, &secondErr)
+	if !strings.Contains(secondErr.Error, "prompt already in progress") {
+		t.Fatalf("second prompt error = %q, want prompt already in progress", secondErr.Error)
+	}
+
+	eventsWhileBusy, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Events(while busy) error = %v", err)
+	}
+	if got, want := countSessionEventsByType(eventsWhileBusy, acp.EventTypeUserMessage), 1; got != want {
+		t.Fatalf("countSessionEventsByType(user_message) while busy = %d, want %d", got, want)
+	}
+
+	close(releaseFirstPrompt)
+
+	firstResult := <-firstResultCh
+	if firstResult.err != nil {
+		t.Fatalf("first prompt request error = %v", firstResult.err)
+	}
+	if firstResult.resp == nil {
+		t.Fatal("first prompt response = nil")
+	}
+	if firstResult.resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(firstResult.resp.Body)
+		_ = firstResult.resp.Body.Close()
+		t.Fatalf("first prompt status = %d, want %d; body=%s", firstResult.resp.StatusCode, http.StatusOK, string(body))
+	}
+	firstBody, err := io.ReadAll(firstResult.resp.Body)
+	_ = firstResult.resp.Body.Close()
+	if err != nil {
+		t.Fatalf("io.ReadAll(first prompt) error = %v", err)
+	}
+	firstEvents := parseSSE(t, string(firstBody))
+	if len(firstEvents) == 0 {
+		t.Fatalf("first prompt SSE events = 0; body=%s", string(firstBody))
+	}
+	if firstEvents[len(firstEvents)-1].Event != "" || string(firstEvents[len(firstEvents)-1].Data) != "[DONE]" {
+		t.Fatalf("last first prompt record = %#v, want [DONE]", firstEvents[len(firstEvents)-1])
+	}
+
+	eventsAfterRelease, err := runtime.manager.Events(context.Background(), sessionID, store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Events(after release) error = %v", err)
+	}
+	if got, want := countSessionEventsByType(eventsAfterRelease, acp.EventTypeUserMessage), 1; got != want {
+		t.Fatalf("countSessionEventsByType(user_message) after release = %d, want %d", got, want)
+	}
+}
+
 func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 	sessionID := createIntegrationSession(t, runtime)
@@ -430,6 +552,145 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 	}
 	if replayed[0].ID != initial[1].ID {
 		t.Fatalf("replayed first id = %q, want %q", replayed[0].ID, initial[1].ID)
+	}
+}
+
+func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	sessionID := createIntegrationSession(t, runtime)
+
+	firstEventDelivered := make(chan struct{})
+	releaseRemaining := make(chan struct{})
+	runtime.driver.promptHook = func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		events := make(chan acp.AgentEvent)
+		go func() {
+			defer close(events)
+
+			ts := time.Now().UTC()
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: proc.SessionID,
+				TurnID:    req.TurnID,
+				Timestamp: ts,
+				Text:      "first chunk",
+			}
+			close(firstEventDelivered)
+
+			<-releaseRemaining
+
+			ts = time.Now().UTC()
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: proc.SessionID,
+				TurnID:    req.TurnID,
+				Timestamp: ts,
+				Text:      "second chunk",
+			}
+			events <- acp.AgentEvent{
+				Type:       acp.EventTypeDone,
+				SessionID:  proc.SessionID,
+				TurnID:     req.TurnID,
+				Timestamp:  ts,
+				StopReason: "end_turn",
+			}
+		}()
+		return events, nil
+	}
+
+	type promptRequestResult struct {
+		resp *http.Response
+		err  error
+	}
+	promptResultCh := make(chan promptRequestResult, 1)
+	go func() {
+		req, err := http.NewRequest(
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+			strings.NewReader(`{"message":"hello"}`),
+		)
+		if err != nil {
+			promptResultCh <- promptRequestResult{err: err}
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := runtime.client.Do(req)
+		promptResultCh <- promptRequestResult{resp: resp, err: err}
+	}()
+
+	<-firstEventDelivered
+
+	streamResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"),
+		nil,
+		nil,
+	)
+	if streamResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(streamResp.Body)
+		_ = streamResp.Body.Close()
+		t.Fatalf("session stream status = %d, want %d; body=%s", streamResp.StatusCode, http.StatusOK, string(body))
+	}
+	initial := collectLiveSSE(t, streamResp.Body, 2, 2*time.Second)
+	_ = streamResp.Body.Close()
+	if len(initial) != 2 {
+		t.Fatalf("initial stream events = %d, want 2", len(initial))
+	}
+	lastEventID := initial[len(initial)-1].ID
+	if lastEventID == "" {
+		t.Fatal("initial last event id is empty")
+	}
+
+	replayResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"),
+		nil,
+		map[string]string{"Last-Event-ID": lastEventID},
+	)
+	if replayResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(replayResp.Body)
+		_ = replayResp.Body.Close()
+		t.Fatalf("replay stream status = %d, want %d; body=%s", replayResp.StatusCode, http.StatusOK, string(body))
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	close(releaseRemaining)
+
+	replayed := collectLiveSSE(t, replayResp.Body, 2, 2*time.Second)
+	_ = replayResp.Body.Close()
+	if len(replayed) != 2 {
+		t.Fatalf("replayed events = %d, want 2", len(replayed))
+	}
+	if replayed[0].ID != "3" || replayed[1].ID != "4" {
+		t.Fatalf("replayed ids = [%q %q], want [\"3\" \"4\"]", replayed[0].ID, replayed[1].ID)
+	}
+	if got, err := strconv.ParseInt(replayed[0].ID, 10, 64); err != nil {
+		t.Fatalf("strconv.ParseInt(replayed[0].ID) error = %v", err)
+	} else if got <= 2 {
+		t.Fatalf("replayed first sequence = %d, want > 2", got)
+	}
+
+	promptRequest := <-promptResultCh
+	if promptRequest.err != nil {
+		t.Fatalf("prompt request error = %v", promptRequest.err)
+	}
+	if promptRequest.resp == nil {
+		t.Fatal("prompt response = nil")
+	}
+	body, err := io.ReadAll(promptRequest.resp.Body)
+	_ = promptRequest.resp.Body.Close()
+	if err != nil {
+		t.Fatalf("io.ReadAll(prompt SSE) error = %v", err)
+	}
+	events := parseSSE(t, string(body))
+	if len(events) == 0 {
+		t.Fatalf("prompt SSE events = 0; body=%s", string(body))
+	}
+	if events[len(events)-1].Event != "" || string(events[len(events)-1].Data) != "[DONE]" {
+		t.Fatalf("last prompt record = %#v, want [DONE]", events[len(events)-1])
 	}
 }
 
@@ -1968,6 +2229,7 @@ type integrationDriver struct {
 	nextPID        int
 	nextSess       int
 	permissionWait time.Duration
+	promptHook     func(proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error)
 	states         map[*session.AgentProcess]chan struct{}
 	approvals      map[*session.AgentProcess]chan acp.ApproveRequest
 	waitErrs       map[*session.AgentProcess]error
@@ -2048,6 +2310,13 @@ func (d *integrationDriver) Start(_ context.Context, opts acp.StartOpts) (*sessi
 }
 
 func (d *integrationDriver) Prompt(_ context.Context, proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+	d.mu.Lock()
+	hook := d.promptHook
+	d.mu.Unlock()
+	if hook != nil {
+		return hook(proc, req)
+	}
+
 	if strings.Contains(req.Message, "request permission") {
 		events := make(chan acp.AgentEvent, 6)
 		requestID := req.TurnID + ":tool-1"
@@ -2151,6 +2420,16 @@ func (d *integrationDriver) Prompt(_ context.Context, proc *session.AgentProcess
 	}
 	close(ch)
 	return ch, nil
+}
+
+func countSessionEventsByType(events []store.SessionEvent, want string) int {
+	count := 0
+	for _, event := range events {
+		if event.Type == want {
+			count++
+		}
+	}
+	return count
 }
 
 func (d *integrationDriver) Cancel(context.Context, *session.AgentProcess) error {

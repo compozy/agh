@@ -14,6 +14,10 @@ const (
 	// SessionStallReasonActivityTimeout reports that no ACP activity was observed
 	// within the configured supervision window.
 	SessionStallReasonActivityTimeout = "activity_timeout"
+
+	// SessionStallReasonProcessUnhealthy reports that subprocess health checks
+	// failed while a prompt was still active.
+	SessionStallReasonProcessUnhealthy = "process_unhealthy"
 )
 
 // SessionLivenessMeta is the persisted runtime supervision state for one

@@ -29474,8 +29474,17 @@
                                                     "id": {
                                                         "type": "string"
                                                     },
+                                                    "parent_session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "root_session_id": {
+                                                        "type": "string"
+                                                    },
                                                     "session_id": {
                                                         "type": "string"
+                                                    },
+                                                    "spawn_depth": {
+                                                        "type": "integer"
                                                     },
                                                     "summary": {
                                                         "type": "string"
@@ -29492,6 +29501,7 @@
                                                     "agent_name",
                                                     "id",
                                                     "session_id",
+                                                    "spawn_depth",
                                                     "timestamp",
                                                     "type"
                                                 ],
@@ -34174,12 +34184,21 @@
                                                     "id": {
                                                         "type": "string"
                                                     },
+                                                    "parent_session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "root_session_id": {
+                                                        "type": "string"
+                                                    },
                                                     "sequence": {
                                                         "format": "int64",
                                                         "type": "integer"
                                                     },
                                                     "session_id": {
                                                         "type": "string"
+                                                    },
+                                                    "spawn_depth": {
+                                                        "type": "integer"
                                                     },
                                                     "stop_detail": {
                                                         "type": "string"
@@ -34222,6 +34241,7 @@
                                                     "id",
                                                     "sequence",
                                                     "session_id",
+                                                    "spawn_depth",
                                                     "timestamp",
                                                     "turn_id",
                                                     "type"
@@ -34395,12 +34415,21 @@
                                                                 "id": {
                                                                     "type": "string"
                                                                 },
+                                                                "parent_session_id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "root_session_id": {
+                                                                    "type": "string"
+                                                                },
                                                                 "sequence": {
                                                                     "format": "int64",
                                                                     "type": "integer"
                                                                 },
                                                                 "session_id": {
                                                                     "type": "string"
+                                                                },
+                                                                "spawn_depth": {
+                                                                    "type": "integer"
                                                                 },
                                                                 "stop_detail": {
                                                                     "type": "string"
@@ -34443,6 +34472,7 @@
                                                                 "id",
                                                                 "sequence",
                                                                 "session_id",
+                                                                "spawn_depth",
                                                                 "timestamp",
                                                                 "turn_id",
                                                                 "type"

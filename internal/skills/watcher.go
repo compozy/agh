@@ -34,7 +34,8 @@ type Watcher struct {
 	roots    []string
 	logger   *slog.Logger
 
-	afterRefresh func(context.Context) error
+	afterRefresh  func(context.Context) error
+	rootsProvider func(context.Context) ([]string, error)
 
 	mu          sync.Mutex
 	initialized bool
@@ -79,6 +80,15 @@ func (w *Watcher) SetAfterRefresh(callback func(context.Context) error) {
 		return
 	}
 	w.afterRefresh = callback
+}
+
+// SetRootsProvider installs an optional callback that contributes additional
+// directories to watch on each poll, such as workspace-local skill roots.
+func (w *Watcher) SetRootsProvider(provider func(context.Context) ([]string, error)) {
+	if w == nil {
+		return
+	}
+	w.rootsProvider = provider
 }
 
 // Start runs the polling loop until the provided context is canceled.
@@ -184,8 +194,13 @@ func (w *Watcher) commitSnapshots(snapshots map[string]filesnap.Snapshot) {
 }
 
 func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapshot, error) {
+	roots, err := w.currentRoots(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	snapshots := make(map[string]filesnap.Snapshot)
-	for _, root := range w.roots {
+	for _, root := range roots {
 		if err := checkRegistryContext(ctx); err != nil {
 			return nil, err
 		}
@@ -213,6 +228,22 @@ func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapsh
 	}
 
 	return snapshots, nil
+}
+
+func (w *Watcher) currentRoots(ctx context.Context) ([]string, error) {
+	if w == nil || w.rootsProvider == nil {
+		return w.roots, nil
+	}
+
+	additionalRoots, err := w.rootsProvider(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("skills: resolve watcher roots: %w", err)
+	}
+
+	roots := make([]string, 0, len(w.roots)+len(additionalRoots))
+	roots = append(roots, w.roots...)
+	roots = append(roots, additionalRoots...)
+	return watcherRoots(roots...), nil
 }
 
 func diffSnapshots(previous, current map[string]filesnap.Snapshot) []fileChange {

@@ -72,8 +72,12 @@ func (r *harnessLifecycleRecorder) OnSessionCreated(ctx context.Context, sess *s
 	if r == nil || sess == nil {
 		return
 	}
+	info := sess.Info()
+	if info == nil {
+		return
+	}
 
-	sessionID := strings.TrimSpace(sess.ID)
+	sessionID := strings.TrimSpace(info.ID)
 	if sessionID == "" {
 		return
 	}
@@ -93,6 +97,7 @@ func (r *harnessLifecycleRecorder) OnSessionCreated(ctx context.Context, sess *s
 	}
 
 	for _, summary := range summaries {
+		summary = harnessEventSummaryWithLineage(summary, info.Lineage)
 		r.write(ctx, summaryStore, summary)
 	}
 }
@@ -150,13 +155,13 @@ func (r *harnessLifecycleRecorder) RecordPromptContextResolved(
 	}
 	r.record(
 		ctx,
-		store.EventSummary{
+		harnessEventSummaryWithLineage(store.EventSummary{
 			SessionID: strings.TrimSpace(info.ID),
 			Type:      harnessSummaryContextResolved,
 			AgentName: harnessSummaryAgentName(info.AgentName),
 			Summary:   harnessContextResolutionSummary(resolved),
 			Timestamp: r.timestamp(timestamp),
-		},
+		}, info.Lineage),
 	)
 }
 
@@ -191,13 +196,13 @@ func (r *harnessLifecycleRecorder) RecordAugmenterApplied(
 	}
 	r.record(
 		ctx,
-		store.EventSummary{
+		harnessEventSummaryWithLineage(store.EventSummary{
 			SessionID: strings.TrimSpace(info.ID),
 			Type:      harnessSummaryAugmenterApplied,
 			AgentName: harnessSummaryAgentName(info.AgentName),
 			Summary:   harnessAugmenterAppliedSummary(resolved, observation),
 			Timestamp: r.timestamp(timestamp),
-		},
+		}, info.Lineage),
 	)
 }
 
@@ -214,13 +219,13 @@ func (r *harnessLifecycleRecorder) RecordAugmenterFailed(
 	}
 	r.record(
 		ctx,
-		store.EventSummary{
+		harnessEventSummaryWithLineage(store.EventSummary{
 			SessionID: strings.TrimSpace(info.ID),
 			Type:      harnessSummaryAugmenterFailed,
 			AgentName: harnessSummaryAgentName(info.AgentName),
 			Summary:   harnessAugmenterFailedSummary(resolved, descriptor, err),
 			Timestamp: r.timestamp(timestamp),
-		},
+		}, info.Lineage),
 	)
 }
 
@@ -277,6 +282,20 @@ func (r *harnessLifecycleRecorder) write(
 			err,
 		)
 	}
+}
+
+func harnessEventSummaryWithLineage(
+	summary store.EventSummary,
+	lineage *store.SessionLineage,
+) store.EventSummary {
+	normalized := store.NormalizeSessionLineage(summary.SessionID, lineage)
+	if normalized == nil {
+		return summary
+	}
+	summary.ParentSessionID = normalized.ParentSessionID
+	summary.RootSessionID = normalized.RootSessionID
+	summary.SpawnDepth = normalized.SpawnDepth
+	return summary
 }
 
 func harnessSummaryAgentName(agentName string) string {

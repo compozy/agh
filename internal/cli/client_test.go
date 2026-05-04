@@ -1146,6 +1146,9 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					if err != nil {
 						t.Fatalf("io.ReadAll(prompt body) error = %v", err)
 					}
+					if got := req.URL.Query().Get("format"); got != "raw" {
+						t.Fatalf("prompt format query = %q, want raw", got)
+					}
 					if !strings.Contains(string(body), `"message":"hello"`) {
 						t.Fatalf("prompt body = %s, want message", body)
 					}

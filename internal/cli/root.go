@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pedronauck/agh/internal/agentidentity"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	"github.com/pedronauck/agh/internal/procutil"
@@ -158,10 +159,72 @@ func ExecuteContext(ctx context.Context, args []string, stdout io.Writer, stderr
 	cmd.SetErr(stderr)
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
-		_, _ = fmt.Fprintf(stderr, "error: %v\n", err)
-		return cliExitCodeForError(err)
+		return writeExecutionError(stderr, args, err)
 	}
 	return 0
+}
+
+func writeExecutionError(stderr io.Writer, args []string, err error) int {
+	exitCode := cliExitCodeForError(err)
+	if payload, ok := marshalStructuredExecutionError(args, err); ok {
+		if _, writeErr := stderr.Write(payload); writeErr == nil {
+			if len(payload) == 0 || payload[len(payload)-1] != '\n' {
+				_, _ = fmt.Fprintln(stderr)
+			}
+			return exitCode
+		}
+	}
+
+	_, _ = fmt.Fprintf(stderr, "error: %v\n", err)
+	return exitCode
+}
+
+func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
+	if !isStructuredAgentCommandError(err) {
+		return nil, false
+	}
+
+	switch requestedOutputFormat(args) {
+	case OutputJSON:
+		payload, marshalErr := agentidentity.MarshalErrorJSON(err)
+		if marshalErr != nil {
+			return nil, false
+		}
+		return payload, true
+	case OutputJSONL:
+		payload, marshalErr := agentidentity.MarshalErrorJSONL(err)
+		if marshalErr != nil {
+			return nil, false
+		}
+		return payload, true
+	default:
+		return nil, false
+	}
+}
+
+func isStructuredAgentCommandError(err error) bool {
+	var identityErr *agentidentity.Error
+	return errors.As(err, &identityErr)
+}
+
+func requestedOutputFormat(args []string) OutputFormat {
+	mode := OutputHuman
+	for i := 0; i < len(args); i++ {
+		switch arg := strings.TrimSpace(args[i]); {
+		case arg == "--json":
+			mode = OutputJSON
+		case arg == "-o" || arg == "--output":
+			if i+1 < len(args) {
+				mode = OutputFormat(strings.ToLower(strings.TrimSpace(args[i+1])))
+				i++
+			}
+		case strings.HasPrefix(arg, "--output="):
+			mode = OutputFormat(strings.ToLower(strings.TrimSpace(strings.TrimPrefix(arg, "--output="))))
+		case strings.HasPrefix(arg, "-o="):
+			mode = OutputFormat(strings.ToLower(strings.TrimSpace(strings.TrimPrefix(arg, "-o="))))
+		}
+	}
+	return mode
 }
 
 func (d commandDeps) withDefaults() commandDeps {

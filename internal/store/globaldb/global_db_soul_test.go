@@ -61,7 +61,7 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AppliedMigrations() error = %v", err)
 		}
-		if got, want := len(records), 13; got != want {
+		if got, want := len(records), 14; got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
 		soulRecord := records[11]
@@ -71,6 +71,9 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		heartbeatRecord := records[12]
 		if heartbeatRecord.Version != 13 || heartbeatRecord.Name != "add_agent_heartbeat_storage" {
 			t.Fatalf("records[12] = %#v, want add_agent_heartbeat_storage v13", heartbeatRecord)
+		}
+		if records[13].Version != 14 || records[13].Name != "add_event_summary_lineage" {
+			t.Fatalf("records[13] = %#v, want add_event_summary_lineage v14", records[13])
 		}
 		for _, table := range []string{"soul_snapshots", "soul_revisions"} {
 			exists, err := tableExists(ctx, globalDB.db, table)

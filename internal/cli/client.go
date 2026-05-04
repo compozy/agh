@@ -40,6 +40,7 @@ type DaemonClient interface {
 	TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error)
 	GetSettingsRestartStatus(ctx context.Context, operationID string) (SettingsRestartStatusRecord, error)
 	GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error)
+	UpdateSettingsSkills(ctx context.Context, request UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
 	ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error)
 	GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error)
 	PutVaultSecret(ctx context.Context, request PutVaultSecretRequest) (VaultRecord, error)
@@ -726,6 +727,12 @@ type SettingsRestartStatusRecord = contract.RestartActionStatus
 // SettingsUpdateRecord is the shared settings update status payload.
 type SettingsUpdateRecord = contract.SettingsUpdateResponse
 
+// SettingsMutationRecord is the shared settings mutation response payload.
+type SettingsMutationRecord = contract.MutationResult
+
+// UpdateSettingsSkillsRequest captures the shared skills settings update payload.
+type UpdateSettingsSkillsRequest = contract.UpdateSettingsSkillsRequest
+
 // VaultRecord is one redacted vault secret metadata row.
 type VaultRecord = contract.VaultSecretPayload
 
@@ -946,6 +953,17 @@ func (c *unixSocketClient) GetSettingsUpdate(ctx context.Context) (SettingsUpdat
 	var response SettingsUpdateRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/settings/update", nil, nil, &response); err != nil {
 		return SettingsUpdateRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) UpdateSettingsSkills(
+	ctx context.Context,
+	request UpdateSettingsSkillsRequest,
+) (SettingsMutationRecord, error) {
+	var response SettingsMutationRecord
+	if err := c.doJSON(ctx, http.MethodPatch, "/api/settings/skills", nil, request, &response); err != nil {
+		return SettingsMutationRecord{}, err
 	}
 	return response, nil
 }
@@ -1474,19 +1492,29 @@ func (c *unixSocketClient) ApproveSession(
 
 func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error) {
 	var events []AgentEventRecord
-	err := c.StreamPromptSession(ctx, id, message, func(event SSEEvent) error {
-		var payload AgentEventRecord
-		if len(event.Data) > 0 {
-			if err := json.Unmarshal(event.Data, &payload); err != nil {
-				return fmt.Errorf("cli: decode prompt event: %w", err)
+	query := url.Values{}
+	query.Set("format", "raw")
+	err := c.doSSE(
+		ctx,
+		http.MethodPost,
+		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/prompt",
+		query,
+		map[string]string{"message": message},
+		"",
+		func(event SSEEvent) error {
+			var payload AgentEventRecord
+			if len(event.Data) > 0 {
+				if err := json.Unmarshal(event.Data, &payload); err != nil {
+					return fmt.Errorf("cli: decode prompt event: %w", err)
+				}
 			}
-		}
-		if payload.Type == "" {
-			payload.Type = event.Event
-		}
-		events = append(events, payload)
-		return nil
-	})
+			if payload.Type == "" {
+				payload.Type = event.Event
+			}
+			events = append(events, payload)
+			return nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -83,7 +83,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		return nil, err
 	}
 
-	m.resumeLogger(meta).Warn(
+	m.resumeLogger(meta).Info(
 		"session.resume.load_session_missing_fallback",
 		"phase", "resume",
 		"error", err,

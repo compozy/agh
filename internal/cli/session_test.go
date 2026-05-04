@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -733,24 +734,38 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 				}
 				events := []SSEEvent{
 					{
-						Event: acp.EventTypeAgentMessage,
-						Data: mustJSON(t, AgentEventRecord{
-							Type:      acp.EventTypeAgentMessage,
-							SessionID: id,
-							TurnID:    "turn-1",
-							Timestamp: fixedTestNow,
-							Text:      "hello back",
+						Data: mustJSON(t, map[string]any{
+							"type":      "start",
+							"messageId": "turn-1",
 						}),
 					},
 					{
-						Event: acp.EventTypeDone,
-						Data: mustJSON(t, AgentEventRecord{
-							Type:       acp.EventTypeDone,
-							SessionID:  id,
-							TurnID:     "turn-1",
-							Timestamp:  fixedTestNow,
-							StopReason: "end_turn",
+						Data: mustJSON(t, map[string]any{
+							"type": "text-start",
+							"id":   "turn-1-text",
 						}),
+					},
+					{
+						Data: mustJSON(t, map[string]any{
+							"type":  "text-delta",
+							"id":    "turn-1-text",
+							"delta": "hello back",
+						}),
+					},
+					{
+						Data: mustJSON(t, map[string]any{
+							"type": "text-end",
+							"id":   "turn-1-text",
+						}),
+					},
+					{
+						Data: mustJSON(t, map[string]any{
+							"type":         "finish",
+							"finishReason": "stop",
+						}),
+					},
+					{
+						Data: []byte("[DONE]"),
 					},
 				}
 				for _, event := range events {
@@ -771,22 +786,24 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 		}
 
 		lines := strings.Split(strings.TrimSpace(stdout), "\n")
-		if len(lines) != 2 {
-			t.Fatalf("jsonl line count = %d, want 2; output=%q", len(lines), stdout)
+		if len(lines) != 5 {
+			t.Fatalf("jsonl line count = %d, want 5; output=%q", len(lines), stdout)
 		}
-		var first AgentEventRecord
-		if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
-			t.Fatalf("json.Unmarshal(first prompt line) error = %v", err)
+		partTypes := make([]string, 0, len(lines))
+		for _, line := range lines {
+			var payload map[string]any
+			if err := json.Unmarshal([]byte(line), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(prompt jsonl line) error = %v; line=%s", err, line)
+			}
+			partType, ok := payload["type"].(string)
+			if !ok {
+				t.Fatalf("prompt jsonl line missing type: %#v", payload)
+			}
+			partTypes = append(partTypes, partType)
 		}
-		if first.Type != acp.EventTypeAgentMessage || first.Text != "hello back" {
-			t.Fatalf("first prompt event = %#v, want agent_message hello back", first)
-		}
-		var second AgentEventRecord
-		if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
-			t.Fatalf("json.Unmarshal(second prompt line) error = %v", err)
-		}
-		if second.Type != acp.EventTypeDone || second.StopReason != "end_turn" {
-			t.Fatalf("second prompt event = %#v, want done end_turn", second)
+		wantTypes := []string{"start", "text-start", "text-delta", "text-end", "finish"}
+		if !reflect.DeepEqual(partTypes, wantTypes) {
+			t.Fatalf("prompt jsonl part types = %#v, want %#v", partTypes, wantTypes)
 		}
 	})
 }

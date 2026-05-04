@@ -2,11 +2,13 @@ package udsapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -1213,6 +1215,76 @@ func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
 		}
 		if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
 			t.Fatalf("Content-Type = %q, want text/event-stream", got)
+		}
+		if got := recorder.Header().Get("x-vercel-ai-ui-message-stream"); got != "v1" {
+			t.Fatalf("x-vercel-ai-ui-message-stream = %q, want v1", got)
+		}
+
+		records := parseSSE(t, recorder.Body.String())
+		if len(records) < 5 {
+			t.Fatalf("len(records) = %d, want at least 5; body=%s", len(records), recorder.Body.String())
+		}
+		if string(records[len(records)-1].Data) != "[DONE]" {
+			t.Fatalf("last data = %q, want [DONE]", string(records[len(records)-1].Data))
+		}
+
+		partTypes := make([]string, 0, len(records))
+		for _, record := range records[:len(records)-1] {
+			if len(record.Data) == 0 || string(record.Data) == "[DONE]" {
+				continue
+			}
+			var payload struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal(record.Data, &payload); err != nil {
+				t.Fatalf("json.Unmarshal(prompt part) error = %v; data=%s", err, string(record.Data))
+			}
+			partTypes = append(partTypes, payload.Type)
+		}
+		hasType := func(target string) bool {
+			return slices.Contains(partTypes, target)
+		}
+		if !hasType("start") || !hasType("text-start") || !hasType("text-delta") ||
+			!hasType("text-end") || !hasType("finish") {
+			t.Fatalf("prompt part types = %#v", partTypes)
+		}
+	})
+}
+
+func TestPromptSessionHandlerReturnsRawSSEStreamWhenRequested(t *testing.T) {
+	t.Run("ShouldReturnRawAgentEventsForBufferedCLIPath", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+				ch := make(chan acp.AgentEvent, 2)
+				ch <- acp.AgentEvent{
+					Type:      "agent_message",
+					TurnID:    "turn-1",
+					Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+					Text:      "hello",
+				}
+				ch <- acp.AgentEvent{
+					Type:       "done",
+					TurnID:     "turn-1",
+					Timestamp:  time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
+					StopReason: "end_turn",
+				}
+				close(ch)
+				return ch, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/sessions/sess-123/prompt?format=raw",
+			[]byte(`{"message":"hello"}`),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 		}
 
 		records := parseSSE(t, recorder.Body.String())

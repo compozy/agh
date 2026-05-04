@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -121,4 +122,104 @@ func TestResolveAgentCallerFromEnv(t *testing.T) {
 			tt.run(t)
 		})
 	}
+}
+
+func TestAgentCommandErrorRendering(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render identity required as JSON when output json is requested", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+
+		exitCode, stdout, stderr := executeRootCommandWithExit(t, deps, "me", "context", "-o", "json")
+		if exitCode != agentidentity.ExitIdentityRequired {
+			t.Fatalf(
+				"executeRootCommandWithExit() exit code = %d, want %d",
+				exitCode,
+				agentidentity.ExitIdentityRequired,
+			)
+		}
+		if strings.TrimSpace(stdout) != "" {
+			t.Fatalf("executeRootCommandWithExit() stdout = %q, want empty", stdout)
+		}
+
+		var payload struct {
+			Error agentidentity.ErrorPayload `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(stderr) error = %v", err)
+		}
+		if payload.Error.Code != "identity_required" {
+			t.Fatalf("payload.Error.Code = %q, want %q", payload.Error.Code, "identity_required")
+		}
+		if payload.Error.ExitCode != agentidentity.ExitIdentityRequired {
+			t.Fatalf("payload.Error.ExitCode = %d, want %d", payload.Error.ExitCode, agentidentity.ExitIdentityRequired)
+		}
+		if !strings.Contains(payload.Error.Message, agentidentity.EnvSessionID+" is required") {
+			t.Fatalf("payload.Error.Message = %q, want AGH_SESSION_ID guidance", payload.Error.Message)
+		}
+	})
+
+	t.Run("Should render identity required as JSONL when output jsonl is requested", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+
+		exitCode, stdout, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"ch",
+			"recv",
+			"coord-run-123",
+			"--wait",
+			"-o",
+			"jsonl",
+		)
+		if exitCode != agentidentity.ExitIdentityRequired {
+			t.Fatalf(
+				"executeRootCommandWithExit() exit code = %d, want %d",
+				exitCode,
+				agentidentity.ExitIdentityRequired,
+			)
+		}
+		if strings.TrimSpace(stdout) != "" {
+			t.Fatalf("executeRootCommandWithExit() stdout = %q, want empty", stdout)
+		}
+
+		var payload struct {
+			Type  string                     `json:"type"`
+			Error agentidentity.ErrorPayload `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(stderr) error = %v", err)
+		}
+		if payload.Type != "error" {
+			t.Fatalf("payload.Type = %q, want %q", payload.Type, "error")
+		}
+		if payload.Error.Code != "identity_required" {
+			t.Fatalf("payload.Error.Code = %q, want %q", payload.Error.Code, "identity_required")
+		}
+	})
+
+	t.Run("Should keep human error rendering when structured output is not requested", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+
+		exitCode, stdout, stderr := executeRootCommandWithExit(t, deps, "me", "context")
+		if exitCode != agentidentity.ExitIdentityRequired {
+			t.Fatalf(
+				"executeRootCommandWithExit() exit code = %d, want %d",
+				exitCode,
+				agentidentity.ExitIdentityRequired,
+			)
+		}
+		if strings.TrimSpace(stdout) != "" {
+			t.Fatalf("executeRootCommandWithExit() stdout = %q, want empty", stdout)
+		}
+		if !strings.Contains(stderr, "error: AGH_SESSION_ID is required") {
+			t.Fatalf("executeRootCommandWithExit() stderr = %q, want human error prefix", stderr)
+		}
+	})
 }

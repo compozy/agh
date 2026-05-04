@@ -53,7 +53,7 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		StopDetail:    info.StopDetail,
 		Failure:       SessionFailurePayloadFromStore(info.Failure),
 		ACPSessionID:  info.ACPSessionID,
-		Lineage:       SessionLineagePayloadFromStore(info.Lineage),
+		Lineage:       contract.SessionLineagePayloadFromStore(info.Lineage),
 		CreatedAt:     info.CreatedAt,
 		UpdatedAt:     info.UpdatedAt,
 	}
@@ -67,37 +67,6 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		payload.Sandbox = sandbox
 	}
 	return payload
-}
-
-// SessionLineagePayloadFromStore converts typed session lineage metadata into a safe public payload.
-func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *contract.SessionLineagePayload {
-	if lineage == nil {
-		return nil
-	}
-	normalized := store.NormalizeSessionLineage("", lineage)
-	payload := &contract.SessionLineagePayload{
-		ParentSessionID:  normalized.ParentSessionID,
-		RootSessionID:    normalized.RootSessionID,
-		SpawnDepth:       normalized.SpawnDepth,
-		SpawnRole:        normalized.SpawnRole,
-		TTLExpiresAt:     cloneTimePtr(normalized.TTLExpiresAt),
-		AutoStopOnParent: normalized.AutoStopOnParent,
-		SpawnBudget: contract.SpawnBudgetPayload{
-			MaxChildren:           normalized.SpawnBudget.MaxChildren,
-			MaxDepth:              normalized.SpawnBudget.MaxDepth,
-			TTLSeconds:            normalized.SpawnBudget.TTLSeconds,
-			MaxActivePerWorkspace: normalized.SpawnBudget.MaxActivePerWorkspace,
-		},
-		PermissionPolicy: contract.SpawnPermissionPolicyPayload{
-			Tools:           append([]string(nil), normalized.PermissionPolicy.Tools...),
-			Skills:          append([]string(nil), normalized.PermissionPolicy.Skills...),
-			MCPServers:      append([]string(nil), normalized.PermissionPolicy.MCPServers...),
-			WorkspacePaths:  append([]string(nil), normalized.PermissionPolicy.WorkspacePaths...),
-			NetworkChannels: append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
-			SandboxProfiles: append([]string(nil), normalized.PermissionPolicy.SandboxProfiles...),
-		},
-	}
-	return contract.NormalizeSessionLineagePayload(payload)
 }
 
 // RuntimeActivityPayloadFromSessionMeta converts persisted session activity metadata into the shared payload.
@@ -224,6 +193,12 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 		WorkspacePath: ref.WorkspacePath,
 		Content:       PayloadJSON(event.Content),
 		Timestamp:     event.Timestamp,
+	}
+	if info != nil && info.Lineage != nil {
+		lineage := store.NormalizeSessionLineage(event.SessionID, info.Lineage)
+		payload.ParentSessionID = lineage.ParentSessionID
+		payload.RootSessionID = lineage.RootSessionID
+		payload.SpawnDepth = lineage.SpawnDepth
 	}
 	if info != nil && event.Type == session.EventTypeSessionStopped {
 		payload.StopReason = info.StopReason
@@ -373,12 +348,15 @@ func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePaylo
 // ObserveEventPayloadFromEvent converts an observe event into the shared payload.
 func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEventPayload {
 	return contract.ObserveEventPayload{
-		ID:        event.ID,
-		SessionID: event.SessionID,
-		Type:      event.Type,
-		AgentName: event.AgentName,
-		Summary:   event.Summary,
-		Timestamp: event.Timestamp,
+		ID:              event.ID,
+		SessionID:       event.SessionID,
+		Type:            event.Type,
+		AgentName:       event.AgentName,
+		ParentSessionID: event.ParentSessionID,
+		RootSessionID:   event.RootSessionID,
+		SpawnDepth:      event.SpawnDepth,
+		Summary:         event.Summary,
+		Timestamp:       event.Timestamp,
 	}
 }
 

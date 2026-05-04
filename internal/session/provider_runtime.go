@@ -20,6 +20,11 @@ type envProviderSecretResolver struct {
 	lookupEnv func(string) (string, bool)
 }
 
+const (
+	runtimeProviderAnthropic = "anthropic"
+	runtimeProviderClaude    = "claude"
+)
+
 func (r envProviderSecretResolver) ResolveRef(ctx context.Context, ref string) (string, error) {
 	if ctx == nil {
 		return "", errors.New("session: provider secret context is required")
@@ -54,6 +59,7 @@ func (m *Manager) prepareProviderForStart(
 	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_ENV_POLICY", string(resolved.EnvPolicy))
 	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_HOME_POLICY", string(resolved.HomePolicy))
 	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_MODEL", strings.TrimSpace(resolved.Model))
+	opts.Env = setProviderModelEnv(opts.Env, resolved)
 
 	var err error
 	if resolved.HomePolicy == aghconfig.ProviderHomePolicyIsolated {
@@ -100,6 +106,25 @@ func (m *Manager) prepareProviderForStart(
 	}
 	opts.Env = setSessionStartEnvValue(opts.Env, "PI_CODING_AGENT_DIR", runtimeDir)
 	return opts, nil
+}
+
+func setProviderModelEnv(env []string, resolved aghconfig.ResolvedAgent) []string {
+	model := strings.TrimSpace(resolved.Model)
+	if model == "" || resolved.Harness != aghconfig.ProviderHarnessACP {
+		return env
+	}
+
+	runtimeProvider := strings.TrimSpace(resolved.RuntimeProvider)
+	if runtimeProvider == "" {
+		runtimeProvider = strings.TrimSpace(resolved.Provider)
+	}
+
+	switch runtimeProvider {
+	case runtimeProviderAnthropic, runtimeProviderClaude:
+		return setSessionStartEnvValue(env, "ANTHROPIC_MODEL", model)
+	default:
+		return env
+	}
 }
 
 type providerSecretBindings struct {

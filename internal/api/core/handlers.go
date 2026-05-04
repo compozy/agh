@@ -538,9 +538,13 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 		return
 	}
 
-	afterSequence, err := h.writeSessionEventBatch(writer, initial, info)
+	afterSequence := query.AfterSequence
+	nextSequence, err := h.writeSessionEventBatch(writer, initial, info)
 	if err != nil {
 		return
+	}
+	if nextSequence > afterSequence {
+		afterSequence = nextSequence
 	}
 
 	pollQuery := query
@@ -769,7 +773,7 @@ func (h *BaseHandlers) HookRuns(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(query.SessionID) == "" {
-		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: session query is required", h.transportName()))
+		h.respondError(c, http.StatusBadRequest, errors.New("session query is required"))
 		return
 	}
 

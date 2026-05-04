@@ -6,31 +6,24 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/api/contract"
+	core "github.com/pedronauck/agh/internal/api/core"
 )
 
-func TestPromptStreamPayloadsRemainTransportLocal(t *testing.T) {
+func TestPromptRequestPayloadRemainsTransportLocal(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep transport payloads local and separate from shared contract", func(t *testing.T) {
+	t.Run("Should keep prompt requests local while using the shared core encoder", func(t *testing.T) {
 		t.Parallel()
 
 		promptPkg := reflect.TypeFor[promptRequest]().PkgPath()
-		transportPkg := reflect.TypeFor[agentEventPayload]().PkgPath()
+		encoderPkg := reflect.TypeFor[core.PromptStreamEncoder]().PkgPath()
 		sharedPkg := reflect.TypeFor[contract.AgentEventPayload]().PkgPath()
 
-		if promptPkg != transportPkg {
-			t.Fatalf("prompt payload package = %q, agent event package = %q", promptPkg, transportPkg)
+		if promptPkg == encoderPkg {
+			t.Fatalf("prompt request package unexpectedly matches shared encoder package %q", encoderPkg)
 		}
-		if transportPkg == sharedPkg {
-			t.Fatalf("transport-local payload unexpectedly uses shared contract package %q", sharedPkg)
-		}
-
-		transportTimestamp, ok := reflect.TypeFor[agentEventPayload]().FieldByName("Timestamp")
-		if !ok {
-			t.Fatal("agentEventPayload.Timestamp field is missing")
-		}
-		if transportTimestamp.Type.Kind() != reflect.String {
-			t.Fatalf("transport timestamp type = %v, want string", transportTimestamp.Type)
+		if encoderPkg == sharedPkg {
+			t.Fatalf("shared encoder package unexpectedly matches shared contract package %q", sharedPkg)
 		}
 
 		sharedTimestamp, ok := reflect.TypeFor[contract.AgentEventPayload]().FieldByName("Timestamp")

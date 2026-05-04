@@ -96,7 +96,7 @@ func agentSpawnPayloadFromSession(info *session.Info) (contract.AgentSpawnPayloa
 	if info == nil {
 		return contract.AgentSpawnPayload{}, errors.New("api: spawn returned an empty session")
 	}
-	lineage := SessionLineagePayloadFromStore(info.Lineage)
+	lineage := contract.SessionLineagePayloadFromStore(info.Lineage)
 	if lineage == nil {
 		return contract.AgentSpawnPayload{}, fmt.Errorf("api: spawned session %q is missing lineage", info.ID)
 	}

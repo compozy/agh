@@ -16,6 +16,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/soul"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -185,9 +186,15 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 		WorkspaceID: "ws-1",
 		Workspace:   "/work/agh",
 		Type:        session.SessionTypeUser,
-		State:       session.StateActive,
-		CreatedAt:   fixedTime(),
-		UpdatedAt:   fixedTime(),
+		Lineage: &store.SessionLineage{
+			ParentSessionID: "sess-parent",
+			RootSessionID:   "sess-root",
+			SpawnDepth:      1,
+			SpawnRole:       "worker",
+		},
+		State:     session.StateActive,
+		CreatedAt: fixedTime(),
+		UpdatedAt: fixedTime(),
 	})
 	if err != nil {
 		t.Fatalf("ContextForSession() error = %v", err)
@@ -195,6 +202,12 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 
 	if got, want := payload.Self.Model, "gpt-test"; got != want {
 		t.Fatalf("Self.Model = %q, want %q", got, want)
+	}
+	if payload.Session.Lineage == nil ||
+		payload.Session.Lineage.ParentSessionID != "sess-parent" ||
+		payload.Session.Lineage.RootSessionID != "sess-root" ||
+		payload.Session.Lineage.SpawnDepth != 1 {
+		t.Fatalf("Session.Lineage = %#v, want spawned lineage projection", payload.Session.Lineage)
 	}
 	if payload.Task.Task == nil || payload.Task.Task.ID != "task-1" {
 		t.Fatalf("Task section = %#v, want task-1", payload.Task)

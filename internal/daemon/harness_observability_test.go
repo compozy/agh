@@ -75,6 +75,9 @@ func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) 
 	if got, want := summaries[0].Timestamp, base; !got.Equal(want) {
 		t.Fatalf("summaries[0].Timestamp = %v, want %v", got, want)
 	}
+	if got, want := summaries[0].RootSessionID, startup.SessionID; got != want {
+		t.Fatalf("summaries[0].RootSessionID = %q, want %q", got, want)
+	}
 	if !strings.Contains(summaries[0].Summary, "surface=startup") {
 		t.Fatalf("context summary = %q, want startup surface", summaries[0].Summary)
 	}

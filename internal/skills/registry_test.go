@@ -15,6 +15,7 @@ import (
 	"time"
 
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -304,6 +305,256 @@ func TestRegistryWorkspaceSkillOverridesGlobalSkill(t *testing.T) {
 	if skill.Meta.Description != "Workspace override" {
 		t.Fatalf("shared description = %q, want %q", skill.Meta.Description, "Workspace override")
 	}
+}
+
+func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldLogWorkspaceOverrideOverMarketplaceSkill", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		userDir := filepath.Join(root, "user")
+		workspace := filepath.Join(root, "workspace")
+
+		marketplacePath := writeSkillFile(
+			t,
+			userDir,
+			filepath.Join("cool-skill", skillFileName),
+			skillWithDescription("cool-skill", "Marketplace skill"),
+		)
+		if err := WriteSidecar(filepath.Dir(marketplacePath), Provenance{
+			Hash:        mustComputeDirectoryHash(t, filepath.Dir(marketplacePath)),
+			Registry:    "clawhub",
+			Slug:        "@qa/cool-skill",
+			Version:     "1.0.0",
+			InstalledAt: time.Date(2026, 5, 4, 9, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("WriteSidecar() error = %v", err)
+		}
+		writeSkillFile(
+			t,
+			filepath.Join(workspace, ".agh", "skills"),
+			filepath.Join("cool-skill", skillFileName),
+			skillWithDescription("cool-skill", "Workspace override"),
+		)
+
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		registry := newTestRegistry(t, RegistryConfig{
+			UserSkillsDir: userDir,
+		}, WithLogger(logger))
+
+		if err := registry.LoadAll(context.Background()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		logs.Reset()
+
+		if _, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
+			"ws_shadow",
+			workspace,
+			resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "cool-skill"), "workspace"),
+		)); err != nil {
+			t.Fatalf("ForWorkspace() error = %v", err)
+		}
+
+		output := logs.String()
+		if !strings.Contains(output, "overriding skill") {
+			t.Fatalf("logs = %q, want override warning", output)
+		}
+		if !strings.Contains(output, "name=cool-skill") {
+			t.Fatalf("logs = %q, want skill name", output)
+		}
+		if !strings.Contains(output, "old_source=marketplace") ||
+			!strings.Contains(output, "new_source=workspace") {
+			t.Fatalf("logs = %q, want marketplace->workspace source info", output)
+		}
+	})
+
+	t.Run("ShouldRefreshWorkspaceCacheWhenGlobalVersionChanges", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		userDir := filepath.Join(root, "user")
+		workspace := filepath.Join(root, "workspace")
+		globalPath := writeSkillFile(
+			t,
+			userDir,
+			filepath.Join("shared", skillFileName),
+			skillWithDescription("shared", "Global description"),
+		)
+		writeSkillFile(
+			t,
+			filepath.Join(workspace, ".agh", "skills"),
+			filepath.Join("shared", skillFileName),
+			skillWithDescription("shared", "Workspace override"),
+		)
+
+		registry := newTestRegistry(t, RegistryConfig{UserSkillsDir: userDir})
+		if err := registry.LoadAll(context.Background()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+
+		resolved := resolvedWorkspacePtr(
+			"ws_cache_refresh",
+			workspace,
+			resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "shared"), "workspace"),
+		)
+		if _, err := registry.ForWorkspace(context.Background(), resolved); err != nil {
+			t.Fatalf("first ForWorkspace() error = %v", err)
+		}
+		firstEntry := cacheEntryForWorkspace(t, registry, resolved)
+		if firstEntry == nil {
+			t.Fatal("first cache entry = nil, want populated entry")
+		}
+		if firstEntry.globalVersion != registry.GlobalVersion() {
+			t.Fatalf(
+				"first cache globalVersion = %d, want %d",
+				firstEntry.globalVersion,
+				registry.GlobalVersion(),
+			)
+		}
+
+		rewriteSkillFile(
+			t,
+			globalPath,
+			skillWithDescription("shared", "Updated global description"),
+		)
+		if err := registry.RefreshGlobal(context.Background()); err != nil {
+			t.Fatalf("RefreshGlobal() error = %v", err)
+		}
+
+		if _, err := registry.ForWorkspace(context.Background(), resolved); err != nil {
+			t.Fatalf("second ForWorkspace() error = %v", err)
+		}
+		secondEntry := cacheEntryForWorkspace(t, registry, resolved)
+		if secondEntry == nil {
+			t.Fatal("second cache entry = nil, want refreshed entry")
+		}
+		if secondEntry == firstEntry {
+			t.Fatal("workspace cache entry pointer reused after global refresh, want reload")
+		}
+		if secondEntry.globalVersion != registry.GlobalVersion() {
+			t.Fatalf(
+				"second cache globalVersion = %d, want %d",
+				secondEntry.globalVersion,
+				registry.GlobalVersion(),
+			)
+		}
+	})
+
+	t.Run("ShouldLogWorkspaceOverrideWhenResourceAuthorityIsActive", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		registry := newTestRegistry(t, RegistryConfig{}, WithLogger(logger))
+
+		if err := registry.ApplyResourceRecords(1, []resources.Record[SkillResourceSpec]{
+			{
+				Kind: SkillResourceKind,
+				ID:   "global:cool-skill",
+				Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindGlobal,
+				},
+				Spec: SkillResourceSpec{
+					Name:        "cool-skill",
+					Description: "Marketplace skill",
+					Source:      skillSourceName(SourceMarketplace),
+					FilePath:    "/global/cool-skill/SKILL.md",
+					Enabled:     true,
+				},
+			},
+			{
+				Kind: SkillResourceKind,
+				ID:   "workspace:cool-skill",
+				Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspace,
+					ID:   "ws-resource-shadow",
+				},
+				Spec: SkillResourceSpec{
+					Name:        "cool-skill",
+					Description: "Workspace override",
+					Source:      skillSourceName(SourceWorkspace),
+					FilePath:    "/workspace/cool-skill/SKILL.md",
+					Enabled:     true,
+				},
+			},
+		}); err != nil {
+			t.Fatalf("ApplyResourceRecords() error = %v", err)
+		}
+
+		output := logs.String()
+		if !strings.Contains(output, "overriding skill") {
+			t.Fatalf("logs = %q, want override warning", output)
+		}
+		if !strings.Contains(output, "name=cool-skill") {
+			t.Fatalf("logs = %q, want skill name", output)
+		}
+		if !strings.Contains(output, "old_source=marketplace") ||
+			!strings.Contains(output, "new_source=workspace") {
+			t.Fatalf("logs = %q, want marketplace->workspace source info", output)
+		}
+		if !strings.Contains(output, "workspace_id=ws-resource-shadow") {
+			t.Fatalf("logs = %q, want workspace_id on resource-authority audit", output)
+		}
+	})
+
+	t.Run("ShouldLogAdditionalToWorkspaceOverrideWithinWorkspaceSources", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		workspace := filepath.Join(root, "workspace")
+		additional := filepath.Join(root, "additional")
+		writeSkillFile(
+			t,
+			filepath.Join(additional, ".agh", "skills"),
+			filepath.Join("layered-skill", skillFileName),
+			skillWithDescription("layered-skill", "Additional override"),
+		)
+		writeSkillFile(
+			t,
+			filepath.Join(workspace, ".agh", "skills"),
+			filepath.Join("layered-skill", skillFileName),
+			skillWithDescription("layered-skill", "Workspace override"),
+		)
+
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		registry := newTestRegistry(t, RegistryConfig{}, WithLogger(logger))
+
+		resolved := &workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:             "ws-layered-shadow",
+				RootDir:        workspace,
+				AdditionalDirs: []string{additional},
+			},
+		}
+
+		got, err := registry.ForWorkspace(context.Background(), resolved)
+		if err != nil {
+			t.Fatalf("ForWorkspace() error = %v", err)
+		}
+		if findSkill(t, got, "layered-skill").Source != SourceWorkspace {
+			t.Fatalf(
+				"layered-skill Source = %v, want %v",
+				findSkill(t, got, "layered-skill").Source,
+				SourceWorkspace,
+			)
+		}
+
+		output := logs.String()
+		if !strings.Contains(output, "overriding skill") {
+			t.Fatalf("logs = %q, want override warning", output)
+		}
+		if !strings.Contains(output, "name=layered-skill") {
+			t.Fatalf("logs = %q, want skill name", output)
+		}
+		if !strings.Contains(output, "old_source=additional") ||
+			!strings.Contains(output, "new_source=workspace") {
+			t.Fatalf("logs = %q, want additional->workspace source info", output)
+		}
+	})
 }
 
 func TestRegistryForWorkspaceReturnsCachedResultWhenUnchanged(t *testing.T) {
@@ -1670,6 +1921,134 @@ func TestRegistrySetEnabledUsesSkillOnlyWorkspaceCacheKey(t *testing.T) {
 	}
 }
 
+func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldKeepGlobalDisabledStateAcrossDiscoverGlobalWhenResourceAuthorityIsActive", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		userDir := filepath.Join(root, "user")
+		skillPath := writeSkillFile(
+			t,
+			userDir,
+			filepath.Join("global-skill", skillFileName),
+			skillWithDescription("global-skill", "Initial global description"),
+		)
+
+		registry := newTestRegistry(t, RegistryConfig{UserSkillsDir: userDir})
+		discovered, _, err := registry.DiscoverGlobal(context.Background())
+		if err != nil {
+			t.Fatalf("DiscoverGlobal() error = %v", err)
+		}
+		if err := registry.ApplyResourceRecords(1, []resources.Record[SkillResourceSpec]{
+			{
+				ID:    "skill.global-skill",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec:  SkillToResourceSpec(findSkill(t, discovered, "global-skill")),
+			},
+		}); err != nil {
+			t.Fatalf("ApplyResourceRecords() error = %v", err)
+		}
+
+		if err := registry.SetEnabled("global-skill", nil, false); err != nil {
+			t.Fatalf("SetEnabled(global-skill, false) error = %v", err)
+		}
+
+		rewriteSkillFile(
+			t,
+			skillPath,
+			skillWithDescription("global-skill", "Updated global description after rediscovery"),
+		)
+
+		rediscovered, _, err := registry.DiscoverGlobal(context.Background())
+		if err != nil {
+			t.Fatalf("DiscoverGlobal(after disable) error = %v", err)
+		}
+		if findSkill(t, rediscovered, "global-skill").Enabled {
+			t.Fatal("DiscoverGlobal() re-enabled global-skill after resource-authority disable")
+		}
+
+		if err := registry.SetEnabled("global-skill", nil, true); err != nil {
+			t.Fatalf("SetEnabled(global-skill, true) error = %v", err)
+		}
+
+		reenabled, _, err := registry.DiscoverGlobal(context.Background())
+		if err != nil {
+			t.Fatalf("DiscoverGlobal(after enable) error = %v", err)
+		}
+		if !findSkill(t, reenabled, "global-skill").Enabled {
+			t.Fatal("DiscoverGlobal() kept global-skill disabled after re-enable")
+		}
+	})
+
+	t.Run("ShouldKeepWorkspaceDisabledStateAcrossDiscoverWorkspaceWhenResourceAuthorityIsActive", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		workspace := filepath.Join(root, "workspace")
+		writeSkillFile(
+			t,
+			filepath.Join(workspace, ".agh", "skills"),
+			filepath.Join("workspace-skill", skillFileName),
+			skillWithDescription("workspace-skill", "Initial workspace description"),
+		)
+		resolved := resolvedWorkspaceForTest(
+			"ws-resource-disable",
+			workspace,
+			resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "workspace-skill"), "workspace"),
+		)
+
+		registry := newTestRegistry(t, RegistryConfig{})
+		discovered, _, err := registry.DiscoverWorkspace(context.Background(), &resolved)
+		if err != nil {
+			t.Fatalf("DiscoverWorkspace() error = %v", err)
+		}
+		if err := registry.ApplyResourceRecords(1, []resources.Record[SkillResourceSpec]{
+			{
+				ID: "skill.workspace-skill",
+				Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspace,
+					ID:   resolved.ID,
+				},
+				Spec: SkillToResourceSpec(findSkill(t, discovered, "workspace-skill")),
+			},
+		}); err != nil {
+			t.Fatalf("ApplyResourceRecords() error = %v", err)
+		}
+
+		if err := registry.SetEnabled("workspace-skill", &resolved, false); err != nil {
+			t.Fatalf("SetEnabled(workspace-skill, false) error = %v", err)
+		}
+
+		rewriteSkillFile(
+			t,
+			filepath.Join(workspace, ".agh", "skills", "workspace-skill", skillFileName),
+			skillWithDescription("workspace-skill", "Updated workspace description after rediscovery"),
+		)
+
+		rediscovered, _, err := registry.DiscoverWorkspace(context.Background(), &resolved)
+		if err != nil {
+			t.Fatalf("DiscoverWorkspace(after disable) error = %v", err)
+		}
+		if findSkill(t, rediscovered, "workspace-skill").Enabled {
+			t.Fatal("DiscoverWorkspace() re-enabled workspace-skill after resource-authority disable")
+		}
+
+		if err := registry.SetEnabled("workspace-skill", &resolved, true); err != nil {
+			t.Fatalf("SetEnabled(workspace-skill, true) error = %v", err)
+		}
+
+		reenabled, _, err := registry.DiscoverWorkspace(context.Background(), &resolved)
+		if err != nil {
+			t.Fatalf("DiscoverWorkspace(after enable) error = %v", err)
+		}
+		if !findSkill(t, reenabled, "workspace-skill").Enabled {
+			t.Fatal("DiscoverWorkspace() kept workspace-skill disabled after re-enable")
+		}
+	})
+}
+
 func TestWorkspaceLoadFromResolvedWrapsWorkspaceSourceErrors(t *testing.T) {
 	t.Parallel()
 
@@ -1687,6 +2066,52 @@ func TestWorkspaceLoadFromResolvedWrapsWorkspaceSourceErrors(t *testing.T) {
 			"workspaceLoadFromResolved(invalid source) error = %v, want wrapped source context",
 			err,
 		)
+	}
+}
+
+func TestWorkspaceLoadFromResolvedPreservesDuplicateWorkspaceCandidatesByPrecedence(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	workspace := filepath.Join(root, "workspace")
+	additional := filepath.Join(root, "additional")
+	workspaceSkillPath := writeSkillFile(
+		t,
+		filepath.Join(workspace, ".agh", "skills"),
+		filepath.Join("shared", skillFileName),
+		skillWithDescription("shared", "Workspace override"),
+	)
+	additionalSkillPath := writeSkillFile(
+		t,
+		filepath.Join(additional, ".agh", "skills"),
+		filepath.Join("shared", skillFileName),
+		skillWithDescription("shared", "Additional override"),
+	)
+
+	registry := newTestRegistry(t, RegistryConfig{})
+	load, err := registry.workspaceLoadFromResolved(context.Background(), &workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			RootDir:        workspace,
+			AdditionalDirs: []string{additional},
+		},
+	})
+	if err != nil {
+		t.Fatalf("workspaceLoadFromResolved() error = %v", err)
+	}
+	if got, want := len(load.paths), 2; got != want {
+		t.Fatalf("len(load.paths) = %d, want %d", got, want)
+	}
+	if got, want := load.paths[0].filePath, additionalSkillPath; got != want {
+		t.Fatalf("load.paths[0].filePath = %q, want %q", got, want)
+	}
+	if got, want := load.paths[0].source, SourceAdditional; got != want {
+		t.Fatalf("load.paths[0].source = %v, want %v", got, want)
+	}
+	if got, want := load.paths[1].filePath, workspaceSkillPath; got != want {
+		t.Fatalf("load.paths[1].filePath = %q, want %q", got, want)
+	}
+	if got, want := load.paths[1].source, SourceWorkspace; got != want {
+		t.Fatalf("load.paths[1].source = %v, want %v", got, want)
 	}
 }
 

@@ -597,6 +597,12 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateAgentHeartbeatStorage,
 		Checksum: "2026-05-02-add-agent-heartbeat-storage",
 	},
+	{
+		Version:  14,
+		Name:     "add_event_summary_lineage",
+		Up:       migrateEventSummaryLineageColumns,
+		Checksum: "2026-05-04-add-event-summary-lineage",
+	},
 }
 
 func migrateUnifiedSecretRefs(ctx context.Context, tx *sql.Tx) error {
@@ -725,6 +731,77 @@ func migrateSessionLineageColumns(ctx context.Context, tx *sql.Tx) error {
 		`UPDATE sessions SET root_session_id = id WHERE root_session_id IS NULL OR trim(root_session_id) = ''`,
 	); err != nil {
 		return fmt.Errorf("store: backfill root session lineage: %w", err)
+	}
+	return nil
+}
+
+func migrateEventSummaryLineageColumns(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "event_summaries")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, tx, "event_summaries")
+	if err != nil {
+		return err
+	}
+	specs := []struct {
+		name string
+		sql  string
+	}{
+		{
+			name: "parent_session_id",
+			sql:  `ALTER TABLE event_summaries ADD COLUMN parent_session_id TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: "root_session_id",
+			sql:  `ALTER TABLE event_summaries ADD COLUMN root_session_id TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: "spawn_depth",
+			sql:  `ALTER TABLE event_summaries ADD COLUMN spawn_depth INTEGER NOT NULL DEFAULT 0`,
+		},
+	}
+	for _, spec := range specs {
+		if _, ok := columns[spec.name]; ok {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, spec.sql); err != nil {
+			return fmt.Errorf("store: add event_summaries.%s column: %w", spec.name, err)
+		}
+	}
+
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_summaries_parent ON event_summaries(parent_session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_root ON event_summaries(root_session_id);`,
+	}
+	for _, stmt := range indexes {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: migrate event summary lineage indexes: %w", err)
+		}
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		`UPDATE event_summaries
+		 SET parent_session_id = COALESCE(
+		 	(SELECT parent_session_id FROM sessions WHERE sessions.id = event_summaries.session_id),
+		 	''
+		 ),
+		     root_session_id = COALESCE(
+		     	NULLIF((SELECT root_session_id FROM sessions WHERE sessions.id = event_summaries.session_id), ''),
+		     	session_id
+		     ),
+		     spawn_depth = COALESCE(
+		     	(SELECT spawn_depth FROM sessions WHERE sessions.id = event_summaries.session_id),
+		     	0
+		     )
+		 WHERE trim(session_id) <> ''`,
+	); err != nil {
+		return fmt.Errorf("store: backfill event summary lineage: %w", err)
 	}
 	return nil
 }

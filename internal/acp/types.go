@@ -494,6 +494,14 @@ func (p *AgentProcess) Stderr() string {
 	return p.stderr.String()
 }
 
+// HealthState returns the latest managed subprocess health snapshot.
+func (p *AgentProcess) HealthState() subprocess.HealthState {
+	if p == nil || p.managed == nil {
+		return subprocess.HealthState{}
+	}
+	return p.managed.HealthState()
+}
+
 // ToolHost returns the sandbox-owned tool host used by this process.
 func (p *AgentProcess) ToolHost() sandbox.ToolHost {
 	if p == nil {

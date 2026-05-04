@@ -90,7 +90,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:                "httpapi",
 			MaskInternalErrors:           true,
-			IncludeSessionWorkspaceInSSE: false,
+			IncludeSessionWorkspaceInSSE: true,
 			Sessions:                     cfg.sessions,
 			Tasks:                        cfg.tasks,
 			Network:                      cfg.network,

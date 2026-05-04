@@ -283,8 +283,13 @@ func TestSessionEventPayloadFromEventIncludesStopDiagnostics(t *testing.T) {
 			&session.Info{
 				WorkspaceID: "ws-alpha",
 				Workspace:   "/workspace",
-				StopReason:  store.StopAgentCrashed,
-				StopDetail:  "driver failed",
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "sess-parent",
+					RootSessionID:   "sess-root",
+					SpawnDepth:      2,
+				},
+				StopReason: store.StopAgentCrashed,
+				StopDetail: "driver failed",
 				Failure: &store.SessionFailure{
 					Kind:    store.FailureProcess,
 					Summary: "driver failed",
@@ -295,11 +300,43 @@ func TestSessionEventPayloadFromEventIncludesStopDiagnostics(t *testing.T) {
 		if payload.WorkspaceID != "ws-alpha" || payload.WorkspacePath != "/workspace" {
 			t.Fatalf("workspace payload = %#v", payload)
 		}
+		if payload.ParentSessionID != "sess-parent" ||
+			payload.RootSessionID != "sess-root" ||
+			payload.SpawnDepth != 2 {
+			t.Fatalf("lineage payload = %#v", payload)
+		}
 		if payload.StopReason != store.StopAgentCrashed || payload.StopDetail != "driver failed" {
 			t.Fatalf("stop payload = %#v", payload)
 		}
 		if payload.Failure == nil || payload.Failure.Kind != store.FailureProcess {
 			t.Fatalf("failure payload = %#v", payload.Failure)
+		}
+	})
+}
+
+func TestObserveEventPayloadFromEventIncludesLineage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include persisted observe lineage fields", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)
+		payload := core.ObserveEventPayloadFromEvent(store.EventSummary{
+			ID:              "sum-1",
+			SessionID:       "sess-child",
+			Type:            "agent_message",
+			AgentName:       "coder",
+			ParentSessionID: "sess-parent",
+			RootSessionID:   "sess-root",
+			SpawnDepth:      1,
+			Summary:         "hello",
+			Timestamp:       now,
+		})
+
+		if payload.ParentSessionID != "sess-parent" ||
+			payload.RootSessionID != "sess-root" ||
+			payload.SpawnDepth != 1 {
+			t.Fatalf("payload lineage = %#v", payload)
 		}
 	})
 }

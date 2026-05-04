@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/fileutil"
+	aghlogger "github.com/pedronauck/agh/internal/logger"
 	"github.com/pedronauck/agh/internal/procutil"
 )
 
@@ -213,7 +214,7 @@ func defaultDetachedStart(ctx context.Context, req detachedStartRequest) (restar
 	return procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
 		Binary:  req.binary,
 		Args:    append([]string(nil), req.args...),
-		Sandbox: append([]string(nil), req.sandbox...),
+		Sandbox: aghlogger.WithMirrorToStderrEnv(append([]string(nil), req.sandbox...), false),
 		LogPath: req.logPath,
 	})
 }

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 
 	burnttoml "github.com/BurntSushi/toml"
 	"github.com/kballard/go-shellquote"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/spf13/cobra"
@@ -327,6 +329,19 @@ func newConfigSetCommand(deps commandDeps) *cobra.Command {
 			value, err := parseConfigSetValue(kind, args[1])
 			if err != nil {
 				return err
+			}
+			if liveRecord, err := maybeApplyConfigSetViaDaemon(
+				cmd.Context(),
+				deps,
+				homePaths,
+				target,
+				path,
+				value,
+				redacted,
+			); err != nil {
+				return err
+			} else if liveRecord != nil {
+				return writeCommandOutput(cmd, configSetBundle(*liveRecord))
 			}
 			if _, err := aghconfig.EditConfigOverlay(
 				homePaths,
@@ -980,6 +995,91 @@ func configSetBundle(record configSetRecord) outputBundle {
 				strconv.FormatBool(record.RestartRequired),
 				record.RestartScope,
 			}), nil
+		},
+	}
+}
+
+func maybeApplyConfigSetViaDaemon(
+	ctx context.Context,
+	deps commandDeps,
+	homePaths aghconfig.HomePaths,
+	target aghconfig.WriteTarget,
+	path []string,
+	value any,
+	redacted bool,
+) (*configSetRecord, error) {
+	if !supportsDaemonManagedConfigSet(path, target) {
+		return nil, nil
+	}
+
+	_, running, err := daemonInfo(homePaths, deps)
+	if err != nil {
+		return nil, fmt.Errorf("cli: inspect daemon state for config set: %w", err)
+	}
+	if !running {
+		return nil, nil
+	}
+
+	disabledSkills, ok := value.([]string)
+	if !ok {
+		return nil, fmt.Errorf(
+			"cli: config set %q expects a string slice payload, got %T",
+			strings.Join(path, "."),
+			value,
+		)
+	}
+
+	cfg, err := deps.loadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("cli: load current config for daemon-backed config set: %w", err)
+	}
+	cfg.Skills.DisabledSkills = append([]string(nil), disabledSkills...)
+
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return nil, fmt.Errorf("cli: create daemon client for config set: %w", err)
+	}
+	result, err := client.UpdateSettingsSkills(ctx, UpdateSettingsSkillsRequest{
+		Config: settingsSkillsPayloadFromConfig(cfg.Skills),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cli: apply %q via daemon settings surface: %w", strings.Join(path, "."), err)
+	}
+
+	outputValue := value
+	if redacted {
+		outputValue = aghconfig.RedactedValue()
+	}
+	return &configSetRecord{
+		Path:            strings.Join(path, "."),
+		Value:           outputValue,
+		Scope:           string(target.Scope()),
+		Target:          target.Path(),
+		Redacted:        redacted,
+		Behavior:        string(result.Behavior),
+		Applied:         result.Applied,
+		RestartRequired: result.RestartRequired,
+		RestartScope:    result.RestartScope,
+	}, nil
+}
+
+func supportsDaemonManagedConfigSet(path []string, target aghconfig.WriteTarget) bool {
+	return target.Scope() == aghconfig.WriteScopeGlobal &&
+		len(path) == 2 &&
+		path[0] == "skills" &&
+		path[1] == "disabled_skills"
+}
+
+func settingsSkillsPayloadFromConfig(cfg aghconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
+	return contract.SettingsSkillsConfigPayload{
+		Enabled:                 cfg.Enabled,
+		DisabledSkills:          append([]string(nil), cfg.DisabledSkills...),
+		PollInterval:            cfg.PollInterval.String(),
+		AllowedMarketplaceMCP:   append([]string(nil), cfg.AllowedMarketplaceMCP...),
+		AllowedMarketplaceHooks: append([]string(nil), cfg.AllowedMarketplaceHooks...),
+		Marketplace: contract.SettingsMarketplacePayload{
+			Registry: cfg.Marketplace.Registry,
+			BaseURL:  cfg.Marketplace.BaseURL,
 		},
 	}
 }

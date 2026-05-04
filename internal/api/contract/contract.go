@@ -98,19 +98,22 @@ type ACPCapsPayload struct {
 
 // SessionEventPayload is the shared session event response payload.
 type SessionEventPayload struct {
-	ID            string                 `json:"id"`
-	SessionID     string                 `json:"session_id"`
-	Sequence      int64                  `json:"sequence"`
-	TurnID        string                 `json:"turn_id"`
-	Type          string                 `json:"type"`
-	AgentName     string                 `json:"agent_name"`
-	WorkspaceID   string                 `json:"workspace_id,omitempty"`
-	WorkspacePath string                 `json:"workspace_path,omitempty"`
-	Content       json.RawMessage        `json:"content"`
-	StopReason    store.StopReason       `json:"stop_reason,omitempty"`
-	StopDetail    string                 `json:"stop_detail,omitempty"`
-	Failure       *SessionFailurePayload `json:"failure,omitempty"`
-	Timestamp     time.Time              `json:"timestamp"`
+	ID              string                 `json:"id"`
+	SessionID       string                 `json:"session_id"`
+	Sequence        int64                  `json:"sequence"`
+	TurnID          string                 `json:"turn_id"`
+	Type            string                 `json:"type"`
+	AgentName       string                 `json:"agent_name"`
+	WorkspaceID     string                 `json:"workspace_id,omitempty"`
+	WorkspacePath   string                 `json:"workspace_path,omitempty"`
+	ParentSessionID string                 `json:"parent_session_id,omitempty"`
+	RootSessionID   string                 `json:"root_session_id,omitempty"`
+	SpawnDepth      int                    `json:"spawn_depth"`
+	Content         json.RawMessage        `json:"content"`
+	StopReason      store.StopReason       `json:"stop_reason,omitempty"`
+	StopDetail      string                 `json:"stop_detail,omitempty"`
+	Failure         *SessionFailurePayload `json:"failure,omitempty"`
+	Timestamp       time.Time              `json:"timestamp"`
 }
 
 // TurnHistoryPayload is the shared turn history response payload.
@@ -219,12 +222,15 @@ type TokenUsagePayload struct {
 
 // ObserveEventPayload is the shared observability event response payload.
 type ObserveEventPayload struct {
-	ID        string    `json:"id"`
-	SessionID string    `json:"session_id"`
-	Type      string    `json:"type"`
-	AgentName string    `json:"agent_name"`
-	Summary   string    `json:"summary,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	ID              string    `json:"id"`
+	SessionID       string    `json:"session_id"`
+	Type            string    `json:"type"`
+	AgentName       string    `json:"agent_name"`
+	ParentSessionID string    `json:"parent_session_id,omitempty"`
+	RootSessionID   string    `json:"root_session_id,omitempty"`
+	SpawnDepth      int       `json:"spawn_depth"`
+	Summary         string    `json:"summary,omitempty"`
+	Timestamp       time.Time `json:"timestamp"`
 }
 
 // ObserveHealthPayload is the shared observability health response payload.

@@ -116,6 +116,19 @@ type hostAPISessionManager interface {
 	ExecSandbox(ctx context.Context, req session.SandboxExecRequest) (session.SandboxExecResult, error)
 }
 
+type hostAPINetworkPromptSessionManager interface {
+	PromptNetwork(
+		ctx context.Context,
+		id string,
+		msg string,
+		meta ...acp.PromptNetworkMeta,
+	) (<-chan acp.AgentEvent, error)
+}
+
+type hostAPIPromptingSessionManager interface {
+	IsPrompting(id string) bool
+}
+
 type hostAPIObserver interface {
 	Health(ctx context.Context) (observepkg.Health, error)
 	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)

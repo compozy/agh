@@ -547,19 +547,19 @@ func (s *Session) setRecorder(recorder EventRecorder) {
 	s.recorder = recorder
 }
 
-func (s *Session) beginPromptSetup() (*AgentProcess, error) {
+func (s *Session) beginPromptSetup() error {
 	if s == nil {
-		return nil, errors.New("session: session is required")
+		return errors.New("session: session is required")
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.State != StateActive {
-		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
+		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
 	if s.process == nil {
-		return nil, errors.New("session: agent process is not available")
+		return errors.New("session: agent process is not available")
 	}
 	if s.promptSetupDone == nil {
 		s.promptSetupDone = closedSignalChan()
@@ -568,7 +568,7 @@ func (s *Session) beginPromptSetup() (*AgentProcess, error) {
 		s.promptSetupDone = make(chan struct{})
 	}
 	s.promptSetupCount++
-	return s.process, nil
+	return nil
 }
 
 func (s *Session) beginExclusivePromptSetup() (*AgentProcess, error) {

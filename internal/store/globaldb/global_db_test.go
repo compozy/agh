@@ -169,7 +169,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(first) error = %v", err)
 	}
-	if got, want := len(firstRecords), 13; got != want {
+	if got, want := len(firstRecords), 14; got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
 	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
@@ -211,6 +211,9 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if firstRecords[12].Version != 13 || firstRecords[12].Name != "add_agent_heartbeat_storage" {
 		t.Fatalf("firstRecords[12] = %#v, want add_agent_heartbeat_storage v13", firstRecords[12])
 	}
+	if firstRecords[13].Version != 14 || firstRecords[13].Name != "add_event_summary_lineage" {
+		t.Fatalf("firstRecords[13] = %#v, want add_event_summary_lineage v14", firstRecords[13])
+	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
 	}
@@ -228,7 +231,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(second) error = %v", err)
 	}
-	if got, want := len(secondRecords), 13; got != want {
+	if got, want := len(secondRecords), 14; got != want {
 		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 	}
 	for i := range firstRecords {
@@ -1611,6 +1614,22 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 	assertTableColumns(
 		t,
 		globalDB.db,
+		"event_summaries",
+		[]string{
+			"id",
+			"session_id",
+			"type",
+			"agent_name",
+			"summary",
+			"timestamp",
+			"parent_session_id",
+			"root_session_id",
+			"spawn_depth",
+		},
+	)
+	assertTableColumns(
+		t,
+		globalDB.db,
 		"workspaces",
 		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "sandbox_ref", "created_at", "updated_at"},
 	)
@@ -1657,6 +1676,9 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 	}
 	if got, want := len(summaries), 1; got != want {
 		t.Fatalf("len(summaries) = %d, want %d", got, want)
+	}
+	if summaries[0].RootSessionID != "sess-legacy-a" || summaries[0].SpawnDepth != 0 {
+		t.Fatalf("migrated event summary lineage = %#v", summaries[0])
 	}
 }
 
@@ -1770,11 +1792,12 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	registerSessionForGlobalTests(t, globalDB, "sess-summary")
 
 	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
-		SessionID: "sess-summary",
-		Type:      "agent_message",
-		AgentName: "coder",
-		Summary:   "assistant replied",
-		Timestamp: time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+		SessionID:     "sess-summary",
+		Type:          "agent_message",
+		AgentName:     "coder",
+		RootSessionID: "sess-summary",
+		Summary:       "assistant replied",
+		Timestamp:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("WriteEventSummary() error = %v", err)
 	}
@@ -1788,6 +1811,9 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}
 	if summaries[0].Summary != "assistant replied" {
 		t.Fatalf("summaries[0].Summary = %q, want %q", summaries[0].Summary, "assistant replied")
+	}
+	if got, want := summaries[0].RootSessionID, "sess-summary"; got != want {
+		t.Fatalf("summaries[0].RootSessionID = %q, want %q", got, want)
 	}
 }
 
