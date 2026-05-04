@@ -86,7 +86,7 @@ export const SearchFilter: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const input = await canvas.findByTestId("skill-search-input");
-    await userEvent.type(input, "no-workarounds");
-    await expect(canvas.findByTestId("skill-item-no-workarounds")).resolves.toBeDefined();
+    await userEvent.type(input, "merchant-dispute");
+    await expect(canvas.findByTestId("skill-item-merchant-dispute-triage")).resolves.toBeDefined();
   },
 };

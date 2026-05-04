@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyAgentNames, storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { createAutomationTriggerDraft } from "@/systems/automation";
 
@@ -29,11 +30,11 @@ function AutomationTriggerFormHarness({
   const [draft, setDraft] = useState(
     initialDraft ?? {
       ...createAutomationTriggerDraft(activeWorkspaceId),
-      name: "qa-trigger-browser",
-      agent_name: "reviewer",
-      event: "ext.github.push",
-      filter: { "data.branch": "main" },
-      prompt: "Review the pushed branch {{ .Data.branch }}.",
+      name: "chargeback-spike",
+      agent_name: storyAgentNames.compliance,
+      event: "payments.chargeback.spike",
+      filter: { "data.rate": ">=0.018" },
+      prompt: "Review the chargeback spike for merchant {{ .Data.merchant_id }}.",
     }
   );
 
@@ -55,7 +56,7 @@ function AutomationTriggerFormHarness({
 }
 
 export const Default: Story = {
-  render: () => <AutomationTriggerFormHarness activeWorkspaceId="ws_storybook" />,
+  render: () => <AutomationTriggerFormHarness activeWorkspaceId={storyDefaultWorkspaceId} />,
 };
 
 export const ValidationState: Story = {

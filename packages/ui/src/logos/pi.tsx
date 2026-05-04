@@ -1,6 +1,13 @@
-export function PiLogo({ className }: { className?: string }) {
+import type { SVGProps } from "react";
+
+export function PiLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className || "w-8 h-8"}>
+    <svg
+      {...props}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className || "w-8 h-8"}
+    >
       <title>Pi Logo</title>
       <rect width="24" height="24" rx="6" fill="#1A1A1A" />
       <path

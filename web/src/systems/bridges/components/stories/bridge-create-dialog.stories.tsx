@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 
+import { storyDefaultWorkspaceId, storyDefaultWorkspaceName } from "@/storybook/fintech-scenario";
 import { createBridgeCreateDraft } from "@/systems/bridges";
 import { bridgeProvidersFixture } from "@/systems/bridges/mocks";
 
@@ -26,13 +27,13 @@ function BridgeCreateDialogHarness({
   onSubmit?: () => void;
 }) {
   const [draft, setDraft] = useState(
-    initialDraft ?? createBridgeCreateDraft(bridgeProvidersFixture, "ws_storybook")
+    initialDraft ?? createBridgeCreateDraft(bridgeProvidersFixture, storyDefaultWorkspaceId)
   );
 
   return (
     <BridgeCreateDialog
-      activeWorkspaceId="ws_storybook"
-      activeWorkspaceName="agh2"
+      activeWorkspaceId={storyDefaultWorkspaceId}
+      activeWorkspaceName={storyDefaultWorkspaceName}
       draft={draft}
       isPending={false}
       onDraftChange={setDraft}
@@ -52,7 +53,7 @@ export const InvalidProviderConfig: Story = {
   render: () => (
     <BridgeCreateDialogHarness
       initialDraft={{
-        ...createBridgeCreateDraft(bridgeProvidersFixture, "ws_storybook"),
+        ...createBridgeCreateDraft(bridgeProvidersFixture, storyDefaultWorkspaceId),
         providerConfigText: "{ invalid json",
       }}
     />

@@ -1,6 +1,9 @@
-export function SlackLogo({ className }: { className?: string }) {
+import type { SVGProps } from "react";
+
+export function SlackLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      {...props}
       enableBackground="new 0 0 2447.6 2452.5"
       viewBox="0 0 2447.6 2452.5"
       xmlns="http://www.w3.org/2000/svg"

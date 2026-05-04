@@ -1,14 +1,15 @@
-export function GithubLogo({
-  className,
-  variant = "invertocat",
-}: {
-  className?: string;
+import type { SVGProps } from "react";
+
+type GithubLogoProps = SVGProps<SVGSVGElement> & {
   variant?: "invertocat" | "wordmark" | "lockup";
-}) {
+};
+
+export function GithubLogo({ className, variant = "invertocat", ...props }: GithubLogoProps) {
   if (variant === "invertocat") {
     return (
       <svg
         role="img"
+        {...props}
         viewBox="0 0 97.6 96"
         xmlns="http://www.w3.org/2000/svg"
         className={className}
@@ -31,6 +32,7 @@ export function GithubLogo({
     return (
       <svg
         role="img"
+        {...props}
         viewBox="0 0 249.1 67.5"
         xmlns="http://www.w3.org/2000/svg"
         className={className}
@@ -64,6 +66,7 @@ export function GithubLogo({
     return (
       <svg
         role="img"
+        {...props}
         viewBox="0 0 367.4 90"
         xmlns="http://www.w3.org/2000/svg"
         className={className}

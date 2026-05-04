@@ -3,11 +3,17 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { storyAgentNames } from "@/storybook/fintech-scenario";
+import { agentFixtures } from "@/systems/agent/mocks";
+import { memoryHeadersFixture } from "@/systems/knowledge/mocks";
+import { networkChannelMessagesFixture, networkChannelsFixture } from "@/systems/network/mocks";
 import {
   multiHunkEditToolMessageFixture,
   sessionFixtures,
   uiMessageFixtures,
 } from "@/systems/session/mocks";
+import { skillFixtures } from "@/systems/skill/mocks";
+import { TASK_FIXTURES, taskDashboardFixture } from "@/systems/tasks/mocks";
 import { workspaceDetailFixture, workspaceFixtures } from "@/systems/workspace/mocks";
 
 describe("storybook story and fixture regressions", () => {
@@ -109,13 +115,15 @@ describe("storybook story and fixture regressions", () => {
       'import { knowledgeMemoryKey } from "@/systems/knowledge";'
     );
     expect(knowledgeListStory).toContain("memory-item-${knowledgeMemoryKey(defaultMemories[2])}");
+    expect(knowledgeListStory).toContain("Executive Risk Memo");
+    expect(knowledgeDetailStory).toContain("Own the launch outcome end to end.");
     expect(stylesSource).toContain("animation-duration: var(--duration-base);");
     expect(stylesSource).toContain("animation-timing-function: var(--ease-out);");
     expect(networkCreateDialogStory).toContain(
       'import { NetworkCreateChannelDialog } from "../network-create-channel-dialog";'
     );
     expect(networkCreateDialogStory).toContain(
-      'purpose: "Coordinate release handoffs and deploy verification.",'
+      'purpose: "Coordinate VIP merchant escalations between risk, support, and settlement partners.",'
     );
     expect(networkWorkspaceShellStory).toContain("NetworkWorkspaceShell");
     expect(networkWorkspaceShellStory).toContain("networkChannelMessagesFixture");
@@ -142,10 +150,35 @@ describe("storybook story and fixture regressions", () => {
     );
     expect(sessionFixturesSource).toContain('} from "@/systems/session/types";');
     expect(sessionFixturesSource).toContain('id: "tool_bash_result"');
+    expect(sessionFixturesSource).toContain(
+      "Summarize the launch blockers before the 18:30 UTC cutover."
+    );
+    expect(sessionFixturesSource).not.toContain("Storybook rollout");
     expect(workspaceFixturesSource).toContain(
       'import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace/types";'
     );
-    expect(workspaceFixturesSource).toContain('root_dir: "/workspaces/home"');
+    expect(workspaceFixturesSource).toContain("root_dir: storyWorkspacePaths.hq");
+    expect(workspaceFixturesSource).not.toContain("ws_storybook");
+    expect(workspaceFixturesSource).not.toContain("/workspaces/home");
+  });
+
+  it("keeps the launch-week fixtures dense and cross-functional", () => {
+    expect(agentFixtures.map(agent => agent.name)).toEqual(
+      expect.arrayContaining([
+        storyAgentNames.cto,
+        storyAgentNames.cfo,
+        storyAgentNames.frontend,
+        storyAgentNames.marketing,
+        storyAgentNames.copywriter,
+      ])
+    );
+    expect(sessionFixtures.length).toBeGreaterThanOrEqual(8);
+    expect(networkChannelsFixture.channels.length).toBeGreaterThanOrEqual(8);
+    expect(networkChannelMessagesFixture.length).toBeGreaterThanOrEqual(20);
+    expect(TASK_FIXTURES.length).toBeGreaterThanOrEqual(15);
+    expect(taskDashboardFixture.totals.tasks_total).toBe(TASK_FIXTURES.length);
+    expect(memoryHeadersFixture.length).toBeGreaterThanOrEqual(5);
+    expect(skillFixtures.length).toBeGreaterThanOrEqual(5);
   });
 
   it("keeps UI message fixture ids unique and workspace paths neutral", () => {
@@ -182,9 +215,11 @@ describe("storybook story and fixture regressions", () => {
     const newString = String(multiHunkEditToolMessageFixture.toolInput?.new_string ?? "");
 
     expect(oldString).not.toEqual(newString);
-    expect(oldString).toContain("export const Default = {};");
-    expect(newString).toContain("export const Default = { args: { state: 'default' } };");
-    expect(oldString).toContain("export const Streaming = {};");
-    expect(newString).toContain("export const Streaming = { args: { state: 'streaming' } };");
+    expect(oldString).toContain('-const heroSubhead = "Accept cards with no surprise fees.";');
+    expect(newString).toContain(
+      '+const heroSubhead = "Predictable processing for launch teams shipping across LATAM.";'
+    );
+    expect(oldString).toContain("-export const showLaunchFallbackBanner = false;");
+    expect(newString).toContain("+export const showLaunchFallbackBanner = true;");
   });
 });

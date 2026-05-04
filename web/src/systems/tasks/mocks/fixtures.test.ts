@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { storyAgentNames, storyCoordinatorAgentName } from "@/storybook/fintech-scenario";
 import { runIsCoordinated, taskHandoffActionKey, taskLifecyclePhase } from "../lib/task-formatters";
 import {
   awaitingApprovalTaskFixture,
@@ -38,17 +39,30 @@ describe("tasks fixtures cover the manual-first lifecycle states", () => {
 
   it("TASK_FIXTURES still cover user-created, running, failed, and approval states", () => {
     const statuses = TASK_FIXTURES.map(task => task.status);
+    const owners = TASK_FIXTURES.flatMap(task =>
+      task.owner?.kind === "agent_session" ? [task.owner.ref] : []
+    );
     expect(statuses).toEqual(
       expect.arrayContaining(["in_progress", "pending", "failed", "completed", "blocked", "ready"])
     );
+    expect(TASK_FIXTURES.length).toBeGreaterThanOrEqual(15);
     expect(TASK_FIXTURES.some(task => task.approval_state === "pending")).toBe(true);
     expect(TASK_FIXTURES.some(task => task.active_run?.status === "running")).toBe(true);
     expect(TASK_FIXTURES.some(task => task.active_run?.status === "failed")).toBe(true);
+    expect(owners).toEqual(
+      expect.arrayContaining([
+        storyAgentNames.product,
+        storyAgentNames.frontend,
+        storyAgentNames.cfo,
+        storyAgentNames.marketing,
+        storyAgentNames.copywriter,
+      ])
+    );
   });
 
   it("coordinatorEnabledWorkspaceFixture marks the workspace as coordinator-enabled", () => {
     expect(coordinatorEnabledWorkspaceFixture.coordinatorEnabled).toBe(true);
-    expect(coordinatorEnabledWorkspaceFixture.coordinatorAgentName).toBe("coordinator");
+    expect(coordinatorEnabledWorkspaceFixture.coordinatorAgentName).toBe(storyCoordinatorAgentName);
     expect(coordinatorEnabledWorkspaceFixture.defaultChannelDisplayName).toMatch(/coordination/i);
   });
 });

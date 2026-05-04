@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyAgentNames } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import type { MemoryHeader } from "@/systems/knowledge/types";
 
@@ -17,30 +18,30 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const defaultMemory: MemoryHeader = {
-  filename: "global/user-role.md",
+  filename: "global/operator-style.md",
   mod_time: "2026-04-17T17:30:00Z",
-  name: "User Role",
+  name: "Operator Style",
   type: "user",
-  description: "Guidance that shapes the assistant's tone and ownership.",
+  description: "Northstar guidance for concise, accountable operator communication.",
 };
 
 const workspaceMemory: MemoryHeader = {
-  filename: "workspace/project-context.md",
+  filename: "workspace/executive-risk-memo.md",
   mod_time: "2026-04-17T16:10:00Z",
-  name: "Project Context",
-  type: "project",
-  description: "Workspace-local notes about Storybook rollout decisions.",
-  agent_name: "codex-agent",
+  name: "Executive Risk Memo",
+  type: "reference",
+  description: "Workspace-local memo for launch blockers, fallback paths, and decision thresholds.",
+  agent_name: storyAgentNames.cto,
 };
 
 const defaultContent = [
-  "# User Role",
+  "# Operator Style",
   "",
-  "You own the outcome end to end.",
+  "Own the launch outcome end to end.",
   "",
-  "- Prefer direct fixes.",
-  "- Verify before handoff.",
-  "- Call out ambiguity explicitly.",
+  "- Lead with the current fact pattern and the next owner.",
+  "- Escalate ambiguity with the next concrete evidence request.",
+  "- Keep customer-facing language calm, specific, and launch-safe.",
 ].join("\n");
 
 export const Default: Story = {

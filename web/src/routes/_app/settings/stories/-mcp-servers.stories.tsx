@@ -3,6 +3,7 @@ import { delay, http, HttpResponse } from "msw";
 import { useEffect } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
+import { storyDefaultWorkspaceId, storyDefaultWorkspaceName } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -72,11 +73,13 @@ export const WorkspaceOverrides: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      await canvas.findByTestId("settings-page-mcp-servers-scope-workspace-ws_storybook")
+      await canvas.findByTestId(
+        `settings-page-mcp-servers-scope-workspace-${storyDefaultWorkspaceId}`
+      )
     );
     await expect(
       canvas.findByTestId("settings-page-mcp-servers-scope-label")
-    ).resolves.toHaveTextContent("agh2");
+    ).resolves.toHaveTextContent(storyDefaultWorkspaceName);
     await expect(canvas.findByTestId("settings-page-mcp-servers-empty")).resolves.toBeDefined();
   },
 };

@@ -12,7 +12,7 @@ const meta: Meta<typeof CopyButton> = {
   },
   args: {
     ariaLabel: "Copy transcript line",
-    text: "Storybook rollout is green.",
+    text: "Merchant NSP-1024 is cleared for payout release.",
   },
 };
 
@@ -63,7 +63,10 @@ function CopiedButtonHarness() {
 
   return (
     <div ref={containerRef}>
-      <CopyButton ariaLabel="Copy transcript line" text="Storybook rollout is green." />
+      <CopyButton
+        ariaLabel="Copy transcript line"
+        text="Merchant NSP-1024 is cleared for payout release."
+      />
     </div>
   );
 }

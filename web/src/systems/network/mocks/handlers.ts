@@ -163,7 +163,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({
       message: {
-        id: readOptionalString(body, "id") ?? "msg_storybook_sent",
+        id: readOptionalString(body, "id") ?? "msg_risk_ops_sent",
         session_id: sessionId,
         channel,
         kind,

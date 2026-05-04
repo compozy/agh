@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import {
+  storyAgentNames,
+  storySessionIds,
+  storyWorkspaceIds,
+  storyWorkspacePaths,
+} from "@/storybook/fintech-scenario";
 import { sessionFixtures } from "@/systems/session/mocks";
 import type { SessionPayload } from "@/systems/session/types";
 import { CenteredSurface } from "@/storybook/story-layout";
@@ -30,11 +36,11 @@ function Frame({ children }: FrameProps) {
   );
 }
 
-const codexSessions: SessionPayload[] = sessionFixtures.filter(
-  session => session.agent_name === "codex-agent"
+const fraudSessions: SessionPayload[] = sessionFixtures.filter(
+  session => session.agent_name === storyAgentNames.fraud
 );
 
-const richSessions: SessionPayload[] = codexSessions.map(session => ({
+const richSessions: SessionPayload[] = fraudSessions.map(session => ({
   ...session,
   activity: {
     elapsed_seconds: 1820,
@@ -48,12 +54,12 @@ const richSessions: SessionPayload[] = codexSessions.map(session => ({
 }));
 
 const fallbackRichSession: SessionPayload = {
-  id: "sess-storybook-base",
-  name: "Storybook rollout",
-  agent_name: "codex-agent",
-  provider: "codex",
-  workspace_id: "ws_storybook",
-  workspace_path: "/workspaces/agh2",
+  id: storySessionIds.fraud,
+  name: "Payout hold triage",
+  agent_name: storyAgentNames.fraud,
+  provider: "claude",
+  workspace_id: storyWorkspaceIds.risk,
+  workspace_path: storyWorkspacePaths.risk,
   state: "active",
   created_at: "2026-04-17T16:00:00Z",
   updated_at: "2026-04-17T18:10:00Z",

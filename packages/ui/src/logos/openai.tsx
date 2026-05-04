@@ -1,22 +1,27 @@
+import type { SVGProps } from "react";
+
 const COLORS = {
   dark: "#FFFFFF",
   light: "#000000",
+};
+
+type OpenAILogoProps = SVGProps<SVGSVGElement> & {
+  variant?: "icon" | "wordmark";
+  mode?: "dark" | "light";
 };
 
 export function OpenAILogo({
   className,
   variant = "icon",
   mode = "dark",
-}: {
-  className?: string;
-  variant?: "icon" | "wordmark";
-  mode?: "dark" | "light";
-}) {
+  ...props
+}: OpenAILogoProps) {
   const color = COLORS[mode];
 
   if (variant === "wordmark") {
     return (
       <svg
+        {...props}
         role="img"
         viewBox="0 0 1604 718"
         xmlns="http://www.w3.org/2000/svg"
@@ -49,7 +54,13 @@ export function OpenAILogo({
   }
 
   return (
-    <svg role="img" viewBox="0 0 721 721" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <svg
+      {...props}
+      role="img"
+      viewBox="0 0 721 721"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
       <title>OpenAI</title>
       <path
         fill={color}

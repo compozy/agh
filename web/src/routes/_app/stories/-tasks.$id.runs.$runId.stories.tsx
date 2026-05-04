@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 
+import { storyAgentNames, storyPeople, storySessionIds } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -49,11 +50,11 @@ export const Completed: Story = {
                 queued_at: "2026-04-17T09:58:00Z",
                 started_at: "2026-04-17T09:59:00Z",
                 ended_at: "2026-04-17T10:03:00Z",
-                origin: { kind: "cli", ref: "op" },
-                session_id: "sess-storybook",
-                idempotency_key: "storybook-run",
-                claimed_by: { kind: "agent_session", ref: "Coder" },
-                result: { status: "ok", summary: "Review posted." },
+                origin: { kind: "cli", ref: storyPeople.primaryOperator },
+                session_id: storySessionIds.fraud,
+                idempotency_key: "payout-review-run",
+                claimed_by: { kind: "agent_session", ref: storyAgentNames.fraud },
+                result: { status: "ok", summary: "Payout release summary posted." },
               },
             }),
           })
@@ -84,11 +85,11 @@ export const Failed: Story = {
                 queued_at: "2026-04-17T09:58:00Z",
                 started_at: "2026-04-17T09:59:00Z",
                 ended_at: "2026-04-17T10:02:00Z",
-                origin: { kind: "cli", ref: "op" },
-                session_id: "sess-storybook",
-                idempotency_key: "storybook-run",
-                claimed_by: { kind: "agent_session", ref: "Coder" },
-                error: "rate_limited: upstream returned 429",
+                origin: { kind: "cli", ref: storyPeople.primaryOperator },
+                session_id: storySessionIds.fraud,
+                idempotency_key: "payout-review-run",
+                claimed_by: { kind: "agent_session", ref: storyAgentNames.fraud },
+                error: "partner settlement export returned 429",
               },
             }),
           })
@@ -118,7 +119,7 @@ export const NoSession: Story = {
                 status: "queued",
                 queued_at: "2026-04-17T10:04:00Z",
                 started_at: null,
-                origin: { kind: "cli", ref: "op" },
+                origin: { kind: "cli", ref: storyPeople.primaryOperator },
                 session_id: undefined,
               },
               session: null,

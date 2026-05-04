@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
+import { storyAgentNames, storyDefaultWorkspaceName } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import type { CreateTaskDraftInput } from "@/hooks/routes/use-tasks-page";
 import { EMPTY_TASK_EDITOR_DRAFT, taskEditorDraftFromTask } from "../../lib/task-editor";
@@ -48,7 +49,7 @@ function CreateEditor(props: {
         task={null}
         template={template}
         templateId={templateId}
-        workspaceName="Polybot"
+        workspaceName={storyDefaultWorkspaceName}
       />
     </PanelSurface>
   );
@@ -64,8 +65,8 @@ const EDIT_TASK: TaskRecord = {
   origin: { kind: "web", ref: "op" },
   created_at: "2026-04-11T09:00:00Z",
   updated_at: "2026-04-11T09:00:00Z",
-  owner: { kind: "agent_session", ref: "Coder" },
-  description: "Pull CodeRabbit review on PR 341 and post a summary.",
+  owner: { kind: "agent_session", ref: storyAgentNames.fraud },
+  description: "Review reserve reasons, confirm settlement timing, and draft the operator summary.",
 } as unknown as TaskRecord;
 
 function EditEditor(props: { isSubmitting?: boolean }) {
@@ -80,7 +81,7 @@ function EditEditor(props: { isSubmitting?: boolean }) {
         onDraftChange={setDraft}
         onSubmit={() => undefined}
         task={EDIT_TASK}
-        workspaceName="Polybot"
+        workspaceName={storyDefaultWorkspaceName}
       />
     </PanelSurface>
   );
@@ -97,11 +98,12 @@ export const CreatePopulated: Story = {
     <CreateEditor
       initialDraft={{
         ...EMPTY_TASK_EDITOR_DRAFT,
-        title: "Generate API client for payments-v3",
-        description: "Generate a typed TypeScript client and wire it into payments integration.",
+        title: "Prepare VIP merchant callback for delayed settlement",
+        description:
+          "Draft the callback notes, reserve rationale, and next checkpoint for support.",
         priority: "high",
         ownerKind: "agent_session",
-        ownerRef: "Coder",
+        ownerRef: storyAgentNames.support,
         maxAttempts: 3,
       }}
     />
@@ -114,7 +116,7 @@ export const Submitting: Story = {
     <CreateEditor
       initialDraft={{
         ...EMPTY_TASK_EDITOR_DRAFT,
-        title: "Generate API client for payments-v3",
+        title: "Prepare VIP merchant callback for delayed settlement",
       }}
       isSubmitting
     />

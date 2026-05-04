@@ -1,6 +1,9 @@
-export function DiscordLogo({ className }: { className?: string }) {
+import type { SVGProps } from "react";
+
+export function DiscordLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      {...props}
       viewBox="0 0 256 199"
       width="256"
       height="199"

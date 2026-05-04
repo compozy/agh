@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 
+import { storyAgentNames, storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { createAutomationJobDraft, createAutomationTriggerDraft } from "@/systems/automation";
 import { AutomationEditorDialog } from "@/systems/automation/components/automation-editor-dialog";
 
@@ -17,12 +18,13 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function AutomationEditorJobHarness({ onSubmit = fn() }: { onSubmit?: () => void }) {
-  const activeWorkspaceId = "ws_storybook";
-  const [draft, setDraft] = useState(() => ({
+  const activeWorkspaceId = storyDefaultWorkspaceId;
+  const [draft, setDraft] = useState<ReturnType<typeof createAutomationJobDraft>>(() => ({
     ...createAutomationJobDraft(activeWorkspaceId),
-    name: "nightly-docs",
-    agent_name: "reviewer",
-    prompt: "Review open stories and summarize risks.",
+    name: "launch-command-digest",
+    agent_name: storyAgentNames.product,
+    prompt:
+      "Summarize launch blockers, approvals, and the next cutover milestone for the launch room.",
   }));
 
   return (
@@ -34,7 +36,7 @@ function AutomationEditorJobHarness({ onSubmit = fn() }: { onSubmit?: () => void
         kind: "jobs",
         mode: "create",
         onCancel: () => undefined,
-        onChange: setDraft,
+        onChange: nextDraft => setDraft(nextDraft),
         onSubmit,
       }}
     />
@@ -42,13 +44,14 @@ function AutomationEditorJobHarness({ onSubmit = fn() }: { onSubmit?: () => void
 }
 
 function AutomationEditorTriggerHarness({ onSubmit = fn() }: { onSubmit?: () => void }) {
-  const activeWorkspaceId = "ws_storybook";
-  const [draft, setDraft] = useState(() => ({
+  const activeWorkspaceId = storyDefaultWorkspaceId;
+  const [draft, setDraft] = useState<ReturnType<typeof createAutomationTriggerDraft>>(() => ({
     ...createAutomationTriggerDraft(activeWorkspaceId),
-    name: "push-review",
-    agent_name: "reviewer",
-    event: "ext.github.push",
-    prompt: "Review push event {{ .Data.branch }}.",
+    name: "support-sla-breach",
+    agent_name: storyAgentNames.support,
+    event: "support.launch.sla_breach",
+    filter: { "data.sla_minutes": ">=4" },
+    prompt: "Investigate the launch support lane when SLA exceeds {{ .Data.sla_minutes }} minutes.",
   }));
 
   return (
@@ -60,7 +63,7 @@ function AutomationEditorTriggerHarness({ onSubmit = fn() }: { onSubmit?: () => 
         kind: "triggers",
         mode: "edit",
         onCancel: () => undefined,
-        onChange: setDraft,
+        onChange: nextDraft => setDraft(nextDraft),
         onSubmit,
       }}
     />

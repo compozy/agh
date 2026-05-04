@@ -22,9 +22,9 @@ const defaultBridges: BridgeSummary[] = [
   ...bridgesListFixture.bridges,
   {
     ...bridgesListFixture.bridges[0],
-    display_name: "Ops slack",
+    display_name: "Fraud alerts",
     extension_name: "ext-slack",
-    id: "brg_ops_slack",
+    id: "brg_fraud_alerts",
     platform: "slack",
     scope: "global",
     status: "ready",

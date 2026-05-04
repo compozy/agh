@@ -15,6 +15,12 @@ import type {
   SettingsRestartStatus,
   SettingsSkillsSection,
 } from "@/systems/settings";
+import {
+  storyAgentNames,
+  storyCompany,
+  storyHeroNetworkChannel,
+  storyWorkspacePaths,
+} from "@/storybook/fintech-scenario";
 
 export const settingsGeneralSectionFixture: SettingsGeneralSection = {
   section: "general",
@@ -25,7 +31,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
   },
   config: {
     daemon: { socket: "/tmp/agh.sock" },
-    defaults: { agent: "general", provider: "claude", sandbox: "local" },
+    defaults: { agent: storyAgentNames.product, provider: "claude", sandbox: "local" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_sessions: 10, max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" },
@@ -57,7 +63,7 @@ export const settingsNetworkSectionFixture: SettingsNetworkSection = {
   config: {
     enabled: true,
     port: 4222,
-    default_channel: "agh",
+    default_channel: storyHeroNetworkChannel,
     greet_interval: 30,
     max_payload: 131072,
     max_queue_depth: 1024,
@@ -119,7 +125,7 @@ export const settingsMemorySectionFixture: SettingsMemorySection = {
   },
   config: {
     dream: {
-      agent: "general",
+      agent: storyAgentNames.compliance,
       check_interval: "30m",
       enabled: true,
       min_hours: 24,
@@ -178,9 +184,9 @@ export const settingsSkillsSectionFixture: SettingsSkillsSection = {
     poll_interval: "5m",
     marketplace: {
       registry: "agh",
-      base_url: "https://registry.example.com",
+      base_url: storyCompany.registryBaseUrl,
     },
-    allowed_marketplace_mcp: ["mcp-one"],
+    allowed_marketplace_mcp: ["merchant-docs"],
     allowed_marketplace_hooks: [],
   },
   links: [{ label: "skills", path: "/skills" }],
@@ -191,7 +197,7 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
   scope: "global",
   available_scopes: ["global"],
   config: {
-    marketplace: { registry: "github", base_url: "https://api.github.com" },
+    marketplace: { registry: "northstar", base_url: storyCompany.hooksMarketplaceBaseUrl },
     resources: {
       allowed_kinds: ["snapshot", "artifact"],
       max_scope: "workspace",
@@ -224,7 +230,7 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
         mode: "async",
         command: "node",
         args: ["./hooks/slack.js"],
-        matcher: { agent_name: "coder" },
+        matcher: { agent_name: storyAgentNames.support },
         required: false,
       },
       source_metadata: {
@@ -263,27 +269,21 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       display_name: "Claude Code",
       default_model: "claude-sonnet-4-6",
       harness: "acp",
-      credential_slots: [
-        {
-          name: "api_key",
-          target_env: "ANTHROPIC_API_KEY",
-          secret_ref: "env:ANTHROPIC_API_KEY",
-          kind: "api_key",
-          required: false,
-        },
-      ],
+      auth_mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
+      auth_status_command: "claude auth status",
+      auth_login_command: "claude login",
     },
-    credentials: [
-      {
-        name: "api_key",
-        target_env: "ANTHROPIC_API_KEY",
-        secret_ref: "env:ANTHROPIC_API_KEY",
-        kind: "api_key",
-        required: false,
-        present: true,
-        source: "env",
-      },
-    ],
+    auth_status: {
+      mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
+      state: "native_cli",
+      message: "Provider owns authentication through its native CLI login state.",
+      status_command: "claude auth status",
+      login_command: "claude login",
+    },
     source_metadata: {
       available_targets: ["global-config"],
       effective_source: { kind: "global-config", scope: "global" },
@@ -293,6 +293,9 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       settings: {
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
         default_model: "claude-sonnet-4-6",
+        auth_mode: "native_cli",
+        env_policy: "filtered",
+        home_policy: "operator",
       },
       source: { kind: "builtin-provider", scope: "global" },
     },
@@ -305,27 +308,21 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       command: "npx -y @zed-industries/codex-acp@latest",
       default_model: "gpt-5.4",
       harness: "acp",
-      credential_slots: [
-        {
-          name: "api_key",
-          target_env: "OPENAI_API_KEY",
-          secret_ref: "env:OPENAI_API_KEY",
-          kind: "api_key",
-          required: false,
-        },
-      ],
+      auth_mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
+      auth_status_command: "codex auth status",
+      auth_login_command: "codex login",
     },
-    credentials: [
-      {
-        name: "api_key",
-        target_env: "OPENAI_API_KEY",
-        secret_ref: "env:OPENAI_API_KEY",
-        kind: "api_key",
-        required: false,
-        present: false,
-        source: "env",
-      },
-    ],
+    auth_status: {
+      mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
+      state: "native_cli",
+      message: "Provider owns authentication through its native CLI login state.",
+      status_command: "codex auth status",
+      login_command: "codex login",
+    },
     source_metadata: {
       available_targets: ["global-config"],
       effective_source: { kind: "builtin-provider", scope: "global" },
@@ -341,25 +338,35 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       default_model: "openai/gpt-5.4",
       harness: "pi_acp",
       runtime_provider: "openrouter",
+      auth_mode: "bound_secret",
+      env_policy: "filtered",
+      home_policy: "operator",
       credential_slots: [
         {
           name: "api_key",
           target_env: "OPENROUTER_API_KEY",
-          secret_ref: "vault:providers/openrouter/api-key",
+          secret_ref: "env:OPENROUTER_API_KEY",
           kind: "api_key",
           required: true,
         },
       ],
     },
+    auth_status: {
+      mode: "bound_secret",
+      env_policy: "filtered",
+      home_policy: "operator",
+      state: "missing_required",
+      message: "Missing required AGH-managed provider credential.",
+    },
     credentials: [
       {
         name: "api_key",
         target_env: "OPENROUTER_API_KEY",
-        secret_ref: "vault:providers/openrouter/api-key",
+        secret_ref: "env:OPENROUTER_API_KEY",
         kind: "api_key",
         required: true,
         present: false,
-        source: "vault",
+        source: "env",
       },
     ],
     source_metadata: {
@@ -375,27 +382,17 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       command: "blackbox --experimental-acp",
       display_name: "BLACKBOX AI",
       harness: "acp",
-      credential_slots: [
-        {
-          name: "api_key",
-          target_env: "BLACKBOX_API_KEY",
-          secret_ref: "env:BLACKBOX_API_KEY",
-          kind: "api_key",
-          required: false,
-        },
-      ],
+      auth_mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
     },
-    credentials: [
-      {
-        name: "api_key",
-        target_env: "BLACKBOX_API_KEY",
-        secret_ref: "env:BLACKBOX_API_KEY",
-        kind: "api_key",
-        required: false,
-        present: false,
-        source: "env",
-      },
-    ],
+    auth_status: {
+      mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
+      state: "native_cli",
+      message: "Provider owns authentication through its native CLI login state.",
+    },
     source_metadata: {
       available_targets: ["global-config"],
       effective_source: { kind: "builtin-provider", scope: "global" },
@@ -453,27 +450,17 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       command: "kimi acp",
       display_name: "Kimi CLI",
       harness: "acp",
-      credential_slots: [
-        {
-          name: "api_key",
-          target_env: "KIMI_API_KEY",
-          secret_ref: "env:KIMI_API_KEY",
-          kind: "api_key",
-          required: false,
-        },
-      ],
+      auth_mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
     },
-    credentials: [
-      {
-        name: "api_key",
-        target_env: "KIMI_API_KEY",
-        secret_ref: "env:KIMI_API_KEY",
-        kind: "api_key",
-        required: false,
-        present: false,
-        source: "env",
-      },
-    ],
+    auth_status: {
+      mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
+      state: "native_cli",
+      message: "Provider owns authentication through its native CLI login state.",
+    },
     source_metadata: {
       available_targets: ["global-config"],
       effective_source: { kind: "builtin-provider", scope: "global" },
@@ -507,27 +494,17 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       command: "npx -y @qoder-ai/qodercli@latest --acp",
       display_name: "Qoder CLI",
       harness: "acp",
-      credential_slots: [
-        {
-          name: "api_key",
-          target_env: "QODER_PERSONAL_ACCESS_TOKEN",
-          secret_ref: "env:QODER_PERSONAL_ACCESS_TOKEN",
-          kind: "api_key",
-          required: false,
-        },
-      ],
+      auth_mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
     },
-    credentials: [
-      {
-        name: "api_key",
-        target_env: "QODER_PERSONAL_ACCESS_TOKEN",
-        secret_ref: "env:QODER_PERSONAL_ACCESS_TOKEN",
-        kind: "api_key",
-        required: false,
-        present: false,
-        source: "env",
-      },
-    ],
+    auth_status: {
+      mode: "native_cli",
+      env_policy: "filtered",
+      home_policy: "operator",
+      state: "native_cli",
+      message: "Provider owns authentication through its native CLI login state.",
+    },
     source_metadata: {
       available_targets: ["global-config"],
       effective_source: { kind: "builtin-provider", scope: "global" },
@@ -586,7 +563,7 @@ export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
     name: "filesystem",
     transport: "stdio",
     command: "npx -y @modelcontextprotocol/server-filesystem",
-    args: ["~/Dev"],
+    args: [storyWorkspacePaths.risk],
     scope: "global",
     source_metadata: {
       available_targets: ["global-mcp-sidecar", "global-config"],
@@ -646,14 +623,14 @@ export const settingsExtensionsCollectionFixture = {
 };
 
 export const settingsRestartResponseFixture: SettingsRestartResponse = {
-  operation_id: "restart_storybook",
+  operation_id: "restart_northstar_pay",
   status: "pending",
   active_session_count: 2,
-  status_url: "/api/settings/actions/restart/restart_storybook",
+  status_url: "/api/settings/actions/restart/restart_northstar_pay",
 };
 
 export const settingsRestartStatusFixture: SettingsRestartStatus = {
-  operation_id: "restart_storybook",
+  operation_id: "restart_northstar_pay",
   status: "ready",
   active_session_count: 0,
   old_pid: 1000,

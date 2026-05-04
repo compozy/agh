@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyDefaultWorkspaceName } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import {
   bridgeDetailFixture,
@@ -35,7 +36,7 @@ export const Default: Story = {
         routes={bridgeRoutesFixture}
         secretBindings={bridgeSecretBindingsFixture}
         secretInputValues={{ bot_token: "telegram-token" }}
-        workspaceName="agh2"
+        workspaceName={storyDefaultWorkspaceName}
       />
     </PanelSurface>
   ),
@@ -59,7 +60,7 @@ export const Disabled: Story = {
         routes={[]}
         secretBindings={bridgeSecretBindingsFixture}
         secretInputValues={{ bot_token: "telegram-token" }}
-        workspaceName="agh2"
+        workspaceName={storyDefaultWorkspaceName}
       />
     </PanelSurface>
   ),
@@ -79,7 +80,7 @@ export const NoRoutes: Story = {
         routes={[]}
         secretBindings={bridgeSecretBindingsFixture}
         secretInputValues={{ bot_token: "telegram-token" }}
-        workspaceName="agh2"
+        workspaceName={storyDefaultWorkspaceName}
       />
     </PanelSurface>
   ),

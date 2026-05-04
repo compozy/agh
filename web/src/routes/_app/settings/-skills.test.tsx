@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { storyCompany } from "@/storybook/fintech-scenario";
+
 const envelope = {
   section: "skills" as const,
   scope: "global" as const,
@@ -15,7 +17,7 @@ const envelope = {
     poll_interval: "5m",
     marketplace: {
       registry: "agh",
-      base_url: "https://registry.example.com",
+      base_url: storyCompany.registryBaseUrl,
     },
     allowed_marketplace_mcp: ["mcp-one"],
     allowed_marketplace_hooks: [],
@@ -167,7 +169,7 @@ describe("SkillsSettingsPage", () => {
       "agh"
     );
     expect(screen.getByTestId("settings-page-skills-marketplace-base-url-input")).toHaveValue(
-      "https://registry.example.com"
+      storyCompany.registryBaseUrl
     );
     expect(screen.getByTestId("settings-page-skills-allowed-mcp-input")).toHaveValue("mcp-one");
   });

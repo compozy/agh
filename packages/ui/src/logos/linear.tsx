@@ -1,7 +1,6 @@
-import { useId } from "react";
+import { useId, type SVGProps } from "react";
 
-interface LinearLogoProps {
-  className?: string;
+interface LinearLogoProps extends SVGProps<SVGSVGElement> {
   variant?: "icon" | "logo" | "wordmark";
   mode?: "dark" | "light";
 }
@@ -24,7 +23,12 @@ const COLORS = {
  * - Provide plenty of space around logo assets
  * - Monochrome usage preferred with brand colors
  */
-export function LinearLogo({ className, variant = "logo", mode = "dark" }: LinearLogoProps) {
+export function LinearLogo({
+  className,
+  variant = "logo",
+  mode = "dark",
+  ...props
+}: LinearLogoProps) {
   const color = COLORS[mode];
   const idPrefix = `linear-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const iconId = (suffix: string) => `${idPrefix}-${suffix}`;
@@ -32,6 +36,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
   if (variant === "icon") {
     return (
       <svg
+        {...props}
         className={className}
         xmlns="http://www.w3.org/2000/svg"
         width="256"
@@ -282,6 +287,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
   if (variant === "logo") {
     return (
       <svg
+        {...props}
         className={className}
         xmlns="http://www.w3.org/2000/svg"
         fill={color}
@@ -298,6 +304,7 @@ export function LinearLogo({ className, variant = "logo", mode = "dark" }: Linea
   // Default: wordmark
   return (
     <svg
+      {...props}
       className={className}
       xmlns="http://www.w3.org/2000/svg"
       width="400"

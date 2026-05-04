@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyAgentNames, storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import type { TaskRunDetailView } from "../../types";
 import { TaskRunDetailHeader } from "../task-run-detail-header";
@@ -30,15 +31,15 @@ function buildRun(overrides: Partial<TaskRunDetailView> = {}): TaskRunDetailView
       started_at: "2026-04-11T14:37:45Z",
       origin: { kind: "cli", ref: "op" },
       session_id: "sess_jf8d21",
-      idempotency_key: "pr-341-review",
-      claimed_by: { kind: "agent_session", ref: "Coder" },
+      idempotency_key: "payout-review-run",
+      claimed_by: { kind: "agent_session", ref: storyAgentNames.fraud },
     },
     task: {
       id: "task_001",
       identifier: "TASK-42",
       status: "in_progress",
       scope: "workspace",
-      title: "Summarize review feedback",
+      title: "Review payout holds for top LATAM merchants",
     },
     summary: {
       last_activity_at: "2026-04-11T14:40:45Z",
@@ -55,8 +56,8 @@ function buildRun(overrides: Partial<TaskRunDetailView> = {}): TaskRunDetailView
       session_id: "sess_jf8d21",
       created_at: "2026-04-11T14:30:00Z",
       updated_at: "2026-04-11T14:40:45Z",
-      agent_name: "Coder",
-      workspace_id: "ws_alpha",
+      agent_name: storyAgentNames.fraud,
+      workspace_id: storyDefaultWorkspaceId,
       state: "active",
     },
     ...overrides,
@@ -91,7 +92,7 @@ export const Completed: Story = {
           ...buildRun().run,
           status: "completed",
           ended_at: "2026-04-11T14:45:45Z",
-          result: { status: "ok", summary: "Review posted." },
+          result: { status: "ok", summary: "Payout release summary posted." },
         },
       } as Partial<TaskRunDetailView>)}
     />
@@ -107,7 +108,7 @@ export const Failed: Story = {
           ...buildRun().run,
           status: "failed",
           ended_at: "2026-04-11T14:43:00Z",
-          error: "rate_limited: upstream returned 429",
+          error: "partner settlement export returned 429",
         },
       } as Partial<TaskRunDetailView>)}
     />

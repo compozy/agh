@@ -1,6 +1,9 @@
-export function VercelLogo({ className }: { className?: string }) {
+import type { SVGProps } from "react";
+
+export function VercelLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
+      {...props}
       viewBox="0 0 256 222"
       width="256"
       height="222"

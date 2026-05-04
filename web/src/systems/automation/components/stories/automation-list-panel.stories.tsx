@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
+import { storyDefaultWorkspaceName } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 import { automationJobFixtures, automationTriggerFixtures } from "@/systems/automation/mocks";
@@ -60,7 +61,7 @@ export const TriggersDefault: Story = {
   render: () => (
     <PanelSurface className="max-w-[340px]">
       <AutomationListPanel
-        activeWorkspaceName="storybook"
+        activeWorkspaceName={storyDefaultWorkspaceName}
         jobs={automationJobFixtures}
         kind="triggers"
         onSearchChange={fn()}
@@ -79,7 +80,7 @@ export const TriggersEmpty: Story = {
   render: () => (
     <PanelSurface className="max-w-[340px]">
       <AutomationListPanel
-        activeWorkspaceName="storybook"
+        activeWorkspaceName={storyDefaultWorkspaceName}
         jobs={[]}
         kind="triggers"
         onSearchChange={fn()}
@@ -101,7 +102,9 @@ export const SearchFilter: Story = {
     const canvas = within(canvasElement);
     const search = await canvas.findByTestId("automation-search-input");
     await userEvent.clear(search);
-    await userEvent.type(search, "daily");
-    await expect(canvas.findByTestId("automation-item-job_daily_review")).resolves.toBeDefined();
+    await userEvent.type(search, "payout");
+    await expect(
+      canvas.findByTestId("automation-item-job_payout_watchlist")
+    ).resolves.toBeDefined();
   },
 };

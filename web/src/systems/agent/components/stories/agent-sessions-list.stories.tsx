@@ -1,39 +1,48 @@
 import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import {
+  storyAgentNames,
+  storySessionIds,
+  storyWorkspaceIds,
+  storyWorkspacePaths,
+} from "@/storybook/fintech-scenario";
 import { sessionFixtures } from "@/systems/session/mocks";
 import type { SessionPayload } from "@/systems/session/types";
 import { PanelSurface } from "@/storybook/story-layout";
 
 import { AgentSessionsList } from "../agent-sessions-list";
 
-const codexSessions: SessionPayload[] = sessionFixtures.filter(
-  session => session.agent_name === "codex-agent"
+const fraudSessions: SessionPayload[] = sessionFixtures.filter(
+  session => session.agent_name === storyAgentNames.fraud
 );
 
-const fallbackCodexSession: SessionPayload = {
-  id: "sess-storybook-base",
-  name: "Storybook rollout",
-  agent_name: "codex-agent",
-  provider: "codex",
-  workspace_id: "ws_storybook",
-  workspace_path: "/workspaces/agh2",
+const fallbackFraudSession: SessionPayload = {
+  id: storySessionIds.fraud,
+  name: "Payout hold triage",
+  agent_name: storyAgentNames.fraud,
+  provider: "claude",
+  workspace_id: storyWorkspaceIds.risk,
+  workspace_path: storyWorkspacePaths.risk,
   state: "active",
   created_at: "2026-04-17T16:00:00Z",
   updated_at: "2026-04-17T18:10:00Z",
 };
 
-const failureBaseSession = codexSessions[0] ?? fallbackCodexSession;
+const failureBaseSession = fraudSessions[0] ?? fallbackFraudSession;
 
-const codexSessionsWithFailure: SessionPayload[] = [
-  ...codexSessions,
+const fraudSessionsWithFailure: SessionPayload[] = [
+  ...fraudSessions,
   {
     ...failureBaseSession,
-    id: "sess-storybook-failed",
-    name: "Failed verification",
+    id: "sess_fraud_failed",
+    name: "Settlement export retry",
     state: "stopped",
     stop_reason: "agent_crashed",
-    failure: { kind: "agent_crashed", summary: "agent terminated unexpectedly" },
+    failure: {
+      kind: "agent_crashed",
+      summary: "partner settlement export terminated unexpectedly",
+    },
     activity: {
       elapsed_seconds: 142,
       idle_seconds: 0,
@@ -55,8 +64,8 @@ const meta: Meta<typeof AgentSessionsList> = {
     router: { kind: "stub" as const },
   },
   args: {
-    agentName: "codex-agent",
-    sessions: codexSessions,
+    agentName: storyAgentNames.fraud,
+    sessions: fraudSessions,
     isLoading: false,
     isError: false,
   },
@@ -93,7 +102,7 @@ export const Default: Story = {
  * One session has a failure payload — surfaces the FAILED chip via the danger tone.
  */
 export const WithFailure: Story = {
-  args: { sessions: codexSessionsWithFailure },
+  args: { sessions: fraudSessionsWithFailure },
   render: args => (
     <Frame>
       <AgentSessionsList {...args} />

@@ -1,6 +1,11 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import {
+  storyAgentNames,
+  storyChannels,
+  storyDefaultWorkspaceName,
+} from "@/storybook/fintech-scenario";
 import { createNetworkChannelDraft } from "@/systems/network";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { agentFixtures } from "@/systems/agent/mocks";
@@ -25,11 +30,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessage?: string }) {
-  const [draft, setDraft] = useState({
+  const [draft, setDraft] = useState<ReturnType<typeof createNetworkChannelDraft>>({
     ...createNetworkChannelDraft(),
-    channelName: "deployments",
-    purpose: "Coordinate release handoffs and deploy verification.",
-    selectedAgentNames: [agentFixtures[0].name, agentFixtures[1].name],
+    channelName: storyChannels.merchantEscalations,
+    purpose: "Coordinate VIP merchant escalations between risk, support, and settlement partners.",
+    selectedAgentNames: [storyAgentNames.support, storyAgentNames.compliance],
   });
 
   return (
@@ -57,7 +62,7 @@ function NetworkCreateChannelDialogHarness({ conflictMessage }: { conflictMessag
           }))
         }
         open
-        workspaceName="agh2"
+        workspaceName={storyDefaultWorkspaceName}
       />
     </CenteredSurface>
   );

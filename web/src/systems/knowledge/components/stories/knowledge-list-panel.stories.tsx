@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
+import { storyAgentNames } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import { knowledgeMemoryKey } from "@/systems/knowledge";
 import type { KnowledgeMemoryItem } from "@/systems/knowledge/types";
@@ -20,41 +21,43 @@ type Story = StoryObj<typeof meta>;
 
 const defaultMemories: KnowledgeMemoryItem[] = [
   {
-    filename: "user-role.md",
-    key: "global:user-role.md",
+    filename: "operator-style.md",
+    key: "global:operator-style.md",
     mod_time: "2026-04-17T17:30:00Z",
-    name: "User Role",
+    name: "Operator Style",
     scope: "global",
     type: "user",
-    description: "Guidance that shapes the assistant's tone and ownership.",
+    description: "Northstar guidance for concise, accountable operator communication.",
   },
   {
-    filename: "feedback-testing.md",
-    key: "global:feedback-testing.md",
+    filename: "launch-week-brief.md",
+    key: "global:launch-week-brief.md",
     mod_time: "2026-04-17T09:00:00Z",
-    name: "Testing Feedback",
+    name: "Launch Week Brief",
     scope: "global",
-    type: "feedback",
-    description: "Always keep the real database in integration tests.",
-  },
-  {
-    filename: "project-context.md",
-    key: "workspace:project-context.md",
-    mod_time: "2026-04-17T16:10:00Z",
-    name: "Project Context",
-    scope: "workspace",
     type: "project",
-    description: "Workspace-local notes about Storybook rollout decisions.",
-    agent_name: "codex-agent",
+    description: "Shared context for launch KPIs, cutover timing, and cross-functional owners.",
   },
   {
-    filename: "release-checklist.md",
-    key: "workspace:release-checklist.md",
-    mod_time: "2026-04-17T14:45:00Z",
-    name: "Release Checklist",
+    filename: "executive-risk-memo.md",
+    key: "workspace:executive-risk-memo.md",
+    mod_time: "2026-04-17T16:10:00Z",
+    name: "Executive Risk Memo",
     scope: "workspace",
     type: "reference",
-    description: "Operational checklist for release verification.",
+    description:
+      "Workspace-local memo with launch blockers, fallback paths, and decision thresholds.",
+    agent_name: storyAgentNames.cto,
+  },
+  {
+    filename: "support-macro-pack.md",
+    key: "workspace:support-macro-pack.md",
+    mod_time: "2026-04-17T14:45:00Z",
+    name: "Support Macro Pack",
+    scope: "workspace",
+    type: "reference",
+    description:
+      "Approved language for pricing questions, launch delays, and high-touch merchant callbacks.",
   },
 ];
 
@@ -179,8 +182,8 @@ export const SearchFilter: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const input = await canvas.findByTestId("knowledge-search-input");
-    await userEvent.type(input, "project");
-    await expect(input).toHaveValue("project");
+    await userEvent.type(input, "launch");
+    await expect(input).toHaveValue("launch");
   },
 };
 

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { storyWorkspacePaths } from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
 import { sessionFixtures } from "@/systems/session/mocks";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
@@ -118,26 +119,26 @@ export const ManyWorkspaces: Story = {
     workspaces: [
       ...workspaceFixtures,
       {
-        id: "ws_research",
-        root_dir: "/workspaces/research",
+        id: "ws_merchant_success",
+        root_dir: "/workspaces/northstar-pay/merchant-success",
         add_dirs: [],
-        name: "research",
+        name: "merchant-success",
         created_at: "2026-04-13T09:00:00Z",
         updated_at: "2026-04-17T10:00:00Z",
       },
       {
-        id: "ws_ops",
-        root_dir: "/workspaces/ops",
+        id: "ws_partner_ops",
+        root_dir: "/workspaces/northstar-pay/partner-ops",
         add_dirs: [],
-        name: "ops",
+        name: "partner-ops",
         created_at: "2026-04-10T09:00:00Z",
         updated_at: "2026-04-17T10:05:00Z",
       },
       {
-        id: "ws_docs",
-        root_dir: "/workspaces/docs",
-        add_dirs: [],
-        name: "docs",
+        id: "ws_collections_lab",
+        root_dir: "/workspaces/northstar-pay/collections-lab",
+        add_dirs: [storyWorkspacePaths.sharedPolicies],
+        name: "collections-lab",
         created_at: "2026-04-12T09:00:00Z",
         updated_at: "2026-04-17T10:10:00Z",
       },

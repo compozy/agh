@@ -1,6 +1,13 @@
-export function TelegramLogo({ className }: { className?: string }) {
+import type { SVGProps } from "react";
+
+export function TelegramLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className || "w-8 h-8"}>
+    <svg
+      {...props}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className || "w-8 h-8"}
+    >
       <title>Telegram Logo</title>
       <circle cx="12" cy="12" r="12" fill="#26A5E4" />
       <path

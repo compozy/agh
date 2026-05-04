@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { storyCompany } from "@/storybook/fintech-scenario";
+
 vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => () => false,
 }));
@@ -36,7 +38,7 @@ const skillsEnvelope: SettingsSkillsSection = {
     poll_interval: "5m",
     marketplace: {
       registry: "agh",
-      base_url: "https://registry.example.com",
+      base_url: storyCompany.registryBaseUrl,
     },
     allowed_marketplace_mcp: [],
     allowed_marketplace_hooks: [],

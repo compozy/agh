@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ClaudeLogo } from "./claude";
 import { GeminiLogo } from "./gemini";
 import { LinearLogo } from "./linear";
+import { OpenAILogo } from "./openai";
 
 function getIds(container: HTMLElement, selector: string) {
   return Array.from(container.querySelectorAll<SVGElement>(selector), element => element.id);
@@ -37,6 +38,19 @@ describe("GeminiLogo", () => {
 });
 
 describe("LinearLogo", () => {
+  it("forwards decorative SVG props to every variant", () => {
+    for (const variant of ["icon", "logo", "wordmark"] as const) {
+      const { container, unmount } = render(
+        <LinearLogo variant={variant} aria-hidden="true" data-testid={`linear-${variant}`} />
+      );
+
+      const svg = container.querySelector("svg");
+      expect(svg).toHaveAttribute("aria-hidden", "true");
+      expect(svg).toHaveAttribute("data-testid", `linear-${variant}`);
+      unmount();
+    }
+  });
+
   it("namespaces icon defs per render", () => {
     const { container } = render(
       <>
@@ -49,5 +63,20 @@ describe("LinearLogo", () => {
 
     expect(ids.length).toBeGreaterThan(0);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("OpenAILogo", () => {
+  it("forwards decorative SVG props to every variant", () => {
+    for (const variant of ["icon", "wordmark"] as const) {
+      const { container, unmount } = render(
+        <OpenAILogo variant={variant} aria-hidden="true" data-testid={`openai-${variant}`} />
+      );
+
+      const svg = container.querySelector("svg");
+      expect(svg).toHaveAttribute("aria-hidden", "true");
+      expect(svg).toHaveAttribute("data-testid", `openai-${variant}`);
+      unmount();
+    }
   });
 });

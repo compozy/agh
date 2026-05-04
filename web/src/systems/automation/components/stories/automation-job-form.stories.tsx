@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyAgentNames, storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { createAutomationJobDraft } from "@/systems/automation";
 
@@ -29,9 +30,9 @@ function AutomationJobFormHarness({
   const [draft, setDraft] = useState(
     initialDraft ?? {
       ...createAutomationJobDraft(activeWorkspaceId),
-      name: "nightly-docs",
-      agent_name: "reviewer",
-      prompt: "Review open stories and summarize risks.",
+      name: "payout-watchlist",
+      agent_name: storyAgentNames.fraud,
+      prompt: "Review payout holds above the reserve threshold and draft the operator summary.",
     }
   );
 
@@ -53,7 +54,7 @@ function AutomationJobFormHarness({
 }
 
 export const Default: Story = {
-  render: () => <AutomationJobFormHarness activeWorkspaceId="ws_storybook" />,
+  render: () => <AutomationJobFormHarness activeWorkspaceId={storyDefaultWorkspaceId} />,
 };
 
 export const ValidationState: Story = {

@@ -5,6 +5,7 @@ import { useSidebarStore } from "@/hooks/use-sidebar-store";
 import type { SettingsSectionName } from "@/systems/settings";
 import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
+import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 
 export function StorybookRouteCanvas() {
   return null;
@@ -39,7 +40,7 @@ export function appRouteParameters(path: string) {
 }
 
 export function StorybookWorkspaceSetup({
-  workspaceId = "ws_storybook",
+  workspaceId = storyDefaultWorkspaceId,
 }: {
   workspaceId?: string;
 }) {

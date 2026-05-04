@@ -1,38 +1,150 @@
 import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace/types";
+import {
+  storyAgentNames,
+  storyChannels,
+  storyDefaultWorkspaceId,
+  storySessionIds,
+  storySkillNames,
+  storyWorkspaceIds,
+  storyWorkspaceNames,
+  storyWorkspacePaths,
+  storyWorkspaceSkillDir,
+} from "@/storybook/fintech-scenario";
 
 export const workspaceFixtures: WorkspacePayload[] = [
   {
-    id: "ws_home",
-    root_dir: "/workspaces/home",
-    add_dirs: [],
-    name: "home",
-    created_at: "2026-04-15T09:00:00Z",
-    updated_at: "2026-04-17T17:40:00Z",
+    id: storyWorkspaceIds.hq,
+    root_dir: storyWorkspacePaths.hq,
+    add_dirs: [
+      storyWorkspacePaths.sharedLaunch,
+      storyWorkspacePaths.sharedAnalytics,
+      storyWorkspacePaths.sharedPolicies,
+    ],
+    name: storyWorkspaceNames.hq,
+    created_at: "2026-04-14T09:00:00Z",
+    updated_at: "2026-04-17T18:16:00Z",
   },
   {
-    id: "ws_storybook",
-    root_dir: "/workspaces/agh2",
-    add_dirs: ["/workspaces/shared"],
-    name: "agh2",
-    created_at: "2026-04-16T09:00:00Z",
-    updated_at: "2026-04-17T17:42:00Z",
+    id: storyWorkspaceIds.product,
+    root_dir: storyWorkspacePaths.product,
+    add_dirs: [storyWorkspacePaths.sharedLaunch, storyWorkspacePaths.sharedCampaigns],
+    name: storyWorkspaceNames.product,
+    created_at: "2026-04-12T09:00:00Z",
+    updated_at: "2026-04-17T17:58:00Z",
+  },
+  {
+    id: storyWorkspaceIds.growth,
+    root_dir: storyWorkspacePaths.growth,
+    add_dirs: [storyWorkspacePaths.sharedCampaigns, storyWorkspacePaths.sharedAnalytics],
+    name: storyWorkspaceNames.growth,
+    created_at: "2026-04-11T09:00:00Z",
+    updated_at: "2026-04-17T17:54:00Z",
+  },
+  {
+    id: storyWorkspaceIds.platform,
+    root_dir: storyWorkspacePaths.platform,
+    add_dirs: [storyWorkspacePaths.sharedLaunch, storyWorkspacePaths.sharedPolicies],
+    name: storyWorkspaceNames.platform,
+    created_at: "2026-04-10T09:00:00Z",
+    updated_at: "2026-04-17T18:05:00Z",
+  },
+  {
+    id: storyWorkspaceIds.finance,
+    root_dir: storyWorkspacePaths.finance,
+    add_dirs: [storyWorkspacePaths.sharedAnalytics, storyWorkspacePaths.sharedLaunch],
+    name: storyWorkspaceNames.finance,
+    created_at: "2026-04-10T12:00:00Z",
+    updated_at: "2026-04-17T18:02:00Z",
+  },
+  {
+    id: storyWorkspaceIds.support,
+    root_dir: storyWorkspacePaths.support,
+    add_dirs: [storyWorkspacePaths.sharedPolicies, storyWorkspacePaths.sharedLaunch],
+    name: storyWorkspaceNames.support,
+    created_at: "2026-04-09T09:00:00Z",
+    updated_at: "2026-04-17T17:49:00Z",
+  },
+  {
+    id: storyWorkspaceIds.risk,
+    root_dir: storyWorkspacePaths.risk,
+    add_dirs: [storyWorkspacePaths.sharedPolicies, storyWorkspacePaths.sharedAnalytics],
+    name: storyWorkspaceNames.risk,
+    created_at: "2026-04-08T09:00:00Z",
+    updated_at: "2026-04-17T17:46:00Z",
   },
 ];
 
-export const primaryWorkspaceFixture: WorkspacePayload = workspaceFixtures[1];
+export const primaryWorkspaceFixture: WorkspacePayload =
+  workspaceFixtures.find(workspace => workspace.id === storyDefaultWorkspaceId) ??
+  workspaceFixtures[0]!;
 
 export const workspaceDetailFixture: WorkspaceDetailPayload = {
   workspace: primaryWorkspaceFixture,
   agents: [
     {
-      name: "claude-agent",
+      name: storyAgentNames.cto,
       provider: "claude",
-      prompt: "Review recent changes and explain the trade-offs.",
+      prompt:
+        "Own launch command and consolidate cross-functional launch risk into operator briefings.",
     },
     {
-      name: "codex-agent",
+      name: storyAgentNames.cfo,
+      provider: "claude",
+      prompt: "Track launch GMV, burn, reserve exposure, and finance approvals in real time.",
+    },
+    {
+      name: storyAgentNames.product,
+      provider: "gemini",
+      prompt:
+        "Coordinate the launch checklist, unblock decision-makers, and manage the final go-live sequence.",
+    },
+    {
+      name: storyAgentNames.frontend,
       provider: "codex",
-      prompt: "Own implementation details and verification for coding tasks.",
+      prompt:
+        "QA launch UI surfaces, patch visual regressions, and protect conversion-critical flows.",
+    },
+    {
+      name: storyAgentNames.marketing,
+      provider: "gemini",
+      prompt:
+        "Sequence launch messaging, CRM sends, ads, and campaign timing across every merchant audience.",
+    },
+    {
+      name: storyAgentNames.copywriter,
+      provider: "claude",
+      prompt:
+        "Polish launch headlines, pricing claims, lifecycle copy, and support-safe fallback language.",
+    },
+    {
+      name: storyAgentNames.support,
+      provider: "claude",
+      prompt:
+        "Handle launch-day merchant questions, cluster escalations, and prepare operator-safe responses.",
+    },
+    {
+      name: storyAgentNames.fraud,
+      provider: "claude",
+      prompt:
+        "Review payout holds, reserve anomalies, and launch-day fraud spikes before merchants are unblocked.",
+    },
+    {
+      name: storyAgentNames.compliance,
+      provider: "qwen-code",
+      prompt:
+        "Verify claims, policy exceptions, sanctions screens, and KYB evidence before approval.",
+    },
+    {
+      name: storyAgentNames.release,
+      provider: "codex",
+      prompt:
+        "Run canary verification, rollback guardrails, and launch-readiness checks across payment services.",
+    },
+    {
+      name: storyAgentNames.platform,
+      provider: "codex",
+      prompt:
+        "Investigate webhook drift, partner integrations, and platform stability during launch.",
     },
   ],
   providers: [
@@ -51,43 +163,11 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       default_model: "gpt-5.4",
     },
     {
-      name: "blackbox",
-      display_name: "BLACKBOX AI",
+      name: "gemini",
+      display_name: "Gemini CLI",
       harness: "acp",
-      runtime_provider: "blackbox",
-    },
-    { name: "cline", display_name: "Cline", harness: "acp", runtime_provider: "cline" },
-    { name: "goose", display_name: "Goose", harness: "acp", runtime_provider: "goose" },
-    { name: "hermes", display_name: "Hermes", harness: "acp", runtime_provider: "hermes" },
-    {
-      name: "junie",
-      display_name: "Junie",
-      harness: "acp",
-      runtime_provider: "junie",
-    },
-    {
-      name: "kimi-cli",
-      display_name: "Kimi CLI",
-      harness: "acp",
-      runtime_provider: "kimi-cli",
-    },
-    {
-      name: "openclaw",
-      display_name: "OpenClaw",
-      harness: "acp",
-      runtime_provider: "openclaw",
-    },
-    {
-      name: "openhands",
-      display_name: "OpenHands",
-      harness: "acp",
-      runtime_provider: "openhands",
-    },
-    {
-      name: "qoder",
-      display_name: "Qoder CLI",
-      harness: "acp",
-      runtime_provider: "qoder",
+      runtime_provider: "gemini",
+      default_model: "gemini-2.5-pro",
     },
     {
       name: "qwen-code",
@@ -103,25 +183,133 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       runtime_provider: "openrouter",
       default_model: "openai/gpt-5.4",
     },
+    { name: "cline", display_name: "Cline", harness: "acp", runtime_provider: "cline" },
+    { name: "hermes", display_name: "Hermes", harness: "acp", runtime_provider: "hermes" },
+    { name: "goose", display_name: "Goose", harness: "acp", runtime_provider: "goose" },
+    {
+      name: "openhands",
+      display_name: "OpenHands",
+      harness: "acp",
+      runtime_provider: "openhands",
+    },
+    {
+      name: "junie",
+      display_name: "Junie",
+      harness: "acp",
+      runtime_provider: "junie",
+    },
   ],
   sessions: [
     {
-      id: "sess-storybook",
-      name: "Storybook rollout",
-      agent_name: "codex-agent",
+      id: storySessionIds.product,
+      name: "Launch room command brief",
+      agent_name: storyAgentNames.product,
+      channel: storyChannels.launchWarRoom,
+      provider: "gemini",
+      workspace_id: primaryWorkspaceFixture.id,
+      workspace_path: primaryWorkspaceFixture.root_dir,
+      state: "active",
+      created_at: "2026-04-17T11:20:00Z",
+      updated_at: "2026-04-17T18:14:00Z",
+    },
+    {
+      id: storySessionIds.frontend,
+      name: "Landing page launch QA",
+      agent_name: storyAgentNames.frontend,
+      channel: storyChannels.landingPage,
       provider: "codex",
       workspace_id: primaryWorkspaceFixture.id,
       workspace_path: primaryWorkspaceFixture.root_dir,
       state: "active",
-      created_at: "2026-04-17T16:00:00Z",
-      updated_at: "2026-04-17T17:55:00Z",
+      created_at: "2026-04-17T12:00:00Z",
+      updated_at: "2026-04-17T18:09:00Z",
+    },
+    {
+      id: storySessionIds.cto,
+      name: "Executive launch review",
+      agent_name: storyAgentNames.cto,
+      channel: storyChannels.execSignal,
+      provider: "claude",
+      workspace_id: primaryWorkspaceFixture.id,
+      workspace_path: primaryWorkspaceFixture.root_dir,
+      state: "active",
+      created_at: "2026-04-17T10:10:00Z",
+      updated_at: "2026-04-17T18:11:00Z",
+    },
+    {
+      id: storySessionIds.cfo,
+      name: "Launch revenue watch",
+      agent_name: storyAgentNames.cfo,
+      channel: storyChannels.financeWatch,
+      provider: "claude",
+      workspace_id: primaryWorkspaceFixture.id,
+      workspace_path: primaryWorkspaceFixture.root_dir,
+      state: "active",
+      created_at: "2026-04-17T10:30:00Z",
+      updated_at: "2026-04-17T18:13:00Z",
+    },
+    {
+      id: storySessionIds.marketing,
+      name: "CRM launch timing",
+      agent_name: storyAgentNames.marketing,
+      channel: storyChannels.growthLaunch,
+      provider: "gemini",
+      workspace_id: primaryWorkspaceFixture.id,
+      workspace_path: primaryWorkspaceFixture.root_dir,
+      state: "stopped",
+      created_at: "2026-04-17T09:45:00Z",
+      updated_at: "2026-04-17T17:58:00Z",
+    },
+    {
+      id: storySessionIds.copywriter,
+      name: "Headline claim polish",
+      agent_name: storyAgentNames.copywriter,
+      channel: storyChannels.landingPage,
+      provider: "claude",
+      workspace_id: primaryWorkspaceFixture.id,
+      workspace_path: primaryWorkspaceFixture.root_dir,
+      state: "active",
+      created_at: "2026-04-17T14:05:00Z",
+      updated_at: "2026-04-17T18:06:00Z",
+    },
+    {
+      id: storySessionIds.release,
+      name: "Release control canary",
+      agent_name: storyAgentNames.release,
+      channel: storyChannels.releaseControl,
+      provider: "codex",
+      workspace_id: primaryWorkspaceFixture.id,
+      workspace_path: primaryWorkspaceFixture.root_dir,
+      state: "active",
+      created_at: "2026-04-17T09:15:00Z",
+      updated_at: "2026-04-17T18:03:00Z",
     },
   ],
   skills: [
     {
-      name: "storybook-stories",
+      name: storySkillNames.executiveBrief,
       source: "workspace",
-      dir: `${primaryWorkspaceFixture.root_dir}/.agents/skills/storybook-stories`,
+      dir: storyWorkspaceSkillDir(storySkillNames.executiveBrief),
+    },
+    {
+      name: storySkillNames.frontendQa,
+      source: "workspace",
+      dir: storyWorkspaceSkillDir(storySkillNames.frontendQa, storyWorkspacePaths.product),
+    },
+    {
+      name: storySkillNames.launchCopy,
+      source: "workspace",
+      dir: storyWorkspaceSkillDir(storySkillNames.launchCopy, storyWorkspacePaths.growth),
+    },
+    {
+      name: storySkillNames.financePrep,
+      source: "workspace",
+      dir: storyWorkspaceSkillDir(storySkillNames.financePrep, storyWorkspacePaths.finance),
+    },
+    {
+      name: storySkillNames.merchantEscalation,
+      source: "workspace",
+      dir: storyWorkspaceSkillDir(storySkillNames.merchantEscalation, storyWorkspacePaths.support),
     },
   ],
 };

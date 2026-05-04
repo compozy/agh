@@ -47,11 +47,11 @@ function SkillDetailPanelFromPage({ selectName }: { selectName?: string }) {
 }
 
 export const Default: Story = {
-  render: () => <SkillDetailPanelFromPage selectName="storybook-stories" />,
+  render: () => <SkillDetailPanelFromPage selectName="merchant-dispute-triage" />,
 };
 
 export const DisabledSkill: Story = {
-  render: () => <SkillDetailPanelFromPage selectName="code-review" />,
+  render: () => <SkillDetailPanelFromPage selectName="payments-release-checks" />,
 };
 
 export const Empty: Story = {
@@ -119,7 +119,7 @@ export const ErrorState: Story = {
  */
 export const ToggleSwitch: Story = {
   tags: ["play-fn"],
-  render: () => <SkillDetailPanelFromPage selectName="storybook-stories" />,
+  render: () => <SkillDetailPanelFromPage selectName="merchant-dispute-triage" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const toggle = await canvas.findByTestId("skill-enabled-switch");

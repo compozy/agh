@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyHeroNetworkChannel, storyPeerIds } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import {
   NetworkWorkspaceShell,
@@ -63,17 +64,14 @@ function requireFixture<T>(value: T | undefined, name: string): T {
 }
 
 const storybookChannel = requireFixture(
-  networkChannelsFixture.channels.find(channel => channel.channel === "storybook"),
+  networkChannelsFixture.channels.find(channel => channel.channel === storyHeroNetworkChannel),
   "storybook channel"
 );
-const releaseChannel = requireFixture(
-  networkChannelsFixture.channels.find(channel => channel.channel === "release"),
-  "release channel"
-);
 const storybookPeer = requireFixture(
-  networkPeersFixture.find(peer => peer.peer_id === "peer_storybook_local"),
+  networkPeersFixture.find(peer => peer.peer_id === storyPeerIds.local),
   "storybook peer"
 );
+const sidebarChannels = networkChannelsFixture.channels;
 
 function makeChannelRoom(
   channel: NetworkChannelSummary,
@@ -184,12 +182,12 @@ function makeChannelActiveRoom(
       { label: "Purpose", value: purpose ?? "No purpose has been recorded yet." },
       { label: "Created", value: formatNetworkDateTime(channel.created_at) },
     ],
-    canCompose: channel.channel === "storybook",
+    canCompose: channel.channel === storyHeroNetworkChannel,
     canStar: true,
     capabilities: [],
     channel: channel.channel,
     composeHint:
-      channel.channel === "storybook"
+      channel.channel === storyHeroNetworkChannel
         ? "Broadcasts send through the first local session in this channel."
         : "This channel has no local session available for composing yet.",
     composePlaceholder: `Send a broadcast to #${channel.channel}`,
@@ -295,22 +293,24 @@ function NetworkWorkspaceShellHarness({
 }) {
   const [activeKind, setActiveKind] = useState<NetworkKindFilter>("all");
   const [activeRoomKey, setActiveRoomKey] = useState(initialRoomKey);
-  const [composeDraft, setComposeDraft] = useState("Can someone pick up the docs route next?");
+  const [composeDraft, setComposeDraft] = useState(
+    "Launch room ready to publish the CRM batch once canary and timeout copy are both clear."
+  );
   const [detailsTab, setDetailsTab] = useState<NetworkDetailsTab>("about");
   const [isDetailsOpen, setDetailsOpen] = useState(true);
   const [showPresence, setShowPresence] = useState(false);
   const [sidebarQuery, setSidebarQuery] = useState("");
-  const [starredChannelIds, setStarredChannelIds] = useState<string[]>(["storybook"]);
+  const [starredChannelIds, setStarredChannelIds] = useState<string[]>([storyHeroNetworkChannel]);
 
   const selectedRoomKey = empty ? null : activeRoomKey;
   const channelRooms = empty
     ? []
-    : [storybookChannel, releaseChannel]
+    : sidebarChannels
         .filter(channel => !starredChannelIds.includes(channel.channel))
         .map(channel => makeChannelRoom(channel, starredChannelIds, selectedRoomKey));
   const starredChannelRooms = empty
     ? []
-    : [storybookChannel, releaseChannel]
+    : sidebarChannels
         .filter(channel => starredChannelIds.includes(channel.channel))
         .map(channel => makeChannelRoom(channel, starredChannelIds, selectedRoomKey));
   const directRooms = empty
@@ -324,14 +324,19 @@ function NetworkWorkspaceShellHarness({
     if (activeRoomKey === getNetworkRoomKey("peer", storybookPeer.peer_id)) {
       return makePeerActiveRoom(activeKind);
     }
-    if (activeRoomKey === getNetworkRoomKey("channel", releaseChannel.channel)) {
+    const selectedChannel = sidebarChannels.find(
+      channel => activeRoomKey === getNetworkRoomKey("channel", channel.channel)
+    );
+
+    if (selectedChannel && selectedChannel.channel !== storybookChannel.channel) {
       return makeChannelActiveRoom(
-        releaseChannel,
+        selectedChannel,
         [],
         activeKind,
-        starredChannelIds.includes(releaseChannel.channel)
+        starredChannelIds.includes(selectedChannel.channel)
       );
     }
+
     return makeChannelActiveRoom(
       storybookChannel,
       networkChannelMessagesFixture,

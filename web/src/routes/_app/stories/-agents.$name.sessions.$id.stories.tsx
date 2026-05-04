@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 
+import { storyAgentNames, storySessionIds } from "@/storybook/fintech-scenario";
 import { sessionTranscriptPermissionFixture } from "@/systems/session/mocks";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -19,16 +20,16 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const codexSessionRoute = "/agents/codex-agent/sessions/sess-storybook";
-const claudeStoppedSessionRoute = "/agents/claude-agent/sessions/sess-reviewer";
-const missingSessionRoute = "/agents/codex-agent/sessions/sess-missing";
+const fraudSessionRoute = `/agents/${storyAgentNames.fraud}/sessions/${storySessionIds.fraud}`;
+const marketingStoppedSessionRoute = `/agents/${storyAgentNames.marketing}/sessions/${storySessionIds.marketing}`;
+const missingSessionRoute = `/agents/${storyAgentNames.fraud}/sessions/sess-missing`;
 
 /**
- * Active session transcript route for the primary Storybook session.
+ * Active session transcript route for the primary payout-operations session.
  */
 export const Default: Story = {
   args: {},
-  parameters: appRouteParameters(codexSessionRoute),
+  parameters: appRouteParameters(fraudSessionRoute),
 };
 
 /**
@@ -37,7 +38,7 @@ export const Default: Story = {
 export const Loading: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters(codexSessionRoute),
+    ...appRouteParameters(fraudSessionRoute),
     ...storybookMswParameters({
       session: [
         http.get("/api/sessions/:id", async () => {
@@ -54,7 +55,7 @@ export const Loading: Story = {
  */
 export const Stopped: Story = {
   args: {},
-  parameters: appRouteParameters(claudeStoppedSessionRoute),
+  parameters: appRouteParameters(marketingStoppedSessionRoute),
 };
 
 /**
@@ -63,7 +64,7 @@ export const Stopped: Story = {
 export const PendingPermission: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters(codexSessionRoute),
+    ...appRouteParameters(fraudSessionRoute),
     ...storybookMswParameters({
       session: [
         http.get("/api/sessions/:id/transcript", () =>

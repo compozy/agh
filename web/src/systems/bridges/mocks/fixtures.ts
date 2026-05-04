@@ -8,23 +8,29 @@ import type {
   TestBridgeDeliveryResponse,
   UpdateBridgeResponse,
 } from "../types";
+import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 
 export const bridgeProvidersFixture: BridgeProvider[] = [
   {
     config_schema: {
       schema: "provider-config",
-      version: "2026-04-15",
+      version: "2026-04-17",
     },
     description: "Provider-specific runtime settings",
-    display_name: "Telegram",
+    display_name: "Slack",
     enabled: true,
-    extension_name: "ext-telegram",
+    extension_name: "ext-slack",
     health: "healthy",
-    platform: "telegram",
+    platform: "slack",
     secret_slots: [
       {
         description: "Bot token",
         name: "bot_token",
+        required: true,
+      },
+      {
+        description: "Signing secret",
+        name: "signing_secret",
         required: true,
       },
     ],
@@ -34,27 +40,27 @@ export const bridgeProvidersFixture: BridgeProvider[] = [
 
 export const bridgesListFixture: BridgesListResponse = {
   bridge_health: {
-    brg_support: {
+    brg_launch_room: {
       auth_failures_total: 0,
-      bridge_instance_id: "brg_support",
-      delivery_backlog: 1,
+      bridge_instance_id: "brg_launch_room",
+      delivery_backlog: 2,
       delivery_dropped_total: 0,
       delivery_failures_total: 0,
-      route_count: 2,
+      route_count: 3,
       status: "ready",
     },
   },
   bridges: [
     {
-      created_at: "2026-04-13T12:00:00Z",
+      created_at: "2026-04-17T14:00:00Z",
       dm_policy: "open",
-      display_name: "Support",
+      display_name: "Launch room dispatch",
       enabled: true,
-      extension_name: "ext-telegram",
-      id: "brg_support",
-      platform: "telegram",
+      extension_name: "ext-slack",
+      id: "brg_launch_room",
+      platform: "slack",
       provider_config: {
-        mode: "bot",
+        workspace: "northstar-launch",
       },
       routing_policy: {
         include_group: true,
@@ -64,11 +70,11 @@ export const bridgesListFixture: BridgesListResponse = {
       scope: "workspace",
       source: "dynamic",
       status: "ready",
-      updated_at: "2026-04-13T12:30:00Z",
-      workspace_id: "ws_storybook",
+      updated_at: "2026-04-17T18:00:00Z",
+      workspace_id: storyWorkspaceIds.hq,
       delivery_defaults: {
         mode: "reply",
-        group_id: "grp_support",
+        group_id: "slack_launch_room",
       },
     },
   ],
@@ -76,37 +82,59 @@ export const bridgesListFixture: BridgesListResponse = {
 
 export const bridgeRoutesFixture: BridgeRoute[] = [
   {
-    agent_name: "support-agent",
-    bridge_instance_id: "brg_support",
-    created_at: "2026-04-13T12:00:00Z",
-    group_id: "grp_support",
-    last_activity_at: "2026-04-13T12:15:00Z",
-    peer_id: "peer_customer_123",
-    routing_key_hash: "abc123",
+    agent_name: "support-lead-agent",
+    bridge_instance_id: "brg_launch_room",
+    created_at: "2026-04-17T14:05:00Z",
+    group_id: "slack_launch_room",
+    last_activity_at: "2026-04-17T18:08:00Z",
+    peer_id: "merchant_nsp_2044",
+    routing_key_hash: "launch-room-merchant-2044",
     scope: "workspace",
-    session_id: "sess_support",
-    thread_id: "thread_456",
-    updated_at: "2026-04-13T12:15:00Z",
-    workspace_id: "ws_storybook",
+    session_id: "sess_support_swarm",
+    thread_id: "thread_launch_2044",
+    updated_at: "2026-04-17T18:08:00Z",
+    workspace_id: storyWorkspaceIds.support,
+  },
+  {
+    agent_name: "marketing-lead-agent",
+    bridge_instance_id: "brg_launch_room",
+    created_at: "2026-04-17T15:00:00Z",
+    group_id: "slack_launch_room",
+    last_activity_at: "2026-04-17T17:58:00Z",
+    peer_id: "campaign_meta_launch",
+    routing_key_hash: "launch-room-campaign-meta",
+    scope: "workspace",
+    session_id: "sess_marketing_launch_copy",
+    thread_id: "thread_launch_meta",
+    updated_at: "2026-04-17T17:58:00Z",
+    workspace_id: storyWorkspaceIds.growth,
   },
 ];
 
 export const bridgeSecretBindingsFixture: BridgeSecretBinding[] = [
   {
     binding_name: "bot_token",
-    bridge_instance_id: "brg_support",
-    created_at: "2026-04-13T12:05:00Z",
+    bridge_instance_id: "brg_launch_room",
+    created_at: "2026-04-17T14:02:00Z",
     kind: "env",
-    updated_at: "2026-04-13T12:05:00Z",
-    secret_ref: "vault:bridges/brg_support/bot_token",
+    updated_at: "2026-04-17T14:02:00Z",
+    secret_ref: "vault:bridges/brg_launch_room/bot_token",
+  },
+  {
+    binding_name: "signing_secret",
+    bridge_instance_id: "brg_launch_room",
+    created_at: "2026-04-17T14:02:00Z",
+    kind: "env",
+    updated_at: "2026-04-17T14:02:00Z",
+    secret_ref: "vault:bridges/brg_launch_room/signing_secret",
   },
 ];
 
 export const bridgeDetailFixture: BridgeDetailResponse = {
   bridge: bridgesListFixture.bridges[0],
-  health: bridgesListFixture.bridge_health?.brg_support ?? {
+  health: bridgesListFixture.bridge_health?.brg_launch_room ?? {
     auth_failures_total: 0,
-    bridge_instance_id: "brg_support",
+    bridge_instance_id: "brg_launch_room",
     delivery_backlog: 0,
     delivery_dropped_total: 0,
     delivery_failures_total: 0,
@@ -120,12 +148,12 @@ export const updateBridgeFixture: UpdateBridgeResponse = bridgeDetailFixture;
 
 export const testBridgeDeliveryFixture: TestBridgeDeliveryResponse = {
   delivery_target: {
-    bridge_instance_id: "brg_support",
-    group_id: "grp_support",
+    bridge_instance_id: "brg_launch_room",
+    group_id: "slack_launch_room",
     mode: "reply",
-    peer_id: "peer_customer_123",
-    thread_id: "thread_456",
+    peer_id: "merchant_nsp_2044",
+    thread_id: "thread_launch_2044",
   },
-  message: "Delivery target resolved for the selected bridge.",
+  message: "Delivery target resolved for the selected launch-room Slack bridge.",
   status: "ready",
 };

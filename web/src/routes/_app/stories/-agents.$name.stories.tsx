@@ -2,6 +2,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 import { expect, within } from "storybook/test";
 
+import {
+  storyAgentNames,
+  storySessionIds,
+  storyWorkspaceIds,
+  storyWorkspacePaths,
+} from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
 import { sessionFixtures } from "@/systems/session/mocks";
 import type { SessionPayload } from "@/systems/session/types";
@@ -23,34 +29,34 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const codexSessions: SessionPayload[] = sessionFixtures.filter(
-  session => session.agent_name === "codex-agent"
+const fraudSessions: SessionPayload[] = sessionFixtures.filter(
+  session => session.agent_name === storyAgentNames.fraud
 );
 
-const fallbackCodexSession: SessionPayload = {
-  id: "sess-storybook-base",
-  name: "Storybook rollout",
-  agent_name: "codex-agent",
-  provider: "codex",
-  workspace_id: "ws_storybook",
-  workspace_path: "/workspaces/agh2",
+const fallbackFraudSession: SessionPayload = {
+  id: storySessionIds.fraud,
+  name: "Payout hold triage",
+  agent_name: storyAgentNames.fraud,
+  provider: "claude",
+  workspace_id: storyWorkspaceIds.risk,
+  workspace_path: storyWorkspacePaths.risk,
   state: "active",
   created_at: "2026-04-17T16:00:00Z",
   updated_at: "2026-04-17T18:10:00Z",
 };
 
-const failureBaseSession = codexSessions[0] ?? fallbackCodexSession;
+const failureBaseSession = fraudSessions[0] ?? fallbackFraudSession;
 
-const codexAgentRoute = "/agents/codex-agent";
-const claudeAgentRoute = "/agents/claude-agent";
-const missingAgentRoute = "/agents/ghost-agent";
+const fraudAgentRoute = `/agents/${storyAgentNames.fraud}`;
+const complianceAgentRoute = `/agents/${storyAgentNames.compliance}`;
+const missingAgentRoute = "/agents/ghost-risk-agent";
 
 /**
- * Default agent detail page for the Storybook codex agent — sessions table, status pill, stats grid.
+ * Default agent detail page for the payout-operations agent — sessions table, status pill, stats grid.
  */
 export const Default: Story = {
   args: {},
-  parameters: appRouteParameters(codexAgentRoute),
+  parameters: appRouteParameters(fraudAgentRoute),
   render: () => <StorybookWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
@@ -66,7 +72,7 @@ export const Default: Story = {
 export const NoSessions: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters(claudeAgentRoute),
+    ...appRouteParameters(complianceAgentRoute),
     ...storybookMswParameters({
       session: [http.get("/api/sessions", () => HttpResponse.json({ sessions: [] }))],
     }),
@@ -85,7 +91,7 @@ export const NoSessions: Story = {
 export const SessionsLoading: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters(codexAgentRoute),
+    ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       session: [
         http.get("/api/sessions", async () => {
@@ -109,7 +115,7 @@ export const SessionsLoading: Story = {
 export const AgentLoading: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters(codexAgentRoute),
+    ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       agent: [
         http.get("/api/agents/:name", async () => {
@@ -156,22 +162,22 @@ export const NotFound: Story = {
 export const WithFailedSession: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters(codexAgentRoute),
+    ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       session: [
         http.get("/api/sessions", () =>
           HttpResponse.json({
             sessions: [
-              ...codexSessions,
+              ...fraudSessions,
               {
                 ...failureBaseSession,
-                id: "sess-storybook-failed",
-                name: "Failed verification",
+                id: "sess_fraud_failed",
+                name: "Settlement export retry",
                 state: "stopped" as const,
                 stop_reason: "agent_crashed" as const,
                 failure: {
                   kind: "agent_crashed",
-                  summary: "agent terminated unexpectedly",
+                  summary: "partner settlement export terminated unexpectedly",
                 },
                 updated_at: "2026-04-17T18:42:00Z",
               },
@@ -186,7 +192,7 @@ export const WithFailedSession: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.findByTestId("agent-session-status-sess-storybook-failed")
+      canvas.findByTestId("agent-session-status-sess_fraud_failed")
     ).resolves.toHaveTextContent("FAILED");
   },
 };
@@ -198,7 +204,7 @@ export const WithFailedSession: Story = {
 export const ManyAgents: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters(codexAgentRoute),
+    ...appRouteParameters(fraudAgentRoute),
     ...storybookMswParameters({
       agent: [http.get("/api/agents", () => HttpResponse.json({ agents: agentFixtures }))],
     }),

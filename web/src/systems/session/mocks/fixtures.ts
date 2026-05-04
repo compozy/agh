@@ -8,40 +8,49 @@ import type {
   TurnHistoryPayload,
   UIMessage,
 } from "@/systems/session/types";
+import {
+  storyAgentNames,
+  storyChannels,
+  storySessionIds,
+  storySkillNames,
+  storyWorkspaceIds,
+  storyWorkspacePaths,
+  storyWorkspaceSkillDir,
+} from "@/storybook/fintech-scenario";
 
 export const sessionFixtures: SessionPayload[] = [
   {
-    id: "sess-storybook",
-    name: "Storybook rollout",
-    agent_name: "codex-agent",
+    id: storySessionIds.frontend,
+    name: "Landing page launch QA",
+    agent_name: storyAgentNames.frontend,
     provider: "codex",
-    workspace_id: "ws_storybook",
-    workspace_path: "/workspaces/agh2",
+    workspace_id: storyWorkspaceIds.product,
+    workspace_path: storyWorkspacePaths.product,
     state: "active",
-    channel: "storybook",
+    channel: storyChannels.landingPage,
     lineage: {
-      parent_session_id: "sess-coordinator",
-      root_session_id: "sess-coordinator",
+      parent_session_id: storySessionIds.product,
+      root_session_id: storySessionIds.product,
       spawn_depth: 1,
       spawn_role: "worker",
       ttl_expires_at: "2026-04-17T20:00:00Z",
       auto_stop_on_parent: true,
       spawn_budget: {
-        max_children: 5,
+        max_children: 4,
         max_depth: 1,
         ttl_seconds: 7200,
       },
       permission_policy: {
-        tools: ["bash", "read"],
-        skills: ["golang-pro"],
+        tools: ["bash", "read", "edit", "grep"],
+        skills: [storySkillNames.frontendQa],
         mcp_servers: [],
-        workspace_paths: ["/workspaces/agh2"],
-        network_channels: ["coord-task-001"],
+        workspace_paths: [storyWorkspacePaths.product, storyWorkspacePaths.hq],
+        network_channels: [storyChannels.landingPage, storyChannels.launchWarRoom],
         sandbox_profiles: [],
       },
     },
-    created_at: "2026-04-17T16:00:00Z",
-    updated_at: "2026-04-17T18:10:00Z",
+    created_at: "2026-04-17T12:00:00Z",
+    updated_at: "2026-04-17T18:09:00Z",
     acp_caps: {
       supports_load_session: true,
       supported_models: ["gpt-5.4"],
@@ -49,26 +58,135 @@ export const sessionFixtures: SessionPayload[] = [
     },
   },
   {
-    id: "sess-reviewer",
-    name: "Review lane",
-    agent_name: "claude-agent",
+    id: storySessionIds.cto,
+    name: "Executive launch review",
+    agent_name: storyAgentNames.cto,
     provider: "claude",
-    workspace_id: "ws_storybook",
-    workspace_path: "/workspaces/agh2",
+    workspace_id: storyWorkspaceIds.hq,
+    workspace_path: storyWorkspacePaths.hq,
+    state: "active",
+    channel: storyChannels.execSignal,
+    created_at: "2026-04-17T10:10:00Z",
+    updated_at: "2026-04-17T18:11:00Z",
+  },
+  {
+    id: storySessionIds.cfo,
+    name: "Launch revenue watch",
+    agent_name: storyAgentNames.cfo,
+    provider: "claude",
+    workspace_id: storyWorkspaceIds.finance,
+    workspace_path: storyWorkspacePaths.finance,
+    state: "active",
+    channel: storyChannels.financeWatch,
+    created_at: "2026-04-17T10:30:00Z",
+    updated_at: "2026-04-17T18:13:00Z",
+  },
+  {
+    id: storySessionIds.product,
+    name: "Launch room command brief",
+    agent_name: storyAgentNames.product,
+    provider: "gemini",
+    workspace_id: storyWorkspaceIds.hq,
+    workspace_path: storyWorkspacePaths.hq,
+    state: "active",
+    channel: storyChannels.launchWarRoom,
+    created_at: "2026-04-17T11:20:00Z",
+    updated_at: "2026-04-17T18:14:00Z",
+  },
+  {
+    id: storySessionIds.marketing,
+    name: "CRM launch timing",
+    agent_name: storyAgentNames.marketing,
+    provider: "gemini",
+    workspace_id: storyWorkspaceIds.growth,
+    workspace_path: storyWorkspacePaths.growth,
     state: "stopped",
-    created_at: "2026-04-17T15:40:00Z",
-    updated_at: "2026-04-17T17:10:00Z",
+    channel: storyChannels.growthLaunch,
+    created_at: "2026-04-17T09:45:00Z",
+    updated_at: "2026-04-17T17:58:00Z",
+  },
+  {
+    id: storySessionIds.copywriter,
+    name: "Headline claim polish",
+    agent_name: storyAgentNames.copywriter,
+    provider: "claude",
+    workspace_id: storyWorkspaceIds.growth,
+    workspace_path: storyWorkspacePaths.growth,
+    state: "active",
+    channel: storyChannels.landingPage,
+    created_at: "2026-04-17T14:05:00Z",
+    updated_at: "2026-04-17T18:06:00Z",
+  },
+  {
+    id: storySessionIds.support,
+    name: "Launch support swarm",
+    agent_name: storyAgentNames.support,
+    provider: "claude",
+    workspace_id: storyWorkspaceIds.support,
+    workspace_path: storyWorkspacePaths.support,
+    state: "active",
+    channel: storyChannels.supportSwarm,
+    created_at: "2026-04-17T13:00:00Z",
+    updated_at: "2026-04-17T18:08:00Z",
+  },
+  {
+    id: storySessionIds.fraud,
+    name: "Reserve spike monitor",
+    agent_name: storyAgentNames.fraud,
+    provider: "claude",
+    workspace_id: storyWorkspaceIds.risk,
+    workspace_path: storyWorkspacePaths.risk,
+    state: "active",
+    channel: storyChannels.riskOps,
+    created_at: "2026-04-17T10:45:00Z",
+    updated_at: "2026-04-17T18:07:00Z",
+  },
+  {
+    id: storySessionIds.compliance,
+    name: "Claim compliance review",
+    agent_name: storyAgentNames.compliance,
+    provider: "qwen-code",
+    workspace_id: storyWorkspaceIds.risk,
+    workspace_path: storyWorkspacePaths.risk,
+    state: "active",
+    channel: storyChannels.launchWarRoom,
+    created_at: "2026-04-17T12:25:00Z",
+    updated_at: "2026-04-17T18:04:00Z",
+  },
+  {
+    id: storySessionIds.release,
+    name: "Release control canary",
+    agent_name: storyAgentNames.release,
+    provider: "codex",
+    workspace_id: storyWorkspaceIds.platform,
+    workspace_path: storyWorkspacePaths.platform,
+    state: "active",
+    channel: storyChannels.releaseControl,
+    created_at: "2026-04-17T09:15:00Z",
+    updated_at: "2026-04-17T18:03:00Z",
+  },
+  {
+    id: storySessionIds.platform,
+    name: "Partner webhook stability",
+    agent_name: storyAgentNames.platform,
+    provider: "codex",
+    workspace_id: storyWorkspaceIds.platform,
+    workspace_path: storyWorkspacePaths.platform,
+    state: "active",
+    channel: storyChannels.partnerSync,
+    created_at: "2026-04-17T09:05:00Z",
+    updated_at: "2026-04-17T18:01:00Z",
   },
 ];
 
-export const primarySessionFixture: SessionPayload = sessionFixtures[0];
+export const primarySessionFixture: SessionPayload = sessionFixtures[0]!;
 
 export const sessionEventsFixture: SessionEventPayload[] = [
   {
     id: "event_001",
     agent_name: primarySessionFixture.agent_name,
     content: {
-      text: "Planning Storybook rollout.",
+      text: "Checking hero CTA copy, launch banner fallback states, and mobile layout drift before 18:30 UTC.",
     },
     sequence: 1,
     session_id: primarySessionFixture.id,
@@ -83,7 +201,7 @@ export const sessionEventsFixture: SessionEventPayload[] = [
     agent_name: primarySessionFixture.agent_name,
     content: {
       tool_name: "Read",
-      file_path: ".compozy/tasks/storybook-stories/_techspec.md",
+      file_path: storyWorkspaceSkillDir(storySkillNames.frontendQa, storyWorkspacePaths.product),
     },
     sequence: 2,
     session_id: primarySessionFixture.id,
@@ -122,10 +240,10 @@ export const bashToolMessageFixture: UIMessage = {
   content: "",
   toolName: "Bash",
   toolInput: {
-    command: "bun run --cwd web build-storybook",
+    command: "bun run --cwd apps/launch-site test -- --run hero-banner",
   },
   toolResult: {
-    stdout: "Build started\nBuild finished successfully\n",
+    stdout: "Running launch-site tests\nhero-banner passed\npricing-banner passed\n",
   },
   timestamp: Date.parse("2026-04-17T16:04:00Z"),
 };
@@ -140,7 +258,7 @@ export const longBashToolMessageFixture: UIMessage = {
   ...bashToolMessageFixture,
   id: "tool_bash_long",
   toolResult: {
-    stdout: Array.from({ length: 240 }, (_, index) => `stdout line ${index + 1}`).join("\n"),
+    stdout: Array.from({ length: 240 }, (_, index) => `launch check line ${index + 1}`).join("\n"),
   },
 };
 
@@ -149,7 +267,7 @@ export const errorToolMessageFixture: UIMessage = {
   id: "tool_bash_error",
   toolError: true,
   toolResult: {
-    stderr: "storybook build failed\nexit status 1\n",
+    stderr: "hero-banner visual diff exceeded threshold\nexit status 1\n",
     error: "Command failed with exit status 1",
   },
 };
@@ -160,9 +278,9 @@ export const editToolMessageFixture: UIMessage = {
   content: "",
   toolName: "Edit",
   toolInput: {
-    file_path: "web/.storybook/preview.ts",
-    old_string: "loaders: storybookLoaders,",
-    new_string: "loaders: storybookLoaders,\nparameters: { msw: { handlers: [] } },",
+    file_path: "apps/launch-site/src/components/hero-banner.tsx",
+    old_string: 'const heroHeadline = "Move money without enterprise drag";',
+    new_string: 'const heroHeadline = "Launch checkout in days, not quarters";',
   },
   toolResult: {
     content: "Applied patch successfully.",
@@ -174,20 +292,20 @@ export const multiHunkEditToolMessageFixture: UIMessage = {
   ...editToolMessageFixture,
   id: "tool_edit_multi_hunk",
   toolInput: {
-    file_path: "web/src/components/assistant-ui/session-thread.tsx",
+    file_path: "apps/launch-site/src/routes/home.tsx",
     old_string: [
-      "@@ -12,7 +12,7 @@",
-      "-export const Default = {};",
+      "@@ -18,7 +18,7 @@",
+      '-const heroSubhead = "Accept cards with no surprise fees.";',
       "",
-      "@@ -28,4 +28,6 @@",
-      "-export const Streaming = {};",
+      "@@ -42,4 +42,6 @@",
+      "-export const showLaunchFallbackBanner = false;",
     ].join("\n"),
     new_string: [
-      "@@ -12,7 +12,7 @@",
-      "+export const Default = { args: { state: 'default' } };",
+      "@@ -18,7 +18,7 @@",
+      '+const heroSubhead = "Predictable processing for launch teams shipping across LATAM.";',
       "",
-      "@@ -28,4 +28,6 @@",
-      "+export const Streaming = { args: { state: 'streaming' } };",
+      "@@ -42,4 +42,6 @@",
+      "+export const showLaunchFallbackBanner = true;",
     ].join("\n"),
   },
 };
@@ -198,10 +316,11 @@ export const readToolMessageFixture: UIMessage = {
   content: "",
   toolName: "Read",
   toolInput: {
-    file_path: ".compozy/tasks/storybook-stories/_techspec.md",
+    file_path: storyWorkspaceSkillDir(storySkillNames.frontendQa, storyWorkspacePaths.product),
   },
   toolResult: {
-    stdout: "# TechSpec\n\nStorybook rollout details...\n",
+    stdout:
+      "# Frontend Launch QA\n\nVerify hero copy, fallback banners, pricing claims, and mobile checkout spacing before cutover.\n",
   },
   timestamp: Date.parse("2026-04-17T16:06:00Z"),
 };
@@ -210,10 +329,12 @@ export const truncatedReadToolMessageFixture: UIMessage = {
   ...readToolMessageFixture,
   id: "tool_read_large",
   toolInput: {
-    file_path: "web/src/generated/agh-openapi.d.ts",
+    file_path: "apps/launch-site/src/generated/launch-copy.d.ts",
   },
   toolResult: {
-    stdout: Array.from({ length: 180 }, (_, index) => `type Line${index + 1} = string;`).join("\n"),
+    stdout: Array.from({ length: 180 }, (_, index) => `type LaunchLine${index + 1} = string;`).join(
+      "\n"
+    ),
   },
 };
 
@@ -223,12 +344,12 @@ export const searchToolMessageFixture: UIMessage = {
   content: "",
   toolName: "Grep",
   toolInput: {
-    pattern: "storybook",
+    pattern: "launchBanner",
     glob: "**/*.tsx",
   },
   toolResult: {
     stdout:
-      "web/src/components/ui/stories/dialog.stories.tsx\nweb/src/components/assistant-ui/session-thread.tsx",
+      "apps/launch-site/src/components/hero-banner.tsx\napps/launch-site/src/components/pricing-banner.tsx",
   },
   timestamp: Date.parse("2026-04-17T16:07:00Z"),
 };
@@ -247,11 +368,11 @@ export const writeToolMessageFixture: UIMessage = {
   content: "",
   toolName: "Write",
   toolInput: {
-    file_path: "web/src/components/assistant-ui/session-thread.tsx",
-    content: "export const Default = {};",
+    file_path: "apps/launch-site/tmp/launch-qa-notes.md",
+    content: "# Launch QA Notes\n\nCollected the remaining launch blockers.",
   },
   toolResult: {
-    content: "Created story file.",
+    stdout: "Wrote apps/launch-site/tmp/launch-qa-notes.md",
   },
   timestamp: Date.parse("2026-04-17T16:08:00Z"),
 };
@@ -260,11 +381,8 @@ export const overwriteWriteToolMessageFixture: UIMessage = {
   ...writeToolMessageFixture,
   id: "tool_write_overwrite",
   toolInput: {
-    file_path: "web/src/components/assistant-ui/session-thread.tsx",
-    content: [
-      "// WARNING: overwriting existing story module",
-      "export const Default = { args: { mode: 'overwrite' } };",
-    ].join("\n"),
+    file_path: "apps/launch-site/tmp/launch-qa-notes.md",
+    content: "# Launch QA Notes\n\nUpdated with the mobile fallback screenshot review.",
   },
 };
 
@@ -274,8 +392,8 @@ export const genericToolMessageFixture: UIMessage = {
   content: "",
   toolName: "Context7",
   toolInput: {
-    library: "storybook",
-    topic: "stories",
+    library: "stripe",
+    topic: "checkout launch fallback patterns",
   },
   toolResult: {
     content: "Fetched docs excerpt.",
@@ -283,30 +401,32 @@ export const genericToolMessageFixture: UIMessage = {
   timestamp: Date.parse("2026-04-17T16:09:00Z"),
 };
 
-export const markdownFixture = `# Storybook rollout
+export const markdownFixture = `# Launch readiness snapshot
 
-- Finish the remaining system stories.
-- Verify both Storybook instances.
+- Hero headline now matches the approved pricing language.
+- Mobile checkout spacing is clear at 360px and 390px widths.
+- Remaining blocker: partner-bank timeout copy for BR merchants still needs compliance sign-off.
 
 \`\`\`ts
-const status = "green";
+const heroHeadline = "Launch checkout in days, not quarters";
 \`\`\`
 
-[ADR-003](https://example.com/adr-003)
+[Launch brief](https://ops.northstarpay.internal/launch/brief)
 `;
 
 export const userMessageFixture: UIMessage = {
   id: "msg_user_001",
   role: "user",
-  content: "Finish the remaining Storybook tasks.",
+  content: "Summarize the launch blockers before the 18:30 UTC cutover.",
   timestamp: Date.parse("2026-04-17T16:00:00Z"),
 };
 
 export const assistantMessageFixture: UIMessage = {
   id: "msg_assistant_001",
   role: "assistant",
-  content: "I am wiring the system mocks and stories now.",
-  thinking: "Need typed fixtures first so stories stay truthful.",
+  content: "I am reviewing the hero banner, pricing claims, and fallback states now.",
+  thinking:
+    "Need the approved pricing language and the partner-bank fallback copy before closing the launch checklist.",
   thinkingComplete: true,
   timestamp: Date.parse("2026-04-17T16:01:00Z"),
 };
@@ -314,7 +434,7 @@ export const assistantMessageFixture: UIMessage = {
 export const streamingAssistantMessageFixture: UIMessage = {
   id: "msg_assistant_streaming",
   role: "assistant",
-  content: "Streaming partial answer…",
+  content: "Drafting the launch readiness recap...",
   isStreaming: true,
   timestamp: Date.parse("2026-04-17T16:11:00Z"),
 };
@@ -322,7 +442,7 @@ export const streamingAssistantMessageFixture: UIMessage = {
 export const systemMessageFixture: UIMessage = {
   id: "msg_system_001",
   role: "system",
-  content: "System notice: permission required to run a shell command.",
+  content: "System notice: permission required to run the launch-site verification command.",
   timestamp: Date.parse("2026-04-17T16:02:00Z"),
 };
 
@@ -332,17 +452,19 @@ export const diffMessageFixture: UIMessage = {
   content: "",
   diff: {
     language: "diff",
-    path: "packages/runtime/src/session/stream.ts",
+    path: "apps/launch-site/src/components/pricing-banner.tsx",
     additions: 4,
     removals: 38,
     content: [
-      "@@ session/stream.ts @@",
-      "-  for (const ev of tool.events) {",
-      "-    const key = ev.turnId;",
-      "-    groups[key] ??= { turn: key, events: [] };",
-      "-    groups[key].events.push(ev);",
+      "@@ pricing-banner.tsx @@",
+      '-  return "No surprise fees.";',
+      "-  if (showLaunchCredit) {",
+      '-    return "Zero setup costs.";',
       "-  }",
-      "+  const groups = groupToolCallsByTurn(tool.events);",
+      '+  return "Predictable processing for launch teams.";',
+      "+  if (showLaunchCredit) {",
+      '+    return "Launch-week credits applied at activation.";',
+      "+  }",
     ].join("\n"),
   },
   timestamp: Date.parse("2026-04-17T16:12:00Z"),
@@ -369,7 +491,13 @@ export const sessionTranscriptFixture: TranscriptMessage[] = [
   {
     id: "transcript_user_001",
     role: "user",
-    parts: [{ type: "text", text: "Finish the remaining Storybook tasks.", state: "done" }],
+    parts: [
+      {
+        type: "text",
+        text: "Summarize the launch blockers before the 18:30 UTC cutover.",
+        state: "done",
+      },
+    ],
   },
   {
     id: "transcript_assistant_001",
@@ -377,7 +505,7 @@ export const sessionTranscriptFixture: TranscriptMessage[] = [
     parts: [
       {
         type: "reasoning",
-        text: "Need typed fixtures first so stories stay truthful.",
+        text: "Need the approved pricing language and the partner-bank fallback copy before closing the launch checklist.",
         state: "done",
       },
       { type: "text", text: markdownFixture, state: "done" },
@@ -396,9 +524,40 @@ export const sessionTranscriptFixture: TranscriptMessage[] = [
           type: "tool_result",
           title: "Bash",
           raw: {
-            stdout: "Build started\nBuild finished successfully\n",
+            stdout: "Running launch-site tests\nhero-banner passed\npricing-banner passed\n",
           },
         },
+      },
+    ],
+  },
+  {
+    id: "transcript_tool_002",
+    role: "assistant",
+    parts: [
+      {
+        type: "tool-Read",
+        toolCallId: "tool_read_001",
+        state: "output-available",
+        input: readToolMessageFixture.toolInput,
+        output: {
+          type: "tool_result",
+          title: "Read",
+          raw: {
+            stdout:
+              "# Frontend Launch QA\n\nVerify hero copy, fallback banners, pricing claims, and mobile checkout spacing before cutover.\n",
+          },
+        },
+      },
+    ],
+  },
+  {
+    id: "transcript_assistant_002",
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: "Hero copy, fallback banner behavior, and mobile spacing are clean. The remaining blocker is the partner-bank timeout note for BR merchants.",
+        state: "done",
       },
     ],
   },
@@ -414,14 +573,14 @@ export const sessionTranscriptPermissionFixture: TranscriptMessage[] = [
         type: "data-agh-permission",
         data: {
           type: "permission.required",
-          request_id: "perm_storybook_001",
+          request_id: "perm_launch_001",
           turn_id: "turn_perm_001",
           tool_call_id: "tool_bash_perm_001",
           action: "execute",
-          resource: "make web-typecheck",
+          resource: "bun run --cwd apps/launch-site test -- --run hero-banner",
           title: "Bash",
           raw: {
-            command: "make web-typecheck",
+            command: "bun run --cwd apps/launch-site test -- --run hero-banner",
           },
         },
       },
@@ -434,11 +593,11 @@ export const sessionApprovalFixture: SessionApprovalResponse = {
 };
 
 export const permissionRequestFixture: PermissionRequest = {
-  requestId: "perm_storybook_001",
+  requestId: "perm_launch_001",
   toolName: "Bash",
   toolInput: {
-    command: "make web-typecheck",
+    command: "bun run --cwd apps/launch-site test -- --run hero-banner",
   },
   action: "execute",
-  resource: "make web-typecheck",
+  resource: "bun run --cwd apps/launch-site test -- --run hero-banner",
 };

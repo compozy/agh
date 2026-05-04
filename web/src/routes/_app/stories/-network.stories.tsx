@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 import { expect, userEvent, within } from "storybook/test";
 
+import { storyHeroNetworkChannel, storyPeerIds } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -9,21 +10,9 @@ import {
   appRouteParameters,
   createRouteStoryMeta,
 } from "@/storybook/route-story";
-import type { NetworkStatus } from "@/systems/network";
+import { networkStatusFixture } from "@/systems/network/mocks";
 
-const storybookNetworkStatus = {
-  channels: 2,
-  configured_default_channel: "storybook",
-  delivery_workers: 2,
-  effective_default_channel: "storybook",
-  effective_default_source: "workspace",
-  enabled: true,
-  local_peers: 1,
-  messages_sent: 24,
-  queued_messages: 1,
-  remote_peers: 2,
-  status: "running",
-} satisfies NetworkStatus;
+const storybookNetworkStatus = networkStatusFixture;
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
@@ -49,7 +38,7 @@ export const Default: Story = {
  */
 export const DirectRoom: Story = {
   args: {},
-  parameters: appRouteParameters("/network?peer=peer_storybook_remote"),
+  parameters: appRouteParameters(`/network?peer=${storyPeerIds.remote}`),
   render: () => <StorybookWorkspaceSetup />,
 };
 
@@ -102,7 +91,9 @@ export const Disabled: Story = {
               ...storybookNetworkStatus,
               channels: 0,
               delivery_workers: 0,
+              configured_default_channel: storyHeroNetworkChannel,
               enabled: false,
+              effective_default_channel: storyHeroNetworkChannel,
               local_peers: 0,
               queued_messages: 0,
               remote_peers: 0,
