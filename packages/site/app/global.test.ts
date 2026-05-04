@@ -17,6 +17,12 @@ describe("site global styles", () => {
     expect(globalCSS).not.toContain("--font-display: var(--font-display),");
   });
 
+  it("configures the default Fumadocs search dialog to fetch live results from /api/search", () => {
+    expect(layoutSource).toMatch(
+      /<RootProvider[\s\S]*search=\{\{[\s\S]*type: "fetch"[\s\S]*api: "\/api\/search"[\s\S]*\}\}/
+    );
+  });
+
   it("does not carry an unused site-local wordmark font-face declaration", () => {
     expect(globalCSS).not.toContain('@font-face {\n  font-family: "NuixyberNext";');
   });

@@ -5,16 +5,13 @@ import { resolve } from "node:path";
 
 import { fencedCodeBlocks, listManualDocs, siteRoot } from "./content-test-utils";
 
-describe("site static export determinism", () => {
-  it("uses a deterministic Next build id for byte-stable static exports", async () => {
-    const buildIDModule = (await import("./static-export-build-id.mjs")) as {
-      STATIC_EXPORT_BUILD_ID: string;
-    };
+describe("site runtime search configuration", () => {
+  it("keeps the site on standard Next.js runtime output instead of static export mode", () => {
     const config = readFileSync(resolve(siteRoot, "next.config.mjs"), "utf8");
 
-    expect(buildIDModule.STATIC_EXPORT_BUILD_ID).toBe("agh-network-static");
-    expect(config).toContain('output: "export"');
-    expect(config).toContain("generateBuildId: async () => STATIC_EXPORT_BUILD_ID");
+    expect(config).not.toContain('output: "export"');
+    expect(config).not.toContain("generateBuildId:");
+    expect(config).toContain("reactStrictMode: true");
   });
 
   it("keeps frontmatter-bearing Markdown examples as plain text for stable static output", () => {

@@ -91,7 +91,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
-        <RootProvider theme={{ enabled: false }}>
+        <RootProvider
+          search={{
+            options: {
+              type: "fetch",
+              api: "/api/search",
+            },
+          }}
+          theme={{ enabled: false }}
+        >
           {children}
           <SiteFooter />
         </RootProvider>
