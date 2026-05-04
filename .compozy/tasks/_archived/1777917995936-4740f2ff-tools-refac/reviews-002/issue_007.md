@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "85"
 round: 2
 round_created_at: 2026-04-30T19:49:37.693355Z
-status: valid
+status: resolved
 file: internal/api/udsapi/udsapi_integration_test.go
 line: 447
 author: coderabbitai[bot]
