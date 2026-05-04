@@ -11,18 +11,10 @@
  */
 @source "../../ui/src/**/*.{ts,tsx}";
 
-@font-face {
-  font-family: "NuixyberNext";
-  src: url("/fonts/NuixyberNext-Regular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 /*
  * Wire Next.js font variables into Tailwind's font tokens.
- * `--font-inter` and `--font-jetbrains-mono` are injected by next/font/google
- * in app/layout.tsx via the html className.
+ * `--font-inter`, `--font-jetbrains-mono`, and `--font-playfair` are injected
+ * by next/font in app/layout.tsx via the html className.
  */
 @theme inline {
   --font-sans: var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
