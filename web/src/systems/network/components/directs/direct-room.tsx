@@ -97,7 +97,12 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
         />
       ) : (
         <>
-          <WorkBanner hasNeedsInput={openWork.hasNeedsInput} openCount={openWork.openCount} />
+          <WorkBanner
+            hasNeedsInput={openWork.hasNeedsInput}
+            needsInputCount={openWork.needsInputCount}
+            openCount={openWork.openCount}
+            workingCount={openWork.workingCount}
+          />
 
           <Timeline
             ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}

@@ -1,10 +1,13 @@
-import { Star } from "lucide-react";
+import { Hash, Star } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { cn } from "@/lib/utils";
+import {
+  ACTIVE_NAV_INDICATOR_CLASS,
+  ACTIVE_NAV_ROW_CLASS,
+  NAV_ROW_CLASS,
+} from "@/components/sidebar-nav-classes";
 import type { NetworkChannelSummary } from "../../types";
-
-const HASH_LABEL = "#";
 
 export interface ChannelRailRowProps {
   channel: NetworkChannelSummary;
@@ -25,49 +28,40 @@ export function ChannelRailRow({
 
   return (
     <div
-      className={cn(
-        "group relative mx-1.5 flex items-center gap-2 rounded-[6px] pr-1.5 transition-colors",
-        active ? "bg-[color:var(--color-accent-tint)]" : "hover:bg-[color:var(--color-hover)]"
-      )}
+      className="group relative flex items-center"
       data-testid={`network-channel-row-${channel.channel}`}
     >
       <Link
         aria-current={active ? "page" : undefined}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-[6px] px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]"
+        className={cn(
+          NAV_ROW_CLASS,
+          "min-w-0 flex-1 pr-7",
+          active && ACTIVE_NAV_ROW_CLASS,
+          !active && hasUnread && "font-semibold text-[color:var(--color-text-primary)]"
+        )}
+        data-active={active}
         data-testid={`network-channel-link-${channel.channel}`}
         params={{ channel: channel.channel }}
         to="/network/$channel/threads"
       >
-        <span
+        {active ? <span aria-hidden="true" className={ACTIVE_NAV_INDICATOR_CLASS} /> : null}
+        <Hash
           aria-hidden="true"
           className={cn(
-            "font-mono text-[13px] leading-none",
+            "size-3.5 shrink-0",
             active
               ? "text-[color:var(--color-text-primary)]"
               : "text-[color:var(--color-text-tertiary)]"
           )}
-        >
-          {HASH_LABEL}
-        </span>
-        <span
-          className={cn(
-            "min-w-0 truncate text-[13px] tracking-[-0.005em]",
-            active
-              ? "font-semibold text-[color:var(--color-text-primary)]"
-              : hasUnread
-                ? "font-semibold text-[color:var(--color-text-primary)]"
-                : "font-normal text-[color:var(--color-text-secondary)]"
-          )}
-        >
-          {channel.channel}
-        </span>
+        />
+        <span className="min-w-0 truncate">{channel.channel}</span>
       </Link>
 
       <button
         aria-label={ariaLabel}
         aria-pressed={isPinned}
         className={cn(
-          "rounded-[4px] p-1 text-[color:var(--color-text-tertiary)] opacity-0 transition-opacity focus-visible:outline-none focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)] group-hover:opacity-100",
+          "absolute right-1 top-1/2 -translate-y-1/2 rounded-[4px] p-1 text-[color:var(--color-text-tertiary)] opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)] group-hover:opacity-100",
           (isPinned || active) && "opacity-100"
         )}
         data-testid={`network-channel-pin-${channel.channel}`}

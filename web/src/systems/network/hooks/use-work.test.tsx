@@ -80,9 +80,48 @@ describe("useOpenWork", () => {
     expect(result.current.openCount).toBe(2);
     expect(result.current.entries.map(entry => entry.workId)).toEqual(["work-a", "work-c"]);
     expect(result.current.hasNeedsInput).toBe(true);
+    expect(result.current.needsInputCount).toBe(1);
+    expect(result.current.workingCount).toBe(1);
     const workA = result.current.entries.find(entry => entry.workId === "work-a");
     expect(workA?.state).toBe("needs_input");
     expect(workA?.targetPeerId).toBe("peer-remote");
+  });
+
+  it("Should keep terminal work closed when lifecycle messages share timestamp precision", () => {
+    useNetworkMessagesMock.mockReturnValue({
+      messages: [
+        buildMessage({
+          message_id: "msg-open",
+          work_id: "work-a",
+          body: { text: "Open work" },
+          timestamp: "2026-04-17T18:00:00Z",
+        }),
+        buildMessage({
+          message_id: "msg-completed",
+          work_id: "work-a",
+          body: { state: "completed" },
+          timestamp: "2026-04-17T18:00:00Z",
+        }),
+        buildMessage({
+          message_id: "msg-working",
+          work_id: "work-a",
+          body: { state: "working" },
+          timestamp: "2026-04-17T18:00:00Z",
+        }),
+      ],
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    });
+
+    const { result } = renderHook(
+      () => useOpenWork({ channel: "ops", surface: "direct", containerId: "direct-1" }),
+      { wrapper: createWrapper() }
+    );
+
+    expect(result.current.openCount).toBe(0);
+    expect(result.current.entries).toEqual([]);
+    expect(result.current.hasNeedsInput).toBe(false);
   });
 
   it("Should return empty when disabled", () => {

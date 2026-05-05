@@ -116,6 +116,12 @@ export function ActivityFeed({ channel, threads, directs, isLoading }: ActivityF
       className="flex flex-1 flex-col overflow-y-auto"
       data-testid="network-activity-feed"
     >
+      <div
+        className="border-b border-[color:var(--color-divider)] px-5 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        data-testid="network-activity-subheader"
+      >
+        Recent activity · Read-only
+      </div>
       {entries.map(entry => {
         const linkClass = cn(
           "flex flex-col gap-1 border-b border-[color:var(--color-divider)] px-5 py-3 text-left transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]"

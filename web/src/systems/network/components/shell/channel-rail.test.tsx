@@ -88,13 +88,17 @@ function Harness({ pinnedIds = ["alpha"], togglePinned = () => undefined }: Harn
   return (
     <ChannelRail
       activeChannel="ops"
+      activeDirectId={null}
+      directs={[]}
       hasUnread={() => true}
       isChannelsLoading={false}
+      isDirectsLoading={false}
       isPinned={channel => pinnedSet.has(channel)}
       isRecentsLoading={false}
       onTogglePinned={togglePinned}
       pinnedChannels={channels.filter(channel => pinnedSet.has(channel.channel))}
       recents={recents}
+      selfPeerId={null}
       unpinnedChannels={channels.filter(channel => !pinnedSet.has(channel.channel))}
     />
   );
@@ -116,12 +120,14 @@ describe("ChannelRail", () => {
     expect(channelOrder).toEqual(["alpha", "design", "ops"]);
   });
 
-  it("renders cross-channel recents with [TH] / [DM] prefixes", () => {
+  it("renders cross-channel recents with surface-specific icons", () => {
     renderRail();
-    expect(screen.getByTestId("network-recents-thread-thread_ops_one")).toBeDefined();
-    expect(screen.getByTestId("network-recents-direct-direct_design_one")).toBeDefined();
-    expect(screen.getByText("[TH]")).toBeDefined();
-    expect(screen.getByText("[DM]")).toBeDefined();
+    const threadRecent = screen.getByTestId("network-recents-thread-thread_ops_one");
+    const directRecent = screen.getByTestId("network-recents-direct-direct_design_one");
+    expect(threadRecent).toBeDefined();
+    expect(directRecent).toBeDefined();
+    expect(threadRecent.querySelector("[aria-label='Thread']")).not.toBeNull();
+    expect(directRecent.querySelector("[aria-label='Direct room']")).not.toBeNull();
   });
 
   it("invokes togglePinned when the pin affordance is clicked", async () => {
@@ -136,13 +142,17 @@ describe("ChannelRail", () => {
     render(
       <ChannelRail
         activeChannel={null}
+        activeDirectId={null}
+        directs={[]}
         hasUnread={() => false}
         isChannelsLoading={false}
+        isDirectsLoading={false}
         isPinned={() => false}
         isRecentsLoading={false}
         onTogglePinned={() => undefined}
         pinnedChannels={[]}
         recents={[]}
+        selfPeerId={null}
         unpinnedChannels={[]}
       />
     );

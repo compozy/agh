@@ -117,6 +117,31 @@ export {
 } from "./lib/palette";
 
 // Hooks
+export { useChannelMembers } from "./hooks/use-channel-members";
+export type {
+  ChannelMember,
+  ChannelMemberRole,
+  UseChannelMembersResult,
+} from "./hooks/use-channel-members";
+export { useInspectorState } from "./hooks/use-inspector-state";
+export type { InspectorTab, UseInspectorStateResult } from "./hooks/use-inspector-state";
+export { useNetworkInspectorView } from "./hooks/use-network-inspector-view";
+export type {
+  UseNetworkInspectorViewArgs,
+  UseNetworkInspectorViewResult,
+} from "./hooks/use-network-inspector-view";
+export { useNetworkChannelDirectsRoute } from "./hooks/use-network-channel-directs-route";
+export type { UseNetworkChannelDirectsRouteResult } from "./hooks/use-network-channel-directs-route";
+export { useNetworkRailView } from "./hooks/use-network-rail-view";
+export type {
+  UseNetworkRailViewArgs,
+  UseNetworkRailViewResult,
+} from "./hooks/use-network-rail-view";
+export { useNetworkListFilters } from "./hooks/use-network-list-filters";
+export type {
+  UseNetworkListFiltersArgs,
+  UseNetworkListFiltersResult,
+} from "./hooks/use-network-list-filters";
 export { useNetworkChannels } from "./hooks/use-channels";
 export { useLastRead, buildLastReadStorageKey } from "./hooks/use-last-read";
 export type { NetworkLastReadKey, UseLastReadResult } from "./hooks/use-last-read";

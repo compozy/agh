@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 
-import type { NetworkChannel, NetworkChannelSummary, NetworkRecentEntry } from "../../types";
+import type {
+  NetworkChannel,
+  NetworkChannelSummary,
+  NetworkDirectRoomSummary,
+  NetworkRecentEntry,
+} from "../../types";
 import { ChannelHeader } from "./channel-header";
 import { ChannelRail } from "./channel-rail";
 import { RightRail, type RightRailMode } from "./right-rail";
@@ -10,17 +15,23 @@ export interface NetworkShellProps {
   pinnedChannels: ReadonlyArray<NetworkChannelSummary>;
   unpinnedChannels: ReadonlyArray<NetworkChannelSummary>;
   recents: ReadonlyArray<NetworkRecentEntry>;
+  directs: ReadonlyArray<NetworkDirectRoomSummary>;
   isChannelsLoading: boolean;
   isRecentsLoading: boolean;
+  isDirectsLoading: boolean;
   activeChannel: NetworkChannelSummary | null;
   activeChannelDetail: NetworkChannel | null;
   activeTab: ChannelTab;
+  activeDirectId: string | null;
+  selfPeerId: string | null;
   threadCount: number | null;
   directCount: number | null;
   openWorkCount: number;
   rightRailOpen: boolean;
   rightRailMode: RightRailMode;
   rightRailContent?: ReactNode;
+  inspectorOpen: boolean;
+  onInspectorToggle: () => void;
   isPinned: (channel: string) => boolean;
   onTogglePinned: (channel: string) => void;
   hasUnread: (channel: string) => boolean;
@@ -31,17 +42,23 @@ export function NetworkShell({
   pinnedChannels,
   unpinnedChannels,
   recents,
+  directs,
   isChannelsLoading,
   isRecentsLoading,
+  isDirectsLoading,
   activeChannel,
   activeChannelDetail,
   activeTab,
+  activeDirectId,
+  selfPeerId,
   threadCount,
   directCount,
   openWorkCount,
   rightRailOpen,
   rightRailMode,
   rightRailContent,
+  inspectorOpen,
+  onInspectorToggle,
   isPinned,
   onTogglePinned,
   hasUnread,
@@ -51,13 +68,17 @@ export function NetworkShell({
     <div className="flex min-h-0 flex-1 bg-[color:var(--color-canvas)]" data-testid="network-shell">
       <ChannelRail
         activeChannel={activeChannel?.channel ?? null}
+        activeDirectId={activeDirectId}
+        directs={directs}
         hasUnread={hasUnread}
         isChannelsLoading={isChannelsLoading}
+        isDirectsLoading={isDirectsLoading}
         isPinned={isPinned}
         isRecentsLoading={isRecentsLoading}
         onTogglePinned={onTogglePinned}
         pinnedChannels={pinnedChannels}
         recents={recents}
+        selfPeerId={selfPeerId}
         unpinnedChannels={unpinnedChannels}
       />
 
@@ -68,6 +89,8 @@ export function NetworkShell({
             channel={activeChannel}
             detail={activeChannelDetail}
             directCount={directCount}
+            inspectorOpen={inspectorOpen}
+            onInspectorToggle={onInspectorToggle}
             openWorkCount={openWorkCount}
             threadCount={threadCount}
           />

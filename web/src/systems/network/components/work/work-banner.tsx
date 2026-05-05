@@ -11,13 +11,28 @@ const TOTAL_HIDE_BUDGET_MS = FADE_OUT_MS + COLLAPSE_MS;
 export interface WorkBannerProps {
   openCount: number;
   hasNeedsInput: boolean;
+  /**
+   * Optional breakdown of open-work counts by lifecycle state. When provided,
+   * the banner renders the explicit "needs input · working" segments instead of
+   * the legacy summary message. `useOpenWork` derives this client-side from the
+   * already-loaded message stream — see `_design.md` §5.8.2.
+   */
+  needsInputCount?: number;
+  workingCount?: number;
   onView?: () => void;
   className?: string;
 }
 
 type BannerPhase = "hidden" | "visible" | "fading";
 
-export function WorkBanner({ openCount, hasNeedsInput, onView, className }: WorkBannerProps) {
+export function WorkBanner({
+  openCount,
+  hasNeedsInput,
+  needsInputCount,
+  workingCount,
+  onView,
+  className,
+}: WorkBannerProps) {
   const [phase, setPhase] = useState<BannerPhase>(openCount > 0 ? "visible" : "hidden");
 
   useEffect(() => {
@@ -38,7 +53,7 @@ export function WorkBanner({ openCount, hasNeedsInput, onView, className }: Work
   }
 
   const escalate = hasNeedsInput && openCount > 0;
-  const message = buildMessage(openCount, hasNeedsInput);
+  const message = buildMessage(openCount, hasNeedsInput, needsInputCount, workingCount);
   const fading = phase === "fading";
 
   return (
@@ -82,10 +97,31 @@ export function WorkBanner({ openCount, hasNeedsInput, onView, className }: Work
   );
 }
 
-function buildMessage(openCount: number, hasNeedsInput: boolean): string {
+function buildMessage(
+  openCount: number,
+  hasNeedsInput: boolean,
+  needsInputCount: number | undefined,
+  workingCount: number | undefined
+): string {
   if (openCount === 0) {
     return "";
   }
+
+  // Explicit breakdown wins when callers compute the per-state segmentation
+  // from `useOpenWork` entries.
+  if (needsInputCount != null || workingCount != null) {
+    const segments: string[] = [];
+    if ((needsInputCount ?? 0) > 0) {
+      segments.push(`${needsInputCount} needs input`);
+    }
+    if ((workingCount ?? 0) > 0) {
+      segments.push(`${workingCount} working`);
+    }
+    if (segments.length > 0) {
+      return segments.join(" · ");
+    }
+  }
+
   if (!hasNeedsInput) {
     if (openCount === 1) {
       return "1 active work in flight";
@@ -95,6 +131,6 @@ function buildMessage(openCount: number, hasNeedsInput: boolean): string {
   if (openCount === 1) {
     return "1 needs input";
   }
-  // Escalation message — show the needs_input slice + remainder.
+  // Escalation fallback when only `hasNeedsInput` flag is available.
   return `1 needs input · ${openCount - 1} working`;
 }

@@ -5,8 +5,11 @@ import { getIdentityInitial, pickIdentityPaletteColors } from "../../lib/palette
 export interface MessageAvatarProps {
   seed: string;
   initialFrom: string;
-  /** 36 in the channel timeline (`_design.md` §5.2.1); 32 inside the thread overlay (§3.2). */
-  sizePx: 36 | 32;
+  /**
+   * 36 in the channel timeline (`_design.md` §5.2.1), 32 inside the thread
+   * overlay (§3.2), 20 in the channel rail Direct Rooms section.
+   */
+  sizePx: 36 | 32 | 20;
   className?: string;
 }
 

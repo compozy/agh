@@ -51,13 +51,17 @@ export const Default: Story = {
     <PanelSurface className="min-h-[640px]">
       <ChannelRail
         activeChannel={allChannels[0]?.channel ?? null}
+        activeDirectId={null}
+        directs={networkDirectRoomsFixture}
         hasUnread={() => true}
         isChannelsLoading={false}
+        isDirectsLoading={false}
         isPinned={channel => pinnedSet.has(channel)}
         isRecentsLoading={false}
         onTogglePinned={() => undefined}
         pinnedChannels={allChannels.filter(channel => pinnedSet.has(channel.channel))}
         recents={recents}
+        selfPeerId={null}
         unpinnedChannels={allChannels.filter(channel => !pinnedSet.has(channel.channel))}
       />
     </PanelSurface>
@@ -69,13 +73,17 @@ export const Loading: Story = {
     <PanelSurface className="min-h-[640px]">
       <ChannelRail
         activeChannel={null}
+        activeDirectId={null}
+        directs={[]}
         hasUnread={() => false}
         isChannelsLoading
+        isDirectsLoading
         isPinned={() => false}
         isRecentsLoading
         onTogglePinned={() => undefined}
         pinnedChannels={[]}
         recents={[]}
+        selfPeerId={null}
         unpinnedChannels={[]}
       />
     </PanelSurface>
@@ -87,13 +95,17 @@ export const Empty: Story = {
     <PanelSurface className="min-h-[640px]">
       <ChannelRail
         activeChannel={null}
+        activeDirectId={null}
+        directs={[]}
         hasUnread={() => false}
         isChannelsLoading={false}
+        isDirectsLoading={false}
         isPinned={() => false}
         isRecentsLoading={false}
         onTogglePinned={() => undefined}
         pinnedChannels={[]}
         recents={[]}
+        selfPeerId={null}
         unpinnedChannels={[]}
       />
     </PanelSurface>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, RefreshCw } from "lucide-react";
+import { Hash, MoreHorizontal, PanelRight, RefreshCw, Search } from "lucide-react";
 
 import {
   Button,
@@ -10,6 +10,9 @@ import {
   DropdownMenuTrigger,
 } from "@agh/ui";
 
+import { cn } from "@/lib/utils";
+
+import { useChannelMembers } from "../../hooks/use-channel-members";
 import { networkKeys } from "../../lib/query-keys";
 import type { NetworkChannel, NetworkChannelSummary } from "../../types";
 import { ChannelTabs, type ChannelTab } from "./channel-tabs";
@@ -21,26 +24,56 @@ export interface ChannelHeaderProps {
   threadCount: number | null;
   directCount: number | null;
   openWorkCount: number;
+  inspectorOpen: boolean;
+  onInspectorToggle: () => void;
 }
 
-function buildIdentityMixLabel(
-  channel: NetworkChannelSummary,
-  detail: NetworkChannel | null
-): string {
-  const localCount = detail?.local_peer_count ?? channel.local_peer_count ?? 0;
-  const remoteCount = detail?.remote_peer_count ?? channel.remote_peer_count ?? 0;
-  if (localCount === 0 && remoteCount === 0) {
-    return "no peers yet";
+interface MetaInputs {
+  channel: NetworkChannelSummary;
+  detail: NetworkChannel | null;
+  openWorkCount: number;
+  agentCount: number;
+  humanCount: number;
+}
+
+function buildMetaSegments({
+  channel,
+  detail,
+  openWorkCount,
+  agentCount,
+  humanCount,
+}: MetaInputs): string[] {
+  const segments: string[] = [];
+
+  const totalCount = agentCount + humanCount;
+  const fallbackPeerCount =
+    detail?.peer_count ??
+    channel.peer_count ??
+    (channel.local_peer_count ?? 0) + (channel.remote_peer_count ?? 0);
+
+  if (totalCount > 0) {
+    if (agentCount > 0) {
+      segments.push(`${agentCount} ${agentCount === 1 ? "agent" : "agents"}`);
+    }
+    if (humanCount > 0) {
+      segments.push(`${humanCount} ${humanCount === 1 ? "human" : "humans"}`);
+    }
+  } else if (fallbackPeerCount > 0) {
+    segments.push(`${fallbackPeerCount} ${fallbackPeerCount === 1 ? "peer" : "peers"}`);
+  } else {
+    segments.push("no peers yet");
   }
 
-  const parts: string[] = [];
-  if (localCount > 0) {
-    parts.push(`${localCount} local`);
+  if (openWorkCount > 0) {
+    segments.push(`${openWorkCount} active work`);
   }
-  if (remoteCount > 0) {
-    parts.push(`${remoteCount} remote`);
+
+  const purpose = detail?.purpose?.trim() || channel.purpose?.trim();
+  if (purpose) {
+    segments.push(purpose);
   }
-  return parts.join(" · ");
+
+  return segments;
 }
 
 export function ChannelHeader({
@@ -50,38 +83,87 @@ export function ChannelHeader({
   threadCount,
   directCount,
   openWorkCount,
+  inspectorOpen,
+  onInspectorToggle,
 }: ChannelHeaderProps) {
-  const identityLabel = buildIdentityMixLabel(channel, detail);
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const members = useChannelMembers(channel.channel);
+  const metaSegments = buildMetaSegments({
+    channel,
+    detail,
+    openWorkCount,
+    agentCount: members.agentCount,
+    humanCount: members.humanCount,
+  });
 
   const handleRefresh = () => {
     void queryClient.invalidateQueries({ queryKey: networkKeys.channelScope(channel.channel) });
-    setOpen(false);
+    setOverflowOpen(false);
   };
 
   return (
     <header className="flex flex-col" data-testid="network-channel-header">
-      <div className="flex items-center gap-3 border-b border-[color:var(--color-divider)] px-5 py-3">
-        <h1 className="truncate text-[18px] font-semibold text-[color:var(--color-text-primary)]">
-          #{channel.channel}
-        </h1>
-        <span
-          className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
-          data-testid="network-channel-identity-mix"
-        >
-          {identityLabel}
-        </span>
-        {openWorkCount > 0 ? (
-          <span
-            className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
-            data-testid="network-channel-active-work"
+      <div className="flex items-start gap-4 border-b border-[color:var(--color-divider)] px-5 py-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h1
+            className="flex items-center gap-1.5 truncate text-[18px] font-semibold leading-tight text-[color:var(--color-text-primary)]"
+            data-testid="network-channel-title"
           >
-            · {openWorkCount} active work
-          </span>
-        ) : null}
-        <div className="ml-auto">
-          <DropdownMenu onOpenChange={setOpen} open={open}>
+            <Hash aria-hidden="true" className="size-4 shrink-0 text-[color:var(--color-accent)]" />
+            <span className="truncate">{channel.channel}</span>
+          </h1>
+          <p
+            className="truncate text-[13px] text-[color:var(--color-text-secondary)]"
+            data-testid="network-channel-meta"
+          >
+            {metaSegments.map((segment, index) => (
+              <span key={`${segment}-${index}`}>
+                {index > 0 ? (
+                  <span aria-hidden="true" className="mx-2 text-[color:var(--color-text-tertiary)]">
+                    ·
+                  </span>
+                ) : null}
+                <span data-testid={`network-channel-meta-${index}`}>{segment}</span>
+              </span>
+            ))}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            aria-disabled="true"
+            aria-label="Search channel — coming soon"
+            data-testid="network-channel-search"
+            onClick={event => event.preventDefault()}
+            size="icon-sm"
+            tabIndex={-1}
+            title="Search · Coming soon"
+            type="button"
+            variant="ghost"
+          >
+            <Search aria-hidden="true" className="size-4" />
+          </Button>
+
+          <Button
+            aria-label={inspectorOpen ? "Close channel inspector" : "Open channel inspector"}
+            aria-pressed={inspectorOpen}
+            className={cn(
+              inspectorOpen
+                ? "bg-[color:var(--color-surface-elevated)] text-[color:var(--color-text-primary)]"
+                : null
+            )}
+            data-state={inspectorOpen ? "open" : "closed"}
+            data-testid="network-channel-inspector-toggle"
+            onClick={onInspectorToggle}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <PanelRight aria-hidden="true" className="size-4" />
+          </Button>
+
+          <DropdownMenu onOpenChange={setOverflowOpen} open={overflowOpen}>
             <DropdownMenuTrigger
               render={
                 <Button
@@ -89,7 +171,7 @@ export function ChannelHeader({
                   data-testid="network-channel-kebab"
                   size="icon-sm"
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                 />
               }
             >
@@ -105,12 +187,6 @@ export function ChannelHeader({
               >
                 <RefreshCw aria-hidden="true" className="size-3.5" />
                 Refresh data
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled title="Post-MVP">
-                Rename channel
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled title="Post-MVP">
-                Archive channel
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

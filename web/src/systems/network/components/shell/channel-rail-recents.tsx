@@ -1,7 +1,9 @@
+import { AtSign, MessagesSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { SidebarSectionLabel, Skeleton } from "@agh/ui";
 import { cn } from "@/lib/utils";
+import { NAV_ROW_CLASS } from "@/components/sidebar-nav-classes";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkRecentEntry } from "../../types";
@@ -14,7 +16,8 @@ export interface ChannelRailRecentsProps {
 }
 
 function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
-  const tag = entry.surface === "thread" ? "TH" : "DM";
+  const Icon = entry.surface === "thread" ? MessagesSquare : AtSign;
+  const ariaLabel = entry.surface === "thread" ? "Thread" : "Direct room";
   const timestampLabel = entry.lastActivityAt
     ? formatNetworkRelativeTime(entry.lastActivityAt)
     : null;
@@ -22,28 +25,28 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
   if (entry.surface === "thread") {
     return (
       <Link
-        className="group flex items-center gap-2 rounded-[6px] px-2 py-1 transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]"
+        className={cn(NAV_ROW_CLASS, "py-1 text-[12px]")}
         data-testid={`network-recents-thread-${entry.containerId}`}
         params={{ channel: entry.channel, threadId: entry.containerId }}
         to="/network/$channel/threads/$threadId"
       >
-        <span
-          aria-hidden="true"
-          className="font-mono text-[10px] tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
-        >
-          [{tag}]
-        </span>
+        <Icon
+          aria-label={ariaLabel}
+          className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
+        />
         <span
           className={cn(
-            "min-w-0 flex-1 truncate text-[12px]",
+            "min-w-0 flex-1 truncate",
             entry.hasUnread
               ? "font-semibold text-[color:var(--color-text-primary)]"
               : "text-[color:var(--color-text-secondary)]"
           )}
         >
-          <span className="font-mono">#{entry.channel}</span>
-          <span className="px-1 text-[color:var(--color-text-tertiary)]">·</span>
           <span>{entry.preview}</span>
+          <span className="px-1 text-[color:var(--color-text-tertiary)]">·</span>
+          <span className="font-mono text-[color:var(--color-text-tertiary)]">
+            #{entry.channel}
+          </span>
         </span>
         {timestampLabel ? (
           <span className="shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]">
@@ -56,20 +59,18 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
 
   return (
     <Link
-      className="group flex items-center gap-2 rounded-[6px] px-2 py-1 transition-colors hover:bg-[color:var(--color-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]"
+      className={cn(NAV_ROW_CLASS, "py-1 text-[12px]")}
       data-testid={`network-recents-direct-${entry.containerId}`}
       params={{ channel: entry.channel, directId: entry.containerId }}
       to="/network/$channel/directs/$directId"
     >
-      <span
-        aria-hidden="true"
-        className="font-mono text-[10px] tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
-      >
-        [{tag}]
-      </span>
+      <Icon
+        aria-label={ariaLabel}
+        className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
+      />
       <span
         className={cn(
-          "min-w-0 flex-1 truncate text-[12px]",
+          "min-w-0 flex-1 truncate",
           entry.hasUnread
             ? "font-semibold text-[color:var(--color-text-primary)]"
             : "text-[color:var(--color-text-secondary)]"
@@ -77,7 +78,7 @@ function RecentEntryRow({ entry }: { entry: NetworkRecentEntry }) {
       >
         <span>{entry.preview}</span>
         <span className="px-1 text-[color:var(--color-text-tertiary)]">in</span>
-        <span className="font-mono">#{entry.channel}</span>
+        <span className="font-mono text-[color:var(--color-text-tertiary)]">#{entry.channel}</span>
       </span>
       {timestampLabel ? (
         <span className="shrink-0 font-mono text-[10px] text-[color:var(--color-text-tertiary)]">

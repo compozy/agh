@@ -4,6 +4,7 @@ import { Skeleton } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
+import type { ChannelMember, ChannelMemberRole } from "../../hooks/use-channel-members";
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkDirectRoomSummary } from "../../types";
 import { DirectsEmpty } from "../empty-states/directs-empty";
@@ -16,6 +17,7 @@ export interface DirectsListProps {
   isLoading: boolean;
   /** Local peer id used to identify which side of `peer_a/peer_b` is "the other peer". */
   selfPeerId?: string;
+  members?: ReadonlyArray<ChannelMember>;
   onNewDirect?: () => void;
 }
 
@@ -34,12 +36,12 @@ interface DirectsListRowProps {
   direct: NetworkDirectRoomSummary;
   active: boolean;
   selfPeerId?: string;
+  role?: ChannelMemberRole;
 }
 
-function DirectsListRow({ channel, direct, active, selfPeerId }: DirectsListRowProps) {
+function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsListRowProps) {
   const otherPeerId = pickOtherPeerId(direct, selfPeerId);
   const lastActivity = formatNetworkRelativeTime(direct.last_activity_at ?? null);
-  const messageCount = direct.message_count ?? 0;
 
   return (
     <Link
@@ -55,20 +57,30 @@ function DirectsListRow({ channel, direct, active, selfPeerId }: DirectsListRowP
       <MessageAvatar initialFrom={otherPeerId} seed={otherPeerId} sizePx={36} />
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="truncate text-[14px] font-semibold text-[color:var(--color-text-primary)]">
-          @{otherPeerId}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="truncate text-[14px] font-semibold text-[color:var(--color-text-primary)]">
+            @{otherPeerId}
+          </p>
+          {role ? (
+            <span
+              className="font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+              data-testid={`network-direct-list-row-role-${direct.direct_id}`}
+            >
+              {role === "agent" ? "AGENT" : "HUMAN"}
+            </span>
+          ) : null}
+        </div>
         <p className="line-clamp-2 text-[13px] text-[color:var(--color-text-secondary)]">
           {direct.last_message_preview ?? "No messages yet."}
         </p>
-        <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
-          <span data-testid="network-direct-list-row-meta-messages">
-            {messageCount} {messageCount === 1 ? "msg" : "msgs"}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span data-testid="network-direct-list-row-meta-time">{lastActivity}</span>
-        </div>
       </div>
+
+      <span
+        className="shrink-0 self-start font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        data-testid={`network-direct-list-row-time-${direct.direct_id}`}
+      >
+        {lastActivity}
+      </span>
     </Link>
   );
 }
@@ -93,12 +105,26 @@ function DirectsListSkeleton() {
   );
 }
 
+function buildRoleLookup(
+  members: ReadonlyArray<ChannelMember> | undefined
+): Map<string, ChannelMemberRole> {
+  const map = new Map<string, ChannelMemberRole>();
+  if (!members) {
+    return map;
+  }
+  for (const member of members) {
+    map.set(member.peerId, member.role);
+  }
+  return map;
+}
+
 export function DirectsList({
   channel,
   directs,
   activeDirectId,
   isLoading,
   selfPeerId,
+  members,
   onNewDirect,
 }: DirectsListProps) {
   if (isLoading && directs.length === 0) {
@@ -113,6 +139,8 @@ export function DirectsList({
     );
   }
 
+  const roleByPeerId = buildRoleLookup(members);
+
   return (
     <div
       aria-label={`Direct rooms in #${channel}`}
@@ -120,15 +148,19 @@ export function DirectsList({
       className="flex flex-1 flex-col overflow-y-auto"
       data-testid="network-direct-list"
     >
-      {directs.map(direct => (
-        <DirectsListRow
-          active={direct.direct_id === activeDirectId}
-          channel={channel}
-          direct={direct}
-          key={direct.direct_id}
-          selfPeerId={selfPeerId}
-        />
-      ))}
+      {directs.map(direct => {
+        const otherPeerId = pickOtherPeerId(direct, selfPeerId);
+        return (
+          <DirectsListRow
+            active={direct.direct_id === activeDirectId}
+            channel={channel}
+            direct={direct}
+            key={direct.direct_id}
+            role={roleByPeerId.get(otherPeerId)}
+            selfPeerId={selfPeerId}
+          />
+        );
+      })}
     </div>
   );
 }

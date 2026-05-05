@@ -74,18 +74,24 @@ function NetworkShellHarness({
       <NetworkShell
         activeChannel={channels[0] ?? null}
         activeChannelDetail={null}
+        activeDirectId={null}
         activeTab={activeTab}
         directCount={networkDirectRoomsFixture.length}
+        directs={networkDirectRoomsFixture}
         hasUnread={() => true}
+        inspectorOpen={false}
         isChannelsLoading={false}
+        isDirectsLoading={false}
         isPinned={(channel: string) => pinnedSet.has(channel)}
         isRecentsLoading={false}
+        onInspectorToggle={() => undefined}
         onTogglePinned={() => undefined}
         openWorkCount={2}
         pinnedChannels={pinned}
         recents={recentsList}
         rightRailMode="thread"
         rightRailOpen={rightRailOpen}
+        selfPeerId={null}
         threadCount={networkThreadsFixture.length}
         unpinnedChannels={unpinned}
       >

@@ -31,6 +31,8 @@ export const ThreadsTabActive: Story = {
         channel={heroChannel}
         detail={networkChannelFixture}
         directCount={4}
+        inspectorOpen={false}
+        onInspectorToggle={() => undefined}
         openWorkCount={2}
         threadCount={12}
       />
@@ -46,6 +48,8 @@ export const DirectsTabActive: Story = {
         channel={heroChannel}
         detail={networkChannelFixture}
         directCount={4}
+        inspectorOpen={false}
+        onInspectorToggle={() => undefined}
         openWorkCount={0}
         threadCount={12}
       />
@@ -61,8 +65,27 @@ export const ActivityTabActive: Story = {
         channel={heroChannel}
         detail={null}
         directCount={null}
+        inspectorOpen={false}
+        onInspectorToggle={() => undefined}
         openWorkCount={0}
         threadCount={null}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const InspectorOpen: Story = {
+  render: () => (
+    <PanelSurface className="min-h-[160px]">
+      <ChannelHeader
+        activeTab="threads"
+        channel={heroChannel}
+        detail={networkChannelFixture}
+        directCount={4}
+        inspectorOpen
+        onInspectorToggle={() => undefined}
+        openWorkCount={2}
+        threadCount={12}
       />
     </PanelSurface>
   ),

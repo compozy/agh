@@ -43,7 +43,12 @@ export function ThreadOverlay({ channel, threadId, fullPage = false }: ThreadOve
         </>
       ) : (
         <>
-          <WorkBanner hasNeedsInput={openWork.hasNeedsInput} openCount={openWork.openCount} />
+          <WorkBanner
+            hasNeedsInput={openWork.hasNeedsInput}
+            needsInputCount={openWork.needsInputCount}
+            openCount={openWork.openCount}
+            workingCount={openWork.workingCount}
+          />
           <ThreadOverlayRoot
             isLoading={overlay.isDetailLoading}
             rootMessage={overlay.rootMessage}

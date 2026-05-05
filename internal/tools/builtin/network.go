@@ -193,7 +193,7 @@ const networkSendInputSchema = `{
 	"properties":{
 		"session_id":{"type":"string"},
 		"channel":{"type":"string"},
-		"kind":{"type":"string"},
+		"kind":{"type":"string","enum":["greet","whois","say","capability","receipt","trace"]},
 		"surface":{"type":"string","enum":["thread","direct"]},
 		"thread_id":{"type":"string"},
 		"direct_id":{"type":"string"},
@@ -207,39 +207,6 @@ const networkSendInputSchema = `{
 		"id":{"type":"string"},
 		"ext":{"type":"object"}
 	},
-	"oneOf":[
-		{
-			"properties":{"kind":{"enum":["greet","whois"]}},
-			"not":{
-				"anyOf":[
-					{"required":["surface"]},
-					{"required":["thread_id"]},
-					{"required":["direct_id"]},
-					{"required":["work_id"]}
-				]
-			}
-		},
-		{
-			"required":["surface","thread_id"],
-			"properties":{"kind":{"enum":["say"]},"surface":{"enum":["thread"]}},
-			"not":{"required":["direct_id"]}
-		},
-		{
-			"required":["surface","direct_id"],
-			"properties":{"kind":{"enum":["say"]},"surface":{"enum":["direct"]}},
-			"not":{"required":["thread_id"]}
-		},
-		{
-			"required":["surface","thread_id","work_id"],
-			"properties":{"kind":{"enum":["capability","receipt","trace"]},"surface":{"enum":["thread"]}},
-			"not":{"required":["direct_id"]}
-		},
-		{
-			"required":["surface","direct_id","work_id"],
-			"properties":{"kind":{"enum":["capability","receipt","trace"]},"surface":{"enum":["direct"]}},
-			"not":{"required":["thread_id"]}
-		}
-	],
 	"additionalProperties":false
 }`
 

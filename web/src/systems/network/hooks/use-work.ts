@@ -84,6 +84,10 @@ export interface UseOpenWorkResult {
   openCount: number;
   /** True when at least one entry is in `needs_input`, used by the banner escalation. */
   hasNeedsInput: boolean;
+  /** Count of entries currently awaiting human input — feeds the banner breakdown. */
+  needsInputCount: number;
+  /** Count of entries actively working — feeds the banner breakdown. */
+  workingCount: number;
   isLoading: boolean;
 }
 
@@ -112,6 +116,23 @@ function readWorkState(message: NetworkConversationMessage): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function shouldReplaceWorkState(
+  existing: MutableOpenWorkState | undefined,
+  nextState: string,
+  timestamp: number
+): boolean {
+  if (!existing) {
+    return true;
+  }
+  if (timestamp !== existing.timestamp) {
+    return timestamp > existing.timestamp;
+  }
+  if (isTerminalNetworkWorkState(existing.state) && !isTerminalNetworkWorkState(nextState)) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * Aggregates open-work state from the messages already loaded for the active
  * container. The technique is intentional: the public API exposes
@@ -138,7 +159,14 @@ export function useOpenWork({
 
   return useMemo(() => {
     if (!enabled) {
-      return { entries: [], openCount: 0, hasNeedsInput: false, isLoading: false };
+      return {
+        entries: [],
+        openCount: 0,
+        hasNeedsInput: false,
+        needsInputCount: 0,
+        workingCount: 0,
+        isLoading: false,
+      };
     }
 
     const byWork = new Map<string, MutableOpenWorkState>();
@@ -150,10 +178,11 @@ export function useOpenWork({
       const state = readWorkState(message);
       const timestamp = readNumericTimestamp(message);
       const existing = byWork.get(workId);
-      if (existing == null || timestamp >= existing.timestamp) {
+      const nextState = state ?? existing?.state ?? "submitted";
+      if (shouldReplaceWorkState(existing, nextState, timestamp)) {
         byWork.set(workId, {
           workId,
-          state: state ?? existing?.state ?? "submitted",
+          state: nextState,
           messageId: message.message_id,
           targetPeerId: message.peer_to ?? existing?.targetPeerId ?? null,
           timestamp,
@@ -164,6 +193,8 @@ export function useOpenWork({
 
     const entries: OpenWorkEntry[] = [];
     let hasNeedsInput = false;
+    let needsInputCount = 0;
+    let workingCount = 0;
     for (const candidate of byWork.values()) {
       if (isTerminalNetworkWorkState(candidate.state)) {
         continue;
@@ -183,6 +214,9 @@ export function useOpenWork({
       });
       if (candidate.state === "needs_input") {
         hasNeedsInput = true;
+        needsInputCount += 1;
+      } else if (candidate.state === "working") {
+        workingCount += 1;
       }
     }
 
@@ -191,6 +225,8 @@ export function useOpenWork({
       entries,
       openCount: entries.length,
       hasNeedsInput,
+      needsInputCount,
+      workingCount,
       isLoading: messagesQuery.isLoading,
     };
   }, [enabled, messagesQuery.messages, messagesQuery.isLoading]);

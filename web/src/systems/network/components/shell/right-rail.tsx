@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-export type RightRailMode = "thread" | "members" | "work";
+export type RightRailMode = "thread" | "inspector";
 
 export interface RightRailProps {
   open: boolean;
@@ -18,15 +18,9 @@ export function RightRail({ open, mode, children, className }: RightRailProps) {
 
   return (
     <aside
-      aria-label={
-        mode === "thread"
-          ? "Thread overlay"
-          : mode === "members"
-            ? "Channel members"
-            : "Work inspector"
-      }
+      aria-label={mode === "thread" ? "Thread overlay" : "Channel inspector"}
       className={cn(
-        "flex min-h-0 w-[420px] shrink-0 flex-col border-l border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)]",
+        "flex min-h-0 w-[360px] shrink-0 flex-col border-l border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)]",
         className
       )}
       data-mode={mode}

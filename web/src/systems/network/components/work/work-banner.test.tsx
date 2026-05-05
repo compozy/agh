@@ -48,4 +48,16 @@ describe("WorkBanner auto-hide and escalation (`_design.md` §5.8.2)", () => {
     });
     expect(screen.queryByTestId("network-work-banner")).toBeNull();
   });
+
+  it("Should render the explicit breakdown when needsInputCount + workingCount are provided", () => {
+    render(<WorkBanner hasNeedsInput needsInputCount={2} openCount={3} workingCount={1} />);
+    const banner = screen.getByTestId("network-work-banner");
+    expect(banner).toHaveAttribute("data-escalate", "true");
+    expect(banner).toHaveTextContent("2 needs input · 1 working");
+  });
+
+  it("Should omit zero buckets in the breakdown", () => {
+    render(<WorkBanner hasNeedsInput={false} needsInputCount={0} openCount={2} workingCount={2} />);
+    expect(screen.getByTestId("network-work-banner")).toHaveTextContent("2 working");
+  });
 });

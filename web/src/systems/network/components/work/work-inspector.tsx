@@ -11,6 +11,12 @@ export interface WorkInspectorProps {
   isLoading?: boolean;
   onJump?: (entry: OpenWorkEntry) => void;
   className?: string;
+  /**
+   * When true, render only the list/empty state without the inner header
+   * (count badge moves to the parent tab). Phase E uses this from
+   * `<NetworkInspector>` to host the Work tab body.
+   */
+  chromeless?: boolean;
 }
 
 export function WorkInspector({
@@ -18,7 +24,45 @@ export function WorkInspector({
   isLoading = false,
   onJump,
   className,
+  chromeless = false,
 }: WorkInspectorProps) {
+  const body =
+    isLoading && entries.length === 0 ? (
+      <p className="px-4 py-6 text-[13px] text-[color:var(--color-text-tertiary)]">Loading…</p>
+    ) : entries.length === 0 ? (
+      <div className="px-4 py-6">
+        <Empty
+          className="max-w-sm"
+          description="The active container has no open work right now."
+          fill={false}
+          icon={Activity}
+          title="No work in flight."
+        />
+      </div>
+    ) : (
+      <ul
+        aria-label="Open work entries"
+        className="flex flex-1 flex-col overflow-y-auto"
+        data-testid="network-work-inspector-list"
+      >
+        {entries.map(entry => (
+          <WorkInspectorRow entry={entry} key={entry.workId} onJump={onJump} />
+        ))}
+      </ul>
+    );
+
+  if (chromeless) {
+    return (
+      <section
+        aria-label="Open network work"
+        className={cn("flex min-h-0 flex-1 flex-col", className)}
+        data-testid="network-work-inspector"
+      >
+        {body}
+      </section>
+    );
+  }
+
   return (
     <section
       aria-label="Open network work"
@@ -34,30 +78,7 @@ export function WorkInspector({
           {entries.length} open
         </span>
       </header>
-
-      {isLoading && entries.length === 0 ? (
-        <p className="px-4 py-6 text-[13px] text-[color:var(--color-text-tertiary)]">Loading…</p>
-      ) : entries.length === 0 ? (
-        <div className="px-4 py-6">
-          <Empty
-            className="max-w-sm"
-            description="The active container has no open work right now."
-            fill={false}
-            icon={Activity}
-            title="No work in flight."
-          />
-        </div>
-      ) : (
-        <ul
-          aria-label="Open work entries"
-          className="flex flex-1 flex-col overflow-y-auto"
-          data-testid="network-work-inspector-list"
-        >
-          {entries.map(entry => (
-            <WorkInspectorRow entry={entry} key={entry.workId} onJump={onJump} />
-          ))}
-        </ul>
-      )}
+      {body}
     </section>
   );
 }

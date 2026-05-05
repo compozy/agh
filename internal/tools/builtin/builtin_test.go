@@ -161,6 +161,26 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose provider-compatible top-level input schemas", func(t *testing.T) {
+		t.Parallel()
+
+		for _, descriptor := range NativeDescriptors() {
+			var schema map[string]json.RawMessage
+			if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+				t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+			}
+			for _, forbidden := range []string{"oneOf", "anyOf", "allOf"} {
+				if _, ok := schema[forbidden]; ok {
+					t.Fatalf(
+						"%s input schema has top-level %s, want provider-compatible object schema",
+						descriptor.ID,
+						forbidden,
+					)
+				}
+			}
+		}
+	})
+
 	t.Run("Should classify read mutating open world and destructive risk flags", func(t *testing.T) {
 		t.Parallel()
 

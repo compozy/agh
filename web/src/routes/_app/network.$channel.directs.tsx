@@ -8,9 +8,10 @@ import {
   DirectsEmpty,
   DirectsList,
   NewDirectDialog,
-  useActiveNetworkSession,
-  useNetworkDirects,
+  useNetworkChannelDirectsRoute,
+  useNetworkListFilters,
 } from "@/systems/network";
+import { ListFilterBar } from "@/systems/network/components/shell";
 
 interface DirectDetailParams {
   directId?: string;
@@ -23,8 +24,12 @@ export const Route = createFileRoute("/_app/network/$channel/directs")({
 function NetworkChannelDirectsRoute() {
   const { channel } = Route.useParams();
   const detailParams = useParams({ strict: false }) as DirectDetailParams;
-  const directsQuery = useNetworkDirects(channel);
-  const activeSession = useActiveNetworkSession(channel);
+  const route = useNetworkChannelDirectsRoute(channel);
+  const filters = useNetworkListFilters({
+    channel,
+    threads: [],
+    directs: route.directs.directs,
+  });
   const [newDirectOpen, setNewDirectOpen] = useState(false);
 
   if (detailParams.directId) {
@@ -39,8 +44,17 @@ function NetworkChannelDirectsRoute() {
     );
   }
 
-  const showEmpty = !directsQuery.isLoading && directsQuery.directs.length === 0;
+  const directsQuery = route.directs;
+  const activeSession = route.session;
+  const channelMembers = route.members;
+  const visibleDirects = filters.filteredDirects;
+  const showEmpty = !directsQuery.isLoading && visibleDirects.length === 0;
   const sessionId = activeSession.session?.sessionId ?? "";
+  const totalDirects = directsQuery.directs.length;
+  const subheaderLabel =
+    totalDirects === 1
+      ? "1 DIRECT ROOM IN THIS CHANNEL"
+      : `${totalDirects} DIRECT ROOMS IN THIS CHANNEL`;
 
   return (
     <section
@@ -48,7 +62,23 @@ function NetworkChannelDirectsRoute() {
       className="flex min-h-0 flex-1 flex-col"
       data-testid="network-directs-tab"
     >
-      <header className="flex items-center justify-end border-b border-[color:var(--color-divider)] px-5 py-2">
+      <ListFilterBar
+        counts={filters.counts}
+        filter={filters.filter}
+        isMarkAllReadDisabled={filters.counts.unread === 0}
+        onFilterChange={filters.setFilter}
+        onMarkAllRead={filters.markAllRead}
+        onSortChange={filters.setSort}
+        sort={filters.sort}
+      />
+
+      <header
+        className="flex items-center justify-between gap-3 border-b border-[color:var(--color-divider)] px-5 py-2"
+        data-testid="network-directs-subheader"
+      >
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+          {subheaderLabel}
+        </span>
         <Button
           aria-label="Open new direct room"
           data-testid="network-directs-new-direct"
@@ -74,8 +104,10 @@ function NetworkChannelDirectsRoute() {
         <DirectsList
           activeDirectId={null}
           channel={channel}
-          directs={directsQuery.directs}
+          directs={visibleDirects}
           isLoading={directsQuery.isLoading}
+          members={channelMembers.members}
+          selfPeerId={activeSession.session?.peerId}
         />
       )}
 

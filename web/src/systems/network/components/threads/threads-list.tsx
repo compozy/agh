@@ -1,4 +1,3 @@
-import { Hash } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { Skeleton } from "@agh/ui";
@@ -25,48 +24,72 @@ interface ThreadsListRowProps {
   active: boolean;
 }
 
+function StateChip({ openWorkCount }: { openWorkCount: number }) {
+  if (openWorkCount === 0) {
+    return null;
+  }
+  // Without per-state breakdown on the summary we can only surface that the
+  // thread has open work — clearly truthful, not invented.
+  return (
+    <span
+      className="shrink-0 rounded-[3px] bg-[color:var(--color-warning-tint)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-warning)]"
+      data-testid="network-thread-list-row-state-chip"
+    >
+      {openWorkCount === 1 ? "1 work open" : `${openWorkCount} work open`}
+    </span>
+  );
+}
+
 function ThreadsListRow({ channel, thread, active }: ThreadsListRowProps) {
   const messageCount = thread.message_count ?? 0;
+  const replyCount = Math.max(0, messageCount - 1); // root + replies — guard against historical zero.
   const peerCount = thread.participant_count ?? 0;
+  const openWorkCount = thread.open_work_count ?? 0;
   const lastActivity = formatNetworkRelativeTime(thread.last_activity_at ?? null);
+  const opener = thread.opened_by_peer_id?.trim() || "unknown";
 
   return (
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex flex-col gap-1.5 border-b border-[color:var(--color-divider)] px-5 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]",
-        active ? "bg-[color:var(--color-accent-tint)]" : "hover:bg-[color:var(--color-hover)]"
+        "group flex items-start gap-3 border-b border-[color:var(--color-divider)] px-5 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--color-accent)]",
+        active ? "bg-[color:var(--color-surface)]" : "hover:bg-[color:var(--color-hover)]"
       )}
       data-testid={`network-thread-list-row-${thread.thread_id}`}
       params={{ channel, threadId: thread.thread_id }}
       to="/network/$channel/threads/$threadId"
     >
-      <div className="flex items-start gap-2">
-        <Hash
-          aria-hidden="true"
-          className="mt-1 size-3.5 text-[color:var(--color-text-tertiary)]"
-        />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex items-start justify-between gap-3">
           <p className="truncate text-[14px] font-semibold text-[color:var(--color-text-primary)]">
             {thread.title ?? "Untitled thread"}
           </p>
-          <p className="line-clamp-2 text-[13px] text-[color:var(--color-text-secondary)]">
-            {thread.last_message_preview ?? "No messages yet."}
-          </p>
+          <StateChip openWorkCount={openWorkCount} />
+        </div>
+
+        <p className="line-clamp-2 text-[13px] text-[color:var(--color-text-secondary)]">
+          {thread.last_message_preview ?? "No messages yet."}
+        </p>
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
+          <span data-testid="network-thread-list-row-meta-peers">
+            {peerCount} {peerCount === 1 ? "peer" : "peers"}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span data-testid="network-thread-list-row-meta-replies">
+            {replyCount} {replyCount === 1 ? "reply" : "replies"}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span data-testid="network-thread-list-row-meta-opener">started by {opener}</span>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]">
-        <span data-testid="network-thread-list-row-meta-peers">
-          {peerCount} {peerCount === 1 ? "peer" : "peers"}
-        </span>
-        <span aria-hidden="true">·</span>
-        <span data-testid="network-thread-list-row-meta-messages">
-          {messageCount} {messageCount === 1 ? "msg" : "msgs"}
-        </span>
-        <span aria-hidden="true">·</span>
-        <span data-testid="network-thread-list-row-meta-time">{lastActivity}</span>
-      </div>
+      <span
+        className="shrink-0 self-start font-mono text-[10px] uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        data-testid="network-thread-list-row-meta-time"
+      >
+        {lastActivity}
+      </span>
     </Link>
   );
 }
@@ -76,7 +99,7 @@ function ThreadsListSkeleton() {
     <div className="space-y-0" data-testid="network-thread-list-skeleton">
       {[0, 1, 2, 3, 4].map(index => (
         <div
-          className="flex flex-col gap-2 border-b border-[color:var(--color-divider)] px-5 py-3"
+          className="flex flex-col gap-2 border-b border-[color:var(--color-divider)] px-5 py-4"
           key={index}
         >
           <Skeleton className="h-3.5 w-2/3" />
@@ -108,6 +131,8 @@ export function ThreadsList({
     );
   }
 
+  const total = threads.length;
+
   return (
     <div
       aria-label={`Threads in #${channel}`}
@@ -119,6 +144,15 @@ export function ThreadsList({
       data-dim={dim ? "true" : "false"}
       data-testid="network-thread-list"
     >
+      <div
+        className="flex items-center justify-between gap-3 border-b border-[color:var(--color-divider)] px-5 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-[color:var(--color-text-tertiary)]"
+        data-testid="network-thread-list-subheader"
+      >
+        <span>
+          {total} {total === 1 ? "thread" : "threads"}
+        </span>
+        <span aria-hidden="true">Sorted by recent activity</span>
+      </div>
       {threads.map(thread => (
         <ThreadsListRow
           active={thread.thread_id === activeThreadId}
