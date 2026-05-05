@@ -61,7 +61,7 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AppliedMigrations() error = %v", err)
 		}
-		if got, want := len(records), 16; got != want {
+		if got, want := len(records), 17; got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
 		soulRecord := records[11]
@@ -80,6 +80,9 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		}
 		if records[15].Version != 16 || records[15].Name != "rename_actor_ref_columns_to_actor_id" {
 			t.Fatalf("records[15] = %#v, want rename_actor_ref_columns_to_actor_id v16", records[15])
+		}
+		if records[16].Version != 17 || records[16].Name != "rebuild_network_conversation_containers" {
+			t.Fatalf("records[16] = %#v, want rebuild_network_conversation_containers v17", records[16])
 		}
 		for _, table := range []string{"soul_snapshots", "soul_revisions"} {
 			exists, err := tableExists(ctx, globalDB.db, table)

@@ -311,6 +311,10 @@ func NormalizeAuditEntry(
 		Direction: strings.TrimSpace(direction),
 		Kind:      strings.TrimSpace(string(envelope.Kind)),
 		Channel:   strings.TrimSpace(envelope.Channel),
+		Surface:   trimmedSurfaceValue(envelope.Surface),
+		ThreadID:  trimmedPointerValue(envelope.ThreadID),
+		DirectID:  trimmedPointerValue(envelope.DirectID),
+		WorkID:    trimmedPointerValue(envelope.WorkID),
 		PeerFrom:  strings.TrimSpace(envelope.From),
 		PeerTo:    peerTo,
 		MessageID: strings.TrimSpace(envelope.ID),
@@ -353,6 +357,9 @@ func normalizeTimelineMessageEntry(
 		MessageID:   strings.TrimSpace(envelope.ID),
 		SessionID:   strings.TrimSpace(sessionID),
 		Channel:     strings.TrimSpace(envelope.Channel),
+		Surface:     trimmedSurfaceValue(envelope.Surface),
+		ThreadID:    trimmedPointerValue(envelope.ThreadID),
+		DirectID:    trimmedPointerValue(envelope.DirectID),
 		Direction:   strings.TrimSpace(direction),
 		PeerFrom:    strings.TrimSpace(envelope.From),
 		PeerTo:      peerTo,
@@ -411,6 +418,13 @@ func trimmedPointerValue(value *string) string {
 		return ""
 	}
 	return strings.TrimSpace(*value)
+}
+
+func trimmedSurfaceValue(value *Surface) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(string(*value))
 }
 
 func (w *FileAuditWriter) appendFile(entry store.NetworkAuditEntry) error {

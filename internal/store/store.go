@@ -29,6 +29,14 @@ var (
 	ErrClosed = errors.New("store: session database closed")
 	// ErrDrainTimeout reports that shutdown timed out before queued writes drained.
 	ErrDrainTimeout = errors.New("store: writer drain timeout")
+	// ErrNetworkConversationNotFound reports a missing network conversation container.
+	ErrNetworkConversationNotFound = errors.New("store: network conversation not found")
+	// ErrNetworkDirectRoomCollision reports a direct_id bound to another peer pair.
+	ErrNetworkDirectRoomCollision = errors.New("store: network direct room collision")
+	// ErrNetworkWorkContainerMismatch reports a work_id used outside its bound container.
+	ErrNetworkWorkContainerMismatch = errors.New("store: network work container mismatch")
+	// ErrNetworkWorkClosed reports a non-duplicate message for terminal work.
+	ErrNetworkWorkClosed = errors.New("store: network work closed")
 )
 
 // EventRecorder captures session events and token usage in the per-session database.
@@ -86,6 +94,29 @@ type NetworkMessageStore interface {
 	ListNetworkMessages(ctx context.Context, query NetworkMessageQuery) ([]NetworkMessageEntry, error)
 }
 
+// NetworkConversationStore manages durable conversation containers and work rows.
+type NetworkConversationStore interface {
+	ResolveDirectRoom(ctx context.Context, entry NetworkDirectRoomEntry) (NetworkDirectRoomSummary, error)
+	WriteConversationMessage(
+		ctx context.Context,
+		entry NetworkConversationMessage,
+	) (NetworkConversationWriteResult, error)
+	ListThreads(ctx context.Context, channel string, query NetworkThreadQuery) ([]NetworkThreadSummary, error)
+	GetThread(ctx context.Context, channel string, threadID string) (NetworkThreadSummary, error)
+	ListDirectRooms(
+		ctx context.Context,
+		channel string,
+		query NetworkDirectRoomQuery,
+	) ([]NetworkDirectRoomSummary, error)
+	GetDirectRoom(ctx context.Context, channel string, directID string) (NetworkDirectRoomSummary, error)
+	ListConversationMessages(
+		ctx context.Context,
+		ref NetworkConversationRef,
+		query NetworkConversationMessageQuery,
+	) ([]NetworkConversationMessage, error)
+	GetWork(ctx context.Context, workID string) (NetworkWorkEntry, error)
+}
+
 // SessionRegistry composes the global persistence surfaces used by runtime consumers.
 type SessionRegistry interface {
 	SessionCatalog
@@ -95,6 +126,7 @@ type SessionRegistry interface {
 	NetworkAuditStore
 	NetworkChannelStore
 	NetworkMessageStore
+	NetworkConversationStore
 	Close(ctx context.Context) error
 }
 

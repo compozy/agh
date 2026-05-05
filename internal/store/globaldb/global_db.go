@@ -34,6 +34,159 @@ var taskEventIndexStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_task_events_task_seq ON task_events(task_id, event_seq ASC);`,
 }
 
+const networkAuditLogTableStatement = `CREATE TABLE IF NOT EXISTS network_audit_log (
+		id         TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		direction  TEXT NOT NULL,
+		kind       TEXT NOT NULL,
+		channel    TEXT NOT NULL,
+		surface    TEXT,
+		thread_id  TEXT,
+		direct_id  TEXT,
+		work_id    TEXT,
+		peer_from  TEXT NOT NULL,
+		peer_to    TEXT,
+		message_id TEXT NOT NULL,
+		reason     TEXT,
+		size       INTEGER NOT NULL,
+		timestamp  TEXT NOT NULL
+	);`
+
+const networkTimelineLogTableStatement = `CREATE TABLE IF NOT EXISTS network_timeline_log (
+		message_id    TEXT PRIMARY KEY,
+		session_id    TEXT,
+		channel       TEXT NOT NULL,
+		surface       TEXT CHECK (surface IN ('thread', 'direct') OR surface IS NULL),
+		thread_id     TEXT,
+		direct_id     TEXT,
+		direction     TEXT NOT NULL,
+		peer_from     TEXT NOT NULL,
+		peer_to       TEXT,
+		kind          TEXT NOT NULL,
+		work_id       TEXT,
+		reply_to      TEXT,
+		trace_id      TEXT,
+		causation_id  TEXT,
+		intent        TEXT,
+		text          TEXT,
+		preview_text  TEXT NOT NULL DEFAULT '',
+		body_json     TEXT NOT NULL,
+		timestamp     TEXT NOT NULL,
+		CHECK (
+			(surface IS NULL AND thread_id IS NULL AND direct_id IS NULL AND work_id IS NULL AND kind IN ('greet', 'whois'))
+			OR (surface = 'thread' AND thread_id IS NOT NULL AND direct_id IS NULL)
+			OR (surface = 'direct' AND direct_id IS NOT NULL AND thread_id IS NULL)
+		),
+		CHECK (kind IN ('greet', 'whois', 'say', 'capability', 'receipt', 'trace'))
+	);`
+
+var networkConversationSchemaStatements = []string{
+	networkAuditLogTableStatement,
+	`CREATE INDEX IF NOT EXISTS idx_net_audit_ts ON network_audit_log(timestamp);`,
+	`CREATE INDEX IF NOT EXISTS idx_net_audit_session ON network_audit_log(session_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_net_audit_conversation
+		ON network_audit_log(channel, surface, thread_id, direct_id, timestamp);`,
+	`CREATE INDEX IF NOT EXISTS idx_net_audit_work
+		ON network_audit_log(work_id, timestamp)
+		WHERE work_id IS NOT NULL;`,
+	networkTimelineLogTableStatement,
+	`CREATE INDEX IF NOT EXISTS idx_net_timeline_thread_ts
+		ON network_timeline_log(channel, thread_id, timestamp, message_id)
+		WHERE surface = 'thread';`,
+	`CREATE INDEX IF NOT EXISTS idx_net_timeline_direct_ts
+		ON network_timeline_log(channel, direct_id, timestamp, message_id)
+		WHERE surface = 'direct';`,
+	`CREATE INDEX IF NOT EXISTS idx_net_timeline_work_ts
+		ON network_timeline_log(work_id, timestamp, message_id)
+		WHERE work_id IS NOT NULL;`,
+	`CREATE INDEX IF NOT EXISTS idx_net_timeline_presence_ts
+		ON network_timeline_log(channel, timestamp, message_id)
+		WHERE surface IS NULL;`,
+	`CREATE INDEX IF NOT EXISTS idx_net_timeline_kind_ts
+		ON network_timeline_log(kind, timestamp, message_id);`,
+	`CREATE TABLE IF NOT EXISTS network_threads (
+		channel              TEXT NOT NULL,
+		thread_id            TEXT NOT NULL,
+		root_message_id      TEXT NOT NULL,
+		title                TEXT NOT NULL DEFAULT '',
+		opened_by_peer_id    TEXT NOT NULL DEFAULT '',
+		opened_session_id    TEXT NOT NULL DEFAULT '',
+		opened_at            TEXT NOT NULL,
+		last_activity_at     TEXT NOT NULL,
+		message_count        INTEGER NOT NULL DEFAULT 0 CHECK (message_count >= 0),
+		participant_count    INTEGER NOT NULL DEFAULT 0 CHECK (participant_count >= 0),
+		open_work_count      INTEGER NOT NULL DEFAULT 0 CHECK (open_work_count >= 0),
+		last_message_preview TEXT NOT NULL DEFAULT '',
+		PRIMARY KEY (channel, thread_id)
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_network_threads_activity
+		ON network_threads(channel, last_activity_at DESC, thread_id);`,
+	`CREATE TABLE IF NOT EXISTS network_thread_participants (
+		channel          TEXT NOT NULL,
+		thread_id        TEXT NOT NULL,
+		peer_id          TEXT NOT NULL,
+		first_message_id TEXT NOT NULL,
+		first_seen_at    TEXT NOT NULL,
+		last_seen_at     TEXT NOT NULL,
+		PRIMARY KEY (channel, thread_id, peer_id),
+		FOREIGN KEY (channel, thread_id)
+			REFERENCES network_threads(channel, thread_id)
+			ON DELETE CASCADE
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_network_thread_participants_peer
+		ON network_thread_participants(peer_id, last_seen_at DESC);`,
+	`CREATE TABLE IF NOT EXISTS network_direct_rooms (
+		channel              TEXT NOT NULL,
+		direct_id            TEXT NOT NULL,
+		peer_a               TEXT NOT NULL,
+		peer_b               TEXT NOT NULL,
+		opened_at            TEXT NOT NULL,
+		last_activity_at     TEXT NOT NULL,
+		message_count        INTEGER NOT NULL DEFAULT 0 CHECK (message_count >= 0),
+		open_work_count      INTEGER NOT NULL DEFAULT 0 CHECK (open_work_count >= 0),
+		last_message_preview TEXT NOT NULL DEFAULT '',
+		PRIMARY KEY (channel, direct_id),
+		UNIQUE (channel, peer_a, peer_b),
+		CHECK (peer_a < peer_b)
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_network_direct_rooms_activity
+		ON network_direct_rooms(channel, last_activity_at DESC, direct_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_network_direct_rooms_peer_a
+		ON network_direct_rooms(channel, peer_a, last_activity_at DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_network_direct_rooms_peer_b
+		ON network_direct_rooms(channel, peer_b, last_activity_at DESC);`,
+	`CREATE TABLE IF NOT EXISTS network_work (
+		work_id           TEXT PRIMARY KEY,
+		channel           TEXT NOT NULL,
+		surface           TEXT NOT NULL CHECK (surface IN ('thread', 'direct')),
+		thread_id         TEXT,
+		direct_id         TEXT,
+		opened_by_peer_id TEXT NOT NULL,
+		opened_session_id TEXT NOT NULL DEFAULT '',
+		target_peer_id    TEXT NOT NULL DEFAULT '',
+		state             TEXT NOT NULL CHECK (
+			state IN ('submitted', 'working', 'needs_input', 'completed', 'failed', 'canceled')
+		),
+		opened_at         TEXT NOT NULL,
+		last_activity_at  TEXT NOT NULL,
+		terminal_at       TEXT,
+		CHECK (
+			(surface = 'thread' AND thread_id IS NOT NULL AND direct_id IS NULL)
+			OR (surface = 'direct' AND direct_id IS NOT NULL AND thread_id IS NULL)
+		),
+		FOREIGN KEY (channel, thread_id)
+			REFERENCES network_threads(channel, thread_id)
+			ON DELETE RESTRICT,
+		FOREIGN KEY (channel, direct_id)
+			REFERENCES network_direct_rooms(channel, direct_id)
+			ON DELETE RESTRICT
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_network_work_conversation
+		ON network_work(channel, surface, thread_id, direct_id, last_activity_at DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_network_work_state
+		ON network_work(state, last_activity_at DESC);`,
+}
+
 var globalSchemaStatements = append([]string{
 	`CREATE TABLE IF NOT EXISTS workspaces (
 		id            TEXT PRIMARY KEY,
@@ -141,21 +294,6 @@ var globalSchemaStatements = append([]string{
 		timestamp   TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_perm_session ON permission_log(session_id);`,
-	`CREATE TABLE IF NOT EXISTS network_audit_log (
-		id         TEXT PRIMARY KEY,
-		session_id TEXT NOT NULL,
-		direction  TEXT NOT NULL,
-		kind       TEXT NOT NULL,
-		channel      TEXT NOT NULL,
-		peer_from  TEXT NOT NULL,
-		peer_to    TEXT,
-		message_id TEXT NOT NULL,
-		reason     TEXT,
-		size       INTEGER NOT NULL,
-		timestamp  TEXT NOT NULL
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_net_audit_ts ON network_audit_log(timestamp);`,
-	`CREATE INDEX IF NOT EXISTS idx_net_audit_session ON network_audit_log(session_id);`,
 	`CREATE TABLE IF NOT EXISTS network_channels (
 		channel      TEXT PRIMARY KEY,
 		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -167,28 +305,6 @@ var globalSchemaStatements = append([]string{
 	`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace ON network_channels(workspace_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_channels_updated_at ON network_channels(updated_at);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace_updated_at ON network_channels(workspace_id, updated_at DESC, channel ASC);`,
-	`CREATE TABLE IF NOT EXISTS network_timeline_log (
-		message_id     TEXT PRIMARY KEY,
-		session_id     TEXT,
-		channel        TEXT NOT NULL,
-		direction      TEXT NOT NULL,
-		peer_from      TEXT NOT NULL,
-		peer_to        TEXT,
-		kind           TEXT NOT NULL,
-		interaction_id TEXT,
-		reply_to       TEXT,
-		trace_id       TEXT,
-		causation_id   TEXT,
-		intent         TEXT,
-		text           TEXT,
-		preview_text   TEXT NOT NULL DEFAULT '',
-		body_json      TEXT NOT NULL,
-		timestamp      TEXT NOT NULL
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_net_timeline_channel_ts ON network_timeline_log(channel, timestamp, message_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_net_timeline_peer_from_ts ON network_timeline_log(peer_from, timestamp, message_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_net_timeline_peer_to_ts ON network_timeline_log(peer_to, timestamp, message_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_net_timeline_kind_ts ON network_timeline_log(kind, timestamp, message_id);`,
 	`CREATE TABLE IF NOT EXISTS extensions (
 		name          TEXT PRIMARY KEY,
 		version       TEXT NOT NULL,
@@ -636,6 +752,184 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateActorIDColumns,
 		Checksum: "2026-05-04-rename-actor-ref-columns-to-actor-id",
 	},
+	{
+		Version:  17,
+		Name:     "rebuild_network_conversation_containers",
+		Up:       migrateNetworkConversationContainers,
+		Checksum: "2026-05-05-rebuild-network-conversation-containers",
+	},
+}
+
+func migrateNetworkConversationContainers(ctx context.Context, tx *sql.Tx) error {
+	if err := migrateNetworkTimelineLogConversationColumns(ctx, tx); err != nil {
+		return err
+	}
+	if err := migrateNetworkAuditLogConversationColumns(ctx, tx); err != nil {
+		return err
+	}
+	if err := ensureNetworkConversationSchema(ctx, tx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func migrateNetworkTimelineLogConversationColumns(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "network_timeline_log")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		if _, err := tx.ExecContext(ctx, networkTimelineLogTableStatement); err != nil {
+			return fmt.Errorf("store: create network_timeline_log: %w", err)
+		}
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, tx, "network_timeline_log")
+	if err != nil {
+		return err
+	}
+	if _, hasInteractionID := columns["interaction_id"]; !hasInteractionID {
+		if _, hasSurface := columns["surface"]; hasSurface {
+			return nil
+		}
+		return errors.New("store: network_timeline_log schema is stale; recreate the AGH database")
+	}
+
+	statements := []string{
+		`DROP TABLE IF EXISTS network_timeline_log_new`,
+		strings.Replace(networkTimelineLogTableStatement, "network_timeline_log", "network_timeline_log_new", 1),
+		`INSERT INTO network_timeline_log_new (
+			message_id,
+			session_id,
+			channel,
+			surface,
+			thread_id,
+			direct_id,
+			direction,
+			peer_from,
+			peer_to,
+			kind,
+			work_id,
+			reply_to,
+			trace_id,
+			causation_id,
+			intent,
+			text,
+			preview_text,
+			body_json,
+			timestamp
+		)
+		SELECT
+			message_id,
+			session_id,
+			channel,
+			NULL,
+			NULL,
+			NULL,
+			direction,
+			peer_from,
+			peer_to,
+			kind,
+			NULL,
+			reply_to,
+			trace_id,
+			causation_id,
+			intent,
+			text,
+			preview_text,
+			body_json,
+			timestamp
+		FROM network_timeline_log
+		WHERE kind IN ('greet', 'whois')`,
+		`DROP TABLE network_timeline_log`,
+		`ALTER TABLE network_timeline_log_new RENAME TO network_timeline_log`,
+	}
+	for _, stmt := range statements {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: rebuild network_timeline_log for conversation containers: %w", err)
+		}
+	}
+	return nil
+}
+
+func migrateNetworkAuditLogConversationColumns(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "network_audit_log")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		if _, err := tx.ExecContext(ctx, networkAuditLogTableStatement); err != nil {
+			return fmt.Errorf("store: create network_audit_log: %w", err)
+		}
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, tx, "network_audit_log")
+	if err != nil {
+		return err
+	}
+	if _, hasSurface := columns["surface"]; hasSurface {
+		if _, hasWorkID := columns["work_id"]; hasWorkID {
+			return nil
+		}
+	}
+
+	statements := []string{
+		`DROP TABLE IF EXISTS network_audit_log_new`,
+		strings.Replace(networkAuditLogTableStatement, "network_audit_log", "network_audit_log_new", 1),
+		`INSERT INTO network_audit_log_new (
+			id,
+			session_id,
+			direction,
+			kind,
+			channel,
+			surface,
+			thread_id,
+			direct_id,
+			work_id,
+			peer_from,
+			peer_to,
+			message_id,
+			reason,
+			size,
+			timestamp
+		)
+		SELECT
+			id,
+			session_id,
+			direction,
+			kind,
+			channel,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			peer_from,
+			peer_to,
+			message_id,
+			reason,
+			size,
+			timestamp
+		FROM network_audit_log`,
+		`DROP TABLE network_audit_log`,
+		`ALTER TABLE network_audit_log_new RENAME TO network_audit_log`,
+	}
+	for _, stmt := range statements {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: rebuild network_audit_log for conversation containers: %w", err)
+		}
+	}
+	return nil
+}
+
+func ensureNetworkConversationSchema(ctx context.Context, tx *sql.Tx) error {
+	for _, stmt := range networkConversationSchemaStatements {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: ensure network conversation schema: %w", err)
+		}
+	}
+	return nil
 }
 
 func migrateActorIDColumns(ctx context.Context, tx *sql.Tx) error {
