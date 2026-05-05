@@ -121,7 +121,7 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 		t.Fatalf("rendered preview leaked raw XML-breaking content:\n%s", rendered)
 	}
 	for _, snippet := range []string{
-		"Use `agh network send` to respond through the audited CLI path.",
+		"Prefer `agh__network_send` when available; otherwise use `agh network send` to respond.",
 		`--causation-id "msg-direct-01"`,
 		"--kind say",
 		"--surface \"direct\"",
@@ -169,6 +169,89 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	}
 }
 
+func TestPromptNetworkMetaMatchesWrappedConversationFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include direct container work correlation and trust", func(t *testing.T) {
+		t.Parallel()
+
+		envelope := Envelope{
+			ID:          "msg-direct-meta",
+			Kind:        KindTrace,
+			Channel:     "builders",
+			Surface:     surfacePtr(SurfaceDirect),
+			DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+			From:        "reviewer.sess-xyz",
+			To:          stringPtr("coder.sess-abc"),
+			WorkID:      stringPtr("work_review_42"),
+			ReplyTo:     stringPtr("msg-root-1"),
+			TraceID:     stringPtr("trace-review-42"),
+			CausationID: stringPtr("msg-root-1"),
+		}
+
+		meta := promptNetworkMeta(envelope)
+		if got, want := meta.MessageID, envelope.ID; got != want {
+			t.Fatalf("MessageID = %q, want %q", got, want)
+		}
+		if got, want := meta.Surface, string(SurfaceDirect); got != want {
+			t.Fatalf("Surface = %q, want %q", got, want)
+		}
+		if got, want := meta.DirectID, "direct_0123456789abcdef0123456789abcdef"; got != want {
+			t.Fatalf("DirectID = %q, want %q", got, want)
+		}
+		if got, want := meta.WorkID, "work_review_42"; got != want {
+			t.Fatalf("WorkID = %q, want %q", got, want)
+		}
+		if got, want := meta.ReplyTo, "msg-root-1"; got != want {
+			t.Fatalf("ReplyTo = %q, want %q", got, want)
+		}
+		if got, want := meta.TraceID, "trace-review-42"; got != want {
+			t.Fatalf("TraceID = %q, want %q", got, want)
+		}
+		if got, want := meta.CausationID, "msg-root-1"; got != want {
+			t.Fatalf("CausationID = %q, want %q", got, want)
+		}
+		if got, want := meta.Trust, networkMessageTrustUntrusted; got != want {
+			t.Fatalf("Trust = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should omit work id when the message is not lifecycle-bearing", func(t *testing.T) {
+		t.Parallel()
+
+		envelope := Envelope{
+			ID:      "msg-greet-meta",
+			Kind:    KindGreet,
+			Channel: "builders",
+			From:    "reviewer.sess-xyz",
+			WorkID:  stringPtr("work_invalid_42"),
+			Body: mustRawJSON(t, GreetBody{
+				PeerCard: PeerCard{
+					PeerID:            "reviewer.sess-xyz",
+					ProfilesSupported: []string{ProtocolV0},
+				},
+				Summary: "available",
+			}),
+		}
+
+		meta := promptNetworkMeta(envelope)
+		if meta.WorkID != "" {
+			t.Fatalf("WorkID = %q, want omitted for non-lifecycle kind", meta.WorkID)
+		}
+		if got, want := meta.Trust, networkMessageTrustUntrusted; got != want {
+			t.Fatalf("Trust = %q, want %q", got, want)
+		}
+
+		rendered, err := formatNetworkMessage(envelope)
+		if err != nil {
+			t.Fatalf("formatNetworkMessage() error = %v", err)
+		}
+		if strings.Contains(rendered, `work-id="work_invalid_42"`) {
+			t.Fatalf("rendered message leaked non-lifecycle work-id:\n%s", rendered)
+		}
+	})
+}
+
 func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.T) {
 	t.Parallel()
 
@@ -211,7 +294,7 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 		t.Fatalf("decoded body = %s, want raw compact JSON", string(decodedBody))
 	}
 	for _, snippet := range []string{
-		"Use `agh network send` to respond through the audited CLI path.",
+		"Prefer `agh__network_send` when available; otherwise use `agh network send` to respond.",
 		`--causation-id "msg-direct-raw"`,
 		"--kind say",
 		"--surface \"direct\"",
@@ -235,7 +318,7 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 	}
 }
 
-func TestFormatNetworkMessageSayGuidanceOpensNewDirectWork(t *testing.T) {
+func TestFormatNetworkMessageSayGuidanceKeepsCurrentThreadByDefault(t *testing.T) {
 	t.Parallel()
 
 	envelope := Envelope{
@@ -325,6 +408,9 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 		}
 		if got, want := call.meta.DirectID, "direct_0123456789abcdef0123456789abcdef"; got != want {
 			t.Fatalf("idle call meta direct_id = %q, want %q", got, want)
+		}
+		if got, want := call.meta.Trust, networkMessageTrustUntrusted; got != want {
+			t.Fatalf("idle call meta trust = %q, want %q", got, want)
 		}
 
 		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})

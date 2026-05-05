@@ -85,7 +85,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		"--channel", "builders",
 		"--kind", "say",
 		"--surface", "thread",
-		"--thread-id", buildersThreadID,
+		"--thread", buildersThreadID,
 		"--id", "msg_say_01",
 		"--trace-id", "trace_ops_patch_42",
 		"--body", `{"text":"Who can take the failing migration tests in internal/store/sessiondb?","intent":"request-help","artifacts":[]}`,
@@ -101,8 +101,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		"--channel", "builders",
 		"--kind", "say",
 		"--surface", "direct",
-		"--direct-id", patchDirectID,
-		"--work-id", patchWorkID,
+		"--direct", patchDirectID,
+		"--work", patchWorkID,
 		"--to", opsPeerID,
 		"--reply-to", "msg_say_01",
 		"--trace-id", "trace_ops_patch_42",
@@ -128,8 +128,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		"--channel", "builders",
 		"--kind", "receipt",
 		"--surface", "direct",
-		"--direct-id", patchDirectID,
-		"--work-id", patchWorkID,
+		"--direct", patchDirectID,
+		"--work", patchWorkID,
 		"--to", patchPeerID,
 		"--reply-to", "msg_direct_01",
 		"--trace-id", "trace_ops_patch_42",
@@ -155,8 +155,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		"--channel", "builders",
 		"--kind", "trace",
 		"--surface", "direct",
-		"--direct-id", patchDirectID,
-		"--work-id", patchWorkID,
+		"--direct", patchDirectID,
+		"--work", patchWorkID,
 		"--to", opsPeerID,
 		"--reply-to", "msg_receipt_01",
 		"--trace-id", "trace_ops_patch_42",
@@ -183,8 +183,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		"--channel", "builders",
 		"--kind", "say",
 		"--surface", "direct",
-		"--direct-id", patchDirectID,
-		"--work-id", patchWorkID,
+		"--direct", patchDirectID,
+		"--work", patchWorkID,
 		"--to", opsPeerID,
 		"--reply-to", "msg_say_01",
 		"--trace-id", "trace_ops_patch_42",
@@ -250,30 +250,42 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 	if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_01",
 		Kind:            "say",
+		Surface:         "direct",
+		DirectID:        patchDirectID,
 		WorkID:          patchWorkID,
 		ReplyTo:         "msg_say_01",
 		TraceID:         "trace_ops_patch_42",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_say_01",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(direct) error = %v", err)
 	}
 	if err := validateNetworkCorrelationSurfaces(patchTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_receipt_01",
 		Kind:            "receipt",
+		Surface:         "direct",
+		DirectID:        patchDirectID,
 		WorkID:          patchWorkID,
 		ReplyTo:         "msg_direct_01",
 		TraceID:         "trace_ops_patch_42",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_direct_01",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(receipt) error = %v", err)
 	}
 	if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_trace_02",
 		Kind:            "trace",
+		Surface:         "direct",
+		DirectID:        patchDirectID,
 		WorkID:          patchWorkID,
 		ReplyTo:         "msg_receipt_01",
 		TraceID:         "trace_ops_patch_42",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_receipt_01",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(trace) error = %v", err)
 	}
@@ -369,7 +381,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		"--channel", "capabilities",
 		"--kind", "say",
 		"--surface", "thread",
-		"--thread-id", capabilitiesThreadID,
+		"--thread", capabilitiesThreadID,
 		"--id", "msg_capability_say_01",
 		"--trace-id", "trace_capability_apply_7",
 		"--body", `{"text":"Does anyone have a reusable migration test repair capability?","intent":"request-help","artifacts":[]}`,
@@ -411,8 +423,9 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		"--channel", "capabilities",
 		"--kind", "capability",
 		"--surface", "thread",
-		"--thread-id", capabilitiesThreadID,
-		"--work-id", capabilityThreadWorkID,
+		"--thread", capabilitiesThreadID,
+		"--work", capabilityThreadWorkID,
+		"--to", releasePeerID,
 		"--id", "msg_capability_01",
 		"--trace-id", "trace_capability_apply_7",
 		"--body", capabilityBody,
@@ -425,7 +438,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		}
 		return validateNetworkAuditEntry(audit, networkAuditExpectation{
 			MessageID: "msg_capability_01",
-			Direction: "sent",
+			Direction: "delivered",
 			Kind:      "capability",
 		}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_capability_01"))
 	})
@@ -435,8 +448,8 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		"--channel", "capabilities",
 		"--kind", "say",
 		"--surface", "direct",
-		"--direct-id", capabilityDirectID,
-		"--work-id", capabilityDirectWorkID,
+		"--direct", capabilityDirectID,
+		"--work", capabilityDirectWorkID,
 		"--to", curatorPeerID,
 		"--reply-to", "msg_capability_01",
 		"--trace-id", "trace_capability_apply_7",
@@ -462,8 +475,8 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		"--channel", "capabilities",
 		"--kind", "trace",
 		"--surface", "direct",
-		"--direct-id", capabilityDirectID,
-		"--work-id", capabilityDirectWorkID,
+		"--direct", capabilityDirectID,
+		"--work", capabilityDirectWorkID,
 		"--to", releasePeerID,
 		"--reply-to", "msg_direct_20",
 		"--trace-id", "trace_capability_apply_7",
@@ -543,20 +556,28 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 	if err := validateNetworkCorrelationSurfaces(curatorTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_20",
 		Kind:            "say",
+		Surface:         "direct",
+		DirectID:        capabilityDirectID,
 		WorkID:          capabilityDirectWorkID,
 		ReplyTo:         "msg_capability_01",
 		TraceID:         "trace_capability_apply_7",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_capability_01",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(capability direct) error = %v", err)
 	}
 	if err := validateNetworkCorrelationSurfaces(releaseTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_trace_21",
 		Kind:            "trace",
+		Surface:         "direct",
+		DirectID:        capabilityDirectID,
 		WorkID:          capabilityDirectWorkID,
 		ReplyTo:         "msg_direct_20",
 		TraceID:         "trace_capability_apply_7",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_direct_20",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(capability trace) error = %v", err)
 	}

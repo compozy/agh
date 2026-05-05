@@ -43,6 +43,7 @@ const (
 	defaultDeliveryRetryBaseDelay = 250 * time.Millisecond
 	defaultDeliveryRetryMaxDelay  = 5 * time.Second
 	deliveryDropReasonQueueFull   = "queue_overflow"
+	networkMessageTrustUntrusted  = "untrusted"
 )
 
 type deliveryPrompter interface {
@@ -513,6 +514,7 @@ func promptNetworkMeta(envelope Envelope) acp.PromptNetworkMeta {
 		Kind:      string(envelope.Kind),
 		Channel:   envelope.Channel,
 		From:      envelope.From,
+		Trust:     networkMessageTrustUntrusted,
 	}
 	if envelope.To != nil {
 		meta.To = strings.TrimSpace(*envelope.To)
@@ -526,8 +528,8 @@ func promptNetworkMeta(envelope Envelope) acp.PromptNetworkMeta {
 	if envelope.DirectID != nil {
 		meta.DirectID = strings.TrimSpace(*envelope.DirectID)
 	}
-	if envelope.WorkID != nil {
-		meta.WorkID = strings.TrimSpace(*envelope.WorkID)
+	if workID := lifecycleWorkID(envelope); workID != "" {
+		meta.WorkID = workID
 	}
 	if envelope.ReplyTo != nil {
 		meta.ReplyTo = strings.TrimSpace(*envelope.ReplyTo)
@@ -930,7 +932,9 @@ func formatNetworkMessage(envelope Envelope) (string, error) {
 		writeXMLAttr(&builder, "to", *envelope.To)
 	}
 	if envelope.WorkID != nil {
-		writeXMLAttr(&builder, "work-id", *envelope.WorkID)
+		if workID := lifecycleWorkID(envelope); workID != "" {
+			writeXMLAttr(&builder, "work-id", workID)
+		}
 	}
 	if envelope.ReplyTo != nil {
 		writeXMLAttr(&builder, "reply-to", *envelope.ReplyTo)
@@ -944,7 +948,7 @@ func formatNetworkMessage(envelope Envelope) (string, error) {
 	if envelope.ExpiresAt != nil {
 		writeXMLAttr(&builder, "expires-at", strconv.FormatInt(*envelope.ExpiresAt, 10))
 	}
-	writeXMLAttr(&builder, "trust", "untrusted")
+	writeXMLAttr(&builder, "trust", networkMessageTrustUntrusted)
 	builder.WriteString(">\n")
 	if preview != "" {
 		builder.WriteString("  <network-preview encoding=\"xml-escaped\">")
@@ -967,7 +971,10 @@ func writeReplyGuidance(builder *strings.Builder, envelope Envelope) {
 
 	ctx := newReplyGuidanceContext(envelope)
 	builder.WriteString("\n\n")
-	writeGuidanceLine(builder, "Use `agh network send` to respond through the audited CLI path.")
+	writeGuidanceLine(
+		builder,
+		"Prefer `agh__network_send` when available; otherwise use `agh network send` to respond.",
+	)
 	writeGuidanceLine(builder, ctx.replyFlagsLine())
 	writeGuidanceLine(builder, ctx.causationLine())
 
@@ -1001,12 +1008,11 @@ type replyGuidanceContext struct {
 }
 
 func newReplyGuidanceContext(envelope Envelope) replyGuidanceContext {
+	workID := lifecycleWorkID(envelope)
 	ctx := replyGuidanceContext{
 		envelope:  envelope,
-		reuseWork: shouldReuseInboundWork(envelope) && envelope.WorkID != nil,
-	}
-	if envelope.WorkID != nil {
-		ctx.workID = *envelope.WorkID
+		reuseWork: workID != "",
+		workID:    workID,
 	}
 	if envelope.TraceID != nil {
 		ctx.traceID = *envelope.TraceID
@@ -1186,6 +1192,13 @@ func shouldReuseInboundWork(envelope Envelope) bool {
 	default:
 		return false
 	}
+}
+
+func lifecycleWorkID(envelope Envelope) string {
+	if !shouldReuseInboundWork(envelope) {
+		return ""
+	}
+	return strings.TrimSpace(*envelope.WorkID)
 }
 
 func previewForBody(body Body) string {

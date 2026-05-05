@@ -177,7 +177,9 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 				TurnSource: acp.PromptTurnSourceNetwork,
 				Network: &acp.PromptNetworkMeta{
 					MessageID: "msg-2",
-					Kind:      "direct",
+					Kind:      "say",
+					Surface:   "direct",
+					Trust:     "untrusted",
 				},
 			},
 			TurnName: "beta-hello",
@@ -185,7 +187,9 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 				TurnSource: acp.PromptTurnSourceNetwork,
 				Network: &TurnMatchNetwork{
 					MessageID: "msg-2",
-					Kind:      "direct",
+					Kind:      "say",
+					Surface:   "direct",
+					Trust:     "untrusted",
 				},
 			},
 		},
@@ -362,13 +366,16 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		TurnSource: acp.PromptTurnSourceNetwork,
 		Network: &acp.PromptNetworkMeta{
 			MessageID:   "msg_direct_01",
-			Kind:        "direct",
+			Kind:        "say",
 			Channel:     "builders",
+			Surface:     "direct",
 			From:        "patch-worker.sess",
+			WorkID:      "work_patch_42",
 			ReplyTo:     "msg_say_01",
 			TraceID:     "trace_ops_patch_42",
 			To:          "ops-coordinator.sess",
 			CausationID: "msg_say_01",
+			Trust:       "untrusted",
 		},
 	})
 	if err != nil {
@@ -388,8 +395,11 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 			MessageID: "msg_capability_say_01",
 			Kind:      "say",
 			Channel:   "capabilities",
+			Surface:   "thread",
+			ThreadID:  "thread_capabilities_main",
 			From:      "release-bot.sess",
 			To:        "capability-curator.sess",
+			Trust:     "untrusted",
 		},
 	})
 	if err != nil {

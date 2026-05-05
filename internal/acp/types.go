@@ -174,6 +174,7 @@ type PromptNetworkMeta struct {
 	ReplyTo     string `json:"reply_to,omitempty"`
 	TraceID     string `json:"trace_id,omitempty"`
 	CausationID string `json:"causation_id,omitempty"`
+	Trust       string `json:"trust,omitempty"`
 }
 
 // PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
@@ -259,6 +260,7 @@ func (m PromptNetworkMeta) Normalize() PromptNetworkMeta {
 		ReplyTo:     strings.TrimSpace(m.ReplyTo),
 		TraceID:     strings.TrimSpace(m.TraceID),
 		CausationID: strings.TrimSpace(m.CausationID),
+		Trust:       strings.TrimSpace(m.Trust),
 	}
 }
 

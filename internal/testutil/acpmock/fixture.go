@@ -77,6 +77,7 @@ type TurnMatchNetwork struct {
 	ReplyTo     string `json:"reply_to,omitempty"`
 	TraceID     string `json:"trace_id,omitempty"`
 	CausationID string `json:"causation_id,omitempty"`
+	Trust       string `json:"trust,omitempty"`
 }
 
 // Step describes one deterministic ACP action emitted or executed by the driver.
@@ -365,6 +366,7 @@ func (m TurnMatchNetwork) Normalize() TurnMatchNetwork {
 		ReplyTo:     strings.TrimSpace(m.ReplyTo),
 		TraceID:     strings.TrimSpace(m.TraceID),
 		CausationID: strings.TrimSpace(m.CausationID),
+		Trust:       strings.TrimSpace(m.Trust),
 	}
 }
 
@@ -395,7 +397,8 @@ func (m TurnMatchNetwork) matches(meta acp.PromptNetworkMeta) bool {
 		exactStringMatch(want.WorkID, got.WorkID) &&
 		exactStringMatch(want.ReplyTo, got.ReplyTo) &&
 		exactStringMatch(want.TraceID, got.TraceID) &&
-		exactStringMatch(want.CausationID, got.CausationID)
+		exactStringMatch(want.CausationID, got.CausationID) &&
+		exactStringMatch(want.Trust, got.Trust)
 }
 
 func exactStringMatch(want string, got string) bool {

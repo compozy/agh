@@ -14,10 +14,14 @@
                         "occurrence": 1,
                         "network": {
                             "message_id": "msg_direct_01",
-                            "kind": "direct",
+                            "kind": "say",
+                            "channel": "builders",
+                            "surface": "direct",
+                            "work_id": "work_patch_42",
                             "reply_to": "msg_say_01",
                             "trace_id": "trace_ops_patch_42",
-                            "causation_id": "msg_say_01"
+                            "causation_id": "msg_say_01",
+                            "trust": "untrusted"
                         }
                     },
                     "steps": [
@@ -35,8 +39,12 @@
                         "network": {
                             "message_id": "msg_trace_02",
                             "kind": "trace",
+                            "channel": "builders",
+                            "surface": "direct",
+                            "work_id": "work_patch_42",
                             "reply_to": "msg_receipt_01",
-                            "trace_id": "trace_ops_patch_42"
+                            "trace_id": "trace_ops_patch_42",
+                            "trust": "untrusted"
                         }
                     },
                     "steps": [
@@ -61,7 +69,11 @@
                         "occurrence": 1,
                         "network": {
                             "message_id": "msg_say_01",
-                            "kind": "say"
+                            "kind": "say",
+                            "channel": "builders",
+                            "surface": "thread",
+                            "thread_id": "thread_builders_main",
+                            "trust": "untrusted"
                         }
                     },
                     "steps": [
@@ -79,7 +91,11 @@
                         "network": {
                             "message_id": "msg_receipt_01",
                             "kind": "receipt",
-                            "reply_to": "msg_direct_01"
+                            "channel": "builders",
+                            "surface": "direct",
+                            "work_id": "work_patch_42",
+                            "reply_to": "msg_direct_01",
+                            "trust": "untrusted"
                         }
                     },
                     "steps": [
@@ -111,7 +127,7 @@
             "name": "release-bot",
             "provider": "claude",
             "permissions": "approve-all",
-            "prompt": "You run recipe discovery and follow-up tests.",
+            "prompt": "You run capability discovery and follow-up tests.",
             "turns": [
                 {
                     "name": "observe-whois-response",
@@ -138,7 +154,12 @@
                         "network": {
                             "message_id": "msg_capability_01",
                             "kind": "capability",
-                            "trace_id": "trace_capability_apply_7"
+                            "channel": "capabilities",
+                            "surface": "thread",
+                            "thread_id": "thread_capabilities_main",
+                            "work_id": "work_capability_catalog_7",
+                            "trace_id": "trace_capability_apply_7",
+                            "trust": "untrusted"
                         }
                     },
                     "steps": [
@@ -156,8 +177,12 @@
                         "network": {
                             "message_id": "msg_trace_21",
                             "kind": "trace",
+                            "channel": "capabilities",
+                            "surface": "direct",
+                            "work_id": "work_capability_apply_7",
                             "reply_to": "msg_direct_20",
-                            "trace_id": "trace_capability_apply_7"
+                            "trace_id": "trace_capability_apply_7",
+                            "trust": "untrusted"
                         }
                     },
                     "steps": [
@@ -182,7 +207,11 @@
                         "occurrence": 1,
                         "network": {
                             "message_id": "msg_capability_say_01",
-                            "kind": "say"
+                            "kind": "say",
+                            "channel": "capabilities",
+                            "surface": "thread",
+                            "thread_id": "thread_capabilities_main",
+                            "trust": "untrusted"
                         }
                     },
                     "steps": [
@@ -199,9 +228,13 @@
                         "occurrence": 2,
                         "network": {
                             "message_id": "msg_direct_20",
-                            "kind": "direct",
+                            "kind": "say",
+                            "channel": "capabilities",
+                            "surface": "direct",
+                            "work_id": "work_capability_apply_7",
                             "reply_to": "msg_capability_01",
-                            "trace_id": "trace_capability_apply_7"
+                            "trace_id": "trace_capability_apply_7",
+                            "trust": "untrusted"
                         }
                     },
                     "steps": [

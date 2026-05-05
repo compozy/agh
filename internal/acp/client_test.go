@@ -433,6 +433,7 @@ func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 				ReplyTo:     "msg-root-1",
 				TraceID:     "trace-meta-1",
 				CausationID: "msg-root-1",
+				Trust:       "untrusted",
 			},
 		},
 	})
@@ -460,6 +461,9 @@ func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 	}
 	if got, want := payload.Network.WorkID, "work-meta-1"; got != want {
 		t.Fatalf("payload.Network.WorkID = %q, want %q", got, want)
+	}
+	if got, want := payload.Network.Trust, "untrusted"; got != want {
+		t.Fatalf("payload.Network.Trust = %q, want %q", got, want)
 	}
 }
 

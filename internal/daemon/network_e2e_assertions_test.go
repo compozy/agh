@@ -12,9 +12,14 @@ import (
 type networkCorrelationExpectation struct {
 	MessageID       string
 	Kind            string
+	Surface         string
+	ThreadID        string
+	DirectID        string
 	WorkID          string
 	ReplyTo         string
 	TraceID         string
+	CausationID     string
+	Trust           string
 	AuditDirections []string
 }
 
@@ -36,9 +41,14 @@ func validateNetworkCorrelationSurfaces(
 	}{
 		{label: "message id", needle: attributeNeedle("id", expectation.MessageID)},
 		{label: "kind", needle: attributeNeedle("kind", expectation.Kind)},
+		{label: "surface", needle: attributeNeedle("surface", expectation.Surface)},
+		{label: "thread-id", needle: attributeNeedle("thread-id", expectation.ThreadID)},
+		{label: "direct-id", needle: attributeNeedle("direct-id", expectation.DirectID)},
 		{label: "work-id", needle: attributeNeedle("work-id", expectation.WorkID)},
 		{label: "reply-to", needle: attributeNeedle("reply-to", expectation.ReplyTo)},
 		{label: "trace-id", needle: attributeNeedle("trace-id", expectation.TraceID)},
+		{label: "causation-id", needle: attributeNeedle("causation-id", expectation.CausationID)},
+		{label: "trust", needle: attributeNeedle("trust", expectation.Trust)},
 	}
 
 	matched := false
@@ -124,7 +134,7 @@ func TestValidateNetworkCorrelationSurfacesUsesTargetedAttributes(t *testing.T) 
 			Parts: []transcript.UIMessagePart{
 				{
 					Type:  "text",
-					Text:  `<network-message id="msg_direct_01" kind="say" work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+					Text:  `<network-message id="msg_direct_01" kind="say" surface="direct" direct-id="direct_test_01" work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42" causation-id="msg_say_01" trust="untrusted"></network-message>`,
 					State: "done",
 				},
 			},
@@ -138,9 +148,13 @@ func TestValidateNetworkCorrelationSurfacesUsesTargetedAttributes(t *testing.T) 
 	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_01",
 		Kind:            "say",
+		Surface:         "direct",
+		DirectID:        "direct_test_01",
 		WorkID:          "work_patch_42",
 		ReplyTo:         "msg_say_01",
 		TraceID:         "trace_ops_patch_42",
+		CausationID:     "msg_say_01",
+		Trust:           "untrusted",
 		AuditDirections: []string{"sent", "delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces() error = %v", err)
@@ -178,9 +192,13 @@ func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *test
 	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_01",
 		Kind:            "say",
+		Surface:         "direct",
+		DirectID:        "direct_test_01",
 		WorkID:          "work_patch_42",
 		ReplyTo:         "msg_say_01",
 		TraceID:         "trace_ops_patch_42",
+		CausationID:     "msg_say_01",
+		Trust:           "untrusted",
 		AuditDirections: []string{"sent", "delivered"},
 	}); err == nil {
 		t.Fatal("validateNetworkCorrelationSurfaces() error = nil, want split-message correlation failure")

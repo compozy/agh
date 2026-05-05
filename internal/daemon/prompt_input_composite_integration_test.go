@@ -101,9 +101,11 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 		"network note",
 		acp.PromptNetworkMeta{
 			MessageID: "msg-1",
-			Kind:      "direct",
+			Kind:      "say",
 			Channel:   "builders",
+			Surface:   "direct",
 			From:      "ops.peer",
+			Trust:     "untrusted",
 		},
 	)
 	if err != nil {
