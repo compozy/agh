@@ -15,6 +15,10 @@ const (
 	// within the configured supervision window.
 	SessionStallReasonActivityTimeout = "activity_timeout"
 
+	// SessionStallReasonPromptDeadlineExceeded reports that the prompt-level
+	// supervision deadline elapsed before completion.
+	SessionStallReasonPromptDeadlineExceeded = "prompt_deadline_exceeded"
+
 	// SessionStallReasonProcessUnhealthy reports that subprocess health checks
 	// failed while a prompt was still active.
 	SessionStallReasonProcessUnhealthy = "process_unhealthy"

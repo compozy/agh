@@ -217,8 +217,8 @@ func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
 
 	writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agents", "skills"),
-		filepath.Join("workspace-only", skillFileName),
+		filepath.Join(workspace, ".agh", "agents", "workspace-only", "skills"),
+		skillFileName,
 		skillWithDescription("workspace-only", "Workspace skill"),
 	)
 	writeSkillFile(

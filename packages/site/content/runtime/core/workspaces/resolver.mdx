@@ -167,11 +167,14 @@ produces this cascade:
    the stored `root_dir`.
 4. Config is loaded as built-in defaults, then `~/.agh/config.toml`, then `~/.agh/mcp.json`, then
    `<workspace>/.agh/config.toml`, then `<workspace>/.agh/mcp.json`.
-5. Agents are discovered from `<workspace>/.agh/agents/` first, then global `~/.agh/agents/`.
-6. Skills are discovered from `<workspace>/.agh/skills/` first, then global `~/.agh/skills/`.
-7. Same-name agents and skills use first-wins precedence, so the workspace `reviewer` and
-   `repo-map` override the global ones.
-8. The session starts with `cwd` set to the workspace root and the resolved agent prompt.
+5. Agents are discovered from `<workspace>/.agh/agents/`, then additional roots, then global
+   `$AGH_HOME/agents/`.
+6. Base skills are resolved from bundled plus global `$AGH_HOME/skills/`, then additional roots,
+   then `<workspace>/.agh/skills/`.
+7. If the winning agent has `skills/`, that agent-local directory overlays the base set last.
+8. Same-name agents and skills use first-wins or higher-precedence overlay behavior, so the
+   workspace `reviewer` and `repo-map` override the global ones.
+9. The session starts with `cwd` set to the workspace root and the resolved agent prompt.
 
 <Mermaid
   chart={`flowchart TD

@@ -124,9 +124,16 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	}
 	if !slices.Equal(
 		userResolved.Policy.EnableAugmenters,
-		[]HarnessAugmenter{HarnessAugmenterSituation, HarnessAugmenterDurableMemory},
+		[]HarnessAugmenter{
+			HarnessAugmenterSkills,
+			HarnessAugmenterSituation,
+			HarnessAugmenterDurableMemory,
+		},
 	) {
-		t.Fatalf("user EnableAugmenters = %#v, want situation and durable memory", userResolved.Policy.EnableAugmenters)
+		t.Fatalf(
+			"user EnableAugmenters = %#v, want skills, situation, and durable memory",
+			userResolved.Policy.EnableAugmenters,
+		)
 	}
 
 	seedHarnessSituationTaskRun(t, daemonInstance, created.Info().WorkspaceID, created.Info().Workspace, created.ID)
@@ -142,6 +149,9 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, "Relevant durable memory for this turn:") {
 		t.Fatalf("user prompt message = %q, want durable memory augmentation", got)
 	}
+	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<current-available-skills>") {
+		t.Fatalf("user prompt message = %q, want current skills augmentation", got)
+	}
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<agh-situation-context>") {
 		t.Fatalf("user prompt message = %q, want situation context augmentation", got)
 	}
@@ -156,8 +166,8 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if err != nil {
 		t.Fatalf("ResolvePrompt(network) error = %v", err)
 	}
-	if len(networkResolved.Policy.EnableAugmenters) != 0 {
-		t.Fatalf("network EnableAugmenters = %#v, want empty", networkResolved.Policy.EnableAugmenters)
+	if !slices.Equal(networkResolved.Policy.EnableAugmenters, []HarnessAugmenter{HarnessAugmenterSkills}) {
+		t.Fatalf("network EnableAugmenters = %#v, want skills only", networkResolved.Policy.EnableAugmenters)
 	}
 
 	networkEvents, err := manager.PromptNetwork(
@@ -170,8 +180,11 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("PromptNetwork() error = %v", err)
 	}
 	drainHarnessIntegrationEvents(networkEvents)
-	if got := driver.promptCalls[1].Message; got != "workspace note" {
-		t.Fatalf("network prompt message = %q, want raw network input", got)
+	if got := driver.promptCalls[1].Message; !strings.Contains(got, "<current-available-skills>") {
+		t.Fatalf("network prompt message = %q, want current skills augmentation", got)
+	}
+	if got := driver.promptCalls[1].Message; !strings.HasSuffix(got, "workspace note") {
+		t.Fatalf("network prompt message = %q, want original network input preserved", got)
 	}
 	if got := driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
 		t.Fatalf("network prompt turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)

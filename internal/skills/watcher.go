@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/filesnap"
 )
 
@@ -49,7 +51,7 @@ func NewWatcher(registry *Registry, interval time.Duration) *Watcher {
 	snapshots := make(map[string]filesnap.Snapshot)
 	initialized := false
 	if registry != nil {
-		roots = watcherRoots(registry.cfg.UserSkillsDir, registry.cfg.UserAgentsDir)
+		roots = watcherRoots(registry.cfg.UserSkillsDir, registry.globalAgentsDir())
 		snapshots, initialized = registry.globalSnapshotState()
 	}
 
@@ -205,7 +207,7 @@ func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapsh
 			return nil, err
 		}
 
-		paths, err := scanDirectory(root)
+		paths, err := watcherScanRoot(root)
 		if err != nil {
 			return nil, fmt.Errorf("skills: scan watcher root %q: %w", root, err)
 		}
@@ -228,6 +230,44 @@ func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapsh
 	}
 
 	return snapshots, nil
+}
+
+func watcherScanRoot(root string) ([]string, error) {
+	if filepath.Base(strings.TrimSpace(root)) != aghconfig.AgentsDirName {
+		return scanDirectory(root)
+	}
+
+	trimmedRoot := strings.TrimSpace(root)
+	if trimmedRoot == "" {
+		return nil, nil
+	}
+
+	if _, err := os.Stat(trimmedRoot); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	paths := make([]string, 0)
+	err := filepath.WalkDir(trimmedRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		base := entry.Name()
+		if base == "AGENT.md" || base == skillFileName {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(paths)
+	return paths, nil
 }
 
 func (w *Watcher) currentRoots(ctx context.Context) ([]string, error) {

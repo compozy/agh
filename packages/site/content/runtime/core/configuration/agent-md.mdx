@@ -4,7 +4,7 @@ description: Complete implemented AGENT.md schema, parser rules, provider exampl
 ---
 
 `AGENT.md` defines an AGH agent: structured frontmatter plus a required Markdown prompt body.
-Current AGH agents live in AGH resource directories, not in the draft RFC `.agents` directory:
+Current AGH agents live in AGH resource directories:
 
 ```text
 $AGH_HOME/agents/<agent-name>/AGENT.md
@@ -16,8 +16,8 @@ The parser is strict. Unknown frontmatter fields fail loading.
 
 <OperatorNote>
   RFC 001 is ahead of the current implementation. This page documents the fields accepted by the
-  current runtime. Draft RFC fields such as `description`, `skills.*`, and `memory.*` are listed as
-  non-accepted fields near the end of this page.
+  current runtime. Draft RFC fields such as `description`, `skills.inherit`, `skills.extra_sources`,
+  and `memory.*` are listed as non-accepted fields near the end of this page.
 </OperatorNote>
 
 ## Quick Reference
@@ -32,6 +32,7 @@ The parser is strict. Unknown frontmatter fields fail loading.
 | `toolsets`    | string array                | empty                                       | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.                      |
 | `deny_tools`  | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.                          |
 | `permissions` | string                      | `[permissions].mode`, default `approve-all` | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                           |
+| `skills`      | object                      | empty                                       | Currently only `disabled` is accepted.                              | Agent-scoped logical skill tombstones and agent-local overlay policy.     |
 | `mcp_servers` | array of MCP server objects | empty                                       | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                                  |
 | `hooks`       | array of hook declarations  | empty                                       | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                           |
 | Markdown body | Markdown text               | required                                    | Non-empty after trimming.                                           | Startup prompt sent as the agent system prompt.                           |
@@ -199,6 +200,32 @@ Put blocking findings first and cite the relevant file or symbol.
 | Required     | no                                                    |
 | Valid values | `deny-all`, `approve-reads`, `approve-all`            |
 | Description  | Overrides the global permission mode for this agent.  |
+
+### `skills`
+
+| Attribute    | Value                                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| Type         | object                                                                                                 |
+| Default      | empty                                                                                                  |
+| Required     | no                                                                                                     |
+| Valid values | Currently only `disabled`, a string array of logical skill names.                                      |
+| Description  | Persists agent-scoped disabled skill tombstones in `AGENT.md` and applies them after skill precedence. |
+
+The current runtime supports:
+
+```yaml
+skills:
+  disabled:
+    - review
+    - deploy-production
+```
+
+`skills.disabled` does not add new roots and does not create an agent-only skill mode. AGH resolves
+the normal bundled -> marketplace -> user -> additional -> workspace set, overlays the winning
+agent's `skills/` directory, then disables any logical skill names listed here for that agent.
+This is separate from the global skills settings field `disabled_skills`; use `AGENT.md`
+`skills.disabled` for one agent's tombstones and [settings](/runtime/api-reference/settings)
+for daemon-managed global defaults.
 
 ### `mcp_servers`
 
@@ -401,27 +428,28 @@ Sidecar behavior:
 | Toolsets      | `AGENT.md` `toolsets`                                | Must be canonical ToolsetIDs.                                             |
 | Deny tools    | `AGENT.md` `deny_tools`                              | Same grammar as `tools`; denies narrow later policy evaluation.           |
 | Permissions   | `AGENT.md` `permissions`, then `[permissions].mode`  | Must be a supported permission mode.                                      |
+| Skills policy | `AGENT.md` `skills.disabled`                         | Disables logical skill names after precedence resolution for this agent.  |
 | MCP servers   | Top-level config, provider, agent, active skills     | Same-name TOML entries merge fields; JSON sidecars replace whole objects. |
 
 The `Tools` and `Toolsets` rows describe configured agent policy. Effective runtime discovery also
 adds `agh__bootstrap` and `agh__catalog` by default. Denies still win after that overlay.
 
-## RFC 001 Fields Not Accepted Today
+## RFC 001 Drift
 
-The current parser rejects these draft RFC fields as unknown.
+The current runtime diverges from the broader RFC 001 draft in these ways:
 
-| Field                     | RFC purpose                             | Current behavior |
-| ------------------------- | --------------------------------------- | ---------------- |
-| `description`             | Human description.                      | Rejected.        |
-| `skills.inherit`          | Control inherited skills.               | Rejected.        |
-| `skills.disabled`         | Disable inherited skills for one agent. | Rejected.        |
-| `skills.extra_sources`    | Add agent-specific skill roots.         | Rejected.        |
-| `memory.inherit`          | Control inherited memory.               | Rejected.        |
-| `memory.scope`            | Default write scope for memory.         | Rejected.        |
-| `memory.auto_consolidate` | Agent-scoped memory consolidation.      | Rejected.        |
+| Field                     | RFC purpose                           | Current behavior |
+| ------------------------- | ------------------------------------- | ---------------- |
+| `description`             | Human description.                    | Rejected.        |
+| `skills.inherit`          | Control inherited skills.             | Rejected.        |
+| `skills.disabled`         | Disable logical skills for one agent. | Accepted.        |
+| `skills.extra_sources`    | Add agent-specific skill roots.       | Rejected.        |
+| `memory.inherit`          | Control inherited memory.             | Rejected.        |
+| `memory.scope`            | Default write scope for memory.       | Rejected.        |
+| `memory.auto_consolidate` | Agent-scoped memory consolidation.    | Rejected.        |
 
-RFC examples also use permission values such as `plan` and paths such as `.agents/<name>/AGENT.md`.
-Current AGH uses `deny-all`, `approve-reads`, `approve-all` and `.agh/agents/<name>/AGENT.md`.
+RFC examples also use permission values such as `plan`. Current AGH uses `deny-all`,
+`approve-reads`, and `approve-all`.
 
 ## Common Errors
 

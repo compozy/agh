@@ -38,6 +38,7 @@ func validateAgentResourceSpec(
 		Toolsets:    normalizeAgentToolsetRefs(spec.Toolsets),
 		DenyTools:   normalizeAgentToolPatterns(spec.DenyTools),
 		Permissions: strings.TrimSpace(spec.Permissions),
+		Skills:      normalizeAgentSkillsConfig(spec.Skills),
 		MCPServers:  cloneMCPServers(spec.MCPServers),
 		Hooks:       cloneHookDecls(spec.Hooks),
 		Prompt:      strings.TrimSpace(spec.Prompt),

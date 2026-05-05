@@ -74,6 +74,9 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[memory.Type]():                               memoryTypeValues(),
 	reflect.TypeFor[memory.Scope]():                              memoryScopeValues(),
 	reflect.TypeFor[contract.SettingsScopeKind]():                settingsScopeValues(),
+	reflect.TypeFor[contract.SettingsGlobalScopeKind]():          settingsGlobalScopeValues(),
+	reflect.TypeFor[contract.SettingsAgentScopeKind]():           settingsAgentScopeValues(),
+	reflect.TypeFor[contract.SettingsWorkspaceScopeKind]():       settingsWorkspaceScopeValues(),
 	reflect.TypeFor[contract.SettingsSectionName]():              settingsSectionValues(),
 	reflect.TypeFor[contract.SettingsCollectionName]():           settingsCollectionValues(),
 	reflect.TypeFor[contract.SettingsWriteTargetKind]():          settingsWriteTargetValues(),
@@ -2893,16 +2896,18 @@ var operationRegistry = []OperationSpec{
 		Method:      "GET",
 		Path:        "/api/skills",
 		OperationID: "listSkills",
-		Summary:     "List skills for one workspace",
+		Summary:     "List effective skills for the selected global, workspace, or agent scope",
 		Tags:        []string{"skills"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			queryParam("workspace", "Workspace id or path", true),
+			queryParam("workspace", "Workspace id or path for resolution context", false),
+			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillsResponse{}},
-			{Status: 400, Description: "Invalid workspace filter", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid skill lookup", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Skill scope not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid agent-local layer", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Skills registry is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -2916,12 +2921,14 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
-			queryParam("workspace", "Workspace id or path", false),
+			queryParam("workspace", "Workspace id or path for resolution context", false),
+			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillResponse{}},
 			{Status: 400, Description: "Invalid skill lookup", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Skill or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Skill or scope not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid agent-local layer", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Skills registry is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -2935,12 +2942,14 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
-			queryParam("workspace", "Workspace id or path", false),
+			queryParam("workspace", "Workspace id or path for resolution context", false),
+			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillContentResponse{}},
 			{Status: 400, Description: "Invalid skill lookup", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Skill or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Skill or scope not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid agent-local layer", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Skills registry is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -2954,12 +2963,14 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
-			queryParam("workspace", "Workspace id or path", false),
+			queryParam("workspace", "Workspace id or path for resolution context", false),
+			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillActionResponse{}},
 			{Status: 400, Description: "Invalid skill lookup", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Skill or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Skill or scope not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid agent-local layer", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Skills registry is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -2973,12 +2984,14 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
-			queryParam("workspace", "Workspace id or path", false),
+			queryParam("workspace", "Workspace id or path for resolution context", false),
+			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SkillActionResponse{}},
 			{Status: 400, Description: "Invalid skill lookup", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Skill or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Skill or scope not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid agent-local layer", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Skills registry is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -3046,7 +3059,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsAutomationRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
 			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
@@ -3093,7 +3106,7 @@ var operationRegistry = []OperationSpec{
 		},
 		RequestBody: contract.PutSettingsSandboxRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
 			{Status: 400, Description: "Invalid sandbox payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting sandbox change", Body: contract.ErrorPayload{}},
@@ -3111,7 +3124,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("name", "Sandbox name"),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Sandbox not found", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
@@ -3138,7 +3151,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsGeneralRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
 			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
@@ -3169,7 +3182,7 @@ var operationRegistry = []OperationSpec{
 		},
 		RequestBody: contract.PutSettingsHookRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
 			{Status: 400, Description: "Invalid hook payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting hook change", Body: contract.ErrorPayload{}},
@@ -3187,7 +3200,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("name", "Hook name"),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Hook not found", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
@@ -3214,7 +3227,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsHooksExtensionsRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
 			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
@@ -3229,7 +3242,7 @@ var operationRegistry = []OperationSpec{
 		Tags:        []string{"settings"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Select the settings scope", settingsScopeValues()),
+			enumQueryParam("scope", "Select the settings scope", settingsWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
 		},
 		Responses: []ResponseSpec{
@@ -3248,13 +3261,13 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "MCP server name"),
-			enumQueryParam("scope", "Select the settings scope", settingsScopeValues()),
+			enumQueryParam("scope", "Select the settings scope", settingsWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
 			enumQueryParam("target", "Select the persistence target", settingsTargetSelectorValues()),
 		},
 		RequestBody: contract.PutSettingsMCPServerRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalWorkspaceCollectionMutationResult{}},
 			{Status: 400, Description: "Invalid MCP server payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
@@ -3271,12 +3284,12 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "MCP server name"),
-			enumQueryParam("scope", "Select the settings scope", settingsScopeValues()),
+			enumQueryParam("scope", "Select the settings scope", settingsWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
 			enumQueryParam("target", "Select the persistence target", settingsTargetSelectorValues()),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalWorkspaceCollectionMutationResult{}},
 			{Status: 400, Description: "Invalid MCP server request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "MCP server or workspace not found", Body: contract.ErrorPayload{}},
@@ -3305,7 +3318,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsMemoryRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
 			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
@@ -3333,7 +3346,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsNetworkRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
 			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
@@ -3361,7 +3374,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsObservabilityRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
 			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
@@ -3420,7 +3433,7 @@ var operationRegistry = []OperationSpec{
 		},
 		RequestBody: contract.PutSettingsProviderRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
 			{Status: 400, Description: "Invalid provider payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting provider change", Body: contract.ErrorPayload{}},
@@ -3438,7 +3451,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("name", "Provider name"),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Provider not found", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
@@ -3451,8 +3464,16 @@ var operationRegistry = []OperationSpec{
 		Summary:     "Read the skills settings section",
 		Tags:        []string{"settings"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("scope", "Select the settings scope", settingsAgentScopeValues()),
+			queryParam("workspace_id", "Optional workspace id for agent resolution context", false),
+			queryParam("agent_name", "Agent name when scope=agent", false),
+		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsSkillsResponse{}},
+			{Status: 400, Description: "Invalid settings scope", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Agent not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid agent-local layer", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
 	},
@@ -3463,12 +3484,19 @@ var operationRegistry = []OperationSpec{
 		Summary:     "Update the skills settings section",
 		Tags:        []string{"settings"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("scope", "Select the settings scope", settingsAgentScopeValues()),
+			queryParam("workspace_id", "Optional workspace id for agent resolution context", false),
+			queryParam("agent_name", "Agent name when scope=agent", false),
+		},
 		RequestBody: contract.UpdateSettingsSkillsRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.MutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsSkillsMutationResult{}},
 			{Status: 400, Description: "Invalid settings payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Forbidden", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Agent not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting settings change", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid agent-local layer", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
 	},
@@ -3657,6 +3685,25 @@ func settingsScopeValues() []string {
 	return []string{
 		string(contract.SettingsScopeGlobal),
 		string(contract.SettingsScopeWorkspace),
+		string(contract.SettingsScopeAgent),
+	}
+}
+
+func settingsGlobalScopeValues() []string {
+	return []string{string(contract.SettingsGlobalScope)}
+}
+
+func settingsAgentScopeValues() []string {
+	return []string{
+		string(contract.SettingsAgentScopeGlobal),
+		string(contract.SettingsAgentScopeAgent),
+	}
+}
+
+func settingsWorkspaceScopeValues() []string {
+	return []string{
+		string(contract.SettingsWorkspaceScopeGlobal),
+		string(contract.SettingsWorkspaceScopeWorkspace),
 	}
 }
 
@@ -3687,6 +3734,8 @@ func settingsWriteTargetValues() []string {
 		string(contract.SettingsWriteTargetWorkspaceConfig),
 		string(contract.SettingsWriteTargetGlobalMCPSidecar),
 		string(contract.SettingsWriteTargetWorkspaceMCPSidecar),
+		string(contract.SettingsWriteTargetGlobalAgentFile),
+		string(contract.SettingsWriteTargetWorkspaceAgentFile),
 	}
 }
 
@@ -3721,6 +3770,8 @@ func settingsSourceKindValues() []string {
 		string(contract.SettingsSourceWorkspaceConfig),
 		string(contract.SettingsSourceGlobalMCPSidecar),
 		string(contract.SettingsSourceWorkspaceMCPSidecar),
+		string(contract.SettingsSourceGlobalAgentFile),
+		string(contract.SettingsSourceWorkspaceAgentFile),
 	}
 }
 

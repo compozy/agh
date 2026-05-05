@@ -10,6 +10,12 @@ AGH applies permissions in two layers:
 
 Both layers are scoped to the session workspace. `approve-all` never means "full machine access".
 
+When provider-native tool interception is active, AGH may keep the upstream ACP session in an
+approval-mediated mode so provider-native tool calls return through the AGH execution gateway
+before any real side effect. That does not change the configured policy outcome:
+`approve-all` still auto-allows, `approve-reads` still auto-allows reads only, and `deny-all`
+still auto-rejects at the execution boundary.
+
 ## Permission modes
 
 AGH supports three static modes:
@@ -91,7 +97,7 @@ That flow behaves like this:
 | `approve-all`   | any valid in-workspace request | `allow-once`     |
 | `approve-reads` | ACP read request               | `allow-once`     |
 | `approve-reads` | non-read ACP request           | pending approval |
-| `deny-all`      | any ACP request                | pending approval |
+| `deny-all`      | any ACP request                | `reject-once`    |
 
 Outside-workspace requests are rejected immediately instead of becoming pending.
 
@@ -171,14 +177,14 @@ yet. The resolved decision appears when approval completes.
 
 Interactive approval is exposed differently across AGH transports today:
 
-| Transport | Status                                                    |
-| --------- | --------------------------------------------------------- |
-| HTTP      | implemented at `POST /api/sessions/:id/approve`           |
-| UDS       | route exists, but currently returns `501 Not Implemented` |
-| CLI       | no dedicated approval command yet                         |
+| Transport | Status                                          |
+| --------- | ----------------------------------------------- |
+| HTTP      | implemented at `POST /api/sessions/:id/approve` |
+| UDS       | implemented at `POST /api/sessions/:id/approve` |
+| CLI       | implemented at `agh session approve <id>`       |
 
-That means custom clients and the browser-facing HTTP transport can approve requests today, but the
-local UDS transport does not yet provide the same capability.
+That means browser-facing clients, UDS clients, and the local CLI all drive the same approval
+surface today.
 
 ## Practical configuration example
 

@@ -95,7 +95,7 @@ type Revision struct {
 	Body            string
 	DiagnosticsJSON json.RawMessage
 	ActorKind       string
-	ActorRef        string
+	ActorID         string
 	OriginKind      string
 	OriginRef       string
 	CreatedAt       time.Time
@@ -268,7 +268,7 @@ func (r Revision) Normalize() Revision {
 	r.PreviousDigest = strings.TrimSpace(r.PreviousDigest)
 	r.NewDigest = strings.TrimSpace(r.NewDigest)
 	r.ActorKind = strings.TrimSpace(r.ActorKind)
-	r.ActorRef = strings.TrimSpace(r.ActorRef)
+	r.ActorID = strings.TrimSpace(r.ActorID)
 	r.OriginKind = strings.TrimSpace(r.OriginKind)
 	r.OriginRef = strings.TrimSpace(r.OriginRef)
 	if len(r.DiagnosticsJSON) == 0 {

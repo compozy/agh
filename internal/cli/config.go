@@ -143,6 +143,7 @@ var (
 		"limits.max_concurrent_agents": configSetInt,
 		"session.limits.timeout":       configSetDuration,
 		"session.supervision.activity_heartbeat_interval": configSetDuration,
+		"session.supervision.prompt_deadline":             configSetDuration,
 		"session.supervision.progress_notify_interval":    configSetDuration,
 		"session.supervision.inactivity_warning_after":    configSetDuration,
 		"session.supervision.inactivity_timeout":          configSetDuration,

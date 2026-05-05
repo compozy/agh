@@ -2102,7 +2102,7 @@ func (m *Service) taskRunHookContext(run Run, taskRecord Task, actor ActorContex
 		AgentName:             taskRunHookAgentName(run, actor),
 		SessionID:             strings.TrimSpace(run.SessionID),
 		ActorKind:             string(actor.Actor.Kind.Normalize()),
-		ActorRef:              strings.TrimSpace(actor.Actor.Ref),
+		ActorID:               strings.TrimSpace(actor.Actor.Ref),
 		OriginKind:            string(actor.Origin.Kind.Normalize()),
 		OriginRef:             strings.TrimSpace(actor.Origin.Ref),
 		TaskStatus:            string(taskRecord.Status.Normalize()),

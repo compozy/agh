@@ -224,10 +224,34 @@ func handleInboundRequestNoContext[Req any, Resp any](
 	return response, nil
 }
 
+type readTextFileToolInput struct {
+	Path  string `json:"path"`
+	Line  *int   `json:"line,omitempty"`
+	Limit *int   `json:"limit,omitempty"`
+}
+
+type writeTextFileToolInput struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+type createTerminalToolInput struct {
+	Command         string               `json:"command"`
+	Args            []string             `json:"args,omitempty"`
+	Cwd             *string              `json:"cwd,omitempty"`
+	Env             []acpsdk.EnvVariable `json:"env,omitempty"`
+	OutputByteLimit *int                 `json:"outputByteLimit,omitempty"`
+}
+
 func (p *AgentProcess) handleReadTextFile(
 	ctx context.Context,
 	request acpsdk.ReadTextFileRequest,
 ) (acpsdk.ReadTextFileResponse, error) {
+	request, err := p.interceptReadTextFileRequest(ctx, request)
+	if err != nil {
+		return acpsdk.ReadTextFileResponse{}, err
+	}
+
 	content, err := p.toolHostOrDefault().ReadTextFile(ctx, request.Path)
 	if err != nil {
 		return acpsdk.ReadTextFileResponse{}, err
@@ -239,6 +263,10 @@ func (p *AgentProcess) handleWriteTextFile(
 	ctx context.Context,
 	request acpsdk.WriteTextFileRequest,
 ) (acpsdk.WriteTextFileResponse, error) {
+	request, err := p.interceptWriteTextFileRequest(ctx, request)
+	if err != nil {
+		return acpsdk.WriteTextFileResponse{}, err
+	}
 	if p.isNetworkTurn() {
 		return acpsdk.WriteTextFileResponse{}, ErrToolBlockedForNetworkTurn
 	}
@@ -264,13 +292,29 @@ func (p *AgentProcess) handleRequestPermission(
 	if request.ToolCall.Title != nil {
 		title = *request.ToolCall.Title
 	}
-
-	decision, interactive := p.toolHostOrDefault().PermissionDecision(request)
 	sessionID := string(request.SessionId)
 	toolCallID := strings.TrimSpace(string(request.ToolCall.ToolCallId))
+	requestID := p.nextPermissionRequestID(turnID, request)
+	if handled, err := p.interceptProviderNativePermissionRequest(ctx, request); handled {
+		switch {
+		case err == nil:
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			return acpsdk.RequestPermissionResponse{
+				Outcome: acpsdk.NewRequestPermissionOutcomeCancelled(),
+			}, nil
+		case errors.Is(err, ErrPermissionDenied):
+			outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
+			raw := buildPermissionEventRaw(requestID, appliedDecision, request)
+			p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, raw)
+			return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+		default:
+			return acpsdk.RequestPermissionResponse{}, err
+		}
+	}
+
+	decision, interactive := p.toolHostOrDefault().PermissionDecision(request)
 
 	if !interactive {
-		requestID := p.nextPermissionRequestID(turnID, request)
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
 		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
 		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, raw)
@@ -339,8 +383,123 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 	}
 
 	event := translateSessionUpdate(notification, raw.Update, p.activeTurnID())
+	event = p.markToolEventPrechecked(event)
 	p.emitPromptEvent(event)
 	return nil
+}
+
+func (p *AgentProcess) interceptReadTextFileRequest(
+	ctx context.Context,
+	request acpsdk.ReadTextFileRequest,
+) (acpsdk.ReadTextFileRequest, error) {
+	input, err := json.Marshal(readTextFileToolInput{
+		Path:  request.Path,
+		Line:  request.Line,
+		Limit: request.Limit,
+	})
+	if err != nil {
+		return acpsdk.ReadTextFileRequest{}, fmt.Errorf("acp: marshal read_text_file input: %w", err)
+	}
+
+	patched, err := p.interceptProviderNativeTool(ctx, ToolExecutionRequest{
+		ToolID:   providerNativeToolIDRead,
+		ReadOnly: true,
+		Input:    input,
+	})
+	if err != nil {
+		return acpsdk.ReadTextFileRequest{}, err
+	}
+
+	var next readTextFileToolInput
+	if err := json.Unmarshal(patched.Input, &next); err != nil {
+		return acpsdk.ReadTextFileRequest{}, fmt.Errorf(
+			"%w: invalid %s tool patch: %w",
+			ErrPermissionDenied,
+			providerNativeToolIDRead,
+			err,
+		)
+	}
+
+	request.Path = strings.TrimSpace(next.Path)
+	request.Line = next.Line
+	request.Limit = next.Limit
+	return request, nil
+}
+
+func (p *AgentProcess) interceptWriteTextFileRequest(
+	ctx context.Context,
+	request acpsdk.WriteTextFileRequest,
+) (acpsdk.WriteTextFileRequest, error) {
+	input, err := json.Marshal(writeTextFileToolInput{
+		Path:    request.Path,
+		Content: request.Content,
+	})
+	if err != nil {
+		return acpsdk.WriteTextFileRequest{}, fmt.Errorf("acp: marshal write_text_file input: %w", err)
+	}
+
+	patched, err := p.interceptProviderNativeTool(ctx, ToolExecutionRequest{
+		ToolID: providerNativeToolIDWrite,
+		Input:  input,
+	})
+	if err != nil {
+		return acpsdk.WriteTextFileRequest{}, err
+	}
+
+	var next writeTextFileToolInput
+	if err := json.Unmarshal(patched.Input, &next); err != nil {
+		return acpsdk.WriteTextFileRequest{}, fmt.Errorf(
+			"%w: invalid %s tool patch: %w",
+			ErrPermissionDenied,
+			providerNativeToolIDWrite,
+			err,
+		)
+	}
+
+	request.Path = strings.TrimSpace(next.Path)
+	request.Content = next.Content
+	return request, nil
+}
+
+func (p *AgentProcess) interceptCreateTerminalRequest(
+	ctx context.Context,
+	request acpsdk.CreateTerminalRequest,
+) (acpsdk.CreateTerminalRequest, error) {
+	input, err := json.Marshal(createTerminalToolInput{
+		Command:         request.Command,
+		Args:            request.Args,
+		Cwd:             request.Cwd,
+		Env:             request.Env,
+		OutputByteLimit: request.OutputByteLimit,
+	})
+	if err != nil {
+		return acpsdk.CreateTerminalRequest{}, fmt.Errorf("acp: marshal terminal/create input: %w", err)
+	}
+
+	patched, err := p.interceptProviderNativeTool(ctx, ToolExecutionRequest{
+		ToolID: providerNativeToolIDBash,
+		Input:  input,
+	})
+	if err != nil {
+		return acpsdk.CreateTerminalRequest{}, err
+	}
+
+	var next createTerminalToolInput
+	if err := json.Unmarshal(patched.Input, &next); err != nil {
+		return acpsdk.CreateTerminalRequest{}, fmt.Errorf(
+			"%w: invalid %s tool patch: %w",
+			ErrPermissionDenied,
+			providerNativeToolIDBash,
+			err,
+		)
+	}
+
+	request.Command = strings.TrimSpace(next.Command)
+	request.Args = append([]string(nil), next.Args...)
+	request.Cwd = next.Cwd
+	request.Env = append([]acpsdk.EnvVariable(nil), next.Env...)
+	request.OutputByteLimit = next.OutputByteLimit
+	return request, nil
 }
 
 func (p *AgentProcess) emitPermissionEvent(
@@ -372,6 +531,11 @@ func (p *AgentProcess) handleCreateTerminal(
 	ctx context.Context,
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
+	request, err := p.interceptCreateTerminalRequest(ctx, request)
+	if err != nil {
+		return acpsdk.CreateTerminalResponse{}, err
+	}
+
 	ownership := terminalOwnership{
 		ownerSessionID: p.SessionID,
 		ownerTurnID:    p.activeTurnID(),

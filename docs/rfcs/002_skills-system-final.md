@@ -213,17 +213,20 @@ agh skill update [--all]               # Update marketplace skills
 
 ### 2.8 Precedence Hierarchy
 
-Skills are resolved in five source layers, with higher layers overriding lower:
+Skills are resolved in six source layers, with higher layers overriding lower:
 
 ```
 1. Bundled                      — lowest, immutable, shipped with binary
 2. Marketplace                  — `~/.agh/skills/` entries with `.agh-meta.json`
-3. User                         — manual `~/.agh/skills/` entries plus the resolved `~/.agents/skills/` convention
+3. User                         — manual `~/.agh/skills/` entries
 4. Additional                   — `.agh/skills/` under configured additional workspace roots
-5. Workspace                    — highest, `<workspace>/.agh/skills/`
+5. Workspace                    — `<workspace>/.agh/skills/`
+6. Agent-local                  — highest, `.agh/agents/<name>/skills/`
 ```
 
-Same-name collisions: highest precedence wins. Override audit trail logs all shadows.
+Workspace is the highest base layer. Agent-local is the final overlay after AGH resolves the
+winning `AGENT.md`. Same-name collisions still resolve to the highest-precedence winner, and the
+override audit trail logs every shadow.
 
 ---
 

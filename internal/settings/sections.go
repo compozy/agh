@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -11,145 +13,306 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/resources"
+	skillspkg "github.com/pedronauck/agh/internal/skills"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func (s *service) GetSection(ctx context.Context, req SectionRequest) (SectionEnvelope, error) {
-	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
+	scope, workspaceID, agentName, err := s.resolveSectionScope(req.Section, req.Scope, req.WorkspaceID, req.AgentName)
 	if err != nil {
 		return SectionEnvelope{}, fmt.Errorf("settings: get section %q: %w", req.Section, err)
 	}
-	if scope != ScopeGlobal {
-		return SectionEnvelope{}, conflictError(
-			fmt.Errorf("settings: section %q does not support workspace scope", req.Section),
-		)
-	}
 
-	cfg, _, err := s.loadConfig(ctx, scope, workspaceID)
+	cfg, resolved, err := s.loadConfig(ctx, scope, workspaceID)
 	if err != nil {
 		return SectionEnvelope{}, fmt.Errorf("settings: load section %q config: %w", req.Section, err)
 	}
 
-	envelope := SectionEnvelope{
-		Section:         req.Section,
-		Scope:           ScopeGlobal,
-		AvailableScopes: []ScopeKind{ScopeGlobal},
-	}
-
-	switch req.Section {
-	case SectionGeneral:
-		section, sectionErr := s.buildGeneralSection(ctx, &cfg)
-		if sectionErr != nil {
-			return SectionEnvelope{}, sectionErr
-		}
-		envelope.General = &section
-	case SectionMemory:
-		section, sectionErr := s.buildMemorySection(ctx, &cfg)
-		if sectionErr != nil {
-			return SectionEnvelope{}, sectionErr
-		}
-		envelope.Memory = &section
-	case SectionSkills:
-		section := s.buildSkillsSection(&cfg)
-		envelope.Skills = &section
-	case SectionAutomation:
-		section, sectionErr := s.buildAutomationSection(ctx, &cfg)
-		if sectionErr != nil {
-			return SectionEnvelope{}, sectionErr
-		}
-		envelope.Automation = &section
-	case SectionNetwork:
-		section, sectionErr := s.buildNetworkSection(ctx, &cfg)
-		if sectionErr != nil {
-			return SectionEnvelope{}, sectionErr
-		}
-		envelope.Network = &section
-	case SectionObservability:
-		section, sectionErr := s.buildObservabilitySection(ctx, &cfg)
-		if sectionErr != nil {
-			return SectionEnvelope{}, sectionErr
-		}
-		envelope.Observability = &section
-	case SectionHooksExtensions:
-		section, sectionErr := s.buildHooksExtensionsSection(ctx, &cfg)
-		if sectionErr != nil {
-			return SectionEnvelope{}, sectionErr
-		}
-		envelope.HooksExtensions = &section
-	default:
-		return SectionEnvelope{}, notFoundError(fmt.Errorf("settings: unknown section %q", req.Section))
+	envelope := newSectionEnvelope(req.Section, scope, workspaceID, agentName)
+	if err := s.populateSectionEnvelope(ctx, &envelope, &cfg, resolved); err != nil {
+		return SectionEnvelope{}, err
 	}
 
 	return envelope, nil
 }
 
 func (s *service) UpdateSection(ctx context.Context, req SectionUpdateRequest) (MutationResult, error) {
+	if req.Section == SectionSkills {
+		if req.Skills == nil {
+			return MutationResult{}, validationError(errors.New("settings: skills section payload is required"))
+		}
+		result, err := s.updateSkillsSection(ctx, req.SectionRequest, *req.Skills)
+		return s.finalizeSectionUpdate(ctx, result, err)
+	}
+
+	result, err := s.updateConfigBackedSection(ctx, req)
+	return s.finalizeSectionUpdate(ctx, result, err)
+}
+
+func (s *service) resolveSectionScope(
+	section SectionName,
+	scope ScopeKind,
+	workspaceID string,
+	agentName string,
+) (ScopeKind, string, string, error) {
+	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
+	if err != nil {
+		return "", "", "", err
+	}
+	normalizedAgentName, err := normalizeAgentName(agentName)
+	if err != nil {
+		return "", "", "", err
+	}
+	if err := validateSectionScope(section, normalizedScope, normalizedAgentName); err != nil {
+		return "", "", "", err
+	}
+	return normalizedScope, normalizedWorkspaceID, normalizedAgentName, nil
+}
+
+func validateSectionScope(section SectionName, scope ScopeKind, agentName string) error {
+	if section != SectionSkills && scope != ScopeGlobal {
+		return conflictError(
+			fmt.Errorf("settings: section %q does not support %s scope", section, scope),
+		)
+	}
+	if section != SectionSkills {
+		return nil
+	}
+	if scope == ScopeWorkspace {
+		return conflictError(
+			fmt.Errorf("settings: section %q does not support %s scope", section, scope),
+		)
+	}
+	if scope == ScopeAgent && agentName == "" {
+		return validationError(errors.New("settings: agent scope requires agent_name"))
+	}
+	return nil
+}
+
+func newSectionEnvelope(
+	section SectionName,
+	scope ScopeKind,
+	workspaceID string,
+	agentName string,
+) SectionEnvelope {
+	return SectionEnvelope{
+		Section:         section,
+		Scope:           scope,
+		WorkspaceID:     workspaceID,
+		AgentName:       agentName,
+		AvailableScopes: []ScopeKind{ScopeGlobal},
+	}
+}
+
+func (s *service) populateSectionEnvelope(
+	ctx context.Context,
+	envelope *SectionEnvelope,
+	cfg *aghconfig.Config,
+	resolved *workspacepkg.ResolvedWorkspace,
+) error {
+	switch envelope.Section {
+	case SectionGeneral:
+		envelope.Scope = ScopeGlobal
+		section, err := s.buildGeneralSection(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		envelope.General = &section
+	case SectionMemory:
+		envelope.Scope = ScopeGlobal
+		section, err := s.buildMemorySection(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		envelope.Memory = &section
+	case SectionSkills:
+		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeAgent}
+		section, err := s.buildSkillsSection(
+			ctx,
+			cfg,
+			resolved,
+			envelope.Scope,
+			envelope.WorkspaceID,
+			envelope.AgentName,
+		)
+		if err != nil {
+			return err
+		}
+		envelope.Skills = &section
+	case SectionAutomation:
+		envelope.Scope = ScopeGlobal
+		section, err := s.buildAutomationSection(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		envelope.Automation = &section
+	case SectionNetwork:
+		envelope.Scope = ScopeGlobal
+		section, err := s.buildNetworkSection(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		envelope.Network = &section
+	case SectionObservability:
+		envelope.Scope = ScopeGlobal
+		section, err := s.buildObservabilitySection(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		envelope.Observability = &section
+	case SectionHooksExtensions:
+		envelope.Scope = ScopeGlobal
+		section, err := s.buildHooksExtensionsSection(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		envelope.HooksExtensions = &section
+	default:
+		return notFoundError(fmt.Errorf("settings: unknown section %q", envelope.Section))
+	}
+	return nil
+}
+
+func (s *service) finalizeSectionUpdate(
+	ctx context.Context,
+	result MutationResult,
+	err error,
+) (MutationResult, error) {
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if emitErr := s.emitSettingsChanged(ctx, result, "patch"); emitErr != nil {
+		return MutationResult{}, emitErr
+	}
+	return result, nil
+}
+
+func (s *service) updateConfigBackedSection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	switch req.Section {
+	case SectionGeneral:
+		return s.updateGeneralSection(ctx, req)
+	case SectionMemory:
+		return s.updateMemorySection(ctx, req)
+	case SectionAutomation:
+		return s.updateAutomationSection(ctx, req)
+	case SectionNetwork:
+		return s.updateNetworkSection(ctx, req)
+	case SectionObservability:
+		return s.updateObservabilitySection(ctx, req)
+	case SectionHooksExtensions:
+		return s.updateHooksExtensionsSection(ctx, req)
+	default:
+		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown section %q", req.Section))
+	}
+}
+
+func (s *service) updateGeneralSection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
 	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
 	if err != nil {
 		return MutationResult{}, err
 	}
-
-	switch req.Section {
-	case SectionGeneral:
-		if req.General == nil {
-			return MutationResult{}, validationError(errors.New("settings: general section payload is required"))
-		}
-		changed := diffGeneralSettings(&cfg, *req.General)
-		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
-			return applyGeneralSettings(editor, *req.General)
-		})
-	case SectionMemory:
-		if req.Memory == nil {
-			return MutationResult{}, validationError(errors.New("settings: memory section payload is required"))
-		}
-		changed := diffMemorySettings(cfg.Memory, *req.Memory)
-		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
-			return applyMemorySettings(editor, *req.Memory)
-		})
-	case SectionSkills:
-		if req.Skills == nil {
-			return MutationResult{}, validationError(errors.New("settings: skills section payload is required"))
-		}
-		changed := diffSkillsSettings(cfg.Skills, *req.Skills)
-		return s.updateSkillsSection(ctx, cfg.Skills, *req.Skills, changed, target)
-	case SectionAutomation:
-		if req.Automation == nil {
-			return MutationResult{}, validationError(errors.New("settings: automation section payload is required"))
-		}
-		changed := diffAutomationSettings(&cfg, *req.Automation)
-		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
-			return applyAutomationSettings(editor, *req.Automation)
-		})
-	case SectionNetwork:
-		if req.Network == nil {
-			return MutationResult{}, validationError(errors.New("settings: network section payload is required"))
-		}
-		changed := diffNetworkSettings(cfg.Network, *req.Network)
-		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
-			return applyNetworkSettings(editor, *req.Network)
-		})
-	case SectionObservability:
-		if req.Observability == nil {
-			return MutationResult{}, validationError(
-				errors.New("settings: observability section payload is required"),
-			)
-		}
-		changed := diffObservabilitySettings(cfg.Observability, *req.Observability)
-		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
-			return applyObservabilitySettings(editor, *req.Observability)
-		})
-	case SectionHooksExtensions:
-		if req.HooksExtensions == nil {
-			return MutationResult{}, validationError(
-				errors.New("settings: hooks-extensions section payload is required"),
-			)
-		}
-		changed := diffExtensionsSettings(cfg.Extensions, *req.HooksExtensions)
-		return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
-			return applyExtensionsSettings(editor, *req.HooksExtensions)
-		})
-	default:
-		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown section %q", req.Section))
+	if req.General == nil {
+		return MutationResult{}, validationError(errors.New("settings: general section payload is required"))
 	}
+	changed := diffGeneralSettings(&cfg, *req.General)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+		return applyGeneralSettings(editor, *req.General)
+	})
+}
+
+func (s *service) updateMemorySection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.Memory == nil {
+		return MutationResult{}, validationError(errors.New("settings: memory section payload is required"))
+	}
+	changed := diffMemorySettings(cfg.Memory, *req.Memory)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+		return applyMemorySettings(editor, *req.Memory)
+	})
+}
+
+func (s *service) updateAutomationSection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.Automation == nil {
+		return MutationResult{}, validationError(errors.New("settings: automation section payload is required"))
+	}
+	changed := diffAutomationSettings(&cfg, *req.Automation)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+		return applyAutomationSettings(editor, *req.Automation)
+	})
+}
+
+func (s *service) updateNetworkSection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.Network == nil {
+		return MutationResult{}, validationError(errors.New("settings: network section payload is required"))
+	}
+	changed := diffNetworkSettings(cfg.Network, *req.Network)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+		return applyNetworkSettings(editor, *req.Network)
+	})
+}
+
+func (s *service) updateObservabilitySection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.Observability == nil {
+		return MutationResult{}, validationError(
+			errors.New("settings: observability section payload is required"),
+		)
+	}
+	changed := diffObservabilitySettings(cfg.Observability, *req.Observability)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+		return applyObservabilitySettings(editor, *req.Observability)
+	})
+}
+
+func (s *service) updateHooksExtensionsSection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.HooksExtensions == nil {
+		return MutationResult{}, validationError(
+			errors.New("settings: hooks-extensions section payload is required"),
+		)
+	}
+	changed := diffExtensionsSettings(cfg.Extensions, *req.HooksExtensions)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
+		return applyExtensionsSettings(editor, *req.HooksExtensions)
+	})
 }
 
 func (s *service) loadGlobalSectionUpdate(
@@ -227,11 +390,42 @@ func (s *service) updateConfigSection(
 
 func (s *service) updateSkillsSection(
 	ctx context.Context,
-	current aghconfig.SkillsConfig,
+	req SectionRequest,
 	next aghconfig.SkillsConfig,
-	changed []string,
-	target aghconfig.WriteTarget,
 ) (MutationResult, error) {
+	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, fmt.Errorf("settings: update section %q: %w", SectionSkills, err)
+	}
+	if scope == ScopeWorkspace {
+		return MutationResult{}, conflictError(
+			errors.New("settings: section \"skills\" does not support workspace scope"),
+		)
+	}
+	agentName, err := normalizeAgentName(req.AgentName)
+	if err != nil {
+		return MutationResult{}, fmt.Errorf("settings: update section %q: %w", SectionSkills, err)
+	}
+
+	cfg, resolved, err := s.loadConfig(ctx, scope, workspaceID)
+	if err != nil {
+		return MutationResult{}, fmt.Errorf("settings: load section %q config: %w", SectionSkills, err)
+	}
+
+	if scope == ScopeAgent {
+		if agentName == "" {
+			return MutationResult{}, validationError(errors.New("settings: agent scope requires agent_name"))
+		}
+		return s.updateAgentSkillsSection(cfg.Skills, resolved, workspaceID, agentName, next)
+	}
+
+	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
+	if err != nil {
+		return MutationResult{}, fmt.Errorf("settings: resolve section %q write target: %w", SectionSkills, err)
+	}
+
+	current := cfg.Skills
+	changed := diffSkillsSettings(current, next)
 	if len(changed) == 0 {
 		return MutationResult{
 			Section:  SectionSkills,
@@ -254,7 +448,7 @@ func (s *service) updateSkillsSection(
 	}
 
 	if classification.Behavior == MutationBehaviorAppliedNow {
-		if err := s.applySkillsDisabledChanges(ctx, current.DisabledSkills, next.DisabledSkills); err != nil {
+		if err := s.applySkillsDisabledChanges(current.DisabledSkills, next.DisabledSkills); err != nil {
 			return MutationResult{}, err
 		}
 	}
@@ -263,6 +457,70 @@ func (s *service) updateSkillsSection(
 		Section:         SectionSkills,
 		Scope:           ScopeGlobal,
 		WriteTarget:     target.Kind(),
+		Behavior:        classification.Behavior,
+		Applied:         classification.Applied,
+		RestartRequired: classification.RestartRequired,
+		RestartScope:    classification.RestartScope,
+	}, nil
+}
+
+func (s *service) updateAgentSkillsSection(
+	base aghconfig.SkillsConfig,
+	resolved *workspacepkg.ResolvedWorkspace,
+	workspaceID string,
+	agentName string,
+	next aghconfig.SkillsConfig,
+) (MutationResult, error) {
+	agent, targetKind, err := s.resolveEffectiveAgent(resolved, agentName)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if immutable := diffAgentImmutableSkillsSettings(base, next); len(immutable) > 0 {
+		return MutationResult{}, validationError(
+			fmt.Errorf(
+				"settings: agent scope only supports skills.disabled_skills, got %s",
+				strings.Join(immutable, ", "),
+			),
+		)
+	}
+
+	current := base
+	current.DisabledSkills = append([]string(nil), agent.Skills.Disabled...)
+	changed := diffSkillsSettings(current, next)
+	if len(changed) == 0 {
+		return MutationResult{
+			Section:     SectionSkills,
+			Scope:       ScopeAgent,
+			WriteTarget: targetKind,
+			WorkspaceID: workspaceID,
+			AgentName:   agentName,
+			Behavior:    MutationBehaviorAppliedNow,
+			Applied:     true,
+			Warnings:    []string{"no changes"},
+		}, nil
+	}
+
+	classification, err := ClassifyMutation(MutationDescriptor{Section: SectionSkills, ChangedFields: changed})
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if classification.Behavior == MutationBehaviorAppliedNow {
+		if err := s.applyAgentSkillsDisabledChanges(
+			resolved,
+			agentName,
+			current.DisabledSkills,
+			next.DisabledSkills,
+		); err != nil {
+			return MutationResult{}, err
+		}
+	}
+
+	return MutationResult{
+		Section:         SectionSkills,
+		Scope:           ScopeAgent,
+		WriteTarget:     targetKind,
+		WorkspaceID:     workspaceID,
+		AgentName:       agentName,
 		Behavior:        classification.Behavior,
 		Applied:         classification.Applied,
 		RestartRequired: classification.RestartRequired,
@@ -330,20 +588,44 @@ func (s *service) buildMemorySection(ctx context.Context, cfg *aghconfig.Config)
 	}, nil
 }
 
-func (s *service) buildSkillsSection(cfg *aghconfig.Config) SkillsSection {
+func (s *service) buildSkillsSection(
+	ctx context.Context,
+	cfg *aghconfig.Config,
+	resolved *workspacepkg.ResolvedWorkspace,
+	scope ScopeKind,
+	workspaceID string,
+	agentName string,
+) (SkillsSection, error) {
 	section := SkillsSection{
 		Config: cfg.Skills,
-		Links: []OperationalLink{
-			{Label: "skills", Path: "/skills"},
-		},
+	}
+	section.Links = buildSkillsOperationalLinks(scope, workspaceID, agentName)
+
+	if scope == ScopeAgent {
+		agent, _, err := s.resolveEffectiveAgent(resolved, agentName)
+		if err != nil {
+			return SkillsSection{}, err
+		}
+		section.Config.DisabledSkills = append([]string(nil), agent.Skills.Disabled...)
 	}
 
 	if s.skillsRuntime == nil {
-		section.DisabledCount = len(cfg.Skills.DisabledSkills)
-		return section
+		section.DisabledCount = len(section.Config.DisabledSkills)
+		return section, nil
 	}
 
-	skills := s.skillsRuntime.List()
+	var (
+		skills []*skillspkg.Skill
+		err    error
+	)
+	if scope == ScopeAgent {
+		skills, err = s.skillsRuntime.ForAgent(ctx, resolved, agentName)
+	} else {
+		skills = s.skillsRuntime.List()
+	}
+	if err != nil {
+		return SkillsSection{}, mapSkillsSettingsError(err)
+	}
 	section.RuntimeAvailable = true
 	section.DiscoveredCount = len(skills)
 	for _, skill := range skills {
@@ -352,7 +634,7 @@ func (s *service) buildSkillsSection(cfg *aghconfig.Config) SkillsSection {
 		}
 	}
 
-	return section
+	return section, nil
 }
 
 func (s *service) buildAutomationSection(
@@ -541,6 +823,14 @@ func diffSkillsSettings(current aghconfig.SkillsConfig, desired aghconfig.Skills
 		changed = append(changed, "skills.marketplace.base_url")
 	}
 	return changed
+}
+
+func diffAgentImmutableSkillsSettings(current aghconfig.SkillsConfig, desired aghconfig.SkillsConfig) []string {
+	baseCurrent := current
+	baseCurrent.DisabledSkills = nil
+	baseDesired := desired
+	baseDesired.DisabledSkills = nil
+	return diffSkillsSettings(baseCurrent, baseDesired)
 }
 
 func diffAutomationSettings(cfg *aghconfig.Config, desired AutomationSettings) []string {
@@ -789,7 +1079,7 @@ func applyValueUpdates(editor *aghconfig.OverlayEditor, updates []struct {
 	return nil
 }
 
-func (s *service) applySkillsDisabledChanges(_ context.Context, current []string, next []string) error {
+func (s *service) applySkillsDisabledChanges(current []string, next []string) error {
 	if s.skillsRuntime == nil {
 		return errors.New("settings: skills runtime is required to apply skills.disabled_skills")
 	}
@@ -814,6 +1104,151 @@ func (s *service) applySkillsDisabledChanges(_ context.Context, current []string
 		}
 	}
 	return nil
+}
+
+func (s *service) applyAgentSkillsDisabledChanges(
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+	current []string,
+	next []string,
+) error {
+	if s.skillsRuntime == nil {
+		return errors.New("settings: skills runtime is required to apply agent skills.disabled_skills")
+	}
+
+	currentSet := sliceToSet(current)
+	nextSet := sliceToSet(next)
+	names := make([]string, 0, len(currentSet)+len(nextSet))
+	seen := make(map[string]struct{}, len(currentSet)+len(nextSet))
+	for name := range currentSet {
+		names = append(names, name)
+		seen[name] = struct{}{}
+	}
+	for name := range nextSet {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		_, wasDisabled := currentSet[name]
+		_, nowDisabled := nextSet[name]
+		if wasDisabled == nowDisabled {
+			continue
+		}
+		if err := s.skillsRuntime.SetEnabledForAgent(name, resolved, agentName, !nowDisabled); err != nil {
+			return mapSkillsSettingsError(
+				fmt.Errorf("settings: apply agent skills.disabled_skills for %q on %q: %w", name, agentName, err),
+			)
+		}
+	}
+
+	return nil
+}
+
+func buildSkillsOperationalLinks(scope ScopeKind, workspaceID string, agentName string) []OperationalLink {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(workspaceID); trimmed != "" {
+		values.Set("workspace", trimmed)
+	}
+	if scope == ScopeAgent && strings.TrimSpace(agentName) != "" {
+		values.Set("for_agent", agentName)
+	}
+
+	path := "/skills"
+	if encoded := values.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	return []OperationalLink{{Label: "skills", Path: path}}
+}
+
+func (s *service) resolveEffectiveAgent(
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+) (aghconfig.AgentDef, WriteTargetKind, error) {
+	target := aghconfig.NormalizeAgentName(agentName)
+	if target == "" {
+		return aghconfig.AgentDef{}, "", validationError(errors.New("settings: agent_name is required"))
+	}
+
+	if resolved != nil {
+		for _, diagnostic := range resolved.AgentDiagnostics {
+			if aghconfig.NormalizeAgentName(diagnostic.Name) != target {
+				continue
+			}
+			return aghconfig.AgentDef{}, "", unprocessableError(
+				fmt.Errorf(
+					"settings: agent %q at %q: %s",
+					target,
+					strings.TrimSpace(diagnostic.Path),
+					strings.TrimSpace(diagnostic.Message),
+				),
+			)
+		}
+		for _, agent := range resolved.Agents {
+			if aghconfig.NormalizeAgentName(agent.Name) != target {
+				continue
+			}
+			return aghconfig.CloneAgentDef(agent), agentWriteTargetKind(s.homePaths, agent.SourcePath), nil
+		}
+		return aghconfig.AgentDef{}, "", notFoundError(fmt.Errorf("settings: agent %q not found", target))
+	}
+
+	path := filepath.Join(s.homePaths.AgentsDir, target, "AGENT.md")
+	agent, err := aghconfig.LoadAgentDefFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return aghconfig.AgentDef{}, "", notFoundError(fmt.Errorf("settings: agent %q not found", target))
+		}
+		return aghconfig.AgentDef{}, "", unprocessableError(
+			fmt.Errorf("settings: load agent %q: %w", target, err),
+		)
+	}
+	if aghconfig.NormalizeAgentName(agent.Name) != target {
+		return aghconfig.AgentDef{}, "", unprocessableError(
+			fmt.Errorf("settings: agent file %q defines %q, expected %q", path, agent.Name, target),
+		)
+	}
+	return agent, WriteTargetGlobalAgentFile, nil
+}
+
+func agentWriteTargetKind(homePaths aghconfig.HomePaths, sourcePath string) WriteTargetKind {
+	if withinRoot(sourcePath, homePaths.AgentsDir) {
+		return WriteTargetGlobalAgentFile
+	}
+	return WriteTargetWorkspaceAgentFile
+}
+
+func withinRoot(path string, root string) bool {
+	trimmedPath := strings.TrimSpace(path)
+	trimmedRoot := strings.TrimSpace(root)
+	if trimmedPath == "" || trimmedRoot == "" {
+		return false
+	}
+	rel, err := filepath.Rel(trimmedRoot, trimmedPath)
+	if err != nil {
+		return false
+	}
+	rel = strings.TrimSpace(rel)
+	if rel == "" || rel == "." {
+		return true
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func mapSkillsSettingsError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, skillspkg.ErrAgentNotFound):
+		return notFoundError(err)
+	case errors.Is(err, skillspkg.ErrAgentLocalInvalid):
+		return unprocessableError(err)
+	default:
+		return err
+	}
 }
 
 func sliceToSet(values []string) map[string]struct{} {

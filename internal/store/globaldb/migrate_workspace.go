@@ -448,8 +448,18 @@ func copyLegacyGlobalSupportTables(ctx context.Context, tx *sql.Tx) error {
 		{
 			source: "event_summaries",
 			target: "event_summaries_new",
-			query: `INSERT INTO event_summaries_new (id, session_id, type, agent_name, summary, timestamp)
-				SELECT id, session_id, type, agent_name, summary, timestamp FROM event_summaries`,
+			query: `INSERT INTO event_summaries_new (
+					id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id,
+					claim_token_hash, lease_until, coordinator_session_id, scheduler_reason, hook_event,
+					hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
+					spawn_depth, summary, timestamp
+				) SELECT
+					id, session_id, type, agent_name, '' AS content_json, '' AS task_id, '' AS run_id,
+					'' AS workflow_id, '' AS claim_token_hash, '' AS lease_until,
+					'' AS coordinator_session_id, '' AS scheduler_reason, '' AS hook_event,
+					'' AS hook_name, '' AS actor_kind, '' AS actor_id, '' AS release_reason,
+					'' AS parent_session_id, '' AS root_session_id, 0 AS spawn_depth, summary, timestamp
+				FROM event_summaries`,
 		},
 		{
 			source: "token_stats",
@@ -1037,7 +1047,17 @@ func ensureMigratedWorkspaces(
 }
 
 func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
-	statements := []string{
+	for _, stmt := range migratedGlobalTableStatements() {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: create migrated global table: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func migratedGlobalTableStatements() []string {
+	return []string{
 		`CREATE TABLE sessions_new (
 			id             TEXT PRIMARY KEY,
 			name           TEXT,
@@ -1065,12 +1085,28 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 			updated_at     TEXT NOT NULL
 		);`,
 		`CREATE TABLE event_summaries_new (
-			id         TEXT PRIMARY KEY,
-			session_id TEXT NOT NULL REFERENCES sessions_new(id),
-			type       TEXT NOT NULL,
-			agent_name TEXT NOT NULL,
-			summary    TEXT,
-			timestamp  TEXT NOT NULL
+			id                     TEXT PRIMARY KEY,
+			session_id             TEXT NOT NULL DEFAULT '',
+			type                   TEXT NOT NULL,
+			agent_name             TEXT NOT NULL DEFAULT '',
+			content_json           TEXT NOT NULL DEFAULT '',
+			task_id                TEXT NOT NULL DEFAULT '',
+			run_id                 TEXT NOT NULL DEFAULT '',
+			workflow_id            TEXT NOT NULL DEFAULT '',
+			claim_token_hash       TEXT NOT NULL DEFAULT '',
+			lease_until            TEXT NOT NULL DEFAULT '',
+			coordinator_session_id TEXT NOT NULL DEFAULT '',
+			scheduler_reason       TEXT NOT NULL DEFAULT '',
+			hook_event             TEXT NOT NULL DEFAULT '',
+			hook_name              TEXT NOT NULL DEFAULT '',
+			actor_kind             TEXT NOT NULL DEFAULT '',
+			actor_id               TEXT NOT NULL DEFAULT '',
+			release_reason         TEXT NOT NULL DEFAULT '',
+			parent_session_id      TEXT NOT NULL DEFAULT '',
+			root_session_id        TEXT NOT NULL DEFAULT '',
+			spawn_depth            INTEGER NOT NULL DEFAULT 0,
+			summary                TEXT,
+			timestamp              TEXT NOT NULL
 		);`,
 		`CREATE TABLE token_stats_new (
 			id            TEXT PRIMARY KEY,
@@ -1095,14 +1131,6 @@ func createMigratedGlobalTables(ctx context.Context, tx *sql.Tx) error {
 			timestamp   TEXT NOT NULL
 		);`,
 	}
-
-	for _, stmt := range statements {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("store: create migrated global table: %w", err)
-		}
-	}
-
-	return nil
 }
 
 func copyMigratedSessions(

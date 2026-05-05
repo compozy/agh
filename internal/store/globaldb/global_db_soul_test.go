@@ -47,7 +47,7 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 			"body",
 			"diagnostics_json",
 			"actor_kind",
-			"actor_ref",
+			"actor_id",
 			"origin_kind",
 			"origin_ref",
 			"created_at",
@@ -61,7 +61,7 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AppliedMigrations() error = %v", err)
 		}
-		if got, want := len(records), 14; got != want {
+		if got, want := len(records), 16; got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
 		soulRecord := records[11]
@@ -74,6 +74,12 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		}
 		if records[13].Version != 14 || records[13].Name != "add_event_summary_lineage" {
 			t.Fatalf("records[13] = %#v, want add_event_summary_lineage v14", records[13])
+		}
+		if records[14].Version != 15 || records[14].Name != "rebuild_event_summaries_for_global_payloads" {
+			t.Fatalf("records[14] = %#v, want rebuild_event_summaries_for_global_payloads v15", records[14])
+		}
+		if records[15].Version != 16 || records[15].Name != "rename_actor_ref_columns_to_actor_id" {
+			t.Fatalf("records[15] = %#v, want rename_actor_ref_columns_to_actor_id v16", records[15])
 		}
 		for _, table := range []string{"soul_snapshots", "soul_revisions"} {
 			exists, err := tableExists(ctx, globalDB.db, table)
@@ -670,7 +676,7 @@ func soulRevisionForTest(
 		Body:            "stored body",
 		DiagnosticsJSON: json.RawMessage(`[]`),
 		ActorKind:       "agent",
-		ActorRef:        agentName,
+		ActorID:         agentName,
 		OriginKind:      "test",
 		OriginRef:       "global_db_soul_test",
 		CreatedAt:       time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC),

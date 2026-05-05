@@ -714,7 +714,7 @@ func shouldSkipDir(name string) bool {
 	switch name {
 	case ".git", "node_modules":
 		return true
-	case ".agh", ".agents":
+	case ".agh":
 		return false
 	}
 

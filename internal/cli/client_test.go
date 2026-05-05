@@ -2201,6 +2201,9 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if payload.IdempotencyKey != "idem-1" || payload.NetworkChannel != "builders" {
 						t.Fatalf("enqueue run payload = %#v", payload)
 					}
+					if got, want := string(payload.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
+						t.Fatalf("enqueue run metadata = %q, want %q", got, want)
+					}
 					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusQueued)})
 					return newHTTPResponse(http.StatusCreated, string(body)), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/tasks/task-1/runs":
@@ -2377,6 +2380,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		enqueued, err := client.EnqueueTaskRun(ctx, "task-1", EnqueueTaskRunRequest{
 			IdempotencyKey: "idem-1",
 			NetworkChannel: "builders",
+			Metadata:       json.RawMessage(`{"schema":"agh.harness.detached.v1"}`),
 		})
 		if err != nil || enqueued.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("EnqueueTaskRun() = %#v, %v", enqueued, err)

@@ -218,6 +218,8 @@ func skillSourceFromName(source string) (SkillSource, error) {
 		return SourceAdditional, nil
 	case skillSourceName(SourceWorkspace):
 		return SourceWorkspace, nil
+	case skillSourceName(SourceAgentLocal):
+		return SourceAgentLocal, nil
 	default:
 		return 0, fmt.Errorf("skills: unsupported skill source %q", source)
 	}

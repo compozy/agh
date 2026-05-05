@@ -2851,6 +2851,7 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 
 			workspaceRef := workspacepkg.ResolvedWorkspace{
 				Workspace: workspacepkg.Workspace{RootDir: workspace},
+				Agents:    []aghconfig.AgentDef{testPromptAgent("Base prompt.")},
 			}
 			prompt, err := capturedDeps.PromptAssembler.Assemble(
 				context.Background(),
@@ -3044,7 +3045,7 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 		t.Fatal("boot() did not initialize the skills registry")
 	}
 
-	writeDaemonSkill(t, filepath.Join(homePaths.HomeDir, ".agents", "skills"), "watched-skill", "Global watched skill")
+	writeDaemonSkill(t, homePaths.SkillsDir, "watched-skill", "Global watched skill")
 	waitForCondition(t, "watcher refresh after boot", func() bool {
 		_, ok := registry.Get("watched-skill")
 		return ok
@@ -3057,7 +3058,7 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 
 	writeDaemonSkill(
 		t,
-		filepath.Join(homePaths.HomeDir, ".agents", "skills"),
+		homePaths.SkillsDir,
 		"after-shutdown",
 		"Should not be observed",
 	)
@@ -3128,18 +3129,14 @@ func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
 
 	d := newTestDaemon(t, homePaths, &cfg)
 
-	registryCfg, err := d.skillsRegistryConfig(&cfg)
-	if err != nil {
-		t.Fatalf("skillsRegistryConfig() error = %v", err)
-	}
-
+	registryCfg := d.skillsRegistryConfig(&cfg)
 	if registryCfg.BundledFS == nil {
 		t.Fatal("skillsRegistryConfig() BundledFS = nil")
 	}
 	if got, want := registryCfg.UserSkillsDir, homePaths.SkillsDir; got != want {
 		t.Fatalf("skillsRegistryConfig() UserSkillsDir = %q, want %q", got, want)
 	}
-	if got, want := registryCfg.UserAgentsDir, filepath.Join(homePaths.HomeDir, ".agents", "skills"); got != want {
+	if got, want := registryCfg.UserAgentsDir, homePaths.AgentsDir; got != want {
 		t.Fatalf("skillsRegistryConfig() UserAgentsDir = %q, want %q", got, want)
 	}
 	if got := registryCfg.DisabledSkills; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {

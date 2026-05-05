@@ -40,11 +40,11 @@ Cross-referenced against the live AGH repo at `/Users/pedronauck/Dev/compozy/agh
 
 ### RFC 001 — Self-Contained Agent Definitions with Scoped Skills and Memory
 
-**Thesis.** The agent ecosystem has standards for project instructions (AGENTS.md), reusable skill bundles (SKILL.md / agentskills.io), and tool integration (MCP), but no standard for _the agent itself_. The proposal: `AGENT.md` (YAML frontmatter + Markdown prompt) as a self-contained definition format, with the agent directory (`.agents/<name>/`) as the unit of portability — including agent-scoped `skills/` and `memory/` subdirectories.
+**Thesis.** The agent ecosystem has standards for project instructions (AGENTS.md), reusable skill bundles (SKILL.md / agentskills.io), and tool integration (MCP), but no standard for _the agent itself_. The proposal: `AGENT.md` (YAML frontmatter + Markdown prompt) as a self-contained definition format, with the agent directory (`.agh/agents/<name>/`) as the unit of portability — including agent-scoped `skills/` and `memory/` subdirectories.
 
 **Key decisions.**
 
-- **Five-layer skill resolution**: bundled → global (`~/.agh/skills/` + `~/.agents/skills/`) → workspace (`.agh/skills/` + `.agents/skills/`) → `extra_sources` → agent-local (`.agents/<name>/skills/`); higher precedence wins on collision; `skills.disabled` removes named skills before merge; an override audit trail logs all shadows.
+- **Current six-layer skill resolution**: bundled → marketplace → user (`~/.agh/skills/`) → additional (`<additional>/.agh/skills/`) → workspace (`<workspace>/.agh/skills/`) → agent-local (`.agh/agents/<name>/skills/`); higher precedence wins on collision; `skills.disabled` removes named skills before merge; an override audit trail logs all shadows.
 - **Three-layer memory resolution**: global → workspace → agent; same shadow rules; `memory.scope` declares the default write scope (`agent` | `workspace` | `global`).
 - **Auto-consolidation** of agent memories at session end (`memory.auto_consolidate: true`) — the explicit justification quotes the ETH Zurich Feb 2026 finding that irrelevant context "increased inference costs by 20%+ while reducing task success."
 - **Implementation pattern**: `Registry.ForAgent()` and `Assembler.ForAgent()` extend the existing `ForWorkspace()` shape — no new packages, all flat-architecture-friendly extensions.

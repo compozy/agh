@@ -1972,8 +1972,12 @@ func (n *daemonNativeTools) skillsFor(
 	if n.deps.Skills == nil {
 		return nil, errors.New("daemon: skills registry is required")
 	}
+	agentName := strings.TrimSpace(scope.AgentName)
 	workspaceID = firstNonEmpty(workspaceID, scope.WorkspaceID)
 	if workspaceID == "" {
+		if agentName != "" {
+			return n.deps.Skills.ForAgent(ctx, nil, agentName)
+		}
 		return n.deps.Skills.List(), nil
 	}
 	if n.deps.WorkspaceResolver == nil {
@@ -1982,6 +1986,9 @@ func (n *daemonNativeTools) skillsFor(
 	resolved, err := n.deps.WorkspaceResolver.Resolve(ctx, workspaceID)
 	if err != nil {
 		return nil, err
+	}
+	if agentName != "" {
+		return n.deps.Skills.ForAgent(ctx, &resolved, agentName)
 	}
 	return n.deps.Skills.ForWorkspace(ctx, &resolved)
 }

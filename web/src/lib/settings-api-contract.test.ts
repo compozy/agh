@@ -35,11 +35,10 @@ describe("settings openapi contract", () => {
       | "observability"
       | "hooks-extensions"
     >();
-    expectTypeOf<GetSettingsGeneralResponse["scope"]>().toEqualTypeOf<"global" | "workspace">();
-    expectTypeOf<GetSettingsGeneralResponse["workspace_id"]>().toEqualTypeOf<string | undefined>();
-    expectTypeOf<GetSettingsGeneralResponse["available_scopes"][number]>().toEqualTypeOf<
-      "global" | "workspace"
-    >();
+    expectTypeOf<GetSettingsGeneralResponse["scope"]>().toEqualTypeOf<"global">();
+    expectTypeOf<
+      GetSettingsGeneralResponse["available_scopes"][number]
+    >().toEqualTypeOf<"global">();
     expectTypeOf<GetSettingsGeneralResponse["config_paths"]["log_file"]>().toEqualTypeOf<string>();
     expectTypeOf<GetSettingsGeneralResponse["config"]["session_timeout"]>().toEqualTypeOf<string>();
     expectTypeOf<GetSettingsGeneralResponse["runtime"]["available"]>().toEqualTypeOf<boolean>();
@@ -129,7 +128,7 @@ describe("settings openapi contract", () => {
       | undefined
     >();
     expectTypeOf<ListSettingsMCPServersResponse["mcp_servers"][number]["scope"]>().toEqualTypeOf<
-      "global" | "workspace"
+      "global" | "workspace" | "agent"
     >();
     expectTypeOf<
       ListSettingsMCPServersResponse["mcp_servers"][number]["source_metadata"]["effective_source"]["kind"]
@@ -139,23 +138,33 @@ describe("settings openapi contract", () => {
       | "workspace-config"
       | "global-mcp-sidecar"
       | "workspace-mcp-sidecar"
+      | "global-agent-file"
+      | "workspace-agent-file"
     >();
     expectTypeOf<
       ListSettingsMCPServersResponse["mcp_servers"][number]["source_metadata"]["available_targets"][number]
     >().toEqualTypeOf<
-      "global-config" | "workspace-config" | "global-mcp-sidecar" | "workspace-mcp-sidecar"
+      | "global-config"
+      | "workspace-config"
+      | "global-mcp-sidecar"
+      | "workspace-mcp-sidecar"
+      | "global-agent-file"
+      | "workspace-agent-file"
     >();
     expectTypeOf<
       ListSettingsMCPServersResponse["mcp_servers"][number]["source_metadata"]["shadowed_sources"]
     >().toEqualTypeOf<
       | {
+          agent_name?: string;
           kind:
             | "builtin-provider"
             | "global-config"
             | "workspace-config"
             | "global-mcp-sidecar"
-            | "workspace-mcp-sidecar";
-          scope: "global" | "workspace";
+            | "workspace-mcp-sidecar"
+            | "global-agent-file"
+            | "workspace-agent-file";
+          scope: "global" | "workspace" | "agent";
           workspace_id?: string;
         }[]
       | undefined

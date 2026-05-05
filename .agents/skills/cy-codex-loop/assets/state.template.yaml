@@ -1,0 +1,36 @@
+# cy-codex-loop state file. Created by .agents/skills/cy-codex-loop/scripts/init-state.py.
+# All fields are mutated only by .agents/skills/cy-codex-loop/scripts/update-state.py. Never hand-edit.
+slug: ""
+created_at: ""        # RFC3339 UTC
+last_updated: ""      # RFC3339 UTC
+mode: ""              # tasks | free
+iteration: 0
+goal_signature: ""    # canonical text the user pasted in CODEX_LOOP goal=
+
+tasks:                # populated only when mode == tasks
+  total: 0
+  completed: []
+  current: null
+  pending: []
+
+progress:             # populated only when mode == free
+  deliverables_complete: false
+  checklist: []       # entries: {text, status: pending|in_progress|completed, iteration}
+
+qa:
+  report_done: false
+  execution_done: false
+
+coderabbit:
+  rounds_completed: 0
+  rounds_clean_streak: 0
+  rounds_required: 3
+  current_round_dir: null
+  unresolved_critical: 0
+  unresolved_high: 0
+
+verify:
+  last_run: null      # RFC3339 UTC
+  last_status: null   # PASS | FAIL | null
+
+iterations: []        # append-only log; capped at last 50 by .agents/skills/cy-codex-loop/scripts/update-state.py

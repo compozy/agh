@@ -115,6 +115,8 @@ func StatusForSettingsError(err error) int {
 	case errors.Is(err, ErrSettingsValidation),
 		errors.Is(err, settingspkg.ErrValidation):
 		return http.StatusBadRequest
+	case errors.Is(err, settingspkg.ErrUnprocessable):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, ErrSettingsNotFound),
 		errors.Is(err, settingspkg.ErrNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
@@ -342,6 +344,9 @@ var ErrSkillNotFound = errors.New("skill not found")
 // ErrSkillValidation is the sentinel for skill request validation failures.
 var ErrSkillValidation = errors.New("skill validation error")
 
+// ErrSkillUnprocessable is the sentinel for semantically invalid skill layers.
+var ErrSkillUnprocessable = errors.New("skill unprocessable")
+
 // ErrAutomationValidation is the sentinel for automation request validation failures.
 var ErrAutomationValidation = errors.New("automation validation error")
 
@@ -357,6 +362,8 @@ func StatusForSkillError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, ErrSkillValidation):
 		return http.StatusBadRequest
+	case errors.Is(err, ErrSkillUnprocessable):
+		return http.StatusUnprocessableEntity
 	default:
 		return http.StatusInternalServerError
 	}

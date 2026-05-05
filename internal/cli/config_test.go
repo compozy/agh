@@ -46,6 +46,29 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	if sandboxSetRecord.Path != "defaults.sandbox" || sandboxSetRecord.Value != "local" {
 		t.Fatalf("config set sandbox record = %#v, want defaults.sandbox=local", sandboxSetRecord)
 	}
+	deadlineOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"session.supervision.prompt_deadline",
+		"8s",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config set session.supervision.prompt_deadline error = %v", err)
+	}
+	var deadlineSetRecord configSetRecord
+	if err := json.Unmarshal([]byte(deadlineOut), &deadlineSetRecord); err != nil {
+		t.Fatalf("json.Unmarshal(config set session.supervision.prompt_deadline) error = %v", err)
+	}
+	if deadlineSetRecord.Path != "session.supervision.prompt_deadline" || deadlineSetRecord.Value != "8s" {
+		t.Fatalf(
+			"config set prompt deadline record = %#v, want session.supervision.prompt_deadline=8s",
+			deadlineSetRecord,
+		)
+	}
 
 	cfg, err := aghconfig.LoadGlobalConfig(homePaths)
 	if err != nil {
@@ -56,6 +79,9 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	}
 	if cfg.Defaults.Sandbox != "local" {
 		t.Fatalf("Defaults.Sandbox = %q, want local", cfg.Defaults.Sandbox)
+	}
+	if got, want := cfg.Session.Supervision.PromptDeadline.String(), "8s"; got != want {
+		t.Fatalf("Session.Supervision.PromptDeadline = %q, want %q", got, want)
 	}
 
 	getOut, _, err := executeRootCommand(t, deps, "config", "get", "defaults.provider", "-o", "json")
@@ -171,7 +197,7 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 			captured = request
 			return SettingsMutationRecord{
 				Section:  contract.SettingsSectionName("skills"),
-				Scope:    contract.SettingsScopeKind("global"),
+				Scope:    contract.SettingsAgentScopeGlobal,
 				Behavior: contract.SettingsMutationBehaviorAppliedNow,
 				Applied:  true,
 			}, nil

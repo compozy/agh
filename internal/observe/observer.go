@@ -697,15 +697,17 @@ func (o *Observer) writeObservedEventSummary(
 	event acp.AgentEvent,
 	timestamp time.Time,
 ) error {
+	correlation := event.Normalize()
 	return o.registry.WriteEventSummary(ctx, store.EventSummary{
-		SessionID:       sessionID,
-		Type:            strings.TrimSpace(event.Type),
-		AgentName:       snapshot.agentName,
-		ParentSessionID: snapshot.parentSessionID,
-		RootSessionID:   snapshot.rootSessionID,
-		SpawnDepth:      snapshot.spawnDepth,
-		Summary:         summarizeEvent(event),
-		Timestamp:       timestamp,
+		SessionID:        sessionID,
+		Type:             strings.TrimSpace(event.Type),
+		AgentName:        snapshot.agentName,
+		EventCorrelation: correlation,
+		ParentSessionID:  snapshot.parentSessionID,
+		RootSessionID:    snapshot.rootSessionID,
+		SpawnDepth:       snapshot.spawnDepth,
+		Summary:          summarizeEvent(event),
+		Timestamp:        timestamp,
 	})
 }
 

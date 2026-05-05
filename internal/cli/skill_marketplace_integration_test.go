@@ -164,7 +164,7 @@ func TestSkillInstallAndRemoveIntegrationRefreshesRegistry(t *testing.T) {
 	registry := skills.NewRegistry(skills.RegistryConfig{
 		BundledFS:     skillbundled.FS(),
 		UserSkillsDir: env.homePaths.SkillsDir,
-		UserAgentsDir: filepath.Join(env.userHome, ".agents", "skills"),
+		UserAgentsDir: env.homePaths.AgentsDir,
 	})
 	if err := registry.LoadAll(testutil.Context(t)); err != nil {
 		t.Fatalf("registry.LoadAll() error = %v", err)

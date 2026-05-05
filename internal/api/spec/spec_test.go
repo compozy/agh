@@ -184,6 +184,32 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeSkillOperationsAgentAwareQueryParams",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				listSkills := operationFor(t, doc, "/api/skills", "GET")
+				assertParameter(t, listSkills, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSkills, "for_agent", openapi3.ParameterInQuery, false)
+
+				getSkill := operationFor(t, doc, "/api/skills/{name}", "GET")
+				assertParameter(t, getSkill, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, getSkill, "for_agent", openapi3.ParameterInQuery, false)
+
+				getSkillContent := operationFor(t, doc, "/api/skills/{name}/content", "GET")
+				assertParameter(t, getSkillContent, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, getSkillContent, "for_agent", openapi3.ParameterInQuery, false)
+
+				enableSkill := operationFor(t, doc, "/api/skills/{name}/enable", "POST")
+				assertParameter(t, enableSkill, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, enableSkill, "for_agent", openapi3.ParameterInQuery, false)
+
+				disableSkill := operationFor(t, doc, "/api/skills/{name}/disable", "POST")
+				assertParameter(t, disableSkill, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, disableSkill, "for_agent", openapi3.ParameterInQuery, false)
+			},
+		},
+		{
 			name: "ShouldDescribeBridgeCreateRequiredFieldsAndEnums",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

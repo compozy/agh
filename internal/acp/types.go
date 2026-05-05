@@ -65,6 +65,7 @@ type StartOpts struct {
 	ResumeSessionID string
 	Launcher        sandbox.Launcher
 	ToolHost        sandbox.ToolHost
+	ToolGateway     ToolExecutionGateway
 }
 
 // Validate ensures the start options are minimally usable.
@@ -174,14 +175,17 @@ type PromptNetworkMeta struct {
 
 // PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
 type PromptSyntheticMeta struct {
-	TaskID           string `json:"task_id,omitempty"`
-	TaskRunID        string `json:"task_run_id,omitempty"`
-	Reason           string `json:"reason,omitempty"`
-	Summary          string `json:"summary,omitempty"`
-	WakeEventID      string `json:"wake_event_id,omitempty"`
-	PolicySnapshotID string `json:"policy_snapshot_id,omitempty"`
-	PolicyDigest     string `json:"policy_digest,omitempty"`
-	ConfigDigest     string `json:"config_digest,omitempty"`
+	TaskID               string `json:"task_id,omitempty"`
+	TaskRunID            string `json:"task_run_id,omitempty"`
+	WorkflowID           string `json:"workflow_id,omitempty"`
+	ClaimTokenHash       string `json:"claim_token_hash,omitempty"`
+	CoordinatorSessionID string `json:"coordinator_session_id,omitempty"`
+	Reason               string `json:"reason,omitempty"`
+	Summary              string `json:"summary,omitempty"`
+	WakeEventID          string `json:"wake_event_id,omitempty"`
+	PolicySnapshotID     string `json:"policy_snapshot_id,omitempty"`
+	PolicyDigest         string `json:"policy_digest,omitempty"`
+	ConfigDigest         string `json:"config_digest,omitempty"`
 }
 
 // Normalize returns a trimmed copy of the prompt metadata.
@@ -261,14 +265,17 @@ func (m PromptNetworkMeta) IsZero() bool {
 // Normalize returns a trimmed copy of the synthetic metadata.
 func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 	return PromptSyntheticMeta{
-		TaskID:           strings.TrimSpace(m.TaskID),
-		TaskRunID:        strings.TrimSpace(m.TaskRunID),
-		Reason:           strings.TrimSpace(m.Reason),
-		Summary:          strings.TrimSpace(m.Summary),
-		WakeEventID:      strings.TrimSpace(m.WakeEventID),
-		PolicySnapshotID: strings.TrimSpace(m.PolicySnapshotID),
-		PolicyDigest:     strings.TrimSpace(m.PolicyDigest),
-		ConfigDigest:     strings.TrimSpace(m.ConfigDigest),
+		TaskID:               strings.TrimSpace(m.TaskID),
+		TaskRunID:            strings.TrimSpace(m.TaskRunID),
+		WorkflowID:           strings.TrimSpace(m.WorkflowID),
+		ClaimTokenHash:       strings.TrimSpace(m.ClaimTokenHash),
+		CoordinatorSessionID: strings.TrimSpace(m.CoordinatorSessionID),
+		Reason:               strings.TrimSpace(m.Reason),
+		Summary:              strings.TrimSpace(m.Summary),
+		WakeEventID:          strings.TrimSpace(m.WakeEventID),
+		PolicySnapshotID:     strings.TrimSpace(m.PolicySnapshotID),
+		PolicyDigest:         strings.TrimSpace(m.PolicyDigest),
+		ConfigDigest:         strings.TrimSpace(m.ConfigDigest),
 	}
 }
 
@@ -316,6 +323,7 @@ type RuntimeActivity struct {
 	TurnID             string     `json:"turn_id,omitempty"`
 	TurnSource         string     `json:"turn_source,omitempty"`
 	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	DeadlineAt         *time.Time `json:"deadline_at,omitempty"`
 	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
 	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
 	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
@@ -326,6 +334,7 @@ type RuntimeActivity struct {
 	IterationMax       int        `json:"iteration_max,omitempty"`
 	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
 	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
+	ElapsedMS          int64      `json:"elapsed_ms,omitempty"`
 }
 
 // Merge overlays non-nil usage fields from other into the receiver.
@@ -366,24 +375,26 @@ func (u TokenUsage) IsZero() bool {
 
 // AgentEvent is the stream item exposed to session/.
 type AgentEvent struct {
-	Type       string
-	SessionID  string
-	TurnID     string
-	RequestID  string
-	Timestamp  time.Time
-	Text       string
-	Title      string
-	ToolCallID string
-	StopReason string
-	Action     string
-	Resource   string
-	Decision   string
-	Error      string
-	Failure    *store.SessionFailure
-	Synthetic  *PromptSyntheticMeta
-	Usage      *TokenUsage
-	Runtime    *RuntimeActivity
-	Raw        json.RawMessage
+	Type      string
+	SessionID string
+	TurnID    string
+	RequestID string
+	store.EventCorrelation
+	Timestamp      time.Time
+	Text           string
+	Title          string
+	ToolCallID     string
+	ToolPrechecked bool
+	StopReason     string
+	Action         string
+	Resource       string
+	Decision       string
+	Error          string
+	Failure        *store.SessionFailure
+	Synthetic      *PromptSyntheticMeta
+	Usage          *TokenUsage
+	Runtime        *RuntimeActivity
+	Raw            json.RawMessage
 }
 
 // AgentProcess represents one running ACP-backed agent subprocess.
@@ -401,6 +412,7 @@ type AgentProcess struct {
 	handle          sandbox.Handle
 	toolHostMu      sync.Mutex
 	toolHost        sandbox.ToolHost
+	toolGateway     ToolExecutionGateway
 	cmd             *exec.Cmd
 	conn            *acpsdk.Connection
 	stderr          *lockedBuffer
@@ -415,6 +427,8 @@ type AgentProcess struct {
 	terminalOwnership   map[string]terminalOwnership
 	terminalProcessMu   sync.Mutex
 	terminalProcesses   map[string]*toolruntime.Handle
+	toolPrecheckMu      sync.Mutex
+	toolPrechecks       []providerNativeToolPrecheck
 
 	waitMu        sync.RWMutex
 	waitErr       error

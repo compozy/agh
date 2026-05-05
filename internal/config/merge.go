@@ -109,6 +109,7 @@ type sessionLimitsOverlay struct {
 type sessionSupervisionOverlay struct {
 	ActivityHeartbeatInterval *time.Duration `toml:"activity_heartbeat_interval"`
 	ProgressNotifyInterval    *time.Duration `toml:"progress_notify_interval"`
+	PromptDeadline            *time.Duration `toml:"prompt_deadline"`
 	InactivityWarningAfter    *time.Duration `toml:"inactivity_warning_after"`
 	InactivityTimeout         *time.Duration `toml:"inactivity_timeout"`
 	TimeoutCancelGrace        *time.Duration `toml:"timeout_cancel_grace"`
@@ -504,6 +505,9 @@ func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
 	}
 	if o.ProgressNotifyInterval != nil {
 		dst.ProgressNotifyInterval = *o.ProgressNotifyInterval
+	}
+	if o.PromptDeadline != nil {
+		dst.PromptDeadline = *o.PromptDeadline
 	}
 	if o.InactivityWarningAfter != nil {
 		dst.InactivityWarningAfter = *o.InactivityWarningAfter

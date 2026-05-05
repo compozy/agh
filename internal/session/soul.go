@@ -450,7 +450,7 @@ func (m *Manager) resolveSoulRefreshTarget(
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, AgentArtifacts{}, err
 	}
-	artifacts, err := m.resolveWorkspaceAgentArtifacts(info.AgentName, &resolvedWorkspace)
+	artifacts, err := m.resolveWorkspaceAgentArtifactsForSession(info.AgentName, info.Type, &resolvedWorkspace)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, AgentArtifacts{}, fmt.Errorf(
 			"session: resolve workspace agent %q for soul refresh: %w",

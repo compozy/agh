@@ -1,0 +1,418 @@
+{
+  "recommended_model
+": {
+    "name": "thread-primitive",
+    "summary": "Promote `thread_id` to a first-class,
+ channel-scoped envelope field that groups conversation. Keep `interaction_
+id` but narrow its semantics to a directed bilateral work-lifecycle that always lives inside a thread.
+ Channels stay as routing/visibility namespaces; re
+ply_to/trace_id/causation_id stay unchanged. Direct peer rooms collapse into derived filt
+ered views over (channel, thread) state, not a parallel storage model.",
+    "why
+_this_wins": [
+      "Threads and interactions answer different questions: threads are conversation grouping (
+many participants, no lifecycle, the Slack-thread shape
+), interactions are directed bilateral work (two peers, state machine, the RPC shape). Conflating
+ them either drops the lifecycle (weakening directed hand
+offs) or forces broadcast chat into a 2-party lifecycle (weakening the chann
+el as a town-square). Two sharp prim
+itives beat one overloaded one.",
+      "Channel-scoped threads are routing-che
+ap: NATS subjects do not change, the w
+ire stays `agh.network.v0.
+<channel>.broadcast | peer.<route_token
+>`, and `thread_id` is just envelope metadata. The protocol remains implement
+able outside AGH (preserves the
+ moat statement in the glossary).",
+      "Multiple inter
+actions can co-exist in one thread (e.g., one thread spawns three concurrent direct
+ed handoffs). Multiple threads can co-exist in one channel without collision. This is what
+ operators actually need when humans + multiple agents share one
+ room.",
+      "Greenfield-hard-cut friend
+ly: zero compatibility shims, one sch
+ema migration, one envelope field, one new store table. AGORA-spec dr
+afts already had `thread`; this restores a load
+-bearing field that was dropped without justification.",
+      "Agent
+-manageability is preserved end-to-end. CLI ver
+bs gain `--thread`, HTTP/UDS
+ gain thread routes, the bundled
+ skill tells agents how to find and answer in the active thread.
+ No web-only manageability, no UI-only thre
+ading.",
+      "The cost of overloading `interaction_id` (Option 2
+) is asymmetric: chat traffic without lifecycle (`say`) would
+ be forced into 2-peer constraints, terminal-state rules, and `not
+_target` rejection paths that have nothing to do with conversation grouping. The c
+ost of a new field (Option 1) is one column, one valid
+ator, and one envelope key."
+    ]
+  },
+  "alternatives_considered": [
+
+    {
+      "name": "interaction-becomes-thread",
+      "pros": [
+        "No new envelope field;
+ minimal wire change.",
+        "Vocabulary stays familiar to an
+yone who already learned the v0 RFC.",
+        "One conc
+ept to teach agents."
+      ],
+      "cons": [
+        "Either dr
+ops the directed bilateral lifecycle (loses handoff/RPC semantics that already work) or im
+poses that lifecycle on multi-participant broadcast chat (wrong shape for `
+say`).",
+        "Two-peer participation rule
+ (only initiator + target) becomes a thread participation rule, which is ex
+actly what threads must NOT have.",
+        "Terminal states (`
+completed | failed | canceled`) on a chat thread are non
+sensical; you'd need new rules just to disable them for `say`.",
+        "
+Loses the ability to nest multiple directed handoffs inside one conversational top
+ic — every handoff would silently terminate the conversation."
+      ],
+      "why
+_rejected": "It pretends conversation grouping and b
+ilateral RPC are the same primitive. They are not. Forcing them together produ
+ces a chimera that breaks at the first multi-agent th
+read with overlapping handoffs."
+    },
+    {
+      "name": "ui
+-only-threading-on-reply_to-ch
+ains",
+      "pros": [
+        "Zero protocol change.",
+        "Cheapest to
+ ship.",
+        "Already partially possible by following `reply_to` gra
+phs."
+      ],
+      "cons": [
+        "`reply_to` graphs cannot reliably re
+construct a thread under fanout, out-of-order delivery, or reply sk
+ips. Slack tried this once and abandoned it.
+",
+        "Two clients reconstructing the same `
+reply_to` graph can disagree on which messages belong to a thread.",
+        "Agents have
+ no canonical handle to address a thread they are participating in.",
+        "Server
+-side query for 'all messages in thread T' becomes a recursive wal
+k instead of a single index lookup.",
+        "Fails the 'agent
+-manageable' bar: you can't `agh network send --thread T` because T
+ does not exist as a first-class identity."
+      ],
+      "why_rejected": "Replic
+ates a known industry failure mode. Threads must have
+ a stable, server-known identity, not an inferred one."
+    },
+    
+{
+      "name": "thread-as-its-own-channel",
+      "pros": [
+        "No new envelope field; threads are just s
+ub-channels.",
+        "Existing channel-scoping logic and NATS subj
+ects handle isolation for free."
+      ],
+      "cons": [
+        "Channel gramm
+ar is `[a-z0-9][a-z0-9_-]{0,63}` and
+ is human-named. Threads are typically auto-generated identifiers and
+ would either pollute the channel namespace or require a totally new na
+ming rule.",
+        "Cross-thread search inside one logical channel bec
+omes cross-subject, which is operationally hostile.",
+        "Loses the parent/
+child relationship between channel and thread — threads belong somewhere; sub-channels don't.",
+        "Memb
+ership/discovery (`greet`, `whois`) gets du
+plicated per thread; presence noise multiplies."
+      ],
+      "why_rejected": "Conf
+uses physical transport segmentation with logical conversation grouping. Channels are the right level for rout
+ing/visibility; threads are the right level for conversation segmentation."
+    },
+    {
+      "name": "topic-tags
+-instead-of-threads",
+      "pros": [
+        "Operators can attach multiple top
+ic tags to a message.",
+        "Most flexible model.",
+        "Light
+weight."
+      ],
+      "cons": [
+        "No canonical answer to 'which thread is this message
+ part of' — a message in N tags belongs to N threads, bre
+aking unread state, RPC semantics, and reply lan
+es.",
+        "Cannot model Slack-thread ergonomics where a message is in ex
+actly one thread.",
+        "Forces every consumer to implement set-based threading from scratch."
+
+      ],
+      "why_rejected": "Many-to-many is the wrong cardinality for
+ the operator and agent mental model the product need
+s."
+    }
+  ],
+  "core_invariants": [
+    "A thread is a conversation grouping inside ex
+actly one channel. Threads do not span channels.",
+    "Thread identity is `(channel, thread_id
+)`. The same `thread_id` string in different channels is a different th
+read.",
+    "A thread has no lifecycle. Threads are durable conversation containers; they do not 'close
+', 'fail', or 'cancel'.",
+    "An interaction is a directed bilateral work unit and M
+UST live inside a thread: `interaction_id` requires `thread_id`. Interactions retain their existing state
+ machine and 2-peer participation rule.",
+    "A thread M
+AY contain zero, one, or many concurrent interactions. Inter
+actions do not own the thread; they are scoped sub-containers.",
+    "Any
+ peer present in the channel MAY post any con
+versational kind into any thread in that channel. Threads do not gate participation; chann
+els do.",
+    "Threads are explicitly opened. The
+ first conversational envelope in a channel that carries a fresh `thread_id` op
+ens that thread. There is no implicit reply-to-thread coercion in
+ v0; later RFCs may define it.",
+    "`reply_to` sem
+antics are unchanged — a per-message reply pointer that may point inside or outside the
+ same thread.",
+    "`trace_id` and `causation_id` semantics are unchanged — distributed corre
+lation, not conversation grouping.",
+    "Direct peer rooms are derived views over thread state, not a parallel
+ primitive. The protocol has channels and threads; 'DM with peer X' is a U
+I filter, not a wire concept.",
+    "Greet and whois are presence/
+discovery and never carry `thread_id`."
+  ],
+  "protocol_design":
+ {
+    "envelope_changes": [
+      "Add `thread_id: string | null` to the v0 envelope al
+ongside `interaction_id`. Length and shape match `interaction_id`:
+ collision-resistant, peer-generated, opaque to the
+ protocol.",
+      "Per-kind requirements: `say` M
+AY carry `thread_id` (null = channel root timeline);
+ `direct` MUST carry `thread_id` AND `interaction_id`; `capability` MUST carry `thread_id` (inter
+action_id remains conditional per current rules); `rece
+ipt` MUST carry `thread_id` AND inherit `interaction_id` from the message it acknowledges;
+ `trace` MUST carry `thread_id` AND `interaction_id`; `greet` MUST NOT carry `thread_
+id`; `whois` SHOULD NOT carry `thread_id` (whois is peer-scoped,
+ not thread-scoped).",
+      "Validation rule: if `interaction_id` is present, `thread_id` M
+UST be present. Reject as `malformed` otherwise.",
+      "Reu
+se the existing `[a-z0-9][a-z0-9._-]{0,127}` peer_id gr
+ammar for `thread_id` (deterministic, subject-saf
+e, no surprises).",
+      "No new top-level fields besides `thread_id`. `
+reply_to`, `trace_id`, `causation_id`, `interaction_id` are unchanged on the w
+ire."
+    ],
+    "lifecycle_changes": [
+      "Thread has no protocol lifecycle. Storage M
+AY track `last_activity_at`, `participant_count`, `message
+_count` for indexing, but those are not protocol states.",
+      "Inter
+action lifecycle (`submitted | working | needs_input | completed | failed | canceled`) surv
+ives unchanged and applies only when `interaction_id` is present.",
+      "Mult
+iple interactions inside one thread are independent: each has its own state machine, its own initiator/target p
+air, and its own terminal-state rules. Closing one interaction does not close the thread.",
+      "Add registry r
+ule: a `direct`/`capability` arri
+ving with a `thread_id` for an unknown thread implic
+itly opens the thread (lightweight side effect, no extra round trip).
+ The first envelope's `from`/`to` does not bind th
+read membership."
+    ],
+    "routing_changes": [
+      "NATS subject mapping is U
+NCHANGED. Threads are envelope-level metadata; transport stays `agh.network.v0.<channel>.broadcast`
+ and `agh.network.v0.<channel>.peer.<route_token>`.",
+      "Receivers index inbound env
+elopes by `(channel, thread_id)` in addition to `(channel, peer)` and
+ `(channel, interaction_id)`.",
+      "The router's interaction-membership check (initiator+target only
+) is preserved verbatim for `interaction_id`-bearing envelopes. Threads do not add
+ a parallel membership check.",
+      "Router replay and dedup ke
+ys (`id`-based) are unchanged."
+    ],
+    "querying_changes": [
+      
+"Add `(channel, thread_id)` as a primary index in the persisted timeline. List
+ing a thread is a single scan.",
+      "Channel timeline query gains an `include
+_threads` flag with three values: `none` (root only), `roots` (root mess
+ages plus first-line preview of each thread), `all` (fl
+attened).",
+      "Add `since_thread_message_id` cursor to support
+ thread-scoped pagination.",
+      "Capability discovery (`whois` + `ag
+h.capability_catalog`) does not interact with threads; it remains pe
+er-scoped.",
+      "Add a thread-list query: `(channel, [op
+ened_after], [opened_by_peer], [participant_pe
+er], limit)`."
+    ],
+    "visibility_rules": [
+      "All threads in a channel are visible to all
+ peers in that channel. The protocol does not define private thre
+ads in v0; if needed later, that is a new R
+FC concern.",
+      "Trust state (`verified | unverified | r
+ejected`) is per-envelope, not per-thread. A thread can contain a
+ mix of trust-classed messages.",
+      "Unt
+rusted-input wrapping (the existing prompt-injection def
+ense) carries through into thread-scoped delivery; the daemon's pr
+ompt formatter must include `thread_id` in the wrapper.",
+      "Thread-level mo
+deration, banning, or muting is out of scope for v0."
+    ]
+
+  },
+  "runtime_design": {
+    "router_and_store": [
+      "`intern
+al/network/router.go` indexes envelopes by `(channel, thread_id)` in addition to exist
+ing keys; the existing `interactions map[string]Interaction` ke
+yed by `(channel, interaction_id)` stays.",
+      "Add `internal/network/thre
+ads.go` with a `ThreadRegistry` that stores opened-at, opener, last
+-activity, message-count, and participating peers (set, not lif
+ecycle). In-memory and reconstructable, mirroring the existing peer regist
+ry pattern.",
+      "Add a numbered SQLite mig
+ration (per `agh-schema-migration`) that:
+ (1) adds `thread_id TEXT NULL` column to `network_tim
+eline_log`, (2) creates `network_threads (channel TEXT, thread_id TEXT, opened_
+at, last_activity_at, opened_by, root_message_id, message_count, participant_count,
+ PRIMARY KEY (channel, thread_id))`, (3) creates an index `(
+channel, thread_id, timestamp)` on `network_timeline_log`. Gre
+enfield-hard-cut: no backfill of NUL
+L `thread_id`s; existing rows stay NULL and are read as 
+'channel root'.",
+      "Audit log (`network_audit_log`) gains `thread_id` so post
+-incident reconstruction can scope to a thread.",
+      "`store.N
+etworkMessageEntry` and `store.NetworkM
+essageQuery` add `ThreadID string` and `ThreadIDs []string` filters."
+
+    ],
+    "delivery_and_prompting": [
+      "Per-session inbound que
+ue is split per `(thread_id)` within each
+ channel. Drainage order: oldest message w
+ins across threads (no per-thread starvation), but the pr
+ompt wrapper carries the active thread tag so the agent kn
+ows which thread it is being asked about.",
+      "Prompt wrapper format extends the existing `<network
+-message>` element: add `thread=\"<thread_id>\"` att
+ribute. If multiple threads have queued messages, the daemon may inject a `<network
+-thread-summary>` envelope listing thread heads before delivering the next
+ batch (out-of-band hint, not prot
+ocol).",
+      "Sending without `thread_id` in a `direct` is a h
+ard error returned to the agent (deterministic CLI/U
+DS error: `thread_required`).",
+      "Auto-thread on
+ reply: if an agent uses a CLI `--reply-to <message
+_id>` flag without `--thread`, the daemon resolves the parent message's `
+thread_id` and uses it. This is a runtime ergonomic, not a protocol rule.
+",
+      "Prompt back-pressure: the existing 'busy session que
+ues' contract carries through; threads do not change 
+ordering."
+    ],
+    "orchestration_rules": [
+      "Coordinator agents
+ (autonomy kernel) bind to `coordination_
+channel_id` AND a `coordination_thread_id`. One
+ thread per coordinated run, opened on en
+queue. This makes the existing 'bind always
+, speak when useful' contract sharper: spe
+ak in the run's thread, not the channel root.",
+      "Task 
+ingress guards now match `(network_channel, network_thread
+)` when the task carries a thread binding; mismatch is a `w
+rong_channel_or_thread` rejection.",
+      "Capability handoff (`kind
+:capability`) opens a thread by default if the sender did not p
+re-open one — this is what most operators expect when they 
+'hand off a piece of work'.",
+      "Hooks gain `network.
+thread.opened`, `network.thread.message` typed events.
+ Existing call-site dispatch rules apply (
+no event tailing)."
+    ],
+    "observability": [
+      "
+Every canonical event with network correlation gains
+ a `network_thread_id` field alongside the existing `network_channel`.",
+      "SS
+E stream payloads add `thread_id` so the web can re-render the
+ thread rail without polling.",
+      "`/api/diagnostics/status
+` network metrics gain per-thread counts (active threads, threads-
+with-pending-replies). Bounded by `network.
+threads.max_indexed_per_channel` config to prevent DoS by th
+read-spam.",
+      "Replay/transcript assembly gro
+ups by thread first, then by causation. The existing `transcript` package
+ gets a thread-aware mode."
+    ]
+  },
+  "sur
+face_impact": {
+    "cli": [
+      "`agh network send` adds `--
+thread <id>` (required for `direct`/`capability`/
+`trace`/`receipt`, optional for `say`).",
+      "`agh network
+ send` adds `--open-thread` (generates a fresh `thread_id`, retur
+ns it to stdout, also used as the message's
+ `thread_id`). Used by orchestrators starting work.",
+      "`agh network
+ send` resolves `--reply-to` to its parent's `thread_id` when `
+--thread` is not provided; documents this in `--help`.",
+      "New ver
+b: `agh network threads <channel> [--peer <id>] [--since <ts>] [-o
+ json|jsonl]` — list threads in a channel.",
+      "New verb: `agh network th
+read <channel> <thread_id> [--limit] [--cursor] [-o json|jsonl]
+` — show messages in one thread.",
+      "`agh network inbox` output
+ includes a `thread_id` column (text, jsonl). Adds `--thread 
+<id>` filter.",
+      "Bash/zsh/fish completions gain d
+ynamic thread completion via UDS introspection."
+    ],
+    "http_
+uds_api": [
+      "Add `GET /api/network/channels/{
+channel}/threads` listing threads with metadata.",
+      "Add `GET /api/network/channels/{channel}/threads/{thread_id}`
+ returning thread detail (opened_at, opener, participants, root message
+ preview, counts).",
+      "Add `GET /api/network/channels/{channel}/threads/{thread_id}/
+messages` with cursor pagination.",
+      "Modify `POST /api/network/send` to require `
+thread_id` per the per-kind rules; return `thread_id` on success.",
+      "Modify `G
+ET /api/network/channels/{channel}

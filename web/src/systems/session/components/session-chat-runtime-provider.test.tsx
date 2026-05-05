@@ -133,6 +133,7 @@ describe("SessionChatRuntimeProvider", () => {
               runtime: {
                 turn_id: "turn_001",
                 current_tool: "Bash",
+                elapsed_ms: 610_000,
                 elapsed_seconds: 610,
                 idle_seconds: 30,
               },

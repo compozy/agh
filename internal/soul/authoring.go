@@ -698,7 +698,7 @@ func (s *ManagedSoulAuthoringService) appendRevision(
 		Body:            body,
 		DiagnosticsJSON: encodedDiagnostics,
 		ActorKind:       actor.Kind,
-		ActorRef:        actor.Ref,
+		ActorID:         actor.Ref,
 		OriginKind:      origin.Kind,
 		OriginRef:       origin.Ref,
 		CreatedAt:       s.now(),

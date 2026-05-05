@@ -361,6 +361,11 @@ type AgentResolver interface {
 // SkillRegistry resolves the active skill set for a workspace during session start.
 type SkillRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
+	ForAgent(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+	) ([]*skillspkg.Skill, error)
 }
 
 // MCPResolver resolves skill-declared MCP servers into runtime config entries.

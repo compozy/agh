@@ -382,7 +382,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	}
 	authoredMutation := AuthoredMutationProvenance{
 		ActorKind:  "extension",
-		ActorRef:   "ext-1",
+		ActorID:    "ext-1",
 		OriginKind: "host_api",
 		OriginRef:  "agents/soul/put",
 	}

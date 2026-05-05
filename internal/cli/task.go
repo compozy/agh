@@ -943,6 +943,7 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 	var (
 		idempotencyKey string
 		networkRaw     string
+		metadataRaw    string
 	)
 
 	cmd := &cobra.Command{
@@ -958,10 +959,18 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			run, err := client.EnqueueTaskRun(cmd.Context(), args[0], EnqueueTaskRunRequest{
+			request := EnqueueTaskRunRequest{
 				IdempotencyKey: strings.TrimSpace(idempotencyKey),
 				NetworkChannel: strings.TrimSpace(networkRaw),
-			})
+			}
+			if cmd.Flags().Changed("metadata") {
+				request.Metadata, err = parseJSONFlag("metadata", metadataRaw)
+				if err != nil {
+					return err
+				}
+			}
+
+			run, err := client.EnqueueTaskRun(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
 			}
@@ -970,6 +979,7 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional run channel override")
+	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional run metadata JSON")
 	return cmd
 }
 

@@ -10,6 +10,7 @@ import {
   getSettingsGeneral,
   getSettingsObservability,
   getSettingsRestartStatus,
+  getSettingsSkills,
   listSettingsSandboxes,
   listSettingsExtensions,
   listSettingsHooks,
@@ -23,6 +24,7 @@ import {
   triggerSettingsRestart,
   updateSettingsAutomation,
   updateSettingsGeneral,
+  updateSettingsSkills,
 } from "./settings-api";
 
 const generalSectionFixture = {
@@ -181,6 +183,73 @@ describe("section reads and updates", () => {
       body,
       method: "PATCH",
       path: "/api/settings/automation",
+    });
+  });
+
+  it("loads the skills section with agent-scope query params", async () => {
+    const skillsSection = {
+      section: "skills" as const,
+      scope: "agent" as const,
+      available_scopes: ["global" as const, "agent" as const],
+      agent_name: "coder",
+      workspace_id: "ws-polybot",
+      runtime_available: true,
+      discovered_count: 3,
+      disabled_count: 1,
+      config: {
+        enabled: true,
+        disabled_skills: ["review"],
+        poll_interval: "5m",
+        marketplace: { registry: "agh" },
+      },
+      links: [{ label: "skills", path: "/skills" }],
+    };
+
+    mockJsonResponse(skillsSection);
+
+    const result = await getSettingsSkills({
+      scope: "agent",
+      agent_name: " coder ",
+      workspace_id: " ws-polybot ",
+    });
+
+    expect(result).toEqual(skillsSection);
+    await expectFetchRequest({
+      path: "/api/settings/skills?scope=agent&workspace_id=ws-polybot&agent_name=coder",
+    });
+  });
+
+  it("updates the skills section with agent-scope query params", async () => {
+    mockJsonResponse({
+      ...mutationFixture,
+      section: "skills" as const,
+      scope: "agent" as const,
+      agent_name: "coder",
+      workspace_id: "ws-polybot",
+      write_target: "workspace-agent-file" as const,
+    });
+
+    const body = {
+      config: {
+        enabled: true,
+        disabled_skills: ["review"],
+        poll_interval: "5m",
+        marketplace: { registry: "agh" },
+      },
+    };
+
+    const result = await updateSettingsSkills(body, {
+      scope: "agent",
+      agent_name: " coder ",
+      workspace_id: " ws-polybot ",
+    });
+
+    expect(result.scope).toBe("agent");
+    expect(result.write_target).toBe("workspace-agent-file");
+    await expectFetchRequest({
+      body,
+      method: "PATCH",
+      path: "/api/settings/skills?scope=agent&workspace_id=ws-polybot&agent_name=coder",
     });
   });
 

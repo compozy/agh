@@ -184,31 +184,6 @@ func ResolvePath(path string) (string, error) {
 	return absPath, nil
 }
 
-// ResolveUserAgentsSkillsDir resolves the user-level `.agents/skills` directory.
-func ResolveUserAgentsSkillsDir(getenv func(string) string) (string, error) {
-	if getenv != nil {
-		if home := strings.TrimSpace(getenv("HOME")); home != "" {
-			resolvedHome, err := ResolvePath(home)
-			if err != nil {
-				return "", fmt.Errorf("config: resolve HOME for user agent skills: %w", err)
-			}
-			return filepath.Join(resolvedHome, ".agents", "skills"), nil
-		}
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("config: resolve user home for agent skills: %w", err)
-	}
-
-	resolvedHome, err := ResolvePath(home)
-	if err != nil {
-		return "", fmt.Errorf("config: resolve user home for agent skills: %w", err)
-	}
-
-	return filepath.Join(resolvedHome, ".agents", "skills"), nil
-}
-
 func expandUserPath(path string) (string, error) {
 	clean := strings.TrimSpace(path)
 	if clean == "" {

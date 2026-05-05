@@ -801,6 +801,14 @@ func (fn skillRegistryFunc) ForWorkspace(
 	return fn(ctx, workspace)
 }
 
+func (fn skillRegistryFunc) ForAgent(
+	ctx context.Context,
+	workspace *workspacepkg.ResolvedWorkspace,
+	_ string,
+) ([]*skillspkg.Skill, error) {
+	return fn(ctx, workspace)
+}
+
 type coordinatorResolverFunc func(context.Context, string) (aghconfig.CoordinatorConfig, error)
 
 func (fn coordinatorResolverFunc) ResolveCoordinatorConfig(

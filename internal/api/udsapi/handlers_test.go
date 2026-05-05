@@ -384,7 +384,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.MutationResult
+				var response contract.SettingsGlobalSectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionGeneral {
 					t.Fatalf("response.Section = %q, want %q", response.Section, contract.SettingsSectionGeneral)
@@ -415,8 +415,11 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 
 				var response contract.SettingsMCPServersResponse
 				decodeJSONResponse(t, recorder, &response)
-				if response.Scope != contract.SettingsScopeWorkspace || response.WorkspaceID != "ws-1" {
-					t.Fatalf("response meta = %#v, want workspace ws-1", response.SettingsCollectionResponseMetaPayload)
+				if response.Scope != contract.SettingsWorkspaceScopeWorkspace || response.WorkspaceID != "ws-1" {
+					t.Fatalf(
+						"response meta = %#v, want workspace ws-1",
+						response.SettingsGlobalWorkspaceCollectionResponseMetaPayload,
+					)
 				}
 				if settingsService.LastListCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
 					settingsService.LastListCollectionRequest.Scope != settingspkg.ScopeWorkspace ||
@@ -436,9 +439,9 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.MutationResult
+				var response contract.SettingsGlobalWorkspaceCollectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
-				if response.Scope != contract.SettingsScopeWorkspace || response.WorkspaceID != "ws-1" {
+				if response.Scope != contract.SettingsWorkspaceScopeWorkspace || response.WorkspaceID != "ws-1" {
 					t.Fatalf("response = %#v, want workspace mutation metadata", response)
 				}
 				if settingsService.LastPutCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
@@ -464,9 +467,9 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.MutationResult
+				var response contract.SettingsGlobalWorkspaceCollectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
-				if response.Scope != contract.SettingsScopeWorkspace || response.WorkspaceID != "ws-1" {
+				if response.Scope != contract.SettingsWorkspaceScopeWorkspace || response.WorkspaceID != "ws-1" {
 					t.Fatalf("response = %#v, want workspace mutation metadata", response)
 				}
 				if settingsService.LastDeleteCollectionRequest.Collection != settingspkg.CollectionMCPServers ||

@@ -16,182 +16,53 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
 	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
 const (
 	additionalSkillSource  = "additional"
+	agentLocalSkillSource  = "agent-local"
 	bundledSkillSource     = "bundled"
 	marketplaceSkillSource = "marketplace"
 	userSkillSource        = "user"
 	workspaceSkillSource   = "workspace"
 )
 
-func loadSkillCommandContext(ctx context.Context, deps commandDeps) (skillCommandContext, error) {
+type skillCommandScope struct {
+	query     SkillQuery
+	useDaemon bool
+}
+
+func loadSkillCommandContext(ctx context.Context, deps commandDeps, agentName string) (skillCommandContext, error) {
 	runtime, err := loadRuntimeContext(deps)
 	if err != nil {
 		return skillCommandContext{}, fmt.Errorf("cli: load skill runtime context: %w", err)
 	}
 
-	workspace, err := resolveCLIWorkspaceRoot(deps)
-	if err != nil {
-		return skillCommandContext{}, fmt.Errorf("cli: resolve skill workspace root: %w", err)
-	}
-
-	userAgentsDir, err := aghconfig.ResolveUserAgentsSkillsDir(deps.getenv)
-	if err != nil {
-		return skillCommandContext{}, fmt.Errorf("cli: resolve user agent skills directory: %w", err)
-	}
-
 	registry := skills.NewRegistry(skills.RegistryConfig{
 		BundledFS:      skillbundled.FS(),
+		UserAgentsDir:  runtime.HomePaths.AgentsDir,
 		UserSkillsDir:  runtime.HomePaths.SkillsDir,
-		UserAgentsDir:  userAgentsDir,
 		DisabledSkills: append([]string(nil), runtime.Config.Skills.DisabledSkills...),
 	})
 	if err := registry.LoadAll(ctx); err != nil {
 		return skillCommandContext{}, fmt.Errorf("cli: load skill registry: %w", err)
 	}
 
-	resolvedWorkspace, err := resolveSkillWorkspace(ctx, runtime, workspace)
-	if err != nil {
-		return skillCommandContext{}, fmt.Errorf("cli: resolve skill workspace: %w", err)
-	}
-
-	skillList, err := registry.ForWorkspace(ctx, &resolvedWorkspace)
-	if err != nil {
-		return skillCommandContext{}, fmt.Errorf("cli: load workspace skills: %w", err)
+	var skillList []*skills.Skill
+	if strings.TrimSpace(agentName) != "" {
+		skillList, err = registry.ForAgent(ctx, nil, agentName)
+		if err != nil {
+			return skillCommandContext{}, fmt.Errorf("cli: load agent skills: %w", err)
+		}
+	} else {
+		skillList = registry.List()
 	}
 
 	return skillCommandContext{
-		workspace: workspace,
 		bundledFS: skillbundled.FS(),
 		registry:  registry,
 		skills:    skillList,
-	}, nil
-}
-
-func resolveSkillWorkspace(
-	ctx context.Context,
-	runtime *runtimeContext,
-	workspaceRoot string,
-) (workspacepkg.ResolvedWorkspace, error) {
-	fallback, err := cliResolvedWorkspace(workspaceRoot)
-	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, err
-	}
-
-	if strings.TrimSpace(workspaceRoot) == "" {
-		return fallback, nil
-	}
-
-	if _, err := os.Stat(runtime.HomePaths.DatabaseFile); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fallback, nil
-		}
-		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
-			"cli: stat workspace database %q: %w",
-			runtime.HomePaths.DatabaseFile,
-			err,
-		)
-	}
-
-	resolved, err := resolveRegisteredSkillWorkspace(ctx, runtime, workspaceRoot)
-	if err != nil {
-		if errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
-			return fallback, nil
-		}
-		return workspacepkg.ResolvedWorkspace{}, err
-	}
-
-	return resolved, nil
-}
-
-func resolveRegisteredSkillWorkspace(
-	ctx context.Context,
-	runtime *runtimeContext,
-	workspaceRoot string,
-) (resolved workspacepkg.ResolvedWorkspace, err error) {
-	globalDB, err := globaldb.OpenGlobalDB(ctx, runtime.HomePaths.DatabaseFile)
-	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
-			"cli: open workspace database %q: %w",
-			runtime.HomePaths.DatabaseFile,
-			err,
-		)
-	}
-	defer func() {
-		if closeErr := globalDB.Close(ctx); closeErr != nil {
-			closeErr = fmt.Errorf("cli: close workspace database %q: %w", runtime.HomePaths.DatabaseFile, closeErr)
-			if err == nil {
-				err = closeErr
-				return
-			}
-			err = errors.Join(err, closeErr)
-		}
-	}()
-
-	resolver, err := workspacepkg.NewResolver(
-		globalDB,
-		workspacepkg.WithHomePaths(runtime.HomePaths),
-		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
-			return aghconfig.LoadForHome(runtime.HomePaths, aghconfig.WithWorkspaceRoot(rootDir))
-		}),
-	)
-	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: create workspace resolver: %w", err)
-	}
-
-	resolved, err = resolver.Resolve(ctx, workspaceRoot)
-	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: resolve workspace %q: %w", workspaceRoot, err)
-	}
-
-	return resolved, nil
-}
-
-func cliResolvedWorkspace(root string) (workspacepkg.ResolvedWorkspace, error) {
-	workspaceRoot := strings.TrimSpace(root)
-	if workspaceRoot == "" {
-		return workspacepkg.ResolvedWorkspace{}, nil
-	}
-
-	skillRoots, err := os.ReadDir(filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.SkillsDirName))
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{RootDir: workspaceRoot},
-			}, nil
-		}
-		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: read workspace skills %q: %w", workspaceRoot, err)
-	}
-
-	skillPaths := make([]workspacepkg.SkillPath, 0, len(skillRoots))
-	for _, entry := range skillRoots {
-		if !entry.IsDir() {
-			continue
-		}
-
-		skillDir := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.SkillsDirName, entry.Name())
-		skillFile := filepath.Join(skillDir, skillMarkdownFileName)
-		if _, err := os.Stat(skillFile); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("cli: inspect workspace skill %q: %w", skillFile, err)
-		}
-
-		skillPaths = append(skillPaths, workspacepkg.SkillPath{
-			Dir:    skillDir,
-			Source: "workspace",
-		})
-	}
-
-	return workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{RootDir: workspaceRoot},
-		Skills:    skillPaths,
 	}, nil
 }
 
@@ -206,6 +77,60 @@ func resolveCLIWorkspaceRoot(deps commandDeps) (string, error) {
 		return "", fmt.Errorf("cli: resolve workspace root %q: %w", workspace, err)
 	}
 	return absWorkspace, nil
+}
+
+func resolveSkillCommandScope(
+	ctx context.Context,
+	cmd *cobra.Command,
+	deps commandDeps,
+	originRef string,
+) (skillCommandScope, error) {
+	workspaceRef, err := commandWorkspaceFlag(cmd)
+	if err != nil {
+		return skillCommandScope{}, err
+	}
+	agentRef, err := commandSkillAgentFlag(cmd)
+	if err != nil {
+		return skillCommandScope{}, err
+	}
+
+	scope := skillCommandScope{
+		query: SkillQuery{
+			Workspace: workspaceRef,
+			ForAgent:  agentRef,
+		},
+		useDaemon: workspaceRef != "",
+	}
+	if scope.useDaemon {
+		return scope, nil
+	}
+	if agentRef != "" {
+		return scope, nil
+	}
+
+	credentials := agentCredentialsFromEnv(deps)
+	if strings.TrimSpace(credentials.SessionID) == "" && strings.TrimSpace(credentials.AgentName) == "" {
+		return scope, nil
+	}
+
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return skillCommandScope{}, err
+	}
+	caller, err := resolveAgentCallerFromEnv(ctx, deps, client, "", originRef)
+	if err != nil {
+		return skillCommandScope{}, err
+	}
+
+	scope.query = SkillQuery{
+		Workspace: firstNonEmpty(
+			strings.TrimSpace(caller.Session.WorkspaceID),
+			strings.TrimSpace(caller.Session.WorkspacePath),
+		),
+		ForAgent: strings.TrimSpace(caller.Session.AgentName),
+	}
+	scope.useDaemon = scope.query.Workspace != "" || scope.query.ForAgent != ""
+	return scope, nil
 }
 
 func skillListItems(allSkills []*skills.Skill, sourceFilter string) ([]skillListItem, error) {
@@ -284,15 +209,35 @@ func commandWorkspaceFlag(cmd *cobra.Command) (string, error) {
 	return trimmed, nil
 }
 
+func commandSkillAgentFlag(cmd *cobra.Command) (string, error) {
+	agentName, err := cmd.Flags().GetString("for-agent")
+	if err != nil {
+		return "", fmt.Errorf("read for-agent flag: %w", err)
+	}
+	trimmed := strings.TrimSpace(agentName)
+	if cmd.Flags().Changed("for-agent") && trimmed == "" {
+		return "", fmt.Errorf("for-agent flag cannot be empty")
+	}
+	if trimmed != "" {
+		if err := aghconfig.ValidateAgentName(trimmed); err != nil {
+			return "", err
+		}
+	}
+	return trimmed, nil
+}
+
 func normalizeSkillSourceFilter(sourceFilter string) (string, error) {
 	filter := strings.ToLower(strings.TrimSpace(sourceFilter))
 	switch filter {
 	case "":
 		return "", nil
-	case bundledSkillSource, marketplaceSkillSource, userSkillSource, additionalSkillSource, workspaceSkillSource:
+	case bundledSkillSource,
+		marketplaceSkillSource,
+		userSkillSource,
+		additionalSkillSource,
+		workspaceSkillSource,
+		agentLocalSkillSource:
 		return filter, nil
-	case "agents", ".agents":
-		return additionalSkillSource, nil
 	default:
 		return "", fmt.Errorf("cli: invalid skill source %q", sourceFilter)
 	}
@@ -582,6 +527,8 @@ func skillSourceLabel(source skills.SkillSource) string {
 		return additionalSkillSource
 	case skills.SourceWorkspace:
 		return workspaceSkillSource
+	case skills.SourceAgentLocal:
+		return "agent-local"
 	default:
 		return "unknown"
 	}

@@ -336,11 +336,6 @@
             "sourceType": "github",
             "computedHash": "f79f957689cc705613a2731f2f35360192fc9a6a28bc3de73484c973621df5ed"
         },
-        "fix-coderabbit-review": {
-            "source": "pedronauck/skills",
-            "sourceType": "github",
-            "computedHash": "9272c514c90f40059ceb9f3b504ea9f5a91fde83a6ae8471f00c8d36a95a086d"
-        },
         "fixing-motion-performance": {
             "source": "pedronauck/skills",
             "sourceType": "github",

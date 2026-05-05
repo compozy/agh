@@ -149,15 +149,10 @@ func TestSkillListCommandReturnsVisibleSkillsAndEnabledState(t *testing.T) {
 	t.Parallel()
 
 	env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
-		cfg.Skills.DisabledSkills = []string{"workspace-skill"}
+		cfg.Skills.DisabledSkills = []string{"disabled-skill"}
 	})
 
-	writeWorkspaceSkill(
-		t,
-		env.workspace,
-		"workspace-skill",
-		skillDocument("workspace-skill", "Workspace helper", "body"),
-	)
+	writeUserSkill(t, env.homePaths, "disabled-skill", skillDocument("disabled-skill", "Disabled helper", "body"))
 	writeUserSkill(t, env.homePaths, "user-skill", skillDocument("user-skill", "User helper", "body"))
 
 	stdout, _, err := executeRootCommand(t, env.deps, "skill", "list", "-o", "json")
@@ -170,12 +165,12 @@ func TestSkillListCommandReturnsVisibleSkillsAndEnabledState(t *testing.T) {
 		t.Fatalf("json.Unmarshal(skill list) error = %v; stdout=%s", err, stdout)
 	}
 
-	workspaceItem := findSkillListItem(t, payload, "workspace-skill")
-	if workspaceItem.Source != "workspace" {
-		t.Fatalf("workspace source = %q, want workspace", workspaceItem.Source)
+	disabledItem := findSkillListItem(t, payload, "disabled-skill")
+	if disabledItem.Source != "user" {
+		t.Fatalf("disabled source = %q, want user", disabledItem.Source)
 	}
-	if workspaceItem.Enabled {
-		t.Fatal("workspace skill enabled = true, want false")
+	if disabledItem.Enabled {
+		t.Fatal("disabled skill enabled = true, want false")
 	}
 
 	userItem := findSkillListItem(t, payload, "user-skill")
@@ -192,7 +187,7 @@ func TestSkillListCommandReturnsVisibleSkillsAndEnabledState(t *testing.T) {
 	}
 }
 
-func TestSkillListCommandIncludesRegisteredAdditionalWorkspaceSkills(t *testing.T) {
+func TestSkillListCommandDefaultsToGlobalScopeWithoutWorkspaceFlag(t *testing.T) {
 	t.Parallel()
 
 	env := newSkillTestEnv(t, nil)
@@ -210,6 +205,7 @@ func TestSkillListCommandIncludesRegisteredAdditionalWorkspaceSkills(t *testing.
 		"additional-skill",
 		skillDocument("additional-skill", "Additional helper", "body"),
 	)
+	writeUserSkill(t, env.homePaths, "user-skill", skillDocument("user-skill", "User helper", "body"))
 
 	ctx := testutil.Context(t)
 	globalDB, err := globaldb.OpenGlobalDB(ctx, env.homePaths.DatabaseFile)
@@ -249,9 +245,14 @@ func TestSkillListCommandIncludesRegisteredAdditionalWorkspaceSkills(t *testing.
 		t.Fatalf("json.Unmarshal(skill list) error = %v; stdout=%s", err, stdout)
 	}
 
-	additionalItem := findSkillListItem(t, payload, "additional-skill")
-	if additionalItem.Source != "additional" {
-		t.Fatalf("additional source = %q, want additional", additionalItem.Source)
+	if findSkillListItemByName(payload, "workspace-skill") != nil {
+		t.Fatalf("skill list unexpectedly included workspace scope: %#v", payload)
+	}
+	if findSkillListItemByName(payload, "additional-skill") != nil {
+		t.Fatalf("skill list unexpectedly included additional scope: %#v", payload)
+	}
+	if findSkillListItemByName(payload, "user-skill") == nil {
+		t.Fatalf("skill list payload = %#v, want global user skill", payload)
 	}
 }
 
@@ -266,7 +267,6 @@ func TestSkillListCommandFiltersBySource(t *testing.T) {
 		skillDocument("workspace-skill", "Workspace helper", "body"),
 	)
 	writeUserSkill(t, env.homePaths, "user-skill", skillDocument("user-skill", "User helper", "body"))
-	writeUserAgentsSkill(t, env.userHome, "agent-skill", skillDocument("agent-skill", "User agent helper", "body"))
 
 	stdout, _, err := executeRootCommand(t, env.deps, "skill", "list", "--source", "bundled", "-o", "json")
 	if err != nil {
@@ -285,19 +285,19 @@ func TestSkillListCommandFiltersBySource(t *testing.T) {
 		if item.Source != "bundled" {
 			t.Fatalf("filtered source = %q, want bundled", item.Source)
 		}
-		if item.Name == "workspace-skill" || item.Name == "user-skill" || item.Name == "agent-skill" {
+		if item.Name == "workspace-skill" || item.Name == "user-skill" {
 			t.Fatalf("filtered payload unexpectedly contains non-bundled skill %#v", item)
 		}
 	}
 }
 
-func TestSkillListCommandSourceHelpIncludesMarketplaceAndAgents(t *testing.T) {
+func TestSkillListCommandSourceHelpIncludesMarketplaceAndAgentLocal(t *testing.T) {
 	t.Parallel()
 
 	cmd := newSkillListCommand(newSkillTestEnv(t, nil).deps)
 	usage := cmd.Flags().Lookup("source").Usage
 
-	for _, expected := range []string{"marketplace", "agents", ".agents"} {
+	for _, expected := range []string{"marketplace", "agent-local"} {
 		if !strings.Contains(usage, expected) {
 			t.Fatalf("source flag usage = %q, want mention of %q", usage, expected)
 		}
@@ -308,9 +308,9 @@ func TestSkillViewCommandReturnsXMLLikeContent(t *testing.T) {
 	t.Parallel()
 
 	env := newSkillTestEnv(t, nil)
-	writeWorkspaceSkill(
+	skillFile := writeUserSkill(
 		t,
-		env.workspace,
+		env.homePaths,
 		"review-helper",
 		skillDocument(
 			"review-helper",
@@ -320,7 +320,7 @@ func TestSkillViewCommandReturnsXMLLikeContent(t *testing.T) {
 	)
 	writeSkillResource(
 		t,
-		filepath.Join(env.workspace, aghconfig.DirName, aghconfig.SkillsDirName, "review-helper"),
+		filepath.Dir(skillFile),
 		"references/checklist.md",
 		"Check tests before approving.\n",
 	)
@@ -369,15 +369,15 @@ func TestSkillViewCommandReturnsSpecificFile(t *testing.T) {
 	t.Parallel()
 
 	env := newSkillTestEnv(t, nil)
-	writeWorkspaceSkill(
+	skillFile := writeUserSkill(
 		t,
-		env.workspace,
+		env.homePaths,
 		"file-reader",
 		skillDocument("file-reader", "Reads resource files", "# File Reader\n"),
 	)
 	writeSkillResource(
 		t,
-		filepath.Join(env.workspace, aghconfig.DirName, aghconfig.SkillsDirName, "file-reader"),
+		filepath.Dir(skillFile),
 		"scripts/check.sh",
 		"echo ok\n",
 	)
@@ -439,7 +439,7 @@ func TestSkillViewCommandRejectsFilesystemTraversal(t *testing.T) {
 	t.Parallel()
 
 	env := newSkillTestEnv(t, nil)
-	writeWorkspaceSkill(t, env.workspace, "guarded", skillDocument("guarded", "Guarded skill", "body"))
+	writeUserSkill(t, env.homePaths, "guarded", skillDocument("guarded", "Guarded skill", "body"))
 
 	testCases := []string{
 		"../secret.txt",
@@ -463,7 +463,7 @@ func TestSkillViewCommandRejectsSymlinkEscape(t *testing.T) {
 	t.Parallel()
 
 	env := newSkillTestEnv(t, nil)
-	writeWorkspaceSkill(t, env.workspace, "guarded", skillDocument("guarded", "Guarded skill", "body"))
+	skillFile := writeUserSkill(t, env.homePaths, "guarded", skillDocument("guarded", "Guarded skill", "body"))
 
 	outsideDir := t.TempDir()
 	outsideFile := filepath.Join(outsideDir, "secret.txt")
@@ -471,7 +471,7 @@ func TestSkillViewCommandRejectsSymlinkEscape(t *testing.T) {
 		t.Fatalf("WriteFile(%q) error = %v", outsideFile, err)
 	}
 
-	skillDir := filepath.Join(env.workspace, aghconfig.DirName, aghconfig.SkillsDirName, "guarded")
+	skillDir := filepath.Dir(skillFile)
 	linkPath := filepath.Join(skillDir, "links", "secret.txt")
 	if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(linkPath), err)
@@ -493,7 +493,7 @@ func TestSkillInfoCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 	t.Parallel()
 
 	env := newSkillTestEnv(t, nil)
-	writeWorkspaceSkill(t, env.workspace, "info-skill", strings.Join([]string{
+	skillFile := writeUserSkill(t, env.homePaths, "info-skill", strings.Join([]string{
 		"---",
 		"name: info-skill",
 		"description: Show all metadata.",
@@ -510,7 +510,7 @@ func TestSkillInfoCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 	}, "\n"))
 	writeSkillResource(
 		t,
-		filepath.Join(env.workspace, aghconfig.DirName, aghconfig.SkillsDirName, "info-skill"),
+		filepath.Dir(skillFile),
 		"references/notes.md",
 		"Useful notes.\n",
 	)
@@ -528,8 +528,8 @@ func TestSkillInfoCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 	if payload.Name != "info-skill" || payload.Version != "1.2.3" {
 		t.Fatalf("payload = %#v, want name/version populated", payload)
 	}
-	if payload.Source != "workspace" {
-		t.Fatalf("payload.Source = %q, want workspace", payload.Source)
+	if payload.Source != "user" {
+		t.Fatalf("payload.Source = %q, want user", payload.Source)
 	}
 	if !strings.HasSuffix(payload.Path, filepath.ToSlash(filepath.Join("info-skill", skillMarkdownFileName))) &&
 		!strings.HasSuffix(payload.Path, filepath.Join("info-skill", skillMarkdownFileName)) {
@@ -674,10 +674,15 @@ func TestSkillCommandsWorkWithoutDaemonAndSupportToonOutput(t *testing.T) {
 	t.Parallel()
 
 	env := newSkillTestEnv(t, nil)
-	writeWorkspaceSkill(t, env.workspace, "toon-skill", skillDocument("toon-skill", "Toon helper", "# Toon Skill\n"))
+	skillFile := writeUserSkill(
+		t,
+		env.homePaths,
+		"toon-skill",
+		skillDocument("toon-skill", "Toon helper", "# Toon Skill\n"),
+	)
 	writeSkillResource(
 		t,
-		filepath.Join(env.workspace, aghconfig.DirName, aghconfig.SkillsDirName, "toon-skill"),
+		filepath.Dir(skillFile),
 		"references/example.md",
 		"Example.\n",
 	)
@@ -2108,7 +2113,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	env := newSkillTestEnv(t, nil)
 	writeWorkspaceSkill(t, env.workspace, "bundle-skill", skillDocument("bundle-skill", "Bundle helper", "body"))
 
-	ctx, err := loadSkillCommandContext(testutil.Context(t), env.deps)
+	ctx, err := loadSkillCommandContext(testutil.Context(t), env.deps, "")
 	if err != nil {
 		t.Fatalf("loadSkillCommandContext() error = %v", err)
 	}
@@ -2173,14 +2178,9 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 		t.Fatalf("criticalWarnings() = %#v, want bad", got)
 	}
 
-	if _, err := loadSkillCommandContext(testutil.Context(t), func() commandDeps {
-		deps := env.deps
-		deps.getwd = func() (string, error) {
-			return "", errors.New("boom")
-		}
-		return deps
-	}()); err == nil || !strings.Contains(err.Error(), "cli: resolve skill workspace root") {
-		t.Fatalf("loadSkillCommandContext(getwd failure) error = %v, want wrapped workspace-root context", err)
+	if _, err := loadSkillCommandContext(testutil.Context(t), env.deps, ".."); err == nil ||
+		!strings.Contains(err.Error(), "agent name") {
+		t.Fatalf("loadSkillCommandContext(invalid agent) error = %v, want agent validation", err)
 	}
 
 	rendered, err := renderSkillXML(&skills.Skill{
@@ -2353,10 +2353,6 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	if !strings.Contains(removeToon, "skill_remove{") || !strings.Contains(removeToon, "removed") {
 		t.Fatalf("skillRemoveBundle().toon() = %q, want toon remove object", removeToon)
 	}
-
-	if _, err := aghconfig.ResolveUserAgentsSkillsDir(nil); err != nil {
-		t.Fatalf("ResolveUserAgentsSkillsDir() fallback error = %v", err)
-	}
 }
 
 func newSkillTestEnv(t *testing.T, mutateConfig func(*aghconfig.Config)) skillTestEnv {
@@ -2419,11 +2415,6 @@ func writeUserSkill(t *testing.T, homePaths aghconfig.HomePaths, name, content s
 	return writeFile(t, filepath.Join(homePaths.SkillsDir, name, skillMarkdownFileName), content)
 }
 
-func writeUserAgentsSkill(t *testing.T, userHome, name, content string) string {
-	t.Helper()
-	return writeFile(t, filepath.Join(userHome, ".agents", "skills", name, skillMarkdownFileName), content)
-}
-
 func writeSkillResource(t *testing.T, skillDir, relPath, content string) string {
 	t.Helper()
 	return writeFile(t, filepath.Join(skillDir, relPath), content)
@@ -2462,6 +2453,15 @@ func findSkillListItem(t *testing.T, items []skillListItem, name string) skillLi
 
 	t.Fatalf("skill list item %q not found in %#v", name, items)
 	return skillListItem{}
+}
+
+func findSkillListItemByName(items []skillListItem, name string) *skillListItem {
+	for i := range items {
+		if items[i].Name == name {
+			return &items[i]
+		}
+	}
+	return nil
 }
 
 type marketplaceServerFixture struct {

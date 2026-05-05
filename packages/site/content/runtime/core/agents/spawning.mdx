@@ -176,7 +176,14 @@ session layer.
 ## Permission mode mapping
 
 AGH applies its static permission mode to ACP session modes when the provider reports a compatible
-mode.
+mode. When AGH enables the provider-native tool execution gateway, it may first try a separate
+approval-mediated ACP mode candidate such as `default` or `ask` so provider-native tool calls flow
+back through AGH before any real side effect. Those gateway candidates are separate from the static
+permission-to-session-mode mapping below. The configured `permissions.mode` still stays
+authoritative at the execution boundary.
+
+If the provider does not advertise a compatible mediated mode, AGH falls back to the static
+permission-to-session-mode mapping below.
 
 | AGH permission  | ACP mode names AGH tries                                                                       |
 | --------------- | ---------------------------------------------------------------------------------------------- |

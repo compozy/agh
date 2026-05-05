@@ -13,7 +13,9 @@ import (
 	"github.com/pedronauck/agh/internal/coordinator"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
+	storepkg "github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
@@ -54,11 +56,14 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	if call.Lineage == nil || call.Lineage.SpawnRole != string(session.SessionTypeCoordinator) {
 		t.Fatalf("CreateOpts.Lineage = %#v, want coordinator root lineage", call.Lineage)
 	}
+	if err := storepkg.ValidateSessionLineage("coord-1", call.Lineage); err != nil {
+		t.Fatalf("ValidateSessionLineage(coordinator create) error = %v", err)
+	}
 	if call.Lineage.TTLExpiresAt == nil || !call.Lineage.TTLExpiresAt.Equal(now.Add(2*time.Hour)) {
 		t.Fatalf("Lineage.TTLExpiresAt = %#v, want %s", call.Lineage.TTLExpiresAt, now.Add(2*time.Hour))
 	}
-	if !coordinator.ToolAllowed(coordinator.ToolAgentTaskNext) ||
-		coordinator.ToolAllowed("operator.task.cancel") {
+	if !coordinator.ToolAllowed(toolspkg.ToolIDTaskRunClaimNext.String()) ||
+		coordinator.ToolAllowed(toolspkg.ToolIDTaskCancel.String()) {
 		t.Fatal("coordinator tool allowlist is not restricted as expected")
 	}
 	if got := call.Lineage.PermissionPolicy.NetworkChannels; len(got) != 1 || got[0] != "ch-run-1" {

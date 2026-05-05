@@ -1453,13 +1453,31 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		t.Fatal("expected created task id")
 	}
 
-	enqueueOut := mustExecuteRoot(t, h.deps, "task", "run", "enqueue", created.ID, "--idempotency-key", "idem-1", "--channel", "builders", "-o", "json")
+	enqueueOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"task",
+		"run",
+		"enqueue",
+		created.ID,
+		"--idempotency-key",
+		"idem-1",
+		"--channel",
+		"builders",
+		"--metadata",
+		`{"schema":"agh.harness.detached.v1"}`,
+		"-o",
+		"json",
+	)
 	var enqueued TaskRunRecord
 	if err := json.Unmarshal([]byte(enqueueOut), &enqueued); err != nil {
 		t.Fatalf("json.Unmarshal(task run enqueue) error = %v", err)
 	}
 	if enqueued.Status != taskpkg.TaskRunStatusQueued {
 		t.Fatalf("enqueued run = %#v, want queued", enqueued)
+	}
+	if got, want := string(enqueued.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
+		t.Fatalf("enqueued metadata = %q, want %q", got, want)
 	}
 
 	claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")
@@ -1500,6 +1518,9 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	}
 	if len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusCompleted {
 		t.Fatalf("runs = %#v, want completed run history", runs)
+	}
+	if got, want := string(runs[0].Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
+		t.Fatalf("runs[0].Metadata = %q, want %q", got, want)
 	}
 
 	getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")

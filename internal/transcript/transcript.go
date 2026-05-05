@@ -84,11 +84,12 @@ type toolLifecycle struct {
 }
 
 type canonicalEventPayload struct {
-	Schema     string                   `json:"schema,omitempty"`
-	Type       string                   `json:"type,omitempty"`
-	SessionID  string                   `json:"session_id,omitempty"`
-	TurnID     string                   `json:"turn_id,omitempty"`
-	RequestID  string                   `json:"request_id,omitempty"`
+	Schema    string `json:"schema,omitempty"`
+	Type      string `json:"type,omitempty"`
+	SessionID string `json:"session_id,omitempty"`
+	TurnID    string `json:"turn_id,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
+	store.EventCorrelation
 	Timestamp  time.Time                `json:"timestamp"`
 	Text       string                   `json:"text,omitempty"`
 	Title      string                   `json:"title,omitempty"`
@@ -737,24 +738,25 @@ func canonicalPayload(
 // MarshalAgentEvent converts a runtime ACP event into the canonical stored payload.
 func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 	payload := canonicalEventPayload{
-		Schema:     CanonicalSchema,
-		Type:       event.Type,
-		SessionID:  event.SessionID,
-		TurnID:     event.TurnID,
-		RequestID:  event.RequestID,
-		Timestamp:  event.Timestamp,
-		Text:       event.Text,
-		Title:      event.Title,
-		ToolCallID: event.ToolCallID,
-		StopReason: event.StopReason,
-		Action:     event.Action,
-		Resource:   event.Resource,
-		Decision:   event.Decision,
-		Error:      event.Error,
-		Failure:    store.CloneSessionFailure(event.Failure),
-		Synthetic:  clonePromptSyntheticMeta(event.Synthetic),
-		Usage:      event.Usage,
-		Runtime:    cloneRuntimeActivity(event.Runtime),
+		Schema:           CanonicalSchema,
+		Type:             event.Type,
+		SessionID:        event.SessionID,
+		TurnID:           event.TurnID,
+		RequestID:        event.RequestID,
+		EventCorrelation: event.Normalize(),
+		Timestamp:        event.Timestamp,
+		Text:             event.Text,
+		Title:            event.Title,
+		ToolCallID:       event.ToolCallID,
+		StopReason:       event.StopReason,
+		Action:           event.Action,
+		Resource:         event.Resource,
+		Decision:         event.Decision,
+		Error:            event.Error,
+		Failure:          store.CloneSessionFailure(event.Failure),
+		Synthetic:        clonePromptSyntheticMeta(event.Synthetic),
+		Usage:            event.Usage,
+		Runtime:          cloneRuntimeActivity(event.Runtime),
 	}
 
 	if len(event.Raw) > 0 {
@@ -799,24 +801,25 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 	}
 
 	event := acp.AgentEvent{
-		Type:       strings.TrimSpace(decoded.Type),
-		SessionID:  strings.TrimSpace(decoded.SessionID),
-		TurnID:     strings.TrimSpace(decoded.TurnID),
-		RequestID:  strings.TrimSpace(decoded.RequestID),
-		Timestamp:  decoded.Timestamp,
-		Text:       decoded.Text,
-		Title:      firstNonEmpty(decoded.Title, decoded.ToolName),
-		ToolCallID: strings.TrimSpace(decoded.ToolCallID),
-		StopReason: strings.TrimSpace(decoded.StopReason),
-		Action:     strings.TrimSpace(decoded.Action),
-		Resource:   strings.TrimSpace(decoded.Resource),
-		Decision:   strings.TrimSpace(decoded.Decision),
-		Error:      strings.TrimSpace(decoded.Error),
-		Failure:    store.CloneSessionFailure(decoded.Failure),
-		Synthetic:  clonePromptSyntheticMeta(decoded.Synthetic),
-		Usage:      decoded.Usage,
-		Runtime:    cloneRuntimeActivity(decoded.Runtime),
-		Raw:        acp.CloneRawMessage(decoded.Raw),
+		Type:             strings.TrimSpace(decoded.Type),
+		SessionID:        strings.TrimSpace(decoded.SessionID),
+		TurnID:           strings.TrimSpace(decoded.TurnID),
+		RequestID:        strings.TrimSpace(decoded.RequestID),
+		EventCorrelation: decoded.Normalize(),
+		Timestamp:        decoded.Timestamp,
+		Text:             decoded.Text,
+		Title:            firstNonEmpty(decoded.Title, decoded.ToolName),
+		ToolCallID:       strings.TrimSpace(decoded.ToolCallID),
+		StopReason:       strings.TrimSpace(decoded.StopReason),
+		Action:           strings.TrimSpace(decoded.Action),
+		Resource:         strings.TrimSpace(decoded.Resource),
+		Decision:         strings.TrimSpace(decoded.Decision),
+		Error:            strings.TrimSpace(decoded.Error),
+		Failure:          store.CloneSessionFailure(decoded.Failure),
+		Synthetic:        clonePromptSyntheticMeta(decoded.Synthetic),
+		Usage:            decoded.Usage,
+		Runtime:          cloneRuntimeActivity(decoded.Runtime),
+		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}
 	return event, nil
 }
@@ -829,6 +832,10 @@ func cloneRuntimeActivity(activity *acp.RuntimeActivity) *acp.RuntimeActivity {
 	if activity.TurnStartedAt != nil {
 		turnStartedAt := activity.TurnStartedAt.UTC()
 		cloned.TurnStartedAt = &turnStartedAt
+	}
+	if activity.DeadlineAt != nil {
+		deadlineAt := activity.DeadlineAt.UTC()
+		cloned.DeadlineAt = &deadlineAt
 	}
 	if activity.LastActivityAt != nil {
 		lastActivityAt := activity.LastActivityAt.UTC()

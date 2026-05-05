@@ -36,6 +36,8 @@ import type {
   SettingsUpdateMemoryRequest,
   SettingsUpdateNetworkRequest,
   SettingsUpdateObservabilityRequest,
+  SettingsSectionName,
+  SettingsUpdateSkillsFilter,
   SettingsUpdateSkillsRequest,
 } from "../types";
 
@@ -51,7 +53,7 @@ function recordMutation(result: SettingsMutationResult) {
 
 function invalidateSection(
   queryClient: ReturnType<typeof useQueryClient>,
-  section: SettingsMutationResult["section"]
+  section: SettingsSectionName
 ) {
   return queryClient.invalidateQueries({ queryKey: settingsKeys.section(section) });
 }
@@ -111,7 +113,13 @@ export function useUpdateSettingsSkills() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: SettingsUpdateSkillsRequest) => updateSettingsSkills(body),
+    mutationFn: ({
+      body,
+      filter,
+    }: {
+      body: SettingsUpdateSkillsRequest;
+      filter?: SettingsUpdateSkillsFilter;
+    }) => updateSettingsSkills(body, filter ?? {}),
     onSuccess: recordMutation,
     onSettled: () => invalidateSection(queryClient, "skills"),
   });

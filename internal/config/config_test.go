@@ -1257,6 +1257,23 @@ func TestSessionSupervisionConfigValidateRejectsWarningAfterTimeout(t *testing.T
 	})
 }
 
+func TestSessionSupervisionConfigValidateRejectsNegativePromptDeadline(t *testing.T) {
+	t.Run("Should reject negative prompt deadline", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultSessionSupervisionConfig()
+		cfg.PromptDeadline = -time.Second
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("SessionSupervisionConfig.Validate() error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "session.supervision.prompt_deadline") {
+			t.Fatalf("SessionSupervisionConfig.Validate() error = %v, want prompt deadline context", err)
+		}
+	})
+}
+
 func TestObservabilityConfigValidateRetentionDays(t *testing.T) {
 	t.Run("Should allow zero as keep history", func(t *testing.T) {
 		t.Parallel()

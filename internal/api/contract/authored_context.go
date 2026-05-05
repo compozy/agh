@@ -1175,7 +1175,7 @@ func AgentSoulRevisionPayloadFromDomain(revision soulpkg.Revision) (AgentSoulRev
 		Diagnostics:    diagnostics,
 		Actor: AuthoredContextActorPayload{
 			Kind: normalized.ActorKind,
-			Ref:  normalized.ActorRef,
+			Ref:  normalized.ActorID,
 		},
 		Origin:    origin,
 		CreatedAt: normalized.CreatedAt.UTC(),
@@ -1209,7 +1209,7 @@ func HeartbeatRevisionPayloadFromDomain(revision heartbeatpkg.Revision) (Heartbe
 		NewSnapshotID:  normalized.NewSnapshotID,
 		Actor: HeartbeatActorPayload{
 			Kind: actorKind,
-			Ref:  normalized.ActorRef,
+			Ref:  normalized.ActorID,
 		},
 		CreatedAt: normalized.CreatedAt.UTC(),
 	}, nil

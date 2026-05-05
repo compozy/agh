@@ -8,28 +8,30 @@ home defaults to `~/.agh` and can be changed with `AGH_HOME`.
 
 ## Quick Reference
 
-| Path                                        | Scope            | Purpose                                              |
-| ------------------------------------------- | ---------------- | ---------------------------------------------------- |
-| `$AGH_HOME`                                 | Global           | AGH home root. Defaults to `~/.agh`.                 |
-| `$AGH_HOME/config.toml`                     | Global           | Global runtime config.                               |
-| `$AGH_HOME/mcp.json`                        | Global           | Global top-level MCP sidecar.                        |
-| `$AGH_HOME/agh.db`                          | Global           | Global SQLite catalog.                               |
-| `$AGH_HOME/daemon.sock`                     | Global           | Default Unix domain socket.                          |
-| `$AGH_HOME/daemon.lock`                     | Global           | Daemon lock file.                                    |
-| `$AGH_HOME/daemon.json`                     | Global           | Daemon discovery metadata.                           |
-| `$AGH_HOME/logs/agh.log`                    | Global           | Structured daemon log file.                          |
-| `$AGH_HOME/logs/network.audit`              | Global           | Append-only network audit file.                      |
-| `$AGH_HOME/providers/<provider>/`           | Provider         | Isolated provider home when `home_policy` is set.    |
-| `$AGH_HOME/sessions/<session-id>/events.db` | Session          | Per-session event database.                          |
-| `$AGH_HOME/sessions/<session-id>/meta.json` | Session          | Per-session metadata.                                |
-| `$AGH_HOME/agents/<name>/AGENT.md`          | Global agent     | User-wide agent definition.                          |
-| `$AGH_HOME/skills/<name>/SKILL.md`          | Global skill     | User or marketplace skill definition.                |
-| `<workspace>/.env`                          | Workspace        | Optional dotenv file loaded before workspace config. |
-| `<workspace>/.agh/config.toml`              | Workspace        | Workspace config overlay.                            |
-| `<workspace>/.agh/mcp.json`                 | Workspace        | Workspace top-level MCP sidecar.                     |
-| `<workspace>/.agh/agents/<name>/AGENT.md`   | Workspace agent  | Workspace-local agent definition.                    |
-| `<workspace>/.agh/skills/<name>/SKILL.md`   | Workspace skill  | Workspace-local skill definition.                    |
-| `<workspace>/.agh/memory/`                  | Workspace memory | Workspace-scoped memory files.                       |
+| Path                                                     | Scope                 | Purpose                                              |
+| -------------------------------------------------------- | --------------------- | ---------------------------------------------------- |
+| `$AGH_HOME`                                              | Global                | AGH home root. Defaults to `~/.agh`.                 |
+| `$AGH_HOME/config.toml`                                  | Global                | Global runtime config.                               |
+| `$AGH_HOME/mcp.json`                                     | Global                | Global top-level MCP sidecar.                        |
+| `$AGH_HOME/agh.db`                                       | Global                | Global SQLite catalog.                               |
+| `$AGH_HOME/daemon.sock`                                  | Global                | Default Unix domain socket.                          |
+| `$AGH_HOME/daemon.lock`                                  | Global                | Daemon lock file.                                    |
+| `$AGH_HOME/daemon.json`                                  | Global                | Daemon discovery metadata.                           |
+| `$AGH_HOME/logs/agh.log`                                 | Global                | Structured daemon log file.                          |
+| `$AGH_HOME/logs/network.audit`                           | Global                | Append-only network audit file.                      |
+| `$AGH_HOME/providers/<provider>/`                        | Provider              | Isolated provider home when `home_policy` is set.    |
+| `$AGH_HOME/sessions/<session-id>/events.db`              | Session               | Per-session event database.                          |
+| `$AGH_HOME/sessions/<session-id>/meta.json`              | Session               | Per-session metadata.                                |
+| `$AGH_HOME/agents/<name>/AGENT.md`                       | Global agent          | User-wide agent definition.                          |
+| `$AGH_HOME/agents/<name>/skills/<skill>/SKILL.md`        | Global agent skill    | Agent-local skill overlay for the global agent.      |
+| `$AGH_HOME/skills/<name>/SKILL.md`                       | Global skill          | User or marketplace skill definition.                |
+| `<workspace>/.env`                                       | Workspace             | Optional dotenv file loaded before workspace config. |
+| `<workspace>/.agh/config.toml`                           | Workspace             | Workspace config overlay.                            |
+| `<workspace>/.agh/mcp.json`                              | Workspace             | Workspace top-level MCP sidecar.                     |
+| `<workspace>/.agh/agents/<name>/AGENT.md`                | Workspace agent       | Workspace-local agent definition.                    |
+| `<workspace>/.agh/agents/<name>/skills/<skill>/SKILL.md` | Workspace agent skill | Agent-local skill overlay for that workspace agent.  |
+| `<workspace>/.agh/skills/<name>/SKILL.md`                | Workspace skill       | Workspace-local skill definition.                    |
+| `<workspace>/.agh/memory/`                               | Workspace memory      | Workspace-scoped memory files.                       |
 
 ## Global Home
 
@@ -88,34 +90,36 @@ Every durable session owns a directory under `$AGH_HOME/sessions/`.
 
 ## Agent Files
 
-| Path                                            | Scope           | Description                                                             |
-| ----------------------------------------------- | --------------- | ----------------------------------------------------------------------- |
-| `$AGH_HOME/agents/<name>/AGENT.md`              | Global          | Agent available across workspaces.                                      |
-| `$AGH_HOME/agents/<name>/mcp.json`              | Global agent    | Optional agent-local MCP sidecar.                                       |
-| `<workspace>/.agh/agents/<name>/AGENT.md`       | Workspace       | Agent available to sessions in that workspace.                          |
-| `<workspace>/.agh/agents/<name>/mcp.json`       | Workspace agent | Optional agent-local MCP sidecar.                                       |
-| `<additional-root>/.agh/agents/<name>/AGENT.md` | Additional root | Agent available when the workspace has that additional root registered. |
+| Path                                                           | Scope                       | Description                                                                     |
+| -------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------- |
+| `$AGH_HOME/agents/<name>/AGENT.md`                             | Global                      | Agent available across workspaces.                                              |
+| `$AGH_HOME/agents/<name>/mcp.json`                             | Global agent                | Optional agent-local MCP sidecar.                                               |
+| `$AGH_HOME/agents/<name>/skills/<skill>/SKILL.md`              | Global agent skill          | Agent-local skill overlay used when this global agent wins resolution.          |
+| `<workspace>/.agh/agents/<name>/AGENT.md`                      | Workspace                   | Agent available to sessions in that workspace.                                  |
+| `<workspace>/.agh/agents/<name>/mcp.json`                      | Workspace agent             | Optional agent-local MCP sidecar.                                               |
+| `<workspace>/.agh/agents/<name>/skills/<skill>/SKILL.md`       | Workspace agent skill       | Agent-local skill overlay used when this workspace agent wins resolution.       |
+| `<additional-root>/.agh/agents/<name>/AGENT.md`                | Additional root             | Agent available when the workspace has that additional root registered.         |
+| `<additional-root>/.agh/agents/<name>/skills/<skill>/SKILL.md` | Additional-root agent skill | Agent-local skill overlay used when this additional-root agent wins resolution. |
 
 Agent discovery order is workspace root, additional roots in registered order, then global home.
-First name wins. AGH does not use `.agents/<name>/AGENT.md` as a current runtime path; that appears
-only in draft RFC material.
+First name wins.
 
 ## Skill Files
 
-| Path                                            | Scope                       | Description                                                             |
-| ----------------------------------------------- | --------------------------- | ----------------------------------------------------------------------- |
-| `$AGH_HOME/skills/<name>/SKILL.md`              | Global user or marketplace  | User-wide or marketplace-installed skill.                               |
-| `$AGH_HOME/skills/<name>/mcp.json`              | Skill sidecar               | Optional skill MCP sidecar.                                             |
-| `$AGH_HOME/skills/<name>/.agh-meta.json`        | Marketplace sidecar         | Managed provenance metadata for marketplace skills.                     |
-| `$HOME/.agents/skills/<name>/SKILL.md`          | User AgentSkills convention | Additional user-level skill source resolved from `HOME`.                |
-| `<workspace>/.agh/skills/<name>/SKILL.md`       | Workspace                   | Workspace-local skill.                                                  |
-| `<workspace>/.agh/skills/<name>/mcp.json`       | Workspace skill sidecar     | Optional skill MCP sidecar.                                             |
-| `<additional-root>/.agh/skills/<name>/SKILL.md` | Additional root             | Skill available when the workspace has that additional root registered. |
+| Path                                            | Scope                      | Description                                                             |
+| ----------------------------------------------- | -------------------------- | ----------------------------------------------------------------------- |
+| `$AGH_HOME/skills/<name>/SKILL.md`              | Global user or marketplace | User-wide or marketplace-installed skill.                               |
+| `$AGH_HOME/skills/<name>/mcp.json`              | Skill sidecar              | Optional skill MCP sidecar.                                             |
+| `$AGH_HOME/skills/<name>/.agh-meta.json`        | Marketplace sidecar        | Managed provenance metadata for marketplace skills.                     |
+| `<workspace>/.agh/skills/<name>/SKILL.md`       | Workspace                  | Workspace-local skill.                                                  |
+| `<workspace>/.agh/skills/<name>/mcp.json`       | Workspace skill sidecar    | Optional skill MCP sidecar.                                             |
+| `<additional-root>/.agh/skills/<name>/SKILL.md` | Additional root            | Skill available when the workspace has that additional root registered. |
 
-Skill filesystem precedence is bundled, marketplace, user, additional root, then workspace.
-Enabled extensions can also register runtime-owned skills into the live registry. Those overlays do
-not come from a filesystem path, so they are documented in [Skills Overview](/runtime/core/skills)
-rather than in this file-path table.
+Skill filesystem precedence is bundled, marketplace, user, additional root, then workspace, with
+the winning agent's `skills/` directory applied as a final overlay. Enabled extensions can also
+register runtime-owned skills into the live registry. Those overlays do not come from a filesystem
+path, so they are documented in [Skills Overview](/runtime/core/skills) rather than in this
+file-path table.
 
 ## Workspace Files
 

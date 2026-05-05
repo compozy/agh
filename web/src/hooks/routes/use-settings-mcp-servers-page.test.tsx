@@ -321,7 +321,7 @@ describe("useSettingsMCPServersPage", () => {
 
   it("submits workspace-scoped mutations when workspace scope is active", async () => {
     vi.mocked(putSettingsMCPServer).mockResolvedValue({
-      section: "general",
+      section: "mcp-servers",
       scope: "workspace",
       workspace_id: polybotWorkspace.id,
       behavior: "restart_required",

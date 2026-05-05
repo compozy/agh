@@ -414,7 +414,7 @@ func hostAPITestSoulMutationResult(workspaceID string, agentName string, workspa
 			PreviousDigest: "old-digest",
 			NewDigest:      "soul-digest",
 			ActorKind:      "extension",
-			ActorRef:       "ext-soul-write",
+			ActorID:        "ext-soul-write",
 			OriginKind:     "host_api",
 			OriginRef:      string(extensioncontract.HostAPIMethodAgentsSoulPut),
 			CreatedAt:      now,

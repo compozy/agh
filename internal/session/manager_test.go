@@ -975,6 +975,7 @@ func TestPumpPromptReturnsWhenContextIsCanceledWhileWaitingForSource(t *testing.
 			nil,
 			out,
 			nil,
+			nil,
 		)
 	}()
 
@@ -1021,6 +1022,7 @@ func TestPumpPromptDrainsRuntimeEventsAfterTurnDone(t *testing.T) {
 			runtimeEvents,
 			out,
 			nil,
+			nil,
 		)
 	}()
 
@@ -1042,6 +1044,44 @@ func TestPumpPromptDrainsRuntimeEventsAfterTurnDone(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("pumpPrompt() did not return after draining runtime events")
 	}
+}
+
+func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should prefer a ready runtime event over a ready source event", func(t *testing.T) {
+		t.Parallel()
+
+		source := make(chan acp.AgentEvent, 1)
+		runtimeEvents := make(chan acp.AgentEvent, 1)
+		loop := &promptPumpLoopState{source: source, runtime: runtimeEvents}
+
+		source <- acp.AgentEvent{Type: acp.EventTypeError, TurnID: "turn-runtime-priority"}
+		runtimeEvents <- acp.AgentEvent{
+			Type:   acp.EventTypeRuntimeWarning,
+			TurnID: "turn-runtime-priority",
+		}
+
+		event, runtimeEvent, ok := nextPromptPumpEvent(testutil.Context(t), loop)
+		if !ok {
+			t.Fatal("nextPromptPumpEvent() ok = false, want true")
+		}
+		if !runtimeEvent {
+			t.Fatal("nextPromptPumpEvent() runtimeEvent = false, want true")
+		}
+		if got, want := event.Type, acp.EventTypeRuntimeWarning; got != want {
+			t.Fatalf("nextPromptPumpEvent() type = %q, want %q", got, want)
+		}
+
+		select {
+		case remaining := <-source:
+			if got, want := remaining.Type, acp.EventTypeError; got != want {
+				t.Fatalf("remaining source event type = %q, want %q", got, want)
+			}
+		default:
+			t.Fatal("source event drained unexpectedly")
+		}
+	})
 }
 
 func receivePromptEvent(t *testing.T, events <-chan acp.AgentEvent) acp.AgentEvent {
@@ -1116,6 +1156,65 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	}
 	if got := h.notifier.eventCount(session.ID); got != 3 {
 		t.Fatalf("notifier events = %d, want 3", got)
+	}
+}
+
+func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithSessionSupervision(aghconfig.SessionSupervisionConfig{
+		ActivityHeartbeatInterval: time.Hour,
+		ProgressNotifyInterval:    0,
+		InactivityWarningAfter:    0,
+		InactivityTimeout:         0,
+		TimeoutCancelGrace:        200 * time.Millisecond,
+		PromptDeadline:            20 * time.Millisecond,
+	}))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	source := make(chan acp.AgentEvent, 1)
+	var promptTurnID string
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		promptTurnID = req.TurnID
+		return source, nil
+	}
+	h.driver.cancelHook = func(proc *fakeProcess) error {
+		source <- acp.AgentEvent{
+			Type:      acp.EventTypeError,
+			SessionID: proc.handle.SessionID,
+			TurnID:    promptTurnID,
+			Timestamp: time.Now().UTC(),
+			Error:     `{"code":-32603,"message":"Internal error","data":{"error":"context deadline exceeded"}}`,
+		}
+		close(source)
+		return nil
+	}
+
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "long running")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	events := collectEvents(t, eventsCh)
+	if got, want := len(events), 2; got != want {
+		t.Fatalf("Prompt() events = %d, want %d", got, want)
+	}
+	if got, want := events[0].Type, acp.EventTypeRuntimeWarning; got != want {
+		t.Fatalf("Prompt() first event type = %q, want %q", got, want)
+	}
+	if got, want := events[1].Type, acp.EventTypeError; got != want {
+		t.Fatalf("Prompt() second event type = %q, want %q", got, want)
+	}
+	if events[0].Runtime == nil || events[0].Runtime.DeadlineAt == nil {
+		t.Fatalf("Prompt() first runtime = %#v, want deadline payload", events[0].Runtime)
+	}
+	if got := h.driver.cancelCalls; got != 1 {
+		t.Fatalf("driver cancel calls = %d, want 1", got)
+	}
+	if got := h.driver.stopCalls; got != 0 {
+		t.Fatalf("driver stop calls = %d, want 0", got)
 	}
 }
 
@@ -1824,10 +1923,12 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	eventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
 		Message: "synthetic wake-up",
 		Metadata: acp.PromptSyntheticMeta{
-			TaskID:    "task-1",
-			TaskRunID: "run-1",
-			Reason:    "task_run_completed",
-			Summary:   "background work finished",
+			TaskID:               "task-1",
+			TaskRunID:            "run-1",
+			ClaimTokenHash:       "sha256:claim-1",
+			CoordinatorSessionID: "sess-coordinator-1",
+			Reason:               "task_run_completed",
+			Summary:              "background work finished",
 		},
 	})
 	if err != nil {
@@ -1846,6 +1947,9 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	}
 	if got, want := h.driver.promptCalls[0].Meta.Synthetic.TaskRunID, "run-1"; got != want {
 		t.Fatalf("promptCalls[0].Meta.Synthetic.TaskRunID = %q, want %q", got, want)
+	}
+	if got, want := h.driver.promptCalls[0].Meta.Synthetic.ClaimTokenHash, "sha256:claim-1"; got != want {
+		t.Fatalf("promptCalls[0].Meta.Synthetic.ClaimTokenHash = %q, want %q", got, want)
 	}
 
 	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
@@ -1881,6 +1985,19 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	}
 	if got, want := syntheticPayload["summary"], "background work finished"; got != want {
 		t.Fatalf("stored synthetic summary = %v, want %q", got, want)
+	}
+	notified := h.notifier.eventsForSession(session.ID)
+	if len(notified) == 0 {
+		t.Fatal("notified events = 0, want synthetic observe notification")
+	}
+	if got, want := notified[0].SchedulerReason, "task_run_completed"; got != want {
+		t.Fatalf("notified[0].SchedulerReason = %q, want %q", got, want)
+	}
+	if got, want := notified[0].ClaimTokenHash, "sha256:claim-1"; got != want {
+		t.Fatalf("notified[0].ClaimTokenHash = %q, want %q", got, want)
+	}
+	if got, want := notified[0].CoordinatorSessionID, "sess-coordinator-1"; got != want {
+		t.Fatalf("notified[0].CoordinatorSessionID = %q, want %q", got, want)
 	}
 }
 
@@ -3583,6 +3700,12 @@ func (n *fakeNotifier) eventCount(sessionID string) int {
 	return len(n.events[sessionID])
 }
 
+func (n *fakeNotifier) eventsForSession(sessionID string) []acp.AgentEvent {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]acp.AgentEvent(nil), n.events[sessionID]...)
+}
+
 func (n *fakeNotifier) notificationOrder() []string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -3817,6 +3940,14 @@ func (r *fakeSkillRegistry) ForWorkspace(
 
 	skills := r.skillsByWorkspace[resolved.ID]
 	return append([]*skillspkg.Skill(nil), skills...), nil
+}
+
+func (r *fakeSkillRegistry) ForAgent(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	_ string,
+) ([]*skillspkg.Skill, error) {
+	return r.ForWorkspace(ctx, resolved)
 }
 
 func (r *fakeSkillRegistry) setSkills(workspaceID string, skills []*skillspkg.Skill) {

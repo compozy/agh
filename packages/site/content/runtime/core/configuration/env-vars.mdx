@@ -18,12 +18,11 @@ subprocesses, and lets some extension providers use process-level overrides.
 
 ## Core Variables AGH Reads
 
-| Variable                    | Type           | Default      | Valid values                                        | Description                                                                                                                                                     |
-| --------------------------- | -------------- | ------------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AGH_HOME`                  | path           | `~/.agh`     | Non-empty path.                                     | Overrides the global AGH home directory. If a workspace `.env` sets it, that value can affect config loading for that workspace before home paths are resolved. |
-| `HOME`                      | path           | OS user home | Existing user home path.                            | Used to resolve the user AgentSkills directory at `$HOME/.agents/skills` when that source is enabled.                                                           |
-| `AGH_DEV_VERIFY_BOUNDARIES` | boolean string | unset        | `1`, `true`, or `yes` enable boundary verification. | Development-only daemon boundary import verification toggle.                                                                                                    |
-| `GITHUB_TOKEN`              | token string   | unset        | Non-empty token.                                    | Used by the GitHub registry client for private repositories and higher rate limits.                                                                             |
+| Variable                    | Type           | Default  | Valid values                                        | Description                                                                                                                                                     |
+| --------------------------- | -------------- | -------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGH_HOME`                  | path           | `~/.agh` | Non-empty path.                                     | Overrides the global AGH home directory. If a workspace `.env` sets it, that value can affect config loading for that workspace before home paths are resolved. |
+| `AGH_DEV_VERIFY_BOUNDARIES` | boolean string | unset    | `1`, `true`, or `yes` enable boundary verification. | Development-only daemon boundary import verification toggle.                                                                                                    |
+| `GITHUB_TOKEN`              | token string   | unset    | Non-empty token.                                    | Used by the GitHub registry client for private repositories and higher rate limits.                                                                             |
 
 ## Provider credential variables
 

@@ -44,6 +44,8 @@ export type SettingsMCPServerDeleteFilter = NonNullable<OperationQuery<"deleteSe
 export type SettingsUpdateGeneralRequest = OperationRequestBody<"updateSettingsGeneral">;
 export type SettingsUpdateMemoryRequest = OperationRequestBody<"updateSettingsMemory">;
 export type SettingsUpdateSkillsRequest = OperationRequestBody<"updateSettingsSkills">;
+export type SettingsSkillsFilter = NonNullable<OperationQuery<"getSettingsSkills">>;
+export type SettingsUpdateSkillsFilter = NonNullable<OperationQuery<"updateSettingsSkills">>;
 export type SettingsUpdateAutomationRequest = OperationRequestBody<"updateSettingsAutomation">;
 export type SettingsUpdateNetworkRequest = OperationRequestBody<"updateSettingsNetwork">;
 export type SettingsUpdateObservabilityRequest =
@@ -55,14 +57,36 @@ export type SettingsRestartResponse = OperationResponse<"triggerSettingsRestart"
 export type SettingsRestartStatus = OperationResponse<"getSettingsRestartStatus", 200>;
 export type SettingsUpdateStatus = OperationResponse<"getSettingsUpdate", 200>;
 
-export type SettingsMutationResult = OperationResponse<"updateSettingsGeneral", 200>;
+export type SettingsMutationResult =
+  | OperationResponse<"updateSettingsGeneral", 200>
+  | OperationResponse<"updateSettingsMemory", 200>
+  | OperationResponse<"updateSettingsSkills", 200>
+  | OperationResponse<"updateSettingsAutomation", 200>
+  | OperationResponse<"updateSettingsNetwork", 200>
+  | OperationResponse<"updateSettingsObservability", 200>
+  | OperationResponse<"updateSettingsHooksExtensions", 200>
+  | OperationResponse<"putSettingsProvider", 200>
+  | OperationResponse<"deleteSettingsProvider", 200>
+  | OperationResponse<"putSettingsMCPServer", 200>
+  | OperationResponse<"deleteSettingsMCPServer", 200>
+  | OperationResponse<"putSettingsSandbox", 200>
+  | OperationResponse<"deleteSettingsSandbox", 200>
+  | OperationResponse<"putSettingsHook", 200>
+  | OperationResponse<"deleteSettingsHook", 200>;
 export type SettingsScope = SettingsMutationResult["scope"];
-export type SettingsSectionName = SettingsMutationResult["section"];
 export type SettingsBehavior = SettingsMutationResult["behavior"];
 export type SettingsWriteTarget = NonNullable<SettingsMutationResult["write_target"]>;
+export type SettingsSectionName =
+  | SettingsGeneralSection["section"]
+  | SettingsMemorySection["section"]
+  | SettingsSkillsSection["section"]
+  | SettingsAutomationSection["section"]
+  | SettingsNetworkSection["section"]
+  | SettingsObservabilitySection["section"]
+  | SettingsHooksExtensionsSection["section"];
 export type SettingsRestartStatusName = SettingsRestartResponse["status"];
-export type SettingsSourceKind =
-  SettingsProviderEntry["source_metadata"]["effective_source"]["kind"];
+export type SettingsSource = SettingsProviderEntry["source_metadata"]["effective_source"];
+export type SettingsSourceKind = SettingsSource["kind"];
 export type SettingsMCPServerTarget = NonNullable<SettingsMCPServerPutFilter["target"]>;
 
 export type SettingsCollectionName = "providers" | "mcp-servers" | "sandboxes" | "hooks";

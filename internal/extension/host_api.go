@@ -250,6 +250,11 @@ type hostAPIDeliveryBroker interface {
 type hostAPISkillsRegistry interface {
 	List() []*skillspkg.Skill
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
+	ForAgent(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+	) ([]*skillspkg.Skill, error)
 }
 
 // WithHostAPICapabilityChecker injects the capability checker used for Host API authorization.
@@ -1281,7 +1286,13 @@ func (h *HostAPIHandler) handleSkillsList(ctx context.Context, raw json.RawMessa
 		if resolveErr != nil {
 			return nil, resolveErr
 		}
-		skills, err = h.skills.ForWorkspace(ctx, &resolved)
+		if agentName := strings.TrimSpace(params.ForAgent); agentName != "" {
+			skills, err = h.skills.ForAgent(ctx, &resolved, agentName)
+		} else {
+			skills, err = h.skills.ForWorkspace(ctx, &resolved)
+		}
+	} else if agentName := strings.TrimSpace(params.ForAgent); agentName != "" {
+		skills, err = h.skills.ForAgent(ctx, nil, agentName)
 	} else {
 		skills = h.skills.List()
 	}

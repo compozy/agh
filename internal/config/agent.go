@@ -23,11 +23,17 @@ type AgentDef struct {
 	Toolsets     []string            `yaml:"toolsets,omitempty"    toml:"toolsets,omitempty"`
 	DenyTools    []string            `yaml:"deny_tools,omitempty"  toml:"deny_tools,omitempty"`
 	Permissions  string              `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
+	Skills       AgentSkillsConfig   `yaml:"skills,omitempty"      toml:"skills,omitempty"`
 	MCPServers   []MCPServer         `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
 	Hooks        []hookspkg.HookDecl `yaml:"hooks,omitempty"       toml:"hooks,omitempty"`
 	Capabilities *CapabilityCatalog  `yaml:"-"                     toml:"-"                     json:"capabilities,omitempty"`
 	Prompt       string              `yaml:"-"`
 	SourcePath   string              `yaml:"-"                     toml:"-"                     json:"-"`
+}
+
+// AgentSkillsConfig captures agent-local skill policy stored in AGENT.md.
+type AgentSkillsConfig struct {
+	Disabled []string `yaml:"disabled,omitempty" toml:"disabled,omitempty"`
 }
 
 type parsedAgentDef struct {
@@ -39,6 +45,7 @@ type parsedAgentDef struct {
 	Toolsets    []string                `yaml:"toolsets,omitempty"    toml:"toolsets,omitempty"`
 	DenyTools   []string                `yaml:"deny_tools,omitempty"  toml:"deny_tools,omitempty"`
 	Permissions string                  `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
+	Skills      AgentSkillsConfig       `yaml:"skills,omitempty"      toml:"skills,omitempty"`
 	MCPServers  []MCPServer             `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
 	Hooks       []parsedHookDeclaration `yaml:"hooks,omitempty"       toml:"hooks,omitempty"`
 }
@@ -74,9 +81,12 @@ var (
 
 // LoadAgentDef loads an AGENT.md file from the configured AGH home directory.
 func LoadAgentDef(name string, homePaths HomePaths) (AgentDef, error) {
-	target := strings.TrimSpace(name)
+	target := NormalizeAgentName(name)
 	if target == "" {
 		return AgentDef{}, errors.New("agent name is required")
+	}
+	if err := ValidateAgentName(target); err != nil {
+		return AgentDef{}, err
 	}
 
 	path := filepath.Join(homePaths.AgentsDir, target, agentDefName)
@@ -232,6 +242,7 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 		Toolsets:    normalizeAgentToolsetRefs(parsed.Toolsets),
 		DenyTools:   normalizeAgentToolPatterns(parsed.DenyTools),
 		Permissions: strings.TrimSpace(parsed.Permissions),
+		Skills:      normalizeAgentSkillsConfig(parsed.Skills),
 		MCPServers:  cloneMCPServers(parsed.MCPServers),
 		Prompt:      strings.TrimSpace(body),
 	}
@@ -256,10 +267,13 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 // Validate ensures the parsed agent definition is usable.
 func (a AgentDef) Validate() error {
 	switch {
-	case strings.TrimSpace(a.Name) == "":
+	case NormalizeAgentName(a.Name) == "":
 		return errors.New("agent name is required")
 	case strings.TrimSpace(a.Prompt) == "":
 		return errors.New("agent prompt is required")
+	}
+	if err := ValidateAgentName(a.Name); err != nil {
+		return err
 	}
 
 	if strings.TrimSpace(a.Permissions) != "" {
@@ -296,6 +310,50 @@ func (a AgentDef) Validate() error {
 	}
 
 	return nil
+}
+
+// NormalizeAgentName returns the canonical in-memory agent identity.
+func NormalizeAgentName(name string) string {
+	return strings.TrimSpace(name)
+}
+
+// ValidateAgentName rejects names that could reshape the canonical agent path.
+func ValidateAgentName(name string) error {
+	trimmed := NormalizeAgentName(name)
+	switch {
+	case trimmed == "":
+		return errors.New("agent name is required")
+	case trimmed == "." || trimmed == "..":
+		return fmt.Errorf("agent name %q is invalid", trimmed)
+	case strings.Contains(trimmed, "/"), strings.Contains(trimmed, `\`):
+		return fmt.Errorf("agent name %q is invalid", trimmed)
+	default:
+		return nil
+	}
+}
+
+func normalizeAgentSkillsConfig(config AgentSkillsConfig) AgentSkillsConfig {
+	if len(config.Disabled) == 0 {
+		return AgentSkillsConfig{}
+	}
+
+	normalized := make([]string, 0, len(config.Disabled))
+	seen := make(map[string]struct{}, len(config.Disabled))
+	for _, raw := range config.Disabled {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		normalized = append(normalized, name)
+	}
+	if len(normalized) == 0 {
+		return AgentSkillsConfig{}
+	}
+	return AgentSkillsConfig{Disabled: normalized}
 }
 
 func wrapFrontmatterError(err error) error {

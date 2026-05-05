@@ -14,6 +14,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/filesnap"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -42,6 +43,7 @@ type Registry struct {
 	cfg    RegistryConfig
 	logger *slog.Logger
 	now    func() time.Time
+	events store.EventSummaryStore
 }
 
 type skillToggleScope int
@@ -62,6 +64,14 @@ func WithLogger(logger *slog.Logger) Option {
 func WithNow(now func() time.Time) Option {
 	return func(registry *Registry) {
 		registry.now = now
+	}
+}
+
+// WithEventSummaryStore injects the optional global observe-event writer used
+// for public skills.shadow and skills.load_failed events.
+func WithEventSummaryStore(events store.EventSummaryStore) Option {
+	return func(registry *Registry) {
+		registry.events = events
 	}
 }
 
@@ -92,6 +102,17 @@ func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 	}
 
 	return registry
+}
+
+// SetEventSummaryStore updates the optional global observe-event writer after
+// registry construction.
+func (r *Registry) SetEventSummaryStore(events store.EventSummaryStore) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = events
 }
 
 // LoadAll loads bundled and user-level skills into the global registry snapshot.
@@ -196,11 +217,20 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 		return nil, err
 	}
 
+	var shadowEvents []store.EventSummary
 	r.mu.Lock()
 	r.evictExpiredWorkspaceLocked(now)
 	globalSkills := r.globalSkills
 	currentGlobalVersion = r.globalVersion.Load()
 	r.logWorkspaceSkillOverrides(globalSkills, workspaceSkills, resourceWorkspaceKey(resolved))
+	shadowEvents = r.buildSkillShadowSummaries(
+		globalSkills,
+		workspaceSkills,
+		"workspace",
+		"",
+		resourceWorkspaceKey(resolved),
+		"",
+	)
 	r.wsCache[cacheKey] = &wsCache{
 		skills:        workspaceSkills,
 		snapshots:     load.snapshots,
@@ -208,6 +238,7 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 		globalVersion: currentGlobalVersion,
 	}
 	r.mu.Unlock()
+	r.emitEventSummaries(ctx, shadowEvents)
 
 	return mergedSkillList(globalSkills, workspaceSkills), nil
 }
@@ -373,6 +404,17 @@ func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Reco
 	slices.Sort(workspaceIDs)
 	for _, workspaceID := range workspaceIDs {
 		r.logWorkspaceSkillOverrides(globalSkills, workspaceSkills[workspaceID], workspaceID)
+		r.emitEventSummaries(
+			context.Background(),
+			r.buildSkillShadowSummaries(
+				globalSkills,
+				workspaceSkills[workspaceID],
+				"workspace",
+				"",
+				workspaceID,
+				"",
+			),
+		)
 	}
 
 	r.mu.Lock()
@@ -400,16 +442,6 @@ func (r *Registry) loadGlobalSkills(
 	if err := r.loadDirectorySkills(
 		ctx,
 		r.cfg.UserSkillsDir,
-		SourceUser,
-		skills,
-		snapshots,
-		disabledSkills,
-	); err != nil {
-		return nil, nil, err
-	}
-	if err := r.loadDirectorySkills(
-		ctx,
-		r.cfg.UserAgentsDir,
 		SourceUser,
 		skills,
 		snapshots,
@@ -835,6 +867,8 @@ func skillSourceName(source SkillSource) string {
 		return "additional"
 	case SourceWorkspace:
 		return "workspace"
+	case SourceAgentLocal:
+		return "agent-local"
 	default:
 		return "unknown"
 	}

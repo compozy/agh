@@ -114,6 +114,7 @@ type SessionLimitsConfig struct {
 type SessionSupervisionConfig struct {
 	ActivityHeartbeatInterval time.Duration `toml:"activity_heartbeat_interval,omitempty"`
 	ProgressNotifyInterval    time.Duration `toml:"progress_notify_interval,omitempty"`
+	PromptDeadline            time.Duration `toml:"prompt_deadline,omitempty"`
 	InactivityWarningAfter    time.Duration `toml:"inactivity_warning_after,omitempty"`
 	InactivityTimeout         time.Duration `toml:"inactivity_timeout,omitempty"`
 	TimeoutCancelGrace        time.Duration `toml:"timeout_cancel_grace,omitempty"`
@@ -967,6 +968,7 @@ func DefaultSessionSupervisionConfig() SessionSupervisionConfig {
 	return SessionSupervisionConfig{
 		ActivityHeartbeatInterval: 30 * time.Second,
 		ProgressNotifyInterval:    10 * time.Minute,
+		PromptDeadline:            0,
 		InactivityWarningAfter:    15 * time.Minute,
 		InactivityTimeout:         30 * time.Minute,
 		TimeoutCancelGrace:        30 * time.Second,
@@ -986,6 +988,11 @@ func (c SessionSupervisionConfig) Validate() error {
 			"session.supervision.progress_notify_interval "+
 				"must be zero or positive: %s",
 			c.ProgressNotifyInterval,
+		)
+	case c.PromptDeadline < 0:
+		return fmt.Errorf(
+			"session.supervision.prompt_deadline must be zero or positive: %s",
+			c.PromptDeadline,
 		)
 	case c.InactivityWarningAfter < 0:
 		return fmt.Errorf(

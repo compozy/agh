@@ -40,9 +40,11 @@ Do not call this product feature an `environment`. Reserve `environment`, `env`,
 
 ### AGENT.md (frontmatter format)
 
-Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The agent directory `.agents/<name>/` is the unit of portability — it includes agent-scoped `skills/` and `memory/`.
+Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The current runtime portability unit is the AGH agent directory rooted at `$AGH_HOME/agents/<name>/` for global scope and `.agh/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.
 
-**Status:** Proposed in RFC 001 (`.../agh-rfcs-local/001-agent-md-with-skills-memory.md`). Not yet fully implemented.
+**Status:** Partially shipped from RFC 001. The runtime now parses `AGENT.md` frontmatter,
+including agent-local `skills/` overlays and `skills.disabled`. Draft fields such as
+`skills.inherit`, `skills.extra_sources`, and `memory.*` remain out of scope today.
 
 **vs AGENTS.md (project file)**:
 

@@ -60,6 +60,8 @@ type HarnessAugmenter string
 const (
 	// HarnessAugmenterSituation injects fresh bounded AGH situation context.
 	HarnessAugmenterSituation HarnessAugmenter = "situation"
+	// HarnessAugmenterSkills injects the current effective skills catalog.
+	HarnessAugmenterSkills HarnessAugmenter = "skills"
 	// HarnessAugmenterDurableMemory enables the durable memory recall augmenter.
 	HarnessAugmenterDurableMemory HarnessAugmenter = "durable_memory"
 )
@@ -100,6 +102,7 @@ type HarnessRuntimeSignals struct {
 	MemoryPromptSectionEnabled    bool
 	SkillsPromptSectionEnabled    bool
 	ToolsPromptSectionEnabled     bool
+	SkillsAugmenter               bool
 	SituationAugmenter            bool
 	DurableMemoryAugmenter        bool
 	SyntheticTurnsEnabled         bool
@@ -522,10 +525,13 @@ func (r *HarnessContextResolver) resolveAugmenters(
 	if surface != ResolutionSurfaceTurn {
 		return nil
 	}
-	if turnCtx.Origin != TurnOriginUser {
-		return nil
+	augmenters := make([]HarnessAugmenter, 0, 3)
+	if r.runtime.SkillsAugmenter {
+		augmenters = append(augmenters, HarnessAugmenterSkills)
 	}
-	augmenters := make([]HarnessAugmenter, 0, 2)
+	if turnCtx.Origin != TurnOriginUser {
+		return augmenters
+	}
 	if r.runtime.SituationAugmenter {
 		augmenters = append(augmenters, HarnessAugmenterSituation)
 	}

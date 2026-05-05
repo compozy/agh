@@ -88,6 +88,7 @@ var (
 		"session.limits.timeout":                            ConfigValueDuration,
 		"session.supervision.activity_heartbeat_interval":   ConfigValueDuration,
 		"session.supervision.progress_notify_interval":      ConfigValueDuration,
+		"session.supervision.prompt_deadline":               ConfigValueDuration,
 		"session.supervision.inactivity_warning_after":      ConfigValueDuration,
 		"session.supervision.inactivity_timeout":            ConfigValueDuration,
 		"session.supervision.timeout_cancel_grace":          ConfigValueDuration,

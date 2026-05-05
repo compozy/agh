@@ -98,7 +98,7 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                                   |
 | Competitor research                   | `cy-research-competitors`                                                                | `context7` + `find-docs`                          |
 | Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                              |
-| Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     | `fix-coderabbit-review`                           |
+| Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     |                                                   |
 | Release / scenario QA                 | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`                          |
 | Git rebase / conflicts                | `git-rebase`                                                                             |                                                   |
 | External docs lookup                  | `context7` + `find-docs`                                                                 | `exa-web-search-free`                             |

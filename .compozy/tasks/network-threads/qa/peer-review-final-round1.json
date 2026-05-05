@@ -1,0 +1,124 @@
+{
+  "blockers": [
+    {
+      "id": "B-001",
+      "section": "Integration Points / Impact Analysis (SD-011 extensibility)",
+      "issue": "The spec only enumerates bundled prompts/skills as integration surfaces. SD-011 explicitly requires every spec to state impact on extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, and protocol docs. The spec is silent on hooks taxonomy (e.g., a future `network.thread.opened` / `network.direct_room.opened` / `network.work.transitioned` event), Host API additions, MCP sidecar exposure, and extension manifest fields. 'No impact' is acceptable only with evidence.",
+      "rationale": "SD-011 (Standing Directives) and the Workflow Rule 'Every spec/feature carries an extensibility + agent-manageability + config lifecycle analysis.' Without this, the implementing agent will silently skip extension surfaces and ship a partial-surface completion (forbidden by `internal/CLAUDE.md` §No partial-surface completions).",
+      "suggested_fix": "Add an 'Extensibility & Agent Manageability' section enumerating each surface (extensions, hooks, capabilities, tools/resources, bundles, registries, bridge SDKs, MCP, config.toml). For each, state add/update/remove/no-impact with evidence. If hooks fire on thread/direct/work transitions, declare the typed taxonomy and the call-site dispatch points (per `internal/CLAUDE.md` 'Hooks are typed dispatch, not an event bus')."
+    },
+    {
+      "id": "B-002",
+      "section": "Data Models — AGH Runtime store shape",
+      "issue": "The spec mandates 'rename interaction_id column to work_id' plus two new side tables and three new typed columns on `network_timeline_log`, but supplies no concrete migration: no version number, no DDL, no transactional wrap (`BEGIN IMMEDIATE`), no fresh-DB + reopen-after-restart test contract, no companion `-wal`/`-shm` policy, and no statement on whether `ALTER TABLE … RENAME COLUMN` or full table rewrite is used. The current `globaldb.global_db.go` builds `network_timeline_log` via `EnsureSchema`-style `CREATE TABLE IF NOT EXISTS`, which L-008 forbids for column changes.",
+      "rationale": "L-008 (`Schema migrations are mandatory even on fresh DBs`) and the `agh-schema-migration` skill require a numbered registry migration with the exact SQL pasted, plus paired `Test*FreshDB` and `Test*ReopenAfterRestart` tests. L-012 (TechSpec quality markers) requires concrete DDL pasted as code blocks, not prose. Without this, two implementers will produce two different migration shapes.",
+      "suggested_fix": "Add a 'Schema Migration' subsection: assign the next unused version number, paste each `CREATE TABLE`/`CREATE INDEX`/`ALTER TABLE … RENAME COLUMN` statement verbatim, declare the CHECK constraint enforcing exactly-one-of(`thread_id`,`direct_id`) when `surface` is set, list `Test*FreshDB`/`Test*ReopenAfterRestart` test names, and confirm the `EnsureSchema` block in `internal/store/globaldb/global_db.go:170` is deleted (greenfield exception per L-008 — eligible because all old-shape callers are deleted in the same change)."
+    },
+    {
+      "id": "B-003",
+      "section": "Implementation Design — Core Interfaces",
+      "issue": "Pasted Go signatures cover only `Surface`, `ConversationRef`, `SendRequest`, and `ConversationStore`. The supporting types `ThreadSummary`, `DirectRoomSummary`, `ConversationMessage`, `ThreadQuery`, `MessageQuery`, `DirectRoomQuery`, plus the renamed `Work` (replacing `Interaction`) struct, the `WorkState` type (replacing `InteractionState`), and `ReasonCodeWorkClosed` (replacing `ReasonCodeInteractionClosed`) are referenced but never declared. Validators and store methods on `ConversationStore` lack input/output shapes.",
+      "rationale": "L-012 (`TechSpec without Go interface signatures triggers heavy review rework`) — prose-only descriptions yield N implementations and reviewer rework. ADR-002 mandates a hard cut rename, but the spec does not enumerate the cascading Go-level renames (`Interaction`, `InteractionState`, `ErrInteractionNotFound`, `ErrInteractionClosed`, `ErrInteractionActorNotAllowed`, `ReasonCodeInteractionClosed`, `LifecycleActionRejectDirect`).",
+      "suggested_fix": "Paste full struct/field definitions for every `*Summary`, `*Query`, `ConversationMessage`, and the renamed `Work*` lifecycle types. Enumerate the exact symbol-rename list (old → new) for `internal/network/lifecycle.go`, `internal/network/envelope.go`, `internal/network/router.go`, and the public `internal/api/contract` field names."
+    },
+    {
+      "id": "B-004",
+      "section": "Safety Invariants #8 / API Endpoints — `POST /api/network/channels/{channel}/directs/resolve`",
+      "issue": "Invariant #8 promises deterministic direct-room resolution for `(channel, peer_a, peer_b)` regardless of per order, but the spec does not specify the algorithm: peer ordering rule (lexicographic? canonical fingerprint sort?), the unique constraint, race-safe creation under concurrent resolves, idempotency semantics, and what happens when two daemons race to create the same room.",
+      "rationale": "Without the deterministic algorithm specified, two implementations will diverge and produce duplicate active rooms — exactly the failure mode ADR-001's risks section calls out. The `network_direct_rooms` PRIMARY KEY is `(channel, direct_id)` but `direct_id` derivation is undefined; without a uniqueness constraint on `(channel, LEAST(peer_a, per_b), GREATEST(peer_a, peer_b))` the invariant is unenforceable.",
+      "suggested_fix": "Specify: (a) peer ordering uses lexicographic compare of the canonical peer identity string; (b) `direct_id` is derived deterministically (e.g., `sha256(channel || peer_lo || peer_hi)` truncated, or stored as an opaque ULID with a UNIQUE index on `(channel, peer_lo, peer_hi)`); (c) the resolve handler uses `INSERT … ON CONFLICT DO NOTHING RETURNING direct_id` then a follow-up SELECT under the same transaction; (d) state explicitly that `per_a < peer_b` lexicographically is a stored invariant."
+    },
+    {
+      "id": "B-005",
+      "section": "Safety Invariants #5 / #6 — Cross-container `work_id` enforcement",
+      "issue": "The spec asserts `work_id` is bound to exactly one conversation container and cannot be continued from another, but the storage shape provides no enforcement: there is no `network_work` (or equivalent) table that pins `(work_id, channel, surface, thread_id|direct_id)` and can be consulted on every send. Validation lives only at the envelope/handler layer, which is bypassable through any direct store call.",
+      "rationale": "Authoritative-primitive exclusivity (L-005) requires the binding to live in one place. If the binding is implicit (derived from the first message row carying the `work_id`), every router that races on first-touch can bind the same `work_id` to two containers. This regresses the rename's whole purpose.",
+      "suggested_fix": "Add a `network_work` side table: `(work_id PRIMARY KEY, channel, surface, thread_id NULL, direct_id NULL, opened_at, opened_by_session_id, terminal_state NULL)` with a CHECK enforcing exactly-one-of(`thread_id`,`direct_id`). Store-level `WriteMessage` consults/INSERTs this row in the same transaction; mismatched container raises `ErrWorkContainerBound`. State this explicitly in the Data Models and Safety Invariants."
+    },
+    {
+      "id": "B-006",
+      "section": "Implementation Design — relationship of `work_id` to `task_runs`",
+      "issue": "The spec calls `work_id` 'lifecycle-bearing work' but never states whether it enqueues into the single durable `task_runs` queue, into a per queue, or into nothing at all. `internal/task` and `internal/network` currently do not couple — the rename risks introducing an implicit second que.",
+      "rationale": "L-003 (`task_runs is the single durable work queue`) and L-005 (authoritative primitives are exclusive) forbid any parallel queue or peer claimer. Without an explicit statement, the implementing agent may bind `work_id` to a side que with its own lifecycle transitions, which is a category-of-failure the autonomy program already paid for.",
+      "suggested_fix": "Add an explicit subsection 'Relationship to `task_runs`' that states one of: (a) `work_id` is purely a network-level lifecycle marker and never crosses into `task_runs` (preferred for v0); (b) `work_id` becomes a foreign key into `task_runs` with `task.Service.ClaimNextRun` remaining the sole claim authority. Whichever option is chosen, document that the network layer never mutates `task_runs` ownership/terminal state (per L-005 anti-pattern list)."
+    },
+    {
+      "id": "B-007",
+      "section": "Safety Invariants #9 — same-transaction summary updates",
+      "issue": "Invariant #9 demands conversation summaries be derived from committed message rows in the same SQLite transaction that writes the message. The spec gives no implementation: no SQL trigger, no wrapping `tx` in the store layer, no idempotent UPSERT on `network_threads.message_count` / `last_activity_at` / `participant_count`, and no statement on `network_direct_rooms.open_work_count` derivation.",
+      "rationale": "If summary updates run outside the message-write transaction, the read-your-write contract for thread lists/direct lists breaks under crash recovery and concurrent senders. Greenfield is not an excuse for skipping this; per L-008 the migration tests must include reopen-after-restart paths, and summary drift would surface there.",
+      "suggested_fix": "In `WriteMessage`, paste the SQL: a single `BEGIN IMMEDIATE` transaction that (1) inserts the timeline row, (2) UPSERTs `network_threads` or `network_direct_rooms` summary fields, (3) updates `network_work.last_activity_at` when `work_id` is present. Specify that summary updates are application-level, not SQL triggers (consistent with the rest of `internal/store/globaldb`). Add a regression test that asserts thread/direct list ordering matches commit order under concurrent writers."
+    },
+    {
+      "id": "B-008",
+      "section": "Data Models / API Endpoints — RFC 004 trust integration",
+      "issue": "The Impact Analysis says `docs/rfcs/004_agh-network-v1.md` needs cross-reference updates and 'signed-field set' updates, but the spec does not declare which new fields (`surface`, `thread_id`, `direct_id`, `work_id`) become part of the signed-canonical envelope under v1 trust. Identity proof-striping defense (`internal/CLAUDE.md` §Security Invariants) requires that any verified-format identity without valid `prof` classify as `rejected`, and that classification depends on which fields are signed.",
+      "rationale": "Adding routing-bearing fields to the wire envelope without declaring them as signed allows an adversary to swap `surface` or `thread_id`/`direct_id` post-hoc on a signed message. Direct-room visibility (Invariant #7) is a security-bearing invariant, so silently leaving these fields out of the signed set is a security regression.",
+      "suggested_fix": "Add a 'Trust integration' subsection that (a) lists the v1 canonical signed-field set including the new fields, (b) states explicitly that `surface`, `thread_id`, `direct_id`, and `work_id` MUST be covered by `proof` when v1 trust applies, (c) updates RFC 004 in the same PR (already declared as `co-ship`), and (d) adds a unit test asserting that a verified-format per with mismatched `surface`/conversation-id fails proof validation rather than being accepted as `unverified`."
+    }
+  ],
+  "nits": [
+    {
+      "id": "N-001",
+      "section": "Impact Analysis — web routes",
+      "issue": "Web changes list `web/src/hooks/routes/use-network-page.ts` and `web/src/systems/network/*` but never enumerate the new TanStack Router routes (e.g., `/_app/network/$channel/threads/$threadId`, `/_app/network/$channel/directs/$directId`).",
+      "suggested_fix": "Add a 'Web Route Map' subsection listing each new `_app/network/...` route, its loader contract, and the search-param model that replaces today's peer-room flat split."
+    },
+    {
+      "id": "N-002",
+      "section": "Impact Analysis — CLI surface",
+      "issue": "`internal/cli/*` impact is described in prose ('update send flags, add thread/direct list/detail flows') without enumerating the cobra commands, flags, and `-o json|jsonl` shapes.",
+      "suggested_fix": "Add a 'CLI Surface' subsection: e.g., `agh network threads list --channel <c> [--limit] [-o json]`, `agh network threads show --channel <c> --thread <id>`, `agh network directs resolve --channel <c> --peer <id>`, with structured-output schemas to satisfy SD-011 agent-manageability."
+    },
+    {
+      "id": "N-003",
+      "section": "Implementation Design — ConversationStore location",
+      "issue": "`ConversationStore` interface is shown but the owning package is not declared. Go-style places interfaces where consumed.",
+      "suggested_fix": "State explicitly: defined in `internal/network` (consumer), implemented in `internal/store/globaldb`. Avoid a new `internal/conversation` package."
+    },
+    {
+      "id": "N-004",
+      "section": "ADR-002 / Data Models — cascading Go renames",
+      "issue": "The hard-cut rename of `interaction_id` does not enumerate the dependent Go symbol renames: `Interaction` struct, `InteractionState`, `ErrInteraction*`, `ReasonCodeInteractionClosed`, `LifecycleActionRejectDirect`, `idx_net_timeline_*` index names containing `interaction`.",
+      "suggested_fix": "Add an explicit symbol-rename list with old → new pairs. Per SD-002 hard-cut rule, the rename must sweep code, indexes, errors, and tests in one PR."
+    },
+    {
+      "id": "N-005",
+      "section": "MVP Boundary vs Build Order",
+      "issue": "MVP boundary lists tasks 01-08, but Build Order has 7 numbered steps. Step-to-task mapping is implicit.",
+      "suggested_fix": "Either explicitly map each task to a build step or relabel build order to 1-8 with a 'docs / verification' split."
+    },
+    {
+      "id": "N-006",
+      "section": "Out of scope / archive policy",
+      "issue": "The spec does not state how `.compozy/tasks/_archived/20260412-040024-network/` and other historical task artifacts are treated under the hard-cut rename.",
+      "suggested_fix": "Per L-006 allowed exception: archived task artifacts may keep historical terminology; state this explicitly so reviewers don't flag stale references in archived dirs."
+    },
+    {
+      "id": "N-007",
+      "section": "ADR-001 — direct-room participant cap",
+      "issue": "Schema fixes `peer_a`/`peer_b` (one-to-one). The post-MVP move to >2 participants will require a second migration not flagged here.",
+      "suggested_fix": "Add a one-line note under 'Known Risks': expanding `direct_room` beyond two peers is a future schema migration trigger, not a free extension."
+    },
+    {
+      "id": "N-008",
+      "section": "Monitoring and Observability — metrics surface",
+      "issue": "Metrics list 'open work items' and 'queue depth by conversation container' but does not define metric names, units, or whether they are emitted via the existing Notifier/observability pattern (per `internal/CLAUDE.md`).",
+      "suggested_fix": "Enumerate metric names with cardinality keys (e.g., `network.thread.open.count{channel}`, `network.direct.message.send{channel,surface}`). Confirm emission via the canonical event store, not a parallel metrics path."
+    },
+    {
+      "id": "N-009",
+      "section": "Testing Approach — coverage matrix",
+      "issue": "Required QA shape is healthy but does not state the 80% coverage floor per package (mandated by `agh-test-conventions`) and does not reference Linux-Race CI parity for race-sensitive packages.",
+      "suggested_fix": "Add 'Coverage floor: 80% per touched package' and 'Race-sensitive packages run under Linux-Race CI parity' to the Required QA shape list."
+    },
+    {
+      "id": "N-010",
+      "section": "Bundled prompts / skills",
+      "issue": "The spec says 'rewrite agh-network skill' but does not declare what the skill teaches about the new send shape (surface selection, work_id usage, when to handoff into a direct room).",
+      "suggested_fix": "Append a short 'Bundled skill rewrite outline' enumerating the sections the new SKILL.md covers and the example envelopes it ships with."
+    }
+  ],
+  "readiness": "NEEDS_REWORK",
+  "summary": "The TechSpec's product direction is sound and aligned with greenfield hard-cut posture (ADR-001..003 are coherent), but it is not execution-ready: it lacks concrete migration DDL with a registry version, deterministic direct-room resolution, an enforcement table for cross-container `work_id`, an explicit relationship to `task_runs`, the v1 trust signed-field set, the SD-011 extensibility analysis, and several Go interface signatures (L-012). These are not architectural blockers but execution blockers — without them the implementing agent will invent interpretations and trigger multiple review rounds. Close the eight blockers above and the spec is ready."
+}

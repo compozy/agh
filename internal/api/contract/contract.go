@@ -66,6 +66,7 @@ type RuntimeActivityPayload struct {
 	TurnID             string     `json:"turn_id,omitempty"`
 	TurnSource         string     `json:"turn_source,omitempty"`
 	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	DeadlineAt         *time.Time `json:"deadline_at,omitempty"`
 	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
 	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
 	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
@@ -76,6 +77,7 @@ type RuntimeActivityPayload struct {
 	IterationMax       int        `json:"iteration_max"`
 	IdleSeconds        int64      `json:"idle_seconds"`
 	ElapsedSeconds     int64      `json:"elapsed_seconds"`
+	ElapsedMS          int64      `json:"elapsed_ms"`
 }
 
 // SessionSandboxPayload is the shared session sandbox response payload.
@@ -98,14 +100,15 @@ type ACPCapsPayload struct {
 
 // SessionEventPayload is the shared session event response payload.
 type SessionEventPayload struct {
-	ID              string                 `json:"id"`
-	SessionID       string                 `json:"session_id"`
-	Sequence        int64                  `json:"sequence"`
-	TurnID          string                 `json:"turn_id"`
-	Type            string                 `json:"type"`
-	AgentName       string                 `json:"agent_name"`
-	WorkspaceID     string                 `json:"workspace_id,omitempty"`
-	WorkspacePath   string                 `json:"workspace_path,omitempty"`
+	ID            string `json:"id"`
+	SessionID     string `json:"session_id"`
+	Sequence      int64  `json:"sequence"`
+	TurnID        string `json:"turn_id"`
+	Type          string `json:"type"`
+	AgentName     string `json:"agent_name"`
+	WorkspaceID   string `json:"workspace_id,omitempty"`
+	WorkspacePath string `json:"workspace_path,omitempty"`
+	store.EventCorrelation
 	ParentSessionID string                 `json:"parent_session_id,omitempty"`
 	RootSessionID   string                 `json:"root_session_id,omitempty"`
 	SpawnDepth      int                    `json:"spawn_depth"`
@@ -222,10 +225,12 @@ type TokenUsagePayload struct {
 
 // ObserveEventPayload is the shared observability event response payload.
 type ObserveEventPayload struct {
-	ID              string    `json:"id"`
-	SessionID       string    `json:"session_id"`
-	Type            string    `json:"type"`
-	AgentName       string    `json:"agent_name"`
+	ID        string          `json:"id"`
+	SessionID string          `json:"session_id"`
+	Type      string          `json:"type"`
+	AgentName string          `json:"agent_name"`
+	Content   json.RawMessage `json:"content,omitempty"`
+	store.EventCorrelation
 	ParentSessionID string    `json:"parent_session_id,omitempty"`
 	RootSessionID   string    `json:"root_session_id,omitempty"`
 	SpawnDepth      int       `json:"spawn_depth"`
@@ -313,6 +318,7 @@ type SessionActivityHealthPayload struct {
 	TurnID             string     `json:"turn_id,omitempty"`
 	TurnSource         string     `json:"turn_source,omitempty"`
 	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	DeadlineAt         *time.Time `json:"deadline_at,omitempty"`
 	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
 	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
 	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
@@ -323,6 +329,7 @@ type SessionActivityHealthPayload struct {
 	IterationMax       int        `json:"iteration_max"`
 	IdleSeconds        int64      `json:"idle_seconds"`
 	ElapsedSeconds     int64      `json:"elapsed_seconds"`
+	ElapsedMS          int64      `json:"elapsed_ms"`
 	Status             string     `json:"status"`
 	StallState         string     `json:"stall_state,omitempty"`
 	StallReason        string     `json:"stall_reason,omitempty"`

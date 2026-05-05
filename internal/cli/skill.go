@@ -23,7 +23,6 @@ var (
 )
 
 type skillCommandContext struct {
-	workspace string
 	bundledFS fs.FS
 	registry  *skills.Registry
 	skills    []*skills.Skill

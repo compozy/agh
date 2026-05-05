@@ -1,17 +1,19 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-// ListSkills returns skills for a workspace.
+// ListSkills returns skills for the selected workspace or global scope.
 func (h *BaseHandlers) ListSkills(c *gin.Context) {
 	if h.SkillsRegistry == nil {
 		h.respondError(
@@ -22,23 +24,13 @@ func (h *BaseHandlers) ListSkills(c *gin.Context) {
 		return
 	}
 
-	workspace := strings.TrimSpace(c.Query("workspace"))
-	if workspace == "" {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
-			fmt.Errorf("%w: workspace query parameter is required", ErrSkillValidation),
-		)
-		return
-	}
-
-	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspace)
+	resolved, agentName, err := h.resolveSkillScope(c)
 	if err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
+		h.respondError(c, StatusForSkillError(err), err)
 		return
 	}
 
-	skillList, err := h.SkillsRegistry.ForWorkspace(c.Request.Context(), &resolved)
+	skillList, err := h.resolveScopedSkills(c, resolved, agentName)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
@@ -64,7 +56,7 @@ func (h *BaseHandlers) GetSkill(c *gin.Context) {
 		return
 	}
 
-	skill, _, err := h.resolveSkill(c, name)
+	skill, err := h.resolveSkill(c, name)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
@@ -90,7 +82,7 @@ func (h *BaseHandlers) GetSkillContent(c *gin.Context) {
 		return
 	}
 
-	skill, _, err := h.resolveSkill(c, name)
+	skill, err := h.resolveSkill(c, name)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
@@ -122,13 +114,33 @@ func (h *BaseHandlers) EnableSkill(c *gin.Context) {
 		return
 	}
 
-	skill, resolved, err := h.resolveSkill(c, name)
+	resolved, agentName, err := h.resolveSkillScope(c)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
 	}
 
-	if skill.Enabled {
+	if agentName != "" {
+		if err := h.SkillsRegistry.SetEnabledForAgent(name, resolved, agentName, true); err != nil {
+			h.respondError(
+				c,
+				StatusForSkillError(mapSkillScopeError(err)),
+				fmt.Errorf("enable skill %q: %w", name, err),
+			)
+			return
+		}
+		h.Logger.Info("skills: enable skill", "name", name, "agent_name", agentName)
+		c.JSON(http.StatusOK, contract.SkillActionResponse{OK: true})
+		return
+	}
+
+	skill, err := h.resolveSkill(c, name)
+	if err != nil {
+		h.respondError(c, StatusForSkillError(err), err)
+		return
+	}
+
+	if skill != nil && skill.Enabled {
 		c.JSON(http.StatusOK, contract.SkillActionResponse{OK: true})
 		return
 	}
@@ -159,13 +171,33 @@ func (h *BaseHandlers) DisableSkill(c *gin.Context) {
 		return
 	}
 
-	skill, resolved, err := h.resolveSkill(c, name)
+	resolved, agentName, err := h.resolveSkillScope(c)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
 	}
 
-	if !skill.Enabled {
+	if agentName != "" {
+		if err := h.SkillsRegistry.SetEnabledForAgent(name, resolved, agentName, false); err != nil {
+			h.respondError(
+				c,
+				StatusForSkillError(mapSkillScopeError(err)),
+				fmt.Errorf("disable skill %q: %w", name, err),
+			)
+			return
+		}
+		h.Logger.Info("skills: disable skill", "name", name, "agent_name", agentName)
+		c.JSON(http.StatusOK, contract.SkillActionResponse{OK: true})
+		return
+	}
+
+	skill, err := h.resolveSkill(c, name)
+	if err != nil {
+		h.respondError(c, StatusForSkillError(err), err)
+		return
+	}
+
+	if skill != nil && !skill.Enabled {
 		c.JSON(http.StatusOK, contract.SkillActionResponse{OK: true})
 		return
 	}
@@ -182,31 +214,88 @@ func (h *BaseHandlers) DisableSkill(c *gin.Context) {
 func (h *BaseHandlers) resolveSkill(
 	c *gin.Context,
 	name string,
-) (*skills.Skill, *workspacepkg.ResolvedWorkspace, error) {
-	workspace := strings.TrimSpace(c.Query("workspace"))
-	if workspace == "" {
+) (*skills.Skill, error) {
+	resolved, agentName, err := h.resolveSkillScope(c)
+	if err != nil {
+		return nil, err
+	}
+
+	if resolved == nil && agentName == "" {
 		skill, ok := h.SkillsRegistry.Get(name)
 		if !ok {
-			return nil, nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
+			return nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
 		}
-		return skill, nil, nil
+		return skill, nil
 	}
 
-	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspace)
+	skillList, err := h.resolveScopedSkills(c, resolved, agentName)
 	if err != nil {
-		return nil, nil, err
-	}
-
-	skillList, err := h.SkillsRegistry.ForWorkspace(c.Request.Context(), &resolved)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	for _, skill := range skillList {
 		if skill != nil && skill.Meta.Name == name {
-			resolvedCopy := resolved
-			return skill, &resolvedCopy, nil
+			return skill, nil
 		}
 	}
 
-	return nil, nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
+	return nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
+}
+
+func (h *BaseHandlers) resolveScopedSkills(
+	c *gin.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+) ([]*skills.Skill, error) {
+	if agentName != "" {
+		skillList, err := h.SkillsRegistry.ForAgent(c.Request.Context(), resolved, agentName)
+		if err != nil {
+			return nil, mapSkillScopeError(err)
+		}
+		return skillList, nil
+	}
+	if resolved != nil {
+		return h.SkillsRegistry.ForWorkspace(c.Request.Context(), resolved)
+	}
+	return h.SkillsRegistry.List(), nil
+}
+
+func (h *BaseHandlers) resolveSkillScope(
+	c *gin.Context,
+) (*workspacepkg.ResolvedWorkspace, string, error) {
+	workspace := strings.TrimSpace(c.Query("workspace"))
+	agentName, hasAgent := c.GetQuery("for_agent")
+	agentName = strings.TrimSpace(agentName)
+	if hasAgent && agentName == "" {
+		return nil, "", fmt.Errorf("%w: for_agent is required", ErrSkillValidation)
+	}
+	if agentName != "" {
+		if err := aghconfig.ValidateAgentName(agentName); err != nil {
+			return nil, "", fmt.Errorf("%w: %v", ErrSkillValidation, err)
+		}
+	}
+
+	if workspace == "" {
+		return nil, agentName, nil
+	}
+	if h.Workspaces == nil {
+		return nil, "", errors.New("workspace resolver is not configured")
+	}
+	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspace)
+	if err != nil {
+		return nil, "", err
+	}
+	return &resolved, agentName, nil
+}
+
+func mapSkillScopeError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, skills.ErrAgentNotFound):
+		return fmt.Errorf("%w: %v", ErrSkillNotFound, err)
+	case errors.Is(err, skills.ErrAgentLocalInvalid):
+		return fmt.Errorf("%w: %v", ErrSkillUnprocessable, err)
+	default:
+		return err
+	}
 }

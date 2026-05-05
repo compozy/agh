@@ -293,11 +293,7 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 	}
 
 	if state.cfg.Skills.Enabled {
-		skillsCfg, err := d.skillsRegistryConfig(&state.cfg)
-		if err != nil {
-			return err
-		}
-
+		skillsCfg := d.skillsRegistryConfig(&state.cfg)
 		state.skillsRegistry = skills.NewRegistry(skillsCfg, skills.WithLogger(state.logger))
 		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
@@ -309,6 +305,7 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		MemoryPromptSectionEnabled:    state.memoryStore != nil,
 		SkillsPromptSectionEnabled:    state.skillsRegistry != nil,
 		ToolsPromptSectionEnabled:     state.cfg.Tools.Enabled,
+		SkillsAugmenter:               state.skillsRegistry != nil,
 		SituationAugmenter:            state.situationContext != nil,
 		DurableMemoryAugmenter:        state.memoryStore != nil,
 		SyntheticTurnsEnabled:         true,
@@ -331,6 +328,9 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		state.harnessRecorder,
 		defaultPromptInputAugmenterDescriptors(
 			memory.NewRecallAugmenter(state.memoryStore),
+			newSkillsCatalogAugmenter(state.skillsRegistry, func() promptSkillsWorkspaceResolver {
+				return state.workspaceResolver
+			}),
 			state.situationContext.Augment,
 		)...,
 	)
@@ -458,6 +458,9 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
 	state.registry = registry
+	if state.skillsRegistry != nil {
+		state.skillsRegistry.SetEventSummaryStore(registry)
+	}
 	state.workspaceResolver = workspaceResolver
 	if state.harnessRecorder != nil {
 		state.harnessRecorder.SetStore(registry)
@@ -664,6 +667,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			Events:          state.notifier,
 			Agent:           state.notifier,
 			Conversation:    state.notifier,
+			Tools:           state.notifier,
 			Compaction:      state.notifier,
 			Spawn:           state.notifier,
 			AuthoredContext: state.notifier,
@@ -1130,7 +1134,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	}); ok {
 		hookAwareObserver.AttachHooks(hooks)
 	}
-	state.notifier.setRuntime(hooks, state.observer)
+	state.notifier.setRuntime(hooks, state.observer, state.registry)
 	cleanup.add(func(context.Context) error {
 		hooks.Close()
 		return nil
@@ -1666,6 +1670,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		TransportParity:            surface,
 		MCPAuth:                    surface,
 		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
+		EventSummaries:             state.registry,
 		RestartActionAvailable:     true,
 		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
 		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",
@@ -1790,25 +1795,20 @@ func (d *Daemon) publishBootState(state *bootState) {
 	}
 }
 
-func (d *Daemon) skillsRegistryConfig(cfg *aghconfig.Config) (skills.RegistryConfig, error) {
-	userAgentsDir, err := aghconfig.ResolveUserAgentsSkillsDir(d.getenv)
-	if err != nil {
-		return skills.RegistryConfig{}, err
-	}
+func (d *Daemon) skillsRegistryConfig(cfg *aghconfig.Config) skills.RegistryConfig {
 	if cfg == nil {
 		return skills.RegistryConfig{
 			BundledFS:     bundled.FS(),
 			UserSkillsDir: d.homePaths.SkillsDir,
-			UserAgentsDir: userAgentsDir,
-		}, nil
+		}
 	}
 
 	return skills.RegistryConfig{
 		BundledFS:      bundled.FS(),
 		UserSkillsDir:  d.homePaths.SkillsDir,
-		UserAgentsDir:  userAgentsDir,
+		UserAgentsDir:  d.homePaths.AgentsDir,
 		DisabledSkills: append([]string(nil), cfg.Skills.DisabledSkills...),
-	}, nil
+	}
 }
 
 func startSkillsWatcher(
@@ -1858,7 +1858,7 @@ func workspaceSkillWatcherRoots(
 				if root.Source == aghconfig.WorkspaceDiscoverySourceGlobal {
 					continue
 				}
-				roots = append(roots, root.SkillsDir())
+				roots = append(roots, root.SkillsDir(), root.AgentsDir())
 			}
 		}
 

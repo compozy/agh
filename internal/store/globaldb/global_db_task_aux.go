@@ -54,9 +54,9 @@ func (g *GlobalDB) GetTaskTriageState(
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			task_id, actor_kind, actor_ref, is_read, archived, dismissed, last_seen_activity_at, updated_at
+			task_id, actor_kind, actor_id, is_read, archived, dismissed, last_seen_activity_at, updated_at
 		 FROM task_triage_state
-		 WHERE task_id = ? AND actor_kind = ? AND actor_ref = ?`,
+		 WHERE task_id = ? AND actor_kind = ? AND actor_id = ?`,
 		trimmedTaskID,
 		string(normalizedActor.Kind),
 		normalizedActor.Ref,
@@ -89,9 +89,9 @@ func (g *GlobalDB) UpsertTaskTriageState(ctx context.Context, state taskpkg.Tria
 	_, err = g.db.ExecContext(
 		ctx,
 		`INSERT INTO task_triage_state (
-			task_id, actor_kind, actor_ref, is_read, archived, dismissed, last_seen_activity_at, updated_at
+			task_id, actor_kind, actor_id, is_read, archived, dismissed, last_seen_activity_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(task_id, actor_kind, actor_ref) DO UPDATE SET
+		ON CONFLICT(task_id, actor_kind, actor_id) DO UPDATE SET
 			is_read = excluded.is_read,
 			archived = excluded.archived,
 			dismissed = excluded.dismissed,
@@ -136,9 +136,9 @@ func (g *GlobalDB) ListTaskTriageStates(
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT
-			task_id, actor_kind, actor_ref, is_read, archived, dismissed, last_seen_activity_at, updated_at
+			task_id, actor_kind, actor_id, is_read, archived, dismissed, last_seen_activity_at, updated_at
 		 FROM task_triage_state
-		 WHERE actor_kind = ? AND actor_ref = ?
+		 WHERE actor_kind = ? AND actor_id = ?
 		 ORDER BY updated_at DESC, task_id ASC`,
 		string(normalizedActor.Kind),
 		normalizedActor.Ref,
@@ -462,7 +462,7 @@ func (g *GlobalDB) CreateTaskEvent(ctx context.Context, event taskpkg.Event) err
 		if _, err := exec.ExecContext(
 			ctx,
 			`INSERT INTO task_events (
-				event_seq, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+				event_seq, id, task_id, run_id, event_type, actor_kind, actor_id, origin_kind, origin_ref, payload_json, timestamp
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			nextSequence,
 			normalized.ID,
@@ -494,7 +494,7 @@ func (g *GlobalDB) ListTaskEvents(ctx context.Context, query taskpkg.EventQuery)
 
 	normalized := normalizeTaskEventQuery(query)
 	sqlQuery := `SELECT
-		id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+		id, task_id, run_id, event_type, actor_kind, actor_id, origin_kind, origin_ref, payload_json, timestamp
 		FROM task_events`
 	where, args := store.BuildClauses(
 		store.StringClause("task_id", normalized.TaskID),
@@ -542,7 +542,7 @@ func (g *GlobalDB) GetTaskEventRecord(ctx context.Context, eventID string) (task
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			event_seq, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+			event_seq, id, task_id, run_id, event_type, actor_kind, actor_id, origin_kind, origin_ref, payload_json, timestamp
 		 FROM task_events
 		 WHERE id = ?`,
 		trimmedEventID,
@@ -571,7 +571,7 @@ func (g *GlobalDB) ListTaskEventRecords(
 	}
 
 	sqlQuery := `SELECT
-		event_seq, id, task_id, run_id, event_type, actor_kind, actor_ref, origin_kind, origin_ref, payload_json, timestamp
+		event_seq, id, task_id, run_id, event_type, actor_kind, actor_id, origin_kind, origin_ref, payload_json, timestamp
 		FROM task_events
 		WHERE task_id = ?`
 	args := []any{strings.TrimSpace(query.TaskID)}

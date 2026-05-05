@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/heartbeat"
 	schedulerpkg "github.com/pedronauck/agh/internal/scheduler"
@@ -98,6 +99,71 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 		}
 		assertDaemonHeartbeatWakeEvent(t, db, workspaceID, agentName, heartbeat.WakeSourceScheduler)
 	})
+
+	t.Run(
+		"Should carry coordinator session id on pending task synthetic wakes for coordinator sessions",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			sessions := &fakeSessionManager{
+				infos: []*session.Info{{
+					ID:          "sess-coordinator-wake",
+					AgentName:   aghconfig.DefaultCoordinatorAgentName,
+					WorkspaceID: "ws-coordinator-wake",
+					Type:        session.SessionTypeCoordinator,
+					State:       session.StateActive,
+				}},
+			}
+			waker := newSchedulerSessionWaker(ctx, sessions, discardLogger())
+			t.Cleanup(func() {
+				if err := waker.shutdown(testutil.Context(t)); err != nil {
+					t.Errorf("scheduler waker shutdown error = %v", err)
+				}
+			})
+			target := &schedulerpkg.WakeTarget{
+				Work: schedulerpkg.RunSnapshot{
+					Task: taskpkg.Task{
+						ID:          "task-coordinator-wake",
+						WorkspaceID: "ws-coordinator-wake",
+						Scope:       taskpkg.ScopeWorkspace,
+					},
+					Run: taskpkg.Run{
+						ID:             "run-coordinator-wake",
+						TaskID:         "task-coordinator-wake",
+						Status:         taskpkg.TaskRunStatusQueued,
+						ClaimTokenHash: "sha256:coordinator",
+					},
+				},
+				Session: schedulerpkg.SessionSnapshot{
+					ID:          "sess-coordinator-wake",
+					AgentName:   aghconfig.DefaultCoordinatorAgentName,
+					WorkspaceID: "ws-coordinator-wake",
+					Type:        string(session.SessionTypeCoordinator),
+					State:       string(session.StateActive),
+				},
+				Reason: "pending_task_run",
+			}
+
+			if err := waker.wakePendingTaskRun(ctx, target, "sess-coordinator-wake"); err != nil {
+				t.Fatalf("wakePendingTaskRun() error = %v", err)
+			}
+			if got, want := sessions.syntheticPromptCount(), 1; got != want {
+				t.Fatalf("synthetic prompt count = %d, want %d", got, want)
+			}
+
+			call := sessions.syntheticPromptCalls[0]
+			if got, want := call.opts.Metadata.CoordinatorSessionID, "sess-coordinator-wake"; got != want {
+				t.Fatalf("synthetic coordinator session id = %q, want %q", got, want)
+			}
+			if got, want := call.opts.Metadata.TaskRunID, "run-coordinator-wake"; got != want {
+				t.Fatalf("synthetic task run id = %q, want %q", got, want)
+			}
+			if got, want := call.opts.Metadata.ClaimTokenHash, "sha256:coordinator"; got != want {
+				t.Fatalf("synthetic claim token hash = %q, want %q", got, want)
+			}
+		},
+	)
 
 	t.Run("Should apply heartbeat max wakes across scheduler batch dispatch", func(t *testing.T) {
 		t.Parallel()
@@ -218,6 +284,11 @@ func TestHarnessHeartbeatWakeIntegration(t *testing.T) {
 			targetSessionID:   sessionID,
 			targetAgentName:   agentName,
 			targetWorkspaceID: workspaceID,
+			syntheticMeta: acp.PromptSyntheticMeta{
+				TaskID:         "task-heartbeat-harness",
+				TaskRunID:      "run-heartbeat-harness",
+				ClaimTokenHash: "sha256:heartbeat-harness",
+			},
 		})
 		if !handled {
 			t.Fatal("dispatchHeartbeatWake() = false, want heartbeat service handling")
@@ -228,6 +299,15 @@ func TestHarnessHeartbeatWakeIntegration(t *testing.T) {
 		call := sessions.syntheticPromptCalls[0]
 		if got, want := call.opts.Metadata.Reason, heartbeat.SyntheticReasonHeartbeatWake; got != want {
 			t.Fatalf("synthetic reason = %q, want %q", got, want)
+		}
+		if got, want := call.opts.Metadata.TaskID, "task-heartbeat-harness"; got != want {
+			t.Fatalf("synthetic task id = %q, want %q", got, want)
+		}
+		if got, want := call.opts.Metadata.TaskRunID, "run-heartbeat-harness"; got != want {
+			t.Fatalf("synthetic task run id = %q, want %q", got, want)
+		}
+		if got, want := call.opts.Metadata.ClaimTokenHash, "sha256:heartbeat-harness"; got != want {
+			t.Fatalf("synthetic claim token hash = %q, want %q", got, want)
 		}
 		if got, want := call.opts.Metadata.PolicySnapshotID, snapshot.ID; got != want {
 			t.Fatalf("synthetic policy snapshot id = %q, want %q", got, want)

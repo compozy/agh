@@ -43,6 +43,7 @@ const fraudSessions: SessionPayload[] = sessionFixtures.filter(
 const richSessions: SessionPayload[] = fraudSessions.map(session => ({
   ...session,
   activity: {
+    elapsed_ms: 1_820_000,
     elapsed_seconds: 1820,
     idle_seconds: 30,
     iteration_current: 12,
@@ -64,6 +65,7 @@ const fallbackRichSession: SessionPayload = {
   created_at: "2026-04-17T16:00:00Z",
   updated_at: "2026-04-17T18:10:00Z",
   activity: {
+    elapsed_ms: 1_820_000,
     elapsed_seconds: 1820,
     idle_seconds: 30,
     iteration_current: 12,
@@ -86,6 +88,7 @@ const failedSessions: SessionPayload[] = [
     stop_reason: "agent_crashed",
     failure: { kind: "agent_crashed", summary: "broker disconnect" },
     activity: {
+      elapsed_ms: 412_000,
       elapsed_seconds: 412,
       idle_seconds: 0,
       iteration_current: 2,

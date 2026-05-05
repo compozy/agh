@@ -44,6 +44,7 @@ const fraudSessionsWithFailure: SessionPayload[] = [
       summary: "partner settlement export terminated unexpectedly",
     },
     activity: {
+      elapsed_ms: 142_000,
       elapsed_seconds: 142,
       idle_seconds: 0,
       iteration_current: 4,

@@ -61,6 +61,7 @@ type SessionSnapshot struct {
 	AgentName    string
 	WorkspaceID  string
 	Channel      string
+	Type         string
 	State        string
 	Prompting    bool
 	Capabilities []string

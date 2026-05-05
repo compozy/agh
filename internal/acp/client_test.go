@@ -601,6 +601,32 @@ func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {
 	}
 }
 
+func TestStartWithToolGatewayPrefersApprovalMediatedSessionMode(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-set-mode-gateway.jsonl")
+	proc := startHelperProcess(t, driver, "mode_mapping", "", StartOpts{
+		Permissions: aghconfig.PermissionModeApproveAll,
+		Env:         helperEnvWithCapture("mode_mapping", "", captureFile),
+		ToolGateway: toolExecutionGatewayFunc(
+			func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+				return req, nil
+			},
+		),
+	})
+	defer stopProcess(t, driver, proc)
+
+	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode)
+	request := decodeCapturedSetSessionModeRequest(t, params)
+	if got, want := request.SessionID, "sess-new"; got != want {
+		t.Fatalf("set-mode session id = %q, want %q", got, want)
+	}
+	if got, want := request.ModeID, "default"; got != want {
+		t.Fatalf("set-mode mode id = %q, want %q", got, want)
+	}
+}
+
 func TestStartResumeApproveReadsSetsReadOnlyLikeSessionModeWhenSupported(t *testing.T) {
 	t.Parallel()
 
@@ -619,6 +645,59 @@ func TestStartResumeApproveReadsSetsReadOnlyLikeSessionModeWhenSupported(t *test
 		t.Fatalf("set-mode session id = %q, want %q", got, want)
 	}
 	if got, want := request.ModeID, "plan"; got != want {
+		t.Fatalf("set-mode mode id = %q, want %q", got, want)
+	}
+}
+
+func TestStartResumeWithToolGatewayPrefersApprovalMediatedMode(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-set-mode-load-gateway.jsonl")
+	proc := startHelperProcess(t, driver, "load_mode_mapping", "", StartOpts{
+		ResumeSessionID: "sess-existing",
+		Permissions:     aghconfig.PermissionModeApproveReads,
+		Env:             helperEnvWithCapture("load_mode_mapping", "", captureFile),
+		ToolGateway: toolExecutionGatewayFunc(
+			func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+				return req, nil
+			},
+		),
+	})
+	defer stopProcess(t, driver, proc)
+
+	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode)
+	request := decodeCapturedSetSessionModeRequest(t, params)
+	if got, want := request.SessionID, "sess-existing"; got != want {
+		t.Fatalf("set-mode session id = %q, want %q", got, want)
+	}
+	if got, want := request.ModeID, "default"; got != want {
+		t.Fatalf("set-mode mode id = %q, want %q", got, want)
+	}
+}
+
+func TestStartDenyAllWithToolGatewayPrefersApprovalMediatedSessionMode(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	captureFile := filepath.Join(t.TempDir(), "session-set-mode-deny-gateway.jsonl")
+	proc := startHelperProcess(t, driver, "mode_mapping", "", StartOpts{
+		Permissions: aghconfig.PermissionModeDenyAll,
+		Env:         helperEnvWithCapture("mode_mapping", "", captureFile),
+		ToolGateway: toolExecutionGatewayFunc(
+			func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+				return req, nil
+			},
+		),
+	})
+	defer stopProcess(t, driver, proc)
+
+	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode)
+	request := decodeCapturedSetSessionModeRequest(t, params)
+	if got, want := request.SessionID, "sess-new"; got != want {
+		t.Fatalf("set-mode session id = %q, want %q", got, want)
+	}
+	if got, want := request.ModeID, "default"; got != want {
 		t.Fatalf("set-mode mode id = %q, want %q", got, want)
 	}
 }
@@ -1086,6 +1165,9 @@ func startHelperProcess(
 		opts.PreferredModel = overrides.PreferredModel
 	}
 	opts.ResumeSessionID = overrides.ResumeSessionID
+	opts.Launcher = overrides.Launcher
+	opts.ToolHost = overrides.ToolHost
+	opts.ToolGateway = overrides.ToolGateway
 
 	proc, err := driver.Start(testutil.Context(t), opts)
 	if err != nil {

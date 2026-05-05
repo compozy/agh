@@ -334,10 +334,69 @@ func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testi
 	}
 }
 
+func TestHandleWriteTextFileDeniedByToolGatewayPreventsSideEffect(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc.toolGateway = toolExecutionGatewayFunc(
+		func(context.Context, ToolExecutionRequest) (ToolExecutionRequest, error) {
+			return ToolExecutionRequest{}, ErrPermissionDenied
+		},
+	)
+
+	target := filepath.Join(proc.Cwd, "denied.txt")
+	if _, err := proc.handleWriteTextFile(context.Background(), acpsdk.WriteTextFileRequest{
+		SessionId: "sess-direct",
+		Path:      target,
+		Content:   "blocked",
+	}); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("handleWriteTextFile() error = %v, want ErrPermissionDenied", err)
+	}
+	if _, err := os.Stat(target); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(%q) error = %v, want os.ErrNotExist", target, err)
+	}
+}
+
+func TestHandleWriteTextFileAppliesToolGatewayPatch(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	patchedPath := filepath.Join(proc.Cwd, "patched.txt")
+	proc.toolGateway = toolExecutionGatewayFunc(
+		func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+			req.Input = mustMarshalJSON(writeTextFileToolInput{
+				Path:    patchedPath,
+				Content: "patched",
+			})
+			return req, nil
+		},
+	)
+
+	originalPath := filepath.Join(proc.Cwd, "original.txt")
+	if _, err := proc.handleWriteTextFile(context.Background(), acpsdk.WriteTextFileRequest{
+		SessionId: "sess-direct",
+		Path:      originalPath,
+		Content:   "original",
+	}); err != nil {
+		t.Fatalf("handleWriteTextFile() error = %v", err)
+	}
+
+	if _, err := os.Stat(originalPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(%q) error = %v, want os.ErrNotExist", originalPath, err)
+	}
+	got, err := os.ReadFile(patchedPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", patchedPath, err)
+	}
+	if string(got) != "patched" {
+		t.Fatalf("patched file content = %q, want %q", string(got), "patched")
+	}
+}
+
 func TestHandleInboundPermissionRequest(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveReads)
 	proc.permissionTimeout = time.Second
 	active, err := proc.beginPrompt("turn-permission", 8)
 	if err != nil {
@@ -449,7 +508,7 @@ func TestResolvePermissionUnknownRequest(t *testing.T) {
 func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 	t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveReads)
 	proc.permissionTimeout = 25 * time.Millisecond
 	active, err := proc.beginPrompt("turn-timeout", 8)
 	if err != nil {
@@ -493,6 +552,118 @@ func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 	}
 	if events[1].Decision != string(decisionRejectOnce) {
 		t.Fatalf("final timeout decision = %q, want %q", events[1].Decision, decisionRejectOnce)
+	}
+}
+
+func TestHandleInboundPermissionRequestHonorsDenyAllWithToolGateway(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	proc.toolGateway = toolExecutionGatewayFunc(
+		func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+			return req, nil
+		},
+	)
+	active, err := proc.beginPrompt("turn-deny-all", 8)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+	defer proc.endPrompt(active)
+
+	title := "Write"
+	kind := acpsdk.ToolKindEdit
+	response, reqErr := proc.handleInbound(
+		context.Background(),
+		acpsdk.ClientMethodSessionRequestPermission,
+		mustMarshalJSON(acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			Options: []acpsdk.PermissionOption{
+				{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+			},
+			ToolCall: acpsdk.RequestPermissionToolCall{
+				ToolCallId: "tool-deny-all",
+				Title:      &title,
+				Kind:       &kind,
+				RawInput: map[string]any{
+					"path":    filepath.Join(proc.Cwd, "deny-all.txt"),
+					"content": "blocked",
+				},
+				Locations: []acpsdk.ToolCallLocation{{Path: filepath.Join(proc.Cwd, "deny-all.txt")}},
+			},
+		}),
+	)
+	if reqErr != nil {
+		t.Fatalf("handleInbound(permission deny-all) error = %v", reqErr)
+	}
+
+	permissionResponse, ok := response.(acpsdk.RequestPermissionResponse)
+	if !ok {
+		t.Fatalf("handleInbound(permission deny-all) type = %T, want RequestPermissionResponse", response)
+	}
+	if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "reject-once" {
+		t.Fatalf("permission deny-all outcome = %#v, want reject-once option", permissionResponse.Outcome)
+	}
+
+	events := collectEventsUntilCount(t, active.events, 1)
+	if len(events) != 1 || events[0].Decision != string(decisionRejectOnce) {
+		t.Fatalf("permission deny-all events = %#v, want one reject-once event", events)
+	}
+}
+
+func TestHandleInboundPermissionRequestHonorsApproveAllWithToolGateway(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	proc.toolGateway = toolExecutionGatewayFunc(
+		func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+			return req, nil
+		},
+	)
+	active, err := proc.beginPrompt("turn-approve-all", 8)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+	defer proc.endPrompt(active)
+
+	title := "Write"
+	kind := acpsdk.ToolKindEdit
+	response, reqErr := proc.handleInbound(
+		context.Background(),
+		acpsdk.ClientMethodSessionRequestPermission,
+		mustMarshalJSON(acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			Options: []acpsdk.PermissionOption{
+				{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+				{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+			},
+			ToolCall: acpsdk.RequestPermissionToolCall{
+				ToolCallId: "tool-approve-all",
+				Title:      &title,
+				Kind:       &kind,
+				RawInput: map[string]any{
+					"path":    filepath.Join(proc.Cwd, "approve-all.txt"),
+					"content": "allowed",
+				},
+				Locations: []acpsdk.ToolCallLocation{{Path: filepath.Join(proc.Cwd, "approve-all.txt")}},
+			},
+		}),
+	)
+	if reqErr != nil {
+		t.Fatalf("handleInbound(permission approve-all) error = %v", reqErr)
+	}
+
+	permissionResponse, ok := response.(acpsdk.RequestPermissionResponse)
+	if !ok {
+		t.Fatalf("handleInbound(permission approve-all) type = %T, want RequestPermissionResponse", response)
+	}
+	if permissionResponse.Outcome.Selected == nil || permissionResponse.Outcome.Selected.OptionId != "allow-once" {
+		t.Fatalf("permission approve-all outcome = %#v, want allow-once option", permissionResponse.Outcome)
+	}
+
+	events := collectEventsUntilCount(t, active.events, 1)
+	if len(events) != 1 || events[0].Decision != string(decisionAllowOnce) {
+		t.Fatalf("permission approve-all events = %#v, want one allow-once event", events)
 	}
 }
 
@@ -1144,6 +1315,46 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 	}
 }
 
+func TestHandleSessionUpdateMarksToolCallAsPrecheckedAfterGatewayIntercept(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+	active, err := proc.beginPrompt("turn-prechecked", 4)
+	if err != nil {
+		t.Fatalf("beginPrompt() error = %v", err)
+	}
+	defer proc.endPrompt(active)
+
+	rawInput := mustMarshalJSON(writeTextFileToolInput{
+		Path:    filepath.Join(proc.Cwd, "prechecked.txt"),
+		Content: "patched",
+	})
+	proc.recordProviderNativeToolPrecheck(providerNativeToolIDWrite, rawInput)
+
+	toolCall := mustMarshalJSON(wireSessionNotification{
+		SessionID: "sess-direct",
+		Update: mustMarshalJSON(map[string]any{
+			"sessionUpdate": "tool_call",
+			"title":         providerNativeToolIDWrite,
+			"rawInput": map[string]any{
+				"path":    filepath.Join(proc.Cwd, "prechecked.txt"),
+				"content": "patched",
+			},
+		}),
+	})
+	if err := proc.handleSessionUpdate(toolCall); err != nil {
+		t.Fatalf("handleSessionUpdate(tool_call) error = %v", err)
+	}
+
+	events := collectEventsUntilCount(t, active.events, 1)
+	if len(events) != 1 || events[0].Type != EventTypeToolCall {
+		t.Fatalf("events = %#v, want one tool_call", events)
+	}
+	if !events[0].ToolPrechecked {
+		t.Fatalf("tool call event = %#v, want ToolPrechecked true", events[0])
+	}
+}
+
 func TestAccessorsAndValidationHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -1252,6 +1463,17 @@ func TestPermissionHelperBranches(t *testing.T) {
 	})
 	if editDecision != decisionPending || !interactive {
 		t.Fatalf("permissionDecision(edit) = %q, %v, want %q, true", editDecision, interactive, decisionPending)
+	}
+
+	denyAllPolicy, err := newPermissionPolicy(aghconfig.PermissionModeDenyAll, root)
+	if err != nil {
+		t.Fatalf("newPermissionPolicy(deny-all) error = %v", err)
+	}
+	denyDecision, interactive := denyAllPolicy.permissionDecision(acpsdk.RequestPermissionRequest{
+		ToolCall: acpsdk.RequestPermissionToolCall{Kind: &editKind},
+	})
+	if denyDecision != decisionRejectOnce || interactive {
+		t.Fatalf("permissionDecision(deny-all) = %q, %v, want %q, false", denyDecision, interactive, decisionRejectOnce)
 	}
 
 	if got := permissionRequestIDFromMeta(map[string]any{"request_id": "req-meta"}); got != "req-meta" {
@@ -1384,6 +1606,15 @@ func newDirectProcess(t *testing.T, mode aghconfig.PermissionMode) *AgentProcess
 
 type contextAwareToolHost struct {
 	createTerminalFn func(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error)
+}
+
+type toolExecutionGatewayFunc func(context.Context, ToolExecutionRequest) (ToolExecutionRequest, error)
+
+func (fn toolExecutionGatewayFunc) Intercept(
+	ctx context.Context,
+	req ToolExecutionRequest,
+) (ToolExecutionRequest, error) {
+	return fn(ctx, req)
 }
 
 func (h contextAwareToolHost) ReadTextFile(context.Context, string) (string, error) {

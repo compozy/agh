@@ -11,6 +11,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -34,7 +35,13 @@ type MemoryRuntimeProvider interface {
 // SkillsRuntime exposes the global skills registry state used by settings.
 type SkillsRuntime interface {
 	List() []*skillspkg.Skill
+	ForAgent(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+	) ([]*skillspkg.Skill, error)
 	SetEnabled(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
+	SetEnabledForAgent(name string, resolved *workspacepkg.ResolvedWorkspace, agentName string, enabled bool) error
 }
 
 // AutomationRuntimeProvider returns automation runtime metadata.
@@ -86,6 +93,7 @@ type Dependencies struct {
 	TransportParity            TransportParityProvider
 	MCPAuth                    MCPAuthRuntimeProvider
 	ProviderSecrets            ProviderSecretStore
+	EventSummaries             store.EventSummaryStore
 	RestartActionAvailable     bool
 	ConsolidateActionAvailable bool
 	LogTailAvailable           bool
@@ -106,6 +114,7 @@ type service struct {
 	transportParity            TransportParityProvider
 	mcpAuth                    MCPAuthRuntimeProvider
 	providerSecrets            ProviderSecretStore
+	eventSummaries             store.EventSummaryStore
 	restartActionAvailable     bool
 	consolidateActionAvailable bool
 	logTailAvailable           bool
@@ -143,6 +152,7 @@ func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, erro
 		transportParity:            deps.TransportParity,
 		mcpAuth:                    deps.MCPAuth,
 		providerSecrets:            deps.ProviderSecrets,
+		eventSummaries:             deps.EventSummaries,
 		restartActionAvailable:     deps.RestartActionAvailable,
 		consolidateActionAvailable: deps.ConsolidateActionAvailable,
 		logTailAvailable:           deps.LogTailAvailable,
@@ -167,22 +177,34 @@ func (s *service) normalizeReadScope(scope ScopeKind, workspaceID string) (Scope
 	return normalized, trimmedWorkspaceID, nil
 }
 
+func normalizeAgentName(agentName string) (string, error) {
+	normalized := aghconfig.NormalizeAgentName(agentName)
+	if normalized == "" {
+		return "", nil
+	}
+	if err := aghconfig.ValidateAgentName(normalized); err != nil {
+		return "", validationError(err)
+	}
+	return normalized, nil
+}
+
 func (s *service) resolveWorkspace(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
 ) (*workspacepkg.ResolvedWorkspace, error) {
-	if scope != ScopeWorkspace {
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
+	if scope != ScopeWorkspace && (scope != ScopeAgent || trimmedWorkspaceID == "") {
 		return nil, nil
 	}
-	if strings.TrimSpace(workspaceID) == "" {
+	if trimmedWorkspaceID == "" {
 		return nil, conflictError(errors.New("settings: workspace scope requires a workspace_id"))
 	}
 	if s.workspaceResolver == nil {
 		return nil, errors.New("settings: workspace resolver is required for workspace scope")
 	}
 
-	resolved, err := s.workspaceResolver.Resolve(ctx, workspaceID)
+	resolved, err := s.workspaceResolver.Resolve(ctx, trimmedWorkspaceID)
 	if err != nil {
 		return nil, err
 	}

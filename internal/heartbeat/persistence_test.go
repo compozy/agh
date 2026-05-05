@@ -220,7 +220,7 @@ func heartbeatRevisionForPersistenceTest(createdAt time.Time) Revision {
 		NewSnapshotID:  "hb-snapshot",
 		Body:           "wake carefully",
 		ActorKind:      ActorKindAgent,
-		ActorRef:       "coder",
+		ActorID:        "coder",
 		CreatedAt:      createdAt,
 	}
 }

@@ -38,7 +38,9 @@ export type {
   SettingsSectionDescriptor,
   SettingsSectionName,
   SettingsSectionSlug,
+  SettingsSkillsFilter,
   SettingsSkillsSection,
+  SettingsSource,
   SettingsSourceKind,
   SettingsUpdateStatus,
   SettingsUpdateAutomationRequest,
@@ -48,6 +50,7 @@ export type {
   SettingsUpdateNetworkRequest,
   SettingsUpdateObservabilityRequest,
   SettingsUpdateSkillsRequest,
+  SettingsUpdateSkillsFilter,
   SettingsWriteTarget,
 } from "./types";
 

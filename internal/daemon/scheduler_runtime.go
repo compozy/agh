@@ -240,6 +240,7 @@ func (s schedulerSessionSource) Sessions(ctx context.Context) ([]schedulerpkg.Se
 			AgentName:    strings.TrimSpace(info.AgentName),
 			WorkspaceID:  strings.TrimSpace(info.WorkspaceID),
 			Channel:      strings.TrimSpace(info.Channel),
+			Type:         strings.TrimSpace(string(info.Type)),
 			State:        strings.TrimSpace(string(info.State)),
 			Prompting:    isSchedulerSessionPrompting(s.sessions, info.ID),
 			Capabilities: capabilities,
@@ -411,14 +412,19 @@ func (w *schedulerSessionWaker) wakePendingTaskRun(
 ) error {
 	message := schedulerWakeMessage(target)
 	if synthetic, ok := w.sessions.(schedulerSyntheticPrompter); ok {
+		metadata := acp.PromptSyntheticMeta{
+			TaskID:         strings.TrimSpace(target.Work.Task.ID),
+			TaskRunID:      strings.TrimSpace(target.Work.Run.ID),
+			ClaimTokenHash: strings.TrimSpace(target.Work.Run.ClaimTokenHash),
+			Reason:         strings.TrimSpace(target.Reason),
+			Summary:        schedulerWakeSummary(target),
+		}
+		if strings.TrimSpace(target.Session.Type) == string(session.SessionTypeCoordinator) {
+			metadata.CoordinatorSessionID = strings.TrimSpace(sessionID)
+		}
 		events, err := synthetic.PromptSynthetic(ctx, sessionID, session.SyntheticPromptOpts{
-			Message: message,
-			Metadata: acp.PromptSyntheticMeta{
-				TaskID:    strings.TrimSpace(target.Work.Task.ID),
-				TaskRunID: strings.TrimSpace(target.Work.Run.ID),
-				Reason:    strings.TrimSpace(target.Reason),
-				Summary:   schedulerWakeSummary(target),
-			},
+			Message:  message,
+			Metadata: metadata,
 		})
 		if err != nil {
 			return err
@@ -509,12 +515,17 @@ func (w *schedulerSessionWaker) PromptHeartbeatWake(
 		Message: req.Message,
 		TurnID:  req.TurnID,
 		Metadata: acp.PromptSyntheticMeta{
-			Reason:           heartbeat.SyntheticReasonHeartbeatWake,
-			Summary:          req.Summary,
-			WakeEventID:      req.WakeEventID,
-			PolicySnapshotID: req.PolicySnapshotID,
-			PolicyDigest:     req.PolicyDigest,
-			ConfigDigest:     req.ConfigDigest,
+			TaskID:               req.SyntheticCorrelation.TaskID,
+			TaskRunID:            req.SyntheticCorrelation.TaskRunID,
+			WorkflowID:           req.SyntheticCorrelation.WorkflowID,
+			ClaimTokenHash:       req.SyntheticCorrelation.ClaimTokenHash,
+			CoordinatorSessionID: req.SyntheticCorrelation.CoordinatorSessionID,
+			Reason:               heartbeat.SyntheticReasonHeartbeatWake,
+			Summary:              req.Summary,
+			WakeEventID:          req.WakeEventID,
+			PolicySnapshotID:     req.PolicySnapshotID,
+			PolicyDigest:         req.PolicyDigest,
+			ConfigDigest:         req.ConfigDigest,
 		},
 		SkipIfBusy: true,
 	})

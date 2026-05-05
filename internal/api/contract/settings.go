@@ -13,6 +13,27 @@ type SettingsScopeKind string
 const (
 	SettingsScopeGlobal    SettingsScopeKind = "global"
 	SettingsScopeWorkspace SettingsScopeKind = "workspace"
+	SettingsScopeAgent     SettingsScopeKind = "agent"
+)
+
+type SettingsGlobalScopeKind string
+
+const (
+	SettingsGlobalScope SettingsGlobalScopeKind = "global"
+)
+
+type SettingsAgentScopeKind string
+
+const (
+	SettingsAgentScopeGlobal SettingsAgentScopeKind = "global"
+	SettingsAgentScopeAgent  SettingsAgentScopeKind = "agent"
+)
+
+type SettingsWorkspaceScopeKind string
+
+const (
+	SettingsWorkspaceScopeGlobal    SettingsWorkspaceScopeKind = "global"
+	SettingsWorkspaceScopeWorkspace SettingsWorkspaceScopeKind = "workspace"
 )
 
 type SettingsSectionName string
@@ -43,6 +64,8 @@ const (
 	SettingsWriteTargetWorkspaceConfig     SettingsWriteTargetKind = "workspace-config"
 	SettingsWriteTargetGlobalMCPSidecar    SettingsWriteTargetKind = "global-mcp-sidecar"
 	SettingsWriteTargetWorkspaceMCPSidecar SettingsWriteTargetKind = "workspace-mcp-sidecar"
+	SettingsWriteTargetGlobalAgentFile     SettingsWriteTargetKind = "global-agent-file"
+	SettingsWriteTargetWorkspaceAgentFile  SettingsWriteTargetKind = "workspace-agent-file"
 )
 
 type SettingsTargetSelector string
@@ -77,6 +100,8 @@ const (
 	SettingsSourceWorkspaceConfig     SettingsSourceKind = "workspace-config"
 	SettingsSourceGlobalMCPSidecar    SettingsSourceKind = "global-mcp-sidecar"
 	SettingsSourceWorkspaceMCPSidecar SettingsSourceKind = "workspace-mcp-sidecar"
+	SettingsSourceGlobalAgentFile     SettingsSourceKind = "global-agent-file"
+	SettingsSourceWorkspaceAgentFile  SettingsSourceKind = "workspace-agent-file"
 )
 
 type RestartOperationStatus string
@@ -107,18 +132,31 @@ const (
 	SettingsUpdateStatusFailed      SettingsUpdateStatusKind = "failed"
 )
 
-type SettingsSectionResponseMetaPayload struct {
-	Section         SettingsSectionName `json:"section"`
-	Scope           SettingsScopeKind   `json:"scope"`
-	WorkspaceID     string              `json:"workspace_id,omitempty"`
-	AvailableScopes []SettingsScopeKind `json:"available_scopes"`
+type SettingsGlobalSectionResponseMetaPayload struct {
+	Section         SettingsSectionName       `json:"section"`
+	Scope           SettingsGlobalScopeKind   `json:"scope"`
+	AvailableScopes []SettingsGlobalScopeKind `json:"available_scopes"`
 }
 
-type SettingsCollectionResponseMetaPayload struct {
-	Collection      SettingsCollectionName `json:"collection"`
-	Scope           SettingsScopeKind      `json:"scope"`
-	WorkspaceID     string                 `json:"workspace_id,omitempty"`
-	AvailableScopes []SettingsScopeKind    `json:"available_scopes"`
+type SettingsSkillsSectionResponseMetaPayload struct {
+	Section         SettingsSectionName      `json:"section"`
+	Scope           SettingsAgentScopeKind   `json:"scope"`
+	WorkspaceID     string                   `json:"workspace_id,omitempty"`
+	AgentName       string                   `json:"agent_name,omitempty"`
+	AvailableScopes []SettingsAgentScopeKind `json:"available_scopes"`
+}
+
+type SettingsGlobalCollectionResponseMetaPayload struct {
+	Collection      SettingsCollectionName    `json:"collection"`
+	Scope           SettingsGlobalScopeKind   `json:"scope"`
+	AvailableScopes []SettingsGlobalScopeKind `json:"available_scopes"`
+}
+
+type SettingsGlobalWorkspaceCollectionResponseMetaPayload struct {
+	Collection      SettingsCollectionName       `json:"collection"`
+	Scope           SettingsWorkspaceScopeKind   `json:"scope"`
+	WorkspaceID     string                       `json:"workspace_id,omitempty"`
+	AvailableScopes []SettingsWorkspaceScopeKind `json:"available_scopes"`
 }
 
 type SettingsGeneralConfigPayload struct {
@@ -345,6 +383,7 @@ type SettingsSourceRefPayload struct {
 	Kind        SettingsSourceKind `json:"kind"`
 	Scope       SettingsScopeKind  `json:"scope"`
 	WorkspaceID string             `json:"workspace_id,omitempty"`
+	AgentName   string             `json:"agent_name,omitempty"`
 }
 
 type SettingsSourceMetadataPayload struct {
@@ -585,7 +624,7 @@ type PutSettingsHookRequest struct {
 }
 
 type SettingsGeneralResponse struct {
-	SettingsSectionResponseMetaPayload
+	SettingsGlobalSectionResponseMetaPayload
 	ConfigPaths SettingsConfigPathsPayload    `json:"config_paths"`
 	Config      SettingsGeneralConfigPayload  `json:"config"`
 	Runtime     SettingsDaemonRuntimePayload  `json:"runtime"`
@@ -593,14 +632,14 @@ type SettingsGeneralResponse struct {
 }
 
 type SettingsMemoryResponse struct {
-	SettingsSectionResponseMetaPayload
+	SettingsGlobalSectionResponseMetaPayload
 	Config  SettingsMemoryConfigPayload  `json:"config"`
 	Health  SettingsMemoryHealthPayload  `json:"health"`
 	Actions SettingsMemoryActionsPayload `json:"actions"`
 }
 
 type SettingsSkillsResponse struct {
-	SettingsSectionResponseMetaPayload
+	SettingsSkillsSectionResponseMetaPayload
 	Config           SettingsSkillsConfigPayload      `json:"config"`
 	DiscoveredCount  int                              `json:"discovered_count"`
 	DisabledCount    int                              `json:"disabled_count"`
@@ -609,28 +648,28 @@ type SettingsSkillsResponse struct {
 }
 
 type SettingsAutomationResponse struct {
-	SettingsSectionResponseMetaPayload
+	SettingsGlobalSectionResponseMetaPayload
 	Config  SettingsAutomationConfigPayload  `json:"config"`
 	Runtime SettingsAutomationRuntimePayload `json:"runtime"`
 	Links   []SettingsOperationalLinkPayload `json:"links,omitempty"`
 }
 
 type SettingsNetworkResponse struct {
-	SettingsSectionResponseMetaPayload
+	SettingsGlobalSectionResponseMetaPayload
 	Config  SettingsNetworkConfigPayload     `json:"config"`
 	Runtime SettingsNetworkRuntimePayload    `json:"runtime"`
 	Links   []SettingsOperationalLinkPayload `json:"links,omitempty"`
 }
 
 type SettingsObservabilityResponse struct {
-	SettingsSectionResponseMetaPayload
+	SettingsGlobalSectionResponseMetaPayload
 	Config  SettingsObservabilityConfigPayload  `json:"config"`
 	Runtime SettingsObservabilityRuntimePayload `json:"runtime"`
 	LogTail SettingsLogTailCapabilityPayload    `json:"log_tail"`
 }
 
 type SettingsHooksExtensionsResponse struct {
-	SettingsSectionResponseMetaPayload
+	SettingsGlobalSectionResponseMetaPayload
 	Hooks           []SettingsHookItemPayload           `json:"hooks,omitempty"`
 	Config          SettingsExtensionsConfigPayload     `json:"config"`
 	Installed       []SettingsInstalledExtensionPayload `json:"installed,omitempty"`
@@ -638,7 +677,7 @@ type SettingsHooksExtensionsResponse struct {
 }
 
 type SettingsProvidersResponse struct {
-	SettingsCollectionResponseMetaPayload
+	SettingsGlobalCollectionResponseMetaPayload
 	Providers []SettingsProviderItemPayload `json:"providers"`
 }
 
@@ -647,12 +686,12 @@ type SettingsProviderResponse struct {
 }
 
 type SettingsMCPServersResponse struct {
-	SettingsCollectionResponseMetaPayload
+	SettingsGlobalWorkspaceCollectionResponseMetaPayload
 	MCPServers []SettingsMCPServerItemPayload `json:"mcp_servers"`
 }
 
 type SettingsSandboxesResponse struct {
-	SettingsCollectionResponseMetaPayload
+	SettingsGlobalCollectionResponseMetaPayload
 	Sandboxes []SettingsSandboxItemPayload `json:"sandboxes"`
 }
 
@@ -661,7 +700,7 @@ type SettingsSandboxResponse struct {
 }
 
 type SettingsHooksResponse struct {
-	SettingsCollectionResponseMetaPayload
+	SettingsGlobalCollectionResponseMetaPayload
 	Hooks []SettingsHookItemPayload `json:"hooks"`
 }
 
@@ -669,16 +708,51 @@ type SettingsHookResponse struct {
 	Hook SettingsHookItemPayload `json:"hook"`
 }
 
-type MutationResult struct {
+type SettingsGlobalSectionMutationResult struct {
 	Section         SettingsSectionName      `json:"section"`
-	Scope           SettingsScopeKind        `json:"scope"`
+	Scope           SettingsGlobalScopeKind  `json:"scope"`
 	WriteTarget     SettingsWriteTargetKind  `json:"write_target,omitempty"`
-	WorkspaceID     string                   `json:"workspace_id,omitempty"`
 	Behavior        SettingsMutationBehavior `json:"behavior"`
 	Applied         bool                     `json:"applied"`
 	RestartRequired bool                     `json:"restart_required"`
 	RestartScope    string                   `json:"restart_scope,omitempty"`
 	Warnings        []string                 `json:"warnings,omitempty"`
+}
+
+type SettingsSkillsMutationResult struct {
+	Section         SettingsSectionName      `json:"section"`
+	Scope           SettingsAgentScopeKind   `json:"scope"`
+	WriteTarget     SettingsWriteTargetKind  `json:"write_target,omitempty"`
+	WorkspaceID     string                   `json:"workspace_id,omitempty"`
+	AgentName       string                   `json:"agent_name,omitempty"`
+	Behavior        SettingsMutationBehavior `json:"behavior"`
+	Applied         bool                     `json:"applied"`
+	RestartRequired bool                     `json:"restart_required"`
+	RestartScope    string                   `json:"restart_scope,omitempty"`
+	Warnings        []string                 `json:"warnings,omitempty"`
+}
+
+type SettingsGlobalCollectionMutationResult struct {
+	Section         SettingsCollectionName   `json:"section"`
+	Scope           SettingsGlobalScopeKind  `json:"scope"`
+	WriteTarget     SettingsWriteTargetKind  `json:"write_target,omitempty"`
+	Behavior        SettingsMutationBehavior `json:"behavior"`
+	Applied         bool                     `json:"applied"`
+	RestartRequired bool                     `json:"restart_required"`
+	RestartScope    string                   `json:"restart_scope,omitempty"`
+	Warnings        []string                 `json:"warnings,omitempty"`
+}
+
+type SettingsGlobalWorkspaceCollectionMutationResult struct {
+	Section         SettingsCollectionName     `json:"section"`
+	Scope           SettingsWorkspaceScopeKind `json:"scope"`
+	WriteTarget     SettingsWriteTargetKind    `json:"write_target,omitempty"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Behavior        SettingsMutationBehavior   `json:"behavior"`
+	Applied         bool                       `json:"applied"`
+	RestartRequired bool                       `json:"restart_required"`
+	RestartScope    string                     `json:"restart_scope,omitempty"`
+	Warnings        []string                   `json:"warnings,omitempty"`
 }
 
 type RestartActionResponse struct {

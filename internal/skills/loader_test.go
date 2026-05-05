@@ -769,7 +769,12 @@ func TestScanDirectoryHonorsDepthAndSkips(t *testing.T) {
 		writeSkillFile(t, root, filepath.Join("a", "depth2", skillFileName), defaultSkillContent("depth2")),
 		writeSkillFile(t, root, filepath.Join("a", "b", "depth3", skillFileName), defaultSkillContent("depth3")),
 		writeSkillFile(t, root, filepath.Join("a", "b", "c", "depth4", skillFileName), defaultSkillContent("depth4")),
-		writeSkillFile(t, root, filepath.Join(".agents", "shared", skillFileName), defaultSkillContent("agents")),
+		writeSkillFile(
+			t,
+			root,
+			filepath.Join(".agh", "agents", "shared", "skills", skillFileName),
+			defaultSkillContent("agent-local"),
+		),
 		writeSkillFile(t, root, filepath.Join(".agh", "workspace", skillFileName), defaultSkillContent("workspace")),
 	}
 	writeSkillFile(t, root, filepath.Join("a", "b", "c", "d", "too-deep", skillFileName), defaultSkillContent("depth5"))

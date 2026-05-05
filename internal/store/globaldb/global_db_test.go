@@ -169,7 +169,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(first) error = %v", err)
 	}
-	if got, want := len(firstRecords), 14; got != want {
+	if got, want := len(firstRecords), 16; got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
 	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
@@ -214,6 +214,15 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if firstRecords[13].Version != 14 || firstRecords[13].Name != "add_event_summary_lineage" {
 		t.Fatalf("firstRecords[13] = %#v, want add_event_summary_lineage v14", firstRecords[13])
 	}
+	if firstRecords[14].Version != 15 || firstRecords[14].Name != "rebuild_event_summaries_for_global_payloads" {
+		t.Fatalf(
+			"firstRecords[14] = %#v, want rebuild_event_summaries_for_global_payloads v15",
+			firstRecords[14],
+		)
+	}
+	if firstRecords[15].Version != 16 || firstRecords[15].Name != "rename_actor_ref_columns_to_actor_id" {
+		t.Fatalf("firstRecords[15] = %#v, want rename_actor_ref_columns_to_actor_id v16", firstRecords[15])
+	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
 	}
@@ -231,7 +240,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(second) error = %v", err)
 	}
-	if got, want := len(secondRecords), 14; got != want {
+	if got, want := len(secondRecords), 16; got != want {
 		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 	}
 	for i := range firstRecords {
@@ -1620,11 +1629,24 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"session_id",
 			"type",
 			"agent_name",
-			"summary",
-			"timestamp",
+			"content_json",
+			"task_id",
+			"run_id",
+			"workflow_id",
+			"claim_token_hash",
+			"lease_until",
+			"coordinator_session_id",
+			"scheduler_reason",
+			"hook_event",
+			"hook_name",
+			"actor_kind",
+			"actor_id",
+			"release_reason",
 			"parent_session_id",
 			"root_session_id",
 			"spawn_depth",
+			"summary",
+			"timestamp",
 		},
 	)
 	assertTableColumns(
@@ -1814,6 +1836,82 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}
 	if got, want := summaries[0].RootSessionID, "sess-summary"; got != want {
 		t.Fatalf("summaries[0].RootSessionID = %q, want %q", got, want)
+	}
+}
+
+func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
+	t.Parallel()
+
+	const skillsShadowBody = "" +
+		`{"skill_name":"review","old_source":"workspace","new_source":"agent-local",` +
+		`"layer_pair":"agent-local>workspace","shadow_kind":"logical_path",` +
+		`"resolution_scope":"agent","agent_name":"reviewer"}`
+
+	tests := []struct {
+		name      string
+		summary   EventSummary
+		wantType  string
+		wantAgent string
+		wantBody  string
+	}{
+		{
+			name: "Should persist settings changed events with content",
+			summary: EventSummary{
+				Type:      "settings.changed",
+				Content:   []byte(`{"section":"skills","source":"http","operation":"patch"}`),
+				Summary:   "skills settings changed",
+				Timestamp: time.Date(2026, 5, 4, 14, 5, 0, 0, time.UTC),
+			},
+			wantType: "settings.changed",
+			wantBody: `{"section":"skills","source":"http","operation":"patch"}`,
+		},
+		{
+			name: "Should persist skills shadow events without a session",
+			summary: EventSummary{
+				Type:      "skills.shadow",
+				AgentName: "reviewer",
+				Content:   []byte(skillsShadowBody),
+				Summary:   "skill review shadowed workspace with agent-local",
+				Timestamp: time.Date(2026, 5, 4, 14, 6, 0, 0, time.UTC),
+			},
+			wantType:  "skills.shadow",
+			wantAgent: "reviewer",
+			wantBody:  skillsShadowBody,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			globalDB := openTestGlobalDB(t)
+
+			if err := globalDB.WriteEventSummary(testutil.Context(t), tt.summary); err != nil {
+				t.Fatalf("WriteEventSummary(global event) error = %v", err)
+			}
+
+			summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+			if err != nil {
+				t.Fatalf("ListEventSummaries() error = %v", err)
+			}
+			if got, want := len(summaries), 1; got != want {
+				t.Fatalf("len(summaries) = %d, want %d", got, want)
+			}
+			if got := summaries[0].SessionID; got != "" {
+				t.Fatalf("summaries[0].SessionID = %q, want empty for global event", got)
+			}
+			if got, want := summaries[0].Type, tt.wantType; got != want {
+				t.Fatalf("summaries[0].Type = %q, want %q", got, want)
+			}
+			if got, want := summaries[0].AgentName, tt.wantAgent; got != want {
+				t.Fatalf("summaries[0].AgentName = %q, want %q", got, want)
+			}
+			if got, want := string(
+				summaries[0].Content,
+			), tt.wantBody; got != want {
+				t.Fatalf("summaries[0].Content = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

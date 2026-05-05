@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -161,7 +162,7 @@ func TestPromptActivityRuntimeEventDoesNotClearStallState(t *testing.T) {
 	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
 	session.markRuntimeStalled(store.SessionStallReasonActivityTimeout, now.Add(time.Second))
 
-	supervisor.emitRuntimeEvent(acp.EventTypeRuntimeWarning, "Runtime activity timed out.", now.Add(2*time.Second))
+	supervisor.emitRuntimeEvent(acp.EventTypeRuntimeWarning, "Runtime activity timed out.", now.Add(2*time.Second), nil)
 
 	meta := readMeta(t, session.MetaPath())
 	if meta.Liveness == nil {
@@ -386,6 +387,92 @@ func TestPromptActivitySupervisorTimeoutCancelsThenStopsSession(t *testing.T) {
 	meta := readMeta(t, session.MetaPath())
 	if meta.StopReason == nil || *meta.StopReason != store.StopTimeout {
 		t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopTimeout)
+	}
+	if meta.Liveness == nil || meta.Liveness.Activity != nil {
+		t.Fatalf("meta.Liveness = %#v, want cleared activity after forced stop", meta.Liveness)
+	}
+}
+
+func TestPromptActivitySupervisorPromptDeadlineStopsWithDeadlineDetail(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	h := newHarness(t, WithNow(func() time.Time { return now }))
+	session := createSession(t, h)
+	session.setCurrentTurnSource(TurnSourceUser)
+	session.setCurrentPromptMeta(acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
+
+	config := testSupervisionConfig()
+	config.TimeoutCancelGrace = 200 * time.Millisecond
+	supervisor := newPromptActivitySupervisor(
+		testutil.Context(t),
+		h.manager,
+		session,
+		newPromptTurnDispatchState(session, "turn-deadline", TurnSourceUser, "hello"),
+		config,
+	)
+	deadline := now.Add(time.Second)
+	supervisor.deadlineAt = &deadline
+	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		supervisor.handlePromptDeadline(now.Add(2 * time.Second))
+	}()
+
+	warning := readRuntimeEvent(t, supervisor.eventsChannel())
+	if got, want := warning.Type, acp.EventTypeRuntimeWarning; got != want {
+		t.Fatalf("warning event type = %q, want %q", got, want)
+	}
+	if warning.Runtime == nil {
+		t.Fatal("warning.Runtime = nil, want runtime activity payload")
+	}
+	if warning.Runtime.DeadlineAt == nil || !warning.Runtime.DeadlineAt.Equal(deadline) {
+		t.Fatalf("warning.Runtime.DeadlineAt = %#v, want %s", warning.Runtime.DeadlineAt, deadline)
+	}
+	if got, want := warning.Runtime.ElapsedMS, int64(2000); got != want {
+		t.Fatalf("warning.Runtime.ElapsedMS = %d, want %d", got, want)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(warning.Raw, &raw); err != nil {
+		t.Fatalf("json.Unmarshal(warning.Raw) error = %v", err)
+	}
+	if got, want := raw["deadline_at"], deadline.Format(time.RFC3339Nano); got != want {
+		t.Fatalf("warning.Raw deadline_at = %#v, want %#v", got, want)
+	}
+	if got, want := raw["elapsed_ms"], float64(2000); got != want {
+		t.Fatalf("warning.Raw elapsed_ms = %#v, want %#v", got, want)
+	}
+	if got := h.driver.cancelCalls; got != 0 {
+		t.Fatalf("driver cancel calls before runtime warning ack = %d, want 0", got)
+	}
+	if got := h.driver.stopCalls; got != 0 {
+		t.Fatalf("driver stop calls before runtime warning ack = %d, want 0", got)
+	}
+
+	supervisor.ackPromptDeadlineWarning(warning)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("handlePromptDeadline() did not return after runtime warning ack")
+	}
+
+	if got := h.driver.cancelCalls; got != 1 {
+		t.Fatalf("driver cancel calls = %d, want 1", got)
+	}
+	if got := h.driver.stopCalls; got != 1 {
+		t.Fatalf("driver stop calls = %d, want 1", got)
+	}
+
+	meta := readMeta(t, session.MetaPath())
+	if meta.StopReason == nil || *meta.StopReason != store.StopTimeout {
+		t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopTimeout)
+	}
+	if got, want := meta.StopDetail, store.SessionStallReasonPromptDeadlineExceeded; got != want {
+		t.Fatalf("meta.StopDetail = %q, want %q", got, want)
 	}
 	if meta.Liveness == nil || meta.Liveness.Activity != nil {
 		t.Fatalf("meta.Liveness = %#v, want cleared activity after forced stop", meta.Liveness)

@@ -226,7 +226,12 @@ func analyzeRepairEvents(events []store.SessionEvent) repairAnalysis {
 		}
 		turn := ensureRepairTurn(turns, turnID)
 		lastTurnID = turnID
-		applyRepairEvent(turn, repairEvent{stored: event, agent: agentEvent}, eventType, &analysis)
+		applyRepairEvent(
+			turn,
+			&repairEvent{stored: event, agent: agentEvent},
+			eventType,
+			&analysis,
+		)
 	}
 
 	if lastTurnID != "" {
@@ -337,7 +342,7 @@ func ensureRepairTurn(turns map[string]*repairTurnState, turnID string) *repairT
 
 func applyRepairEvent(
 	turn *repairTurnState,
-	event repairEvent,
+	event *repairEvent,
 	eventType string,
 	analysis *repairAnalysis,
 ) {

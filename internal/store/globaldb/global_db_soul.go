@@ -195,7 +195,7 @@ func (g *GlobalDB) AppendSoulRevision(ctx context.Context, revision soul.Revisio
 		ctx,
 		`INSERT INTO agent_soul_revisions (
 			id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
-			body, diagnostics_json, actor_kind, actor_ref, origin_kind, origin_ref, created_at
+			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		normalized.WorkspaceID,
@@ -207,7 +207,7 @@ func (g *GlobalDB) AppendSoulRevision(ctx context.Context, revision soul.Revisio
 		normalized.Body,
 		string(normalized.DiagnosticsJSON),
 		normalized.ActorKind,
-		normalized.ActorRef,
+		normalized.ActorID,
 		normalized.OriginKind,
 		normalized.OriginRef,
 		store.FormatTimestamp(normalized.CreatedAt),
@@ -231,7 +231,7 @@ func (g *GlobalDB) GetSoulRevision(ctx context.Context, id string) (soul.Revisio
 	revision, err := scanSoulRevision(g.db.QueryRowContext(
 		ctx,
 		`SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
-			body, diagnostics_json, actor_kind, actor_ref, origin_kind, origin_ref, created_at
+			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 		FROM agent_soul_revisions
 		WHERE id = ?`,
 		trimmedID,
@@ -258,7 +258,7 @@ func (g *GlobalDB) ListSoulRevisions(
 	}
 
 	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
-			body, diagnostics_json, actor_kind, actor_ref, origin_kind, origin_ref, created_at
+			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 		FROM agent_soul_revisions`
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),
@@ -308,7 +308,7 @@ func (g *GlobalDB) FindSoulRevisionForRollback(
 	revision, err := scanSoulRevision(g.db.QueryRowContext(
 		ctx,
 		`SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
-			body, diagnostics_json, actor_kind, actor_ref, origin_kind, origin_ref, created_at
+			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 		FROM agent_soul_revisions
 		WHERE workspace_id = ? AND agent_name = ? AND id = ? AND action IN ('put', 'rollback')`,
 		strings.TrimSpace(query.WorkspaceID),
@@ -416,7 +416,7 @@ func scanSoulRevision(scanner rowScanner) (soul.Revision, error) {
 		&revision.Body,
 		&diagnosticsRaw,
 		&revision.ActorKind,
-		&revision.ActorRef,
+		&revision.ActorID,
 		&revision.OriginKind,
 		&revision.OriginRef,
 		&createdRaw,

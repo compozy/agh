@@ -315,7 +315,7 @@ func (m *Manager) prepareSessionStartRuntime(
 	spec *sessionStartSpec,
 	updatedAt time.Time,
 ) (sessionStartRuntime, error) {
-	artifacts, err := m.resolveWorkspaceAgentArtifacts(spec.agentName, &spec.workspace)
+	artifacts, err := m.resolveWorkspaceAgentArtifactsForSession(spec.agentName, spec.sessionType, &spec.workspace)
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
@@ -377,7 +377,7 @@ func (m *Manager) sessionMCPServers(
 		return nil, nil
 	}
 	if m.hostedMCP == nil {
-		return m.resolveStartMCPServers(ctx, &spec.workspace, resolved.MCPServers)
+		return m.resolveStartMCPServers(ctx, &spec.workspace, resolved.Name, resolved.MCPServers)
 	}
 	hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{
 		SessionID:   spec.sessionID,
@@ -548,6 +548,7 @@ func (m *Manager) sessionStartOpts(
 		SystemPrompt:    resolved.Prompt,
 		PreferredModel:  preferredACPModel(resolved),
 		ResumeSessionID: s.acpSessionID,
+		ToolGateway:     newProviderNativeToolGateway(m, session),
 	}
 }
 

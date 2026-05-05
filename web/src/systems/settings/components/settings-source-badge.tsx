@@ -1,12 +1,6 @@
 import { Pill, type PillTone } from "@agh/ui";
 
-import type { SettingsSourceKind } from "../types";
-
-interface SettingsSource {
-  kind: SettingsSourceKind;
-  scope: "global" | "workspace";
-  workspace_id?: string;
-}
+import type { SettingsSource, SettingsSourceKind } from "../types";
 
 interface SettingsSourceBadgeProps {
   source: SettingsSource;
@@ -20,6 +14,8 @@ const KIND_LABELS: Record<SettingsSourceKind, string> = {
   "workspace-config": "WORKSPACE",
   "global-mcp-sidecar": "MCP.JSON",
   "workspace-mcp-sidecar": "WS-MCP.JSON",
+  "global-agent-file": "AGENT",
+  "workspace-agent-file": "WS-AGENT",
 };
 
 function badgeTone(kind: SettingsSourceKind): PillTone {
@@ -28,9 +24,11 @@ function badgeTone(kind: SettingsSourceKind): PillTone {
       return "neutral";
     case "global-config":
     case "global-mcp-sidecar":
+    case "global-agent-file":
       return "info";
     case "workspace-config":
     case "workspace-mcp-sidecar":
+    case "workspace-agent-file":
       return "warning";
     default:
       return "neutral";
@@ -38,11 +36,14 @@ function badgeTone(kind: SettingsSourceKind): PillTone {
 }
 
 function sourceLabel(source: SettingsSource): string {
-  const base = KIND_LABELS[source.kind];
-  if (source.workspace_id) {
-    return `${base} · ${source.workspace_id}`;
+  const parts = [KIND_LABELS[source.kind]];
+  if (source.agent_name) {
+    parts.push(source.agent_name);
   }
-  return base;
+  if (source.workspace_id) {
+    parts.push(source.workspace_id);
+  }
+  return parts.join(" · ");
 }
 
 function SettingsSourceBadge({
@@ -70,7 +71,7 @@ function SettingsSourceBadge({
               mono
               tone="neutral"
               // biome-ignore lint/suspicious/noArrayIndexKey: source list is stable per read
-              key={`${entry.kind}-${entry.scope}-${entry.workspace_id ?? ""}-${index}`}
+              key={`${entry.kind}-${entry.scope}-${entry.agent_name ?? ""}-${entry.workspace_id ?? ""}-${index}`}
             >
               {sourceLabel(entry)}
             </Pill>

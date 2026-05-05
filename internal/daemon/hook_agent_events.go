@@ -91,7 +91,7 @@ func dispatchToolHookEvent(
 	updateType := strings.ToLower(strings.TrimSpace(raw.SessionUpdate))
 	status := strings.ToLower(strings.TrimSpace(raw.Status))
 	switch {
-	case updateType == "tool_call":
+	case updateType == "tool_call" && !event.ToolPrechecked && status != "pending":
 		_, err := hooks.DispatchToolPreCall(ctx, hookspkg.ToolPreCallPayload{
 			PayloadBase:    withHookEvent(base, hookspkg.HookToolPreCall),
 			SessionContext: sessionCtx,

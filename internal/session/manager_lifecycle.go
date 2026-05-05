@@ -12,6 +12,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/sandbox"
+	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -191,6 +192,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 func (m *Manager) resolveStartMCPServers(
 	ctx context.Context,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
+	agentName string,
 	base []aghconfig.MCPServer,
 ) ([]aghconfig.MCPServer, error) {
 	switch {
@@ -200,7 +202,13 @@ func (m *Manager) resolveStartMCPServers(
 		return nil, errors.New("session: skill registry and MCP resolver must be configured together")
 	}
 
-	activeSkills, err := m.skillRegistry.ForWorkspace(ctx, resolvedWorkspace)
+	var activeSkills []*skillspkg.Skill
+	var err error
+	if strings.TrimSpace(agentName) != "" {
+		activeSkills, err = m.skillRegistry.ForAgent(ctx, resolvedWorkspace, agentName)
+	} else {
+		activeSkills, err = m.skillRegistry.ForWorkspace(ctx, resolvedWorkspace)
+	}
 	if err != nil {
 		workspaceID := ""
 		if resolvedWorkspace != nil {

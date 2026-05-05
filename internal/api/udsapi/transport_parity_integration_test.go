@@ -672,7 +672,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	var forbidden aghcontract.ErrorPayload
 	decodeHTTPJSON(t, httpPutResp, &forbidden)
 
-	var udsMutation aghcontract.MutationResult
+	var udsMutation aghcontract.SettingsGlobalWorkspaceCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodPut,
@@ -688,7 +688,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	); err != nil {
 		t.Fatalf("UDSJSON(PUT %s) error = %v", putPath, err)
 	}
-	if udsMutation.Scope != aghcontract.SettingsScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
+	if udsMutation.Scope != aghcontract.SettingsWorkspaceScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
 		t.Fatalf("UDS mutation = %#v, want workspace-scoped result", udsMutation)
 	}
 
@@ -724,11 +724,11 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 
 	deletePath := "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=" +
 		url.QueryEscape(workspaceID) + "&target=sidecar"
-	var deleteResult aghcontract.MutationResult
+	var deleteResult aghcontract.SettingsGlobalWorkspaceCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodDelete, deletePath, nil, &deleteResult); err != nil {
 		t.Fatalf("UDSJSON(DELETE %s) error = %v", deletePath, err)
 	}
-	if deleteResult.Scope != aghcontract.SettingsScopeWorkspace || deleteResult.WorkspaceID != workspaceID {
+	if deleteResult.Scope != aghcontract.SettingsWorkspaceScopeWorkspace || deleteResult.WorkspaceID != workspaceID {
 		t.Fatalf("deleteResult = %#v, want workspace-scoped delete result", deleteResult)
 	}
 

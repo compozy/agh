@@ -3614,6 +3614,15 @@
                                                                 "current_tool": {
                                                                     "type": "string"
                                                                 },
+                                                                "deadline_at": {
+                                                                    "format": "date-time",
+                                                                    "nullable": true,
+                                                                    "type": "string"
+                                                                },
+                                                                "elapsed_ms": {
+                                                                    "format": "int64",
+                                                                    "type": "integer"
+                                                                },
                                                                 "elapsed_seconds": {
                                                                     "format": "int64",
                                                                     "type": "integer"
@@ -3660,6 +3669,7 @@
                                                                 }
                                                             },
                                                             "required": [
+                                                                "elapsed_ms",
                                                                 "elapsed_seconds",
                                                                 "idle_seconds",
                                                                 "iteration_current",
@@ -26887,6 +26897,15 @@
                                                                     "current_tool": {
                                                                         "type": "string"
                                                                     },
+                                                                    "deadline_at": {
+                                                                        "format": "date-time",
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "elapsed_ms": {
+                                                                        "format": "int64",
+                                                                        "type": "integer"
+                                                                    },
                                                                     "elapsed_seconds": {
                                                                         "format": "int64",
                                                                         "type": "integer"
@@ -26933,6 +26952,7 @@
                                                                     }
                                                                 },
                                                                 "required": [
+                                                                    "elapsed_ms",
                                                                     "elapsed_seconds",
                                                                     "idle_seconds",
                                                                     "iteration_current",
@@ -27553,6 +27573,15 @@
                                                                     "current_tool": {
                                                                         "type": "string"
                                                                     },
+                                                                    "deadline_at": {
+                                                                        "format": "date-time",
+                                                                        "nullable": true,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "elapsed_ms": {
+                                                                        "format": "int64",
+                                                                        "type": "integer"
+                                                                    },
                                                                     "elapsed_seconds": {
                                                                         "format": "int64",
                                                                         "type": "integer"
@@ -27599,6 +27628,7 @@
                                                                     }
                                                                 },
                                                                 "required": [
+                                                                    "elapsed_ms",
                                                                     "elapsed_seconds",
                                                                     "idle_seconds",
                                                                     "iteration_current",
@@ -29468,16 +29498,49 @@
                                         "events": {
                                             "items": {
                                                 "properties": {
+                                                    "actor_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "actor_kind": {
+                                                        "type": "string"
+                                                    },
                                                     "agent_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "claim_token_hash": {
+                                                        "type": "string"
+                                                    },
+                                                    "content": {},
+                                                    "coordinator_session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "hook_event": {
+                                                        "type": "string"
+                                                    },
+                                                    "hook_name": {
                                                         "type": "string"
                                                     },
                                                     "id": {
                                                         "type": "string"
                                                     },
+                                                    "lease_until": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
                                                     "parent_session_id": {
                                                         "type": "string"
                                                     },
+                                                    "release_reason": {
+                                                        "type": "string"
+                                                    },
                                                     "root_session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "run_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "scheduler_reason": {
                                                         "type": "string"
                                                     },
                                                     "session_id": {
@@ -29489,11 +29552,17 @@
                                                     "summary": {
                                                         "type": "string"
                                                     },
+                                                    "task_id": {
+                                                        "type": "string"
+                                                    },
                                                     "timestamp": {
                                                         "format": "date-time",
                                                         "type": "string"
                                                     },
                                                     "type": {
+                                                        "type": "string"
+                                                    },
+                                                    "workflow_id": {
                                                         "type": "string"
                                                     }
                                                 },
@@ -29682,6 +29751,15 @@
                                                             "current_tool": {
                                                                 "type": "string"
                                                             },
+                                                            "deadline_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "elapsed_ms": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
                                                             "elapsed_seconds": {
                                                                 "format": "int64",
                                                                 "type": "integer"
@@ -29740,6 +29818,7 @@
                                                             }
                                                         },
                                                         "required": [
+                                                            "elapsed_ms",
                                                             "elapsed_seconds",
                                                             "idle_seconds",
                                                             "iteration_current",
@@ -32553,6 +32632,15 @@
                                                             "current_tool": {
                                                                 "type": "string"
                                                             },
+                                                            "deadline_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "elapsed_ms": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
                                                             "elapsed_seconds": {
                                                                 "format": "int64",
                                                                 "type": "integer"
@@ -32599,6 +32687,7 @@
                                                             }
                                                         },
                                                         "required": [
+                                                            "elapsed_ms",
                                                             "elapsed_seconds",
                                                             "idle_seconds",
                                                             "iteration_current",
@@ -33026,6 +33115,15 @@
                                                         "current_tool": {
                                                             "type": "string"
                                                         },
+                                                        "deadline_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "elapsed_ms": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
                                                         "elapsed_seconds": {
                                                             "format": "int64",
                                                             "type": "integer"
@@ -33072,6 +33170,7 @@
                                                         }
                                                     },
                                                     "required": [
+                                                        "elapsed_ms",
                                                         "elapsed_seconds",
                                                         "idle_seconds",
                                                         "iteration_current",
@@ -33576,6 +33675,15 @@
                                                         "current_tool": {
                                                             "type": "string"
                                                         },
+                                                        "deadline_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "elapsed_ms": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
                                                         "elapsed_seconds": {
                                                             "format": "int64",
                                                             "type": "integer"
@@ -33622,6 +33730,7 @@
                                                         }
                                                     },
                                                     "required": [
+                                                        "elapsed_ms",
                                                         "elapsed_seconds",
                                                         "idle_seconds",
                                                         "iteration_current",
@@ -34161,10 +34270,22 @@
                                         "events": {
                                             "items": {
                                                 "properties": {
+                                                    "actor_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "actor_kind": {
+                                                        "type": "string"
+                                                    },
                                                     "agent_name": {
                                                         "type": "string"
                                                     },
+                                                    "claim_token_hash": {
+                                                        "type": "string"
+                                                    },
                                                     "content": {},
+                                                    "coordinator_session_id": {
+                                                        "type": "string"
+                                                    },
                                                     "failure": {
                                                         "nullable": true,
                                                         "properties": {
@@ -34181,13 +34302,33 @@
                                                         "required": ["kind"],
                                                         "type": "object"
                                                     },
+                                                    "hook_event": {
+                                                        "type": "string"
+                                                    },
+                                                    "hook_name": {
+                                                        "type": "string"
+                                                    },
                                                     "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "lease_until": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
                                                         "type": "string"
                                                     },
                                                     "parent_session_id": {
                                                         "type": "string"
                                                     },
+                                                    "release_reason": {
+                                                        "type": "string"
+                                                    },
                                                     "root_session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "run_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "scheduler_reason": {
                                                         "type": "string"
                                                     },
                                                     "sequence": {
@@ -34218,6 +34359,9 @@
                                                         ],
                                                         "type": "string"
                                                     },
+                                                    "task_id": {
+                                                        "type": "string"
+                                                    },
                                                     "timestamp": {
                                                         "format": "date-time",
                                                         "type": "string"
@@ -34226,6 +34370,9 @@
                                                         "type": "string"
                                                     },
                                                     "type": {
+                                                        "type": "string"
+                                                    },
+                                                    "workflow_id": {
                                                         "type": "string"
                                                     },
                                                     "workspace_id": {
@@ -34392,10 +34539,22 @@
                                                     "events": {
                                                         "items": {
                                                             "properties": {
+                                                                "actor_id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "actor_kind": {
+                                                                    "type": "string"
+                                                                },
                                                                 "agent_name": {
                                                                     "type": "string"
                                                                 },
+                                                                "claim_token_hash": {
+                                                                    "type": "string"
+                                                                },
                                                                 "content": {},
+                                                                "coordinator_session_id": {
+                                                                    "type": "string"
+                                                                },
                                                                 "failure": {
                                                                     "nullable": true,
                                                                     "properties": {
@@ -34412,13 +34571,33 @@
                                                                     "required": ["kind"],
                                                                     "type": "object"
                                                                 },
+                                                                "hook_event": {
+                                                                    "type": "string"
+                                                                },
+                                                                "hook_name": {
+                                                                    "type": "string"
+                                                                },
                                                                 "id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "lease_until": {
+                                                                    "format": "date-time",
+                                                                    "nullable": true,
                                                                     "type": "string"
                                                                 },
                                                                 "parent_session_id": {
                                                                     "type": "string"
                                                                 },
+                                                                "release_reason": {
+                                                                    "type": "string"
+                                                                },
                                                                 "root_session_id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "run_id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "scheduler_reason": {
                                                                     "type": "string"
                                                                 },
                                                                 "sequence": {
@@ -34449,6 +34628,9 @@
                                                                     ],
                                                                     "type": "string"
                                                                 },
+                                                                "task_id": {
+                                                                    "type": "string"
+                                                                },
                                                                 "timestamp": {
                                                                     "format": "date-time",
                                                                     "type": "string"
@@ -34457,6 +34639,9 @@
                                                                     "type": "string"
                                                                 },
                                                                 "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "workflow_id": {
                                                                     "type": "string"
                                                                 },
                                                                 "workspace_id": {
@@ -34781,6 +34966,15 @@
                                                         "current_tool": {
                                                             "type": "string"
                                                         },
+                                                        "deadline_at": {
+                                                            "format": "date-time",
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "elapsed_ms": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
                                                         "elapsed_seconds": {
                                                             "format": "int64",
                                                             "type": "integer"
@@ -34827,6 +35021,7 @@
                                                         }
                                                     },
                                                     "required": [
+                                                        "elapsed_ms",
                                                         "elapsed_seconds",
                                                         "idle_seconds",
                                                         "iteration_current",
@@ -37986,7 +38181,7 @@
                                     "properties": {
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -38084,7 +38279,7 @@
                                             "type": "object"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -38097,9 +38292,6 @@
                                                 "observability",
                                                 "hooks-extensions"
                                             ],
-                                            "type": "string"
-                                        },
-                                        "workspace_id": {
                                             "type": "string"
                                         }
                                     },
@@ -38212,7 +38404,7 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -38233,15 +38425,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -38369,7 +38560,7 @@
                                         },
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -38534,7 +38725,7 @@
                                             "type": "object"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -38547,9 +38738,6 @@
                                                 "observability",
                                                 "hooks-extensions"
                                             ],
-                                            "type": "string"
-                                        },
-                                        "workspace_id": {
                                             "type": "string"
                                         }
                                     },
@@ -38713,7 +38901,7 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -38734,15 +38922,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -38844,7 +39031,7 @@
                                     "properties": {
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -39099,7 +39286,9 @@
                                                                         "global-config",
                                                                         "workspace-config",
                                                                         "global-mcp-sidecar",
-                                                                        "workspace-mcp-sidecar"
+                                                                        "workspace-mcp-sidecar",
+                                                                        "global-agent-file",
+                                                                        "workspace-agent-file"
                                                                     ],
                                                                     "type": "string"
                                                                 },
@@ -39107,20 +39296,26 @@
                                                             },
                                                             "effective_source": {
                                                                 "properties": {
+                                                                    "agent_name": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "kind": {
                                                                         "enum": [
                                                                             "builtin-provider",
                                                                             "global-config",
                                                                             "workspace-config",
                                                                             "global-mcp-sidecar",
-                                                                            "workspace-mcp-sidecar"
+                                                                            "workspace-mcp-sidecar",
+                                                                            "global-agent-file",
+                                                                            "workspace-agent-file"
                                                                         ],
                                                                         "type": "string"
                                                                     },
                                                                     "scope": {
                                                                         "enum": [
                                                                             "global",
-                                                                            "workspace"
+                                                                            "workspace",
+                                                                            "agent"
                                                                         ],
                                                                         "type": "string"
                                                                     },
@@ -39134,20 +39329,26 @@
                                                             "shadowed_sources": {
                                                                 "items": {
                                                                     "properties": {
+                                                                        "agent_name": {
+                                                                            "type": "string"
+                                                                        },
                                                                         "kind": {
                                                                             "enum": [
                                                                                 "builtin-provider",
                                                                                 "global-config",
                                                                                 "workspace-config",
                                                                                 "global-mcp-sidecar",
-                                                                                "workspace-mcp-sidecar"
+                                                                                "workspace-mcp-sidecar",
+                                                                                "global-agent-file",
+                                                                                "workspace-agent-file"
                                                                             ],
                                                                             "type": "string"
                                                                         },
                                                                         "scope": {
                                                                             "enum": [
                                                                                 "global",
-                                                                                "workspace"
+                                                                                "workspace",
+                                                                                "agent"
                                                                             ],
                                                                             "type": "string"
                                                                         },
@@ -39178,10 +39379,7 @@
                                             "type": "array"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
-                                            "type": "string"
-                                        },
-                                        "workspace_id": {
+                                            "enum": ["global"],
                                             "type": "string"
                                         }
                                     },
@@ -39233,7 +39431,7 @@
                                     "properties": {
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -39554,7 +39752,9 @@
                                                                         "global-config",
                                                                         "workspace-config",
                                                                         "global-mcp-sidecar",
-                                                                        "workspace-mcp-sidecar"
+                                                                        "workspace-mcp-sidecar",
+                                                                        "global-agent-file",
+                                                                        "workspace-agent-file"
                                                                     ],
                                                                     "type": "string"
                                                                 },
@@ -39562,20 +39762,26 @@
                                                             },
                                                             "effective_source": {
                                                                 "properties": {
+                                                                    "agent_name": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "kind": {
                                                                         "enum": [
                                                                             "builtin-provider",
                                                                             "global-config",
                                                                             "workspace-config",
                                                                             "global-mcp-sidecar",
-                                                                            "workspace-mcp-sidecar"
+                                                                            "workspace-mcp-sidecar",
+                                                                            "global-agent-file",
+                                                                            "workspace-agent-file"
                                                                         ],
                                                                         "type": "string"
                                                                     },
                                                                     "scope": {
                                                                         "enum": [
                                                                             "global",
-                                                                            "workspace"
+                                                                            "workspace",
+                                                                            "agent"
                                                                         ],
                                                                         "type": "string"
                                                                     },
@@ -39589,20 +39795,26 @@
                                                             "shadowed_sources": {
                                                                 "items": {
                                                                     "properties": {
+                                                                        "agent_name": {
+                                                                            "type": "string"
+                                                                        },
                                                                         "kind": {
                                                                             "enum": [
                                                                                 "builtin-provider",
                                                                                 "global-config",
                                                                                 "workspace-config",
                                                                                 "global-mcp-sidecar",
-                                                                                "workspace-mcp-sidecar"
+                                                                                "workspace-mcp-sidecar",
+                                                                                "global-agent-file",
+                                                                                "workspace-agent-file"
                                                                             ],
                                                                             "type": "string"
                                                                         },
                                                                         "scope": {
                                                                             "enum": [
                                                                                 "global",
-                                                                                "workspace"
+                                                                                "workspace",
+                                                                                "agent"
                                                                             ],
                                                                             "type": "string"
                                                                         },
@@ -39675,7 +39887,7 @@
                                             "type": "array"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -39716,9 +39928,6 @@
                                                 "settings_uds"
                                             ],
                                             "type": "object"
-                                        },
-                                        "workspace_id": {
-                                            "type": "string"
                                         }
                                     },
                                     "required": [
@@ -39865,7 +40074,7 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -39886,15 +40095,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -40023,18 +40231,15 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
                                             "enum": [
-                                                "general",
-                                                "memory",
-                                                "skills",
-                                                "automation",
-                                                "network",
-                                                "observability",
-                                                "hooks-extensions"
+                                                "providers",
+                                                "mcp-servers",
+                                                "sandboxes",
+                                                "hooks"
                                             ],
                                             "type": "string"
                                         },
@@ -40044,15 +40249,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -40400,18 +40604,15 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
                                             "enum": [
-                                                "general",
-                                                "memory",
-                                                "skills",
-                                                "automation",
-                                                "network",
-                                                "observability",
-                                                "hooks-extensions"
+                                                "providers",
+                                                "mcp-servers",
+                                                "sandboxes",
+                                                "hooks"
                                             ],
                                             "type": "string"
                                         },
@@ -40421,15 +40622,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -40683,7 +40883,7 @@
                                                         "type": "string"
                                                     },
                                                     "scope": {
-                                                        "enum": ["global", "workspace"],
+                                                        "enum": ["global", "workspace", "agent"],
                                                         "type": "string"
                                                     },
                                                     "secret_env": {
@@ -40700,7 +40900,9 @@
                                                                         "global-config",
                                                                         "workspace-config",
                                                                         "global-mcp-sidecar",
-                                                                        "workspace-mcp-sidecar"
+                                                                        "workspace-mcp-sidecar",
+                                                                        "global-agent-file",
+                                                                        "workspace-agent-file"
                                                                     ],
                                                                     "type": "string"
                                                                 },
@@ -40708,20 +40910,26 @@
                                                             },
                                                             "effective_source": {
                                                                 "properties": {
+                                                                    "agent_name": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "kind": {
                                                                         "enum": [
                                                                             "builtin-provider",
                                                                             "global-config",
                                                                             "workspace-config",
                                                                             "global-mcp-sidecar",
-                                                                            "workspace-mcp-sidecar"
+                                                                            "workspace-mcp-sidecar",
+                                                                            "global-agent-file",
+                                                                            "workspace-agent-file"
                                                                         ],
                                                                         "type": "string"
                                                                     },
                                                                     "scope": {
                                                                         "enum": [
                                                                             "global",
-                                                                            "workspace"
+                                                                            "workspace",
+                                                                            "agent"
                                                                         ],
                                                                         "type": "string"
                                                                     },
@@ -40735,20 +40943,26 @@
                                                             "shadowed_sources": {
                                                                 "items": {
                                                                     "properties": {
+                                                                        "agent_name": {
+                                                                            "type": "string"
+                                                                        },
                                                                         "kind": {
                                                                             "enum": [
                                                                                 "builtin-provider",
                                                                                 "global-config",
                                                                                 "workspace-config",
                                                                                 "global-mcp-sidecar",
-                                                                                "workspace-mcp-sidecar"
+                                                                                "workspace-mcp-sidecar",
+                                                                                "global-agent-file",
+                                                                                "workspace-agent-file"
                                                                             ],
                                                                             "type": "string"
                                                                         },
                                                                         "scope": {
                                                                             "enum": [
                                                                                 "global",
-                                                                                "workspace"
+                                                                                "workspace",
+                                                                                "agent"
                                                                             ],
                                                                             "type": "string"
                                                                         },
@@ -40934,13 +41148,10 @@
                                         },
                                         "section": {
                                             "enum": [
-                                                "general",
-                                                "memory",
-                                                "skills",
-                                                "automation",
-                                                "network",
-                                                "observability",
-                                                "hooks-extensions"
+                                                "providers",
+                                                "mcp-servers",
+                                                "sandboxes",
+                                                "hooks"
                                             ],
                                             "type": "string"
                                         },
@@ -40958,7 +41169,9 @@
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -41234,13 +41447,10 @@
                                         },
                                         "section": {
                                             "enum": [
-                                                "general",
-                                                "memory",
-                                                "skills",
-                                                "automation",
-                                                "network",
-                                                "observability",
-                                                "hooks-extensions"
+                                                "providers",
+                                                "mcp-servers",
+                                                "sandboxes",
+                                                "hooks"
                                             ],
                                             "type": "string"
                                         },
@@ -41258,7 +41468,9 @@
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -41402,7 +41614,7 @@
                                         },
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -41472,7 +41684,7 @@
                                             "type": "object"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -41485,9 +41697,6 @@
                                                 "observability",
                                                 "hooks-extensions"
                                             ],
-                                            "type": "string"
-                                        },
-                                        "workspace_id": {
                                             "type": "string"
                                         }
                                     },
@@ -41609,7 +41818,7 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -41630,15 +41839,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -41740,7 +41948,7 @@
                                     "properties": {
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -41844,7 +42052,7 @@
                                             "type": "object"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -41857,9 +42065,6 @@
                                                 "observability",
                                                 "hooks-extensions"
                                             ],
-                                            "type": "string"
-                                        },
-                                        "workspace_id": {
                                             "type": "string"
                                         }
                                     },
@@ -41975,7 +42180,7 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -41996,15 +42201,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -42106,7 +42310,7 @@
                                     "properties": {
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -42206,7 +42410,7 @@
                                             "type": "object"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -42219,9 +42423,6 @@
                                                 "observability",
                                                 "hooks-extensions"
                                             ],
-                                            "type": "string"
-                                        },
-                                        "workspace_id": {
                                             "type": "string"
                                         }
                                     },
@@ -42344,7 +42545,7 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -42365,15 +42566,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -42507,7 +42707,7 @@
                                     "properties": {
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -42674,20 +42874,26 @@
                                                             },
                                                             "source": {
                                                                 "properties": {
+                                                                    "agent_name": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "kind": {
                                                                         "enum": [
                                                                             "builtin-provider",
                                                                             "global-config",
                                                                             "workspace-config",
                                                                             "global-mcp-sidecar",
-                                                                            "workspace-mcp-sidecar"
+                                                                            "workspace-mcp-sidecar",
+                                                                            "global-agent-file",
+                                                                            "workspace-agent-file"
                                                                         ],
                                                                         "type": "string"
                                                                     },
                                                                     "scope": {
                                                                         "enum": [
                                                                             "global",
-                                                                            "workspace"
+                                                                            "workspace",
+                                                                            "agent"
                                                                         ],
                                                                         "type": "string"
                                                                     },
@@ -42783,7 +42989,9 @@
                                                                         "global-config",
                                                                         "workspace-config",
                                                                         "global-mcp-sidecar",
-                                                                        "workspace-mcp-sidecar"
+                                                                        "workspace-mcp-sidecar",
+                                                                        "global-agent-file",
+                                                                        "workspace-agent-file"
                                                                     ],
                                                                     "type": "string"
                                                                 },
@@ -42791,20 +42999,26 @@
                                                             },
                                                             "effective_source": {
                                                                 "properties": {
+                                                                    "agent_name": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "kind": {
                                                                         "enum": [
                                                                             "builtin-provider",
                                                                             "global-config",
                                                                             "workspace-config",
                                                                             "global-mcp-sidecar",
-                                                                            "workspace-mcp-sidecar"
+                                                                            "workspace-mcp-sidecar",
+                                                                            "global-agent-file",
+                                                                            "workspace-agent-file"
                                                                         ],
                                                                         "type": "string"
                                                                     },
                                                                     "scope": {
                                                                         "enum": [
                                                                             "global",
-                                                                            "workspace"
+                                                                            "workspace",
+                                                                            "agent"
                                                                         ],
                                                                         "type": "string"
                                                                     },
@@ -42818,20 +43032,26 @@
                                                             "shadowed_sources": {
                                                                 "items": {
                                                                     "properties": {
+                                                                        "agent_name": {
+                                                                            "type": "string"
+                                                                        },
                                                                         "kind": {
                                                                             "enum": [
                                                                                 "builtin-provider",
                                                                                 "global-config",
                                                                                 "workspace-config",
                                                                                 "global-mcp-sidecar",
-                                                                                "workspace-mcp-sidecar"
+                                                                                "workspace-mcp-sidecar",
+                                                                                "global-agent-file",
+                                                                                "workspace-agent-file"
                                                                             ],
                                                                             "type": "string"
                                                                         },
                                                                         "scope": {
                                                                             "enum": [
                                                                                 "global",
-                                                                                "workspace"
+                                                                                "workspace",
+                                                                                "agent"
                                                                             ],
                                                                             "type": "string"
                                                                         },
@@ -42864,10 +43084,7 @@
                                             "type": "array"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
-                                            "type": "string"
-                                        },
-                                        "workspace_id": {
+                                            "enum": ["global"],
                                             "type": "string"
                                         }
                                     },
@@ -42946,18 +43163,15 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
                                             "enum": [
-                                                "general",
-                                                "memory",
-                                                "skills",
-                                                "automation",
-                                                "network",
-                                                "observability",
-                                                "hooks-extensions"
+                                                "providers",
+                                                "mcp-servers",
+                                                "sandboxes",
+                                                "hooks"
                                             ],
                                             "type": "string"
                                         },
@@ -42967,15 +43181,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -43220,18 +43433,27 @@
                                                         },
                                                         "source": {
                                                             "properties": {
+                                                                "agent_name": {
+                                                                    "type": "string"
+                                                                },
                                                                 "kind": {
                                                                     "enum": [
                                                                         "builtin-provider",
                                                                         "global-config",
                                                                         "workspace-config",
                                                                         "global-mcp-sidecar",
-                                                                        "workspace-mcp-sidecar"
+                                                                        "workspace-mcp-sidecar",
+                                                                        "global-agent-file",
+                                                                        "workspace-agent-file"
                                                                     ],
                                                                     "type": "string"
                                                                 },
                                                                 "scope": {
-                                                                    "enum": ["global", "workspace"],
+                                                                    "enum": [
+                                                                        "global",
+                                                                        "workspace",
+                                                                        "agent"
+                                                                    ],
                                                                     "type": "string"
                                                                 },
                                                                 "workspace_id": {
@@ -43326,7 +43548,9 @@
                                                                     "global-config",
                                                                     "workspace-config",
                                                                     "global-mcp-sidecar",
-                                                                    "workspace-mcp-sidecar"
+                                                                    "workspace-mcp-sidecar",
+                                                                    "global-agent-file",
+                                                                    "workspace-agent-file"
                                                                 ],
                                                                 "type": "string"
                                                             },
@@ -43334,18 +43558,27 @@
                                                         },
                                                         "effective_source": {
                                                             "properties": {
+                                                                "agent_name": {
+                                                                    "type": "string"
+                                                                },
                                                                 "kind": {
                                                                     "enum": [
                                                                         "builtin-provider",
                                                                         "global-config",
                                                                         "workspace-config",
                                                                         "global-mcp-sidecar",
-                                                                        "workspace-mcp-sidecar"
+                                                                        "workspace-mcp-sidecar",
+                                                                        "global-agent-file",
+                                                                        "workspace-agent-file"
                                                                     ],
                                                                     "type": "string"
                                                                 },
                                                                 "scope": {
-                                                                    "enum": ["global", "workspace"],
+                                                                    "enum": [
+                                                                        "global",
+                                                                        "workspace",
+                                                                        "agent"
+                                                                    ],
                                                                     "type": "string"
                                                                 },
                                                                 "workspace_id": {
@@ -43358,20 +43591,26 @@
                                                         "shadowed_sources": {
                                                             "items": {
                                                                 "properties": {
+                                                                    "agent_name": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "kind": {
                                                                         "enum": [
                                                                             "builtin-provider",
                                                                             "global-config",
                                                                             "workspace-config",
                                                                             "global-mcp-sidecar",
-                                                                            "workspace-mcp-sidecar"
+                                                                            "workspace-mcp-sidecar",
+                                                                            "global-agent-file",
+                                                                            "workspace-agent-file"
                                                                         ],
                                                                         "type": "string"
                                                                     },
                                                                     "scope": {
                                                                         "enum": [
                                                                             "global",
-                                                                            "workspace"
+                                                                            "workspace",
+                                                                            "agent"
                                                                         ],
                                                                         "type": "string"
                                                                     },
@@ -43591,18 +43830,15 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
                                             "enum": [
-                                                "general",
-                                                "memory",
-                                                "skills",
-                                                "automation",
-                                                "network",
-                                                "observability",
-                                                "hooks-extensions"
+                                                "providers",
+                                                "mcp-servers",
+                                                "sandboxes",
+                                                "hooks"
                                             ],
                                             "type": "string"
                                         },
@@ -43612,15 +43848,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -43722,7 +43957,7 @@
                                     "properties": {
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -43834,7 +44069,9 @@
                                                                         "global-config",
                                                                         "workspace-config",
                                                                         "global-mcp-sidecar",
-                                                                        "workspace-mcp-sidecar"
+                                                                        "workspace-mcp-sidecar",
+                                                                        "global-agent-file",
+                                                                        "workspace-agent-file"
                                                                     ],
                                                                     "type": "string"
                                                                 },
@@ -43842,20 +44079,26 @@
                                                             },
                                                             "effective_source": {
                                                                 "properties": {
+                                                                    "agent_name": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "kind": {
                                                                         "enum": [
                                                                             "builtin-provider",
                                                                             "global-config",
                                                                             "workspace-config",
                                                                             "global-mcp-sidecar",
-                                                                            "workspace-mcp-sidecar"
+                                                                            "workspace-mcp-sidecar",
+                                                                            "global-agent-file",
+                                                                            "workspace-agent-file"
                                                                         ],
                                                                         "type": "string"
                                                                     },
                                                                     "scope": {
                                                                         "enum": [
                                                                             "global",
-                                                                            "workspace"
+                                                                            "workspace",
+                                                                            "agent"
                                                                         ],
                                                                         "type": "string"
                                                                     },
@@ -43869,20 +44112,26 @@
                                                             "shadowed_sources": {
                                                                 "items": {
                                                                     "properties": {
+                                                                        "agent_name": {
+                                                                            "type": "string"
+                                                                        },
                                                                         "kind": {
                                                                             "enum": [
                                                                                 "builtin-provider",
                                                                                 "global-config",
                                                                                 "workspace-config",
                                                                                 "global-mcp-sidecar",
-                                                                                "workspace-mcp-sidecar"
+                                                                                "workspace-mcp-sidecar",
+                                                                                "global-agent-file",
+                                                                                "workspace-agent-file"
                                                                             ],
                                                                             "type": "string"
                                                                         },
                                                                         "scope": {
                                                                             "enum": [
                                                                                 "global",
-                                                                                "workspace"
+                                                                                "workspace",
+                                                                                "agent"
                                                                             ],
                                                                             "type": "string"
                                                                         },
@@ -43917,10 +44166,7 @@
                                             "type": "array"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
-                                            "type": "string"
-                                        },
-                                        "workspace_id": {
+                                            "enum": ["global"],
                                             "type": "string"
                                         }
                                     },
@@ -43999,18 +44245,15 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
                                             "enum": [
-                                                "general",
-                                                "memory",
-                                                "skills",
-                                                "automation",
-                                                "network",
-                                                "observability",
-                                                "hooks-extensions"
+                                                "providers",
+                                                "mcp-servers",
+                                                "sandboxes",
+                                                "hooks"
                                             ],
                                             "type": "string"
                                         },
@@ -44020,15 +44263,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -44218,7 +44460,9 @@
                                                                     "global-config",
                                                                     "workspace-config",
                                                                     "global-mcp-sidecar",
-                                                                    "workspace-mcp-sidecar"
+                                                                    "workspace-mcp-sidecar",
+                                                                    "global-agent-file",
+                                                                    "workspace-agent-file"
                                                                 ],
                                                                 "type": "string"
                                                             },
@@ -44226,18 +44470,27 @@
                                                         },
                                                         "effective_source": {
                                                             "properties": {
+                                                                "agent_name": {
+                                                                    "type": "string"
+                                                                },
                                                                 "kind": {
                                                                     "enum": [
                                                                         "builtin-provider",
                                                                         "global-config",
                                                                         "workspace-config",
                                                                         "global-mcp-sidecar",
-                                                                        "workspace-mcp-sidecar"
+                                                                        "workspace-mcp-sidecar",
+                                                                        "global-agent-file",
+                                                                        "workspace-agent-file"
                                                                     ],
                                                                     "type": "string"
                                                                 },
                                                                 "scope": {
-                                                                    "enum": ["global", "workspace"],
+                                                                    "enum": [
+                                                                        "global",
+                                                                        "workspace",
+                                                                        "agent"
+                                                                    ],
                                                                     "type": "string"
                                                                 },
                                                                 "workspace_id": {
@@ -44250,20 +44503,26 @@
                                                         "shadowed_sources": {
                                                             "items": {
                                                                 "properties": {
+                                                                    "agent_name": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "kind": {
                                                                         "enum": [
                                                                             "builtin-provider",
                                                                             "global-config",
                                                                             "workspace-config",
                                                                             "global-mcp-sidecar",
-                                                                            "workspace-mcp-sidecar"
+                                                                            "workspace-mcp-sidecar",
+                                                                            "global-agent-file",
+                                                                            "workspace-agent-file"
                                                                         ],
                                                                         "type": "string"
                                                                     },
                                                                     "scope": {
                                                                         "enum": [
                                                                             "global",
-                                                                            "workspace"
+                                                                            "workspace",
+                                                                            "agent"
                                                                         ],
                                                                         "type": "string"
                                                                     },
@@ -44478,18 +44737,15 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global"],
                                             "type": "string"
                                         },
                                         "section": {
                                             "enum": [
-                                                "general",
-                                                "memory",
-                                                "skills",
-                                                "automation",
-                                                "network",
-                                                "observability",
-                                                "hooks-extensions"
+                                                "providers",
+                                                "mcp-servers",
+                                                "sandboxes",
+                                                "hooks"
                                             ],
                                             "type": "string"
                                         },
@@ -44499,15 +44755,14 @@
                                             },
                                             "type": "array"
                                         },
-                                        "workspace_id": {
-                                            "type": "string"
-                                        },
                                         "write_target": {
                                             "enum": [
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -44601,15 +44856,45 @@
         "/api/settings/skills": {
             "get": {
                 "operationId": "getSettingsSkills",
+                "parameters": [
+                    {
+                        "description": "Select the settings scope",
+                        "in": "query",
+                        "name": "scope",
+                        "schema": {
+                            "enum": ["global", "agent"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Optional workspace id for agent resolution context",
+                        "in": "query",
+                        "name": "workspace_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Agent name when scope=agent",
+                        "in": "query",
+                        "name": "agent_name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "agent_name": {
+                                            "type": "string"
+                                        },
                                         "available_scopes": {
                                             "items": {
-                                                "enum": ["global", "workspace"],
+                                                "enum": ["global", "agent"],
                                                 "type": "string"
                                             },
                                             "type": "array"
@@ -44681,7 +44966,7 @@
                                             "type": "boolean"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global", "agent"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -44715,6 +45000,54 @@
                         },
                         "description": "OK"
                     },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid settings scope"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Agent not found"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid agent-local layer"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -44741,6 +45074,33 @@
             },
             "patch": {
                 "operationId": "updateSettingsSkills",
+                "parameters": [
+                    {
+                        "description": "Select the settings scope",
+                        "in": "query",
+                        "name": "scope",
+                        "schema": {
+                            "enum": ["global", "agent"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Optional workspace id for agent resolution context",
+                        "in": "query",
+                        "name": "workspace_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Agent name when scope=agent",
+                        "in": "query",
+                        "name": "agent_name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -44803,6 +45163,9 @@
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "agent_name": {
+                                            "type": "string"
+                                        },
                                         "applied": {
                                             "type": "boolean"
                                         },
@@ -44821,7 +45184,7 @@
                                             "type": "string"
                                         },
                                         "scope": {
-                                            "enum": ["global", "workspace"],
+                                            "enum": ["global", "agent"],
                                             "type": "string"
                                         },
                                         "section": {
@@ -44850,7 +45213,9 @@
                                                 "global-config",
                                                 "workspace-config",
                                                 "global-mcp-sidecar",
-                                                "workspace-mcp-sidecar"
+                                                "workspace-mcp-sidecar",
+                                                "global-agent-file",
+                                                "workspace-agent-file"
                                             ],
                                             "type": "string"
                                         }
@@ -44900,6 +45265,22 @@
                         },
                         "description": "Forbidden"
                     },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Agent not found"
+                    },
                     "409": {
                         "content": {
                             "application/json": {
@@ -44915,6 +45296,22 @@
                             }
                         },
                         "description": "Conflicting settings change"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid agent-local layer"
                     },
                     "500": {
                         "content": {
@@ -45054,10 +45451,17 @@
                 "operationId": "listSkills",
                 "parameters": [
                     {
-                        "description": "Workspace id or path",
+                        "description": "Workspace id or path for resolution context",
                         "in": "query",
                         "name": "workspace",
-                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Logical agent name for agent-local resolution",
+                        "in": "query",
+                        "name": "for_agent",
                         "schema": {
                             "type": "string"
                         }
@@ -45153,7 +45557,7 @@
                                 }
                             }
                         },
-                        "description": "Invalid workspace filter"
+                        "description": "Invalid skill lookup"
                     },
                     "404": {
                         "content": {
@@ -45169,7 +45573,23 @@
                                 }
                             }
                         },
-                        "description": "Workspace not found"
+                        "description": "Skill scope not found"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid agent-local layer"
                     },
                     "500": {
                         "content": {
@@ -45207,7 +45627,7 @@
                         "description": ""
                     }
                 },
-                "summary": "List skills for one workspace",
+                "summary": "List effective skills for the selected global, workspace, or agent scope",
                 "tags": ["skills"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -45226,9 +45646,17 @@
                         }
                     },
                     {
-                        "description": "Workspace id or path",
+                        "description": "Workspace id or path for resolution context",
                         "in": "query",
                         "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Logical agent name for agent-local resolution",
+                        "in": "query",
+                        "name": "for_agent",
                         "schema": {
                             "type": "string"
                         }
@@ -45337,7 +45765,23 @@
                                 }
                             }
                         },
-                        "description": "Skill or workspace not found"
+                        "description": "Skill or scope not found"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid agent-local layer"
                     },
                     "500": {
                         "content": {
@@ -45394,9 +45838,17 @@
                         }
                     },
                     {
-                        "description": "Workspace id or path",
+                        "description": "Workspace id or path for resolution context",
                         "in": "query",
                         "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Logical agent name for agent-local resolution",
+                        "in": "query",
+                        "name": "for_agent",
                         "schema": {
                             "type": "string"
                         }
@@ -45449,7 +45901,23 @@
                                 }
                             }
                         },
-                        "description": "Skill or workspace not found"
+                        "description": "Skill or scope not found"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid agent-local layer"
                     },
                     "500": {
                         "content": {
@@ -45506,9 +45974,17 @@
                         }
                     },
                     {
-                        "description": "Workspace id or path",
+                        "description": "Workspace id or path for resolution context",
                         "in": "query",
                         "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Logical agent name for agent-local resolution",
+                        "in": "query",
+                        "name": "for_agent",
                         "schema": {
                             "type": "string"
                         }
@@ -45561,7 +46037,23 @@
                                 }
                             }
                         },
-                        "description": "Skill or workspace not found"
+                        "description": "Skill or scope not found"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid agent-local layer"
                     },
                     "500": {
                         "content": {
@@ -45618,9 +46110,17 @@
                         }
                     },
                     {
-                        "description": "Workspace id or path",
+                        "description": "Workspace id or path for resolution context",
                         "in": "query",
                         "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Logical agent name for agent-local resolution",
+                        "in": "query",
+                        "name": "for_agent",
                         "schema": {
                             "type": "string"
                         }
@@ -45673,7 +46173,23 @@
                                 }
                             }
                         },
-                        "description": "Skill or workspace not found"
+                        "description": "Skill or scope not found"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid agent-local layer"
                     },
                     "500": {
                         "content": {
@@ -64866,6 +65382,15 @@
                                                             "current_tool": {
                                                                 "type": "string"
                                                             },
+                                                            "deadline_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "elapsed_ms": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
                                                             "elapsed_seconds": {
                                                                 "format": "int64",
                                                                 "type": "integer"
@@ -64912,6 +65437,7 @@
                                                             }
                                                         },
                                                         "required": [
+                                                            "elapsed_ms",
                                                             "elapsed_seconds",
                                                             "idle_seconds",
                                                             "iteration_current",

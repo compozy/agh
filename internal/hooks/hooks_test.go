@@ -838,6 +838,60 @@ func TestDispatchSandboxPrepareAppliesEnvOverridesAndDeny(t *testing.T) {
 	}
 }
 
+func TestDispatchToolPreCallReturnsDenyError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return a deny error when tool pre call explicitly blocks execution", func(t *testing.T) {
+		t.Parallel()
+
+		hooks := newTestHooks(
+			t,
+			WithNativeDeclarations([]HookDecl{{
+				Name:         "tool-pre",
+				Event:        HookToolPreCall,
+				Mode:         HookModeSync,
+				ExecutorKind: HookExecutorNative,
+				Matcher: HookMatcher{
+					ToolID: "agh__write",
+				},
+			}}),
+			WithExecutorResolver(testExecutorResolver(map[string]Executor{
+				"tool-pre": NewTypedNativeExecutor(
+					func(_ context.Context, _ RegisteredHook, payload ToolPreCallPayload) (ToolCallPatch, error) {
+						if payload.ToolID != "agh__write" {
+							t.Fatalf("payload.ToolID = %q, want agh__write", payload.ToolID)
+						}
+						return ToolCallPatch{
+							ControlPatch: ControlPatch{
+								Deny:       true,
+								DenyReason: "policy",
+							},
+						}, nil
+					},
+				),
+			})),
+		)
+
+		if err := hooks.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild() error = %v, want nil", err)
+		}
+
+		result, err := hooks.DispatchToolPreCall(t.Context(), ToolPreCallPayload{
+			PayloadBase: PayloadBase{Event: HookToolPreCall},
+			ToolCallRef: ToolCallRef{ToolID: "agh__write"},
+		})
+		if err == nil {
+			t.Fatal("DispatchToolPreCall() error = nil, want deny error")
+		}
+		if !strings.Contains(err.Error(), "denied: policy") {
+			t.Fatalf("DispatchToolPreCall() error = %q, want deny reason", err)
+		}
+		if result.ToolID != "agh__write" {
+			t.Fatalf("result.ToolID = %q, want original tool id", result.ToolID)
+		}
+	})
+}
+
 func TestDispatchSandboxSyncBeforeAppliesExcludePatternsAndDeny(t *testing.T) {
 	t.Parallel()
 

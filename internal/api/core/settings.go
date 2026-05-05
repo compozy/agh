@@ -393,13 +393,22 @@ func (h *BaseHandlers) updateSettingsSection(c *gin.Context, req settingspkg.Sec
 		return
 	}
 
-	result, err := h.Settings.UpdateSection(c.Request.Context(), req)
+	result, err := h.Settings.UpdateSection(
+		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, SettingsMutationResultPayloadFromResult(result))
+	payload, err := SettingsSectionMutationResultPayloadFromResult(result)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, payload)
 }
 
 func (h *BaseHandlers) listSettingsCollection(c *gin.Context, collection settingspkg.CollectionName) {
@@ -491,13 +500,22 @@ func (h *BaseHandlers) putSettingsCollectionItem(c *gin.Context, req settingspkg
 		return
 	}
 
-	result, err := h.Settings.PutCollectionItem(c.Request.Context(), req)
+	result, err := h.Settings.PutCollectionItem(
+		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, SettingsMutationResultPayloadFromResult(result))
+	payload, err := SettingsCollectionMutationResultPayloadFromResult(result)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, payload)
 }
 
 func (h *BaseHandlers) deleteSettingsCollectionItem(c *gin.Context, req settingspkg.CollectionItemDeleteRequest) {
@@ -506,13 +524,22 @@ func (h *BaseHandlers) deleteSettingsCollectionItem(c *gin.Context, req settings
 		return
 	}
 
-	result, err := h.Settings.DeleteCollectionItem(c.Request.Context(), req)
+	result, err := h.Settings.DeleteCollectionItem(
+		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, SettingsMutationResultPayloadFromResult(result))
+	payload, err := SettingsCollectionMutationResultPayloadFromResult(result)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, payload)
 }
 
 func parseSettingsSectionRequest(
@@ -523,10 +550,22 @@ func parseSettingsSectionRequest(
 	if err != nil {
 		return settingspkg.SectionRequest{}, err
 	}
+	agentName := strings.TrimSpace(c.Query("agent_name"))
+	if agentName != "" {
+		if section != settingspkg.SectionSkills {
+			return settingspkg.SectionRequest{}, NewSettingsValidationError(
+				errors.New("agent_name is only supported for skills"),
+			)
+		}
+		if err := aghconfig.ValidateAgentName(agentName); err != nil {
+			return settingspkg.SectionRequest{}, NewSettingsValidationError(err)
+		}
+	}
 	return settingspkg.SectionRequest{
 		Section:     section,
 		Scope:       scope,
 		WorkspaceID: workspaceID,
+		AgentName:   agentName,
 	}, nil
 }
 

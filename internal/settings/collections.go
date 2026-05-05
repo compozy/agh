@@ -19,6 +19,11 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 	if err != nil {
 		return CollectionEnvelope{}, fmt.Errorf("settings: list collection %q: %w", req.Collection, err)
 	}
+	if scope == ScopeAgent {
+		return CollectionEnvelope{}, conflictError(
+			fmt.Errorf("settings: collection %q does not support agent scope", req.Collection),
+		)
+	}
 	if req.Collection != CollectionMCPServers && scope == ScopeWorkspace {
 		return CollectionEnvelope{}, conflictError(
 			fmt.Errorf("settings: collection %q does not support workspace scope", req.Collection),
@@ -69,6 +74,16 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 }
 
 func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRequest) (MutationResult, error) {
+	finalize := func(result MutationResult, err error) (MutationResult, error) {
+		if err != nil {
+			return MutationResult{}, err
+		}
+		if emitErr := s.emitSettingsChanged(ctx, result, "replace"); emitErr != nil {
+			return MutationResult{}, emitErr
+		}
+		return result, nil
+	}
+
 	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
 	if err != nil {
 		return MutationResult{}, fmt.Errorf("settings: put collection item %q: %w", req.Collection, err)
@@ -76,6 +91,11 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		return MutationResult{}, validationError(errors.New("settings: collection item name is required"))
+	}
+	if scope == ScopeAgent {
+		return MutationResult{}, conflictError(
+			fmt.Errorf("settings: collection %q does not support agent scope", req.Collection),
+		)
 	}
 
 	switch req.Collection {
@@ -86,12 +106,12 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 		if req.Provider == nil {
 			return MutationResult{}, validationError(errors.New("settings: provider payload is required"))
 		}
-		return s.putProvider(ctx, name, *req.Provider, req.ProviderSecrets)
+		return finalize(s.putProvider(ctx, name, *req.Provider, req.ProviderSecrets))
 	case CollectionMCPServers:
 		if req.MCPServer == nil {
 			return MutationResult{}, validationError(errors.New("settings: MCP server payload is required"))
 		}
-		return s.putMCPServer(ctx, scope, workspaceID, name, req.Target, *req.MCPServer, req.MCPSecrets)
+		return finalize(s.putMCPServer(ctx, scope, workspaceID, name, req.Target, *req.MCPServer, req.MCPSecrets))
 	case CollectionSandboxes:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(
@@ -101,7 +121,7 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 		if req.Sandbox == nil {
 			return MutationResult{}, validationError(errors.New("settings: sandbox payload is required"))
 		}
-		return s.putSandbox(name, *req.Sandbox)
+		return finalize(s.putSandbox(name, *req.Sandbox))
 	case CollectionHooks:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(errors.New("settings: hooks do not support workspace scope"))
@@ -109,13 +129,23 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 		if req.Hook == nil {
 			return MutationResult{}, validationError(errors.New("settings: hook payload is required"))
 		}
-		return s.putHook(name, *req.Hook)
+		return finalize(s.putHook(name, *req.Hook))
 	default:
 		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown collection %q", req.Collection))
 	}
 }
 
 func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDeleteRequest) (MutationResult, error) {
+	finalize := func(result MutationResult, err error) (MutationResult, error) {
+		if err != nil {
+			return MutationResult{}, err
+		}
+		if emitErr := s.emitSettingsChanged(ctx, result, "delete"); emitErr != nil {
+			return MutationResult{}, emitErr
+		}
+		return result, nil
+	}
+
 	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
 	if err != nil {
 		return MutationResult{}, fmt.Errorf("settings: delete collection item %q: %w", req.Collection, err)
@@ -124,27 +154,32 @@ func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDe
 	if name == "" {
 		return MutationResult{}, validationError(errors.New("settings: collection item name is required"))
 	}
+	if scope == ScopeAgent {
+		return MutationResult{}, conflictError(
+			fmt.Errorf("settings: collection %q does not support agent scope", req.Collection),
+		)
+	}
 
 	switch req.Collection {
 	case CollectionProviders:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(errors.New("settings: providers do not support workspace scope"))
 		}
-		return s.deleteProvider(name)
+		return finalize(s.deleteProvider(name))
 	case CollectionMCPServers:
-		return s.deleteMCPServer(ctx, scope, workspaceID, name, req.Target)
+		return finalize(s.deleteMCPServer(ctx, scope, workspaceID, name, req.Target))
 	case CollectionSandboxes:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(
 				errors.New("settings: sandboxes do not support workspace scope"),
 			)
 		}
-		return s.deleteSandbox(name)
+		return finalize(s.deleteSandbox(name))
 	case CollectionHooks:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(errors.New("settings: hooks do not support workspace scope"))
 		}
-		return s.deleteHook(name)
+		return finalize(s.deleteHook(name))
 	default:
 		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown collection %q", req.Collection))
 	}
@@ -189,7 +224,7 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *aghconfig.Config)
 
 		if overlay, ok := cfg.Providers[name]; ok {
 			item.SourceMetadata = SourceMetadata{
-				EffectiveSource:  sourceRefForWriteTarget(WriteTargetGlobalConfig, ""),
+				EffectiveSource:  sourceRefForWriteTarget(WriteTargetGlobalConfig, "", ""),
 				AvailableTargets: []WriteTargetKind{WriteTargetGlobalConfig},
 			}
 			if builtin, builtinOK := builtins[name]; builtinOK {
@@ -883,7 +918,7 @@ func (s *service) loadMCPSources(
 				continue
 			}
 			sources[name] = append(sources[name], mcpSourceEntry{
-				Source: sourceRefForWriteTarget(kind, workspaceID),
+				Source: sourceRefForWriteTarget(kind, workspaceID, ""),
 				Target: kind,
 				Server: server,
 			})
@@ -936,18 +971,18 @@ func (s *service) resolveMCPPutTarget(
 ) (aghconfig.WriteTarget, error) {
 	normalized := normalizeTargetSelector(selector)
 	if normalized == TargetConfig {
-		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope)
+		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
 	if normalized == TargetSidecar {
-		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope)
+		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
 
 	targetKind := preferredMCPPutTarget(scope, name, sources)
 	switch targetKind {
 	case WriteTargetGlobalConfig, WriteTargetWorkspaceConfig:
-		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope)
+		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	case WriteTargetGlobalMCPSidecar, WriteTargetWorkspaceMCPSidecar:
-		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope)
+		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	default:
 		return aghconfig.WriteTarget{}, conflictError(
 			fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name),
@@ -964,10 +999,10 @@ func (s *service) resolveMCPDeleteTarget(
 ) (aghconfig.WriteTarget, error) {
 	normalized := normalizeTargetSelector(selector)
 	if normalized == TargetConfig {
-		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope)
+		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
 	if normalized == TargetSidecar {
-		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope)
+		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
 
 	targetKind, ok := preferredMCPDeleteTarget(scope, name, sources)
@@ -978,9 +1013,9 @@ func (s *service) resolveMCPDeleteTarget(
 	}
 	switch targetKind {
 	case WriteTargetGlobalConfig, WriteTargetWorkspaceConfig:
-		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope)
+		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	case WriteTargetGlobalMCPSidecar, WriteTargetWorkspaceMCPSidecar:
-		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope)
+		return aghconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	default:
 		return aghconfig.WriteTarget{}, conflictError(
 			fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name),

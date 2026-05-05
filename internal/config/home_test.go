@@ -98,43 +98,6 @@ func TestResolvePathVariants(t *testing.T) {
 	}
 }
 
-func TestResolveUserAgentsSkillsDirUsesHOMEOverride(t *testing.T) {
-	home := filepath.Join(t.TempDir(), "custom-home")
-
-	got, err := ResolveUserAgentsSkillsDir(func(key string) string {
-		if key == "HOME" {
-			return home
-		}
-		return ""
-	})
-	if err != nil {
-		t.Fatalf("ResolveUserAgentsSkillsDir(HOME) error = %v", err)
-	}
-
-	if want := filepath.Join(home, ".agents", "skills"); got != want {
-		t.Fatalf("ResolveUserAgentsSkillsDir(HOME) = %q, want %q", got, want)
-	}
-}
-
-func TestResolveUserAgentsSkillsDirFallsBackToUserHome(t *testing.T) {
-	got, err := ResolveUserAgentsSkillsDir(func(string) string { return "" })
-	if err != nil {
-		t.Fatalf("ResolveUserAgentsSkillsDir(fallback) error = %v", err)
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatalf("os.UserHomeDir() error = %v", err)
-	}
-	absHome, err := filepath.Abs(home)
-	if err != nil {
-		t.Fatalf("filepath.Abs(%q) error = %v", home, err)
-	}
-	if want := filepath.Join(absHome, ".agents", "skills"); got != want {
-		t.Fatalf("ResolveUserAgentsSkillsDir(fallback) = %q, want %q", got, want)
-	}
-}
-
 func TestEnsureHomeLayoutRejectsEmptyPaths(t *testing.T) {
 	if err := EnsureHomeLayout(HomePaths{}); err == nil {
 		t.Fatal("EnsureHomeLayout() error = nil, want non-nil")

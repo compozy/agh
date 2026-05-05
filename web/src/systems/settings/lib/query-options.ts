@@ -21,7 +21,7 @@ import {
 } from "../adapters/settings-api";
 import { settingsKeys } from "./query-keys";
 import { isTerminalRestartStatus } from "./restart-status";
-import type { SettingsMCPServerListFilter } from "../types";
+import type { SettingsMCPServerListFilter, SettingsSkillsFilter } from "../types";
 
 const SECTION_STALE_TIME = 15_000;
 const SECTION_REFETCH_INTERVAL = 60_000;
@@ -68,10 +68,10 @@ export function settingsMemoryOptions() {
   });
 }
 
-export function settingsSkillsOptions() {
+export function settingsSkillsOptions(filter: SettingsSkillsFilter = {}) {
   return queryOptions({
-    queryKey: settingsKeys.section("skills"),
-    queryFn: ({ signal }) => getSettingsSkills(signal),
+    queryKey: settingsKeys.skillsSection(filter),
+    queryFn: ({ signal }) => getSettingsSkills(filter, signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

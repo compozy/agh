@@ -38,7 +38,7 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 		AgentName:   "golden",
 		Command:     command,
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeDenyAll,
+		Permissions: aghconfig.PermissionModeApproveReads,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -333,7 +333,7 @@ func TestDriverControlDisconnectSurfacesPromptFailure(t *testing.T) {
 		AgentName:   "faulty",
 		Command:     command,
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeDenyAll,
+		Permissions: aghconfig.PermissionModeApproveReads,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -386,7 +386,7 @@ func TestDriverControlBlockUntilCancelReturnsCanceledStopReason(t *testing.T) {
 		AgentName:   "faulty",
 		Command:     command,
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeDenyAll,
+		Permissions: aghconfig.PermissionModeApproveReads,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)
@@ -435,7 +435,7 @@ func TestDriverControlAsyncDisconnectDuringPermissionRequestSurfacesPromptFailur
 		AgentName:   "faulty",
 		Command:     command,
 		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeDenyAll,
+		Permissions: aghconfig.PermissionModeApproveReads,
 	})
 	if err != nil {
 		t.Fatalf("driver.Start() error = %v", err)

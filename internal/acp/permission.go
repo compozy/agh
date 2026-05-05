@@ -139,7 +139,7 @@ func (p permissionPolicy) permissionDecision(request acpsdk.RequestPermissionReq
 		}
 		return decisionPending, true
 	case aghconfig.PermissionModeDenyAll:
-		return decisionPending, true
+		return decisionRejectOnce, false
 	default:
 		return decisionRejectOnce, false
 	}

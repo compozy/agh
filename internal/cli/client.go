@@ -454,6 +454,7 @@ type SkillRecord = contract.SkillPayload
 // SkillQuery captures daemon skill filters.
 type SkillQuery struct {
 	Workspace string
+	ForAgent  string
 }
 
 // SkillActionRecord is the shared skill enable/disable response payload.
@@ -728,7 +729,7 @@ type SettingsRestartStatusRecord = contract.RestartActionStatus
 type SettingsUpdateRecord = contract.SettingsUpdateResponse
 
 // SettingsMutationRecord is the shared settings mutation response payload.
-type SettingsMutationRecord = contract.MutationResult
+type SettingsMutationRecord = contract.SettingsSkillsMutationResult
 
 // UpdateSettingsSkillsRequest captures the shared skills settings update payload.
 type UpdateSettingsSkillsRequest = contract.UpdateSettingsSkillsRequest
@@ -3391,6 +3392,9 @@ func skillValues(query SkillQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
 		values.Set("workspace", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ForAgent); trimmed != "" {
+		values.Set("for_agent", trimmed)
 	}
 	return values
 }

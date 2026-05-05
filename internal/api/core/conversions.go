@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"path/filepath"
 	"sort"
@@ -82,6 +83,7 @@ func RuntimeActivityPayloadFromSessionMeta(
 		TurnID:             activity.TurnID,
 		TurnSource:         activity.TurnSource,
 		TurnStartedAt:      cloneTimePtr(activity.TurnStartedAt),
+		DeadlineAt:         nil,
 		LastActivityAt:     cloneTimePtr(activity.LastActivityAt),
 		LastActivityKind:   activity.LastActivityKind,
 		LastActivityDetail: activity.LastActivityDetail,
@@ -96,6 +98,7 @@ func RuntimeActivityPayloadFromSessionMeta(
 		elapsed := now.UTC().Sub(activity.TurnStartedAt.UTC())
 		if elapsed > 0 {
 			payload.ElapsedSeconds = int64(elapsed.Seconds())
+			payload.ElapsedMS = elapsed.Milliseconds()
 		}
 	}
 	return payload
@@ -109,6 +112,7 @@ func runtimeActivityPayloadFromEvent(activity *acp.RuntimeActivity) *contract.Ru
 		TurnID:             strings.TrimSpace(activity.TurnID),
 		TurnSource:         strings.TrimSpace(activity.TurnSource),
 		TurnStartedAt:      cloneTimePtr(activity.TurnStartedAt),
+		DeadlineAt:         cloneTimePtr(activity.DeadlineAt),
 		LastActivityAt:     cloneTimePtr(activity.LastActivityAt),
 		LastActivityKind:   strings.TrimSpace(activity.LastActivityKind),
 		LastActivityDetail: strings.TrimSpace(activity.LastActivityDetail),
@@ -119,6 +123,7 @@ func runtimeActivityPayloadFromEvent(activity *acp.RuntimeActivity) *contract.Ru
 		IterationMax:       activity.IterationMax,
 		IdleSeconds:        activity.IdleSeconds,
 		ElapsedSeconds:     activity.ElapsedSeconds,
+		ElapsedMS:          activity.ElapsedMS,
 	}
 }
 
@@ -183,16 +188,17 @@ func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) contract.SessionEventPayload {
 	ref := workref.NewPath(sessionWorkspaceFromInfo(info))
 	payload := contract.SessionEventPayload{
-		ID:            event.ID,
-		SessionID:     event.SessionID,
-		Sequence:      event.Sequence,
-		TurnID:        event.TurnID,
-		Type:          event.Type,
-		AgentName:     event.AgentName,
-		WorkspaceID:   ref.WorkspaceID,
-		WorkspacePath: ref.WorkspacePath,
-		Content:       PayloadJSON(event.Content),
-		Timestamp:     event.Timestamp,
+		ID:               event.ID,
+		SessionID:        event.SessionID,
+		Sequence:         event.Sequence,
+		TurnID:           event.TurnID,
+		Type:             event.Type,
+		AgentName:        event.AgentName,
+		WorkspaceID:      ref.WorkspaceID,
+		WorkspacePath:    ref.WorkspacePath,
+		EventCorrelation: sessionEventCorrelation(event),
+		Content:          PayloadJSON(event.Content),
+		Timestamp:        event.Timestamp,
 	}
 	if info != nil && info.Lineage != nil {
 		lineage := store.NormalizeSessionLineage(event.SessionID, info.Lineage)
@@ -348,16 +354,99 @@ func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePaylo
 // ObserveEventPayloadFromEvent converts an observe event into the shared payload.
 func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEventPayload {
 	return contract.ObserveEventPayload{
-		ID:              event.ID,
-		SessionID:       event.SessionID,
-		Type:            event.Type,
-		AgentName:       event.AgentName,
-		ParentSessionID: event.ParentSessionID,
-		RootSessionID:   event.RootSessionID,
-		SpawnDepth:      event.SpawnDepth,
-		Summary:         event.Summary,
-		Timestamp:       event.Timestamp,
+		ID:               event.ID,
+		SessionID:        event.SessionID,
+		Type:             event.Type,
+		AgentName:        event.AgentName,
+		Content:          append([]byte(nil), event.Content...),
+		EventCorrelation: event.Normalize(),
+		ParentSessionID:  event.ParentSessionID,
+		RootSessionID:    event.RootSessionID,
+		SpawnDepth:       event.SpawnDepth,
+		Summary:          event.Summary,
+		Timestamp:        event.Timestamp,
 	}
+}
+
+func sessionEventCorrelation(event store.SessionEvent) store.EventCorrelation {
+	decoded, err := decodeSessionEventCorrelation(event.Content)
+	if err != nil {
+		slog.Warn(
+			"api: decode session event correlation failed",
+			"event_id",
+			strings.TrimSpace(event.ID),
+			"session_id",
+			strings.TrimSpace(event.SessionID),
+			"type",
+			strings.TrimSpace(event.Type),
+			"turn_id",
+			strings.TrimSpace(event.TurnID),
+			"error",
+			err,
+		)
+		return store.EventCorrelation{}
+	}
+	return decoded.Normalize()
+}
+
+type sessionEventCorrelationPayload struct {
+	TaskID               string `json:"task_id"`
+	RunID                string `json:"run_id"`
+	WorkflowID           string `json:"workflow_id"`
+	ClaimTokenHash       string `json:"claim_token_hash"`
+	LeaseUntil           string `json:"lease_until"`
+	CoordinatorSessionID string `json:"coordinator_session_id"`
+	SchedulerReason      string `json:"scheduler_reason"`
+	HookEvent            string `json:"hook_event"`
+	HookName             string `json:"hook_name"`
+	ActorKind            string `json:"actor_kind"`
+	ActorID              string `json:"actor_id"`
+	ReleaseReason        string `json:"release_reason"`
+}
+
+func decodeSessionEventCorrelation(payload string) (store.EventCorrelation, error) {
+	trimmed := strings.TrimSpace(payload)
+	if trimmed == "" {
+		return store.EventCorrelation{}, nil
+	}
+
+	var decoded sessionEventCorrelationPayload
+	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
+		return store.EventCorrelation{}, fmt.Errorf("api: unmarshal session event correlation: %w", err)
+	}
+
+	leaseUntil, err := parseSessionEventCorrelationTimestamp(decoded.LeaseUntil)
+	if err != nil {
+		return store.EventCorrelation{}, fmt.Errorf("api: parse session event lease_until: %w", err)
+	}
+
+	return store.EventCorrelation{
+		TaskID:               decoded.TaskID,
+		RunID:                decoded.RunID,
+		WorkflowID:           decoded.WorkflowID,
+		ClaimTokenHash:       decoded.ClaimTokenHash,
+		LeaseUntil:           leaseUntil,
+		CoordinatorSessionID: decoded.CoordinatorSessionID,
+		SchedulerReason:      decoded.SchedulerReason,
+		HookEvent:            decoded.HookEvent,
+		HookName:             decoded.HookName,
+		ActorKind:            decoded.ActorKind,
+		ActorID:              decoded.ActorID,
+		ReleaseReason:        decoded.ReleaseReason,
+	}, nil
+}
+
+func parseSessionEventCorrelationTimestamp(value string) (*time.Time, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, trimmed)
+	if err != nil {
+		return nil, err
+	}
+	normalized := parsed.UTC()
+	return &normalized, nil
 }
 
 // ObserveHealthPayloadFromHealth converts the observer health snapshot into the shared payload.
@@ -1012,10 +1101,10 @@ func settingsGeneralSectionResponse(envelope settingspkg.SectionEnvelope) (any, 
 		return nil, errors.New("settings general section is required")
 	}
 	return contract.SettingsGeneralResponse{
-		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
-		ConfigPaths:                        settingsConfigPathsPayload(envelope.General.ConfigPaths),
-		Config:                             settingsGeneralConfigPayload(envelope.General.Settings),
-		Runtime:                            settingsDaemonRuntimePayload(envelope.General.Runtime),
+		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		ConfigPaths:                              settingsConfigPathsPayload(envelope.General.ConfigPaths),
+		Config:                                   settingsGeneralConfigPayload(envelope.General.Settings),
+		Runtime:                                  settingsDaemonRuntimePayload(envelope.General.Runtime),
 		Actions: contract.SettingsGeneralActionsPayload{
 			Restart: settingsActionMetadataPayload(envelope.General.Actions.Restart),
 		},
@@ -1027,9 +1116,9 @@ func settingsMemorySectionResponse(envelope settingspkg.SectionEnvelope) (any, e
 		return nil, errors.New("settings memory section is required")
 	}
 	return contract.SettingsMemoryResponse{
-		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
-		Config:                             settingsMemoryConfigPayload(envelope.Memory.Config),
-		Health:                             settingsMemoryHealthPayload(envelope.Memory.Health),
+		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                   settingsMemoryConfigPayload(envelope.Memory.Config),
+		Health:                                   settingsMemoryHealthPayload(envelope.Memory.Health),
 		Actions: contract.SettingsMemoryActionsPayload{
 			Consolidate: settingsActionMetadataPayload(envelope.Memory.Actions.Consolidate),
 		},
@@ -1041,12 +1130,12 @@ func settingsSkillsSectionResponse(envelope settingspkg.SectionEnvelope) (any, e
 		return nil, errors.New("settings skills section is required")
 	}
 	return contract.SettingsSkillsResponse{
-		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
-		Config:                             settingsSkillsConfigPayload(envelope.Skills.Config),
-		DiscoveredCount:                    envelope.Skills.DiscoveredCount,
-		DisabledCount:                      envelope.Skills.DisabledCount,
-		RuntimeAvailable:                   envelope.Skills.RuntimeAvailable,
-		Links:                              settingsOperationalLinkPayloads(envelope.Skills.Links),
+		SettingsSkillsSectionResponseMetaPayload: settingsSkillsSectionMetaPayload(envelope),
+		Config:                                   settingsSkillsConfigPayload(envelope.Skills.Config),
+		DiscoveredCount:                          envelope.Skills.DiscoveredCount,
+		DisabledCount:                            envelope.Skills.DisabledCount,
+		RuntimeAvailable:                         envelope.Skills.RuntimeAvailable,
+		Links:                                    settingsOperationalLinkPayloads(envelope.Skills.Links),
 	}, nil
 }
 
@@ -1055,10 +1144,10 @@ func settingsAutomationSectionResponse(envelope settingspkg.SectionEnvelope) (an
 		return nil, errors.New("settings automation section is required")
 	}
 	return contract.SettingsAutomationResponse{
-		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
-		Config:                             settingsAutomationConfigPayload(envelope.Automation.Config),
-		Runtime:                            settingsAutomationRuntimePayload(envelope.Automation.Runtime),
-		Links:                              settingsOperationalLinkPayloads(envelope.Automation.Links),
+		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                   settingsAutomationConfigPayload(envelope.Automation.Config),
+		Runtime:                                  settingsAutomationRuntimePayload(envelope.Automation.Runtime),
+		Links:                                    settingsOperationalLinkPayloads(envelope.Automation.Links),
 	}, nil
 }
 
@@ -1067,10 +1156,10 @@ func settingsNetworkSectionResponse(envelope settingspkg.SectionEnvelope) (any, 
 		return nil, errors.New("settings network section is required")
 	}
 	return contract.SettingsNetworkResponse{
-		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
-		Config:                             settingsNetworkConfigPayload(envelope.Network.Config),
-		Runtime:                            settingsNetworkRuntimePayload(envelope.Network.Runtime),
-		Links:                              settingsOperationalLinkPayloads(envelope.Network.Links),
+		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                   settingsNetworkConfigPayload(envelope.Network.Config),
+		Runtime:                                  settingsNetworkRuntimePayload(envelope.Network.Runtime),
+		Links:                                    settingsOperationalLinkPayloads(envelope.Network.Links),
 	}, nil
 }
 
@@ -1079,10 +1168,12 @@ func settingsObservabilitySectionResponse(envelope settingspkg.SectionEnvelope) 
 		return nil, errors.New("settings observability section is required")
 	}
 	return contract.SettingsObservabilityResponse{
-		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
-		Config:                             settingsObservabilityConfigPayload(envelope.Observability.Config),
-		Runtime:                            settingsObservabilityRuntimePayload(envelope.Observability.Runtime),
-		LogTail:                            settingsLogTailCapabilityPayload(envelope.Observability.LogTailSupport),
+		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                   settingsObservabilityConfigPayload(envelope.Observability.Config),
+		Runtime:                                  settingsObservabilityRuntimePayload(envelope.Observability.Runtime),
+		LogTail: settingsLogTailCapabilityPayload(
+			envelope.Observability.LogTailSupport,
+		),
 	}, nil
 }
 
@@ -1091,10 +1182,12 @@ func settingsHooksExtensionsSectionResponse(envelope settingspkg.SectionEnvelope
 		return nil, errors.New("settings hooks-extensions section is required")
 	}
 	return contract.SettingsHooksExtensionsResponse{
-		SettingsSectionResponseMetaPayload: settingsSectionMetaPayload(envelope),
-		Hooks:                              settingsHookItemPayloads(envelope.HooksExtensions.Hooks),
-		Config:                             settingsExtensionsConfigPayload(envelope.HooksExtensions.Extensions),
-		Installed:                          settingsInstalledExtensionPayloads(envelope.HooksExtensions.Installed),
+		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Hooks:                                    settingsHookItemPayloads(envelope.HooksExtensions.Hooks),
+		Config:                                   settingsExtensionsConfigPayload(envelope.HooksExtensions.Extensions),
+		Installed: settingsInstalledExtensionPayloads(
+			envelope.HooksExtensions.Installed,
+		),
 		TransportParity: settingsTransportParityPayload(
 			envelope.HooksExtensions.TransportParity,
 		),
@@ -1106,41 +1199,100 @@ func SettingsCollectionResponseFromEnvelope(envelope settingspkg.CollectionEnvel
 	switch envelope.Collection {
 	case settingspkg.CollectionProviders:
 		return contract.SettingsProvidersResponse{
-			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
-			Providers:                             settingsProviderItemPayloads(envelope.Providers),
+			SettingsGlobalCollectionResponseMetaPayload: settingsGlobalCollectionMetaPayload(envelope),
+			Providers: settingsProviderItemPayloads(envelope.Providers),
 		}, nil
 	case settingspkg.CollectionMCPServers:
 		return contract.SettingsMCPServersResponse{
-			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
-			MCPServers:                            settingsMCPServerItemPayloads(envelope.MCPServers),
+			SettingsGlobalWorkspaceCollectionResponseMetaPayload: settingsGlobalWorkspaceCollectionMetaPayload(
+				envelope,
+			),
+			MCPServers: settingsMCPServerItemPayloads(envelope.MCPServers),
 		}, nil
 	case settingspkg.CollectionSandboxes:
 		return contract.SettingsSandboxesResponse{
-			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
-			Sandboxes:                             settingsSandboxItemPayloads(envelope.Sandboxes),
+			SettingsGlobalCollectionResponseMetaPayload: settingsGlobalCollectionMetaPayload(envelope),
+			Sandboxes: settingsSandboxItemPayloads(envelope.Sandboxes),
 		}, nil
 	case settingspkg.CollectionHooks:
 		return contract.SettingsHooksResponse{
-			SettingsCollectionResponseMetaPayload: settingsCollectionMetaPayload(envelope),
-			Hooks:                                 settingsHookItemPayloads(envelope.Hooks),
+			SettingsGlobalCollectionResponseMetaPayload: settingsGlobalCollectionMetaPayload(envelope),
+			Hooks: settingsHookItemPayloads(envelope.Hooks),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown settings collection %q", envelope.Collection)
 	}
 }
 
-// SettingsMutationResultPayloadFromResult converts one settings mutation result into the shared payload.
-func SettingsMutationResultPayloadFromResult(result settingspkg.MutationResult) contract.MutationResult {
-	return contract.MutationResult{
-		Section:         contract.SettingsSectionName(result.Section),
-		Scope:           contract.SettingsScopeKind(result.Scope),
-		WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
-		WorkspaceID:     strings.TrimSpace(result.WorkspaceID),
-		Behavior:        contract.SettingsMutationBehavior(result.Behavior),
-		Applied:         result.Applied,
-		RestartRequired: result.RestartRequired,
-		RestartScope:    strings.TrimSpace(result.RestartScope),
-		Warnings:        cloneStrings(result.Warnings),
+// SettingsSectionMutationResultPayloadFromResult converts one settings section mutation result into the shared payload.
+func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationResult) (any, error) {
+	switch result.Section {
+	case settingspkg.SectionGeneral,
+		settingspkg.SectionMemory,
+		settingspkg.SectionAutomation,
+		settingspkg.SectionNetwork,
+		settingspkg.SectionObservability,
+		settingspkg.SectionHooksExtensions:
+		return contract.SettingsGlobalSectionMutationResult{
+			Section:         contract.SettingsSectionName(result.Section),
+			Scope:           contract.SettingsGlobalScopeKind(result.Scope),
+			WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
+			Behavior:        contract.SettingsMutationBehavior(result.Behavior),
+			Applied:         result.Applied,
+			RestartRequired: result.RestartRequired,
+			RestartScope:    strings.TrimSpace(result.RestartScope),
+			Warnings:        cloneStrings(result.Warnings),
+		}, nil
+	case settingspkg.SectionSkills:
+		return contract.SettingsSkillsMutationResult{
+			Section:         contract.SettingsSectionName(result.Section),
+			Scope:           contract.SettingsAgentScopeKind(result.Scope),
+			WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
+			WorkspaceID:     strings.TrimSpace(result.WorkspaceID),
+			AgentName:       strings.TrimSpace(result.AgentName),
+			Behavior:        contract.SettingsMutationBehavior(result.Behavior),
+			Applied:         result.Applied,
+			RestartRequired: result.RestartRequired,
+			RestartScope:    strings.TrimSpace(result.RestartScope),
+			Warnings:        cloneStrings(result.Warnings),
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown settings section mutation %q", result.Section)
+	}
+}
+
+// SettingsCollectionMutationResultPayloadFromResult converts one settings
+// collection mutation result into the shared payload.
+func SettingsCollectionMutationResultPayloadFromResult(result settingspkg.MutationResult) (any, error) {
+	collection := contract.SettingsCollectionName(result.Section)
+	switch collection {
+	case contract.SettingsCollectionProviders,
+		contract.SettingsCollectionSandboxes,
+		contract.SettingsCollectionHooks:
+		return contract.SettingsGlobalCollectionMutationResult{
+			Section:         collection,
+			Scope:           contract.SettingsGlobalScopeKind(result.Scope),
+			WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
+			Behavior:        contract.SettingsMutationBehavior(result.Behavior),
+			Applied:         result.Applied,
+			RestartRequired: result.RestartRequired,
+			RestartScope:    strings.TrimSpace(result.RestartScope),
+			Warnings:        cloneStrings(result.Warnings),
+		}, nil
+	case contract.SettingsCollectionMCPServers:
+		return contract.SettingsGlobalWorkspaceCollectionMutationResult{
+			Section:         collection,
+			Scope:           contract.SettingsWorkspaceScopeKind(result.Scope),
+			WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
+			WorkspaceID:     strings.TrimSpace(result.WorkspaceID),
+			Behavior:        contract.SettingsMutationBehavior(result.Behavior),
+			Applied:         result.Applied,
+			RestartRequired: result.RestartRequired,
+			RestartScope:    strings.TrimSpace(result.RestartScope),
+			Warnings:        cloneStrings(result.Warnings),
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown settings collection mutation %q", result.Section)
 	}
 }
 
@@ -1188,33 +1340,80 @@ func SettingsUpdateResponseFromStatus(status SettingsUpdateStatus) contract.Sett
 	}
 }
 
-func settingsSectionMetaPayload(envelope settingspkg.SectionEnvelope) contract.SettingsSectionResponseMetaPayload {
-	return contract.SettingsSectionResponseMetaPayload{
+func settingsGlobalSectionMetaPayload(
+	envelope settingspkg.SectionEnvelope,
+) contract.SettingsGlobalSectionResponseMetaPayload {
+	return contract.SettingsGlobalSectionResponseMetaPayload{
 		Section:         contract.SettingsSectionName(envelope.Section),
-		Scope:           contract.SettingsScopeKind(envelope.Scope),
-		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
-		AvailableScopes: settingsScopeKindsPayload(envelope.AvailableScopes),
+		Scope:           contract.SettingsGlobalScopeKind(envelope.Scope),
+		AvailableScopes: settingsGlobalScopeKindsPayload(envelope.AvailableScopes),
 	}
 }
 
-func settingsCollectionMetaPayload(
+func settingsSkillsSectionMetaPayload(
+	envelope settingspkg.SectionEnvelope,
+) contract.SettingsSkillsSectionResponseMetaPayload {
+	return contract.SettingsSkillsSectionResponseMetaPayload{
+		Section:         contract.SettingsSectionName(envelope.Section),
+		Scope:           contract.SettingsAgentScopeKind(envelope.Scope),
+		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
+		AgentName:       strings.TrimSpace(envelope.AgentName),
+		AvailableScopes: settingsAgentScopeKindsPayload(envelope.AvailableScopes),
+	}
+}
+
+func settingsGlobalCollectionMetaPayload(
 	envelope settingspkg.CollectionEnvelope,
-) contract.SettingsCollectionResponseMetaPayload {
-	return contract.SettingsCollectionResponseMetaPayload{
+) contract.SettingsGlobalCollectionResponseMetaPayload {
+	return contract.SettingsGlobalCollectionResponseMetaPayload{
 		Collection:      contract.SettingsCollectionName(envelope.Collection),
-		Scope:           contract.SettingsScopeKind(envelope.Scope),
-		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
-		AvailableScopes: settingsScopeKindsPayload(envelope.AvailableScopes),
+		Scope:           contract.SettingsGlobalScopeKind(envelope.Scope),
+		AvailableScopes: settingsGlobalScopeKindsPayload(envelope.AvailableScopes),
 	}
 }
 
-func settingsScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.SettingsScopeKind {
+func settingsGlobalWorkspaceCollectionMetaPayload(
+	envelope settingspkg.CollectionEnvelope,
+) contract.SettingsGlobalWorkspaceCollectionResponseMetaPayload {
+	return contract.SettingsGlobalWorkspaceCollectionResponseMetaPayload{
+		Collection:      contract.SettingsCollectionName(envelope.Collection),
+		Scope:           contract.SettingsWorkspaceScopeKind(envelope.Scope),
+		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
+		AvailableScopes: settingsWorkspaceScopeKindsPayload(envelope.AvailableScopes),
+	}
+}
+
+func settingsGlobalScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.SettingsGlobalScopeKind {
 	if len(scopes) == 0 {
 		return nil
 	}
-	payloads := make([]contract.SettingsScopeKind, 0, len(scopes))
+	payloads := make([]contract.SettingsGlobalScopeKind, 0, len(scopes))
 	for _, scope := range scopes {
-		payloads = append(payloads, contract.SettingsScopeKind(scope))
+		payloads = append(payloads, contract.SettingsGlobalScopeKind(scope))
+	}
+	return payloads
+}
+
+func settingsAgentScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.SettingsAgentScopeKind {
+	if len(scopes) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsAgentScopeKind, 0, len(scopes))
+	for _, scope := range scopes {
+		payloads = append(payloads, contract.SettingsAgentScopeKind(scope))
+	}
+	return payloads
+}
+
+func settingsWorkspaceScopeKindsPayload(
+	scopes []settingspkg.ScopeKind,
+) []contract.SettingsWorkspaceScopeKind {
+	if len(scopes) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsWorkspaceScopeKind, 0, len(scopes))
+	for _, scope := range scopes {
+		payloads = append(payloads, contract.SettingsWorkspaceScopeKind(scope))
 	}
 	return payloads
 }
@@ -1771,6 +1970,7 @@ func settingsSourceRefPayload(value settingspkg.SourceRef) contract.SettingsSour
 		Kind:        contract.SettingsSourceKind(value.Kind),
 		Scope:       contract.SettingsScopeKind(value.Scope),
 		WorkspaceID: strings.TrimSpace(value.WorkspaceID),
+		AgentName:   strings.TrimSpace(value.AgentName),
 	}
 }
 

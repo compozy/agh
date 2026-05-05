@@ -10,8 +10,8 @@ Marketplace commands are local CLI operations. They do not require the daemon to
 running daemon notices installed skills on the next skills watcher refresh.
 
 <OperatorNote>
-  Marketplace skills are installed into `~/.agh/skills/`. AGH marks them as marketplace-sourced by
-  writing `.agh-meta.json` next to `SKILL.md`.
+  Marketplace skills are installed into `$AGH_HOME/skills/`. AGH marks them as marketplace-sourced
+  by writing `.agh-meta.json` next to `SKILL.md`.
 </OperatorNote>
 
 ## Configure the Registry
@@ -71,11 +71,11 @@ Install behavior:
 
 1. AGH resolves the configured registry.
 2. It fetches marketplace detail for the slug.
-3. It downloads the archive into a temporary staging directory under `~/.agh/skills/`.
+3. It downloads the archive into a temporary staging directory under `$AGH_HOME/skills/`.
 4. It verifies the archive shape and scans content before install.
 5. It computes a deterministic directory hash.
 6. It writes `.agh-meta.json`.
-7. It moves the skill into `~/.agh/skills/<parsed-skill-name>`.
+7. It moves the skill into `$AGH_HOME/skills/<parsed-skill-name>`.
 
 Installed marketplace skills then load from the global registry. If the same skill name already
 exists in a lower source, the higher-precedence source wins according to the normal skill hierarchy.
@@ -173,7 +173,8 @@ stores the installed version. The current user-facing CLI does not expose `agh s
 
 For now, treat marketplace installs as "install latest" and use the recorded `.agh-meta.json`
 version for audit and update checks. If you need a fixed skill version today, vendor the skill as a
-manual local skill in `~/.agh/skills/` or `<workspace>/.agh/skills/` and review updates manually.
+manual local skill in `$AGH_HOME/skills/` or `<workspace>/.agh/skills/` and review updates
+manually.
 
 ## Remove
 

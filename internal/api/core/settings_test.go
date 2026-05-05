@@ -1308,7 +1308,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				},
 				PutCollectionItemFn: func(_ context.Context, req settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error) {
 					return settingspkg.MutationResult{
-						Section:  settingspkg.SectionHooksExtensions,
+						Section:  settingspkg.SectionName(req.Collection),
 						Scope:    req.Scope,
 						Behavior: settingspkg.MutationBehaviorAppliedNow,
 						Applied:  true,
@@ -1334,7 +1334,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 func assertAppliedSettingsMutation(t *testing.T, resp *httptest.ResponseRecorder) {
 	t.Helper()
 
-	var payload contract.MutationResult
+	var payload contract.SettingsGlobalSectionMutationResult
 	testutil.DecodeJSONResponse(t, resp, &payload)
 	if !payload.Applied || payload.Behavior != contract.SettingsMutationBehaviorAppliedNow {
 		t.Fatalf("settings mutation payload = %#v, want applied_now", payload)
@@ -1524,7 +1524,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		},
 		DeleteItemFn: func(_ context.Context, req settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error) {
 			return settingspkg.MutationResult{
-				Section:  settingspkg.SectionHooksExtensions,
+				Section:  settingspkg.SectionName(req.Collection),
 				Scope:    req.Scope,
 				Behavior: settingspkg.MutationBehaviorAppliedNow,
 				Applied:  true,
@@ -1556,6 +1556,33 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		if got, want := resp.Code, http.StatusOK; got != want {
 			t.Fatalf("%s status = %d, want %d; body=%s", path, got, want, resp.Body.String())
 		}
+	}
+}
+
+func TestSettingsRejectsAgentNameOutsideSkills(t *testing.T) {
+	t.Parallel()
+
+	service := &stubSettingsService{}
+	fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+
+	resp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/api/settings/general?agent_name=coder",
+		nil,
+	)
+	if got, want := resp.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+	}
+	if service.GetSectionCalls != 0 {
+		t.Fatalf("GetSectionCalls = %d, want 0", service.GetSectionCalls)
+	}
+
+	var payload contract.ErrorPayload
+	decodeJSON(t, resp.Body.Bytes(), &payload)
+	if !strings.Contains(payload.Error, "agent_name is only supported for skills") {
+		t.Fatalf("payload.Error = %q, want agent_name validation", payload.Error)
 	}
 }
 
@@ -1757,7 +1784,7 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 	service := &stubSettingsService{
 		PutCollectionItemFn: func(_ context.Context, req settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error) {
 			return settingspkg.MutationResult{
-				Section:         settingspkg.SectionHooksExtensions,
+				Section:         settingspkg.SectionName(req.Collection),
 				Scope:           req.Scope,
 				WriteTarget:     settingspkg.WriteTargetWorkspaceMCPSidecar,
 				WorkspaceID:     req.WorkspaceID,
@@ -1770,7 +1797,7 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		},
 		DeleteItemFn: func(_ context.Context, req settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error) {
 			return settingspkg.MutationResult{
-				Section:         settingspkg.SectionHooksExtensions,
+				Section:         settingspkg.SectionName(req.Collection),
 				Scope:           req.Scope,
 				WriteTarget:     settingspkg.WriteTargetWorkspaceMCPSidecar,
 				WorkspaceID:     req.WorkspaceID,
@@ -1829,7 +1856,7 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		t.Fatalf("PUT response leaked raw secret value: %s", putResp.Body.String())
 	}
 
-	var putPayload contract.MutationResult
+	var putPayload contract.SettingsGlobalWorkspaceCollectionMutationResult
 	decodeJSON(t, putResp.Body.Bytes(), &putPayload)
 	if putPayload.WriteTarget != contract.SettingsWriteTargetWorkspaceMCPSidecar ||
 		putPayload.RestartScope != "daemon" ||

@@ -28,7 +28,12 @@ import {
   type MCPLastAction,
   type MCPScopeSelection,
 } from "@/hooks/routes/use-settings-mcp-servers-page";
-import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "@/systems/settings";
+import type {
+  SettingsMCPServerEntry,
+  SettingsMCPServerTarget,
+  SettingsScope,
+  SettingsWriteTarget,
+} from "@/systems/settings";
 import {
   SettingsCollectionHeader,
   SettingsDeleteDialog,
@@ -188,7 +193,7 @@ type ScopeValue = "global" | `ws:${string}`;
 
 interface ScopeSelectorProps {
   selection: MCPScopeSelection;
-  availableScopes: readonly ("global" | "workspace")[];
+  availableScopes: readonly SettingsScope[];
   workspaces: WorkspacePayload[];
   isLoadingWorkspaces: boolean;
   onSelectGlobal: () => void;
@@ -615,13 +620,13 @@ function targetLabel(target: SettingsMCPServerTarget): string {
   return "sidecar (mcp.json)";
 }
 
-function targetWriteLabel(
-  target: "global-config" | "workspace-config" | "global-mcp-sidecar" | "workspace-mcp-sidecar"
-): string {
+function targetWriteLabel(target: SettingsWriteTarget): string {
   if (target === "global-config") return "GLOBAL CFG";
   if (target === "workspace-config") return "WS CFG";
   if (target === "global-mcp-sidecar") return "GLOBAL MCP";
-  return "WS MCP";
+  if (target === "workspace-mcp-sidecar") return "WS MCP";
+  if (target === "global-agent-file") return "GLOBAL AGENT";
+  return "WS AGENT";
 }
 
 function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: string[]) => void }) {

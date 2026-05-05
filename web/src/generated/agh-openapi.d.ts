@@ -1986,7 +1986,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List skills for one workspace */
+    /** List effective skills for the selected global, workspace, or agent scope */
     get: operations["listSkills"];
     put?: never;
     post?: never;
@@ -4348,6 +4348,10 @@ export interface operations {
                 acp_session_id?: string;
                 activity?: {
                   current_tool?: string;
+                  /** Format: date-time */
+                  deadline_at?: string | null;
+                  /** Format: int64 */
+                  elapsed_ms: number;
                   /** Format: int64 */
                   elapsed_seconds: number;
                   /** Format: int64 */
@@ -14829,6 +14833,10 @@ export interface operations {
                 acp_session_id?: string;
                 activity?: {
                   current_tool?: string;
+                  /** Format: date-time */
+                  deadline_at?: string | null;
+                  /** Format: int64 */
+                  elapsed_ms: number;
                   /** Format: int64 */
                   elapsed_seconds: number;
                   /** Format: int64 */
@@ -15075,6 +15083,10 @@ export interface operations {
                 acp_session_id?: string;
                 activity?: {
                   current_tool?: string;
+                  /** Format: date-time */
+                  deadline_at?: string | null;
+                  /** Format: int64 */
+                  elapsed_ms: number;
                   /** Format: int64 */
                   elapsed_seconds: number;
                   /** Format: int64 */
@@ -15987,16 +15999,30 @@ export interface operations {
         content: {
           "application/json": {
             events: {
+              actor_id?: string;
+              actor_kind?: string;
               agent_name: string;
+              claim_token_hash?: string;
+              content?: unknown;
+              coordinator_session_id?: string;
+              hook_event?: string;
+              hook_name?: string;
               id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               parent_session_id?: string;
+              release_reason?: string;
               root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
               session_id: string;
               spawn_depth: number;
               summary?: string;
+              task_id?: string;
               /** Format: date-time */
               timestamp: string;
               type: string;
+              workflow_id?: string;
             }[];
           };
         };
@@ -16085,6 +16111,10 @@ export interface operations {
               active_sessions: number;
               activities?: {
                 current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
                 /** Format: int64 */
                 elapsed_seconds: number;
                 /** Format: int64 */
@@ -17345,6 +17375,10 @@ export interface operations {
               acp_session_id?: string;
               activity?: {
                 current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
                 /** Format: int64 */
                 elapsed_seconds: number;
                 /** Format: int64 */
@@ -17527,6 +17561,10 @@ export interface operations {
               acp_session_id?: string;
               activity?: {
                 current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
                 /** Format: int64 */
                 elapsed_seconds: number;
                 /** Format: int64 */
@@ -17725,6 +17763,10 @@ export interface operations {
               acp_session_id?: string;
               activity?: {
                 current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
                 /** Format: int64 */
                 elapsed_seconds: number;
                 /** Format: int64 */
@@ -18025,16 +18067,27 @@ export interface operations {
         content: {
           "application/json": {
             events: {
+              actor_id?: string;
+              actor_kind?: string;
               agent_name: string;
+              claim_token_hash?: string;
               content: unknown;
+              coordinator_session_id?: string;
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
                 summary?: string;
               } | null;
+              hook_event?: string;
+              hook_name?: string;
               id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
               parent_session_id?: string;
+              release_reason?: string;
               root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
               /** Format: int64 */
               sequence: number;
               session_id: string;
@@ -18052,10 +18105,12 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              task_id?: string;
               /** Format: date-time */
               timestamp: string;
               turn_id: string;
               type: string;
+              workflow_id?: string;
               workspace_id?: string;
               workspace_path?: string;
             }[];
@@ -18137,16 +18192,27 @@ export interface operations {
           "application/json": {
             history: {
               events: {
+                actor_id?: string;
+                actor_kind?: string;
                 agent_name: string;
+                claim_token_hash?: string;
                 content: unknown;
+                coordinator_session_id?: string;
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
                   summary?: string;
                 } | null;
+                hook_event?: string;
+                hook_name?: string;
                 id: string;
+                /** Format: date-time */
+                lease_until?: string | null;
                 parent_session_id?: string;
+                release_reason?: string;
                 root_session_id?: string;
+                run_id?: string;
+                scheduler_reason?: string;
                 /** Format: int64 */
                 sequence: number;
                 session_id: string;
@@ -18164,10 +18230,12 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                task_id?: string;
                 /** Format: date-time */
                 timestamp: string;
                 turn_id: string;
                 type: string;
+                workflow_id?: string;
                 workspace_id?: string;
                 workspace_path?: string;
               }[];
@@ -18332,6 +18400,10 @@ export interface operations {
               acp_session_id?: string;
               activity?: {
                 current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
                 /** Format: int64 */
                 elapsed_seconds: number;
                 /** Format: int64 */
@@ -19959,7 +20031,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: "global"[];
             config: {
               default_fire_limit: {
                 max: number;
@@ -19987,7 +20059,7 @@ export interface operations {
               trigger_total: number;
             };
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -19997,7 +20069,6 @@ export interface operations {
               | "network"
               | "observability"
               | "hooks-extensions";
-            workspace_id?: string;
           };
         };
       };
@@ -20057,7 +20128,7 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -20068,13 +20139,14 @@ export interface operations {
               | "observability"
               | "hooks-extensions";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -20154,7 +20226,7 @@ export interface operations {
                 name: string;
               };
             };
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: "global"[];
             config: {
               daemon: {
                 socket: string;
@@ -20202,7 +20274,7 @@ export interface operations {
               version?: string;
             };
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -20212,7 +20284,6 @@ export interface operations {
               | "network"
               | "observability"
               | "hooks-extensions";
-            workspace_id?: string;
           };
         };
       };
@@ -20286,7 +20357,7 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -20297,13 +20368,14 @@ export interface operations {
               | "observability"
               | "hooks-extensions";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -20375,7 +20447,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: "global"[];
             /** @enum {string} */
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             hooks: {
@@ -20506,36 +20578,43 @@ export interface operations {
                   | "workspace-config"
                   | "global-mcp-sidecar"
                   | "workspace-mcp-sidecar"
+                  | "global-agent-file"
+                  | "workspace-agent-file"
                 )[];
                 effective_source: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
             }[];
             /** @enum {string} */
-            scope: "global" | "workspace";
-            workspace_id?: string;
+            scope: "global";
           };
         };
       };
@@ -20574,7 +20653,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: "global"[];
             config: {
               marketplace: {
                 base_url?: string;
@@ -20724,29 +20803,37 @@ export interface operations {
                   | "workspace-config"
                   | "global-mcp-sidecar"
                   | "workspace-mcp-sidecar"
+                  | "global-agent-file"
+                  | "workspace-agent-file"
                 )[];
                 effective_source: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
@@ -20763,7 +20850,7 @@ export interface operations {
               version?: string;
             }[];
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -20780,7 +20867,6 @@ export interface operations {
               settings_http: boolean;
               settings_uds: boolean;
             };
-            workspace_id?: string;
           };
         };
       };
@@ -20852,7 +20938,7 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -20863,13 +20949,14 @@ export interface operations {
               | "observability"
               | "hooks-extensions";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -21076,24 +21163,18 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -21174,24 +21255,18 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -21297,7 +21372,7 @@ export interface operations {
               };
               name: string;
               /** @enum {string} */
-              scope: "global" | "workspace";
+              scope: "global" | "workspace" | "agent";
               secret_env?: {
                 [key: string]: string;
               };
@@ -21307,29 +21382,37 @@ export interface operations {
                   | "workspace-config"
                   | "global-mcp-sidecar"
                   | "workspace-mcp-sidecar"
+                  | "global-agent-file"
+                  | "workspace-agent-file"
                 )[];
                 effective_source: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
@@ -21454,14 +21537,7 @@ export interface operations {
             /** @enum {string} */
             scope: "global" | "workspace";
             /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             warnings?: string[];
             workspace_id?: string;
             /** @enum {string} */
@@ -21469,7 +21545,9 @@ export interface operations {
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -21570,14 +21648,7 @@ export interface operations {
             /** @enum {string} */
             scope: "global" | "workspace";
             /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             warnings?: string[];
             workspace_id?: string;
             /** @enum {string} */
@@ -21585,7 +21656,9 @@ export interface operations {
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -21676,7 +21749,7 @@ export interface operations {
                 name: string;
               };
             };
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: "global"[];
             config: {
               dream: {
                 agent: string;
@@ -21697,7 +21770,7 @@ export interface operations {
               last_consolidated_at?: string | null;
             };
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -21707,7 +21780,6 @@ export interface operations {
               | "network"
               | "observability"
               | "hooks-extensions";
-            workspace_id?: string;
           };
         };
       };
@@ -21770,7 +21842,7 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -21781,13 +21853,14 @@ export interface operations {
               | "observability"
               | "hooks-extensions";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -21859,7 +21932,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: "global"[];
             config: {
               default_channel: string;
               enabled: boolean;
@@ -21887,7 +21960,7 @@ export interface operations {
               status?: string;
             };
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -21897,7 +21970,6 @@ export interface operations {
               | "network"
               | "observability"
               | "hooks-extensions";
-            workspace_id?: string;
           };
         };
       };
@@ -21957,7 +22029,7 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -21968,13 +22040,14 @@ export interface operations {
               | "observability"
               | "hooks-extensions";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -22046,7 +22119,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: "global"[];
             config: {
               enabled: boolean;
               /** Format: int64 */
@@ -22078,7 +22151,7 @@ export interface operations {
               uptime_seconds: number;
             };
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -22088,7 +22161,6 @@ export interface operations {
               | "network"
               | "observability"
               | "hooks-extensions";
-            workspace_id?: string;
           };
         };
       };
@@ -22151,7 +22223,7 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
             section:
               | "general"
@@ -22162,13 +22234,14 @@ export interface operations {
               | "observability"
               | "hooks-extensions";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -22275,7 +22348,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: "global"[];
             /** @enum {string} */
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             providers: {
@@ -22322,15 +22395,18 @@ export interface operations {
                   transport?: string;
                 };
                 source: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 };
               } | null;
@@ -22362,36 +22438,43 @@ export interface operations {
                   | "workspace-config"
                   | "global-mcp-sidecar"
                   | "workspace-mcp-sidecar"
+                  | "global-agent-file"
+                  | "workspace-agent-file"
                 )[];
                 effective_source: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
             }[];
             /** @enum {string} */
-            scope: "global" | "workspace";
-            workspace_id?: string;
+            scope: "global";
           };
         };
       };
@@ -22477,15 +22560,18 @@ export interface operations {
                   transport?: string;
                 };
                 source: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 };
               } | null;
@@ -22517,29 +22603,37 @@ export interface operations {
                   | "workspace-config"
                   | "global-mcp-sidecar"
                   | "workspace-mcp-sidecar"
+                  | "global-agent-file"
+                  | "workspace-agent-file"
                 )[];
                 effective_source: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
@@ -22635,24 +22729,18 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -22733,24 +22821,18 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -22811,7 +22893,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            available_scopes: "global"[];
             /** @enum {string} */
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             sandboxes: {
@@ -22850,37 +22932,44 @@ export interface operations {
                   | "workspace-config"
                   | "global-mcp-sidecar"
                   | "workspace-mcp-sidecar"
+                  | "global-agent-file"
+                  | "workspace-agent-file"
                 )[];
                 effective_source: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
               workspace_usage_count: number;
             }[];
             /** @enum {string} */
-            scope: "global" | "workspace";
-            workspace_id?: string;
+            scope: "global";
           };
         };
       };
@@ -22958,29 +23047,37 @@ export interface operations {
                   | "workspace-config"
                   | "global-mcp-sidecar"
                   | "workspace-mcp-sidecar"
+                  | "global-agent-file"
+                  | "workspace-agent-file"
                 )[];
                 effective_source: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 };
                 shadowed_sources?: {
+                  agent_name?: string;
                   /** @enum {string} */
                   kind:
                     | "builtin-provider"
                     | "global-config"
                     | "workspace-config"
                     | "global-mcp-sidecar"
-                    | "workspace-mcp-sidecar";
+                    | "workspace-mcp-sidecar"
+                    | "global-agent-file"
+                    | "workspace-agent-file";
                   /** @enum {string} */
-                  scope: "global" | "workspace";
+                  scope: "global" | "workspace" | "agent";
                   workspace_id?: string;
                 }[];
               };
@@ -23078,24 +23175,18 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -23176,24 +23267,18 @@ export interface operations {
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global";
             /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             warnings?: string[];
-            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -23240,7 +23325,14 @@ export interface operations {
   };
   getSettingsSkills: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "agent";
+        /** @description Optional workspace id for agent resolution context */
+        workspace_id?: string;
+        /** @description Agent name when scope=agent */
+        agent_name?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -23254,7 +23346,8 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: ("global" | "workspace")[];
+            agent_name?: string;
+            available_scopes: ("global" | "agent")[];
             config: {
               allowed_marketplace_hooks?: string[];
               allowed_marketplace_mcp?: string[];
@@ -23274,7 +23367,7 @@ export interface operations {
             }[];
             runtime_available: boolean;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global" | "agent";
             /** @enum {string} */
             section:
               | "general"
@@ -23285,6 +23378,39 @@ export interface operations {
               | "observability"
               | "hooks-extensions";
             workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid agent-local layer */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
           };
         };
       };
@@ -23309,7 +23435,14 @@ export interface operations {
   };
   updateSettingsSkills: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "agent";
+        /** @description Optional workspace id for agent resolution context */
+        workspace_id?: string;
+        /** @description Agent name when scope=agent */
+        agent_name?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -23340,13 +23473,14 @@ export interface operations {
         };
         content: {
           "application/json": {
+            agent_name?: string;
             applied: boolean;
             /** @enum {string} */
             behavior: "applied_now" | "restart_required" | "action_trigger";
             restart_required: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
+            scope: "global" | "agent";
             /** @enum {string} */
             section:
               | "general"
@@ -23363,7 +23497,9 @@ export interface operations {
               | "global-config"
               | "workspace-config"
               | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar";
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
           };
         };
       };
@@ -23389,8 +23525,30 @@ export interface operations {
           };
         };
       };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
       /** @description Conflicting settings change */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid agent-local layer */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -23483,9 +23641,11 @@ export interface operations {
   };
   listSkills: {
     parameters: {
-      query: {
-        /** @description Workspace id or path */
-        workspace: string;
+      query?: {
+        /** @description Workspace id or path for resolution context */
+        workspace?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
       };
       header?: never;
       path?: never;
@@ -23521,7 +23681,7 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid workspace filter */
+      /** @description Invalid skill lookup */
       400: {
         headers: {
           [name: string]: unknown;
@@ -23532,8 +23692,19 @@ export interface operations {
           };
         };
       };
-      /** @description Workspace not found */
+      /** @description Skill scope not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid agent-local layer */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -23576,8 +23747,10 @@ export interface operations {
   getSkill: {
     parameters: {
       query?: {
-        /** @description Workspace id or path */
+        /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
       };
       header?: never;
       path: {
@@ -23627,8 +23800,19 @@ export interface operations {
           };
         };
       };
-      /** @description Skill or workspace not found */
+      /** @description Skill or scope not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid agent-local layer */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -23671,8 +23855,10 @@ export interface operations {
   getSkillContent: {
     parameters: {
       query?: {
-        /** @description Workspace id or path */
+        /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
       };
       header?: never;
       path: {
@@ -23705,8 +23891,19 @@ export interface operations {
           };
         };
       };
-      /** @description Skill or workspace not found */
+      /** @description Skill or scope not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid agent-local layer */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -23749,8 +23946,10 @@ export interface operations {
   disableSkill: {
     parameters: {
       query?: {
-        /** @description Workspace id or path */
+        /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
       };
       header?: never;
       path: {
@@ -23783,8 +23982,19 @@ export interface operations {
           };
         };
       };
-      /** @description Skill or workspace not found */
+      /** @description Skill or scope not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid agent-local layer */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -23827,8 +24037,10 @@ export interface operations {
   enableSkill: {
     parameters: {
       query?: {
-        /** @description Workspace id or path */
+        /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
       };
       header?: never;
       path: {
@@ -23861,8 +24073,19 @@ export interface operations {
           };
         };
       };
-      /** @description Skill or workspace not found */
+      /** @description Skill or scope not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid agent-local layer */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -34130,6 +34353,10 @@ export interface operations {
               acp_session_id?: string;
               activity?: {
                 current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
                 /** Format: int64 */
                 elapsed_seconds: number;
                 /** Format: int64 */
