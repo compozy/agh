@@ -53,7 +53,7 @@ agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
   --surface thread \
-  --thread-id thread_status_01 \
+  --thread thread_status_01 \
   --kind say \
   --body '{"text":"Reviewer available for auth.go","intent":"availability"}' \
   -o json
@@ -66,10 +66,10 @@ agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
   --surface direct \
-  --direct-id direct_0123456789abcdef0123456789abcdef \
+  --direct direct_0123456789abcdef0123456789abcdef \
   --kind say \
   --to reviewer.sess-xyz \
-  --work-id work_review_42 \
+  --work work_review_42 \
   --reply-to msg-root-1 \
   --trace-id trace-review-42 \
   --causation-id msg-root-1 \
@@ -84,10 +84,10 @@ agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
   --surface direct \
-  --direct-id direct_0123456789abcdef0123456789abcdef \
+  --direct direct_0123456789abcdef0123456789abcdef \
   --kind receipt \
   --to reviewer.sess-xyz \
-  --work-id work_review_42 \
+  --work work_review_42 \
   --reply-to msg-root-1 \
   --body '{"for_id":"msg-root-1","status":"accepted","detail":"Accepted for processing."}' \
   -o json
@@ -100,10 +100,10 @@ agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
   --surface direct \
-  --direct-id direct_0123456789abcdef0123456789abcdef \
+  --direct direct_0123456789abcdef0123456789abcdef \
   --kind trace \
   --to reviewer.sess-xyz \
-  --work-id work_review_42 \
+  --work work_review_42 \
   --reply-to msg-root-1 \
   --body '{"state":"working","message":"Inspecting auth.go now."}' \
   -o json
@@ -116,10 +116,10 @@ agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
   --surface direct \
-  --direct-id direct_0123456789abcdef0123456789abcdef \
+  --direct direct_0123456789abcdef0123456789abcdef \
   --kind capability \
   --to reviewer.sess-xyz \
-  --work-id work_capability_42 \
+  --work work_capability_42 \
   --body '{"capability":{"id":"launch-checklist","summary":"Compact inline launch checklist.","outcome":"Receiver can run a launch readiness checklist.","version":"1.0.0","digest":"sha256:f1d7f6af4a35babd8ae66b66b63076f4731d5d188f6812a57937a2469f2995e3","execution_outline":["Verify peers","Send canary","Confirm receipts"],"requirements":["workspace-read"]}}' \
   -o json
 ```
@@ -129,15 +129,15 @@ agh network send \
 - Direct-room chat uses `--kind say --surface direct` and requires a JSON body with at least `"text"`.
 - If you are acknowledging admission, progress, or completion at the protocol level, use the real kinds `receipt` and `trace`. Do not send `--kind say --surface direct` with `intent:"receipt"` or `intent:"trace"` as a substitute.
 - `capability` requires a nested `"capability"` object. Do not put `id`, `summary`, `outcome`, or other capability fields at the top level.
-- Directed `capability` messages require `--to`, `--surface`, a matching `--thread-id` or `--direct-id`, and `--work-id`.
+- Directed `capability` messages require `--to`, `--surface`, a matching `--thread` or `--direct`, and `--work`.
 - `capability.id`, `capability.summary`, `capability.outcome`, and `capability.digest` are required.
 - `capability.digest` must match the daemon's canonical SHA-256 digest for the normalized capability document.
 - `receipt` requires `"for_id"` and `"status"`.
 - `receipt` with `"status":"accepted"` must not include `reason_code`.
 - `receipt` with `"status":"rejected"`, `"duplicate"`, `"expired"`, or `"unsupported"` must include `reason_code`.
 - `trace` requires `"state"`. Valid states are `submitted`, `working`, `needs_input`, `completed`, `failed`, and `canceled`.
-- When replying to inbound direct-surface `say`, `receipt`, `trace`, or directed `capability` messages, keep the wrapper `--surface`, `--direct-id`, and `--work-id` when present, and set `--reply-to` to the inbound message id.
-- When replying with `--kind say --surface direct` to an inbound broadcast `say`, use the direct room's `--direct-id` and open a NEW `--work-id` only if you are starting lifecycle-bearing work.
+- When replying to inbound direct-surface `say`, `receipt`, `trace`, or directed `capability` messages, keep the wrapper `--surface`, `--direct`, and `--work` when present, and set `--reply-to` to the inbound message id.
+- When replying with `--kind say --surface direct` to an inbound broadcast `say`, use the direct room's `--direct` and open a NEW `--work` only if you are starting lifecycle-bearing work.
 - Do not send `receipt` or `trace` directly against a broadcast `say`; those lifecycle kinds belong to targeted work after you open it in a direct room.
 - When an inbound message directly caused your reply, set `--causation-id` to that inbound message id.
 - If the wrapper includes `trace-id`, preserve it on correlated follow-up messages.
@@ -146,7 +146,7 @@ agh network send \
 
 - If `agh network send` returns a normal error before it accepts the message, fix the cause and resend.
 - If the outcome is ambiguous after a timeout, disconnect, or partial failure, retry the same logical message with the same `--id` and the same payload/correlation fields so the message identity stays stable.
-- Keep `--surface`, `--thread-id` or `--direct-id`, `--work-id`, `--reply-to`, `--trace-id`, and `--causation-id` unchanged when you are retrying the same logical send.
+- Keep `--surface`, `--thread` or `--direct`, `--work`, `--reply-to`, `--trace-id`, and `--causation-id` unchanged when you are retrying the same logical send.
 
 Example retry with a caller-chosen message id:
 
@@ -155,11 +155,11 @@ agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
   --surface direct \
-  --direct-id direct_0123456789abcdef0123456789abcdef \
+  --direct direct_0123456789abcdef0123456789abcdef \
   --kind say \
   --to reviewer.sess-xyz \
   --id msg-review-retry-42 \
-  --work-id work_review_42 \
+  --work work_review_42 \
   --reply-to msg-root-1 \
   --trace-id trace-review-42 \
   --causation-id msg-root-1 \

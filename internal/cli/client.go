@@ -48,6 +48,24 @@ type DaemonClient interface {
 	NetworkStatus(ctx context.Context) (NetworkStatusRecord, error)
 	NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	NetworkChannels(ctx context.Context) ([]NetworkChannelRecord, error)
+	NetworkThreads(ctx context.Context, query NetworkThreadsQuery) ([]NetworkThreadRecord, error)
+	NetworkThread(ctx context.Context, channel string, threadID string) (NetworkThreadRecord, error)
+	NetworkThreadMessages(
+		ctx context.Context,
+		query NetworkConversationMessagesQuery,
+	) ([]NetworkConversationMessageRecord, error)
+	NetworkDirects(ctx context.Context, query NetworkDirectsQuery) ([]NetworkDirectRoomRecord, error)
+	NetworkDirectResolve(
+		ctx context.Context,
+		channel string,
+		request NetworkDirectResolveRequest,
+	) (NetworkDirectRoomRecord, error)
+	NetworkDirect(ctx context.Context, channel string, directID string) (NetworkDirectRoomRecord, error)
+	NetworkDirectMessages(
+		ctx context.Context,
+		query NetworkConversationMessagesQuery,
+	) ([]NetworkConversationMessageRecord, error)
+	NetworkWork(ctx context.Context, workID string) (NetworkWorkRecord, error)
 	NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error)
 	NetworkInbox(ctx context.Context, sessionID string) ([]NetworkEnvelopeRecord, error)
 	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
@@ -767,12 +785,54 @@ type NetworkPeerCardRecord = contract.NetworkPeerCardPayload
 // NetworkChannelRecord is the shared active-channel payload.
 type NetworkChannelRecord = contract.NetworkChannelPayload
 
+// NetworkThreadRecord is the shared public-thread summary payload.
+type NetworkThreadRecord = contract.NetworkThreadSummaryPayload
+
+// NetworkDirectRoomRecord is the shared direct-room summary payload.
+type NetworkDirectRoomRecord = contract.NetworkDirectRoomPayload
+
+// NetworkConversationMessageRecord is the shared conversation message payload.
+type NetworkConversationMessageRecord = contract.NetworkConversationMessagePayload
+
+// NetworkWorkRecord is the shared network work payload.
+type NetworkWorkRecord = contract.NetworkWorkPayload
+
+// NetworkDirectResolveRequest captures direct-room resolution inputs.
+type NetworkDirectResolveRequest = contract.NetworkDirectResolveRequest
+
 // NetworkEnvelopeRecord is the shared surfaced envelope payload.
 type NetworkEnvelopeRecord = contract.NetworkEnvelopePayload
 
 // NetworkPeersQuery captures CLI filters for peer listing.
 type NetworkPeersQuery struct {
 	Channel string
+}
+
+// NetworkThreadsQuery captures CLI filters for public-thread listing.
+type NetworkThreadsQuery struct {
+	Channel string
+	Limit   int
+	After   string
+}
+
+// NetworkDirectsQuery captures CLI filters for direct-room listing.
+type NetworkDirectsQuery struct {
+	Channel string
+	PeerID  string
+	Limit   int
+	After   string
+}
+
+// NetworkConversationMessagesQuery captures CLI filters for conversation messages.
+type NetworkConversationMessagesQuery struct {
+	Channel  string
+	ThreadID string
+	DirectID string
+	Limit    int
+	Before   string
+	After    string
+	Kind     string
+	WorkID   string
 }
 
 // InstallExtensionRequest captures the shared extension install payload.
@@ -1063,6 +1123,160 @@ func (c *unixSocketClient) NetworkChannels(ctx context.Context) ([]NetworkChanne
 		return nil, err
 	}
 	return response.Channels, nil
+}
+
+func (c *unixSocketClient) NetworkThreads(
+	ctx context.Context,
+	query NetworkThreadsQuery,
+) ([]NetworkThreadRecord, error) {
+	channel, err := requireNetworkPathValue("channel", query.Channel)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Threads []NetworkThreadRecord `json:"threads"`
+	}
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads"
+	if err := c.doJSON(ctx, http.MethodGet, path, networkThreadsValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Threads, nil
+}
+
+func (c *unixSocketClient) NetworkThread(
+	ctx context.Context,
+	channel string,
+	threadID string,
+) (NetworkThreadRecord, error) {
+	path, err := networkThreadPath(channel, threadID)
+	if err != nil {
+		return NetworkThreadRecord{}, err
+	}
+	var response struct {
+		Thread NetworkThreadRecord `json:"thread"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return NetworkThreadRecord{}, err
+	}
+	return response.Thread, nil
+}
+
+func (c *unixSocketClient) NetworkThreadMessages(
+	ctx context.Context,
+	query NetworkConversationMessagesQuery,
+) ([]NetworkConversationMessageRecord, error) {
+	path, err := networkThreadMessagesPath(query.Channel, query.ThreadID)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Messages []NetworkConversationMessageRecord `json:"messages"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		path,
+		networkConversationMessagesValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response.Messages, nil
+}
+
+func (c *unixSocketClient) NetworkDirects(
+	ctx context.Context,
+	query NetworkDirectsQuery,
+) ([]NetworkDirectRoomRecord, error) {
+	channel, err := requireNetworkPathValue("channel", query.Channel)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Directs []NetworkDirectRoomRecord `json:"directs"`
+	}
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs"
+	if err := c.doJSON(ctx, http.MethodGet, path, networkDirectsValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Directs, nil
+}
+
+func (c *unixSocketClient) NetworkDirectResolve(
+	ctx context.Context,
+	channel string,
+	request NetworkDirectResolveRequest,
+) (NetworkDirectRoomRecord, error) {
+	channel, err := requireNetworkPathValue("channel", channel)
+	if err != nil {
+		return NetworkDirectRoomRecord{}, err
+	}
+	var response struct {
+		Direct NetworkDirectRoomRecord `json:"direct"`
+	}
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/resolve"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return NetworkDirectRoomRecord{}, err
+	}
+	return response.Direct, nil
+}
+
+func (c *unixSocketClient) NetworkDirect(
+	ctx context.Context,
+	channel string,
+	directID string,
+) (NetworkDirectRoomRecord, error) {
+	path, err := networkDirectPath(channel, directID)
+	if err != nil {
+		return NetworkDirectRoomRecord{}, err
+	}
+	var response struct {
+		Direct NetworkDirectRoomRecord `json:"direct"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return NetworkDirectRoomRecord{}, err
+	}
+	return response.Direct, nil
+}
+
+func (c *unixSocketClient) NetworkDirectMessages(
+	ctx context.Context,
+	query NetworkConversationMessagesQuery,
+) ([]NetworkConversationMessageRecord, error) {
+	path, err := networkDirectMessagesPath(query.Channel, query.DirectID)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Messages []NetworkConversationMessageRecord `json:"messages"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		path,
+		networkConversationMessagesValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response.Messages, nil
+}
+
+func (c *unixSocketClient) NetworkWork(ctx context.Context, workID string) (NetworkWorkRecord, error) {
+	workID, err := requireNetworkPathValue("work_id", workID)
+	if err != nil {
+		return NetworkWorkRecord{}, err
+	}
+	var response struct {
+		Work NetworkWorkRecord `json:"work"`
+	}
+	path := "/api/network/work/" + url.PathEscape(workID)
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return NetworkWorkRecord{}, err
+	}
+	return response.Work, nil
 }
 
 func (c *unixSocketClient) NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
@@ -3307,6 +3521,91 @@ func networkPeersValues(query NetworkPeersQuery) url.Values {
 		values.Set("channel", trimmed)
 	}
 	return values
+}
+
+func networkThreadsValues(query NetworkThreadsQuery) url.Values {
+	return networkListValues(query.Limit, query.After)
+}
+
+func networkDirectsValues(query NetworkDirectsQuery) url.Values {
+	values := networkListValues(query.Limit, query.After)
+	if trimmed := strings.TrimSpace(query.PeerID); trimmed != "" {
+		values.Set("peer_id", trimmed)
+	}
+	return values
+}
+
+func networkConversationMessagesValues(query NetworkConversationMessagesQuery) url.Values {
+	values := networkListValues(query.Limit, query.After)
+	if trimmed := strings.TrimSpace(query.Before); trimmed != "" {
+		values.Set("before", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Kind); trimmed != "" {
+		values.Set("kind", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.WorkID); trimmed != "" {
+		values.Set("work_id", trimmed)
+	}
+	return values
+}
+
+func networkListValues(limit int, after string) url.Values {
+	values := url.Values{}
+	if limit > 0 {
+		values.Set("limit", strconv.Itoa(limit))
+	}
+	if trimmed := strings.TrimSpace(after); trimmed != "" {
+		values.Set("after", trimmed)
+	}
+	return values
+}
+
+func networkThreadPath(channel string, threadID string) (string, error) {
+	channel, err := requireNetworkPathValue("channel", channel)
+	if err != nil {
+		return "", err
+	}
+	threadID, err = requireNetworkPathValue("thread_id", threadID)
+	if err != nil {
+		return "", err
+	}
+	return "/api/network/channels/" + url.PathEscape(channel) + "/threads/" + url.PathEscape(threadID), nil
+}
+
+func networkThreadMessagesPath(channel string, threadID string) (string, error) {
+	path, err := networkThreadPath(channel, threadID)
+	if err != nil {
+		return "", err
+	}
+	return path + "/messages", nil
+}
+
+func networkDirectPath(channel string, directID string) (string, error) {
+	channel, err := requireNetworkPathValue("channel", channel)
+	if err != nil {
+		return "", err
+	}
+	directID, err = requireNetworkPathValue("direct_id", directID)
+	if err != nil {
+		return "", err
+	}
+	return "/api/network/channels/" + url.PathEscape(channel) + "/directs/" + url.PathEscape(directID), nil
+}
+
+func networkDirectMessagesPath(channel string, directID string) (string, error) {
+	path, err := networkDirectPath(channel, directID)
+	if err != nil {
+		return "", err
+	}
+	return path + "/messages", nil
+}
+
+func requireNetworkPathValue(name string, value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", fmt.Errorf("cli: %s is required", name)
+	}
+	return trimmed, nil
 }
 
 func networkInboxValues(sessionID string) url.Values {

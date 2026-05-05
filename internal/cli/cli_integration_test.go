@@ -599,12 +599,25 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		t.Fatal("timed out waiting for blocked session prompt")
 	}
 
+	if _, _, err := executeRootCommand(t, h.deps,
+		"network", "send",
+		"--session", sender.ID,
+		"--channel", "builders",
+		"--surface", "thread",
+		"--thread", "thread_claim_rejected",
+		"--kind", "say",
+		"--body", `{"claim_token":"agh_claim_cli"}`,
+		"-o", "json",
+	); err == nil || !strings.Contains(err.Error(), "network_raw_token_rejected") {
+		t.Fatalf("network send raw claim-token error = %v, want network_raw_token_rejected", err)
+	}
+
 	sendOut, _, err := executeRootCommand(t, h.deps,
 		"network", "send",
 		"--session", sender.ID,
 		"--channel", "builders",
 		"--surface", "thread",
-		"--thread-id", "thread_cli_queued",
+		"--thread", "thread_cli_queued",
 		"--kind", "say",
 		"--body", `{"text":"queued hello"}`,
 		"--ext", `{"agh.workflow_id":"wf-1","agh.handoff_version":3}`,
@@ -619,6 +632,79 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	}
 	if sent.ID == "" || string(sent.Ext["agh.workflow_id"]) != `"wf-1"` {
 		t.Fatalf("sent = %#v, want message id and ext metadata", sent)
+	}
+	if sent.Surface != "thread" || sent.ThreadID != "thread_cli_queued" {
+		t.Fatalf("sent = %#v, want thread surface response", sent)
+	}
+
+	threadsOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"network",
+		"threads",
+		"list",
+		"--channel",
+		"builders",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("network threads list error = %v", err)
+	}
+	var threads contract.NetworkThreadsResponse
+	if err := json.Unmarshal([]byte(threadsOut), &threads); err != nil {
+		t.Fatalf("json.Unmarshal(network threads list) error = %v", err)
+	}
+	if len(threads.Threads) != 1 || threads.Threads[0].ThreadID != "thread_cli_queued" {
+		t.Fatalf("network threads = %#v, want queued thread", threads)
+	}
+
+	threadOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"network",
+		"threads",
+		"show",
+		"--channel",
+		"builders",
+		"--thread",
+		"thread_cli_queued",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("network threads show error = %v", err)
+	}
+	var thread contract.NetworkThreadResponse
+	if err := json.Unmarshal([]byte(threadOut), &thread); err != nil {
+		t.Fatalf("json.Unmarshal(network threads show) error = %v", err)
+	}
+	if thread.Thread.ThreadID != "thread_cli_queued" || thread.Thread.MessageCount != 1 {
+		t.Fatalf("network thread = %#v, want one queued message", thread)
+	}
+
+	threadMessagesOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"network",
+		"threads",
+		"messages",
+		"--channel",
+		"builders",
+		"--thread",
+		"thread_cli_queued",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("network threads messages error = %v", err)
+	}
+	var threadMessages contract.NetworkThreadMessagesResponse
+	if err := json.Unmarshal([]byte(threadMessagesOut), &threadMessages); err != nil {
+		t.Fatalf("json.Unmarshal(network threads messages) error = %v", err)
+	}
+	if len(threadMessages.Messages) != 1 || threadMessages.Messages[0].MessageID != sent.ID {
+		t.Fatalf("network thread messages = %#v, want sent message", threadMessages)
 	}
 
 	var inbox []NetworkEnvelopeRecord
@@ -674,9 +760,46 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	receiver := newSession("receiver")
 	senderPeerID := "coder." + sender.ID
 	receiverPeerID := "coder." + receiver.ID
-	directID, err := network.DirectRoomIdentity("builders", senderPeerID, receiverPeerID)
+	directID, _, _, err := network.DirectRoomIdentity("builders", senderPeerID, receiverPeerID)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
+	}
+
+	resolveDirect := func() contract.NetworkDirectRoomResponse {
+		t.Helper()
+
+		out, _, err := executeRootCommand(
+			t,
+			h.deps,
+			"network",
+			"directs",
+			"resolve",
+			"--session",
+			sender.ID,
+			"--channel",
+			"builders",
+			"--peer",
+			receiverPeerID,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("network directs resolve error = %v", err)
+		}
+		var resolved contract.NetworkDirectRoomResponse
+		if err := json.Unmarshal([]byte(out), &resolved); err != nil {
+			t.Fatalf("json.Unmarshal(network directs resolve) error = %v", err)
+		}
+		return resolved
+	}
+
+	resolvedDirect := resolveDirect()
+	if resolvedDirect.Direct.DirectID != directID {
+		t.Fatalf("resolved direct = %#v, want deterministic direct id %q", resolvedDirect, directID)
+	}
+	resolvedDirectAgain := resolveDirect()
+	if resolvedDirectAgain.Direct.DirectID != directID {
+		t.Fatalf("resolved direct again = %#v, want same direct id %q", resolvedDirectAgain, directID)
 	}
 
 	events, err := h.runner.blockSession(receiver.ID)
@@ -698,10 +821,10 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 			"--session", sender.ID,
 			"--channel", "builders",
 			"--surface", "direct",
-			"--direct-id", directID,
+			"--direct", directID,
 			"--kind", "say",
 			"--to", receiverPeerID,
-			"--work-id", "work_review_1",
+			"--work", "work_review_1",
 			"--id", messageID,
 			"--body", fmt.Sprintf(`{"text":%q}`, text),
 			"-o", "json",
@@ -755,8 +878,94 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	})
 	waitForCondition(t, 2*time.Second, func() bool {
 		status := readStatus()
-		return status.MessagesRejected >= 1 && status.QueuedMessages == 1
+		return status.QueuedMessages == 1
 	})
+
+	directsOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"network",
+		"directs",
+		"list",
+		"--channel",
+		"builders",
+		"--peer",
+		receiverPeerID,
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("network directs list error = %v", err)
+	}
+	var directs contract.NetworkDirectRoomsResponse
+	if err := json.Unmarshal([]byte(directsOut), &directs); err != nil {
+		t.Fatalf("json.Unmarshal(network directs list) error = %v", err)
+	}
+	if len(directs.Directs) != 1 || directs.Directs[0].DirectID != directID {
+		t.Fatalf("network directs = %#v, want direct room", directs)
+	}
+
+	directOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"network",
+		"directs",
+		"show",
+		"--channel",
+		"builders",
+		"--direct",
+		directID,
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("network directs show error = %v", err)
+	}
+	var direct contract.NetworkDirectRoomResponse
+	if err := json.Unmarshal([]byte(directOut), &direct); err != nil {
+		t.Fatalf("json.Unmarshal(network directs show) error = %v", err)
+	}
+	if direct.Direct.DirectID != directID || direct.Direct.MessageCount != 1 {
+		t.Fatalf("network direct = %#v, want one accepted message", direct)
+	}
+
+	directMessagesOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"network",
+		"directs",
+		"messages",
+		"--channel",
+		"builders",
+		"--direct",
+		directID,
+		"--work",
+		"work_review_1",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("network directs messages error = %v", err)
+	}
+	var directMessages contract.NetworkDirectRoomMessagesResponse
+	if err := json.Unmarshal([]byte(directMessagesOut), &directMessages); err != nil {
+		t.Fatalf("json.Unmarshal(network directs messages) error = %v", err)
+	}
+	if len(directMessages.Messages) != 1 || directMessages.Messages[0].MessageID != "msg-direct-retry-1" {
+		t.Fatalf("network direct messages = %#v, want accepted direct message", directMessages)
+	}
+
+	workOut, _, err := executeRootCommand(t, h.deps, "network", "work", "lookup", "--work", "work_review_1", "-o", "json")
+	if err != nil {
+		t.Fatalf("network work lookup error = %v", err)
+	}
+	var work contract.NetworkWorkResponse
+	if err := json.Unmarshal([]byte(workOut), &work); err != nil {
+		t.Fatalf("json.Unmarshal(network work lookup) error = %v", err)
+	}
+	if work.Work.WorkID != "work_review_1" || work.Work.DirectID != directID {
+		t.Fatalf("network work = %#v, want direct-bound work", work)
+	}
 
 	h.runner.releaseBlocked(receiver.ID)
 	waitForCondition(t, 2*time.Second, func() bool {

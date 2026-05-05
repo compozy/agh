@@ -29,6 +29,14 @@ type stubClient struct {
 	networkStatusFn             func(context.Context) (NetworkStatusRecord, error)
 	networkPeersFn              func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	networkChannelsFn           func(context.Context) ([]NetworkChannelRecord, error)
+	networkThreadsFn            func(context.Context, NetworkThreadsQuery) ([]NetworkThreadRecord, error)
+	networkThreadFn             func(context.Context, string, string) (NetworkThreadRecord, error)
+	networkThreadMessagesFn     func(context.Context, NetworkConversationMessagesQuery) ([]NetworkConversationMessageRecord, error)
+	networkDirectsFn            func(context.Context, NetworkDirectsQuery) ([]NetworkDirectRoomRecord, error)
+	networkDirectResolveFn      func(context.Context, string, NetworkDirectResolveRequest) (NetworkDirectRoomRecord, error)
+	networkDirectFn             func(context.Context, string, string) (NetworkDirectRoomRecord, error)
+	networkDirectMessagesFn     func(context.Context, NetworkConversationMessagesQuery) ([]NetworkConversationMessageRecord, error)
+	networkWorkFn               func(context.Context, string) (NetworkWorkRecord, error)
 	networkSendFn               func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
 	networkInboxFn              func(context.Context, string) ([]NetworkEnvelopeRecord, error)
 	listExtensionsFn            func(context.Context) ([]ExtensionRecord, error)
@@ -277,6 +285,86 @@ func (s *stubClient) NetworkChannels(ctx context.Context) ([]NetworkChannelRecor
 		return s.networkChannelsFn(ctx)
 	}
 	return nil, errors.New("unexpected NetworkChannels call")
+}
+
+func (s *stubClient) NetworkThreads(
+	ctx context.Context,
+	query NetworkThreadsQuery,
+) ([]NetworkThreadRecord, error) {
+	if s.networkThreadsFn != nil {
+		return s.networkThreadsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected NetworkThreads call")
+}
+
+func (s *stubClient) NetworkThread(
+	ctx context.Context,
+	channel string,
+	threadID string,
+) (NetworkThreadRecord, error) {
+	if s.networkThreadFn != nil {
+		return s.networkThreadFn(ctx, channel, threadID)
+	}
+	return NetworkThreadRecord{}, errors.New("unexpected NetworkThread call")
+}
+
+func (s *stubClient) NetworkThreadMessages(
+	ctx context.Context,
+	query NetworkConversationMessagesQuery,
+) ([]NetworkConversationMessageRecord, error) {
+	if s.networkThreadMessagesFn != nil {
+		return s.networkThreadMessagesFn(ctx, query)
+	}
+	return nil, errors.New("unexpected NetworkThreadMessages call")
+}
+
+func (s *stubClient) NetworkDirects(
+	ctx context.Context,
+	query NetworkDirectsQuery,
+) ([]NetworkDirectRoomRecord, error) {
+	if s.networkDirectsFn != nil {
+		return s.networkDirectsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected NetworkDirects call")
+}
+
+func (s *stubClient) NetworkDirectResolve(
+	ctx context.Context,
+	channel string,
+	request NetworkDirectResolveRequest,
+) (NetworkDirectRoomRecord, error) {
+	if s.networkDirectResolveFn != nil {
+		return s.networkDirectResolveFn(ctx, channel, request)
+	}
+	return NetworkDirectRoomRecord{}, errors.New("unexpected NetworkDirectResolve call")
+}
+
+func (s *stubClient) NetworkDirect(
+	ctx context.Context,
+	channel string,
+	directID string,
+) (NetworkDirectRoomRecord, error) {
+	if s.networkDirectFn != nil {
+		return s.networkDirectFn(ctx, channel, directID)
+	}
+	return NetworkDirectRoomRecord{}, errors.New("unexpected NetworkDirect call")
+}
+
+func (s *stubClient) NetworkDirectMessages(
+	ctx context.Context,
+	query NetworkConversationMessagesQuery,
+) ([]NetworkConversationMessageRecord, error) {
+	if s.networkDirectMessagesFn != nil {
+		return s.networkDirectMessagesFn(ctx, query)
+	}
+	return nil, errors.New("unexpected NetworkDirectMessages call")
+}
+
+func (s *stubClient) NetworkWork(ctx context.Context, workID string) (NetworkWorkRecord, error) {
+	if s.networkWorkFn != nil {
+		return s.networkWorkFn(ctx, workID)
+	}
+	return NetworkWorkRecord{}, errors.New("unexpected NetworkWork call")
 }
 
 func (s *stubClient) NetworkSend(

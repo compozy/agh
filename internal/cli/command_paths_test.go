@@ -185,10 +185,18 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		},
 		networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
 			if request.SessionID != "sess-1" || request.Channel != "builders" || request.Kind != "say" ||
+				request.Surface != "thread" || request.ThreadID != "thread-command-path" ||
 				string(request.Body) != `{"text":"hello"}` {
-				t.Fatalf("NetworkSend() request = %#v, want session/channel/kind/body", request)
+				t.Fatalf("NetworkSend() request = %#v, want thread session/channel/kind/body", request)
 			}
-			return NetworkSendRecord{ID: "msg-1", SessionID: "sess-1", Channel: "builders", Kind: "say"}, nil
+			return NetworkSendRecord{
+				ID:        "msg-1",
+				SessionID: "sess-1",
+				Channel:   "builders",
+				Surface:   "thread",
+				ThreadID:  "thread-command-path",
+				Kind:      "say",
+			}, nil
 		},
 		networkInboxFn: func(_ context.Context, sessionID string) ([]NetworkEnvelopeRecord, error) {
 			if sessionID != "sess-1" {
@@ -362,6 +370,10 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 			"sess-1",
 			"--channel",
 			"builders",
+			"--surface",
+			"thread",
+			"--thread",
+			"thread-command-path",
 			"--kind",
 			"say",
 			"--body",
