@@ -485,6 +485,48 @@ var hookEventDescriptors = map[HookEvent]EventDescriptor{
 		PayloadSchema: "SpawnReapedPayload",
 		PatchSchema:   "SpawnObservationPatch",
 	},
+	HookNetworkThreadOpened: {
+		Event:         HookNetworkThreadOpened,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  false,
+		PayloadSchema: "NetworkThreadOpenedPayload",
+		PatchSchema:   "NetworkObservationPatch",
+	},
+	HookNetworkDirectRoomOpened: {
+		Event:         HookNetworkDirectRoomOpened,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  false,
+		PayloadSchema: "NetworkDirectRoomOpenedPayload",
+		PatchSchema:   "NetworkObservationPatch",
+	},
+	HookNetworkMessagePersisted: {
+		Event:         HookNetworkMessagePersisted,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  false,
+		PayloadSchema: "NetworkMessagePersistedPayload",
+		PatchSchema:   "NetworkObservationPatch",
+	},
+	HookNetworkWorkOpened: {
+		Event:         HookNetworkWorkOpened,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  false,
+		PayloadSchema: "NetworkWorkOpenedPayload",
+		PatchSchema:   "NetworkObservationPatch",
+	},
+	HookNetworkWorkTransitioned: {
+		Event:         HookNetworkWorkTransitioned,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  false,
+		PayloadSchema: "NetworkWorkTransitionedPayload",
+		PatchSchema:   "NetworkObservationPatch",
+	},
+	HookNetworkWorkClosed: {
+		Event:         HookNetworkWorkClosed,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  false,
+		PayloadSchema: "NetworkWorkClosedPayload",
+		PatchSchema:   "NetworkObservationPatch",
+	},
 }
 
 // Catalog returns the currently resolved hook catalog in deterministic pipeline order.

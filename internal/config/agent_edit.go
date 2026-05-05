@@ -50,7 +50,8 @@ func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, erro
 	}
 	if len(parsed.Hooks) > 0 {
 		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
-		for idx, raw := range parsed.Hooks {
+		for idx := range parsed.Hooks {
+			raw := &parsed.Hooks[idx]
 			decl, convErr := raw.toHookDecl(hookspkg.HookSourceAgentDefinition, agent.Name)
 			if convErr != nil {
 				return AgentDef{}, fmt.Errorf("parse agent file %q hook %d: %w", path, idx, convErr)

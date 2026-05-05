@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 63
+const expectedHookEventCount = 69
 
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
@@ -48,6 +48,12 @@ func TestSyncEligibleClassification(t *testing.T) {
 		HookAgentHeartbeatPolicyResolved: {},
 		HookAgentHeartbeatWakeAfter:      {},
 		HookSessionHealthUpdateAfter:     {},
+		HookNetworkThreadOpened:          {},
+		HookNetworkDirectRoomOpened:      {},
+		HookNetworkMessagePersisted:      {},
+		HookNetworkWorkOpened:            {},
+		HookNetworkWorkTransitioned:      {},
+		HookNetworkWorkClosed:            {},
 	}
 
 	if !HookSessionPreCreate.SyncEligible() {
@@ -82,6 +88,34 @@ func TestHookEventFamilyAndInvalidValidation(t *testing.T) {
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("invalid.Validate() error = nil, want non-nil")
+	}
+}
+
+func TestNetworkHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {
+	t.Parallel()
+
+	expected := []HookEvent{
+		HookNetworkThreadOpened,
+		HookNetworkDirectRoomOpened,
+		HookNetworkMessagePersisted,
+		HookNetworkWorkOpened,
+		HookNetworkWorkTransitioned,
+		HookNetworkWorkClosed,
+	}
+	seen := make(map[HookEvent]struct{}, len(AllHookEvents()))
+	for _, event := range AllHookEvents() {
+		seen[event] = struct{}{}
+	}
+	for _, event := range expected {
+		if _, ok := seen[event]; !ok {
+			t.Fatalf("AllHookEvents() missing %q", event)
+		}
+		if got := event.Family(); got != HookEventFamilyNetwork {
+			t.Fatalf("%s.Family() = %q, want %q", event, got, HookEventFamilyNetwork)
+		}
+		if event.SyncEligible() {
+			t.Fatalf("%s.SyncEligible() = true, want false", event)
+		}
 	}
 }
 

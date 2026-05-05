@@ -43,14 +43,22 @@ type Status struct {
 	QueuedMessages       int
 	QueuedSessions       int
 	DeliveryWorkers      int
+	DeliveryQueueDepth   int
 	MessagesSent         int64
 	MessagesReceived     int64
 	MessagesRejected     int64
 	MessagesDelivered    int64
 	WorkflowTaggedEvents int64
 	HandoffTaggedEvents  int64
+	OpenThreads          int64
+	OpenDirectRooms      int64
+	OpenWorkItems        int64
+	ConversationMessages int64
+	WorkTransitions      int64
+	DirectResolves       int64
 	LastDisconnect       string
 	KindMetrics          []KindMetric
+	Metrics              []MetricSample
 }
 
 // ManagerOption customizes network manager construction.
@@ -62,6 +70,7 @@ type managerOptions struct {
 	auditor       AuditWriter
 	tasks         TaskService
 	conversations store.NetworkConversationStore
+	hooks         HookDispatcher
 }
 
 type managedSession struct {
@@ -93,6 +102,7 @@ type Manager struct {
 	auditor       AuditWriter
 	tasks         TaskService
 	conversations store.NetworkConversationStore
+	hooks         HookDispatcher
 	deliveries    *deliveryCoordinator
 	stats         *runtimeStats
 
@@ -215,6 +225,7 @@ func newManagerRuntime(
 		stats:         newRuntimeStats(),
 		tasks:         options.tasks,
 		conversations: options.conversations,
+		hooks:         options.hooks,
 	}
 }
 
@@ -734,6 +745,9 @@ func (m *Manager) Status(ctx context.Context) (*Status, error) {
 	}
 	deliveryStats := m.deliveries.stats()
 	stats := m.stats.snapshot()
+	metricSamples := append([]MetricSample(nil), stats.Metrics...)
+	metricSamples = append(metricSamples, m.deliveries.queueDepthMetrics()...)
+	sortMetricSamples(metricSamples)
 
 	return &Status{
 		Enabled:              true,
@@ -746,14 +760,22 @@ func (m *Manager) Status(ctx context.Context) (*Status, error) {
 		QueuedMessages:       deliveryStats.QueuedMessages,
 		QueuedSessions:       deliveryStats.QueuedSessions,
 		DeliveryWorkers:      deliveryStats.DeliveryWorkers,
+		DeliveryQueueDepth:   deliveryStats.QueuedMessages,
 		MessagesSent:         stats.MessagesSent,
 		MessagesReceived:     stats.MessagesReceived,
 		MessagesRejected:     stats.MessagesRejected,
 		MessagesDelivered:    stats.MessagesDelivered,
 		WorkflowTaggedEvents: stats.WorkflowTaggedEvents,
 		HandoffTaggedEvents:  stats.HandoffTaggedEvents,
+		OpenThreads:          stats.OpenThreads,
+		OpenDirectRooms:      stats.OpenDirectRooms,
+		OpenWorkItems:        stats.OpenWorkItems,
+		ConversationMessages: stats.ConversationMessages,
+		WorkTransitions:      stats.WorkTransitions,
+		DirectResolves:       stats.DirectResolves,
 		LastDisconnect:       lastDisconnect,
 		KindMetrics:          stats.KindMetrics,
+		Metrics:              metricSamples,
 	}, nil
 }
 
@@ -986,6 +1008,9 @@ func (m *Manager) writeConversationMessage(
 	result, err := m.conversations.WriteConversationMessage(ctx, entry)
 	if err != nil {
 		return store.NetworkConversationWriteResult{}, true, err
+	}
+	if !result.Duplicate {
+		m.observeConversationWrite(ctx, entry, result)
 	}
 	return result, true, nil
 }
@@ -1459,6 +1484,18 @@ func networkLogFields(envelope Envelope, extra ...any) []any {
 	}
 	if envelope.ReplyTo != nil {
 		fields = append(fields, "reply_to", strings.TrimSpace(*envelope.ReplyTo))
+	}
+	if envelope.Surface != nil {
+		fields = append(fields, "surface", strings.TrimSpace(string(*envelope.Surface)))
+	}
+	if envelope.ThreadID != nil {
+		fields = append(fields, "thread_id", strings.TrimSpace(*envelope.ThreadID))
+	}
+	if envelope.DirectID != nil {
+		fields = append(fields, "direct_id", strings.TrimSpace(*envelope.DirectID))
+	}
+	if envelope.WorkID != nil {
+		fields = append(fields, "work_id", strings.TrimSpace(*envelope.WorkID))
 	}
 	if envelope.TraceID != nil {
 		fields = append(fields, "trace_id", strings.TrimSpace(*envelope.TraceID))

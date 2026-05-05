@@ -13848,7 +13848,13 @@ export interface operations {
           | "spawn.created"
           | "spawn.parent_stopped"
           | "spawn.ttl_expired"
-          | "spawn.reaped";
+          | "spawn.reaped"
+          | "network.thread.opened"
+          | "network.direct_room.opened"
+          | "network.message.persisted"
+          | "network.work.opened"
+          | "network.work.transitioned"
+          | "network.work.closed";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -13886,21 +13892,26 @@ export interface operations {
                   task_id?: string;
                   workflow_id?: string;
                 } | null;
+                channel?: string;
                 compaction_reason?: string;
                 compaction_strategy?: string;
                 decision_class?: string;
+                direction?: string;
                 input_class?: string;
+                kind?: string;
                 message_delta_type?: string;
                 message_role?: string;
                 sandbox_backend?: string;
                 sandbox_id?: string;
                 sandbox_profile?: string;
                 session_type?: string;
+                surface?: string;
                 sync_direction?: string;
                 tool_id?: string;
                 tool_name?: string;
                 tool_read_only?: boolean | null;
                 turn_id?: string;
+                work_state?: string;
                 workspace_id?: string;
                 workspace_root?: string;
               };
@@ -14101,7 +14112,13 @@ export interface operations {
           | "spawn.created"
           | "spawn.parent_stopped"
           | "spawn.ttl_expired"
-          | "spawn.reaped";
+          | "spawn.reaped"
+          | "network.thread.opened"
+          | "network.direct_room.opened"
+          | "network.message.persisted"
+          | "network.work.opened"
+          | "network.work.transitioned"
+          | "network.work.closed";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */
@@ -20521,7 +20538,13 @@ export interface operations {
                   | "spawn.created"
                   | "spawn.parent_stopped"
                   | "spawn.ttl_expired"
-                  | "spawn.reaped";
+                  | "spawn.reaped"
+                  | "network.thread.opened"
+                  | "network.direct_room.opened"
+                  | "network.message.persisted"
+                  | "network.work.opened"
+                  | "network.work.transitioned"
+                  | "network.work.closed";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -20540,21 +20563,26 @@ export interface operations {
                     task_id?: string;
                     workflow_id?: string;
                   } | null;
+                  channel?: string;
                   compaction_reason?: string;
                   compaction_strategy?: string;
                   decision_class?: string;
+                  direction?: string;
                   input_class?: string;
+                  kind?: string;
                   message_delta_type?: string;
                   message_role?: string;
                   sandbox_backend?: string;
                   sandbox_id?: string;
                   sandbox_profile?: string;
                   session_type?: string;
+                  surface?: string;
                   sync_direction?: string;
                   tool_id?: string;
                   tool_name?: string;
                   tool_read_only?: boolean | null;
                   turn_id?: string;
+                  work_state?: string;
                   workspace_id?: string;
                   workspace_root?: string;
                 };
@@ -20746,7 +20774,13 @@ export interface operations {
                   | "spawn.created"
                   | "spawn.parent_stopped"
                   | "spawn.ttl_expired"
-                  | "spawn.reaped";
+                  | "spawn.reaped"
+                  | "network.thread.opened"
+                  | "network.direct_room.opened"
+                  | "network.message.persisted"
+                  | "network.work.opened"
+                  | "network.work.transitioned"
+                  | "network.work.closed";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -20765,21 +20799,26 @@ export interface operations {
                     task_id?: string;
                     workflow_id?: string;
                   } | null;
+                  channel?: string;
                   compaction_reason?: string;
                   compaction_strategy?: string;
                   decision_class?: string;
+                  direction?: string;
                   input_class?: string;
+                  kind?: string;
                   message_delta_type?: string;
                   message_role?: string;
                   sandbox_backend?: string;
                   sandbox_id?: string;
                   sandbox_profile?: string;
                   session_type?: string;
+                  surface?: string;
                   sync_direction?: string;
                   tool_id?: string;
                   tool_name?: string;
                   tool_read_only?: boolean | null;
                   turn_id?: string;
+                  work_state?: string;
                   workspace_id?: string;
                   workspace_root?: string;
                 };
@@ -21096,7 +21135,13 @@ export interface operations {
               | "spawn.created"
               | "spawn.parent_stopped"
               | "spawn.ttl_expired"
-              | "spawn.reaped";
+              | "spawn.reaped"
+              | "network.thread.opened"
+              | "network.direct_room.opened"
+              | "network.message.persisted"
+              | "network.work.opened"
+              | "network.work.transitioned"
+              | "network.work.closed";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
             matcher: {
@@ -21115,21 +21160,26 @@ export interface operations {
                 task_id?: string;
                 workflow_id?: string;
               } | null;
+              channel?: string;
               compaction_reason?: string;
               compaction_strategy?: string;
               decision_class?: string;
+              direction?: string;
               input_class?: string;
+              kind?: string;
               message_delta_type?: string;
               message_role?: string;
               sandbox_backend?: string;
               sandbox_id?: string;
               sandbox_profile?: string;
               session_type?: string;
+              surface?: string;
               sync_direction?: string;
               tool_id?: string;
               tool_name?: string;
               tool_read_only?: boolean | null;
               turn_id?: string;
+              work_state?: string;
               workspace_id?: string;
               workspace_root?: string;
             };

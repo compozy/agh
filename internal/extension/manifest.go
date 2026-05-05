@@ -145,6 +145,11 @@ type HookMatcherConfig struct {
 	DecisionClass      string `toml:"decision_class,omitempty"      json:"decision_class,omitempty"`
 	MessageRole        string `toml:"message_role,omitempty"        json:"message_role,omitempty"`
 	MessageDeltaType   string `toml:"message_delta_type,omitempty"  json:"message_delta_type,omitempty"`
+	Channel            string `toml:"channel,omitempty"             json:"channel,omitempty"`
+	Surface            string `toml:"surface,omitempty"             json:"surface,omitempty"`
+	Kind               string `toml:"kind,omitempty"                json:"kind,omitempty"`
+	Direction          string `toml:"direction,omitempty"           json:"direction,omitempty"`
+	WorkState          string `toml:"work_state,omitempty"          json:"work_state,omitempty"`
 	CompactionReason   string `toml:"compaction_reason,omitempty"   json:"compaction_reason,omitempty"`
 	CompactionStrategy string `toml:"compaction_strategy,omitempty" json:"compaction_strategy,omitempty"`
 }
@@ -754,7 +759,8 @@ func validateManifestEnvMaps(
 }
 
 func validateManifestHookEnv(hooks []HookConfig) error {
-	for idx, hook := range hooks {
+	for idx := range hooks {
+		hook := &hooks[idx]
 		field := fmt.Sprintf("resources.hooks[%d]", idx)
 		rootSpecified := strings.TrimSpace(hook.Command) != "" || len(hook.Args) > 0 ||
 			len(hook.Env) > 0 || len(hook.SecretEnv) > 0
@@ -859,7 +865,8 @@ func normalizeHooks(src []HookConfig) []HookConfig {
 	}
 
 	dst := make([]HookConfig, 0, len(src))
-	for _, hook := range src {
+	for idx := range src {
+		hook := &src[idx]
 		dst = append(dst, HookConfig{
 			Name:     strings.TrimSpace(hook.Name),
 			Event:    strings.TrimSpace(hook.Event),
@@ -882,6 +889,11 @@ func normalizeHooks(src []HookConfig) []HookConfig {
 				DecisionClass:      strings.TrimSpace(hook.Matcher.DecisionClass),
 				MessageRole:        strings.TrimSpace(hook.Matcher.MessageRole),
 				MessageDeltaType:   strings.TrimSpace(hook.Matcher.MessageDeltaType),
+				Channel:            strings.TrimSpace(hook.Matcher.Channel),
+				Surface:            strings.TrimSpace(hook.Matcher.Surface),
+				Kind:               strings.TrimSpace(hook.Matcher.Kind),
+				Direction:          strings.TrimSpace(hook.Matcher.Direction),
+				WorkState:          strings.TrimSpace(hook.Matcher.WorkState),
 				CompactionReason:   strings.TrimSpace(hook.Matcher.CompactionReason),
 				CompactionStrategy: strings.TrimSpace(hook.Matcher.CompactionStrategy),
 			},

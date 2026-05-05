@@ -25109,7 +25109,13 @@
                                 "spawn.created",
                                 "spawn.parent_stopped",
                                 "spawn.ttl_expired",
-                                "spawn.reaped"
+                                "spawn.reaped",
+                                "network.thread.opened",
+                                "network.direct_room.opened",
+                                "network.message.persisted",
+                                "network.work.opened",
+                                "network.work.transitioned",
+                                "network.work.closed"
                             ],
                             "type": "string"
                         }
@@ -25195,6 +25201,9 @@
                                                                 },
                                                                 "type": "object"
                                                             },
+                                                            "channel": {
+                                                                "type": "string"
+                                                            },
                                                             "compaction_reason": {
                                                                 "type": "string"
                                                             },
@@ -25204,7 +25213,13 @@
                                                             "decision_class": {
                                                                 "type": "string"
                                                             },
+                                                            "direction": {
+                                                                "type": "string"
+                                                            },
                                                             "input_class": {
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
                                                                 "type": "string"
                                                             },
                                                             "message_delta_type": {
@@ -25225,6 +25240,9 @@
                                                             "session_type": {
                                                                 "type": "string"
                                                             },
+                                                            "surface": {
+                                                                "type": "string"
+                                                            },
                                                             "sync_direction": {
                                                                 "type": "string"
                                                             },
@@ -25239,6 +25257,9 @@
                                                                 "type": "boolean"
                                                             },
                                                             "turn_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "work_state": {
                                                                 "type": "string"
                                                             },
                                                             "workspace_id": {
@@ -25559,7 +25580,13 @@
                                 "spawn.created",
                                 "spawn.parent_stopped",
                                 "spawn.ttl_expired",
-                                "spawn.reaped"
+                                "spawn.reaped",
+                                "network.thread.opened",
+                                "network.direct_room.opened",
+                                "network.message.persisted",
+                                "network.work.opened",
+                                "network.work.transitioned",
+                                "network.work.closed"
                             ],
                             "type": "string"
                         }
@@ -39129,7 +39156,13 @@
                                                                     "spawn.created",
                                                                     "spawn.parent_stopped",
                                                                     "spawn.ttl_expired",
-                                                                    "spawn.reaped"
+                                                                    "spawn.reaped",
+                                                                    "network.thread.opened",
+                                                                    "network.direct_room.opened",
+                                                                    "network.message.persisted",
+                                                                    "network.work.opened",
+                                                                    "network.work.transitioned",
+                                                                    "network.work.closed"
                                                                 ],
                                                                 "type": "string"
                                                             },
@@ -39188,6 +39221,9 @@
                                                                         },
                                                                         "type": "object"
                                                                     },
+                                                                    "channel": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "compaction_reason": {
                                                                         "type": "string"
                                                                     },
@@ -39197,7 +39233,13 @@
                                                                     "decision_class": {
                                                                         "type": "string"
                                                                     },
+                                                                    "direction": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "input_class": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "kind": {
                                                                         "type": "string"
                                                                     },
                                                                     "message_delta_type": {
@@ -39218,6 +39260,9 @@
                                                                     "session_type": {
                                                                         "type": "string"
                                                                     },
+                                                                    "surface": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "sync_direction": {
                                                                         "type": "string"
                                                                     },
@@ -39232,6 +39277,9 @@
                                                                         "type": "boolean"
                                                                     },
                                                                     "turn_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "work_state": {
                                                                         "type": "string"
                                                                     },
                                                                     "workspace_id": {
@@ -39595,7 +39643,13 @@
                                                                     "spawn.created",
                                                                     "spawn.parent_stopped",
                                                                     "spawn.ttl_expired",
-                                                                    "spawn.reaped"
+                                                                    "spawn.reaped",
+                                                                    "network.thread.opened",
+                                                                    "network.direct_room.opened",
+                                                                    "network.message.persisted",
+                                                                    "network.work.opened",
+                                                                    "network.work.transitioned",
+                                                                    "network.work.closed"
                                                                 ],
                                                                 "type": "string"
                                                             },
@@ -39654,6 +39708,9 @@
                                                                         },
                                                                         "type": "object"
                                                                     },
+                                                                    "channel": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "compaction_reason": {
                                                                         "type": "string"
                                                                     },
@@ -39663,7 +39720,13 @@
                                                                     "decision_class": {
                                                                         "type": "string"
                                                                     },
+                                                                    "direction": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "input_class": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "kind": {
                                                                         "type": "string"
                                                                     },
                                                                     "message_delta_type": {
@@ -39684,6 +39747,9 @@
                                                                     "session_type": {
                                                                         "type": "string"
                                                                     },
+                                                                    "surface": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "sync_direction": {
                                                                         "type": "string"
                                                                     },
@@ -39698,6 +39764,9 @@
                                                                         "type": "boolean"
                                                                     },
                                                                     "turn_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "work_state": {
                                                                         "type": "string"
                                                                     },
                                                                     "workspace_id": {
@@ -40429,7 +40498,13 @@
                                                     "spawn.created",
                                                     "spawn.parent_stopped",
                                                     "spawn.ttl_expired",
-                                                    "spawn.reaped"
+                                                    "spawn.reaped",
+                                                    "network.thread.opened",
+                                                    "network.direct_room.opened",
+                                                    "network.message.persisted",
+                                                    "network.work.opened",
+                                                    "network.work.transitioned",
+                                                    "network.work.closed"
                                                 ],
                                                 "type": "string"
                                             },
@@ -40484,6 +40559,9 @@
                                                         },
                                                         "type": "object"
                                                     },
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
                                                     "compaction_reason": {
                                                         "type": "string"
                                                     },
@@ -40493,7 +40571,13 @@
                                                     "decision_class": {
                                                         "type": "string"
                                                     },
+                                                    "direction": {
+                                                        "type": "string"
+                                                    },
                                                     "input_class": {
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
                                                         "type": "string"
                                                     },
                                                     "message_delta_type": {
@@ -40514,6 +40598,9 @@
                                                     "session_type": {
                                                         "type": "string"
                                                     },
+                                                    "surface": {
+                                                        "type": "string"
+                                                    },
                                                     "sync_direction": {
                                                         "type": "string"
                                                     },
@@ -40528,6 +40615,9 @@
                                                         "type": "boolean"
                                                     },
                                                     "turn_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "work_state": {
                                                         "type": "string"
                                                     },
                                                     "workspace_id": {

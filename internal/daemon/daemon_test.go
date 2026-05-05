@@ -6568,6 +6568,48 @@ func (f *fakeHookRuntime) DispatchSessionHealthUpdateAfter(
 	return payload, nil
 }
 
+func (f *fakeHookRuntime) DispatchNetworkThreadOpened(
+	_ context.Context,
+	payload hookspkg.NetworkThreadOpenedPayload,
+) (hookspkg.NetworkThreadOpenedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkDirectRoomOpened(
+	_ context.Context,
+	payload hookspkg.NetworkDirectRoomOpenedPayload,
+) (hookspkg.NetworkDirectRoomOpenedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkMessagePersisted(
+	_ context.Context,
+	payload hookspkg.NetworkMessagePersistedPayload,
+) (hookspkg.NetworkMessagePersistedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkWorkOpened(
+	_ context.Context,
+	payload hookspkg.NetworkWorkOpenedPayload,
+) (hookspkg.NetworkWorkOpenedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkWorkTransitioned(
+	_ context.Context,
+	payload hookspkg.NetworkWorkTransitionedPayload,
+) (hookspkg.NetworkWorkTransitionedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkWorkClosed(
+	_ context.Context,
+	payload hookspkg.NetworkWorkClosedPayload,
+) (hookspkg.NetworkWorkClosedPayload, error) {
+	return payload, nil
+}
+
 func testHookExecutorResolver(native map[string]hookspkg.Executor) hookspkg.ExecutorResolver {
 	return func(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
 		if decl.ExecutorKind == hookspkg.HookExecutorNative {

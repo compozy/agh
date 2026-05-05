@@ -106,6 +106,53 @@ capabilities = ["memory.read", "   "]
 	}
 }
 
+func TestLoadManifestParsesNetworkHookMatcher(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "network-observer"
+version = "0.1.0"
+description = "Network hook observer"
+min_agh_version = "0.5.0"
+
+[[resources.hooks]]
+name = "observe-network"
+event = "network.message.persisted"
+mode = "async"
+executor.kind = "subprocess"
+executor.command = "node"
+
+[resources.hooks.matcher]
+channel = "builders"
+surface = "thread"
+kind = "trace"
+direction = "received"
+work_state = "completed"
+`)
+
+	manifest, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v", err)
+	}
+	if got, want := len(manifest.Resources.Hooks), 1; got != want {
+		t.Fatalf("len(Resources.Hooks) = %d, want %d", got, want)
+	}
+	matcher := manifest.Resources.Hooks[0].Matcher
+	if matcher.Channel != "builders" ||
+		matcher.Surface != "thread" ||
+		matcher.Kind != "trace" ||
+		matcher.Direction != "received" ||
+		matcher.WorkState != "completed" {
+		t.Fatalf("Hook matcher = %#v, want parsed network fields", matcher)
+	}
+
+	hookMatcher := hookConfigMatcher(matcher)
+	if hookMatcher.NetworkMatcher == nil || hookMatcher.Channel != "builders" || hookMatcher.WorkState != "completed" {
+		t.Fatalf("hookConfigMatcher() = %#v, want network matcher fields", hookMatcher)
+	}
+}
+
 func TestLoadManifestRequiresEnvValidationAndMissingDetection(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 

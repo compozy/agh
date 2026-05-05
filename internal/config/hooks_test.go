@@ -119,6 +119,49 @@ command = "/bin/echo"
 	}
 }
 
+func TestLoadParsesNetworkHookMatcherFields(t *testing.T) {
+	workspaceRoot, homePaths := prepareHookConfigTestEnv(t)
+	writeFile(t, homePaths.ConfigFile, `
+[[hooks.declarations]]
+name = "network-observer"
+event = "network.message.persisted"
+mode = "async"
+command = "/bin/echo"
+
+[hooks.declarations.matcher]
+channel = "builders"
+surface = "direct"
+kind = "trace"
+direction = "received"
+work_state = "completed"
+`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	decls, err := HookDeclarations(cfg.Hooks, nil)
+	if err != nil {
+		t.Fatalf("HookDeclarations() error = %v", err)
+	}
+	if got, want := len(decls), 1; got != want {
+		t.Fatalf("len(HookDeclarations()) = %d, want %d", got, want)
+	}
+
+	matcher := decls[0].Matcher.NetworkMatcher
+	if matcher == nil {
+		t.Fatal("NetworkMatcher = nil, want parsed matcher")
+	}
+	if matcher.Channel != "builders" ||
+		matcher.Surface != "direct" ||
+		matcher.Kind != "trace" ||
+		matcher.Direction != "received" ||
+		matcher.WorkState != "completed" {
+		t.Fatalf("NetworkMatcher = %#v, want parsed network fields", matcher)
+	}
+}
+
 func TestLoadRejectsInvalidConfigHookEvent(t *testing.T) {
 	workspaceRoot, homePaths := prepareHookConfigTestEnv(t)
 	writeFile(t, homePaths.ConfigFile, `

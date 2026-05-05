@@ -1568,7 +1568,7 @@ func TestDispatchPermissionAndContextHooksApplyPatches(t *testing.T) {
 				Event:        HookContextPreCompact,
 				Mode:         HookModeSync,
 				ExecutorKind: HookExecutorNative,
-				Matcher:      HookMatcher{CompactionReason: "token_limit"},
+				Matcher:      HookMatcher{CompactionMatcher: &CompactionMatcher{Reason: "token_limit"}},
 			},
 		}),
 		WithExecutorResolver(testExecutorResolver(map[string]Executor{

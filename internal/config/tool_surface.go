@@ -293,7 +293,8 @@ func OverlayHookDeclarations(target WriteTarget) ([]hookspkg.HookDecl, error) {
 		return nil, err
 	}
 	decls := make([]hookspkg.HookDecl, 0, len(overlay.Hooks.Declarations))
-	for idx, raw := range overlay.Hooks.Declarations {
+	for idx := range overlay.Hooks.Declarations {
+		raw := &overlay.Hooks.Declarations[idx]
 		decl, err := raw.toHookDecl(hookspkg.HookSourceConfig, "")
 		if err != nil {
 			return nil, fmt.Errorf("hooks.declarations[%d]: %w", idx, err)
@@ -719,8 +720,17 @@ func hookMatcherOverlayValues(matcher hookspkg.HookMatcher) map[string]any {
 	addString("decision_class", matcher.DecisionClass)
 	addString("message_role", matcher.MessageRole)
 	addString("message_delta_type", matcher.MessageDeltaType)
-	addString("compaction_reason", matcher.CompactionReason)
-	addString("compaction_strategy", matcher.CompactionStrategy)
+	if matcher.NetworkMatcher != nil {
+		addString("channel", matcher.Channel)
+		addString("surface", matcher.Surface)
+		addString("kind", matcher.Kind)
+		addString("direction", matcher.Direction)
+		addString("work_state", matcher.WorkState)
+	}
+	if matcher.CompactionMatcher != nil {
+		addString("compaction_reason", matcher.Reason)
+		addString("compaction_strategy", matcher.Strategy)
+	}
 	if matcher.ToolReadOnly != nil {
 		values["tool_read_only"] = *matcher.ToolReadOnly
 	}

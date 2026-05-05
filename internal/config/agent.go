@@ -248,7 +248,8 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 	}
 	if len(parsed.Hooks) > 0 {
 		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
-		for idx, raw := range parsed.Hooks {
+		for idx := range parsed.Hooks {
+			raw := &parsed.Hooks[idx]
 			decl, err := raw.toHookDecl(hookspkg.HookSourceAgentDefinition, agent.Name)
 			if err != nil {
 				return AgentDef{}, fmt.Errorf("agent.hooks[%d]: %w", idx, err)

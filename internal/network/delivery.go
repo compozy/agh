@@ -756,6 +756,36 @@ func (c *deliveryCoordinator) stats() deliveryCoordinatorStats {
 	return stats
 }
 
+func (c *deliveryCoordinator) queueDepthMetrics() []MetricSample {
+	if c == nil {
+		return nil
+	}
+
+	c.mu.Lock()
+	queues := make([]*inboundQueue, 0, len(c.queues))
+	for _, queue := range c.queues {
+		queues = append(queues, queue)
+	}
+	c.mu.Unlock()
+
+	depths := make(map[surfaceMetricKey]int64)
+	for _, queue := range queues {
+		for _, envelope := range queue.snapshot() {
+			key := surfaceMetricKey{
+				channel: strings.TrimSpace(envelope.Channel),
+				surface: surfaceLabel(envelope.Surface),
+			}
+			depths[key]++
+		}
+	}
+	samples := make([]MetricSample, 0, len(depths))
+	for key, depth := range depths {
+		samples = append(samples, surfaceMetricSample("network_delivery_queue_depth", key, depth))
+	}
+	sortMetricSamples(samples)
+	return samples
+}
+
 func (c *deliveryCoordinator) markInFlight(sessionID string, item queuedEnvelope) {
 	if c == nil {
 		return
