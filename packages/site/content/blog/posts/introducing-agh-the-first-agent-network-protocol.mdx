@@ -268,38 +268,56 @@ harnesses. A method call cannot.
 
 > An SDK gives you methods. A protocol gives you a network.
 
-`agh-network/v0` is intentionally small. The wire knows seven kinds:
+`agh-network/v0` is intentionally small. The wire knows six kinds and two conversation surfaces:
 
 - <KindChip kind="greet" /> announces a peer and its Peer Card.
 - <KindChip kind="whois" /> asks who is present and can request richer capability details.
-- <KindChip kind="say" /> sends channel-visible chatter without lifecycle tracking.
-- <KindChip kind="direct" /> opens directed work with a specific peer.
+- <KindChip kind="say" /> carries conversation text inside a public thread or restricted direct
+  room.
 - <KindChip kind="capability" /> transfers a full capability artifact with a canonical digest.
-- <KindChip kind="receipt" /> records accepted, rejected, or canceled responsibility.
-- <KindChip kind="trace" /> reports lifecycle, progress, results, and artifact references.
+- <KindChip kind="receipt" /> records accepted, rejected, or canceled responsibility for one
+  `work_id`.
+- <KindChip kind="trace" /> reports lifecycle, progress, results, and artifact references for that
+  work.
+
+Conversation lives in two surfaces. `surface:"thread"` is the public N-to-N container identified by
+`thread_id`; `surface:"direct"` is the restricted two-party container identified by a
+deterministic `direct_id`. Lifecycle-bearing work is tracked separately with a `work_id` bound to
+exactly one conversation container.
 
 The useful mental model is simple: **MCP connects agents to tools. AGH Network connects agents to
 agents.** MCP is how one agent reaches a database, file system, API, prompt, or tool server. AGH
 Network is how one agent discovers another agent, delegates work, receives progress, and gets a
 receipt.
 
-Here is the shape of delegated work from the CLI:
+Here is the shape of delegated work from the CLI. The `directs resolve` step returns the
+deterministic `direct_id` for the two peers, and the `send` opens lifecycle-bearing work in that
+direct room with an explicit `work_id`:
 
 ```bash
+$ agh network directs resolve \
+    --session sess-a \
+    --channel builders \
+    --peer peer-b
+# returns direct_99401d24bee62651d189e5a561785466
+
 $ agh network send \
     --session sess-a \
     --channel builders \
-    --kind direct \
+    --surface direct \
+    --direct direct_99401d24bee62651d189e5a561785466 \
+    --kind say \
     --to peer-b \
-    --body '{"intent":"review","target":"PR#42"}'
+    --work work_review_pr_42 \
+    --body '{"text":"Review PR #42","intent":"review"}'
 
 # illustrative wire trace
 00:00.041  greet     alpha -> bravo
-00:00.108  direct    alpha -> bravo   intent=review target=PR#42
-00:00.382  receipt   bravo -> alpha   status=accepted
-00:00.384  trace     bravo -> *       state=working step=fetch.diff
-00:01.207  trace     bravo -> *       state=working step=run.checks
-00:01.918  receipt   bravo -> alpha   status=accepted state=fulfilled
+00:00.108  say       alpha -> bravo   surface=direct work=work_review_pr_42
+00:00.382  receipt   bravo -> alpha   work=work_review_pr_42 status=accepted
+00:00.384  trace     bravo -> alpha   work=work_review_pr_42 state=working step=fetch.diff
+00:01.207  trace     bravo -> alpha   work=work_review_pr_42 state=working step=run.checks
+00:01.918  trace     bravo -> alpha   work=work_review_pr_42 state=completed
 ```
 
 <WireCard
@@ -312,9 +330,9 @@ $ agh network send \
   ]}
 />
 
-A `direct` without a `receipt` is a message. A `direct` with a `receipt` is work another peer agreed
-to take responsibility for. Trace events then make progress visible without inventing a separate
-telemetry pipeline.
+A `say` without a `work_id` is conversation. A `say` with a `work_id` plus a follow-up `receipt`
+is work another peer agreed to take responsibility for inside that thread or direct room. Trace
+events then make progress visible without inventing a separate telemetry pipeline.
 
 AGH Network is not a planner language, scheduler, global registry, payment rail, or proof that a
 peer is trustworthy. Runtime policy still decides what gets delivered, what gets audited, and which

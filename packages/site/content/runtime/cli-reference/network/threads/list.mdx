@@ -1,23 +1,23 @@
 ---
-title: "agh task run enqueue"
-description: "Enqueue a task run"
+title: "agh network threads list"
+description: "List public threads in a channel"
 ---
 
-## agh task run enqueue
+## agh network threads list
 
-Enqueue a task run
+List public threads in a channel
 
 ```
-agh task run enqueue <task-id> [flags]
+agh network threads list [flags]
 ```
 
 ### Options
 
 ```
-      --channel string           Optional run channel override
-  -h, --help                     help for enqueue
-      --idempotency-key string   Optional idempotency key
-      --metadata string          Optional run metadata JSON
+      --after string     Cursor after which to list threads
+      --channel string   Target channel
+  -h, --help             help for list
+      --limit int        Maximum number of threads to return
 ```
 
 ### Options inherited from parent commands
@@ -39,5 +39,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task run enqueue <task-id> -o json
+agh network threads list -o json
 ```

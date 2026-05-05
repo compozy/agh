@@ -34,7 +34,7 @@ A receiver SHOULD:
 - Reject expired messages before side effects.
 - Deduplicate by `id` within a bounded replay window.
 - Treat invalid lifecycle transitions as application errors.
-- Avoid changing terminal interactions back to active states.
+- Avoid changing terminal work units back to active states.
 - Use `receipt` for directed acceptance, rejection, duplicate detection, expiration, unsupported
   messages, and cancellation when the sender needs visible state.
 - Ignore unknown `ext` keys.
@@ -53,7 +53,7 @@ If a sender changes the content or intent, it SHOULD issue a new envelope ID.
 
 Implementations MUST NOT rely on total ordering across peers or channels. A receiver MAY observe
 `trace(completed)` before a delayed intermediate progress trace. Terminal lifecycle rules protect
-against state regression: once an interaction is terminal, later non-terminal updates MUST NOT
+against state regression: once a work unit is terminal, later non-terminal updates MUST NOT
 reopen it.
 
 Within one runtime queue, an implementation MAY preserve FIFO order as a local behavior. That is not
@@ -119,7 +119,7 @@ Receipts make delivery outcomes visible at the protocol level.
 | `duplicate`   | Receiver already processed the message ID.                        | REQUIRED.       |
 | `expired`     | Message failed freshness checks.                                  | REQUIRED.       |
 | `unsupported` | Receiver cannot support the kind, profile, or requested behavior. | REQUIRED.       |
-| `canceled`    | Sender or receiver canceled the interaction.                      | Optional.       |
+| `canceled`    | Sender or receiver canceled the work.                             | Optional.       |
 
 Valid reason codes are:
 
@@ -134,18 +134,19 @@ not_target
 not_found
 busy
 internal
-interaction_closed
+work_closed
+work_container_mismatch
 ```
 
 ## Transport independence
 
 The core protocol is transport-independent. A different transport profile MUST preserve:
 
-- Envelope field semantics.
+- Envelope field semantics, including `surface`, `thread_id`, `direct_id`, and `work_id`.
 - Kind-specific body rules.
-- Channel scoping.
+- Channel and conversation-container scoping.
 - Directed vs broadcast routing behavior.
-- Interaction lifecycle rules.
+- Work lifecycle rules and conversation-container binding.
 - Freshness and deduplication expectations.
 - Extension and proof compatibility.
 
@@ -156,8 +157,8 @@ message kinds.
 ## Related pages
 
 - [Envelope](/protocol/envelope) defines the fields delivery rules validate.
-- [Interaction Lifecycle](/protocol/interactions) explains how receipts and traces report delivery
-  and work progress.
+- [Work Lifecycle](/protocol/interactions) explains how receipts and traces report delivery
+  and work progress inside one conversation container.
 - [Runtime Delivery and Safety](/runtime/core/network/delivery-and-safety) shows how AGH Runtime
   queues accepted messages for local sessions.
 - [Protocol Implementation Status](/protocol/implementation-status) explains the gap between v0

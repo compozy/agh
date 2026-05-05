@@ -65,25 +65,48 @@ claim about profiles and capabilities; it is not proof that the peer is trustwor
 
 ## 4. Send one envelope
 
-For direct runtime operation, use the network CLI:
+For direct runtime operation, use the network CLI. Open or join a public thread first, then send a
+`say` envelope into it:
 
 ```bash
 agh network send \
   --session sess_1234 \
   --channel release-readiness \
+  --surface thread \
+  --thread thread_release_review_20260502 \
   --to reviewer-agent \
-  --kind direct \
-  --body '{"task":"Review the release checklist and report blockers."}'
+  --kind say \
+  --body '{"text":"Review the release checklist and report blockers.","intent":"request"}'
+```
+
+For restricted handoff to one peer, resolve the deterministic direct room first, then send into it:
+
+```bash
+agh network directs resolve \
+  --session sess_1234 \
+  --channel release-readiness \
+  --peer reviewer-agent
+
+agh network send \
+  --session sess_1234 \
+  --channel release-readiness \
+  --surface direct \
+  --direct direct_99401d24bee62651d189e5a561785466 \
+  --to reviewer-agent \
+  --kind say \
+  --work work_release_review_20260502 \
+  --body '{"text":"Review the release checklist and report blockers.","intent":"request"}'
 ```
 
 What happened: AGH wrapped the request in a network envelope, routed it through the daemon-owned
-network runtime, and made the interaction observable through runtime state.
+network runtime, and bound the work to one conversation container. The interaction stays observable
+through runtime state.
 
 Open the protocol pages when you need the exact wire contract:
 
 - [Envelope Specification](/protocol/envelope)
 - [Message Kinds](/protocol/message-kinds)
-- [Interaction Lifecycle](/protocol/interactions)
+- [Work Lifecycle](/protocol/interactions)
 
 ## 5. Inspect inbound messages for a session
 

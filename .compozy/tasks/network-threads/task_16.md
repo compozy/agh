@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Site, Runtime Docs, Examples, and CLI Reference Co-Ship
 type: docs
 complexity: high
@@ -42,12 +42,12 @@ Update public and runtime documentation after the implementation surfaces exist.
 
 ## Subtasks
 
-- [ ] 16.1 Update runtime network docs and protocol docs.
-- [ ] 16.2 Regenerate API reference and CLI reference through approved generators.
-- [ ] 16.3 Update native tool, extension Host API, SDK, bridge, and hooks docs.
-- [ ] 16.4 Update landing/product network visuals and kind/surface copy to match `_design.md` and the implemented UI from tasks 13-15.
-- [ ] 16.5 Update docs tests, snippets, links, and active legacy-term scans.
-- [ ] 16.6 Run site/source/docs validation and fix root-cause failures.
+- [x] 16.1 Update runtime network docs and protocol docs.
+- [x] 16.2 Regenerate API reference and CLI reference through approved generators.
+- [x] 16.3 Update native tool, extension Host API, SDK, bridge, and hooks docs.
+- [x] 16.4 Update landing/product network visuals and kind/surface copy to match `_design.md` and the implemented UI from tasks 13-15.
+- [x] 16.5 Update docs tests, snippets, links, and active legacy-term scans.
+- [x] 16.6 Run site/source/docs validation and fix root-cause failures.
 
 ## Implementation Details
 

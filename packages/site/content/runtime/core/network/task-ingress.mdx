@@ -7,8 +7,9 @@ Task ingress is the controlled write path from AGH Network into the task domain.
 coordination: a visible peer can ask AGH to create a task, update a task, cancel a task, or enqueue a
 run, but only after the runtime proves that the request belongs to the peer and channel it claims.
 
-This is separate from ordinary message delivery. A `direct` message can ask an agent to do work.
-Task ingress asks the daemon to mutate task state.
+This is separate from ordinary message delivery. A `say` envelope inside a public thread or direct
+room can ask an agent to do work. Task ingress asks the daemon to mutate task state in the
+authoritative task domain.
 
 ## Gate checks
 
@@ -50,6 +51,12 @@ channel checks answer "is this peer allowed to perform this write here?"
 
 That split keeps task state tied to the channel where the coordination happened. It also gives
 operators a durable audit trail for accepted and rejected ingress attempts.
+
+The network-side `work_id` and the task domain's `task_runs.id` are intentionally separate. AGH
+correlates network work to task ingress through `trace_id`, `causation_id`, and queue-neutral
+metadata; the network never reuses `work_id` as a `task_runs.id` value. Public APIs surface the
+correlation through `task_runs.metadata_json.network_work_id` for operators that need to join the
+two views.
 
 ## Audit reasons
 

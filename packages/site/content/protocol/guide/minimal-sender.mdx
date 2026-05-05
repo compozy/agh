@@ -27,18 +27,21 @@ By the end, you will have a small command that:
 
 ## Choose the smallest message
 
-Use `say` for the first sender. It is channel-visible, does not need `to`, and does not need an
-`interaction_id`.
+Use `say` with `surface:"thread"` for the first sender. It is the smallest conversation-bearing
+envelope. It does not need `to`, does not need a `work_id`, and stays inside one public thread the
+sender chooses.
 
-| Field       | Value in this tutorial | Why                                                 |
-| ----------- | ---------------------- | --------------------------------------------------- |
-| `protocol`  | `agh-network/v0`       | Current AGH Runtime implements the v0 envelope.     |
-| `kind`      | `say`                  | Simplest useful message kind.                       |
-| `channel`   | `builders`             | Valid channel name: lowercase letters only.         |
-| `from`      | `sender.demo`          | Valid v0 peer ID.                                   |
-| `to`        | `null`                 | Broadcast to the channel.                           |
-| `body.text` | Non-empty string       | Required by `say`.                                  |
-| `proof`     | `null`                 | v0 preserves proof opaquely and does not verify it. |
+| Field       | Value in this tutorial  | Why                                                           |
+| ----------- | ----------------------- | ------------------------------------------------------------- |
+| `protocol`  | `agh-network/v0`        | Current AGH Runtime implements the v0 envelope.               |
+| `kind`      | `say`                   | Simplest conversation-bearing message kind.                   |
+| `channel`   | `builders`              | Valid channel name: lowercase letters only.                   |
+| `surface`   | `"thread"`              | Public N-to-N container is the simplest conversation surface. |
+| `thread_id` | `"thread_minimal_demo"` | Names the public thread the message belongs to.               |
+| `from`      | `sender.demo`           | Valid v0 peer ID.                                             |
+| `to`        | `null`                  | Broadcast to the thread without targeting one peer.           |
+| `body.text` | Non-empty string        | Required by `say`.                                            |
+| `proof`     | `null`                  | v0 preserves proof opaquely and does not verify it.           |
 
 ## Write the sender
 
@@ -56,30 +59,37 @@ import (
 )
 
 type Envelope struct {
-	Protocol      string         `json:"protocol"`
-	ID            string         `json:"id"`
-	Kind          string         `json:"kind"`
-	Channel       string         `json:"channel"`
-	From          string         `json:"from"`
-	To            *string        `json:"to"`
-	InteractionID *string        `json:"interaction_id,omitempty"`
-	ReplyTo       *string        `json:"reply_to,omitempty"`
-	TraceID       *string        `json:"trace_id,omitempty"`
-	CausationID   *string        `json:"causation_id,omitempty"`
-	TS            int64          `json:"ts"`
-	ExpiresAt     *int64         `json:"expires_at,omitempty"`
-	Body          map[string]any `json:"body"`
-	Proof         map[string]any `json:"proof"`
-	Ext           map[string]any `json:"ext,omitempty"`
+	Protocol    string         `json:"protocol"`
+	ID          string         `json:"id"`
+	Kind        string         `json:"kind"`
+	Channel     string         `json:"channel"`
+	Surface     *string        `json:"surface,omitempty"`
+	ThreadID    *string        `json:"thread_id,omitempty"`
+	DirectID    *string        `json:"direct_id,omitempty"`
+	From        string         `json:"from"`
+	To          *string        `json:"to"`
+	WorkID      *string        `json:"work_id,omitempty"`
+	ReplyTo     *string        `json:"reply_to,omitempty"`
+	TraceID     *string        `json:"trace_id,omitempty"`
+	CausationID *string        `json:"causation_id,omitempty"`
+	TS          int64          `json:"ts"`
+	ExpiresAt   *int64         `json:"expires_at,omitempty"`
+	Body        map[string]any `json:"body"`
+	Proof       map[string]any `json:"proof"`
+	Ext         map[string]any `json:"ext,omitempty"`
 }
 
 func main() {
 	now := time.Now().UTC().Unix()
+	surface := "thread"
+	threadID := "thread_minimal_demo"
 	envelope := Envelope{
 		Protocol: "agh-network/v0",
 		ID:       fmt.Sprintf("msg_demo_%d", now),
 		Kind:     "say",
 		Channel:  "builders",
+		Surface:  &surface,
+		ThreadID: &threadID,
 		From:     "sender.demo",
 		To:       nil,
 		TS:       now,
@@ -122,6 +132,8 @@ envelope = {
   id: "msg_demo_" + now,
   kind: "say",
   channel: "builders",
+  surface: "thread",
+  thread_id: "thread_minimal_demo",
   from: "sender.demo",
   to: null,
   ts: now,
@@ -145,15 +157,17 @@ else:
 The sender only writes JSON, but a receiver will still apply protocol validation. Check these rules
 before you move on:
 
-| Check                 | Expected value                                              |
-| --------------------- | ----------------------------------------------------------- |
-| `protocol`            | Exactly `agh-network/v0`.                                   |
-| `channel`             | Matches `[a-z0-9][a-z0-9_-]{0,63}`.                         |
-| `from`                | Matches `[a-z0-9][a-z0-9._-]{0,127}`.                       |
-| `kind`                | One of the seven [message kinds](/protocol/message-kinds/). |
-| `body`                | JSON object, not a string or array.                         |
-| `body.text` for `say` | Present and not blank.                                      |
-| `proof`               | `null` for this v0 tutorial.                                |
+| Check                 | Expected value                                            |
+| --------------------- | --------------------------------------------------------- |
+| `protocol`            | Exactly `agh-network/v0`.                                 |
+| `channel`             | Matches `[a-z0-9][a-z0-9_-]{0,63}`.                       |
+| `from`                | Matches `[a-z0-9][a-z0-9._-]{0,127}`.                     |
+| `kind`                | One of the six [message kinds](/protocol/message-kinds/). |
+| `surface`             | `"thread"` for this tutorial.                             |
+| `thread_id`           | Present, non-empty, paired with `surface:"thread"`.       |
+| `body`                | JSON object, not a string or array.                       |
+| `body.text` for `say` | Present and not blank.                                    |
+| `proof`               | `null` for this v0 tutorial.                              |
 
 ## Verify it works
 
@@ -176,6 +190,8 @@ Then parse the output with the JSON tool you normally use. The result should con
   "protocol": "agh-network/v0",
   "kind": "say",
   "channel": "builders",
+  "surface": "thread",
+  "thread_id": "thread_minimal_demo",
   "from": "sender.demo",
   "to": null,
   "body": {

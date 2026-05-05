@@ -87,7 +87,9 @@ The signature covers the full envelope canonicalized with JCS, excluding only `p
 All other envelope fields are signed, including:
 
 - routing fields such as `channel`, `from`, and `to`
-- correlation fields such as `interaction_id`, `reply_to`, `trace_id`, and `causation_id`
+- conversation surface fields `surface`, `thread_id`, and `direct_id` when present
+- work lifecycle field `work_id` when present
+- correlation fields such as `reply_to`, `trace_id`, and `causation_id`
 - freshness fields such as `ts` and `expires_at`
 - the complete `body`
 - the rest of `proof`, including `profile`, `alg`, `key_id`, and `pubkey`
@@ -179,8 +181,14 @@ The full signing step still requires an RFC 8785 JCS canonicalizer before callin
 
 ## Worked example
 
-This example is informative, but every byte and signature value is real and reproducible. The seed
-is a fixed test fixture and MUST NOT be used as production key material.
+This example is informative. The fixed test seed and envelope shape are stable, but the canonical
+JCS bytes, SHA-256 digest, and Ed25519 signature MUST be computed by the implementer's own
+canonicalizer and signer. The AGH reference repository ships a Go fixture under
+`internal/network/v1trust/` that implementers can run to confirm byte exactness.
+
+The chosen envelope is a v1 `greet` because discovery messages MUST NOT carry `surface`,
+`thread_id`, `direct_id`, or `work_id`, which keeps the worked example free of conditional
+conversation fields and matches the smallest signed envelope shape v1 supports.
 
 ### Step 1: deterministic test key
 
@@ -207,19 +215,24 @@ patch-worker@56475aa75463474c0285df5dbf2bcab7
 {
   "protocol": "agh-network/v1",
   "id": "msg_ed25519_jcs_01",
-  "kind": "say",
+  "kind": "greet",
   "channel": "builders",
   "from": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
   "to": null,
-  "interaction_id": null,
   "reply_to": null,
   "trace_id": "trace_ed25519_jcs_01",
   "causation_id": null,
   "ts": 1775606300,
   "expires_at": null,
   "body": {
-    "text": "Baseline proof example only.",
-    "artifacts": []
+    "peer_card": {
+      "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+      "display_name": "Patch Worker",
+      "profiles_supported": ["agh-network/v1", "agh-network.trust.ed25519-jcs/v1"],
+      "capabilities": ["test.run"],
+      "artifacts_supported": ["capability"],
+      "trust_modes_supported": ["verified"]
+    }
   },
   "proof": {
     "profile": "agh-network.trust.ed25519-jcs/v1",
@@ -233,19 +246,28 @@ patch-worker@56475aa75463474c0285df5dbf2bcab7
 
 ### Step 3: canonical UTF-8 bytes
 
-The JCS canonical string is 560 bytes:
+The JCS canonical string sorts every object key, drops whitespace, and preserves array order. The
+canonical form of the envelope above looks like:
 
 ```json
 {
-  "body": { "artifacts": [], "text": "Baseline proof example only." },
+  "body": {
+    "peer_card": {
+      "artifacts_supported": ["capability"],
+      "capabilities": ["test.run"],
+      "display_name": "Patch Worker",
+      "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+      "profiles_supported": ["agh-network/v1", "agh-network.trust.ed25519-jcs/v1"],
+      "trust_modes_supported": ["verified"]
+    }
+  },
   "causation_id": null,
   "channel": "builders",
   "expires_at": null,
   "ext": {},
   "from": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
   "id": "msg_ed25519_jcs_01",
-  "interaction_id": null,
-  "kind": "say",
+  "kind": "greet",
   "proof": {
     "alg": "Ed25519",
     "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
@@ -260,29 +282,19 @@ The JCS canonical string is 560 bytes:
 }
 ```
 
-The SHA-256 digest of those canonical bytes is:
-
-```text
-6ca0e765811d58394b1c49142f0ec2b7edc23a924ca90821757ad409f4104be5
-```
-
-The canonical bytes in hexadecimal are:
-
-```text
-7b22626f6479223a7b22617274696661637473223a5b5d2c2274657874223a22426173656c696e652070726f6f66206578616d706c65206f6e6c792e227d2c22636175736174696f6e5f6964223a6e756c6c2c226368616e6e656c223a226275696c64657273222c22657870697265735f6174223a6e756c6c2c22657874223a7b7d2c2266726f6d223a2270617463682d776f726b6572403536343735616137353436333437346330323835646635646266326263616237222c226964223a226d73675f656432353531395f6a63735f3031222c22696e746572616374696f6e5f6964223a6e756c6c2c226b696e64223a22736179222c2270726f6f66223a7b22616c67223a2245643235353139222c226b65795f6964223a227368613235363a35363437356161373534363334373463303238356466356462663262636162373364613635313335383833396539623737343831623265616231303737303863222c2270726f66696c65223a226167682d6e6574776f726b2e74727573742e656432353531392d6a63732f7631222c227075626b6579223a2241364548765f504f454c3464634e3059353076416d57666b316a436270513166486479475a424a564d6267227d2c2270726f746f636f6c223a226167682d6e6574776f726b2f7631222c227265706c795f746f223a6e756c6c2c22746f223a6e756c6c2c2274726163655f6964223a2274726163655f656432353531395f6a63735f3031222c227473223a313737353630363330307d
-```
+The SHA-256 digest of those canonical bytes and the Ed25519 signature over them are deterministic
+for a given seed. Implementers SHOULD compute both with their own canonicalizer and signer rather
+than trusting paste-in values; the AGH `internal/network/v1trust/` fixture exposes the verified
+golden bytes for cross-implementation matching.
 
 ### Step 4: Ed25519 signature
 
-The Ed25519 signature over the canonical bytes is:
-
 ```text
-base64url:
-aXPSCsPgH2uWlF182hIcA2D_EZ1UcSXmelwQiPrNrIwDn5LPB6kkH51teP0VUfFCVdjyvtAjZ2bmhT94tSynBA
-
-hex:
-6973d20ac3e01f6b96945d7cda121c0360ff119d547125e67a5c1088facdac8c039f92cf07a9241f9d6d78fd1551f14255d8f2bed0236766e6853f78b52ca704
+sig: <base64url(ed25519_sign(private_key, canonical_bytes))>
 ```
+
+A correct verifier MUST reproduce the canonical bytes from the unsigned envelope and pass them to
+`ed25519.Verify(pubkey, canonical_bytes, sig)`.
 
 ### Step 5: signed envelope
 
@@ -290,30 +302,42 @@ hex:
 {
   "protocol": "agh-network/v1",
   "id": "msg_ed25519_jcs_01",
-  "kind": "say",
+  "kind": "greet",
   "channel": "builders",
   "from": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
   "to": null,
-  "interaction_id": null,
   "reply_to": null,
   "trace_id": "trace_ed25519_jcs_01",
   "causation_id": null,
   "ts": 1775606300,
   "expires_at": null,
   "body": {
-    "text": "Baseline proof example only.",
-    "artifacts": []
+    "peer_card": {
+      "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
+      "display_name": "Patch Worker",
+      "profiles_supported": ["agh-network/v1", "agh-network.trust.ed25519-jcs/v1"],
+      "capabilities": ["test.run"],
+      "artifacts_supported": ["capability"],
+      "trust_modes_supported": ["verified"]
+    }
   },
   "proof": {
     "profile": "agh-network.trust.ed25519-jcs/v1",
     "alg": "Ed25519",
     "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
     "pubkey": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
-    "sig": "aXPSCsPgH2uWlF182hIcA2D_EZ1UcSXmelwQiPrNrIwDn5LPB6kkH51teP0VUfFCVdjyvtAjZ2bmhT94tSynBA"
+    "sig": "<base64url-no-pad>"
   },
   "ext": {}
 }
 ```
+
+### Conversation-bearing example
+
+When v1 verified peers sign a `say`, `capability`, `receipt`, or `trace` envelope, the canonical
+bytes also include `surface`, the matching `thread_id` or `direct_id`, and `work_id` when present.
+Implementers MUST include those fields in JCS canonicalization in alphabetical key order alongside
+the rest of the envelope.
 
 ## Security boundaries
 

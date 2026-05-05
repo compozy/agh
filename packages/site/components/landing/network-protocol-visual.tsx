@@ -55,10 +55,10 @@ const STEPS: Step[] = [
   {
     from: "A",
     to: "B",
-    kind: "direct",
+    kind: "say",
     direction: "->",
-    payload: `{ to: "deployer", task: "deploy staging" }`,
-    hint: "Structured task is delegated peer-to-peer.",
+    payload: `{ surface: "direct", direct_id: "direct_…", work_id: "work_deploy_staging", to: "deployer", body: { text: "deploy staging" } }`,
+    hint: "Structured task is delegated peer-to-peer in a restricted direct room.",
   },
   {
     from: "B",

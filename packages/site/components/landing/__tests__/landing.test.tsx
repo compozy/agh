@@ -452,15 +452,7 @@ describe("FinalCta", () => {
 
 describe("Network kind pill", () => {
   it("has a meaning string for every NetworkKind and renders inside Pill", () => {
-    const kinds: NetworkKind[] = [
-      "greet",
-      "whois",
-      "say",
-      "direct",
-      "capability",
-      "receipt",
-      "trace",
-    ];
+    const kinds: NetworkKind[] = ["greet", "whois", "say", "capability", "receipt", "trace"];
     for (const kind of kinds) {
       expect(KIND_MEANING[kind]).toBeDefined();
       render(
@@ -470,5 +462,10 @@ describe("Network kind pill", () => {
       );
       expect(screen.getAllByText(kind)).toBeDefined();
     }
+  });
+
+  it("does not advertise direct as a wire kind", () => {
+    const meaningKeys = Object.keys(KIND_MEANING);
+    expect(meaningKeys).not.toContain("direct");
   });
 });

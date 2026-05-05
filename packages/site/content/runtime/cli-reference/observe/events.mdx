@@ -44,36 +44,3 @@ Example:
 ```bash
 agh observe events -o json
 ```
-
-## Common event types
-
-`agh observe events` is the cross-session public event stream. It carries both session-derived rows
-and global runtime rows such as settings commits, hook dispatch, and skill shadow diagnostics.
-
-Common filters:
-
-```bash
-# Watch global settings mutations
-agh observe events --type settings.changed -o jsonl
-
-# Watch pre-call hook outcomes before real tool side effects
-agh observe events --type hook.dispatch.complete -o jsonl
-
-# Watch skill precedence collisions and invalid agent-local loads
-agh observe events --type skills.shadow -o jsonl
-agh observe events --type skills.load_failed -o jsonl
-```
-
-The current global event taxonomy includes:
-
-- `settings.changed`
-- `hook.dispatch.start`
-- `hook.dispatch.complete`
-- `skills.shadow`
-- `skills.load_failed`
-
-Envelope population is event-specific:
-
-- `hook.dispatch.*` populates top-level hook correlation keys such as `hook_event`, `hook_name`, `actor_kind`, and `actor_id`, plus session lineage when a session source exists.
-- `settings.changed` keeps the changed section, source, operation, scope, and write-target detail in `content`.
-- `skills.shadow` and `skills.load_failed` keep precedence and load-failure detail in `content`, and may also populate `agent_name` or `workspace_id` when AGH knows the winning agent/workspace context.

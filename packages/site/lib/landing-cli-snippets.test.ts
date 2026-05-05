@@ -104,11 +104,17 @@ describe("landing CLI snippets", () => {
 
     const normalized = networkSnippet?.code.replaceAll("\\\n", " ") ?? "";
     expect(normalized).toContain("agh network peers builders");
+    expect(normalized).toContain("agh network directs resolve");
     expect(normalized).toContain("agh network send");
     expect(normalized).toContain("--session <session-id>");
     expect(normalized).toContain("--channel builders");
-    expect(normalized).toContain("--kind direct");
+    expect(normalized).toContain("--surface direct");
+    expect(normalized).toContain("--direct ");
+    expect(normalized).toContain("--kind say");
+    expect(normalized).toContain("--work ");
     expect(normalized).toContain("--body ");
     expect(normalized).toContain("agh network inbox --session <session-id>");
+    expect(normalized).not.toContain("--kind direct");
+    expect(normalized).not.toContain("--interaction-id");
   });
 });

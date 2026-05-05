@@ -31,8 +31,11 @@ not implement both directions.
 | ------------------------------------------------------------------ | ------ | ------ | ------ |
 | Emit valid envelopes                                               | MUST   | MUST   | MUST   |
 | Receive and validate valid envelopes                               | MUST   | MUST   | MUST   |
-| Support all seven message kinds                                    | MUST   | MUST   | MUST   |
+| Support all six message kinds                                      | MUST   | MUST   | MUST   |
 | Enforce kind-specific required fields                              | MUST   | MUST   | MUST   |
+| Reject `kind:"direct"` and `interaction_id` envelopes              | MUST   | MUST   | MUST   |
+| Enforce `surface`, `thread_id`, and `direct_id` rules              | MUST   | MUST   | MUST   |
+| Enforce `work_id` lifecycle and container-binding rules            | MUST   | MUST   | MUST   |
 | Enforce `channel` grammar                                          | MUST   | MUST   | MUST   |
 | Enforce Peer ID or verified-handle grammar for the claimed profile | MUST   | MUST   | MUST   |
 | Honor `expires_at`                                                 | MUST   | MUST   | MUST   |
@@ -120,8 +123,8 @@ A Full NATS Peer MUST:
 - publish directed envelopes to the target direct subject
 - derive verified-mode direct route tokens from the verified handle fingerprint
 - derive non-verified route tokens from SHA-256 over the target peer ID
-- preserve envelope `reply_to`, `interaction_id`, `trace_id`, and `causation_id` when using NATS
-  request-reply
+- preserve envelope `reply_to`, `surface`, `thread_id`, `direct_id`, `work_id`, `trace_id`, and
+  `causation_id` when using NATS request-reply
 - keep JetStream persistence, consumer acknowledgements, and dead-letter handling outside core
   acceptance semantics
 
@@ -171,16 +174,16 @@ Conformance is established by passing tests and by verifying actual message beha
 
 A conformance suite SHOULD be fixture-driven and transport-agnostic at the core layer.
 
-| Suite                 | Required coverage                                                                                                            |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Envelope fixtures     | Valid and invalid envelopes, required fields, unknown fields, nullable fields, timestamp rules.                              |
-| Message kind fixtures | All seven message kinds, required body fields, invalid body shapes, broadcast versus directed constraints.                   |
-| Lifecycle fixtures    | Opening interactions, receipts, traces, terminal states, invalid state regressions, actor ownership.                         |
-| Delivery fixtures     | Duplicate IDs, expired messages, unsupported kinds, reason codes, receipt behavior.                                          |
-| Extension fixtures    | Unknown extension keys, extension namespace validation, extension processing after core validation.                          |
-| Trust fixtures        | Valid Ed25519 + JCS example, malformed proofs, key mismatches, fingerprint mismatches, proof stripping.                      |
-| NATS fixtures         | Broadcast subjects, direct subjects, verified route tokens, unverified route tokens, request-reply correlation preservation. |
-| JetStream fixtures    | Optional replay and redelivery tests that prove core deduplication and receipts remain authoritative.                        |
+| Suite                 | Required coverage                                                                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Envelope fixtures     | Valid and invalid envelopes, required fields, unknown fields, nullable fields, timestamp rules, surface and container-id pairing, rejection of `kind:"direct"`. |
+| Message kind fixtures | All six message kinds, required body fields, invalid body shapes, conversation-bearing surface rules, discovery-must-not-carry-surface rules.                   |
+| Lifecycle fixtures    | Opening work, receipts, traces, terminal states, invalid state regressions, actor ownership, conversation-container binding for `work_id`.                      |
+| Delivery fixtures     | Duplicate IDs, expired messages, unsupported kinds, reason codes including `work_closed` and `work_container_mismatch`, receipt behavior.                       |
+| Extension fixtures    | Unknown extension keys, extension namespace validation, extension processing after core validation.                                                             |
+| Trust fixtures        | Valid Ed25519 + JCS example, malformed proofs, key mismatches, fingerprint mismatches, proof stripping.                                                         |
+| NATS fixtures         | Broadcast subjects, direct subjects, verified route tokens, unverified route tokens, request-reply correlation preservation.                                    |
+| JetStream fixtures    | Optional replay and redelivery tests that prove core deduplication and receipts remain authoritative.                                                           |
 
 The suite SHOULD include at least one golden verified envelope from
 [the worked example](/protocol/ed25519-jcs/#worked-example) and MUST fail if the signature verifies

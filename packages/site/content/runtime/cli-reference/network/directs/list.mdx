@@ -1,23 +1,24 @@
 ---
-title: "agh task run enqueue"
-description: "Enqueue a task run"
+title: "agh network directs list"
+description: "List direct rooms in a channel"
 ---
 
-## agh task run enqueue
+## agh network directs list
 
-Enqueue a task run
+List direct rooms in a channel
 
 ```
-agh task run enqueue <task-id> [flags]
+agh network directs list [flags]
 ```
 
 ### Options
 
 ```
-      --channel string           Optional run channel override
-  -h, --help                     help for enqueue
-      --idempotency-key string   Optional idempotency key
-      --metadata string          Optional run metadata JSON
+      --after string     Cursor after which to list direct rooms
+      --channel string   Target channel
+  -h, --help             help for list
+      --limit int        Maximum number of direct rooms to return
+      --peer string      Peer id filter
 ```
 
 ### Options inherited from parent commands
@@ -39,5 +40,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task run enqueue <task-id> -o json
+agh network directs list -o json
 ```
