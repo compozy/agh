@@ -125,7 +125,7 @@ func TestTaskRunEnqueuedHookIncludesActorAndOrigin(t *testing.T) {
 	if got.TaskID != taskRecord.ID || got.RunID != execution.Run.ID {
 		t.Fatalf("hook context ids = %#v, want task/run ids", got.TaskRunContext)
 	}
-	if got.ActorKind != string(ActorKindHuman) || got.ActorRef != "operator-1" {
+	if got.ActorKind != string(ActorKindHuman) || got.ActorID != "operator-1" {
 		t.Fatalf("hook actor context = %#v, want operator actor", got.TaskRunContext)
 	}
 	if got.OriginKind != string(OriginKindCLI) || got.OriginRef != "agh task start" {

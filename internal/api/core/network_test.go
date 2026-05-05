@@ -378,6 +378,18 @@ func TestBundleActivationPayloadUsesMaterializedStableIDs(t *testing.T) {
 		},
 		Profile: extensionpkg.BundleProfile{
 			Name: "default",
+			Agents: []extensionpkg.BundleAgent{{
+				Path: "agents/planner",
+				Agent: aghconfig.AgentDef{
+					Name:   "planner",
+					Model:  "sonnet",
+					Prompt: "Plan campaign work.",
+				},
+				Soul: &extensionpkg.BundleAgentSidecar{
+					SourcePath: "agents/planner/SOUL.md",
+					Body:       "Lead planning.",
+				},
+			}},
 			Jobs: []extensionpkg.BundleJob{{
 				Name:      "daily-sync",
 				AgentName: "planner",
@@ -395,6 +407,12 @@ func TestBundleActivationPayloadUsesMaterializedStableIDs(t *testing.T) {
 	}
 
 	payload := core.BundleActivationPayload(preview)
+	if got, want := payload.Agents[0].ID, bundleStableIDForTest("agt", preview.Activation.ID, "planner"); got != want {
+		t.Fatalf("payload.Agents[0].ID = %q, want %q", got, want)
+	}
+	if !payload.Agents[0].HasSoul || payload.Agents[0].HasHeartbeat {
+		t.Fatalf("payload.Agents[0] sidecar flags = %#v", payload.Agents[0])
+	}
 	if got, want := payload.Jobs[0].ID, bundleStableIDForTest("job", preview.Activation.ID, "daily-sync"); got != want {
 		t.Fatalf("payload.Jobs[0].ID = %q, want %q", got, want)
 	}

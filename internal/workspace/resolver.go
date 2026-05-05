@@ -282,7 +282,7 @@ func (r *Resolver) buildResolvedWorkspace(
 		return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve sandbox for %q: %w", ws.ID, err)
 	}
 
-	agents, err := loadAgents(ctx, scan.agents)
+	agents, agentDiagnostics, err := loadAgents(ctx, scan.agents)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}
@@ -290,12 +290,13 @@ func (r *Resolver) buildResolvedWorkspace(
 	skills := mergeSkillPaths(scan.skills)
 
 	return ResolvedWorkspace{
-		Workspace:  cloneWorkspace(ws),
-		Config:     cloneConfig(&cfg),
-		Agents:     cloneAgentDefs(agents),
-		Skills:     cloneSkillPaths(skills),
-		Sandbox:    cloneSandboxResolved(resolvedSandbox),
-		ResolvedAt: r.now(),
+		Workspace:        cloneWorkspace(ws),
+		Config:           cloneConfig(&cfg),
+		Agents:           cloneAgentDefs(agents),
+		AgentDiagnostics: append([]AgentDiagnostic(nil), agentDiagnostics...),
+		Skills:           cloneSkillPaths(skills),
+		Sandbox:          cloneSandboxResolved(resolvedSandbox),
+		ResolvedAt:       r.now(),
 	}, nil
 }
 

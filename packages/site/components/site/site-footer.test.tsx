@@ -37,7 +37,7 @@ describe("SiteFooter", () => {
     expect(
       screen.getByText(`© ${new Date().getFullYear()} ${siteConfig.name} · Built by Compozy.`)
     ).toBeDefined();
-    expect(screen.getByRole("link", { name: "Alpha · Open source on GitHub" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Alpha · Compozy on GitHub" })).toBeDefined();
   });
 
   it("renders every configured footer column as accessible navigation", () => {

@@ -197,6 +197,35 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 	}
 }
 
+func TestSQLiteDSNAppendsExtraPragmas(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve shared pragmas and append caller pragmas", func(t *testing.T) {
+		t.Parallel()
+
+		dsn := sqliteDSN("/tmp/example.db", "wal_autocheckpoint(0)", "  ")
+		parsedDSN, err := url.Parse(dsn)
+		if err != nil {
+			t.Fatalf("url.Parse(sqliteDSN()) error = %v", err)
+		}
+		pragmas := parsedDSN.Query()["_pragma"]
+		for _, want := range []string{
+			"busy_timeout(5000)",
+			"foreign_keys(ON)",
+			"journal_mode(WAL)",
+			"synchronous(NORMAL)",
+			"wal_autocheckpoint(0)",
+		} {
+			if !slices.Contains(pragmas, want) {
+				t.Fatalf("sqliteDSN() pragmas = %#v, want %q", pragmas, want)
+			}
+		}
+		if slices.Contains(pragmas, "") {
+			t.Fatalf("sqliteDSN() pragmas = %#v, want no blank pragma", pragmas)
+		}
+	})
+}
+
 func TestStoreSQLiteRecoveryAndFailures(t *testing.T) {
 	t.Parallel()
 

@@ -1,27 +1,6 @@
-import { runtimeDocs, protocolDocs } from "@/lib/source";
+import { buildPublicSearchIndexes } from "@/lib/public-search-index";
 import { createSearchAPI } from "fumadocs-core/search/server";
 
-export const revalidate = false;
-
-const server = createSearchAPI("advanced", {
-  indexes: [
-    ...runtimeDocs.getPages().map(page => ({
-      title: page.data.title,
-      description: page.data.description,
-      structuredData: page.data.structuredData,
-      id: page.url,
-      url: page.url,
-      tag: "Runtime",
-    })),
-    ...protocolDocs.getPages().map(page => ({
-      title: page.data.title,
-      description: page.data.description,
-      structuredData: page.data.structuredData,
-      id: page.url,
-      url: page.url,
-      tag: "AGH Network",
-    })),
-  ],
+export const { GET } = createSearchAPI("advanced", {
+  indexes: buildPublicSearchIndexes(),
 });
-
-export const { staticGET: GET } = server;

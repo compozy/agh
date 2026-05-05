@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
+  SettingsApiError,
   getSettingsAutomation,
   getSettingsSandbox,
   getSettingsGeneral,
@@ -11,6 +12,7 @@ import {
   getSettingsProvider,
   getSettingsRestartStatus,
   getSettingsSkills,
+  getSettingsUpdate,
   listSettingsSandboxes,
   listSettingsExtensions,
   listSettingsHooks,
@@ -19,13 +21,22 @@ import {
 } from "../adapters/settings-api";
 import { settingsKeys } from "./query-keys";
 import { isTerminalRestartStatus } from "./restart-status";
-import type { SettingsMCPServerListFilter } from "../types";
+import type { SettingsMCPServerListFilter, SettingsSkillsFilter } from "../types";
 
 const SECTION_STALE_TIME = 15_000;
 const SECTION_REFETCH_INTERVAL = 60_000;
 const COLLECTION_STALE_TIME = 15_000;
 const COLLECTION_REFETCH_INTERVAL = 45_000;
 const RESTART_POLL_INTERVAL = 2_000;
+const SETTINGS_QUERY_RETRY_LIMIT = 2;
+
+export function shouldRetrySettingsQuery(failureCount: number, error: Error): boolean {
+  if (error instanceof SettingsApiError && error.status === 403) {
+    return false;
+  }
+
+  return failureCount < SETTINGS_QUERY_RETRY_LIMIT;
+}
 
 export function settingsGeneralOptions() {
   return queryOptions({
@@ -33,6 +44,17 @@ export function settingsGeneralOptions() {
     queryFn: ({ signal }) => getSettingsGeneral(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsUpdateOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.updateStatus(),
+    queryFn: ({ signal }) => getSettingsUpdate(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -42,15 +64,17 @@ export function settingsMemoryOptions() {
     queryFn: ({ signal }) => getSettingsMemory(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
-export function settingsSkillsOptions() {
+export function settingsSkillsOptions(filter: SettingsSkillsFilter = {}) {
   return queryOptions({
-    queryKey: settingsKeys.section("skills"),
-    queryFn: ({ signal }) => getSettingsSkills(signal),
+    queryKey: settingsKeys.skillsSection(filter),
+    queryFn: ({ signal }) => getSettingsSkills(filter, signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -60,6 +84,7 @@ export function settingsAutomationOptions() {
     queryFn: ({ signal }) => getSettingsAutomation(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -69,6 +94,7 @@ export function settingsNetworkOptions() {
     queryFn: ({ signal }) => getSettingsNetwork(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -78,6 +104,7 @@ export function settingsObservabilityOptions() {
     queryFn: ({ signal }) => getSettingsObservability(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -87,6 +114,7 @@ export function settingsHooksExtensionsOptions() {
     queryFn: ({ signal }) => getSettingsHooksExtensions(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -96,6 +124,7 @@ export function settingsProvidersListOptions() {
     queryFn: ({ signal }) => listSettingsProviders(signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -106,6 +135,7 @@ export function settingsProviderDetailOptions(name: string, enabled = true) {
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
     enabled: Boolean(name) && enabled,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -115,6 +145,7 @@ export function settingsSandboxesListOptions() {
     queryFn: ({ signal }) => listSettingsSandboxes(signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -125,6 +156,7 @@ export function settingsSandboxDetailOptions(name: string, enabled = true) {
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
     enabled: Boolean(name) && enabled,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -134,6 +166,7 @@ export function settingsHooksListOptions() {
     queryFn: ({ signal }) => listSettingsHooks(signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -143,6 +176,7 @@ export function settingsMCPServersListOptions(filter: SettingsMCPServerListFilte
     queryFn: ({ signal }) => listSettingsMCPServers(filter, signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -152,6 +186,7 @@ export function settingsExtensionsListOptions() {
     queryFn: ({ signal }) => listSettingsExtensions(signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
   });
 }
 
@@ -166,6 +201,7 @@ export function settingsRestartStatusOptions(operationId: string | null, enabled
     refetchInterval: query =>
       isTerminalRestartStatus(query.state.data?.status) ? false : RESTART_POLL_INTERVAL,
     refetchIntervalInBackground: true,
+    retry: shouldRetrySettingsQuery,
   });
 }
 

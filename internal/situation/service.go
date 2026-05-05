@@ -44,6 +44,11 @@ type AgentResolver interface {
 // SkillRegistry resolves the active skill set for a workspace.
 type SkillRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
+	ForAgent(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+	) ([]*skillspkg.Skill, error)
 }
 
 // TaskStore is the narrowed task read surface required by agent context.
@@ -413,6 +418,9 @@ func (s *Service) capabilitiesSection(
 
 	if registry := s.skillRegistryValue(); registry != nil {
 		skills, err := registry.ForWorkspace(ctx, workspaceSnapshot)
+		if strings.TrimSpace(agent.Name) != "" {
+			skills, err = registry.ForAgent(ctx, workspaceSnapshot, agent.Name)
+		}
 		if err == nil {
 			for _, skill := range skills {
 				if skill == nil || !skill.Enabled {
@@ -690,6 +698,7 @@ func sessionPayload(info *session.Info) contract.AgentSessionPayload {
 		Type:      info.Type,
 		State:     info.State,
 		Channel:   strings.TrimSpace(info.Channel),
+		Lineage:   contract.SessionLineagePayloadFromStore(info.Lineage),
 		CreatedAt: info.CreatedAt.UTC(),
 		UpdatedAt: info.UpdatedAt.UTC(),
 	}

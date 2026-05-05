@@ -42,7 +42,7 @@ AGH stores trigger events as strings. The current runtime emits these built-in e
 | `session.created`            | Session lifecycle observer   | Start a helper agent when a workspace session begins.                      |
 | `session.stopped`            | Session lifecycle observer   | Summarize work, collect failures, or schedule follow-up review.            |
 | `memory.consolidated`        | Memory consolidation runtime | Review durable memory changes after consolidation.                         |
-| `hook.<hook_name>.completed` | Hook runtime                 | Continue a workflow after a named hook completes.                          |
+| `hook.<hook_name>.completed` | Hook runtime                 | Continue work after a named hook completes.                                |
 | `webhook`                    | Signed HTTP webhook ingress  | React to CI, deploy, incident, or repository events from external systems. |
 | `ext.*`                      | Extension trigger API        | Let an extension publish its own automation event family.                  |
 

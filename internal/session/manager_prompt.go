@@ -75,6 +75,13 @@ func isPromptTerminalEvent(eventType string) bool {
 	return eventType == acp.EventTypeDone || eventType == acp.EventTypeError
 }
 
+func isFatalPromptFailureEvent(event acp.AgentEvent) bool {
+	if event.Type != acp.EventTypeError || event.Failure == nil {
+		return false
+	}
+	return event.Failure.Kind == store.FailureProcess
+}
+
 // Prompt sends one prompt turn to an active session and mirrors the runtime stream into storage and observers.
 func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	return m.PromptWithOpts(ctx, id, PromptOpts{
@@ -130,11 +137,7 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		return nil, err
 	}
 
-	beginPromptSetup := session.beginPromptSetup
-	if req.turnSource == TurnSourceSynthetic {
-		beginPromptSetup = session.beginExclusivePromptSetup
-	}
-	proc, err := beginPromptSetup()
+	proc, err := session.beginExclusivePromptSetup()
 	if err != nil {
 		return nil, err
 	}
@@ -170,9 +173,10 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
 		return nil, err
 	}
-	activity := newPromptActivitySupervisor(ctx, m, session, turnState, m.supervision)
+	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx)
+	activity := newPromptActivitySupervisor(promptExecutionCtx, m, session, turnState, m.supervision)
 	activity.start()
-	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{
+	source, err := m.driver.Prompt(promptExecutionCtx, proc, acp.PromptRequest{
 		TurnID:                    req.turnID,
 		Message:                   dispatchMessage,
 		Meta:                      req.meta,
@@ -180,6 +184,7 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		ActivityHeartbeatInterval: m.supervision.ActivityHeartbeatInterval,
 	})
 	if err != nil {
+		cancelPromptExecution()
 		activity.stop()
 		activity.finish(m.now())
 		return nil, fmt.Errorf("session: prompt session %q: %w", req.target, err)
@@ -188,7 +193,7 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	out := make(chan acp.AgentEvent, m.promptBufSize)
 	clearTurnSource = false
 	// pumpPrompt terminates when the driver closes the source channel or the request context ends.
-	go m.pumpPrompt(ctx, session, turnState, source, activity.eventsChannel(), out, activity)
+	go m.pumpPrompt(ctx, session, turnState, source, activity.eventsChannel(), out, activity, cancelPromptExecution)
 	return out, nil
 }
 
@@ -462,9 +467,16 @@ func (m *Manager) pumpPrompt(
 	runtime <-chan acp.AgentEvent,
 	out chan<- acp.AgentEvent,
 	activity *promptActivitySupervisor,
+	releaseExecution context.CancelFunc,
 ) {
+	var fatalPromptFailure *store.SessionFailure
+	var fatalPromptError string
+
 	defer close(out)
 	defer func() {
+		if releaseExecution != nil {
+			releaseExecution()
+		}
 		if activity != nil {
 			activity.stop()
 			activity.finish(m.now())
@@ -475,7 +487,11 @@ func (m *Manager) pumpPrompt(
 			session.clearCurrentTurnID()
 			session.clearCurrentTurnSource()
 			session.clearCurrentPromptMeta()
-			m.startNextQueuedSyntheticPrompt(session.ID)
+			if fatalPromptFailure != nil {
+				m.stopSessionAfterFatalPromptFailure(ctx, session, fatalPromptFailure, fatalPromptError)
+			} else {
+				m.startNextQueuedSyntheticPrompt(session.ID)
+			}
 		}
 		notifier := m.currentTurnEndNotifier()
 		if notifier != nil && session != nil {
@@ -485,56 +501,285 @@ func (m *Manager) pumpPrompt(
 
 	loop := promptPumpLoopState{source: source, runtime: runtime, activity: activity}
 	for loop.active() {
-		var (
-			event        acp.AgentEvent
-			ok           bool
-			runtimeEvent bool
+		event, runtimeEvent, ok := nextPromptPumpEvent(ctx, &loop)
+		if !ok {
+			return
+		}
+		failure, errorText, stop := m.handlePromptPumpEvent(
+			ctx,
+			session,
+			turnState,
+			out,
+			&loop,
+			event,
+			runtimeEvent,
 		)
-		select {
-		case <-ctx.Done():
+		if failure != nil {
+			fatalPromptFailure = failure
+			fatalPromptError = errorText
+		}
+		if stop {
 			return
-		case event, ok = <-loop.source:
-			if !ok {
-				if loop.sourceClosedShouldReturn() {
-					return
-				}
-				continue
-			}
-		case event, ok = <-loop.runtime:
-			if !ok {
-				if loop.runtimeClosedShouldReturn() {
-					return
-				}
-				continue
-			}
-			runtimeEvent = true
-		}
-
-		normalized := m.normalizeEvent(session, turnState.turnID, event)
-		normalized = m.attachPromptFailureDiagnostics(ctx, session, normalized)
-		normalized = m.preparePromptEvent(ctx, turnState, normalized)
-		if activity != nil && !runtimeEvent {
-			activity.observeEvent(normalized)
-		}
-		if err := m.recordEvent(ctx, session, normalized); err != nil {
-			m.sessionLogger(session).
-				Warn("session: record prompt event failed", "turn_id", turnState.turnID, "error", err)
-		}
-		m.notifyAgentEvent(ctx, session, normalized)
-
-		select {
-		case out <- normalized:
-		case <-ctx.Done():
-			return
-		}
-
-		if isPromptTerminalEvent(normalized.Type) {
-			m.dispatchTurnEnd(ctx, turnState, normalized.Timestamp)
-			if loop.turnEndedShouldReturn() {
-				return
-			}
 		}
 	}
+}
+
+func (m *Manager) promptExecutionContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	base := ctx
+	if base == nil {
+		base = m.fallbackLifecycleContext()
+	}
+	deadline := time.Time{}
+	hasDeadline := false
+	if m != nil && m.supervision.PromptDeadline > 0 {
+		now := time.Now().UTC()
+		if m.now != nil {
+			now = m.now().UTC()
+		}
+		deadline = now.Add(m.supervision.PromptDeadline)
+		hasDeadline = true
+	}
+	if hasDeadline {
+		return context.WithDeadline(base, deadline)
+	}
+	return context.WithCancel(base)
+}
+
+func (m *Manager) stopSessionAfterFatalPromptFailure(
+	ctx context.Context,
+	session *Session,
+	failure *store.SessionFailure,
+	errorText string,
+) {
+	if m == nil || session == nil || failure == nil {
+		return
+	}
+	if info := session.Info(); info == nil || info.State != StateActive {
+		return
+	}
+
+	proc := session.processHandle()
+	if proc == nil {
+		return
+	}
+
+	summary := firstNonEmptySessionFailureText(
+		failureSummary(failure, errorText),
+		strings.TrimSpace(errorText),
+		"agent runtime became unavailable during prompt",
+	)
+	proc.setWaitErrorOverride(acp.WrapFailure(store.FailureProcess, summary, errors.New(summary)))
+
+	stopCtx, cancel := detachedPromptStopContext(ctx, m)
+	defer cancel()
+
+	if err := m.StopWithCause(stopCtx, session.ID, CauseProcessExited, summary); err != nil &&
+		!errors.Is(err, ErrSessionNotFound) {
+		m.sessionLogger(session).Warn(
+			"session: stop after fatal prompt failure failed",
+			"error", err,
+			"failure_kind", failure.Kind,
+		)
+	}
+}
+
+func detachedPromptStopContext(ctx context.Context, m *Manager) (context.Context, context.CancelFunc) {
+	base := ctx
+	if base == nil && m != nil {
+		base = m.lifecycleCtx
+	}
+	if base == nil {
+		base = context.TODO()
+	}
+	return context.WithTimeout(context.WithoutCancel(base), defaultLifecycleTimeout)
+}
+
+func nextPromptPumpEvent(
+	ctx context.Context,
+	loop *promptPumpLoopState,
+) (acp.AgentEvent, bool, bool) {
+	for {
+		if loop.runtime != nil {
+			select {
+			case event, ok := <-loop.runtime:
+				if !ok {
+					if loop.runtimeClosedShouldReturn() {
+						return acp.AgentEvent{}, false, false
+					}
+				} else {
+					return event, true, true
+				}
+			default:
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return acp.AgentEvent{}, false, false
+		case event, ok := <-loop.source:
+			if !ok {
+				if loop.sourceClosedShouldReturn() {
+					return acp.AgentEvent{}, false, false
+				}
+				continue
+			}
+			return event, false, true
+		case event, ok := <-loop.runtime:
+			if !ok {
+				if loop.runtimeClosedShouldReturn() {
+					return acp.AgentEvent{}, false, false
+				}
+				continue
+			}
+			return event, true, true
+		}
+	}
+}
+
+func (m *Manager) handlePromptPumpEvent(
+	ctx context.Context,
+	session *Session,
+	turnState *promptTurnDispatchState,
+	out chan<- acp.AgentEvent,
+	loop *promptPumpLoopState,
+	event acp.AgentEvent,
+	runtimeEvent bool,
+) (*store.SessionFailure, string, bool) {
+	if failure, errorText, stop, handled := m.emitPromptDeadlineWarningBeforeError(
+		ctx,
+		session,
+		turnState,
+		out,
+		loop,
+		event,
+		runtimeEvent,
+	); handled {
+		return failure, errorText, stop
+	}
+
+	normalized, skip := m.preparePromptPumpEventForDelivery(ctx, session, turnState, loop, event, runtimeEvent)
+	if skip {
+		return nil, "", false
+	}
+
+	fatalPromptFailure := promptFatalFailure(normalized)
+	m.observeRecordAndNotifyPromptEvent(ctx, session, turnState, loop, normalized, runtimeEvent)
+	if stop := m.sendPromptPumpEvent(ctx, out, loop, normalized, runtimeEvent); stop {
+		return fatalPromptFailure, normalized.Error, true
+	}
+	if stop := m.finishPromptTurnIfNeeded(ctx, turnState, loop, normalized); stop {
+		return fatalPromptFailure, normalized.Error, true
+	}
+
+	return fatalPromptFailure, normalized.Error, false
+}
+
+func (m *Manager) emitPromptDeadlineWarningBeforeError(
+	ctx context.Context,
+	session *Session,
+	turnState *promptTurnDispatchState,
+	out chan<- acp.AgentEvent,
+	loop *promptPumpLoopState,
+	event acp.AgentEvent,
+	runtimeEvent bool,
+) (*store.SessionFailure, string, bool, bool) {
+	if runtimeEvent || event.Type != acp.EventTypeError || loop.activity == nil {
+		return nil, "", false, false
+	}
+
+	warning, ok := loop.activity.pendingPromptDeadlineWarning()
+	if !ok && strings.Contains(event.Error, "context deadline exceeded") {
+		warning, ok = loop.activity.promptDeadlineWarningEvent(m.now())
+	}
+	if !ok {
+		return nil, "", false, false
+	}
+
+	failure, errorText, stop := m.handlePromptPumpEvent(
+		ctx,
+		session,
+		turnState,
+		out,
+		loop,
+		warning,
+		true,
+	)
+	if failure == nil && errorText == "" && !stop {
+		return nil, "", false, false
+	}
+	return failure, errorText, stop, true
+}
+
+func (m *Manager) preparePromptPumpEventForDelivery(
+	ctx context.Context,
+	session *Session,
+	turnState *promptTurnDispatchState,
+	loop *promptPumpLoopState,
+	event acp.AgentEvent,
+	runtimeEvent bool,
+) (acp.AgentEvent, bool) {
+	normalized := m.normalizeEvent(session, turnState.turnID, event)
+	if runtimeEvent && loop.activity != nil && loop.activity.shouldSkipDeliveredPromptDeadlineWarning(normalized) {
+		return acp.AgentEvent{}, true
+	}
+	normalized = m.attachPromptFailureDiagnostics(ctx, session, normalized)
+	normalized = m.preparePromptEvent(ctx, turnState, normalized)
+	return normalized, false
+}
+
+func promptFatalFailure(event acp.AgentEvent) *store.SessionFailure {
+	if !isFatalPromptFailureEvent(event) {
+		return nil
+	}
+	return store.CloneSessionFailure(event.Failure)
+}
+
+func (m *Manager) observeRecordAndNotifyPromptEvent(
+	ctx context.Context,
+	session *Session,
+	turnState *promptTurnDispatchState,
+	loop *promptPumpLoopState,
+	normalized acp.AgentEvent,
+	runtimeEvent bool,
+) {
+	if loop.activity != nil && !runtimeEvent {
+		loop.activity.observeEvent(normalized)
+	}
+	if err := m.recordEvent(ctx, session, normalized); err != nil {
+		m.sessionLogger(session).
+			Warn("session: record prompt event failed", "turn_id", turnState.turnID, "error", err)
+	}
+	m.notifyAgentEvent(ctx, session, normalized)
+}
+
+func (m *Manager) sendPromptPumpEvent(
+	ctx context.Context,
+	out chan<- acp.AgentEvent,
+	loop *promptPumpLoopState,
+	normalized acp.AgentEvent,
+	runtimeEvent bool,
+) bool {
+	select {
+	case out <- normalized:
+	case <-ctx.Done():
+		return true
+	}
+	if runtimeEvent && loop.activity != nil {
+		loop.activity.ackPromptDeadlineWarning(normalized)
+	}
+	return false
+}
+
+func (m *Manager) finishPromptTurnIfNeeded(
+	ctx context.Context,
+	turnState *promptTurnDispatchState,
+	loop *promptPumpLoopState,
+	normalized acp.AgentEvent,
+) bool {
+	if !isPromptTerminalEvent(normalized.Type) {
+		return false
+	}
+	m.dispatchTurnEnd(ctx, turnState, normalized.Timestamp)
+	return loop.turnEndedShouldReturn()
 }
 
 func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.AgentEvent) acp.AgentEvent {
@@ -559,6 +804,7 @@ func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.A
 	if recorder == nil {
 		return errors.New("session: event recorder is not available")
 	}
+	event = m.enrichRecordedAgentEvent(session, event)
 
 	payload, err := marshalAgentEvent(event)
 	if err != nil {
@@ -607,4 +853,38 @@ func marshalAgentEvent(event acp.AgentEvent) (string, error) {
 		return "", fmt.Errorf("session: marshal agent event: %w", err)
 	}
 	return data, nil
+}
+
+func (m *Manager) enrichRecordedAgentEvent(session *Session, event acp.AgentEvent) acp.AgentEvent {
+	if session == nil {
+		return event
+	}
+
+	enriched := event
+	correlation := enriched.Normalize()
+	meta := session.CurrentPromptMeta().Normalize()
+	if meta.Synthetic != nil {
+		synthetic := meta.Synthetic.Normalize()
+		if correlation.TaskID == "" {
+			correlation.TaskID = synthetic.TaskID
+		}
+		if correlation.RunID == "" {
+			correlation.RunID = synthetic.TaskRunID
+		}
+		if correlation.WorkflowID == "" {
+			correlation.WorkflowID = synthetic.WorkflowID
+		}
+		if correlation.ClaimTokenHash == "" {
+			correlation.ClaimTokenHash = synthetic.ClaimTokenHash
+		}
+		if correlation.CoordinatorSessionID == "" {
+			correlation.CoordinatorSessionID = synthetic.CoordinatorSessionID
+		}
+		if correlation.SchedulerReason == "" {
+			correlation.SchedulerReason = synthetic.Reason
+		}
+	}
+
+	enriched.EventCorrelation = correlation.Normalize()
+	return enriched
 }

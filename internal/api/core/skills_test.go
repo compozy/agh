@@ -199,14 +199,31 @@ func TestStatusForSkillError(t *testing.T) {
 func TestListSkills(t *testing.T) {
 	t.Parallel()
 
-	t.Run("missing workspace returns 400", func(t *testing.T) {
+	t.Run("missing workspace returns global skill list", func(t *testing.T) {
 		t.Parallel()
 
-		engine := newSkillsHandlerFixture(t, &stubSkillsRegistry{}, testutil.StubWorkspaceService{})
+		registry := &stubSkillsRegistry{
+			ListFn: func() []*skills.Skill {
+				return []*skills.Skill{testSkill()}
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
 		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills", nil)
 
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		var resp struct {
+			Skills []contract.SkillPayload `json:"skills"`
+		}
+		testutil.DecodeJSONResponse(t, rec, &resp)
+
+		if len(resp.Skills) != 1 {
+			t.Fatalf("len(skills) = %d, want 1", len(resp.Skills))
+		}
+		if resp.Skills[0].Name != "test-skill" {
+			t.Errorf("skills[0].Name = %q, want %q", resp.Skills[0].Name, "test-skill")
 		}
 	})
 

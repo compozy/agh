@@ -23,35 +23,40 @@ type Bridge = {
 };
 
 const BRIDGES: Bridge[] = [
-  { id: "slack", name: "Slack", logo: <SlackLogo className="h-7 w-7" />, status: "alpha" },
+  {
+    id: "slack",
+    name: "Slack",
+    logo: <SlackLogo aria-hidden className="h-7 w-7" />,
+    status: "alpha",
+  },
   {
     id: "discord",
     name: "Discord",
-    logo: <DiscordLogo className="h-7 w-7" />,
+    logo: <DiscordLogo aria-hidden className="h-7 w-7" />,
     status: "alpha",
   },
   {
     id: "telegram",
     name: "Telegram",
-    logo: <TelegramLogo className="h-7 w-7" />,
+    logo: <TelegramLogo aria-hidden className="h-7 w-7" />,
     status: "alpha",
   },
   {
     id: "whatsapp",
     name: "WhatsApp",
-    logo: <WhatsAppLogo className="h-7 w-7" />,
+    logo: <WhatsAppLogo aria-hidden className="h-7 w-7" />,
     status: "planned",
   },
   {
     id: "teams",
     name: "Microsoft Teams",
-    logo: <MicrosoftTeamsLogo className="h-7 w-7" />,
+    logo: <MicrosoftTeamsLogo aria-hidden className="h-7 w-7" />,
     status: "planned",
   },
   {
     id: "google-chat",
     name: "Google Chat",
-    logo: <GoogleChatLogo className="h-7 w-7" />,
+    logo: <GoogleChatLogo aria-hidden className="h-7 w-7" />,
     status: "planned",
   },
   {
@@ -63,7 +68,7 @@ const BRIDGES: Bridge[] = [
   {
     id: "linear",
     name: "Linear",
-    logo: <LinearLogo className="h-7 w-7" mode="dark" />,
+    logo: <LinearLogo aria-hidden className="h-7 w-7" mode="dark" />,
     status: "planned",
   },
 ];

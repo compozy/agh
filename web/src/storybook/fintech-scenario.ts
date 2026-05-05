@@ -133,5 +133,5 @@ export function storyWorkspaceSkillDir(
   name: string,
   workspacePath: string = storyWorkspacePaths.hq
 ) {
-  return `${workspacePath}/.agents/skills/${name}`;
+  return `${workspacePath}/.agh/skills/${name}`;
 }

@@ -63,3 +63,39 @@ func TestNewWithoutFileStillBuildsLogger(t *testing.T) {
 		t.Fatalf("closeFn() error = %v", err)
 	}
 }
+
+func TestMirrorToStderrHelpers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldDisableMirrorWhenEnvExplicitlyFalse", func(t *testing.T) {
+		t.Parallel()
+
+		getenv := func(string) string {
+			return "false"
+		}
+		if MirrorToStderrEnabled(getenv) {
+			t.Fatal("MirrorToStderrEnabled(false) = true, want false")
+		}
+	})
+
+	t.Run("ShouldDefaultMirrorWhenEnvUnset", func(t *testing.T) {
+		t.Parallel()
+
+		getenv := func(string) string {
+			return ""
+		}
+		if !MirrorToStderrEnabled(getenv) {
+			t.Fatal("MirrorToStderrEnabled(unset) = false, want true")
+		}
+	})
+
+	t.Run("ShouldInjectDetachedEnvOverride", func(t *testing.T) {
+		t.Parallel()
+
+		sandbox := WithMirrorToStderrEnv([]string{"PATH=/usr/bin"}, false)
+		joined := strings.Join(sandbox, "\n")
+		if !strings.Contains(joined, "AGH_INTERNAL_LOG_MIRROR_STDERR=0") {
+			t.Fatalf("WithMirrorToStderrEnv(false) = %q, want AGH_INTERNAL_LOG_MIRROR_STDERR=0", joined)
+		}
+	})
+}

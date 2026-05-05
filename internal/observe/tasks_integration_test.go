@@ -244,8 +244,20 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		t.Fatalf("Health() error = %v", err)
 	}
 
-	if got, want := len(executor.forceStopCalls), 1; got != want {
+	if got, want := len(executor.forceStopCalls), 2; got != want {
 		t.Fatalf("len(forceStopCalls) = %d, want %d", got, want)
+	}
+	if got, want := executor.forceStopCalls[0], (taskStopCall{
+		SessionID: "sess-observe-cancel",
+		Reason:    taskpkg.StopReasonCancellation,
+	}); got != want {
+		t.Fatalf("forceStopCalls[0] = %#v, want %#v", got, want)
+	}
+	if got, want := executor.forceStopCalls[1], (taskStopCall{
+		SessionID: "sess-missing-on-boot",
+		Reason:    taskpkg.StopReasonFailed,
+	}); got != want {
+		t.Fatalf("forceStopCalls[1] = %#v, want %#v", got, want)
 	}
 	if got, want := health.Tasks.ForcedStopsSinceStart, 1; got != want {
 		t.Fatalf("health.Tasks.ForcedStopsSinceStart = %d, want %d", got, want)
@@ -786,7 +798,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 			t.Fatalf("DismissTask(failTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ApproveTask(testutil.Context(t), approveTask.ID, alice); err != nil {
+		if _, err := manager.ApproveTask(testutil.Context(t), approveTask.ID, taskpkg.ExecutionRequest{}, alice); err != nil {
 			t.Fatalf("ApproveTask(approveTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)

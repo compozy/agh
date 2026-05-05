@@ -18,6 +18,8 @@ export const sessionLifecycleTestIds = {
 } as const;
 
 export interface SessionLifecycleSelectors {
+  agentPageNewSession: Locator;
+  agentRow(agentName: string): Locator;
   appSidebar: Locator;
   chatHeader: Locator;
   chatView: Locator;
@@ -32,7 +34,6 @@ export interface SessionLifecycleSelectors {
   workspaceOnboarding: Locator;
   workspaceRegisterManual: Locator;
   workspaceUseGlobal: Locator;
-  newSessionButton(agentName: string): Locator;
 }
 
 export const networkOperatorTestIds = {
@@ -407,6 +408,7 @@ export const tasksOperatorTestIds = {
   inboxView: "tasks-inbox-view",
   modeDashboard: "tasks-mode-dashboard",
   modeInbox: "tasks-mode-inbox",
+  modeKanban: "tasks-mode-kanban",
   modeList: "tasks-mode-list",
   multiAgentDisconnected: "tasks-multi-agent-disconnected",
   multiAgentEmpty: "tasks-multi-agent-empty",
@@ -461,6 +463,7 @@ export interface TasksOperatorSelectors {
   inboxView: Locator;
   modeDashboard: Locator;
   modeInbox: Locator;
+  modeKanban: Locator;
   modeList: Locator;
   multiAgentDisconnected: Locator;
   multiAgentEmpty: Locator;
@@ -481,6 +484,8 @@ export function sessionLifecycleSelectors(
   page: Pick<Page, "getByRole" | "getByTestId">
 ): SessionLifecycleSelectors {
   return {
+    agentPageNewSession: page.getByTestId("agent-page-new-session"),
+    agentRow: (agentName: string) => page.getByTestId(`agent-row-${agentName}`),
     appSidebar: page.getByTestId(sessionLifecycleTestIds.appSidebar),
     chatHeader: page.getByTestId(sessionLifecycleTestIds.chatHeader),
     chatView: page.getByRole("main"),
@@ -495,7 +500,6 @@ export function sessionLifecycleSelectors(
     workspaceOnboarding: page.getByTestId(sessionLifecycleTestIds.workspaceOnboarding),
     workspaceRegisterManual: page.getByTestId(sessionLifecycleTestIds.workspaceRegisterManual),
     workspaceUseGlobal: page.getByTestId(sessionLifecycleTestIds.workspaceUseGlobal),
-    newSessionButton: (agentName: string) => page.getByTestId(`new-session-${agentName}`),
   };
 }
 
@@ -743,6 +747,7 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     inboxView: page.getByTestId(tasksOperatorTestIds.inboxView),
     modeDashboard: page.getByTestId(tasksOperatorTestIds.modeDashboard),
     modeInbox: page.getByTestId(tasksOperatorTestIds.modeInbox),
+    modeKanban: page.getByTestId(tasksOperatorTestIds.modeKanban),
     modeList: page.getByTestId(tasksOperatorTestIds.modeList),
     multiAgentDisconnected: page.getByTestId(tasksOperatorTestIds.multiAgentDisconnected),
     multiAgentEmpty: page.getByTestId(tasksOperatorTestIds.multiAgentEmpty),

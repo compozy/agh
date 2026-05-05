@@ -29,13 +29,16 @@ import type {
   SettingsProviderRequest,
   SettingsRestartResponse,
   SettingsRestartStatus,
+  SettingsSkillsFilter,
   SettingsSkillsSection,
+  SettingsUpdateStatus,
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
   SettingsUpdateMemoryRequest,
   SettingsUpdateNetworkRequest,
   SettingsUpdateObservabilityRequest,
+  SettingsUpdateSkillsFilter,
   SettingsUpdateSkillsRequest,
 } from "../types";
 
@@ -75,6 +78,16 @@ function normalizeMCPMutationFilter(
   };
 }
 
+function normalizeSettingsSkillsFilter(
+  filter: SettingsSkillsFilter | SettingsUpdateSkillsFilter = {}
+) {
+  return {
+    scope: filter.scope,
+    workspace_id: normalizeOptionalText(filter.workspace_id),
+    agent_name: normalizeOptionalText(filter.agent_name),
+  };
+}
+
 export async function getSettingsGeneral(signal?: AbortSignal): Promise<SettingsGeneralSection> {
   const { data, error, response } = await apiClient.GET("/api/settings/general", { signal });
 
@@ -105,6 +118,19 @@ export async function updateSettingsGeneral(
   }
 
   return requireResponseData(data, response, "Failed to update general settings");
+}
+
+export async function getSettingsUpdate(signal?: AbortSignal): Promise<SettingsUpdateStatus> {
+  const { data, error, response } = await apiClient.GET("/api/settings/update", { signal });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to load update status", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to load update status");
 }
 
 export async function getSettingsMemory(signal?: AbortSignal): Promise<SettingsMemorySection> {
@@ -139,8 +165,14 @@ export async function updateSettingsMemory(
   return requireResponseData(data, response, "Failed to update memory settings");
 }
 
-export async function getSettingsSkills(signal?: AbortSignal): Promise<SettingsSkillsSection> {
-  const { data, error, response } = await apiClient.GET("/api/settings/skills", { signal });
+export async function getSettingsSkills(
+  filter: SettingsSkillsFilter = {},
+  signal?: AbortSignal
+): Promise<SettingsSkillsSection> {
+  const { data, error, response } = await apiClient.GET("/api/settings/skills", {
+    params: { query: normalizeSettingsSkillsFilter(filter) },
+    signal,
+  });
 
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(
@@ -154,10 +186,12 @@ export async function getSettingsSkills(signal?: AbortSignal): Promise<SettingsS
 
 export async function updateSettingsSkills(
   body: SettingsUpdateSkillsRequest,
+  filter: SettingsUpdateSkillsFilter = {},
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
   const { data, error, response } = await apiClient.PATCH("/api/settings/skills", {
     body,
+    params: { query: normalizeSettingsSkillsFilter(filter) },
     signal,
   });
 

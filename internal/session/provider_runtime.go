@@ -12,12 +12,18 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/pedronauck/agh/internal/providerenv"
 	"github.com/pedronauck/agh/internal/vault"
 )
 
 type envProviderSecretResolver struct {
 	lookupEnv func(string) (string, bool)
 }
+
+const (
+	runtimeProviderAnthropic = "anthropic"
+	runtimeProviderClaude    = "claude"
+)
 
 func (r envProviderSecretResolver) ResolveRef(ctx context.Context, ref string) (string, error) {
 	if ctx == nil {
@@ -49,7 +55,36 @@ func (m *Manager) prepareProviderForStart(
 ) (acp.StartOpts, error) {
 	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER", strings.TrimSpace(resolved.Provider))
 	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_HARNESS", string(resolved.Harness))
+	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_AUTH_MODE", string(resolved.AuthMode))
+	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_ENV_POLICY", string(resolved.EnvPolicy))
+	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_HOME_POLICY", string(resolved.HomePolicy))
 	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_MODEL", strings.TrimSpace(resolved.Model))
+	opts.Env = setProviderModelEnv(opts.Env, resolved)
+
+	var err error
+	if resolved.HomePolicy == aghconfig.ProviderHomePolicyIsolated {
+		opts.Env, err = providerenv.ApplyHomePolicy(
+			m.homePaths,
+			strings.TrimSpace(resolved.Provider),
+			resolved.HomePolicy,
+			opts.Env,
+		)
+		if err != nil {
+			return acp.StartOpts{}, fmt.Errorf("session: apply provider home policy: %w", err)
+		}
+	}
+	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
+		resolved.AuthMode == aghconfig.ProviderAuthModeNativeCLI {
+		opts.Env, err = providerenv.ApplyPiAgentDirPolicy(
+			m.homePaths,
+			strings.TrimSpace(resolved.Provider),
+			resolved.HomePolicy,
+			opts.Env,
+		)
+		if err != nil {
+			return acp.StartOpts{}, fmt.Errorf("session: apply pi auth directory policy: %w", err)
+		}
+	}
 
 	secretBindings, err := m.injectProviderSecrets(ctx, resolved, opts.Env)
 	if err != nil {
@@ -62,12 +97,34 @@ func (m *Manager) prepareProviderForStart(
 	if resolved.Harness != aghconfig.ProviderHarnessPiACP {
 		return opts, nil
 	}
+	if resolved.AuthMode != aghconfig.ProviderAuthModeBoundSecret {
+		return opts, nil
+	}
 	runtimeDir, err := m.materializePiRuntime(session, resolved, secretBindings.injectedTargetEnvs)
 	if err != nil {
 		return acp.StartOpts{}, err
 	}
 	opts.Env = setSessionStartEnvValue(opts.Env, "PI_CODING_AGENT_DIR", runtimeDir)
 	return opts, nil
+}
+
+func setProviderModelEnv(env []string, resolved aghconfig.ResolvedAgent) []string {
+	model := strings.TrimSpace(resolved.Model)
+	if model == "" || resolved.Harness != aghconfig.ProviderHarnessACP {
+		return env
+	}
+
+	runtimeProvider := strings.TrimSpace(resolved.RuntimeProvider)
+	if runtimeProvider == "" {
+		runtimeProvider = strings.TrimSpace(resolved.Provider)
+	}
+
+	switch runtimeProvider {
+	case runtimeProviderAnthropic, runtimeProviderClaude:
+		return setSessionStartEnvValue(env, "ANTHROPIC_MODEL", model)
+	default:
+		return env
+	}
 }
 
 type providerSecretBindings struct {

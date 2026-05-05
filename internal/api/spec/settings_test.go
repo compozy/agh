@@ -24,6 +24,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			transports []Transport
 		}{
 			{path: "/api/settings/general", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/update", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/general", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/memory", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/memory", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
@@ -156,7 +157,15 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 
 		mutationSchema := jsonResponseSchema(t, updateGeneral, 200)
 		assertRequired(t, mutationSchema, "section", "scope", "behavior", "applied", "restart_required")
-		assertNotRequired(t, mutationSchema, "write_target", "workspace_id", "restart_scope", "warnings")
+		assertNotRequired(
+			t,
+			mutationSchema,
+			"write_target",
+			"workspace_id",
+			"agent_name",
+			"restart_scope",
+			"warnings",
+		)
 		assertEnumValues(t, propertySchema(t, mutationSchema, "section"),
 			"automation",
 			"general",
@@ -166,18 +175,35 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"observability",
 			"skills",
 		)
-		assertEnumValues(t, propertySchema(t, mutationSchema, "scope"), "global", "workspace")
+		assertEnumValues(t, propertySchema(t, mutationSchema, "scope"), "global")
 		assertEnumValues(t, propertySchema(t, mutationSchema, "behavior"),
 			"action_trigger",
 			"applied_now",
 			"restart_required",
 		)
 		assertEnumValues(t, propertySchema(t, mutationSchema, "write_target"),
+			"global-agent-file",
 			"global-config",
 			"global-mcp-sidecar",
+			"workspace-agent-file",
 			"workspace-config",
 			"workspace-mcp-sidecar",
 		)
+
+		updateSkills := operationFor(t, doc, "/api/settings/skills", "PATCH")
+		assertParameterEnumValues(t, updateSkills, "scope", "agent", "global")
+		skillsMutationSchema := jsonResponseSchema(t, updateSkills, 200)
+		assertRequired(t, skillsMutationSchema, "section", "scope", "behavior", "applied", "restart_required")
+		assertNotRequired(
+			t,
+			skillsMutationSchema,
+			"write_target",
+			"workspace_id",
+			"agent_name",
+			"restart_scope",
+			"warnings",
+		)
+		assertEnumValues(t, propertySchema(t, skillsMutationSchema, "scope"), "agent", "global")
 
 		restartAction := operationFor(t, doc, "/api/settings/actions/restart", "POST")
 		restartActionSchema := jsonResponseSchema(t, restartAction, 202)
@@ -214,6 +240,36 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"stopping",
 			"waiting_release",
 		)
+
+		updateStatus := operationFor(t, doc, "/api/settings/update", "GET")
+		updateStatusSchema := jsonResponseSchema(t, updateStatus, 200)
+		assertRequired(
+			t,
+			updateStatusSchema,
+			"supported",
+			"managed",
+			"install_method",
+			"current_version",
+			"available",
+			"status",
+		)
+		assertNotRequired(
+			t,
+			updateStatusSchema,
+			"latest_version",
+			"recommendation",
+			"release_url",
+			"checked_at",
+			"last_error",
+		)
+		assertEnumValues(t, propertySchema(t, updateStatusSchema, "status"),
+			"available",
+			"current",
+			"deferred",
+			"failed",
+			"unsupported",
+			"updated",
+		)
 	})
 
 	t.Run("ShouldDescribeSettingsCollectionsAndLogTail", func(t *testing.T) {
@@ -241,6 +297,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		mcpListSchema := jsonResponseSchema(t, mcpList, 200)
 		assertRequired(t, mcpListSchema, "collection", "scope", "available_scopes", "mcp_servers")
 		assertNotRequired(t, mcpListSchema, "workspace_id")
+		assertEnumValues(t, propertySchema(t, mcpListSchema, "scope"), "global", "workspace")
 		mcpItemRootSchema := propertySchema(t, mcpListSchema, "mcp_servers").Items.Value
 		assertRequired(t, mcpItemRootSchema, "name", "transport", "scope", "source_metadata")
 		assertNotRequired(t, mcpItemRootSchema, "command", "args", "env", "url", "auth", "auth_status")
@@ -251,10 +308,18 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		getObservability := operationFor(t, doc, "/api/settings/observability", "GET")
 		observabilitySchema := jsonResponseSchema(t, getObservability, 200)
 		assertRequired(t, observabilitySchema, "section", "scope", "available_scopes", "config", "runtime", "log_tail")
+		assertNotRequired(t, observabilitySchema, "workspace_id", "agent_name")
+		assertEnumValues(t, propertySchema(t, observabilitySchema, "scope"), "global")
 		logTailSchema := propertySchema(t, observabilitySchema, "log_tail")
 		assertRequired(t, logTailSchema, "available")
 		assertNotRequired(t, logTailSchema, "stream_url", "transport")
 		assertEnumValues(t, propertySchema(t, logTailSchema, "transport"), "sse")
+
+		getProviders := operationFor(t, doc, "/api/settings/providers", "GET")
+		providersSchema := jsonResponseSchema(t, getProviders, 200)
+		assertRequired(t, providersSchema, "collection", "scope", "available_scopes", "providers")
+		assertNotRequired(t, providersSchema, "workspace_id", "agent_name")
+		assertEnumValues(t, propertySchema(t, providersSchema, "scope"), "global")
 
 		logTail := operationFor(t, doc, "/api/settings/observability/log-tail", "GET")
 		response := logTail.Responses.Status(200)

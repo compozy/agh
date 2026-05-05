@@ -2,7 +2,6 @@ import { render, screen, within } from "@testing-library/react";
 import { posts, type Post } from "#site/content";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { siteConfig } from "@/lib/site-config";
 import { ArchiveRow } from "./archive-row";
 import { CategoryPill } from "./category-pill";
 import { ContinueReading } from "./continue-reading";
@@ -49,14 +48,13 @@ describe("blog navigation components", () => {
 
     expect(screen.getByRole("complementary", { name: "Blog subscription links" })).toBeDefined();
     const feed = screen.getByRole("link", { name: "RSS feed" });
-    const releases = screen.getByRole("link", { name: "Watch releases on GitHub" });
+    const changelog = screen.getByRole("link", { name: "Read the changelog" });
 
     expect(feed.getAttribute("href")).toBe("/blog/feed.xml");
     expect(screen.getByText("/blog/feed.xml")).toBeDefined();
-    expect(releases.getAttribute("href")).toBe(`${siteConfig.githubUrl}/releases`);
-    expect(releases.getAttribute("target")).toBe("_blank");
-    expect(releases.getAttribute("rel")).toContain("noopener");
-    expect(releases.getAttribute("rel")).toContain("noreferrer");
+    expect(changelog.getAttribute("href")).toBe("/changelog");
+    expect(changelog.getAttribute("target")).toBeNull();
+    expect(changelog.getAttribute("rel")).toBeNull();
   });
 
   it("renders blog category filters with stable hrefs and padded counts", () => {

@@ -51,7 +51,7 @@ func TestGlobalDBHeartbeatMigration(t *testing.T) {
 			"new_snapshot_id",
 			"body",
 			"actor_kind",
-			"actor_ref",
+			"actor_id",
 			"created_at",
 		})
 		assertTableColumns(t, globalDB.db, "session_health", []string{
@@ -131,7 +131,7 @@ func TestGlobalDBHeartbeatMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AppliedMigrations() error = %v", err)
 		}
-		if got, want := len(records), 13; got != want {
+		if got, want := len(records), 16; got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
 		if records[11].Version != 12 || records[11].Name != "add_agent_soul_snapshots" {
@@ -139,6 +139,15 @@ func TestGlobalDBHeartbeatMigration(t *testing.T) {
 		}
 		if records[12].Version != 13 || records[12].Name != "add_agent_heartbeat_storage" {
 			t.Fatalf("records[12] = %#v, want Heartbeat storage v13", records[12])
+		}
+		if records[13].Version != 14 || records[13].Name != "add_event_summary_lineage" {
+			t.Fatalf("records[13] = %#v, want event summary lineage v14", records[13])
+		}
+		if records[14].Version != 15 || records[14].Name != "rebuild_event_summaries_for_global_payloads" {
+			t.Fatalf("records[14] = %#v, want event summary global payloads v15", records[14])
+		}
+		if records[15].Version != 16 || records[15].Name != "rename_actor_ref_columns_to_actor_id" {
+			t.Fatalf("records[15] = %#v, want actor_id rename v16", records[15])
 		}
 	})
 
@@ -966,7 +975,7 @@ func heartbeatRevisionForTest(
 		NewDigest:      newDigest,
 		Body:           "Check state before sending a wake prompt.",
 		ActorKind:      heartbeat.ActorKindAgent,
-		ActorRef:       agentName,
+		ActorID:        agentName,
 		CreatedAt:      time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
 	}
 }

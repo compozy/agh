@@ -2,15 +2,18 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
+	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/globaldb"
+	aghupdate "github.com/pedronauck/agh/internal/update"
 )
 
 func TestSettingsRuntimeSurfaceTransportParityStatus(t *testing.T) {
@@ -73,104 +76,204 @@ func TestSettingsRuntimeSurfaceTransportParityStatus(t *testing.T) {
 }
 
 func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve MCP auth status after reopening the backing store", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
-	first, err := globaldb.OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(first) error = %v", err)
-	}
-
-	expiresAt := time.Date(2126, 5, 1, 12, 0, 0, 0, time.UTC)
-	if err := first.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
-		ServerName:   "remote-docs",
-		Issuer:       "https://issuer.example.com",
-		ClientID:     "agh-cli",
-		Scopes:       []string{"mcp.read", "mcp.write"},
-		AccessToken:  "access-secret",
-		RefreshToken: "refresh-secret",
-		TokenType:    "Bearer",
-		ExpiresAt:    expiresAt,
-		ObtainedAt:   expiresAt.Add(-time.Hour),
-	}); err != nil {
-		t.Fatalf("SaveMCPAuthToken() error = %v", err)
-	}
-	if err := first.Close(ctx); err != nil {
-		t.Fatalf("Close(first) error = %v", err)
-	}
-
-	reopened, err := globaldb.OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
-	}
-	defer func() {
-		if err := reopened.Close(ctx); err != nil {
-			t.Fatalf("Close(reopened) error = %v", err)
+		ctx := context.Background()
+		path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+		first, err := globaldb.OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(first) error = %v", err)
 		}
-	}()
 
-	surface := &settingsRuntimeSurface{mcpAuthStore: reopened}
-	status, err := surface.MCPAuthStatus(ctx, aghconfig.MCPServer{
-		Name:      "remote-docs",
-		Transport: aghconfig.MCPServerTransportHTTP,
-		URL:       "https://mcp.example.com",
-		Auth: aghconfig.MCPAuthConfig{
-			Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
-			ClientID:         "agh-cli",
-			AuthorizationURL: "https://issuer.example.com/oauth/authorize",
-			TokenURL:         "https://issuer.example.com/oauth/token",
-			Scopes:           []string{"mcp.read", "mcp.write"},
-		},
+		expiresAt := time.Date(2126, 5, 1, 12, 0, 0, 0, time.UTC)
+		if err := first.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
+			ServerName:   "remote-docs",
+			Issuer:       "https://issuer.example.com",
+			ClientID:     "agh-cli",
+			Scopes:       []string{"mcp.read", "mcp.write"},
+			AccessToken:  "access-secret",
+			RefreshToken: "refresh-secret",
+			TokenType:    "Bearer",
+			ExpiresAt:    expiresAt,
+			ObtainedAt:   expiresAt.Add(-time.Hour),
+		}); err != nil {
+			t.Fatalf("SaveMCPAuthToken() error = %v", err)
+		}
+		if err := first.Close(ctx); err != nil {
+			t.Fatalf("Close(first) error = %v", err)
+		}
+
+		reopened, err := globaldb.OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		defer func() {
+			if err := reopened.Close(ctx); err != nil {
+				t.Fatalf("Close(reopened) error = %v", err)
+			}
+		}()
+
+		surface := &settingsRuntimeSurface{mcpAuthStore: reopened}
+		status, err := surface.MCPAuthStatus(ctx, aghconfig.MCPServer{
+			Name:      "remote-docs",
+			Transport: aghconfig.MCPServerTransportHTTP,
+			URL:       "https://mcp.example.com",
+			Auth: aghconfig.MCPAuthConfig{
+				Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+				ClientID:         "agh-cli",
+				AuthorizationURL: "https://issuer.example.com/oauth/authorize",
+				TokenURL:         "https://issuer.example.com/oauth/token",
+				Scopes:           []string{"mcp.read", "mcp.write"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("MCPAuthStatus() error = %v", err)
+		}
+		if status.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("MCPAuthStatus().Status = %q, want %q", status.Status, mcpauth.StatusAuthenticated)
+		}
+		if !status.TokenPresent || !status.Refreshable {
+			t.Fatalf("MCPAuthStatus() = %#v, want token present and refreshable", status)
+		}
+		if status.ExpiresAt == nil || !status.ExpiresAt.Equal(expiresAt) {
+			t.Fatalf("MCPAuthStatus().ExpiresAt = %v, want %v", status.ExpiresAt, expiresAt)
+		}
 	})
-	if err != nil {
-		t.Fatalf("MCPAuthStatus() error = %v", err)
-	}
-	if status.Status != mcpauth.StatusAuthenticated {
-		t.Fatalf("MCPAuthStatus().Status = %q, want %q", status.Status, mcpauth.StatusAuthenticated)
-	}
-	if !status.TokenPresent || !status.Refreshable {
-		t.Fatalf("MCPAuthStatus() = %#v, want token present and refreshable", status)
-	}
-	if status.ExpiresAt == nil || !status.ExpiresAt.Equal(expiresAt) {
-		t.Fatalf("MCPAuthStatus().ExpiresAt = %v, want %v", status.ExpiresAt, expiresAt)
-	}
 }
 
 func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T) {
-	t.Parallel()
+	t.Run("Should resolve MCP client_secret_ref before computing auth status", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := context.Background()
-	called := false
-	surface := &settingsRuntimeSurface{
-		secretResolver: func(_ context.Context, ref string) (string, error) {
-			called = true
-			if ref != "vault:mcp/remote-docs/oauth/client-secret" {
-				t.Fatalf("secret resolver ref = %q, want remote-docs client secret ref", ref)
-			}
-			return "client-secret", nil
-		},
-	}
+		ctx := context.Background()
+		called := false
+		surface := &settingsRuntimeSurface{
+			secretResolver: func(_ context.Context, ref string) (string, error) {
+				called = true
+				if ref != "vault:mcp/remote-docs/oauth/client-secret" {
+					t.Fatalf("secret resolver ref = %q, want remote-docs client secret ref", ref)
+				}
+				return "client-secret", nil
+			},
+		}
 
-	status, err := surface.MCPAuthStatus(ctx, aghconfig.MCPServer{
-		Name:      "remote-docs",
-		Transport: aghconfig.MCPServerTransportHTTP,
-		URL:       "https://mcp.example.com",
-		Auth: aghconfig.MCPAuthConfig{
-			Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
-			ClientID:         "agh-cli",
-			ClientSecretRef:  "vault:mcp/remote-docs/oauth/client-secret",
-			AuthorizationURL: "https://issuer.example.com/oauth/authorize",
-			TokenURL:         "https://issuer.example.com/oauth/token",
-		},
+		status, err := surface.MCPAuthStatus(ctx, aghconfig.MCPServer{
+			Name:      "remote-docs",
+			Transport: aghconfig.MCPServerTransportHTTP,
+			URL:       "https://mcp.example.com",
+			Auth: aghconfig.MCPAuthConfig{
+				Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+				ClientID:         "agh-cli",
+				ClientSecretRef:  "vault:mcp/remote-docs/oauth/client-secret",
+				AuthorizationURL: "https://issuer.example.com/oauth/authorize",
+				TokenURL:         "https://issuer.example.com/oauth/token",
+			},
+		})
+		if err != nil {
+			t.Fatalf("MCPAuthStatus() error = %v", err)
+		}
+		if !called {
+			t.Fatal("MCPAuthStatus() did not resolve client_secret_ref")
+		}
+		if got, want := status.Status, mcpauth.StatusNeedsLogin; got != want {
+			t.Fatalf("MCPAuthStatus().Status = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("MCPAuthStatus() error = %v", err)
+}
+
+type stubSettingsUpdateManager struct {
+	checkFn func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error)
+}
+
+func (s stubSettingsUpdateManager) Check(
+	ctx context.Context,
+	opts aghupdate.CheckOptions,
+) (aghupdate.State, *aghupdate.Release, error) {
+	if s.checkFn != nil {
+		return s.checkFn(ctx, opts)
 	}
-	if !called {
-		t.Fatal("MCPAuthStatus() did not resolve client_secret_ref")
-	}
-	if got, want := status.Status, mcpauth.StatusNeedsLogin; got != want {
-		t.Fatalf("MCPAuthStatus().Status = %q, want %q", got, want)
-	}
+	return aghupdate.State{}, nil, nil
+}
+
+func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
+	t.Run("Should translate the cached update snapshot from the shared manager", func(t *testing.T) {
+		t.Parallel()
+
+		checkedAt := time.Date(2026, 5, 3, 19, 0, 0, 0, time.UTC)
+		controller := settingsUpdateController{
+			manager: stubSettingsUpdateManager{
+				checkFn: func(_ context.Context, opts aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
+					if opts.ForceRefresh {
+						t.Fatal("CheckOptions.ForceRefresh = true, want false")
+					}
+					if !opts.AllowCachedOnFailure {
+						t.Fatal("CheckOptions.AllowCachedOnFailure = false, want true")
+					}
+					return aghupdate.State{
+						Supported:      true,
+						Managed:        false,
+						InstallMethod:  string(aghupdate.InstallMethodDirectBinary),
+						CurrentVersion: "v1.0.0",
+						LatestVersion:  "v1.1.0",
+						Available:      true,
+						Status:         aghupdate.StatusAvailable,
+						Recommendation: "Run agh update.",
+						ReleaseURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
+						CheckedAt:      &checkedAt,
+						LastError:      "cached upstream failure",
+					}, &aghupdate.Release{Version: "v1.1.0"}, nil
+				},
+			},
+		}
+
+		got, err := controller.GetUpdate(context.Background())
+		if err != nil {
+			t.Fatalf("GetUpdate() error = %v", err)
+		}
+
+		want := core.SettingsUpdateStatus{
+			Supported:      true,
+			Managed:        false,
+			InstallMethod:  string(aghupdate.InstallMethodDirectBinary),
+			CurrentVersion: "v1.0.0",
+			LatestVersion:  "v1.1.0",
+			Available:      true,
+			Status:         string(aghupdate.StatusAvailable),
+			Recommendation: "Run agh update.",
+			ReleaseURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
+			CheckedAt:      &checkedAt,
+			LastError:      "cached upstream failure",
+		}
+		if got != want {
+			t.Fatalf("GetUpdate() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject a missing settings update manager", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := (settingsUpdateController{}).GetUpdate(context.Background())
+		if err == nil {
+			t.Fatal("GetUpdate() error = nil, want missing manager error")
+		}
+	})
+
+	t.Run("Should surface raw manager errors when no state message is available", func(t *testing.T) {
+		t.Parallel()
+
+		wantErr := errors.New("upstream unavailable")
+		controller := settingsUpdateController{
+			manager: stubSettingsUpdateManager{
+				checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
+					return aghupdate.State{}, nil, wantErr
+				},
+			},
+		}
+
+		_, err := controller.GetUpdate(context.Background())
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("GetUpdate() error = %v, want %v", err, wantErr)
+		}
+	})
 }

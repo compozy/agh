@@ -655,6 +655,9 @@ func (h *Hooks) DispatchToolPreCall(ctx context.Context, payload ToolPreCallPayl
 			match:  matchToolPreCall,
 			apply:  applyToolCallPatch,
 			denied: toolCallPatchDenied,
+			denyErr: func(_ ToolPreCallPayload, report dispatchReport) error {
+				return hookDeniedError(HookToolPreCall, report.DenyReason)
+			},
 		},
 	)
 }

@@ -32,7 +32,7 @@ func TestGlobalDBClaimNextRunConcurrentSingleWinner(t *testing.T) {
 		result taskpkg.ClaimResult
 		err    error
 	}
-	attempts := make([]claimAttempt, 2)
+	attempts := make([]claimAttempt, 5)
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(len(attempts))
@@ -84,6 +84,13 @@ func TestGlobalDBClaimNextRunConcurrentSingleWinner(t *testing.T) {
 	if stored.SessionID == "" {
 		t.Fatal("stored.SessionID = empty, want winning session id")
 	}
+	t.Logf(
+		"claim attempts=%d successes=%d winner_session_id=%s run_id=%s",
+		len(attempts),
+		successes,
+		stored.SessionID,
+		stored.ID,
+	)
 }
 
 func TestGlobalDBClaimNextRunFiltersByCapabilitiesScopeAndChannel(t *testing.T) {

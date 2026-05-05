@@ -42,12 +42,7 @@ describe("public install contract", () => {
     const script = readSiteFile(installScriptPath);
     const downloadIndex = script.indexOf('curl -fsSL "$ARCHIVE_URL" -o "$ARCHIVE_PATH"');
     const checksumDownloadIndex = script.indexOf('curl -fsSL "$CHECKSUM_URL" -o "$CHECKSUM_PATH"');
-    const signatureDownloadIndex = script.indexOf(
-      'curl -fsSL "$SIGNATURE_URL" -o "$SIGNATURE_PATH"'
-    );
-    const certificateDownloadIndex = script.indexOf(
-      'curl -fsSL "$CERTIFICATE_URL" -o "$CERTIFICATE_PATH"'
-    );
+    const bundleDownloadIndex = script.indexOf('curl -fsSL "$BUNDLE_URL" -o "$BUNDLE_PATH"');
     const provenanceVerifyIndex = script.indexOf("verifying checksum provenance");
     const checksumVerifyIndex = script.indexOf('log "verifying checksum"');
     const extractIndex = script.indexOf('tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"');
@@ -62,8 +57,7 @@ describe("public install contract", () => {
     expect(script).toContain(
       'command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify release provenance"'
     );
-    expect(script).toContain('SIGNATURE_URL="${BASE_URL}/checksums.txt.sig"');
-    expect(script).toContain('CERTIFICATE_URL="${BASE_URL}/checksums.txt.pem"');
+    expect(script).toContain('BUNDLE_URL="${BASE_URL}/checksums.txt.sigstore.json"');
     expect(script).toContain(
       "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/agh/\\.github/workflows/release\\.yml@refs/tags/v[0-9][A-Za-z0-9._-]*$'"
     );
@@ -73,7 +67,8 @@ describe("public install contract", () => {
     );
     expect(script).toContain("resolve_latest_release_tag()");
     expect(script).toContain('VERSION="$(resolve_latest_release_tag)"');
-    expect(script).toContain("COSIGN_EXPERIMENTAL=1 cosign verify-blob");
+    expect(script).toContain('cosign verify-blob "$CHECKSUM_PATH"');
+    expect(script).toContain('--bundle "$BUNDLE_PATH"');
     expect(script).toContain('--certificate-identity-regexp "$COSIGN_CERT_IDENTITY_REGEXP"');
     expect(script).toContain('--certificate-oidc-issuer "$COSIGN_CERT_OIDC_ISSUER"');
     expect(script).toContain('CHECKSUM_CMD="sha256sum"');
@@ -87,9 +82,8 @@ describe("public install contract", () => {
     expect(script).toContain('"$TARGET" install </dev/tty >/dev/tty');
     expect(downloadIndex).toBeGreaterThan(-1);
     expect(checksumDownloadIndex).toBeGreaterThan(downloadIndex);
-    expect(signatureDownloadIndex).toBeGreaterThan(checksumDownloadIndex);
-    expect(certificateDownloadIndex).toBeGreaterThan(signatureDownloadIndex);
-    expect(provenanceVerifyIndex).toBeGreaterThan(certificateDownloadIndex);
+    expect(bundleDownloadIndex).toBeGreaterThan(checksumDownloadIndex);
+    expect(provenanceVerifyIndex).toBeGreaterThan(bundleDownloadIndex);
     expect(checksumVerifyIndex).toBeGreaterThan(provenanceVerifyIndex);
     expect(extractIndex).toBeGreaterThan(checksumVerifyIndex);
   });
@@ -152,5 +146,6 @@ describe("public install contract", () => {
       expect(installPage, envVar).toContain(envVar);
     }
     expect(installPage).toContain("cosign");
+    expect(installPage).toContain("checksums.txt.sigstore.json");
   });
 });

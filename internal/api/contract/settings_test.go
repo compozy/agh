@@ -5,49 +5,96 @@ import (
 	"testing"
 )
 
-func TestMutationResultJSONShape(t *testing.T) {
+func TestSettingsMutationResultsJSONShape(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		input       MutationResult
-		wantPresent map[string]any
-		wantAbsent  []string
+		name         string
+		input        any
+		wantPresent  map[string]any
+		wantAbsent   []string
+		wantWarnings []string
 	}{
 		{
-			name: "ShouldOmitOptionalFieldsWhenUnset",
-			input: MutationResult{
+			name: "ShouldOmitOptionalFieldsForGlobalSectionMutations",
+			input: SettingsGlobalSectionMutationResult{
 				Section:         SettingsSectionGeneral,
-				Scope:           SettingsScopeGlobal,
+				Scope:           SettingsGlobalScope,
 				Behavior:        SettingsMutationBehaviorRestartRequired,
 				Applied:         false,
 				RestartRequired: true,
 			},
 			wantPresent: map[string]any{
 				"section":          string(SettingsSectionGeneral),
-				"scope":            string(SettingsScopeGlobal),
+				"scope":            string(SettingsGlobalScope),
 				"behavior":         string(SettingsMutationBehaviorRestartRequired),
 				"applied":          false,
 				"restart_required": true,
 			},
-			wantAbsent: []string{"write_target", "workspace_id", "restart_scope", "warnings"},
+			wantAbsent: []string{"write_target", "workspace_id", "agent_name", "restart_scope", "warnings"},
 		},
 		{
-			name: "ShouldPreserveSemanticWriteTargetAndWorkspaceMetadata",
-			input: MutationResult{
-				Section:         SettingsSectionHooksExtensions,
-				Scope:           SettingsScopeWorkspace,
+			name: "ShouldPreserveAgentContextForSkillsMutations",
+			input: SettingsSkillsMutationResult{
+				Section:         SettingsSectionSkills,
+				Scope:           SettingsAgentScopeAgent,
+				WriteTarget:     SettingsWriteTargetWorkspaceAgentFile,
+				WorkspaceID:     "ws-alpha",
+				AgentName:       "coder",
+				Behavior:        SettingsMutationBehaviorAppliedNow,
+				Applied:         true,
+				RestartRequired: false,
+				RestartScope:    "none",
+				Warnings:        []string{"agent scope changed"},
+			},
+			wantPresent: map[string]any{
+				"section":          string(SettingsSectionSkills),
+				"scope":            string(SettingsAgentScopeAgent),
+				"write_target":     string(SettingsWriteTargetWorkspaceAgentFile),
+				"workspace_id":     "ws-alpha",
+				"agent_name":       "coder",
+				"behavior":         string(SettingsMutationBehaviorAppliedNow),
+				"applied":          true,
+				"restart_required": false,
+				"restart_scope":    "none",
+			},
+			wantWarnings: []string{"agent scope changed"},
+		},
+		{
+			name: "ShouldKeepGlobalCollectionMutationsAgentFree",
+			input: SettingsGlobalCollectionMutationResult{
+				Section:         SettingsCollectionProviders,
+				Scope:           SettingsGlobalScope,
+				WriteTarget:     SettingsWriteTargetGlobalConfig,
+				Behavior:        SettingsMutationBehaviorRestartRequired,
+				Applied:         false,
+				RestartRequired: true,
+			},
+			wantPresent: map[string]any{
+				"section":          string(SettingsCollectionProviders),
+				"scope":            string(SettingsGlobalScope),
+				"write_target":     string(SettingsWriteTargetGlobalConfig),
+				"behavior":         string(SettingsMutationBehaviorRestartRequired),
+				"applied":          false,
+				"restart_required": true,
+			},
+			wantAbsent: []string{"workspace_id", "agent_name", "restart_scope", "warnings"},
+		},
+		{
+			name: "ShouldPreserveWorkspaceMetadataForScopedCollectionMutations",
+			input: SettingsGlobalWorkspaceCollectionMutationResult{
+				Section:         SettingsCollectionMCPServers,
+				Scope:           SettingsWorkspaceScopeWorkspace,
 				WriteTarget:     SettingsWriteTargetWorkspaceMCPSidecar,
 				WorkspaceID:     "ws-alpha",
 				Behavior:        SettingsMutationBehaviorAppliedNow,
 				Applied:         true,
 				RestartRequired: false,
 				RestartScope:    "daemon",
-				Warnings:        []string{"restart deferred"},
 			},
 			wantPresent: map[string]any{
-				"section":          string(SettingsSectionHooksExtensions),
-				"scope":            string(SettingsScopeWorkspace),
+				"section":          string(SettingsCollectionMCPServers),
+				"scope":            string(SettingsWorkspaceScopeWorkspace),
 				"write_target":     string(SettingsWriteTargetWorkspaceMCPSidecar),
 				"workspace_id":     "ws-alpha",
 				"behavior":         string(SettingsMutationBehaviorAppliedNow),
@@ -55,6 +102,7 @@ func TestMutationResultJSONShape(t *testing.T) {
 				"restart_required": false,
 				"restart_scope":    "daemon",
 			},
+			wantAbsent: []string{"agent_name", "warnings"},
 		},
 	}
 
@@ -96,15 +144,16 @@ func TestMutationResultJSONShape(t *testing.T) {
 				}
 			}
 
-			if tt.input.Warnings != nil {
-				warnings, ok := decoded["warnings"].([]any)
-				if !ok || len(warnings) != len(tt.input.Warnings) {
-					t.Fatalf("warnings = %#v, want %d entries", decoded["warnings"], len(tt.input.Warnings))
-				}
-				for idx, want := range tt.input.Warnings {
-					if warnings[idx] != want {
-						t.Fatalf("warnings[%d] = %#v, want %q", idx, warnings[idx], want)
-					}
+			if tt.wantWarnings == nil {
+				return
+			}
+			warnings, ok := decoded["warnings"].([]any)
+			if !ok || len(warnings) != len(tt.wantWarnings) {
+				t.Fatalf("warnings = %#v, want %d entries", decoded["warnings"], len(tt.wantWarnings))
+			}
+			for idx, want := range tt.wantWarnings {
+				if warnings[idx] != want {
+					t.Fatalf("warnings[%d] = %#v, want %q", idx, warnings[idx], want)
 				}
 			}
 		})

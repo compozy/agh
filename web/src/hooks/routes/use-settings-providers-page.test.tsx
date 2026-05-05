@@ -40,15 +40,11 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
   settings: {
     command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
     default_model: "claude-sonnet-4-6",
-    credential_slots: [
-      {
-        name: "api_key",
-        target_env: "ANTHROPIC_API_KEY",
-        secret_ref: "env:ANTHROPIC_API_KEY",
-        kind: "api_key",
-        required: false,
-      },
-    ],
+    auth_mode: "native_cli",
+    env_policy: "filtered",
+    home_policy: "operator",
+    auth_status_command: "claude auth status",
+    auth_login_command: "claude login",
   },
   source_metadata: {
     available_targets: ["global-config"],
@@ -71,6 +67,9 @@ const codexEntry: SettingsProviderCollection["providers"][number] = {
   settings: {
     command: "npx -y @zed-industries/codex-acp@latest",
     default_model: "gpt-5.4",
+    auth_mode: "bound_secret",
+    env_policy: "filtered",
+    home_policy: "operator",
     credential_slots: [
       {
         name: "api_key",
@@ -161,7 +160,7 @@ describe("useSettingsProvidersPage", () => {
 
     expect(result.current.editor).toMatchObject({
       mode: "create",
-      draft: { name: "", command: "", default_model: "", target_env: "" },
+      draft: { name: "", command: "", default_model: "", target_env: "", auth_mode: "native_cli" },
     });
   });
 
@@ -195,7 +194,12 @@ describe("useSettingsProvidersPage", () => {
       draft: expect.objectContaining({
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
         default_model: "claude-sonnet-4-6",
-        target_env: "ANTHROPIC_API_KEY",
+        target_env: "",
+        auth_mode: "native_cli",
+        env_policy: "filtered",
+        home_policy: "operator",
+        auth_status_command: "claude auth status",
+        auth_login_command: "claude login",
       }),
     });
   });
@@ -234,15 +238,11 @@ describe("useSettingsProvidersPage", () => {
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
         default_model: "claude-haiku",
         harness: "acp",
-        credential_slots: [
-          {
-            name: "api_key",
-            target_env: "ANTHROPIC_API_KEY",
-            secret_ref: "env:ANTHROPIC_API_KEY",
-            kind: "api_key",
-            required: false,
-          },
-        ],
+        auth_mode: "native_cli",
+        env_policy: "filtered",
+        home_policy: "operator",
+        auth_status_command: "claude auth status",
+        auth_login_command: "claude login",
       },
     });
     expect(result.current.editor.mode).toBe("closed");
@@ -265,6 +265,9 @@ describe("useSettingsProvidersPage", () => {
         default_model: "openai/gpt-5.4",
         harness: "pi_acp",
         runtime_provider: "openrouter",
+        auth_mode: "bound_secret",
+        env_policy: "filtered",
+        home_policy: "operator",
         credential_slots: [
           {
             name: "api_key",
@@ -336,6 +339,9 @@ describe("useSettingsProvidersPage", () => {
         default_model: "anthropic/claude-sonnet",
         harness: "pi_acp",
         runtime_provider: "openrouter",
+        auth_mode: "bound_secret",
+        env_policy: "filtered",
+        home_policy: "operator",
         credential_slots: [
           {
             name: "api_key",
@@ -389,6 +395,7 @@ describe("useSettingsProvidersPage", () => {
         target_env: "OPENROUTER_API_KEY",
         harness: "pi_acp",
         runtime_provider: "openrouter",
+        auth_mode: "bound_secret",
         secret_ref: "vault:providers/openrouter/api-key",
         secret_value: "sk-live",
       }));
@@ -407,6 +414,9 @@ describe("useSettingsProvidersPage", () => {
         default_model: "openai/gpt-5.4",
         harness: "pi_acp",
         runtime_provider: "openrouter",
+        auth_mode: "bound_secret",
+        env_policy: "filtered",
+        home_policy: "operator",
         credential_slots: [
           {
             name: "api_key",

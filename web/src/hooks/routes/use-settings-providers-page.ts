@@ -25,6 +25,11 @@ export type ProviderDraft = {
   runtime_provider: string;
   transport: string;
   base_url: string;
+  auth_mode: string;
+  env_policy: string;
+  home_policy: string;
+  auth_status_command: string;
+  auth_login_command: string;
   secret_ref: string;
   secret_value: string;
   credential_slots: ProviderCredentialSlotDraft[];
@@ -50,6 +55,11 @@ function emptyDraft(): ProviderDraft {
     runtime_provider: "",
     transport: "",
     base_url: "",
+    auth_mode: "native_cli",
+    env_policy: "filtered",
+    home_policy: "operator",
+    auth_status_command: "",
+    auth_login_command: "",
     secret_ref: "",
     secret_value: "",
     credential_slots: [],
@@ -70,6 +80,11 @@ function toDraft(entry: SettingsProviderEntry): ProviderDraft {
     runtime_provider: entry.settings.runtime_provider ?? "",
     transport: entry.settings.transport ?? "",
     base_url: entry.settings.base_url ?? "",
+    auth_mode: entry.settings.auth_mode ?? "native_cli",
+    env_policy: entry.settings.env_policy ?? "filtered",
+    home_policy: entry.settings.home_policy ?? "operator",
+    auth_status_command: entry.settings.auth_status_command ?? "",
+    auth_login_command: entry.settings.auth_login_command ?? "",
     secret_ref: credentialSlot?.secret_ref ?? envSecretRef(credentialSlot?.target_env),
     secret_value: "",
     credential_slots: credentialSlots,
@@ -86,6 +101,14 @@ function toRequest(draft: ProviderDraft): SettingsProviderRequest {
   if (draft.runtime_provider.trim()) settings.runtime_provider = draft.runtime_provider.trim();
   if (draft.transport.trim()) settings.transport = draft.transport.trim();
   if (draft.base_url.trim()) settings.base_url = draft.base_url.trim();
+  if (draft.auth_mode.trim()) settings.auth_mode = draft.auth_mode.trim();
+  if (draft.env_policy.trim()) settings.env_policy = draft.env_policy.trim();
+  if (draft.home_policy.trim()) settings.home_policy = draft.home_policy.trim();
+  if (draft.auth_status_command.trim()) {
+    settings.auth_status_command = draft.auth_status_command.trim();
+  }
+  if (draft.auth_login_command.trim())
+    settings.auth_login_command = draft.auth_login_command.trim();
 
   const credentialSlots = buildCredentialSlots(draft);
   if (credentialSlots.length > 0) {
@@ -121,6 +144,9 @@ function credentialSlotsForDraft(
 }
 
 function buildCredentialSlots(draft: ProviderDraft): ProviderCredentialSlotDraft[] {
+  if (draft.auth_mode !== "bound_secret") {
+    return [];
+  }
   const primarySlot = normalizeCredentialSlot(draft.credential_slots[0]);
   const additionalSlots = draft.credential_slots
     .slice(1)
@@ -238,6 +264,12 @@ export function useSettingsProvidersPage() {
     if (editor.mode === "closed") return false;
     const name = editor.draft.name.trim();
     if (name.length === 0) return false;
+    if (
+      editor.draft.auth_mode === "bound_secret" &&
+      buildCredentialSlots(editor.draft).length === 0
+    ) {
+      return false;
+    }
     if (editor.draft.secret_value.trim() && !editor.draft.secret_ref.trim().startsWith("vault:")) {
       return false;
     }

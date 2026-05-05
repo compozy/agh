@@ -101,8 +101,9 @@ var catalogSchemaMigrations = []storepkg.Migration{
 }
 
 type catalog struct {
-	path string
-	now  func() time.Time
+	path    string
+	now     func() time.Time
+	writeMu sync.Mutex
 
 	mu sync.Mutex
 	db *sql.DB
@@ -240,6 +241,52 @@ func (c *catalog) replaceScope(
 	workspaceRoot string,
 	docs []catalogDocument,
 ) (err error) {
+	return c.withCatalogWriteTx(ctx, "catalog scope replace", func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(
+			ctx,
+			`DELETE FROM memory_catalog_entries WHERE scope = ? AND workspace_root = ?`,
+			string(scope.Normalize()),
+			strings.TrimSpace(workspaceRoot),
+		); err != nil {
+			return fmt.Errorf("memory: clear catalog scope %q/%q: %w", scope, workspaceRoot, err)
+		}
+		for _, doc := range docs {
+			if err := insertCatalogDocumentTx(ctx, tx, doc); err != nil {
+				return err
+			}
+		}
+		return c.upsertCatalogScopeStateTx(ctx, tx, scope, workspaceRoot)
+	})
+}
+
+func (c *catalog) upsertDocument(ctx context.Context, doc catalogDocument) (err error) {
+	return c.withCatalogWriteTx(ctx, "catalog document upsert", func(tx *sql.Tx) error {
+		if err := upsertCatalogDocumentTx(ctx, tx, doc); err != nil {
+			return err
+		}
+		if err := c.upsertCatalogScopeStateTx(ctx, tx, doc.Scope, doc.WorkspaceRoot); err != nil {
+			return err
+		}
+		if err := upsertCatalogStateTx(
+			ctx,
+			tx,
+			catalogStateKeyLastReindex,
+			storepkg.FormatTimestamp(c.now().UTC()),
+		); err != nil {
+			return fmt.Errorf("memory: persist catalog reindex timestamp: %w", err)
+		}
+		return nil
+	})
+}
+
+func (c *catalog) withCatalogWriteTx(
+	ctx context.Context,
+	operation string,
+	fn func(*sql.Tx) error,
+) (err error) {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return err
@@ -250,7 +297,7 @@ func (c *catalog) replaceScope(
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("memory: begin catalog scope replace: %w", err)
+		return fmt.Errorf("memory: begin %s: %w", operation, err)
 	}
 	defer func() {
 		if tx == nil {
@@ -259,40 +306,134 @@ func (c *catalog) replaceScope(
 		if rollbackErr := tx.Rollback(); rollbackErr != nil &&
 			!errors.Is(rollbackErr, sql.ErrTxDone) &&
 			err == nil {
-			err = fmt.Errorf("memory: rollback catalog scope replace: %w", rollbackErr)
+			err = fmt.Errorf("memory: rollback %s: %w", operation, rollbackErr)
+		}
+	}()
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("memory: commit %s: %w", operation, err)
+	}
+	tx = nil
+	return nil
+}
+
+func insertCatalogDocumentTx(ctx context.Context, tx *sql.Tx, doc catalogDocument) error {
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO memory_catalog_entries (
+			id, scope, workspace_id, workspace_root, filename, type, name,
+			description, content, content_hash, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		doc.ID,
+		string(doc.Scope.Normalize()),
+		strings.TrimSpace(doc.WorkspaceID),
+		strings.TrimSpace(doc.WorkspaceRoot),
+		doc.Filename,
+		string(doc.Type.Normalize()),
+		doc.Name,
+		doc.Description,
+		doc.Content,
+		doc.ContentHash,
+		storepkg.FormatTimestamp(doc.UpdatedAt),
+	); err != nil {
+		return fmt.Errorf("memory: insert catalog entry %q: %w", doc.Filename, err)
+	}
+	return nil
+}
+
+func upsertCatalogDocumentTx(ctx context.Context, tx *sql.Tx, doc catalogDocument) error {
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO memory_catalog_entries (
+			id, scope, workspace_id, workspace_root, filename, type, name,
+			description, content, content_hash, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(scope, workspace_root, filename) DO UPDATE SET
+			id = excluded.id,
+			workspace_id = excluded.workspace_id,
+			type = excluded.type,
+			name = excluded.name,
+			description = excluded.description,
+			content = excluded.content,
+			content_hash = excluded.content_hash,
+			updated_at = excluded.updated_at`,
+		doc.ID,
+		string(doc.Scope.Normalize()),
+		strings.TrimSpace(doc.WorkspaceID),
+		strings.TrimSpace(doc.WorkspaceRoot),
+		doc.Filename,
+		string(doc.Type.Normalize()),
+		doc.Name,
+		doc.Description,
+		doc.Content,
+		doc.ContentHash,
+		storepkg.FormatTimestamp(doc.UpdatedAt),
+	); err != nil {
+		return fmt.Errorf("memory: upsert catalog entry %q: %w", doc.Filename, err)
+	}
+	return nil
+}
+
+func (c *catalog) upsertCatalogScopeStateTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	scope Scope,
+	workspaceRoot string,
+) error {
+	if err := upsertCatalogStateTx(
+		ctx,
+		tx,
+		catalogScopeStateKey(scope, workspaceRoot),
+		storepkg.FormatTimestamp(c.now().UTC()),
+	); err != nil {
+		return fmt.Errorf(
+			"memory: persist catalog scope state %q/%q: %w",
+			scope.Normalize(),
+			strings.TrimSpace(workspaceRoot),
+			err,
+		)
+	}
+	return nil
+}
+
+func (c *catalog) deleteDocument(ctx context.Context, scope Scope, workspaceRoot string, filename string) (err error) {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	db, err := c.ensureDB(ctx)
+	if err != nil {
+		return err
+	}
+	if db == nil {
+		return nil
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("memory: begin catalog document delete: %w", err)
+	}
+	defer func() {
+		if tx == nil {
+			return
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil &&
+			!errors.Is(rollbackErr, sql.ErrTxDone) &&
+			err == nil {
+			err = fmt.Errorf("memory: rollback catalog document delete: %w", rollbackErr)
 		}
 	}()
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`DELETE FROM memory_catalog_entries WHERE scope = ? AND workspace_root = ?`,
+		`DELETE FROM memory_catalog_entries WHERE scope = ? AND workspace_root = ? AND filename = ?`,
 		string(scope.Normalize()),
 		strings.TrimSpace(workspaceRoot),
+		strings.TrimSpace(filename),
 	); err != nil {
-		return fmt.Errorf("memory: clear catalog scope %q/%q: %w", scope, workspaceRoot, err)
-	}
-
-	for _, doc := range docs {
-		if _, err := tx.ExecContext(
-			ctx,
-			`INSERT INTO memory_catalog_entries (
-				id, scope, workspace_id, workspace_root, filename, type, name,
-				description, content, content_hash, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			doc.ID,
-			string(doc.Scope.Normalize()),
-			strings.TrimSpace(doc.WorkspaceID),
-			strings.TrimSpace(doc.WorkspaceRoot),
-			doc.Filename,
-			string(doc.Type.Normalize()),
-			doc.Name,
-			doc.Description,
-			doc.Content,
-			doc.ContentHash,
-			storepkg.FormatTimestamp(doc.UpdatedAt),
-		); err != nil {
-			return fmt.Errorf("memory: insert catalog entry %q: %w", doc.Filename, err)
-		}
+		return fmt.Errorf("memory: delete catalog entry %q: %w", filename, err)
 	}
 	if err := upsertCatalogStateTx(
 		ctx,
@@ -307,9 +448,17 @@ func (c *catalog) replaceScope(
 			err,
 		)
 	}
+	if err := upsertCatalogStateTx(
+		ctx,
+		tx,
+		catalogStateKeyLastReindex,
+		storepkg.FormatTimestamp(c.now().UTC()),
+	); err != nil {
+		return fmt.Errorf("memory: persist catalog reindex timestamp: %w", err)
+	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("memory: commit catalog scope replace: %w", err)
+		return fmt.Errorf("memory: commit catalog document delete: %w", err)
 	}
 	tx = nil
 	return nil
@@ -521,6 +670,9 @@ func (c *catalog) search(
 }
 
 func (c *catalog) logEvent(ctx context.Context, record OperationRecord) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return err
@@ -982,6 +1134,9 @@ func clampHistoryLimit(limit int) int {
 }
 
 func (c *catalog) upsertState(ctx context.Context, key string, value string) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return err

@@ -13,8 +13,11 @@ import (
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/soul"
 	storepkg "github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -29,6 +32,9 @@ type bundleResourceIntegrationHarness struct {
 	service        *Service
 	bundles        resources.Store[BundleResourceSpec]
 	activations    resources.Store[ActivationResourceSpec]
+	agents         resources.Store[aghconfig.AgentDef]
+	souls          resources.Store[soul.ResourceSpec]
+	heartbeats     resources.Store[heartbeat.ResourceSpec]
 	jobs           resources.Store[automationpkg.Job]
 	triggers       resources.Store[automationpkg.Trigger]
 	bridges        resources.Store[bridgepkg.BridgeInstanceSpec]
@@ -59,6 +65,18 @@ func TestBundleResourceIntegrationActivationFanoutWritesCanonicalOwnedRecords(t 
 	if jobs[0].Owner != owner {
 		t.Fatalf("job owner = %#v, want %#v", jobs[0].Owner, owner)
 	}
+	agents := h.listOwnedAgents(t, owner)
+	if got, want := len(agents), 1; got != want {
+		t.Fatalf("len(owned agents) = %d, want %d", got, want)
+	}
+	souls := h.listOwnedSouls(t, owner)
+	if got, want := len(souls), 1; got != want {
+		t.Fatalf("len(owned soul resources) = %d, want %d", got, want)
+	}
+	heartbeats := h.listOwnedHeartbeats(t, owner)
+	if got, want := len(heartbeats), 1; got != want {
+		t.Fatalf("len(owned heartbeat resources) = %d, want %d", got, want)
+	}
 	triggers := h.listOwnedTriggers(t, owner)
 	if got, want := len(triggers), 1; got != want {
 		t.Fatalf("len(owned triggers) = %d, want %d", got, want)
@@ -68,6 +86,9 @@ func TestBundleResourceIntegrationActivationFanoutWritesCanonicalOwnedRecords(t 
 		t.Fatalf("len(owned bridges) = %d, want %d", got, want)
 	}
 	for _, kind := range []resources.ResourceKind{
+		aghconfig.AgentResourceKind,
+		soul.ResourceKind,
+		heartbeat.ResourceKind,
 		automationpkg.JobResourceKind,
 		automationpkg.TriggerResourceKind,
 		bridgepkg.BridgeInstanceResourceKind,
@@ -150,6 +171,15 @@ func TestBundleResourceIntegrationBootRebuildUsesResourcesWithoutInventoryTable(
 	if got, want := len(h.listOwnedJobs(t, owner)), 1; got != want {
 		t.Fatalf("len(boot rebuilt owned jobs) = %d, want %d", got, want)
 	}
+	if got, want := len(h.listOwnedAgents(t, owner)), 1; got != want {
+		t.Fatalf("len(boot rebuilt owned agents) = %d, want %d", got, want)
+	}
+	if got, want := len(h.listOwnedSouls(t, owner)), 1; got != want {
+		t.Fatalf("len(boot rebuilt owned soul resources) = %d, want %d", got, want)
+	}
+	if got, want := len(h.listOwnedHeartbeats(t, owner)), 1; got != want {
+		t.Fatalf("len(boot rebuilt owned heartbeat resources) = %d, want %d", got, want)
+	}
 	assertNoLegacyBundleActivationTable(t, h.db)
 }
 
@@ -188,6 +218,18 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 	if err != nil {
 		t.Fatalf("NewActivationResourceCodec() error = %v", err)
 	}
+	agentCodec, err := aghconfig.NewAgentResourceCodec()
+	if err != nil {
+		t.Fatalf("NewAgentResourceCodec() error = %v", err)
+	}
+	soulCodec, err := soul.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("NewSoulResourceCodec() error = %v", err)
+	}
+	heartbeatCodec, err := heartbeat.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("NewHeartbeatResourceCodec() error = %v", err)
+	}
 	jobCodec, err := automationpkg.NewJobResourceCodec()
 	if err != nil {
 		t.Fatalf("NewJobResourceCodec() error = %v", err)
@@ -205,6 +247,11 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 		func(registry *resources.CodecRegistry) error {
 			return resources.RegisterCodec(registry, activationCodec)
 		},
+		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, agentCodec) },
+		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, soulCodec) },
+		func(registry *resources.CodecRegistry) error {
+			return resources.RegisterCodec(registry, heartbeatCodec)
+		},
 		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, jobCodec) },
 		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, triggerCodec) },
 		func(registry *resources.CodecRegistry) error { return resources.RegisterCodec(registry, bridgeCodec) },
@@ -216,6 +263,9 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 
 	bundleStore := mustNewTypedStore(t, kernel, bundleCodec)
 	activationStore := mustNewTypedStore(t, kernel, activationCodec)
+	agentStore := mustNewTypedStore(t, kernel, agentCodec)
+	soulStore := mustNewTypedStore(t, kernel, soulCodec)
+	heartbeatStore := mustNewTypedStore(t, kernel, heartbeatCodec)
 	jobStore := mustNewTypedStore(t, kernel, jobCodec)
 	triggerStore := mustNewTypedStore(t, kernel, triggerCodec)
 	bridgeStore := mustNewTypedStore(t, kernel, bridgeCodec)
@@ -228,6 +278,9 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 		actor:       actor,
 		bundles:     bundleStore,
 		activations: activationStore,
+		agents:      agentStore,
+		souls:       soulStore,
+		heartbeats:  heartbeatStore,
 		jobs:        jobStore,
 		triggers:    triggerStore,
 		bridges:     bridgeStore,
@@ -237,6 +290,12 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 		BundleCodec:     bundleCodec,
 		Activations:     activationStore,
 		ActivationCodec: activationCodec,
+		Agents:          agentStore,
+		AgentCodec:      agentCodec,
+		Souls:           soulStore,
+		SoulCodec:       soulCodec,
+		Heartbeats:      heartbeatStore,
+		HeartbeatCodec:  heartbeatCodec,
 		Jobs:            jobStore,
 		JobCodec:        jobCodec,
 		Triggers:        triggerStore,
@@ -259,7 +318,7 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 	h.service = NewService(
 		resourceStore,
 		staticExtensionLister{},
-		func(name string) (*extensionpkg.Extension, error) {
+		func(_ context.Context, name string) (*extensionpkg.Extension, error) {
 			if name != "marketing-team" {
 				return nil, extensionpkg.ErrExtensionNotFound
 			}
@@ -338,6 +397,54 @@ func (h *bundleResourceIntegrationHarness) listOwnedJobs(
 	})
 	if err != nil {
 		t.Fatalf("List(owned jobs) error = %v", err)
+	}
+	return records
+}
+
+func (h *bundleResourceIntegrationHarness) listOwnedAgents(
+	t *testing.T,
+	owner resources.ResourceOwner,
+) []resources.Record[aghconfig.AgentDef] {
+	t.Helper()
+
+	records, err := h.agents.List(h.ctx, h.actor, resources.ResourceFilter{
+		Kind:  aghconfig.AgentResourceKind,
+		Owner: &owner,
+	})
+	if err != nil {
+		t.Fatalf("List(owned agents) error = %v", err)
+	}
+	return records
+}
+
+func (h *bundleResourceIntegrationHarness) listOwnedSouls(
+	t *testing.T,
+	owner resources.ResourceOwner,
+) []resources.Record[soul.ResourceSpec] {
+	t.Helper()
+
+	records, err := h.souls.List(h.ctx, h.actor, resources.ResourceFilter{
+		Kind:  soul.ResourceKind,
+		Owner: &owner,
+	})
+	if err != nil {
+		t.Fatalf("List(owned souls) error = %v", err)
+	}
+	return records
+}
+
+func (h *bundleResourceIntegrationHarness) listOwnedHeartbeats(
+	t *testing.T,
+	owner resources.ResourceOwner,
+) []resources.Record[heartbeat.ResourceSpec] {
+	t.Helper()
+
+	records, err := h.heartbeats.List(h.ctx, h.actor, resources.ResourceFilter{
+		Kind:  heartbeat.ResourceKind,
+		Owner: &owner,
+	})
+	if err != nil {
+		t.Fatalf("List(owned heartbeats) error = %v", err)
 	}
 	return records
 }

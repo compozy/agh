@@ -14,15 +14,16 @@ agh agent heartbeat rollback <agent> [flags]
 ### Examples
 
 ```
-  agh agent heartbeat rollback coder --revision-id rev_123 --if-match sha256:old --json
+  agh agent heartbeat rollback coder --revision-id rev_123 --expected-digest sha256:old --json
 ```
 
 ### Options
 
 ```
+      --expected-digest string   Expected current Heartbeat digest for CAS
   -h, --help                     help for rollback
       --idempotency-key string   Optional idempotency key
-      --if-match string          Expected current Heartbeat digest for CAS
+      --if-match string          Alias for --expected-digest
       --revision-id string       Managed Heartbeat revision id to restore
       --target-digest string     Heartbeat snapshot digest to restore
       --workspace string         Resolve the agent from a workspace id, name, or path

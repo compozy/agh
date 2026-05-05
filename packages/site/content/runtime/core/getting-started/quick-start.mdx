@@ -7,8 +7,11 @@ This tutorial takes you from a bootstrapped AGH install to one durable session y
 stop, and resume. It is intentionally repository-aware: you will create the session from the
 project you actually want AGH to manage.
 
-**Before you begin:** Complete [Installation](/runtime/core/getting-started/installation), export
-your provider API key in the current shell, and `cd` into a repository you want the session to use.
+**Before you begin:** Complete [Installation](/runtime/core/getting-started/installation), make
+sure your selected provider is authenticated, and `cd` into a repository you want the session to
+use. For native ACP providers, use the provider's own login command before starting AGH. For
+API-key providers, make sure the configured `env:` or `vault:` credential is available to the
+daemon.
 
 ## 1. Start the daemon
 

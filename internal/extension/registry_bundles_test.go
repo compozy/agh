@@ -116,7 +116,7 @@ func TestLoadBundleSpecsRejectsCaseInsensitiveDuplicateBundleNames(t *testing.T)
 		t.Fatalf("os.WriteFile(beta.json) error = %v", err)
 	}
 
-	_, err := LoadBundleSpecs(rootDir, &Manifest{
+	_, err := LoadBundleSpecs(context.Background(), rootDir, &Manifest{
 		Name: "bundle-guard",
 		Resources: ResourcesConfig{
 			Bundles: []string{"bundles"},

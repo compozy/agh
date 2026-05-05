@@ -529,7 +529,7 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 		AgentName:             strings.TrimSpace(criteria.AgentName),
 		SessionID:             strings.TrimSpace(criteria.ClaimerSessionID),
 		ActorKind:             string(actor.Actor.Kind.Normalize()),
-		ActorRef:              strings.TrimSpace(actor.Actor.Ref),
+		ActorID:               strings.TrimSpace(actor.Actor.Ref),
 	}
 	if criteria.Soul != nil {
 		taskContext.SoulSnapshotID = strings.TrimSpace(criteria.Soul.SnapshotID)

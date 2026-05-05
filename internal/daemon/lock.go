@@ -181,10 +181,8 @@ func writeLockPID(path string, pid int) error {
 		_ = file.Close()
 	}()
 
-	if pid > 0 {
-		if _, err := fmt.Fprintf(file, "%d\n", pid); err != nil {
-			return fmt.Errorf("daemon: write daemon lock %q: %w", path, err)
-		}
+	if _, err := fmt.Fprintf(file, "%d\n", pid); err != nil {
+		return fmt.Errorf("daemon: write daemon lock %q: %w", path, err)
 	}
 	if err := file.Sync(); err != nil {
 		return fmt.Errorf("daemon: sync daemon lock %q: %w", path, err)

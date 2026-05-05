@@ -22,6 +22,59 @@ type SessionEvent struct {
 	Timestamp time.Time
 }
 
+// EventCorrelation carries the canonical cross-surface correlation keys for
+// session and observability events.
+type EventCorrelation struct {
+	TaskID               string     `json:"task_id,omitempty"`
+	RunID                string     `json:"run_id,omitempty"`
+	WorkflowID           string     `json:"workflow_id,omitempty"`
+	ClaimTokenHash       string     `json:"claim_token_hash,omitempty"`
+	LeaseUntil           *time.Time `json:"lease_until,omitempty"`
+	CoordinatorSessionID string     `json:"coordinator_session_id,omitempty"`
+	SchedulerReason      string     `json:"scheduler_reason,omitempty"`
+	HookEvent            string     `json:"hook_event,omitempty"`
+	HookName             string     `json:"hook_name,omitempty"`
+	ActorKind            string     `json:"actor_kind,omitempty"`
+	ActorID              string     `json:"actor_id,omitempty"`
+	ReleaseReason        string     `json:"release_reason,omitempty"`
+}
+
+// Normalize trims string fields and canonicalizes timestamps.
+func (c EventCorrelation) Normalize() EventCorrelation {
+	normalized := EventCorrelation{
+		TaskID:               strings.TrimSpace(c.TaskID),
+		RunID:                strings.TrimSpace(c.RunID),
+		WorkflowID:           strings.TrimSpace(c.WorkflowID),
+		ClaimTokenHash:       strings.TrimSpace(c.ClaimTokenHash),
+		CoordinatorSessionID: strings.TrimSpace(c.CoordinatorSessionID),
+		SchedulerReason:      strings.TrimSpace(c.SchedulerReason),
+		HookEvent:            strings.TrimSpace(c.HookEvent),
+		HookName:             strings.TrimSpace(c.HookName),
+		ActorKind:            strings.TrimSpace(c.ActorKind),
+		ActorID:              strings.TrimSpace(c.ActorID),
+		ReleaseReason:        strings.TrimSpace(c.ReleaseReason),
+	}
+	normalized.LeaseUntil = cloneNormalizedTimestamp(c.LeaseUntil)
+	return normalized
+}
+
+// IsZero reports whether the correlation payload carries any fields.
+func (c EventCorrelation) IsZero() bool {
+	normalized := c.Normalize()
+	return normalized.TaskID == "" &&
+		normalized.RunID == "" &&
+		normalized.WorkflowID == "" &&
+		normalized.ClaimTokenHash == "" &&
+		normalized.LeaseUntil == nil &&
+		normalized.CoordinatorSessionID == "" &&
+		normalized.SchedulerReason == "" &&
+		normalized.HookEvent == "" &&
+		normalized.HookName == "" &&
+		normalized.ActorKind == "" &&
+		normalized.ActorID == "" &&
+		normalized.ReleaseReason == ""
+}
+
 // Validate ensures the event has the required fields for persistence.
 func (e SessionEvent) Validate() error {
 	if err := requireField(e.TurnID, "event turn id"); err != nil {
@@ -276,22 +329,52 @@ type EventSummary struct {
 	Sequence  int64
 	Type      string
 	AgentName string
-	Summary   string
-	Timestamp time.Time
+	Content   json.RawMessage
+	EventCorrelation
+	ParentSessionID string
+	RootSessionID   string
+	SpawnDepth      int
+	Summary         string
+	Timestamp       time.Time
 }
 
 // Validate ensures the summary contains the required identifying fields.
 func (s EventSummary) Validate() error {
-	if err := requireField(s.SessionID, "event summary session id"); err != nil {
+	eventType := strings.TrimSpace(s.Type)
+	if err := requireField(eventType, "event summary type"); err != nil {
 		return err
 	}
-	if err := requireField(s.Type, "event summary type"); err != nil {
+	if eventSummaryAllowsGlobalScope(eventType) {
+		return nil
+	}
+	if err := requireField(s.SessionID, "event summary session id"); err != nil {
 		return err
 	}
 	if err := requireField(s.AgentName, "event summary agent name"); err != nil {
 		return err
 	}
 	return nil
+}
+
+func cloneNormalizedTimestamp(value *time.Time) *time.Time {
+	if value == nil || value.IsZero() {
+		return nil
+	}
+	normalized := value.UTC()
+	return &normalized
+}
+
+func eventSummaryAllowsGlobalScope(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "settings.changed",
+		"skills.shadow",
+		"skills.load_failed",
+		"hook.dispatch.start",
+		"hook.dispatch.complete":
+		return true
+	default:
+		return false
+	}
 }
 
 // EventSummaryQuery filters global event summary queries.

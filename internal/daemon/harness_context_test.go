@@ -18,6 +18,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
 		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
+		SkillsAugmenter:            true,
 		DurableMemoryAugmenter:     true,
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,
@@ -45,7 +46,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 				},
 			},
 			wantSections:   []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
-			wantAugmenters: []HarnessAugmenter{HarnessAugmenterDurableMemory},
+			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills, HarnessAugmenterDurableMemory},
 			wantReentry:    ReentryModeNone,
 			wantDetached:   DetachedRunModeNone,
 			wantLabel:      "interactive.user",
@@ -81,7 +82,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 				HarnessPromptSectionSkills,
 				HarnessPromptSectionNetwork,
 			},
-			wantAugmenters: nil,
+			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
 			wantReentry:    ReentryModeNone,
 			wantDetached:   DetachedRunModeNone,
 			wantLabel:      "interactive.channel.network",
@@ -147,7 +148,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 				HarnessPromptSectionSkills,
 				HarnessPromptSectionNetwork,
 			},
-			wantAugmenters: nil,
+			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
 			wantReentry:    ReentryModeNone,
 			wantDetached:   DetachedRunModeNone,
 			wantLabel:      "spawned.channel.network",
@@ -179,7 +180,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 				},
 			},
 			wantSections:   []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
-			wantAugmenters: nil,
+			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
 			wantReentry:    ReentryModeSynthetic,
 			wantDetached:   DetachedRunModeTaskRuntime,
 			wantLabel:      "system.synthetic.reentry",
@@ -272,6 +273,7 @@ func TestHarnessContextResolverValidation(t *testing.T) {
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
 		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
+		SkillsAugmenter:            true,
 		DurableMemoryAugmenter:     true,
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,
@@ -359,6 +361,7 @@ func TestHarnessContextResolverDiagnosticLabelsAreStable(t *testing.T) {
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
 		MemoryPromptSectionEnabled: true,
 		SkillsPromptSectionEnabled: true,
+		SkillsAugmenter:            true,
 		DurableMemoryAugmenter:     true,
 		SyntheticTurnsEnabled:      true,
 		DetachedTaskRuntimeEnabled: true,
@@ -504,6 +507,7 @@ func TestHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
 		MemoryPromptSectionEnabled: true,
+		SkillsAugmenter:            true,
 		DurableMemoryAugmenter:     true,
 	})
 
@@ -521,8 +525,11 @@ func TestHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 	if !containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionNetwork) {
 		t.Fatalf("IncludeSections = %#v, want network section", resolved.Policy.IncludeSections)
 	}
-	if !slices.Equal(resolved.Policy.EnableAugmenters, []HarnessAugmenter{HarnessAugmenterDurableMemory}) {
-		t.Fatalf("EnableAugmenters = %#v, want durable memory", resolved.Policy.EnableAugmenters)
+	if !slices.Equal(
+		resolved.Policy.EnableAugmenters,
+		[]HarnessAugmenter{HarnessAugmenterSkills, HarnessAugmenterDurableMemory},
+	) {
+		t.Fatalf("EnableAugmenters = %#v, want skills and durable memory", resolved.Policy.EnableAugmenters)
 	}
 }
 
@@ -530,18 +537,24 @@ func TestHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+		SkillsAugmenter:        true,
 		DurableMemoryAugmenter: true,
 	})
 
-	calls := 0
+	memoryCalls := 0
+	skillsCalls := 0
 	augmenter, err := newPromptInputCompositeAugmenter(
 		discardLogger(),
 		resolver,
 		nil,
 		defaultPromptInputAugmenterDescriptors(
 			func(_ context.Context, _ *session.Session, message string) (string, error) {
-				calls++
+				memoryCalls++
 				return message + "\n\nmemory block", nil
+			},
+			func(_ context.Context, _ *session.Session, message string) (string, error) {
+				skillsCalls++
+				return "<current-available-skills>\n  <skill name=\"qa-marker-skill\">Marker.</skill>\n</current-available-skills>\n\n" + message, nil
 			},
 		)...,
 	)
@@ -557,11 +570,17 @@ func TestHarnessPromptInputAugmenterAppliesResolvedAugmenters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Augment() error = %v", err)
 	}
-	if calls != 1 {
-		t.Fatalf("augmenter calls = %d, want 1", calls)
+	if memoryCalls != 1 {
+		t.Fatalf("durable memory calls = %d, want 1", memoryCalls)
+	}
+	if skillsCalls != 1 {
+		t.Fatalf("skills augmenter calls = %d, want 1", skillsCalls)
 	}
 	if !strings.Contains(got, "memory block") {
 		t.Fatalf("Augment() = %q, want durable memory content", got)
+	}
+	if !strings.Contains(got, "<current-available-skills>") {
+		t.Fatalf("Augment() = %q, want current skills content", got)
 	}
 }
 

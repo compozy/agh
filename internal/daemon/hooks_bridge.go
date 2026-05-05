@@ -328,6 +328,7 @@ type hooksNotifier struct {
 	now                  func() time.Time
 	hooks                hookRuntime
 	agentEventNotify     session.Notifier
+	eventSummaries       hookEventSummaryWriter
 	taskRunEnqueuedHooks []taskRunEnqueuedObserver
 }
 
@@ -338,6 +339,7 @@ var _ session.PromptHooks = (*hooksNotifier)(nil)
 var _ session.EventHooks = (*hooksNotifier)(nil)
 var _ session.AgentHooks = (*hooksNotifier)(nil)
 var _ session.ConversationHooks = (*hooksNotifier)(nil)
+var _ session.ToolHooks = (*hooksNotifier)(nil)
 var _ session.CompactionHooks = (*hooksNotifier)(nil)
 var _ session.SpawnHooks = (*hooksNotifier)(nil)
 var _ session.AuthoredContextHooks = (*hooksNotifier)(nil)
@@ -359,12 +361,19 @@ func newHooksNotifier(logger *slog.Logger, now func() time.Time) *hooksNotifier 
 	}
 }
 
-func (n *hooksNotifier) setRuntime(hooks hookRuntime, agentEventNotify session.Notifier) {
+func (n *hooksNotifier) setRuntime(
+	hooks hookRuntime,
+	agentEventNotify session.Notifier,
+	eventSummaries ...hookEventSummaryWriter,
+) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
 	n.hooks = hooks
 	n.agentEventNotify = agentEventNotify
+	if len(eventSummaries) > 0 {
+		n.eventSummaries = eventSummaries[0]
+	}
 }
 
 func (n *hooksNotifier) AddTaskRunEnqueuedObserver(observer taskRunEnqueuedObserver) {
@@ -720,6 +729,45 @@ func (n *hooksNotifier) DispatchMessageEnd(
 		hookspkg.HookMessageEnd,
 		payload,
 		hookRuntime.DispatchMessageEnd,
+	)
+}
+
+func (n *hooksNotifier) DispatchToolPreCall(
+	ctx context.Context,
+	payload hookspkg.ToolPreCallPayload,
+) (hookspkg.ToolPreCallPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookToolPreCall,
+		payload,
+		hookRuntime.DispatchToolPreCall,
+	)
+}
+
+func (n *hooksNotifier) DispatchToolPostCall(
+	ctx context.Context,
+	payload hookspkg.ToolPostCallPayload,
+) (hookspkg.ToolPostCallPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookToolPostCall,
+		payload,
+		hookRuntime.DispatchToolPostCall,
+	)
+}
+
+func (n *hooksNotifier) DispatchToolPostError(
+	ctx context.Context,
+	payload hookspkg.ToolPostErrorPayload,
+) (hookspkg.ToolPostErrorPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookToolPostError,
+		payload,
+		hookRuntime.DispatchToolPostError,
 	)
 }
 
@@ -1113,6 +1161,15 @@ func (n *hooksNotifier) runtime() (hookRuntime, session.Notifier) {
 	return n.hooks, n.agentEventNotify
 }
 
+func (n *hooksNotifier) hookEventSummaries() hookEventSummaryWriter {
+	if n == nil {
+		return nil
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.eventSummaries
+}
+
 func (n *hooksNotifier) timestamp() time.Time {
 	if n == nil || n.now == nil {
 		return time.Now().UTC()
@@ -1136,6 +1193,7 @@ func dispatchRuntime[P any](
 	if ctx == nil {
 		return payload, fmt.Errorf("daemon: dispatch %s requires a non-nil context", event)
 	}
+	ctx = withGlobalHookDispatchEventEmitter(ctx, n, payload)
 	return dispatch(hooks, ctx, payload)
 }
 
@@ -1461,22 +1519,50 @@ func skillDeclarationProvider(
 		decls := make([]hookspkg.HookDecl, 0, len(workspaces))
 		for idx := range workspaces {
 			resolved := &workspaces[idx]
-			activeSkills, err := skillsRegistry.ForWorkspace(ctx, resolved)
-			if err != nil {
-				return nil, fmt.Errorf("daemon: resolve active skills for workspace %q: %w", resolved.ID, err)
+			if len(resolved.Agents) == 0 {
+				activeSkills, err := skillsRegistry.ForWorkspace(ctx, resolved)
+				if err != nil {
+					return nil, fmt.Errorf("daemon: resolve active skills for workspace %q: %w", resolved.ID, err)
+				}
+				for _, skill := range activeSkills {
+					if !marketplaceHookAllowed(skill, allowed) {
+						logger.Warn(
+							"daemon: blocked hook",
+							"skill_name", skill.Meta.Name,
+							"workspace_id", resolved.ID,
+							"source", skills.SkillSourceName(skill.Source),
+						)
+						continue
+					}
+					decls = append(decls, scopeWorkspaceHookDecls(skill.Hooks, resolved)...)
+				}
+				continue
 			}
 
-			for _, skill := range activeSkills {
-				if !marketplaceHookAllowed(skill, allowed) {
-					logger.Warn(
-						"daemon: blocked hook",
-						"skill_name", skill.Meta.Name,
-						"workspace_id", resolved.ID,
-						"source", skills.SkillSourceName(skill.Source),
+			for _, agent := range resolved.Agents {
+				activeSkills, err := skillsRegistry.ForAgent(ctx, resolved, agent.Name)
+				if err != nil {
+					return nil, fmt.Errorf(
+						"daemon: resolve active skills for workspace %q agent %q: %w",
+						resolved.ID,
+						agent.Name,
+						err,
 					)
-					continue
 				}
-				decls = append(decls, scopeWorkspaceHookDecls(skill.Hooks, resolved)...)
+
+				for _, skill := range activeSkills {
+					if !marketplaceHookAllowed(skill, allowed) {
+						logger.Warn(
+							"daemon: blocked hook",
+							"skill_name", skill.Meta.Name,
+							"workspace_id", resolved.ID,
+							"agent_name", agent.Name,
+							"source", skills.SkillSourceName(skill.Source),
+						)
+						continue
+					}
+					decls = append(decls, scopeWorkspaceAgentHookDecls(skill.Hooks, resolved, agent.Name)...)
+				}
 			}
 		}
 
@@ -1579,6 +1665,20 @@ func scopeWorkspaceHookDecls(
 			}
 		}
 		scoped = append(scoped, cloned)
+	}
+	return scoped
+}
+
+func scopeWorkspaceAgentHookDecls(
+	decls []hookspkg.HookDecl,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+) []hookspkg.HookDecl {
+	scoped := scopeWorkspaceHookDecls(decls, resolved)
+	for idx := range scoped {
+		if hookspkg.MatcherFieldAllowedForEvent(scoped[idx].Event, "agent_name") {
+			scoped[idx].Matcher.AgentName = strings.TrimSpace(agentName)
+		}
 	}
 	return scoped
 }

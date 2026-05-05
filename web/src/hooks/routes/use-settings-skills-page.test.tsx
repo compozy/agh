@@ -146,12 +146,15 @@ describe("useSettingsSkillsPage", () => {
     await waitFor(() => {
       expect(result.current.lastDisabledLabel).toContain("applied immediately");
     });
-    expect(updateSettingsSkills).toHaveBeenCalledWith({
-      config: expect.objectContaining({
-        disabled_skills: expect.arrayContaining(["alpha", "beta"]),
-        marketplace: skillsEnvelope.config.marketplace,
-      }),
-    });
+    expect(updateSettingsSkills).toHaveBeenCalledWith(
+      {
+        config: expect.objectContaining({
+          disabled_skills: expect.arrayContaining(["alpha", "beta"]),
+          marketplace: skillsEnvelope.config.marketplace,
+        }),
+      },
+      { scope: "global" }
+    );
   });
 
   it("save policy sends full config with only policy changes and records restart-required label", async () => {
@@ -182,11 +185,14 @@ describe("useSettingsSkillsPage", () => {
     await waitFor(() => {
       expect(result.current.lastPolicyLabel).toContain("restart required");
     });
-    expect(updateSettingsSkills).toHaveBeenCalledWith({
-      config: expect.objectContaining({
-        poll_interval: "10m",
-        disabled_skills: skillsEnvelope.config.disabled_skills,
-      }),
-    });
+    expect(updateSettingsSkills).toHaveBeenCalledWith(
+      {
+        config: expect.objectContaining({
+          poll_interval: "10m",
+          disabled_skills: skillsEnvelope.config.disabled_skills,
+        }),
+      },
+      { scope: "global" }
+    );
   });
 });

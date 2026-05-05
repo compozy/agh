@@ -202,6 +202,18 @@ func TestParseAgentDefNormalizesCRLFAndPreservesConfigFrontmatterErrors(t *testi
 	} else if !errors.Is(err, ErrUnterminatedAgentFrontmatter) || !errors.Is(err, frontmatter.ErrUnterminated) {
 		t.Fatalf("ParseAgentDef() unterminated frontmatter error = %v, want mapped config + frontmatter sentinel", err)
 	}
+
+	if _, err := ParseAgentDef([]byte("\ufeff---\nname: broken\n---\nPrompt.")); err == nil {
+		t.Fatal("ParseAgentDef() BOM frontmatter error = nil, want non-nil")
+	} else if !errors.Is(err, ErrBOMAgentFrontmatter) || !errors.Is(err, frontmatter.ErrBOM) {
+		t.Fatalf("ParseAgentDef() BOM frontmatter error = %v, want mapped config + frontmatter sentinel", err)
+	}
+
+	if _, err := ParseAgentDef([]byte("---\nna\tme: broken\n---\nPrompt.")); err == nil {
+		t.Fatal("ParseAgentDef() invalid key error = nil, want non-nil")
+	} else if !errors.Is(err, ErrInvalidAgentFrontmatterKey) {
+		t.Fatalf("ParseAgentDef() invalid key error = %v, want invalid key sentinel", err)
+	}
 }
 
 func TestLoadAgentDefFromHomePath(t *testing.T) {

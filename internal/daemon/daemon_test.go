@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -47,6 +48,7 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"go.uber.org/goleak"
 )
 
 func TestAcquireLockSucceedsWithoutExistingLock(t *testing.T) {
@@ -2335,6 +2337,205 @@ func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 	}
 }
 
+func TestRunAbortsCleanlyOnInjectedSignalDuringBoot(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	signalCh := make(chan os.Signal, 1)
+	sessionFactoryStarted := make(chan struct{})
+	const waitTimeout = 5 * time.Second
+
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.signalCh = signalCh
+
+	var (
+		eventsMu sync.Mutex
+		events   []string
+	)
+	recordEvent := func(event string) {
+		eventsMu.Lock()
+		defer eventsMu.Unlock()
+		events = append(events, event)
+	}
+	d.closeLogger = func() error {
+		recordEvent("logger")
+		return nil
+	}
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{
+			path: homePaths.DatabaseFile,
+			onClose: func() {
+				recordEvent("db")
+			},
+		}, nil
+	}
+	d.newSessionManager = func(ctx context.Context, _ SessionManagerDeps) (SessionManager, error) {
+		close(sessionFactoryStarted)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- d.Run(context.Background())
+	}()
+
+	select {
+	case <-sessionFactoryStarted:
+	case err := <-errCh:
+		t.Fatalf("Run() exited before boot reached session manager: %v", err)
+	case <-time.After(waitTimeout):
+		t.Fatal("Run() did not reach cancellable boot step")
+	}
+
+	signalCh <- syscall.SIGTERM
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Run() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(waitTimeout):
+		t.Fatal("Run() did not abort boot after injected signal")
+	}
+
+	lockBytes, err := os.ReadFile(homePaths.DaemonLock)
+	if err != nil {
+		t.Fatalf("os.ReadFile(daemon lock) error = %v", err)
+	}
+	t.Logf("daemon_lock=%s contents=%q", homePaths.DaemonLock, string(lockBytes))
+	if got := strings.TrimSpace(string(lockBytes)); got != "0" {
+		t.Fatalf("daemon lock = %q, want 0 after boot cleanup", got)
+	}
+	if _, err := ReadInfo(homePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ReadInfo(after boot abort) error = %v, want os.ErrNotExist", err)
+	}
+	t.Logf("daemon_info=%s removed=true", homePaths.DaemonInfo)
+	select {
+	case <-d.readyCh:
+		t.Fatal("readyCh closed even though boot was aborted")
+	default:
+	}
+
+	eventsMu.Lock()
+	gotEvents := append([]string(nil), events...)
+	eventsMu.Unlock()
+	wantEvents := []string{"db", "logger"}
+	if !testutil.EqualStringSlices(gotEvents, wantEvents) {
+		t.Fatalf("boot abort cleanup events = %#v, want %#v", gotEvents, wantEvents)
+	}
+	t.Logf("cleanup_events=%v", gotEvents)
+}
+
+const daemonGoleakHelperEnv = "AGH_DAEMON_GOLEAK_HELPER"
+
+func TestDaemonGoleakHelperProcess(_ *testing.T) {
+	if os.Getenv(daemonGoleakHelperEnv) != "1" {
+		return
+	}
+
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-signalCh:
+		signal.Stop(signalCh)
+		os.Exit(0)
+	case <-time.After(30 * time.Second):
+		signal.Stop(signalCh)
+		os.Exit(2)
+	}
+}
+
+func TestDaemonGoleakFullCycle(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	signalCh := make(chan os.Signal, 1)
+	const waitTimeout = 5 * time.Second
+
+	manager := &goleakSessionManager{
+		fakeSessionManager: &fakeSessionManager{
+			infos: []*session.Info{{
+				ID:    "sess-goleak",
+				State: session.StateActive,
+			}},
+		},
+	}
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.signalCh = signalCh
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return manager, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- d.Run(context.Background())
+	}()
+
+	select {
+	case <-d.readyCh:
+	case err := <-errCh:
+		t.Fatalf("Run() exited before signaling ready: %v", err)
+	case <-time.After(waitTimeout):
+		t.Fatal("Run() did not signal ready")
+	}
+
+	bin, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable() error = %v", err)
+	}
+	process, err := subprocess.Launch(testutil.Context(t), subprocess.LaunchConfig{
+		Command:          bin,
+		Args:             []string{"-test.run=TestDaemonGoleakHelperProcess"},
+		Env:              append(os.Environ(), daemonGoleakHelperEnv+"=1"),
+		DisableTransport: true,
+		ShutdownTimeout:  250 * time.Millisecond,
+		PostSignalGrace:  50 * time.Millisecond,
+		Logger:           discardLogger(),
+	})
+	if err != nil {
+		t.Fatalf("subprocess.Launch(helper) error = %v", err)
+	}
+	manager.setProcess(process)
+	t.Logf("managed_subprocess_pid=%d", process.PID())
+
+	signalCh <- syscall.SIGTERM
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("Run() shutdown error = %v", err)
+		}
+	case <-time.After(waitTimeout):
+		t.Fatal("Run() did not stop after signal")
+	}
+	if !manager.stopped() {
+		t.Fatal("session manager did not stop the managed subprocess during daemon shutdown")
+	}
+	select {
+	case <-process.Done():
+	case <-time.After(waitTimeout):
+		t.Fatal("managed subprocess did not exit after daemon shutdown")
+	}
+	if err := process.Wait(); err != nil {
+		t.Fatalf("managed subprocess wait error = %v; stderr=%s", err, process.Stderr())
+	}
+}
+
 func TestRunShutsDownWhenObserverRetentionStartFails(t *testing.T) {
 	t.Parallel()
 
@@ -2650,6 +2851,7 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 
 			workspaceRef := workspacepkg.ResolvedWorkspace{
 				Workspace: workspacepkg.Workspace{RootDir: workspace},
+				Agents:    []aghconfig.AgentDef{testPromptAgent("Base prompt.")},
 			}
 			prompt, err := capturedDeps.PromptAssembler.Assemble(
 				context.Background(),
@@ -2843,7 +3045,7 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 		t.Fatal("boot() did not initialize the skills registry")
 	}
 
-	writeDaemonSkill(t, filepath.Join(homePaths.HomeDir, ".agents", "skills"), "watched-skill", "Global watched skill")
+	writeDaemonSkill(t, homePaths.SkillsDir, "watched-skill", "Global watched skill")
 	waitForCondition(t, "watcher refresh after boot", func() bool {
 		_, ok := registry.Get("watched-skill")
 		return ok
@@ -2856,7 +3058,7 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 
 	writeDaemonSkill(
 		t,
-		filepath.Join(homePaths.HomeDir, ".agents", "skills"),
+		homePaths.SkillsDir,
 		"after-shutdown",
 		"Should not be observed",
 	)
@@ -2927,18 +3129,14 @@ func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
 
 	d := newTestDaemon(t, homePaths, &cfg)
 
-	registryCfg, err := d.skillsRegistryConfig(&cfg)
-	if err != nil {
-		t.Fatalf("skillsRegistryConfig() error = %v", err)
-	}
-
+	registryCfg := d.skillsRegistryConfig(&cfg)
 	if registryCfg.BundledFS == nil {
 		t.Fatal("skillsRegistryConfig() BundledFS = nil")
 	}
 	if got, want := registryCfg.UserSkillsDir, homePaths.SkillsDir; got != want {
 		t.Fatalf("skillsRegistryConfig() UserSkillsDir = %q, want %q", got, want)
 	}
-	if got, want := registryCfg.UserAgentsDir, filepath.Join(homePaths.HomeDir, ".agents", "skills"); got != want {
+	if got, want := registryCfg.UserAgentsDir, homePaths.AgentsDir; got != want {
 		t.Fatalf("skillsRegistryConfig() UserAgentsDir = %q, want %q", got, want)
 	}
 	if got := registryCfg.DisabledSkills; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
@@ -3379,8 +3577,8 @@ func TestLockHelpersAndErrors(t *testing.T) {
 	}
 	if data, err := os.ReadFile(path); err != nil {
 		t.Fatalf("os.ReadFile(pid.lock) error = %v", err)
-	} else if strings.TrimSpace(string(data)) != "" {
-		t.Fatalf("writeLockPID(0) contents = %q, want empty", string(data))
+	} else if string(data) != "0\n" {
+		t.Fatalf("writeLockPID(0) contents = %q, want 0 newline", string(data))
 	}
 }
 
@@ -4291,6 +4489,49 @@ type fakeStopWithCauseCall struct {
 	id     string
 	cause  session.StopCause
 	detail string
+}
+
+type goleakSessionManager struct {
+	*fakeSessionManager
+	mu      sync.Mutex
+	process *subprocess.Process
+	wasStop bool
+}
+
+func (m *goleakSessionManager) setProcess(process *subprocess.Process) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.process = process
+}
+
+func (m *goleakSessionManager) stopped() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.wasStop
+}
+
+func (m *goleakSessionManager) StopWithCause(
+	ctx context.Context,
+	id string,
+	cause session.StopCause,
+	detail string,
+) error {
+	m.mu.Lock()
+	m.wasStop = true
+	process := m.process
+	m.mu.Unlock()
+	if m.fakeSessionManager != nil {
+		m.fakeSessionManager.mu.Lock()
+		m.stopWithCauseCalls = append(
+			m.stopWithCauseCalls,
+			fakeStopWithCauseCall{id: id, cause: cause, detail: detail},
+		)
+		m.fakeSessionManager.mu.Unlock()
+	}
+	if process == nil {
+		return nil
+	}
+	return process.Shutdown(ctx)
 }
 
 func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {

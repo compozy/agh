@@ -116,59 +116,184 @@ func (p pipeline[P, R]) executeHook(
 	payload P,
 	depth int,
 ) (P, bool, hookTraceEntry, error) {
-	if hook == nil {
-		return payload, false, hookTraceEntry{}, errors.New("hooks: resolved hook is required")
-	}
-	if hook.Executor == nil {
-		return payload, false, hookTraceEntry{}, fmt.Errorf("hooks: hook %q executor is required", hook.Name)
+	if err := validateResolvedHook(hook); err != nil {
+		return payload, false, hookTraceEntry{}, err
 	}
 
-	hookCtx := ctx
-	cancel := func() {}
-	if hook.Timeout > 0 {
-		hookCtx, cancel = context.WithTimeout(ctx, hook.Timeout)
-	}
+	hookCtx, cancel := hookExecutionContext(ctx, hook.Timeout)
 	defer cancel()
 
 	started := time.Now()
+	p.emitDispatchEvent(
+		hookCtx,
+		payload,
+		hook.RegisteredHook,
+		DispatchPhaseStart,
+		"",
+		nil,
+		depth,
+		started.UTC(),
+	)
 	patch, rawPatch, err := p.runHook(hookCtx, hook.RegisteredHook, payload)
 	duration := time.Since(started)
-	trace := hookTraceEntry{
-		Hook:     hook.Name,
-		Duration: duration,
-		Required: hook.Required,
-		Patch:    cloneRawJSON(rawPatch),
-	}
+	trace := newHookTrace(hook, duration, rawPatch)
 	if err != nil {
-		trace.Outcome = HookRunOutcomeFailed
-		trace.Error = err.Error()
-		p.recordHookRun(hookCtx, payload, hook.RegisteredHook, trace.Outcome, duration, rawPatch, err, depth)
-		return payload, false, trace, err
+		return p.finishHookFailure(
+			hookCtx,
+			payload,
+			hook.RegisteredHook,
+			depth,
+			started,
+			duration,
+			rawPatch,
+			trace,
+			HookRunOutcomeFailed,
+			err,
+			err,
+		)
 	}
 	if p.guard != nil {
-		if err := p.guard(hookCtx, hook.RegisteredHook, payload, patch); err != nil {
-			if errors.Is(err, ErrHookPatchRejected) {
-				trace.Outcome = HookRunOutcomeRejected
-				trace.Error = err.Error()
-				p.recordHookRun(hookCtx, payload, hook.RegisteredHook, trace.Outcome, duration, rawPatch, err, depth)
-				return payload, false, trace, nil
+		if guardErr := p.guard(hookCtx, hook.RegisteredHook, payload, patch); guardErr != nil {
+			outcome := HookRunOutcomeFailed
+			returnErr := guardErr
+			if errors.Is(guardErr, ErrHookPatchRejected) {
+				outcome = HookRunOutcomeRejected
+				returnErr = nil
 			}
-			trace.Outcome = HookRunOutcomeFailed
-			trace.Error = err.Error()
-			p.recordHookRun(hookCtx, payload, hook.RegisteredHook, trace.Outcome, duration, rawPatch, err, depth)
-			return payload, false, trace, err
+			return p.finishHookFailure(
+				hookCtx,
+				payload,
+				hook.RegisteredHook,
+				depth,
+				started,
+				duration,
+				rawPatch,
+				trace,
+				outcome,
+				guardErr,
+				returnErr,
+			)
 		}
 	}
 
 	next := p.apply(payload, patch)
 	denied := p.denied != nil && p.denied(patch)
-	if denied {
-		trace.Outcome = HookRunOutcomeDenied
-	} else {
-		trace.Outcome = HookRunOutcomeApplied
-	}
-	p.recordHookRun(hookCtx, payload, hook.RegisteredHook, trace.Outcome, duration, rawPatch, nil, depth)
+	trace.Outcome = hookOutcomeFromDenied(denied)
+	p.finishHookRun(
+		hookCtx,
+		payload,
+		hook.RegisteredHook,
+		trace.Outcome,
+		duration,
+		rawPatch,
+		nil,
+		depth,
+		started.Add(duration).UTC(),
+	)
 	return next, denied, trace, nil
+}
+
+func validateResolvedHook(hook *ResolvedHook) error {
+	if hook == nil {
+		return errors.New("hooks: resolved hook is required")
+	}
+	if hook.Executor == nil {
+		return fmt.Errorf("hooks: hook %q executor is required", hook.Name)
+	}
+	return nil
+}
+
+func hookExecutionContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, timeout)
+}
+
+func newHookTrace(hook *ResolvedHook, duration time.Duration, rawPatch json.RawMessage) hookTraceEntry {
+	return hookTraceEntry{
+		Hook:     hook.Name,
+		Duration: duration,
+		Required: hook.Required,
+		Patch:    cloneRawJSON(rawPatch),
+	}
+}
+
+func hookOutcomeFromDenied(denied bool) HookRunOutcome {
+	if denied {
+		return HookRunOutcomeDenied
+	}
+	return HookRunOutcomeApplied
+}
+
+func (p pipeline[P, R]) finishHookFailure(
+	ctx context.Context,
+	payload P,
+	hook RegisteredHook,
+	depth int,
+	started time.Time,
+	duration time.Duration,
+	rawPatch json.RawMessage,
+	trace hookTraceEntry,
+	outcome HookRunOutcome,
+	runErr error,
+	returnErr error,
+) (P, bool, hookTraceEntry, error) {
+	trace.Outcome = outcome
+	trace.Error = runErr.Error()
+	p.finishHookRun(
+		ctx,
+		payload,
+		hook,
+		trace.Outcome,
+		duration,
+		rawPatch,
+		runErr,
+		depth,
+		started.Add(duration).UTC(),
+	)
+	return payload, false, trace, returnErr
+}
+
+func (p pipeline[P, R]) finishHookRun(
+	ctx context.Context,
+	payload P,
+	hook RegisteredHook,
+	outcome HookRunOutcome,
+	duration time.Duration,
+	rawPatch json.RawMessage,
+	err error,
+	depth int,
+	timestamp time.Time,
+) {
+	p.recordHookRun(ctx, payload, hook, outcome, duration, rawPatch, err, depth)
+	p.emitDispatchEvent(
+		ctx,
+		payload,
+		hook,
+		DispatchPhaseComplete,
+		outcome,
+		err,
+		depth,
+		timestamp,
+	)
+}
+
+func (p pipeline[P, R]) emitDispatchEvent(
+	ctx context.Context,
+	payload P,
+	hook RegisteredHook,
+	phase DispatchPhase,
+	outcome HookRunOutcome,
+	err error,
+	depth int,
+	timestamp time.Time,
+) {
+	emitter := DispatchEventEmitterFromContext(ctx)
+	if emitter == nil {
+		return
+	}
+	emitter.EmitHookDispatchEvent(ctx, payload, hook, phase, outcome, err, depth, timestamp)
 }
 
 func (p pipeline[P, R]) runHook(ctx context.Context, hook RegisteredHook, payload P) (R, json.RawMessage, error) {

@@ -17,6 +17,10 @@ var ErrConflict = errors.New("settings: conflict")
 // ErrForbidden marks settings operations rejected by policy.
 var ErrForbidden = errors.New("settings: forbidden")
 
+// ErrUnprocessable marks settings requests whose selected resource exists but
+// cannot be processed because its backing state is invalid.
+var ErrUnprocessable = errors.New("settings: unprocessable")
+
 func validationError(err error) error {
 	if err == nil {
 		return nil
@@ -36,4 +40,11 @@ func conflictError(err error) error {
 		return nil
 	}
 	return fmt.Errorf("%w: %w", ErrConflict, err)
+}
+
+func unprocessableError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrUnprocessable, err)
 }

@@ -45,7 +45,15 @@ func authoredContextRuntimeDeps(ctx context.Context, state *bootState, sessions 
 	deps.SoulRefresher = soulRefresherDependency(sessions)
 	deps.HeartbeatAuthoring = heartbeatAuthoringServiceDependency(state.registry, state.logger)
 	deps.SessionHealth = sessionHealthReaderDependency(sessions)
-	deps.HeartbeatStatus = heartbeatStatusServiceDependency(state.registry, sessions, state.logger)
+	deps.HeartbeatStatus = heartbeatStatusServiceDependency(
+		state.registry,
+		sessions,
+		agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+		state.logger,
+	)
 	deps.HeartbeatWake = heartbeatWakeServiceDependency(
 		ctx,
 		state.registry,
@@ -98,15 +106,19 @@ func heartbeatAuthoringServiceDependency(store any, logger *slog.Logger) core.He
 func heartbeatStatusServiceDependency(
 	store any,
 	sessions SessionManager,
+	policyResolver heartbeat.PolicyResolver,
 	logger *slog.Logger,
 ) core.HeartbeatStatusService {
 	statusStore, ok := store.(heartbeat.StatusStore)
 	if !ok {
 		return nil
 	}
-	options := make([]heartbeat.StatusOption, 0, 1)
+	options := make([]heartbeat.StatusOption, 0, 2)
 	if reader, ok := sessions.(heartbeat.SessionHealthReader); ok {
 		options = append(options, heartbeat.WithHeartbeatStatusSessionHealthReader(reader))
+	}
+	if policyResolver != nil {
+		options = append(options, heartbeat.WithHeartbeatStatusPolicyResolver(policyResolver))
 	}
 	service, err := heartbeat.NewManagedHeartbeatStatusService(statusStore, options...)
 	if err != nil {
@@ -201,12 +213,17 @@ func (p *apiHeartbeatWakePrompter) PromptHeartbeatWake(
 		Message: req.Message,
 		TurnID:  req.TurnID,
 		Metadata: acp.PromptSyntheticMeta{
-			Reason:           heartbeat.SyntheticReasonHeartbeatWake,
-			Summary:          req.Summary,
-			WakeEventID:      req.WakeEventID,
-			PolicySnapshotID: req.PolicySnapshotID,
-			PolicyDigest:     req.PolicyDigest,
-			ConfigDigest:     req.ConfigDigest,
+			TaskID:               req.SyntheticCorrelation.TaskID,
+			TaskRunID:            req.SyntheticCorrelation.TaskRunID,
+			WorkflowID:           req.SyntheticCorrelation.WorkflowID,
+			ClaimTokenHash:       req.SyntheticCorrelation.ClaimTokenHash,
+			CoordinatorSessionID: req.SyntheticCorrelation.CoordinatorSessionID,
+			Reason:               heartbeat.SyntheticReasonHeartbeatWake,
+			Summary:              req.Summary,
+			WakeEventID:          req.WakeEventID,
+			PolicySnapshotID:     req.PolicySnapshotID,
+			PolicyDigest:         req.PolicyDigest,
+			ConfigDigest:         req.ConfigDigest,
 		},
 		SkipIfBusy: true,
 	})
@@ -391,7 +408,7 @@ func (s hookedSoulAuthoringService) dispatchSoulMutationAfter(ctx context.Contex
 		},
 		AuthoredMutationProvenance: hookspkg.AuthoredMutationProvenance{
 			ActorKind:  strings.TrimSpace(revision.ActorKind),
-			ActorRef:   strings.TrimSpace(revision.ActorRef),
+			ActorID:    strings.TrimSpace(revision.ActorID),
 			OriginKind: strings.TrimSpace(revision.OriginKind),
 			OriginRef:  strings.TrimSpace(revision.OriginRef),
 		},

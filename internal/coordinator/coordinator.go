@@ -11,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 const (
@@ -30,21 +31,6 @@ const (
 	DecisionFailed           = "failed"
 )
 
-const (
-	ToolAgentContext       = "agent.context"
-	ToolAgentChannelList   = "agent.ch.list"
-	ToolAgentChannelRecv   = "agent.ch.recv"
-	ToolAgentChannelSend   = "agent.ch.send"
-	ToolAgentChannelReply  = "agent.ch.reply"
-	ToolAgentTaskNext      = "agent.task.next"
-	ToolAgentTaskHeartbeat = "agent.task.heartbeat"
-	ToolAgentTaskComplete  = "agent.task.complete"
-	ToolAgentTaskFail      = "agent.task.fail"
-	ToolAgentTaskRelease   = "agent.task.release"
-	ToolAgentSpawn         = "agent.spawn"
-	ToolTaskCreate         = "task.create"
-)
-
 var (
 	// OperationalMessageKinds are the coordination-channel message kinds a
 	// coordinator may use for worker conversation. Task ownership remains in
@@ -60,20 +46,19 @@ var (
 
 	// ToolAllowlist is the orchestration-safe surface granted to coordinator
 	// sessions. Operator lifecycle verbs and coordinator-to-coordinator spawn
-	// are intentionally absent.
+	// are intentionally absent. These must stay aligned with canonical builtin
+	// ToolIDs because lineage permission policies validate concrete tool atoms.
 	ToolAllowlist = []string{
-		ToolAgentContext,
-		ToolAgentChannelList,
-		ToolAgentChannelRecv,
-		ToolAgentChannelSend,
-		ToolAgentChannelReply,
-		ToolAgentTaskNext,
-		ToolAgentTaskHeartbeat,
-		ToolAgentTaskComplete,
-		ToolAgentTaskFail,
-		ToolAgentTaskRelease,
-		ToolAgentSpawn,
-		ToolTaskCreate,
+		toolspkg.ToolIDSessionDescribe.String(),
+		toolspkg.ToolIDNetworkChannels.String(),
+		toolspkg.ToolIDNetworkInbox.String(),
+		toolspkg.ToolIDNetworkSend.String(),
+		toolspkg.ToolIDTaskRunClaimNext.String(),
+		toolspkg.ToolIDTaskRunHeartbeat.String(),
+		toolspkg.ToolIDTaskRunComplete.String(),
+		toolspkg.ToolIDTaskRunFail.String(),
+		toolspkg.ToolIDTaskRunRelease.String(),
+		toolspkg.ToolIDTaskCreate.String(),
 	}
 )
 

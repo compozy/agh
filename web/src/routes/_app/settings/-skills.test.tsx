@@ -3,11 +3,16 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { storyCompany } from "@/storybook/fintech-scenario";
+import type { AgentPayload } from "@/systems/agent";
+import type { SettingsSkillsSection } from "@/systems/settings";
+import type { WorkspacePayload } from "@/systems/workspace";
 
-const envelope = {
+type Envelope = SettingsSkillsSection;
+
+const envelope: Envelope = {
   section: "skills" as const,
   scope: "global" as const,
-  available_scopes: ["global"] as const,
+  available_scopes: ["global"],
   runtime_available: true,
   discovered_count: 12,
   disabled_count: 2,
@@ -25,7 +30,20 @@ const envelope = {
   links: [{ label: "skills", path: "/skills" }],
 };
 
-type Envelope = typeof envelope;
+const agentFixture: AgentPayload = {
+  name: "coder",
+  provider: "codex",
+  prompt: "Review code.",
+};
+
+const workspaceFixture: WorkspacePayload = {
+  id: "ws-polybot",
+  name: "polybot",
+  root_dir: "/workspace/polybot",
+  add_dirs: [],
+  created_at: "2026-05-04T21:00:00Z",
+  updated_at: "2026-05-04T21:00:00Z",
+};
 
 type RestartBanner = {
   isVisible: boolean;
@@ -65,6 +83,16 @@ let pageState: {
   handleSaveDisabled: ReturnType<typeof vi.fn>;
   handleSavePolicy: ReturnType<typeof vi.fn>;
   handleRetry: ReturnType<typeof vi.fn>;
+  availableScopes: readonly ("global" | "workspace" | "agent")[];
+  selection: { scope: "global" } | { scope: "agent"; agentName: string; workspaceId?: string };
+  agents: AgentPayload[];
+  workspaces: WorkspacePayload[];
+  selectedAgent: AgentPayload | null;
+  selectedWorkspaceContext: WorkspacePayload | null;
+  selectGlobal: ReturnType<typeof vi.fn>;
+  selectAgentScope: ReturnType<typeof vi.fn>;
+  selectAgent: ReturnType<typeof vi.fn>;
+  selectWorkspaceContext: ReturnType<typeof vi.fn>;
   restart: RestartBanner;
 };
 
@@ -130,6 +158,16 @@ beforeEach(() => {
     handleSaveDisabled: vi.fn(),
     handleSavePolicy: vi.fn(),
     handleRetry: vi.fn(),
+    availableScopes: ["global"],
+    selection: { scope: "global" },
+    agents: [agentFixture],
+    workspaces: [workspaceFixture],
+    selectedAgent: null,
+    selectedWorkspaceContext: null,
+    selectGlobal: vi.fn(),
+    selectAgentScope: vi.fn(),
+    selectAgent: vi.fn(),
+    selectWorkspaceContext: vi.fn(),
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
   };
 });
@@ -162,6 +200,9 @@ describe("SkillsSettingsPage", () => {
     render(<SkillsSettingsPage />);
     expect(screen.getByTestId("settings-page-skills-status-line")).toHaveTextContent(
       "12 discovered"
+    );
+    expect(screen.getByTestId("settings-page-skills-scope-label")).toHaveTextContent(
+      "scope: global"
     );
     expect(screen.getByTestId("settings-page-skills-disabled-list")).toBeInTheDocument();
     expect(screen.getByTestId("settings-page-skills-disabled-item-alpha")).toBeInTheDocument();
@@ -227,6 +268,67 @@ describe("SkillsSettingsPage", () => {
     render(<SkillsSettingsPage />);
     const link = screen.getByTestId("settings-page-skills-link-skills");
     expect(link).toHaveAttribute("href", "/skills");
+  });
+
+  it("renders agent scope controls and hides policy writes when scoped to one agent", () => {
+    pageState.envelope = {
+      ...envelope,
+      scope: "agent",
+      agent_name: "coder",
+      workspace_id: "ws-polybot",
+      available_scopes: ["global", "agent"],
+      config: { ...envelope.config, disabled_skills: ["review"] },
+    };
+    pageState.draft = { ...envelope.config, disabled_skills: ["review"] };
+    pageState.availableScopes = ["global", "agent"];
+    pageState.selection = { scope: "agent", agentName: "coder", workspaceId: "ws-polybot" };
+    pageState.selectedAgent = agentFixture;
+    pageState.selectedWorkspaceContext = workspaceFixture;
+
+    render(<SkillsSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-skills-scope-label")).toHaveTextContent(
+      "scope: agent coder"
+    );
+    expect(screen.getByTestId("settings-page-skills-workspace-context-summary")).toHaveTextContent(
+      "context: polybot"
+    );
+    expect(screen.getByTestId("settings-page-skills-agent-select-input")).toHaveValue("coder");
+    expect(screen.getByTestId("settings-page-skills-workspace-context-input")).toHaveValue(
+      "ws-polybot"
+    );
+    expect(screen.getByTestId("settings-page-skills-agent-policy-note")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-page-skills-marketplace-registry-input")
+    ).not.toBeInTheDocument();
+  });
+
+  it("wires the scope controls to the page hook callbacks", () => {
+    pageState.availableScopes = ["global", "agent"];
+
+    render(<SkillsSettingsPage />);
+
+    fireEvent.click(screen.getByTestId("settings-page-skills-scope-agent"));
+    expect(pageState.selectAgentScope).toHaveBeenCalledTimes(1);
+  });
+
+  it("wires the agent selectors to the page hook callbacks", () => {
+    pageState.availableScopes = ["global", "agent"];
+    pageState.selection = { scope: "agent", agentName: "coder", workspaceId: "ws-polybot" };
+    pageState.selectedAgent = agentFixture;
+    pageState.selectedWorkspaceContext = workspaceFixture;
+
+    render(<SkillsSettingsPage />);
+
+    fireEvent.change(screen.getByTestId("settings-page-skills-agent-select-input"), {
+      target: { value: "coder" },
+    });
+    expect(pageState.selectAgent).toHaveBeenCalledWith("coder");
+
+    fireEvent.change(screen.getByTestId("settings-page-skills-workspace-context-input"), {
+      target: { value: "" },
+    });
+    expect(pageState.selectWorkspaceContext).toHaveBeenCalledWith("");
   });
 
   it("renders the restart banner when the restart banner state reports visible", () => {

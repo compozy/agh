@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -42,6 +43,86 @@ func TestSchedulerCronStateUsesDeterministicNextRun(t *testing.T) {
 	if got := *state.NextRun; !got.Equal(want) {
 		t.Fatalf("Register().NextRun = %s, want %s", got.Format(time.RFC3339), want.Format(time.RFC3339))
 	}
+}
+
+func TestSchedulerCronSkipsSpringForwardMissingWallTime(t *testing.T) {
+	t.Run(
+		"Should skip the nonexistent spring-forward wall time and fire once at the next valid local time",
+		func(t *testing.T) {
+			t.Parallel()
+
+			location, err := time.LoadLocation("America/New_York")
+			if err != nil {
+				t.Fatalf("LoadLocation() error = %v", err)
+			}
+			baseTime := time.Date(2026, 3, 8, 1, 55, 0, 0, location)
+			fakeClock := clockwork.NewFakeClockAt(baseTime)
+			store := newMemorySchedulerStore()
+			dispatcher := newStubScheduleDispatcher()
+			scheduler := newTestScheduler(
+				t,
+				dispatcher,
+				WithSchedulerClock(fakeClock),
+				WithSchedulerStore(store),
+				WithSchedulerLocation(location),
+			)
+
+			job := testJob(AutomationScopeGlobal, "spring-forward", "")
+			job.Schedule = &ScheduleSpec{
+				Mode: ScheduleModeCron,
+				Expr: "30 2 * * *",
+			}
+
+			state, err := scheduler.Register(context.Background(), job)
+			if err != nil {
+				t.Fatalf("Register() error = %v", err)
+			}
+			wantNext := time.Date(2026, 3, 9, 2, 30, 0, 0, location)
+			if state.NextRun == nil || !state.NextRun.Equal(wantNext) {
+				t.Fatalf("Register().NextRun = %v, want %s", state.NextRun, wantNext.Format(time.RFC3339))
+			}
+			if err := scheduler.Start(testutil.Context(t)); err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+
+			waitForTimers(t, fakeClock, 1)
+			afterSpringForwardGap := time.Date(2026, 3, 8, 4, 0, 0, 0, location)
+			fakeClock.Advance(afterSpringForwardGap.Sub(baseTime))
+			dispatcher.assertDispatchCount(t, 0)
+
+			oneSecondBeforeNextRun := wantNext.Add(-1 * time.Second)
+			fakeClock.Advance(oneSecondBeforeNextRun.Sub(afterSpringForwardGap))
+			dispatcher.assertDispatchCount(t, 0)
+
+			fakeClock.Advance(time.Second)
+			dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+			dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
+
+			storedRuns := store.runsForJob(job.ID)
+			if got, want := len(storedRuns), 1; got != want {
+				t.Fatalf("runsForJob() length = %d, want %d", got, want)
+			}
+			if storedRuns[0].ScheduledAt == nil || !storedRuns[0].ScheduledAt.Equal(wantNext) {
+				t.Fatalf(
+					"stored run ScheduledAt = %v, want %s",
+					storedRuns[0].ScheduledAt,
+					wantNext.Format(time.RFC3339),
+				)
+			}
+			schedulerState, err := store.GetSchedulerState(context.Background(), job.ID)
+			if err != nil {
+				t.Fatalf("GetSchedulerState() error = %v", err)
+			}
+			wantFollowingRun := time.Date(2026, 3, 10, 2, 30, 0, 0, location)
+			if schedulerState.NextRunAt == nil || !schedulerState.NextRunAt.Equal(wantFollowingRun) {
+				t.Fatalf(
+					"NextRunAt after first fire = %v, want %s",
+					schedulerState.NextRunAt,
+					wantFollowingRun.Format(time.RFC3339),
+				)
+			}
+		},
+	)
 }
 
 func TestSchedulerEveryStateUsesIntervalSemantics(t *testing.T) {
@@ -836,6 +917,28 @@ func (s *memorySchedulerStore) deliveryErrorForRun(runID string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.deliveryErrors[strings.TrimSpace(runID)]
+}
+
+func (s *memorySchedulerStore) runsForJob(jobID string) []Run {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	runs := make([]Run, 0, len(s.runs))
+	for _, run := range s.runs {
+		if run.JobID != strings.TrimSpace(jobID) {
+			continue
+		}
+		runs = append(runs, *cloneRun(&run))
+	}
+	sort.Slice(runs, func(i, j int) bool {
+		if runs[i].ScheduledAt == nil {
+			return true
+		}
+		if runs[j].ScheduledAt == nil {
+			return false
+		}
+		return runs[i].ScheduledAt.Before(*runs[j].ScheduledAt)
+	})
+	return runs
 }
 
 func cloneSchedulerStateForTest(state SchedulerState) SchedulerState {

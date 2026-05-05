@@ -154,6 +154,27 @@ func ParseTimestamp(value string) (time.Time, error) {
 	return parsed.UTC(), nil
 }
 
+// FormatNullableTimestamp renders zero timestamps as empty strings for optional columns.
+func FormatNullableTimestamp(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return FormatTimestamp(value)
+}
+
+// ParseNullableTimestamp parses optional canonical timestamps.
+func ParseNullableTimestamp(value string) (*time.Time, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil, nil
+	}
+	parsed, err := ParseTimestamp(trimmed)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
 // NullableString maps blank strings to SQL NULL.
 func NullableString(value string) any {
 	if strings.TrimSpace(value) == "" {

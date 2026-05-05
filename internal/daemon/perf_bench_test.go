@@ -57,9 +57,10 @@ func BenchmarkAgentSkillSourceSyncerSyncNoop(b *testing.B) {
 	b.ReportAllocs()
 
 	ctx := context.Background()
-	agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := daemonBenchmarkAgentSkillStores(b)
+	rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := daemonBenchmarkAgentSkillStores(b)
 	desired := daemonBenchmarkAgentSkillDesiredResources(24)
 	syncer := newAgentSkillSourceSyncer(
+		rawStore,
 		agentStore,
 		agentCodec,
 		skillStore,
@@ -245,6 +246,7 @@ func daemonBenchmarkToolMCPDesiredResources(count int) toolMCPDesiredResources {
 func daemonBenchmarkAgentSkillStores(
 	b *testing.B,
 ) (
+	resources.RawStore,
 	resources.Store[aghconfig.AgentDef],
 	resources.KindCodec[aghconfig.AgentDef],
 	resources.Store[skillspkg.SkillResourceSpec],
@@ -279,7 +281,7 @@ func daemonBenchmarkAgentSkillStores(
 	if err != nil {
 		b.Fatalf("resources.NewStore(mcp) error = %v", err)
 	}
-	return agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec
+	return kernel, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec
 }
 
 func daemonBenchmarkToolMCPStores(

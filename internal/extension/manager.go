@@ -926,7 +926,7 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
 	}
-	bundles, err := m.loadBundleResources(ext)
+	bundles, err := m.loadBundleResources(ctx, ext)
 	if err != nil {
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
@@ -1518,11 +1518,11 @@ func (m *Manager) loadHookResources(ext *managedExtension) ([]hookspkg.HookDecl,
 	return decls, nil
 }
 
-func (m *Manager) loadBundleResources(ext *managedExtension) ([]BundleSpec, error) {
+func (m *Manager) loadBundleResources(ctx context.Context, ext *managedExtension) ([]BundleSpec, error) {
 	if ext == nil || ext.manifest == nil {
 		return nil, nil
 	}
-	return LoadBundleSpecs(ext.rootDir, ext.manifest)
+	return LoadBundleSpecs(ctx, ext.rootDir, ext.manifest)
 }
 
 func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hookspkg.HookDecl, error) {

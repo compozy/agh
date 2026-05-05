@@ -2,13 +2,17 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	aghupdate "github.com/pedronauck/agh/internal/update"
 )
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
@@ -42,6 +46,29 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	if sandboxSetRecord.Path != "defaults.sandbox" || sandboxSetRecord.Value != "local" {
 		t.Fatalf("config set sandbox record = %#v, want defaults.sandbox=local", sandboxSetRecord)
 	}
+	deadlineOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"session.supervision.prompt_deadline",
+		"8s",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config set session.supervision.prompt_deadline error = %v", err)
+	}
+	var deadlineSetRecord configSetRecord
+	if err := json.Unmarshal([]byte(deadlineOut), &deadlineSetRecord); err != nil {
+		t.Fatalf("json.Unmarshal(config set session.supervision.prompt_deadline) error = %v", err)
+	}
+	if deadlineSetRecord.Path != "session.supervision.prompt_deadline" || deadlineSetRecord.Value != "8s" {
+		t.Fatalf(
+			"config set prompt deadline record = %#v, want session.supervision.prompt_deadline=8s",
+			deadlineSetRecord,
+		)
+	}
 
 	cfg, err := aghconfig.LoadGlobalConfig(homePaths)
 	if err != nil {
@@ -52,6 +79,9 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	}
 	if cfg.Defaults.Sandbox != "local" {
 		t.Fatalf("Defaults.Sandbox = %q, want local", cfg.Defaults.Sandbox)
+	}
+	if got, want := cfg.Session.Supervision.PromptDeadline.String(), "8s"; got != want {
+		t.Fatalf("Session.Supervision.PromptDeadline = %q, want %q", got, want)
 	}
 
 	getOut, _, err := executeRootCommand(t, deps, "config", "get", "defaults.provider", "-o", "json")
@@ -89,6 +119,140 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	if pathRecord.GlobalConfig != homePaths.ConfigFile ||
 		pathRecord.GlobalMCPJSON != filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName) {
 		t.Fatalf("config path record = %#v, want resolved home paths", pathRecord)
+	}
+}
+
+func TestConfigSetReportsMutationLifecycle(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		path             string
+		value            string
+		wantBehavior     string
+		wantApplied      bool
+		wantRestart      bool
+		wantRestartScope string
+	}{
+		{
+			name:             "Should report daemon restart for persisted log config",
+			path:             "log.level",
+			value:            "debug",
+			wantBehavior:     "restart_required",
+			wantRestart:      true,
+			wantRestartScope: "daemon",
+		},
+		{
+			name:         "Should report applied now for disabled skills",
+			path:         "skills.disabled_skills",
+			value:        `["agent-browser"]`,
+			wantBehavior: "applied_now",
+			wantApplied:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t, &stubClient{})
+			out, _, err := executeRootCommand(t, deps, "config", "set", tt.path, tt.value, "-o", "json")
+			if err != nil {
+				t.Fatalf("config set %s error = %v", tt.path, err)
+			}
+			var record configSetRecord
+			if err := json.Unmarshal([]byte(out), &record); err != nil {
+				t.Fatalf("json.Unmarshal(config set %s) error = %v", tt.path, err)
+			}
+			if record.Behavior != tt.wantBehavior {
+				t.Fatalf("config set %s behavior = %q, want %q", tt.path, record.Behavior, tt.wantBehavior)
+			}
+			if record.Applied != tt.wantApplied {
+				t.Fatalf("config set %s applied = %v, want %v", tt.path, record.Applied, tt.wantApplied)
+			}
+			if record.RestartRequired != tt.wantRestart {
+				t.Fatalf(
+					"config set %s restart_required = %v, want %v",
+					tt.path,
+					record.RestartRequired,
+					tt.wantRestart,
+				)
+			}
+			if record.RestartScope != tt.wantRestartScope {
+				t.Fatalf("config set %s restart_scope = %q, want %q", tt.path, record.RestartScope, tt.wantRestartScope)
+			}
+		})
+	}
+}
+
+func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	var captured UpdateSettingsSkillsRequest
+	client := &stubClient{
+		updateSettingsSkillsFn: func(
+			_ context.Context,
+			request UpdateSettingsSkillsRequest,
+		) (SettingsMutationRecord, error) {
+			captured = request
+			return SettingsMutationRecord{
+				Section:  contract.SettingsSectionName("skills"),
+				Scope:    contract.SettingsAgentScopeGlobal,
+				Behavior: contract.SettingsMutationBehaviorAppliedNow,
+				Applied:  true,
+			}, nil
+		},
+	}
+
+	deps := newTestDeps(t, client)
+	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+		return aghdaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+
+	out, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"skills.disabled_skills",
+		`["agent-browser"]`,
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config set disabled skills error = %v", err)
+	}
+
+	if got, want := captured.Config.DisabledSkills, []string{
+		"agent-browser",
+	}; strings.Join(
+		got,
+		",",
+	) != strings.Join(
+		want,
+		",",
+	) {
+		t.Fatalf("daemon settings payload disabled_skills = %#v, want %#v", got, want)
+	}
+	if !captured.Config.Enabled {
+		t.Fatal("daemon settings payload unexpectedly disabled skills subsystem")
+	}
+
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+		t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
+	}
+
+	var record configSetRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(config set disabled skills) error = %v", err)
+	}
+	if record.Behavior != string(contract.SettingsMutationBehaviorAppliedNow) || !record.Applied {
+		t.Fatalf("config set disabled skills record = %#v, want applied_now/applied=true", record)
 	}
 }
 
@@ -174,6 +338,181 @@ func TestConfigValidateRepairEnvRepairsWorkspaceDotEnvWithoutLeakingValues(t *te
 			t.Fatalf("repaired .env missing %q:\n%s", want, string(after))
 		}
 	}
+}
+
+func TestConfigValidateUsesWorkspaceDotEnvForHomeResolution(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	dotEnvHome := filepath.Join(t.TempDir(), "dotenv-home")
+	processHome := filepath.Join(t.TempDir(), "process-home")
+	dotenvPath := filepath.Join(workspaceRoot, ".env")
+	if err := os.WriteFile(dotenvPath, []byte("AGH_HOME="+dotEnvHome+"\n"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(.env) error = %v", err)
+	}
+
+	deps := newTestDeps(t, &stubClient{})
+	deps.getwd = func() (string, error) {
+		return workspaceRoot, nil
+	}
+	deps.resolveHomeForWorkspace = aghconfig.ResolveHomePathsForWorkspace
+
+	restoreEnvAfterTest(t, "AGH_HOME")
+	if err := os.Unsetenv("AGH_HOME"); err != nil {
+		t.Fatalf("os.Unsetenv(AGH_HOME) error = %v", err)
+	}
+	stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
+	if err != nil {
+		t.Fatalf("config validate error = %v", err)
+	}
+	var cwdRecord configValidateRecord
+	if err := json.Unmarshal([]byte(stdout), &cwdRecord); err != nil {
+		t.Fatalf("json.Unmarshal(config validate cwd) error = %v", err)
+	}
+	if cwdRecord.ConfigFile != filepath.Join(dotEnvHome, aghconfig.ConfigName) {
+		t.Fatalf("ConfigFile = %q, want dotenv home", cwdRecord.ConfigFile)
+	}
+
+	stdout, _, err = executeRootCommand(t, deps, "config", "validate", "--workspace", workspaceRoot, "-o", "json")
+	if err != nil {
+		t.Fatalf("config validate --workspace error = %v", err)
+	}
+	var workspaceRecord configValidateRecord
+	if err := json.Unmarshal([]byte(stdout), &workspaceRecord); err != nil {
+		t.Fatalf("json.Unmarshal(config validate workspace) error = %v", err)
+	}
+	if workspaceRecord.ConfigFile != filepath.Join(dotEnvHome, aghconfig.ConfigName) {
+		t.Fatalf("workspace ConfigFile = %q, want dotenv home", workspaceRecord.ConfigFile)
+	}
+
+	if err := os.Setenv("AGH_HOME", processHome); err != nil {
+		t.Fatalf("os.Setenv(AGH_HOME) error = %v", err)
+	}
+	stdout, _, err = executeRootCommand(t, deps, "config", "validate", "--workspace", workspaceRoot, "-o", "json")
+	if err != nil {
+		t.Fatalf("config validate process AGH_HOME error = %v", err)
+	}
+	var processRecord configValidateRecord
+	if err := json.Unmarshal([]byte(stdout), &processRecord); err != nil {
+		t.Fatalf("json.Unmarshal(config validate process) error = %v", err)
+	}
+	if processRecord.ConfigFile != filepath.Join(processHome, aghconfig.ConfigName) {
+		t.Fatalf("process ConfigFile = %q, want process AGH_HOME", processRecord.ConfigFile)
+	}
+}
+
+func restoreEnvAfterTest(t *testing.T, key string) {
+	t.Helper()
+
+	value, existed := os.LookupEnv(key)
+	t.Cleanup(func() {
+		if existed {
+			if err := os.Setenv(key, value); err != nil {
+				t.Errorf("restore %s error = %v", key, err)
+			}
+			return
+		}
+		if err := os.Unsetenv(key); err != nil {
+			t.Errorf("unset %s error = %v", key, err)
+		}
+	})
+}
+
+func TestConfigValidateReportsInvalidConfigAsJSON(t *testing.T) {
+	t.Run("Should emit an invalid JSON record for TOML parse errors", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := os.MkdirAll(filepath.Dir(homePaths.ConfigFile), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(config dir) error = %v", err)
+		}
+		if err := os.WriteFile(homePaths.ConfigFile, []byte("[[mcp_servers\nname = \"oops\"\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(config) error = %v", err)
+		}
+
+		deps := newTestDeps(t, &stubClient{})
+		deps.resolveHome = func() (aghconfig.HomePaths, error) {
+			return homePaths, nil
+		}
+		deps.resolveHomeForWorkspace = func(string) (aghconfig.HomePaths, error) {
+			return homePaths, nil
+		}
+		stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
+		if err == nil {
+			t.Fatal("config validate error = nil, want invalid config failure")
+		}
+
+		var record configValidateRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config validate invalid) error = %v; stdout=%s", err, stdout)
+		}
+		if record.Status != "invalid" {
+			t.Fatalf("Status = %q, want invalid", record.Status)
+		}
+		if len(record.Errors) != 1 {
+			t.Fatalf("Errors = %#v, want one config parse error", record.Errors)
+		}
+		got := record.Errors[0]
+		if got.Code != "config.parse" {
+			t.Fatalf("Errors[0].Code = %q, want config.parse", got.Code)
+		}
+		if got.File != homePaths.ConfigFile {
+			t.Fatalf("Errors[0].File = %q, want %q", got.File, homePaths.ConfigFile)
+		}
+		if got.Line == 0 || strings.TrimSpace(got.Message) == "" {
+			t.Fatalf("Errors[0] = %#v, want line and message", got)
+		}
+	})
+
+	t.Run("Should include config path for validation errors", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := os.MkdirAll(filepath.Dir(homePaths.ConfigFile), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(config dir) error = %v", err)
+		}
+		config := []byte("[defaults]\nagent = \"\"\nprovider = \"codex\"\n")
+		if err := os.WriteFile(homePaths.ConfigFile, config, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(config) error = %v", err)
+		}
+
+		deps := newTestDeps(t, &stubClient{})
+		deps.resolveHome = func() (aghconfig.HomePaths, error) {
+			return homePaths, nil
+		}
+		deps.resolveHomeForWorkspace = func(string) (aghconfig.HomePaths, error) {
+			return homePaths, nil
+		}
+		stdout, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json")
+		if err == nil {
+			t.Fatal("config validate error = nil, want validation failure")
+		}
+
+		var record configValidateRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config validate validation) error = %v; stdout=%s", err, stdout)
+		}
+		if record.Status != "invalid" {
+			t.Fatalf("Status = %q, want invalid", record.Status)
+		}
+		if len(record.Errors) != 1 {
+			t.Fatalf("Errors = %#v, want one validation error", record.Errors)
+		}
+		got := record.Errors[0]
+		if got.Code != "config.validation" {
+			t.Fatalf("Errors[0].Code = %q, want config.validation", got.Code)
+		}
+		if got.Path != "defaults.agent" {
+			t.Fatalf("Errors[0].Path = %q, want defaults.agent", got.Path)
+		}
+		if got.Message != "defaults.agent is required" {
+			t.Fatalf("Errors[0].Message = %q, want defaults.agent is required", got.Message)
+		}
+	})
 }
 
 func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
@@ -589,7 +928,7 @@ func TestConfigSetRedactsSensitiveMutationOutputAndManagedModeBlocksMutation(t *
 
 	managedDeps := newTestDeps(t, &stubClient{})
 	managedDeps.getenv = func(key string) string {
-		if key == managedEnvName {
+		if key == aghupdate.ManagedEnvName {
 			return "homebrew"
 		}
 		return ""

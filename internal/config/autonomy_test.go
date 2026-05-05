@@ -122,6 +122,12 @@ model = "model"
 [providers.custom-pi]
 command = "npx -y pi-acp@latest"
 harness = "pi_acp"
+[[providers.custom-pi.credential_slots]]
+name = "api_key"
+target_env = "CUSTOM_API_KEY"
+secret_ref = "env:CUSTOM_API_KEY"
+kind = "api_key"
+required = true
 
 [autonomy.coordinator]
 provider = "custom-pi"
@@ -320,6 +326,7 @@ func TestLoadAutonomyOverlayPreservesOtherConfigSections(t *testing.T) {
 	writeFile(t, homePaths.ConfigFile, `
 	[providers.claude]
 	default_model = "global-model"
+	auth_mode = "bound_secret"
 	[[providers.claude.credential_slots]]
 	name = "api_key"
 	target_env = "GLOBAL_KEY"
@@ -376,6 +383,7 @@ max_active_per_workspace = 1
 	`)
 	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 	[providers.claude]
+	auth_mode = "bound_secret"
 	[[providers.claude.credential_slots]]
 	name = "api_key"
 	target_env = "WORKSPACE_KEY"

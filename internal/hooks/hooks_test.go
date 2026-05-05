@@ -838,6 +838,60 @@ func TestDispatchSandboxPrepareAppliesEnvOverridesAndDeny(t *testing.T) {
 	}
 }
 
+func TestDispatchToolPreCallReturnsDenyError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return a deny error when tool pre call explicitly blocks execution", func(t *testing.T) {
+		t.Parallel()
+
+		hooks := newTestHooks(
+			t,
+			WithNativeDeclarations([]HookDecl{{
+				Name:         "tool-pre",
+				Event:        HookToolPreCall,
+				Mode:         HookModeSync,
+				ExecutorKind: HookExecutorNative,
+				Matcher: HookMatcher{
+					ToolID: "agh__write",
+				},
+			}}),
+			WithExecutorResolver(testExecutorResolver(map[string]Executor{
+				"tool-pre": NewTypedNativeExecutor(
+					func(_ context.Context, _ RegisteredHook, payload ToolPreCallPayload) (ToolCallPatch, error) {
+						if payload.ToolID != "agh__write" {
+							t.Fatalf("payload.ToolID = %q, want agh__write", payload.ToolID)
+						}
+						return ToolCallPatch{
+							ControlPatch: ControlPatch{
+								Deny:       true,
+								DenyReason: "policy",
+							},
+						}, nil
+					},
+				),
+			})),
+		)
+
+		if err := hooks.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild() error = %v, want nil", err)
+		}
+
+		result, err := hooks.DispatchToolPreCall(t.Context(), ToolPreCallPayload{
+			PayloadBase: PayloadBase{Event: HookToolPreCall},
+			ToolCallRef: ToolCallRef{ToolID: "agh__write"},
+		})
+		if err == nil {
+			t.Fatal("DispatchToolPreCall() error = nil, want deny error")
+		}
+		if !strings.Contains(err.Error(), "denied: policy") {
+			t.Fatalf("DispatchToolPreCall() error = %q, want deny reason", err)
+		}
+		if result.ToolID != "agh__write" {
+			t.Fatalf("result.ToolID = %q, want original tool id", result.ToolID)
+		}
+	})
+}
+
 func TestDispatchSandboxSyncBeforeAppliesExcludePatternsAndDeny(t *testing.T) {
 	t.Parallel()
 
@@ -1021,6 +1075,77 @@ func TestDispatchEventPreRecordRunsAsyncHook(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("async event hook was not called")
+	}
+}
+
+func TestDispatchAsyncEventPanicDoesNotAffectSyncToolChain(t *testing.T) {
+	t.Parallel()
+
+	asyncStarted := make(chan struct{})
+	syncCalled := false
+	hooks := newTestHooks(
+		t,
+		WithNativeDeclarations([]HookDecl{
+			{
+				Name:         "panic-event",
+				Event:        HookEventPostRecord,
+				Mode:         HookModeAsync,
+				ExecutorKind: HookExecutorNative,
+			},
+			{
+				Name:         "sync-tool",
+				Event:        HookToolPreCall,
+				Mode:         HookModeSync,
+				Required:     true,
+				ExecutorKind: HookExecutorNative,
+				Matcher:      HookMatcher{ToolID: "agh__read"},
+			},
+		}),
+		WithExecutorResolver(testExecutorResolver(map[string]Executor{
+			"panic-event": NewTypedNativeExecutor(
+				func(_ context.Context, _ RegisteredHook, _ EventPostRecordPayload) (EventPostRecordPatch, error) {
+					close(asyncStarted)
+					panic("aut17 async boom")
+				},
+			),
+			"sync-tool": NewTypedNativeExecutor(
+				func(_ context.Context, _ RegisteredHook, _ ToolPreCallPayload) (ToolCallPatch, error) {
+					syncCalled = true
+					id := "agh__write"
+					return ToolCallPatch{ToolID: &id, ToolInput: []byte(`{"aut17":true}`)}, nil
+				},
+			),
+		})),
+	)
+
+	if err := hooks.Rebuild(t.Context()); err != nil {
+		t.Fatalf("Rebuild() error = %v, want nil", err)
+	}
+
+	if _, err := hooks.DispatchEventPostRecord(t.Context(), EventPostRecordPayload{
+		PayloadBase: PayloadBase{Event: HookEventPostRecord},
+		RecordType:  "agent_message",
+	}); err != nil {
+		t.Fatalf("DispatchEventPostRecord() error = %v, want nil", err)
+	}
+	select {
+	case <-asyncStarted:
+	case <-time.After(time.Second):
+		t.Fatal("async event hook did not start")
+	}
+
+	result, err := hooks.DispatchToolPreCall(t.Context(), ToolPreCallPayload{
+		PayloadBase: PayloadBase{Event: HookToolPreCall},
+		ToolCallRef: ToolCallRef{ToolID: "agh__read"},
+	})
+	if err != nil {
+		t.Fatalf("DispatchToolPreCall() error = %v, want nil", err)
+	}
+	if !syncCalled {
+		t.Fatal("sync tool hook was not called")
+	}
+	if result.ToolID != "agh__write" || string(result.ToolInput) != `{"aut17":true}` {
+		t.Fatalf("result = %#v, want sync tool patch after async panic", result)
 	}
 }
 

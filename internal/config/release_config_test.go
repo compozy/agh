@@ -46,6 +46,12 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		if !stringSliceContains(sliceAt(t, firstSign, "args"), "sign-blob") {
 			t.Fatalf("signs[0].args = %#v, want sign-blob", firstSign["args"])
 		}
+		if got, want := stringAt(t, firstSign, "signature"), "${artifact}.sigstore.json"; got != want {
+			t.Fatalf("signs[0].signature = %q, want %q", got, want)
+		}
+		if !stringSliceContains(sliceAt(t, firstSign, "args"), "--bundle=${signature}") {
+			t.Fatalf("signs[0].args = %#v, want --bundle=${signature}", firstSign["args"])
+		}
 	})
 
 	t.Run("Should preserve SBOM artifact coverage", func(t *testing.T) {

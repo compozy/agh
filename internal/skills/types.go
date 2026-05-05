@@ -44,6 +44,8 @@ const (
 	SourceAdditional
 	// SourceWorkspace is the highest-precedence source from `<workspace>/.agh/skills/`.
 	SourceWorkspace
+	// SourceAgentLocal is the final overlay from `<root>/.agh/agents/<name>/skills/`.
+	SourceAgentLocal
 )
 
 // MCPServerDecl declares an MCP server dependency in skill frontmatter.

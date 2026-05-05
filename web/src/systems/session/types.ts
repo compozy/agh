@@ -63,6 +63,7 @@ export interface RuntimeActivityPayload {
   turn_id?: string;
   turn_source?: string;
   turn_started_at?: string | null;
+  deadline_at?: string | null;
   last_activity_at?: string | null;
   last_activity_kind?: string;
   last_activity_detail?: string;
@@ -72,6 +73,7 @@ export interface RuntimeActivityPayload {
   iteration_current?: number;
   iteration_max?: number;
   idle_seconds?: number;
+  elapsed_ms: number;
   elapsed_seconds?: number;
 }
 

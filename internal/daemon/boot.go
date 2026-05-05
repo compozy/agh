@@ -16,6 +16,7 @@ import (
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	aghlogger "github.com/pedronauck/agh/internal/logger"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
@@ -32,6 +33,7 @@ import (
 	"github.com/pedronauck/agh/internal/situation"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/skills/bundled"
+	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/toolruntime"
@@ -82,6 +84,8 @@ type bootState struct {
 	resourceKernel      *resources.Kernel
 	resourceCodecs      *resources.CodecRegistry
 	agentCatalog        *resourceCatalog[aghconfig.AgentDef]
+	soulCatalog         *resourceCatalog[soul.ResourceSpec]
+	heartbeatCatalog    *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog         *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog    *resourceCatalog[aghconfig.MCPServer]
 	agentSkillResources agentSkillPublisher
@@ -192,6 +196,9 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootFinalize(ctx, state) },
 	}
 	for _, step := range steps {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("daemon: boot canceled: %w", err)
+		}
 		if err := step(); err != nil {
 			return err
 		}
@@ -246,6 +253,7 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 		logger, closeLogger, err = aghlogger.New(
 			aghlogger.WithLevel(cfg.Log.Level),
 			aghlogger.WithFile(d.homePaths.LogFile),
+			aghlogger.WithMirrorToStderr(aghlogger.MirrorToStderrEnabled(os.Getenv)),
 		)
 		if err != nil {
 			return fmt.Errorf("daemon: create logger: %w", err)
@@ -285,11 +293,7 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 	}
 
 	if state.cfg.Skills.Enabled {
-		skillsCfg, err := d.skillsRegistryConfig(&state.cfg)
-		if err != nil {
-			return err
-		}
-
+		skillsCfg := d.skillsRegistryConfig(&state.cfg)
 		state.skillsRegistry = skills.NewRegistry(skillsCfg, skills.WithLogger(state.logger))
 		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
@@ -301,6 +305,7 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		MemoryPromptSectionEnabled:    state.memoryStore != nil,
 		SkillsPromptSectionEnabled:    state.skillsRegistry != nil,
 		ToolsPromptSectionEnabled:     state.cfg.Tools.Enabled,
+		SkillsAugmenter:               state.skillsRegistry != nil,
 		SituationAugmenter:            state.situationContext != nil,
 		DurableMemoryAugmenter:        state.memoryStore != nil,
 		SyntheticTurnsEnabled:         true,
@@ -323,6 +328,9 @@ func (d *Daemon) bootPromptProviders(_ context.Context, state *bootState) error 
 		state.harnessRecorder,
 		defaultPromptInputAugmenterDescriptors(
 			memory.NewRecallAugmenter(state.memoryStore),
+			newSkillsCatalogAugmenter(state.skillsRegistry, func() promptSkillsWorkspaceResolver {
+				return state.workspaceResolver
+			}),
 			state.situationContext.Augment,
 		)...,
 	)
@@ -339,7 +347,10 @@ func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 			return state.workspaceResolver
 		},
 		AgentResolverFunc: func() situation.AgentResolver {
-			return agentCatalogDependency(state.agentCatalog)
+			return agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+				soul:      state.soulCatalog,
+				heartbeat: state.heartbeatCatalog,
+			})
 		},
 		SkillRegistryFunc: func() situation.SkillRegistry {
 			return skillRegistryDependency(state.skillsRegistry)
@@ -447,6 +458,9 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
 	state.registry = registry
+	if state.skillsRegistry != nil {
+		state.skillsRegistry.SetEventSummaryStore(registry)
+	}
 	state.workspaceResolver = workspaceResolver
 	if state.harnessRecorder != nil {
 		state.harnessRecorder.SetStore(registry)
@@ -518,6 +532,8 @@ func (d *Daemon) bootRuntimeServices(
 		)
 	}
 	state.agentCatalog = newResourceCatalog(cloneAgentDef)
+	state.soulCatalog = newResourceCatalog(cloneSoulResourceSpec)
+	state.heartbeatCatalog = newResourceCatalog(cloneHeartbeatResourceSpec)
 
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
 	if err != nil {
@@ -651,6 +667,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			Events:          state.notifier,
 			Agent:           state.notifier,
 			Conversation:    state.notifier,
+			Tools:           state.notifier,
 			Compaction:      state.notifier,
 			Spawn:           state.notifier,
 			AuthoredContext: state.notifier,
@@ -659,19 +676,22 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		StartupPromptOverlay: state.startupOverlay,
 		PromptInputAugmenter: state.promptAugmenter,
 		MemoryStore:          state.memoryStore,
-		AgentResolver:        agentCatalogDependency(state.agentCatalog),
-		SkillRegistry:        skillRegistryDependency(state.skillsRegistry),
-		MCPResolver:          mcpResolverDependency(state.mcpResolver),
-		WorkspaceResolver:    state.workspaceResolver,
-		SandboxRegistry:      state.sandboxRegistry,
-		SessionSupervision:   state.cfg.Session.Supervision,
-		SessionHealthConfig:  state.cfg.Agents.Heartbeat,
-		ProcessRegistry:      state.processRegistry,
-		HostedMCP:            hostedMCPLauncher(state.hostedMCP),
-		ProviderSecrets:      sessionProviderVaultDependency(state.providerVault),
-		SoulStore:            soulSnapshotStoreDependency(state.registry),
-		SoulRunChecker:       soulRunActivityCheckerDependency(state.registry),
-		SessionHealthStore:   sessionHealthStoreDependency(state.registry),
+		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+		SkillRegistry:       skillRegistryDependency(state.skillsRegistry),
+		MCPResolver:         mcpResolverDependency(state.mcpResolver),
+		WorkspaceResolver:   state.workspaceResolver,
+		SandboxRegistry:     state.sandboxRegistry,
+		SessionSupervision:  state.cfg.Session.Supervision,
+		SessionHealthConfig: state.cfg.Agents.Heartbeat,
+		ProcessRegistry:     state.processRegistry,
+		HostedMCP:           hostedMCPLauncher(state.hostedMCP),
+		ProviderSecrets:     sessionProviderVaultDependency(state.providerVault),
+		SoulStore:           soulSnapshotStoreDependency(state.registry),
+		SoulRunChecker:      soulRunActivityCheckerDependency(state.registry),
+		SessionHealthStore:  sessionHealthStoreDependency(state.registry),
 	}
 }
 
@@ -828,19 +848,25 @@ func (d *Daemon) runtimeDeps(ctx context.Context, state *bootState, sessions Ses
 		MemoryStore:       state.memoryStore,
 		WorkspaceResolver: state.workspaceResolver,
 		WorkspaceService:  state.workspaceResolver,
-		AgentCatalog:      agentCatalogDependency(state.agentCatalog),
-		AgentContext:      state.situationContext,
-		SoulAuthoring:     authoredContext.SoulAuthoring,
-		SoulRefresher:     authoredContext.SoulRefresher,
-		HeartbeatAuthor:   authoredContext.HeartbeatAuthoring,
-		HeartbeatStatus:   authoredContext.HeartbeatStatus,
-		HeartbeatWake:     authoredContext.HeartbeatWake,
-		SessionHealth:     authoredContext.SessionHealth,
-		WakeEvents:        authoredContext.WakeEvents,
+		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+		AgentContext:    state.situationContext,
+		SoulAuthoring:   authoredContext.SoulAuthoring,
+		SoulRefresher:   authoredContext.SoulRefresher,
+		HeartbeatAuthor: authoredContext.HeartbeatAuthoring,
+		HeartbeatStatus: authoredContext.HeartbeatStatus,
+		HeartbeatWake:   authoredContext.HeartbeatWake,
+		SessionHealth:   authoredContext.SessionHealth,
+		WakeEvents:      authoredContext.WakeEvents,
 		CoordinatorConfig: newCoordinatorConfigResolver(
 			&state.cfg,
 			state.workspaceResolver,
-			agentCatalogDependency(state.agentCatalog),
+			agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+				soul:      state.soulCatalog,
+				heartbeat: state.heartbeatCatalog,
+			}),
 		),
 		SkillsRegistry: skillsRegistryAPI(state.skillsRegistry),
 		ToolRegistry:   state.toolRegistry,
@@ -903,6 +929,12 @@ func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *br
 		return err
 	}
 	if err := registerDaemonResourceCodec(registry, "agent", aghconfig.NewAgentResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "agent soul", soul.NewResourceCodec); err != nil {
+		return err
+	}
+	if err := registerDaemonResourceCodec(registry, "agent heartbeat", heartbeat.NewResourceCodec); err != nil {
 		return err
 	}
 	if err := registerDaemonResourceCodec(registry, "skill", skills.NewResourceCodec); err != nil {
@@ -996,6 +1028,12 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 	if state.agentCatalog == nil {
 		state.agentCatalog = newResourceCatalog(cloneAgentDef)
 	}
+	if state.soulCatalog == nil {
+		state.soulCatalog = newResourceCatalog(cloneSoulResourceSpec)
+	}
+	if state.heartbeatCatalog == nil {
+		state.heartbeatCatalog = newResourceCatalog(cloneHeartbeatResourceSpec)
+	}
 	if state.toolCatalog == nil {
 		state.toolCatalog = newResourceCatalog(cloneToolSpec)
 	}
@@ -1011,6 +1049,8 @@ func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cl
 		CodecRegistry:    state.resourceCodecs,
 		Hooks:            state.hookDispatcher,
 		AgentCatalog:     state.agentCatalog,
+		SoulCatalog:      state.soulCatalog,
+		HeartbeatCatalog: state.heartbeatCatalog,
 		ToolCatalog:      state.toolCatalog,
 		MCPServerCatalog: state.mcpServerCatalog,
 		SkillsRegistry:   state.skillsRegistry,
@@ -1094,7 +1134,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	}); ok {
 		hookAwareObserver.AttachHooks(hooks)
 	}
-	state.notifier.setRuntime(hooks, state.observer)
+	state.notifier.setRuntime(hooks, state.observer, state.registry)
 	cleanup.add(func(context.Context) error {
 		hooks.Close()
 		return nil
@@ -1105,6 +1145,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 			ctx,
 			state.skillsRegistry,
 			state.cfg.Skills.PollInterval,
+			workspaceSkillWatcherRoots(d.homePaths, state.registry),
 			func(refreshCtx context.Context) error {
 				if state.agentSkillResources != nil {
 					if err := state.agentSkillResources.Sync(refreshCtx); err != nil {
@@ -1311,8 +1352,8 @@ func (d *Daemon) bootBundles(_ context.Context, state *bootState) error {
 	service := bundlepkg.NewService(
 		resourceStore,
 		extRegistry,
-		func(name string) (*extensionpkg.Extension, error) {
-			return loadExtensionSnapshot(extRegistry, state.currentExtensionRuntime(), state.logger, name)
+		func(ctx context.Context, name string) (*extensionpkg.Extension, error) {
+			return loadExtensionSnapshot(ctx, extRegistry, state.currentExtensionRuntime(), state.logger, name)
 		},
 		bundlepkg.WithWorkspaceResolver(state.workspaceResolver),
 		bundlepkg.WithConfiguredDefaultChannel(state.cfg.Network.DefaultChannel),
@@ -1611,7 +1652,7 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 	return nil
 }
 
-func (d *Daemon) bootSettings(_ context.Context, state *bootState) error {
+func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	if state == nil {
 		return errors.New("daemon: boot settings state is required")
 	}
@@ -1629,6 +1670,7 @@ func (d *Daemon) bootSettings(_ context.Context, state *bootState) error {
 		TransportParity:            surface,
 		MCPAuth:                    surface,
 		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
+		EventSummaries:             state.registry,
 		RestartActionAvailable:     true,
 		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
 		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",
@@ -1637,8 +1679,15 @@ func (d *Daemon) bootSettings(_ context.Context, state *bootState) error {
 		return fmt.Errorf("daemon: create settings service: %w", err)
 	}
 
+	updateManager, err := newSettingsUpdateManager(d)
+	if err != nil {
+		return fmt.Errorf("daemon: create settings update manager: %w", err)
+	}
+	updateManager.PrimeInstallDetection(ctx)
+
 	state.deps.Settings = service
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}
+	state.deps.SettingsUpdate = settingsUpdateController{manager: updateManager}
 	return nil
 }
 
@@ -1725,6 +1774,8 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.observer = state.observer
 	d.resourceReconcile = state.resourceReconcile
 	d.agentCatalog = state.agentCatalog
+	d.soulCatalog = state.soulCatalog
+	d.heartbeatCatalog = state.heartbeatCatalog
 	d.toolCatalog = state.toolCatalog
 	d.mcpServerCatalog = state.mcpServerCatalog
 	d.automation = state.automation
@@ -1744,31 +1795,27 @@ func (d *Daemon) publishBootState(state *bootState) {
 	}
 }
 
-func (d *Daemon) skillsRegistryConfig(cfg *aghconfig.Config) (skills.RegistryConfig, error) {
-	userAgentsDir, err := aghconfig.ResolveUserAgentsSkillsDir(d.getenv)
-	if err != nil {
-		return skills.RegistryConfig{}, err
-	}
+func (d *Daemon) skillsRegistryConfig(cfg *aghconfig.Config) skills.RegistryConfig {
 	if cfg == nil {
 		return skills.RegistryConfig{
 			BundledFS:     bundled.FS(),
 			UserSkillsDir: d.homePaths.SkillsDir,
-			UserAgentsDir: userAgentsDir,
-		}, nil
+		}
 	}
 
 	return skills.RegistryConfig{
 		BundledFS:      bundled.FS(),
 		UserSkillsDir:  d.homePaths.SkillsDir,
-		UserAgentsDir:  userAgentsDir,
+		UserAgentsDir:  d.homePaths.AgentsDir,
 		DisabledSkills: append([]string(nil), cfg.Skills.DisabledSkills...),
-	}, nil
+	}
 }
 
 func startSkillsWatcher(
 	ctx context.Context,
 	registry *skills.Registry,
 	interval time.Duration,
+	rootsProvider func(context.Context) ([]string, error),
 	afterRefresh func(context.Context) error,
 ) (context.CancelFunc, chan struct{}) {
 	if registry == nil {
@@ -1778,12 +1825,45 @@ func startSkillsWatcher(
 	watcherCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	watcher := skills.NewWatcher(registry, interval)
+	watcher.SetRootsProvider(rootsProvider)
 	watcher.SetAfterRefresh(afterRefresh)
 	go func() {
 		defer close(done)
 		watcher.Start(watcherCtx)
 	}()
 	return cancel, done
+}
+
+func workspaceSkillWatcherRoots(
+	homePaths aghconfig.HomePaths,
+	registry Registry,
+) func(context.Context) ([]string, error) {
+	if registry == nil {
+		return nil
+	}
+
+	return func(ctx context.Context) ([]string, error) {
+		workspaces, err := registry.ListWorkspaces(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: list workspaces for skill watcher: %w", err)
+		}
+
+		roots := make([]string, 0, len(workspaces)*2)
+		for _, workspace := range workspaces {
+			for _, root := range aghconfig.WorkspaceDiscoveryRoots(
+				workspace.RootDir,
+				workspace.AdditionalDirs,
+				homePaths,
+			) {
+				if root.Source == aghconfig.WorkspaceDiscoverySourceGlobal {
+					continue
+				}
+				roots = append(roots, root.SkillsDir(), root.AgentsDir())
+			}
+		}
+
+		return roots, nil
+	}
 }
 
 func stopSkillsWatcher(cancel context.CancelFunc, done <-chan struct{}) {

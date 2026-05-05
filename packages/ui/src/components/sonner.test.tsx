@@ -29,4 +29,15 @@ describe("Toaster", () => {
       expect(document.body.textContent).toContain("Something broke.");
     });
   });
+
+  it("Should expose a dismiss affordance on error toasts by default", async () => {
+    render(<Toaster position="top-right" duration={500} />);
+    act(() => {
+      toast.error("Something needs attention.");
+    });
+    await waitFor(() => {
+      const toastNode = document.querySelector("[data-sonner-toast]");
+      expect(toastNode?.querySelector("button")).not.toBeNull();
+    });
+  });
 });

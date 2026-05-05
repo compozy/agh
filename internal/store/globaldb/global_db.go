@@ -76,16 +76,37 @@ var globalSchemaStatements = append([]string{
 		updated_at     TEXT NOT NULL
 	);`,
 	`CREATE TABLE IF NOT EXISTS event_summaries (
-		id         TEXT PRIMARY KEY,
-		session_id TEXT NOT NULL REFERENCES sessions(id),
-		type       TEXT NOT NULL,
-		agent_name TEXT NOT NULL,
-		summary    TEXT,
-		timestamp  TEXT NOT NULL
+		id                     TEXT PRIMARY KEY,
+		session_id             TEXT NOT NULL DEFAULT '',
+		type                   TEXT NOT NULL,
+		agent_name             TEXT NOT NULL DEFAULT '',
+		content_json           TEXT NOT NULL DEFAULT '',
+		task_id                TEXT NOT NULL DEFAULT '',
+		run_id                 TEXT NOT NULL DEFAULT '',
+		workflow_id            TEXT NOT NULL DEFAULT '',
+		claim_token_hash       TEXT NOT NULL DEFAULT '',
+		lease_until            TEXT NOT NULL DEFAULT '',
+		coordinator_session_id TEXT NOT NULL DEFAULT '',
+		scheduler_reason       TEXT NOT NULL DEFAULT '',
+		hook_event             TEXT NOT NULL DEFAULT '',
+		hook_name              TEXT NOT NULL DEFAULT '',
+		actor_kind             TEXT NOT NULL DEFAULT '',
+		actor_id               TEXT NOT NULL DEFAULT '',
+		release_reason         TEXT NOT NULL DEFAULT '',
+		parent_session_id      TEXT NOT NULL DEFAULT '',
+		root_session_id        TEXT NOT NULL DEFAULT '',
+		spawn_depth            INTEGER NOT NULL DEFAULT 0,
+		summary                TEXT,
+		timestamp              TEXT NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_summaries_session ON event_summaries(session_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_summaries_type ON event_summaries(type);`,
 	`CREATE INDEX IF NOT EXISTS idx_summaries_timestamp ON event_summaries(timestamp);`,
+	`CREATE INDEX IF NOT EXISTS idx_summaries_task ON event_summaries(task_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_summaries_run ON event_summaries(run_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_summaries_workflow ON event_summaries(workflow_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_summaries_hook_event ON event_summaries(hook_event);`,
+	`CREATE INDEX IF NOT EXISTS idx_summaries_actor ON event_summaries(actor_kind, actor_id);`,
 	`CREATE TABLE IF NOT EXISTS memory_operation_log (
 		id         TEXT PRIMARY KEY,
 		type       TEXT NOT NULL,
@@ -391,7 +412,7 @@ var globalSchemaStatements = append([]string{
 				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
 			)
 		),
-		actor_ref   TEXT NOT NULL,
+		actor_id    TEXT NOT NULL,
 		origin_kind TEXT NOT NULL CHECK (
 			origin_kind IN (
 				'cli', 'web', 'uds', 'http', 'automation', 'extension', 'network', 'agent_session', 'daemon'
@@ -426,16 +447,16 @@ var globalSchemaStatements = append([]string{
 				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
 			)
 		),
-		actor_ref             TEXT NOT NULL,
+		actor_id              TEXT NOT NULL,
 		is_read               BOOLEAN NOT NULL DEFAULT 0,
 		archived              BOOLEAN NOT NULL DEFAULT 0,
 		dismissed             BOOLEAN NOT NULL DEFAULT 0,
 		last_seen_activity_at TEXT,
 		updated_at            TEXT NOT NULL,
-		PRIMARY KEY (task_id, actor_kind, actor_ref)
+		PRIMARY KEY (task_id, actor_kind, actor_id)
 	);`,
 	`CREATE INDEX IF NOT EXISTS idx_task_triage_task ON task_triage_state(task_id, updated_at DESC);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_triage_actor ON task_triage_state(actor_kind, actor_ref, updated_at DESC, task_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_task_triage_actor ON task_triage_state(actor_kind, actor_id, updated_at DESC, task_id);`,
 	`CREATE TABLE IF NOT EXISTS bridge_instances (
 		id                TEXT PRIMARY KEY,
 		scope             TEXT NOT NULL,
@@ -597,6 +618,82 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateAgentHeartbeatStorage,
 		Checksum: "2026-05-02-add-agent-heartbeat-storage",
 	},
+	{
+		Version:  14,
+		Name:     "add_event_summary_lineage",
+		Up:       migrateEventSummaryLineageColumns,
+		Checksum: "2026-05-04-add-event-summary-lineage",
+	},
+	{
+		Version:  15,
+		Name:     "rebuild_event_summaries_for_global_payloads",
+		Up:       migrateEventSummaryGlobalPayloads,
+		Checksum: "2026-05-04-rebuild-event-summaries-for-global-payloads",
+	},
+	{
+		Version:  16,
+		Name:     "rename_actor_ref_columns_to_actor_id",
+		Up:       migrateActorIDColumns,
+		Checksum: "2026-05-04-rename-actor-ref-columns-to-actor-id",
+	},
+}
+
+func migrateActorIDColumns(ctx context.Context, tx *sql.Tx) error {
+	specs := []struct {
+		table string
+		from  string
+		to    string
+		sql   string
+	}{
+		{
+			table: "task_events",
+			from:  "actor_ref",
+			to:    "actor_id",
+			sql:   `ALTER TABLE task_events RENAME COLUMN actor_ref TO actor_id`,
+		},
+		{
+			table: "task_triage_state",
+			from:  "actor_ref",
+			to:    "actor_id",
+			sql:   `ALTER TABLE task_triage_state RENAME COLUMN actor_ref TO actor_id`,
+		},
+		{
+			table: "agent_soul_revisions",
+			from:  "actor_ref",
+			to:    "actor_id",
+			sql:   `ALTER TABLE agent_soul_revisions RENAME COLUMN actor_ref TO actor_id`,
+		},
+		{
+			table: "agent_heartbeat_revisions",
+			from:  "actor_ref",
+			to:    "actor_id",
+			sql:   `ALTER TABLE agent_heartbeat_revisions RENAME COLUMN actor_ref TO actor_id`,
+		},
+	}
+	for _, spec := range specs {
+		exists, err := tableExists(ctx, tx, spec.table)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			continue
+		}
+
+		columns, err := tableColumns(ctx, tx, spec.table)
+		if err != nil {
+			return err
+		}
+		if _, ok := columns[spec.to]; ok {
+			continue
+		}
+		if _, ok := columns[spec.from]; !ok {
+			return fmt.Errorf("store: %s schema is stale; recreate the AGH database", spec.table)
+		}
+		if _, err := tx.ExecContext(ctx, spec.sql); err != nil {
+			return fmt.Errorf("store: rename %s.%s to %s: %w", spec.table, spec.from, spec.to, err)
+		}
+	}
+	return nil
 }
 
 func migrateUnifiedSecretRefs(ctx context.Context, tx *sql.Tx) error {
@@ -618,7 +715,19 @@ func migrateUnifiedSecretRefs(ctx context.Context, tx *sql.Tx) error {
 		return err
 	}
 	if _, hasSecretRef := bridgeColumns["secret_ref"]; !hasSecretRef {
-		return errors.New("store: bridge_secret_bindings schema is stale; recreate the AGH database")
+		if _, hasLegacyVaultRef := bridgeColumns["vault_ref"]; hasLegacyVaultRef {
+			if _, err := tx.ExecContext(
+				ctx,
+				`ALTER TABLE bridge_secret_bindings RENAME COLUMN vault_ref TO secret_ref`,
+			); err != nil {
+				return fmt.Errorf(
+					"store: rename bridge_secret_bindings.vault_ref to secret_ref: %w",
+					err,
+				)
+			}
+		} else {
+			return errors.New("store: bridge_secret_bindings schema is stale; recreate the AGH database")
+		}
 	}
 
 	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS automation_trigger_webhook_secrets`); err != nil {
@@ -715,6 +824,220 @@ func migrateSessionLineageColumns(ctx context.Context, tx *sql.Tx) error {
 		return fmt.Errorf("store: backfill root session lineage: %w", err)
 	}
 	return nil
+}
+
+func migrateEventSummaryLineageColumns(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "event_summaries")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, tx, "event_summaries")
+	if err != nil {
+		return err
+	}
+	specs := []struct {
+		name string
+		sql  string
+	}{
+		{
+			name: "parent_session_id",
+			sql:  `ALTER TABLE event_summaries ADD COLUMN parent_session_id TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: "root_session_id",
+			sql:  `ALTER TABLE event_summaries ADD COLUMN root_session_id TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: "spawn_depth",
+			sql:  `ALTER TABLE event_summaries ADD COLUMN spawn_depth INTEGER NOT NULL DEFAULT 0`,
+		},
+	}
+	for _, spec := range specs {
+		if _, ok := columns[spec.name]; ok {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, spec.sql); err != nil {
+			return fmt.Errorf("store: add event_summaries.%s column: %w", spec.name, err)
+		}
+	}
+
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_summaries_parent ON event_summaries(parent_session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_root ON event_summaries(root_session_id);`,
+	}
+	for _, stmt := range indexes {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: migrate event summary lineage indexes: %w", err)
+		}
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		`UPDATE event_summaries
+		 SET parent_session_id = COALESCE(
+		 	(SELECT parent_session_id FROM sessions WHERE sessions.id = event_summaries.session_id),
+		 	''
+		 ),
+		     root_session_id = COALESCE(
+		     	NULLIF((SELECT root_session_id FROM sessions WHERE sessions.id = event_summaries.session_id), ''),
+		     	session_id
+		     ),
+		     spawn_depth = COALESCE(
+		     	(SELECT spawn_depth FROM sessions WHERE sessions.id = event_summaries.session_id),
+		     	0
+		     )
+		 WHERE trim(session_id) <> ''`,
+	); err != nil {
+		return fmt.Errorf("store: backfill event summary lineage: %w", err)
+	}
+	return nil
+}
+
+func migrateEventSummaryGlobalPayloads(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "event_summaries")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	columns, err := tableColumns(ctx, tx, "event_summaries")
+	if err != nil {
+		return err
+	}
+
+	if err := createRebuiltEventSummariesTable(ctx, tx); err != nil {
+		return err
+	}
+	if err := copyRebuiltEventSummaries(ctx, tx, columns); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `DROP TABLE event_summaries`); err != nil {
+		return fmt.Errorf("store: drop legacy event_summaries: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `ALTER TABLE event_summaries_new RENAME TO event_summaries`); err != nil {
+		return fmt.Errorf("store: rename rebuilt event_summaries: %w", err)
+	}
+
+	return rebuildEventSummaryIndexes(ctx, tx)
+}
+
+func createRebuiltEventSummariesTable(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS event_summaries_new`); err != nil {
+		return fmt.Errorf("store: drop stale event_summaries_new: %w", err)
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`CREATE TABLE event_summaries_new (
+			id                     TEXT PRIMARY KEY,
+			session_id             TEXT NOT NULL DEFAULT '',
+			type                   TEXT NOT NULL,
+			agent_name             TEXT NOT NULL DEFAULT '',
+			content_json           TEXT NOT NULL DEFAULT '',
+			task_id                TEXT NOT NULL DEFAULT '',
+			run_id                 TEXT NOT NULL DEFAULT '',
+			workflow_id            TEXT NOT NULL DEFAULT '',
+			claim_token_hash       TEXT NOT NULL DEFAULT '',
+			lease_until            TEXT NOT NULL DEFAULT '',
+			coordinator_session_id TEXT NOT NULL DEFAULT '',
+			scheduler_reason       TEXT NOT NULL DEFAULT '',
+			hook_event             TEXT NOT NULL DEFAULT '',
+			hook_name              TEXT NOT NULL DEFAULT '',
+			actor_kind             TEXT NOT NULL DEFAULT '',
+			actor_id               TEXT NOT NULL DEFAULT '',
+			release_reason         TEXT NOT NULL DEFAULT '',
+			parent_session_id      TEXT NOT NULL DEFAULT '',
+			root_session_id        TEXT NOT NULL DEFAULT '',
+			spawn_depth            INTEGER NOT NULL DEFAULT 0,
+			summary                TEXT,
+			timestamp              TEXT NOT NULL
+		);`,
+	); err != nil {
+		return fmt.Errorf("store: create rebuilt event_summaries table: %w", err)
+	}
+	return nil
+}
+
+func copyRebuiltEventSummaries(
+	ctx context.Context,
+	tx *sql.Tx,
+	columns map[string]struct{},
+) error {
+	selectList := []string{
+		eventSummaryColumnExpr(columns, "id", `''`),
+		eventSummaryColumnExpr(columns, "session_id", `''`),
+		eventSummaryColumnExpr(columns, "type", `''`),
+		eventSummaryColumnExpr(columns, "agent_name", `''`),
+		eventSummaryColumnExpr(columns, "content_json", `''`),
+		eventSummaryColumnExpr(columns, "task_id", `''`),
+		eventSummaryColumnExpr(columns, "run_id", `''`),
+		eventSummaryColumnExpr(columns, "workflow_id", `''`),
+		eventSummaryColumnExpr(columns, "claim_token_hash", `''`),
+		eventSummaryColumnExpr(columns, "lease_until", `''`),
+		eventSummaryColumnExpr(columns, "coordinator_session_id", `''`),
+		eventSummaryColumnExpr(columns, "scheduler_reason", `''`),
+		eventSummaryColumnExpr(columns, "hook_event", `''`),
+		eventSummaryColumnExpr(columns, "hook_name", `''`),
+		eventSummaryColumnExpr(columns, "actor_kind", `''`),
+		eventSummaryColumnExpr(columns, "actor_id", `''`),
+		eventSummaryColumnExpr(columns, "release_reason", `''`),
+		eventSummaryColumnExpr(columns, "parent_session_id", `''`),
+		eventSummaryColumnExpr(columns, "root_session_id", `''`),
+		eventSummaryColumnExpr(columns, "spawn_depth", `0`),
+		eventSummaryColumnExpr(columns, "summary", `NULL`),
+		eventSummaryColumnExpr(columns, "timestamp", `''`),
+	}
+	if _, err := tx.ExecContext(ctx, buildEventSummaryCopyQuery(selectList)); err != nil {
+		return fmt.Errorf("store: copy rebuilt event summaries: %w", err)
+	}
+	return nil
+}
+
+func buildEventSummaryCopyQuery(selectList []string) string {
+	var builder strings.Builder
+	builder.WriteString(`INSERT INTO event_summaries_new (
+		id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id,
+		claim_token_hash, lease_until, coordinator_session_id, scheduler_reason, hook_event,
+		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
+		spawn_depth, summary, timestamp
+	) SELECT `)
+	builder.WriteString(strings.Join(selectList, ", "))
+	builder.WriteString(` FROM event_summaries`)
+	return builder.String()
+}
+
+func rebuildEventSummaryIndexes(ctx context.Context, tx *sql.Tx) error {
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_summaries_session ON event_summaries(session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_type ON event_summaries(type);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_timestamp ON event_summaries(timestamp);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_task ON event_summaries(task_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_run ON event_summaries(run_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_workflow ON event_summaries(workflow_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_hook_event ON event_summaries(hook_event);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_actor ON event_summaries(actor_kind, actor_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_parent ON event_summaries(parent_session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_root ON event_summaries(root_session_id);`,
+	}
+	for _, stmt := range indexes {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: rebuild event_summaries indexes: %w", err)
+		}
+	}
+	return nil
+}
+
+func eventSummaryColumnExpr(columns map[string]struct{}, name string, fallback string) string {
+	if _, ok := columns[name]; ok {
+		return name
+	}
+	return fallback + ` AS ` + name
 }
 
 func migrateMemoryOperationScopeColumns(ctx context.Context, tx *sql.Tx) error {

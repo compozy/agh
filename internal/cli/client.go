@@ -11,6 +11,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -22,6 +24,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/sse"
 )
 
@@ -34,6 +37,10 @@ const (
 // DaemonClient is the CLI transport surface for talking to the AGH daemon over UDS.
 type DaemonClient interface {
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
+	TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error)
+	GetSettingsRestartStatus(ctx context.Context, operationID string) (SettingsRestartStatusRecord, error)
+	GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error)
+	UpdateSettingsSkills(ctx context.Context, request UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
 	ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error)
 	GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error)
 	PutVaultSecret(ctx context.Context, request PutVaultSecretRequest) (VaultRecord, error)
@@ -48,6 +55,18 @@ type DaemonClient interface {
 	EnableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	DisableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error)
+	ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error)
+	PreviewBundleActivation(ctx context.Context, request ActivateBundleRequest) (BundleActivationRecord, error)
+	ActivateBundle(ctx context.Context, request ActivateBundleRequest) (BundleActivationRecord, error)
+	ListBundleActivations(ctx context.Context) ([]BundleActivationRecord, error)
+	GetBundleActivation(ctx context.Context, id string) (BundleActivationRecord, error)
+	UpdateBundleActivation(
+		ctx context.Context,
+		id string,
+		request UpdateBundleActivationRequest,
+	) (BundleActivationRecord, error)
+	DeactivateBundle(ctx context.Context, id string) error
+	BundleNetworkSettings(ctx context.Context) (BundleNetworkSettingsRecord, error)
 	ListBridges(ctx context.Context) ([]BridgeRecord, error)
 	CreateBridge(ctx context.Context, request CreateBridgeRequest) (BridgeRecord, error)
 	GetBridge(ctx context.Context, id string) (BridgeRecord, error)
@@ -56,6 +75,14 @@ type DaemonClient interface {
 	DisableBridge(ctx context.Context, id string) (BridgeRecord, error)
 	RestartBridge(ctx context.Context, id string) (BridgeRecord, error)
 	BridgeRoutes(ctx context.Context, id string) ([]BridgeRouteRecord, error)
+	ListBridgeSecretBindings(ctx context.Context, id string) ([]BridgeSecretBindingRecord, error)
+	PutBridgeSecretBinding(
+		ctx context.Context,
+		id string,
+		bindingName string,
+		request BridgeSecretBindingRequest,
+	) (BridgeSecretBindingRecord, error)
+	DeleteBridgeSecretBinding(ctx context.Context, id string, bindingName string) error
 	TestBridgeDelivery(
 		ctx context.Context,
 		id string,
@@ -71,7 +98,9 @@ type DaemonClient interface {
 	StopSession(ctx context.Context, id string) error
 	ResumeSession(ctx context.Context, id string) (SessionRecord, error)
 	RepairSession(ctx context.Context, id string, query SessionRepairQuery) (SessionRepairRecord, error)
+	ApproveSession(ctx context.Context, id string, request SessionApprovalRequest) (SessionApprovalRecord, error)
 	PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error)
+	StreamPromptSession(ctx context.Context, id string, message string, handler SSEHandler) error
 	SessionEvents(ctx context.Context, id string, query SessionEventQuery) ([]SessionEventRecord, error)
 	StreamSessionEvents(
 		ctx context.Context,
@@ -142,12 +171,19 @@ type DaemonClient interface {
 		name string,
 		request AgentHeartbeatWakeRequest,
 	) (AgentHeartbeatWakeDecisionRecord, error)
+	ListResources(ctx context.Context, query ResourceListQuery) ([]ResourceRecord, error)
+	GetResource(ctx context.Context, kind string, id string) (ResourceRecord, error)
+	PutResource(ctx context.Context, kind string, id string, request ResourcePutRequest) (ResourceRecord, error)
+	DeleteResource(ctx context.Context, kind string, id string, request ResourceDeleteRequest) error
 	ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error)
 	GetSkill(ctx context.Context, name string, query SkillQuery) (SkillRecord, error)
 	GetSkillContent(ctx context.Context, name string, query SkillQuery) (string, error)
+	EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
+	DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
 	ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error)
 	SearchTools(ctx context.Context, request ToolSearchRequest) (ToolsResponseRecord, error)
 	GetTool(ctx context.Context, id string, query ToolQuery) (ToolResponseRecord, error)
+	CreateToolApproval(ctx context.Context, id string, request ToolApprovalRequest) (ToolApprovalRecord, error)
 	InvokeTool(ctx context.Context, id string, request ToolInvokeRequest) (ToolInvokeResponseRecord, error)
 	ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error)
 	GetToolset(ctx context.Context, id string, query ToolQuery) (ToolsetResponseRecord, error)
@@ -194,9 +230,11 @@ type DaemonClient interface {
 	CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error)
 	GetTask(ctx context.Context, id string) (TaskDetailRecord, error)
 	UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error)
+	DeleteTask(ctx context.Context, id string) error
 	PublishTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
 	StartTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
 	ApproveTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
+	RejectTask(ctx context.Context, id string) (TaskRecord, error)
 	CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error)
 	CreateChildTask(ctx context.Context, id string, request CreateTaskChildRequest) (TaskRecord, error)
 	AddTaskDependency(ctx context.Context, id string, request AddTaskDependencyRequest) (TaskDetailRecord, error)
@@ -311,6 +349,12 @@ type SessionRepairQuery struct {
 	Force  bool
 }
 
+// SessionApprovalRequest captures an interactive permission decision.
+type SessionApprovalRequest = contract.ApproveSessionRequest
+
+// SessionApprovalRecord is the shared session approval response payload.
+type SessionApprovalRecord = contract.SessionApprovalResponse
+
 // SessionEventRecord is one persisted session event row returned by the daemon API.
 type SessionEventRecord = contract.SessionEventPayload
 
@@ -410,7 +454,11 @@ type SkillRecord = contract.SkillPayload
 // SkillQuery captures daemon skill filters.
 type SkillQuery struct {
 	Workspace string
+	ForAgent  string
 }
+
+// SkillActionRecord is the shared skill enable/disable response payload.
+type SkillActionRecord = contract.SkillActionResponse
 
 // WorkspaceCreateRequest captures the shared workspace registration payload.
 type WorkspaceCreateRequest = contract.CreateWorkspaceRequest
@@ -671,6 +719,21 @@ type HealthStatus = contract.ObserveHealthPayload
 // DaemonStatus is the shared daemon status payload.
 type DaemonStatus = contract.DaemonStatusPayload
 
+// SettingsRestartActionRecord is the shared restart action response payload.
+type SettingsRestartActionRecord = contract.RestartActionResponse
+
+// SettingsRestartStatusRecord is the shared restart polling payload.
+type SettingsRestartStatusRecord = contract.RestartActionStatus
+
+// SettingsUpdateRecord is the shared settings update status payload.
+type SettingsUpdateRecord = contract.SettingsUpdateResponse
+
+// SettingsMutationRecord is the shared settings mutation response payload.
+type SettingsMutationRecord = contract.SettingsSkillsMutationResult
+
+// UpdateSettingsSkillsRequest captures the shared skills settings update payload.
+type UpdateSettingsSkillsRequest = contract.UpdateSettingsSkillsRequest
+
 // VaultRecord is one redacted vault secret metadata row.
 type VaultRecord = contract.VaultSecretPayload
 
@@ -718,6 +781,45 @@ type InstallExtensionRequest = contract.InstallExtensionRequest
 // ExtensionRecord is the shared extension response payload.
 type ExtensionRecord = contract.ExtensionPayload
 
+// BundleCatalogRecord is one extension bundle catalog entry.
+type BundleCatalogRecord = contract.BundleCatalogPayload
+
+// BundleActivationRecord is one concrete or previewed bundle activation payload.
+type BundleActivationRecord = contract.BundleActivationPayload
+
+// BundleNetworkSettingsRecord captures bundle-derived network defaults.
+type BundleNetworkSettingsRecord = contract.BundleNetworkSettingsPayload
+
+// BundleChannelRecord is one channel declared by a bundle profile.
+type BundleChannelRecord = contract.BundleChannelPayload
+
+// BundleProfileCatalogRecord is one bundle profile catalog summary.
+type BundleProfileCatalogRecord = contract.BundleProfileCatalogPayload
+
+// BundleAgentRecord is one agent declared by a bundle profile.
+type BundleAgentRecord = contract.BundleAgentPayload
+
+// BundleJobRecord is one automation job declared by a bundle profile.
+type BundleJobRecord = contract.BundleJobPayload
+
+// BundleTriggerRecord is one automation trigger declared by a bundle profile.
+type BundleTriggerRecord = contract.BundleTriggerPayload
+
+// BundleBridgeRecord is one bridge preset declared by a bundle profile.
+type BundleBridgeRecord = contract.BundleBridgePayload
+
+// BundleInventoryRecord is one resource owned by a bundle activation.
+type BundleInventoryRecord = contract.BundleInventoryPayload
+
+// DeclaredNetworkChannelRecord is one bundle-declared network channel.
+type DeclaredNetworkChannelRecord = contract.DeclaredNetworkChannelPayload
+
+// ActivateBundleRequest captures bundle preview and activation inputs.
+type ActivateBundleRequest = contract.ActivateBundleRequest
+
+// UpdateBundleActivationRequest captures mutable bundle activation overlays.
+type UpdateBundleActivationRequest = contract.UpdateBundleActivationRequest
+
 // CreateBridgeRequest captures the shared bridge-instance creation payload.
 type CreateBridgeRequest = contract.CreateBridgeRequest
 
@@ -736,6 +838,12 @@ type BridgeRecord = bridgepkg.BridgeInstance
 // BridgeRouteRecord is one persisted bridge route returned by the daemon API.
 type BridgeRouteRecord = bridgepkg.BridgeRoute
 
+// BridgeSecretBindingRequest captures one bridge secret binding write payload.
+type BridgeSecretBindingRequest = contract.PutBridgeSecretBindingRequest
+
+// BridgeSecretBindingRecord is one bridge secret binding payload.
+type BridgeSecretBindingRecord = bridgepkg.BridgeSecretBinding
+
 // DeliveryTargetRecord is the resolved typed outbound target returned by the daemon API.
 type DeliveryTargetRecord = bridgepkg.DeliveryTarget
 
@@ -748,6 +856,33 @@ type IdentityRecord struct {
 	Agent     string `json:"agent,omitempty"`
 	AgentName string `json:"agent_name,omitempty"`
 }
+
+// ResourceRecord is one desired-state resource payload.
+type ResourceRecord = contract.ResourceRecordPayload
+
+// ResourcePutRequest captures one desired-state resource upsert.
+type ResourcePutRequest = contract.PutResourceRequest
+
+// ResourceDeleteRequest captures one desired-state resource delete request.
+type ResourceDeleteRequest = contract.DeleteResourceRequest
+
+// ResourceListQuery captures CLI filters for resource list calls.
+type ResourceListQuery struct {
+	Kind       resources.ResourceKind
+	ScopeKind  resources.ResourceScopeKind
+	ScopeID    string
+	OwnerKind  resources.ResourceOwnerKind
+	OwnerID    string
+	SourceKind resources.ResourceSourceKind
+	SourceID   string
+	Limit      int
+}
+
+// ToolApprovalRequest captures one local approval-token mint request.
+type ToolApprovalRequest = contract.ToolApprovalRequest
+
+// ToolApprovalRecord is the shared tool approval payload.
+type ToolApprovalRecord = contract.ToolApprovalPayload
 
 // SSEEvent is one parsed server-sent event frame.
 type SSEEvent = sse.Event
@@ -793,6 +928,45 @@ func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, erro
 		return DaemonStatus{}, err
 	}
 	return response.Daemon, nil
+}
+
+func (c *unixSocketClient) TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error) {
+	var response SettingsRestartActionRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/settings/actions/restart", nil, nil, &response); err != nil {
+		return SettingsRestartActionRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetSettingsRestartStatus(
+	ctx context.Context,
+	operationID string,
+) (SettingsRestartStatusRecord, error) {
+	path := "/api/settings/actions/restart/" + url.PathEscape(strings.TrimSpace(operationID))
+	var response SettingsRestartStatusRecord
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return SettingsRestartStatusRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error) {
+	var response SettingsUpdateRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/settings/update", nil, nil, &response); err != nil {
+		return SettingsUpdateRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) UpdateSettingsSkills(
+	ctx context.Context,
+	request UpdateSettingsSkillsRequest,
+) (SettingsMutationRecord, error) {
+	var response SettingsMutationRecord
+	if err := c.doJSON(ctx, http.MethodPatch, "/api/settings/skills", nil, request, &response); err != nil {
+		return SettingsMutationRecord{}, err
+	}
+	return response, nil
 }
 
 func (c *unixSocketClient) ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error) {
@@ -966,6 +1140,93 @@ func (c *unixSocketClient) ExtensionStatus(ctx context.Context, name string) (Ex
 	return response.Extension, nil
 }
 
+func (c *unixSocketClient) ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error) {
+	var response struct {
+		Bundles []BundleCatalogRecord `json:"bundles"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/bundles/catalog", nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Bundles, nil
+}
+
+func (c *unixSocketClient) PreviewBundleActivation(
+	ctx context.Context,
+	request ActivateBundleRequest,
+) (BundleActivationRecord, error) {
+	var response struct {
+		Activation BundleActivationRecord `json:"activation"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/bundles/preview", nil, request, &response); err != nil {
+		return BundleActivationRecord{}, err
+	}
+	return response.Activation, nil
+}
+
+func (c *unixSocketClient) ActivateBundle(
+	ctx context.Context,
+	request ActivateBundleRequest,
+) (BundleActivationRecord, error) {
+	var response struct {
+		Activation BundleActivationRecord `json:"activation"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/bundles/activations", nil, request, &response); err != nil {
+		return BundleActivationRecord{}, err
+	}
+	return response.Activation, nil
+}
+
+func (c *unixSocketClient) ListBundleActivations(ctx context.Context) ([]BundleActivationRecord, error) {
+	var response struct {
+		Activations []BundleActivationRecord `json:"activations"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/bundles/activations", nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Activations, nil
+}
+
+func (c *unixSocketClient) GetBundleActivation(ctx context.Context, id string) (BundleActivationRecord, error) {
+	var response struct {
+		Activation BundleActivationRecord `json:"activation"`
+	}
+	path := "/api/bundles/activations/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return BundleActivationRecord{}, err
+	}
+	return response.Activation, nil
+}
+
+func (c *unixSocketClient) UpdateBundleActivation(
+	ctx context.Context,
+	id string,
+	request UpdateBundleActivationRequest,
+) (BundleActivationRecord, error) {
+	var response struct {
+		Activation BundleActivationRecord `json:"activation"`
+	}
+	path := "/api/bundles/activations/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+		return BundleActivationRecord{}, err
+	}
+	return response.Activation, nil
+}
+
+func (c *unixSocketClient) DeactivateBundle(ctx context.Context, id string) error {
+	path := "/api/bundles/activations/" + url.PathEscape(strings.TrimSpace(id))
+	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+}
+
+func (c *unixSocketClient) BundleNetworkSettings(ctx context.Context) (BundleNetworkSettingsRecord, error) {
+	var response struct {
+		Network BundleNetworkSettingsRecord `json:"network"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/bundles/network/settings", nil, nil, &response); err != nil {
+		return BundleNetworkSettingsRecord{}, err
+	}
+	return response.Network, nil
+}
+
 func (c *unixSocketClient) ListBridges(ctx context.Context) ([]BridgeRecord, error) {
 	var response struct {
 		Bridges []BridgeRecord `json:"bridges"`
@@ -1033,6 +1294,43 @@ func (c *unixSocketClient) BridgeRoutes(ctx context.Context, id string) ([]Bridg
 		return nil, err
 	}
 	return response.Routes, nil
+}
+
+func (c *unixSocketClient) ListBridgeSecretBindings(
+	ctx context.Context,
+	id string,
+) ([]BridgeSecretBindingRecord, error) {
+	var response struct {
+		Bindings []BridgeSecretBindingRecord `json:"bindings"`
+	}
+	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) + "/secret-bindings"
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Bindings, nil
+}
+
+func (c *unixSocketClient) PutBridgeSecretBinding(
+	ctx context.Context,
+	id string,
+	bindingName string,
+	request BridgeSecretBindingRequest,
+) (BridgeSecretBindingRecord, error) {
+	var response struct {
+		Binding BridgeSecretBindingRecord `json:"binding"`
+	}
+	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) +
+		"/secret-bindings/" + url.PathEscape(strings.TrimSpace(bindingName))
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return BridgeSecretBindingRecord{}, err
+	}
+	return response.Binding, nil
+}
+
+func (c *unixSocketClient) DeleteBridgeSecretBinding(ctx context.Context, id string, bindingName string) error {
+	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) +
+		"/secret-bindings/" + url.PathEscape(strings.TrimSpace(bindingName))
+	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
 func (c *unixSocketClient) TestBridgeDelivery(
@@ -1180,14 +1478,28 @@ func (c *unixSocketClient) RepairSession(
 	return response.Repair, nil
 }
 
+func (c *unixSocketClient) ApproveSession(
+	ctx context.Context,
+	id string,
+	request SessionApprovalRequest,
+) (SessionApprovalRecord, error) {
+	var response SessionApprovalRecord
+	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/approve"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return SessionApprovalRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error) {
-	path := "/api/sessions/" + url.PathEscape(strings.TrimSpace(id)) + "/prompt"
 	var events []AgentEventRecord
+	query := url.Values{}
+	query.Set("format", "raw")
 	err := c.doSSE(
 		ctx,
 		http.MethodPost,
-		path,
-		nil,
+		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/prompt",
+		query,
 		map[string]string{"message": message},
 		"",
 		func(event SSEEvent) error {
@@ -1208,6 +1520,23 @@ func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message
 		return nil, err
 	}
 	return events, nil
+}
+
+func (c *unixSocketClient) StreamPromptSession(
+	ctx context.Context,
+	id string,
+	message string,
+	handler SSEHandler,
+) error {
+	return c.doSSE(
+		ctx,
+		http.MethodPost,
+		"/api/sessions/"+url.PathEscape(strings.TrimSpace(id))+"/prompt",
+		nil,
+		map[string]string{"message": message},
+		"",
+		handler,
+	)
 }
 
 func (c *unixSocketClient) SessionEvents(
@@ -1380,12 +1709,70 @@ func (c *unixSocketClient) ListWorkspaces(ctx context.Context) ([]WorkspaceRecor
 }
 
 func (c *unixSocketClient) GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error) {
+	routeRef, err := c.workspaceRouteRef(ctx, ref)
+	if err != nil {
+		return WorkspaceDetailRecord{}, err
+	}
 	var response WorkspaceDetailRecord
-	path := "/api/workspaces/" + url.PathEscape(strings.TrimSpace(ref))
+	path := "/api/workspaces/" + url.PathEscape(routeRef)
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
 		return WorkspaceDetailRecord{}, err
 	}
 	return response, nil
+}
+
+func (c *unixSocketClient) workspaceRouteRef(ctx context.Context, ref string) (string, error) {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return "", errors.New("cli: workspace reference is required")
+	}
+	if !workspaceRefLooksLikePath(trimmed) {
+		return trimmed, nil
+	}
+	target, err := canonicalCLIWorkspacePath(trimmed)
+	if err != nil {
+		return "", err
+	}
+	workspaces, err := c.ListWorkspaces(ctx)
+	if err != nil {
+		return "", fmt.Errorf("cli: list workspaces before resolving path %q: %w", target, err)
+	}
+	for _, workspace := range workspaces {
+		root, err := canonicalCLIWorkspacePath(workspace.RootDir)
+		if err != nil {
+			continue
+		}
+		if root == target {
+			return workspace.ID, nil
+		}
+	}
+	return "", fmt.Errorf("cli: workspace path %q is not registered", target)
+}
+
+func workspaceRefLooksLikePath(ref string) bool {
+	return filepath.IsAbs(ref) ||
+		strings.HasPrefix(ref, ".") ||
+		strings.Contains(ref, string(filepath.Separator))
+}
+
+func canonicalCLIWorkspacePath(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", errors.New("cli: workspace path is required")
+	}
+	abs, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("cli: resolve workspace path %q: %w", path, err)
+	}
+	cleaned := filepath.Clean(abs)
+	resolved, err := filepath.EvalSymlinks(cleaned)
+	if err == nil {
+		return resolved, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return cleaned, nil
+	}
+	return "", fmt.Errorf("cli: resolve workspace path %q: %w", cleaned, err)
 }
 
 func (c *unixSocketClient) UpdateWorkspace(
@@ -1617,6 +2004,53 @@ func (c *unixSocketClient) WakeAgentHeartbeat(
 	return response.Decision, nil
 }
 
+func (c *unixSocketClient) ListResources(ctx context.Context, query ResourceListQuery) ([]ResourceRecord, error) {
+	var response struct {
+		Records []ResourceRecord `json:"records"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/resources", resourceListValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Records, nil
+}
+
+func (c *unixSocketClient) GetResource(ctx context.Context, kind string, id string) (ResourceRecord, error) {
+	var response struct {
+		Record ResourceRecord `json:"record"`
+	}
+	path := "/api/resources/" + url.PathEscape(strings.TrimSpace(kind)) + "/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return ResourceRecord{}, err
+	}
+	return response.Record, nil
+}
+
+func (c *unixSocketClient) PutResource(
+	ctx context.Context,
+	kind string,
+	id string,
+	request ResourcePutRequest,
+) (ResourceRecord, error) {
+	var response struct {
+		Record ResourceRecord `json:"record"`
+	}
+	path := "/api/resources/" + url.PathEscape(strings.TrimSpace(kind)) + "/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return ResourceRecord{}, err
+	}
+	return response.Record, nil
+}
+
+func (c *unixSocketClient) DeleteResource(
+	ctx context.Context,
+	kind string,
+	id string,
+	request ResourceDeleteRequest,
+) error {
+	path := "/api/resources/" + url.PathEscape(strings.TrimSpace(kind)) + "/" + url.PathEscape(strings.TrimSpace(id))
+	return c.doJSON(ctx, http.MethodDelete, path, nil, request, nil)
+}
+
 func (c *unixSocketClient) ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error) {
 	var response struct {
 		Skills []SkillRecord `json:"skills"`
@@ -1659,6 +2093,14 @@ func (c *unixSocketClient) GetSkillContent(ctx context.Context, name string, que
 		return "", err
 	}
 	return response.Content, nil
+}
+
+func (c *unixSocketClient) EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
+	return c.skillAction(ctx, strings.TrimSpace(name), "enable", query)
+}
+
+func (c *unixSocketClient) DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
+	return c.skillAction(ctx, strings.TrimSpace(name), "disable", query)
 }
 
 func (c *unixSocketClient) HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
@@ -2121,6 +2563,20 @@ func (c *unixSocketClient) ApproveTask(
 	return c.taskExecutionAction(ctx, strings.TrimSpace(id), "approve", request)
 }
 
+func (c *unixSocketClient) DeleteTask(ctx context.Context, id string) error {
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id))
+	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+}
+
+func (c *unixSocketClient) RejectTask(ctx context.Context, id string) (TaskRecord, error) {
+	var response contract.TaskResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/reject"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+		return TaskRecord{}, err
+	}
+	return response.Task, nil
+}
+
 func (c *unixSocketClient) CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error) {
 	var response contract.TaskResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/cancel"
@@ -2467,6 +2923,20 @@ func (c *unixSocketClient) bridgeAction(ctx context.Context, id string, action s
 		return BridgeRecord{}, err
 	}
 	return response.Bridge, nil
+}
+
+func (c *unixSocketClient) skillAction(
+	ctx context.Context,
+	name string,
+	action string,
+	query SkillQuery,
+) (SkillActionRecord, error) {
+	var response SkillActionRecord
+	path := "/api/skills/" + url.PathEscape(name) + "/" + strings.TrimSpace(action)
+	if err := c.doJSON(ctx, http.MethodPost, path, skillValues(query), nil, &response); err != nil {
+		return SkillActionRecord{}, err
+	}
+	return response, nil
 }
 
 func (c *unixSocketClient) taskRunAction(
@@ -2922,6 +3392,38 @@ func skillValues(query SkillQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
 		values.Set("workspace", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ForAgent); trimmed != "" {
+		values.Set("for_agent", trimmed)
+	}
+	return values
+}
+
+func resourceListValues(query ResourceListQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(string(query.Kind)); trimmed != "" {
+		values.Set("kind", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.ScopeKind)); trimmed != "" {
+		values.Set("scope_kind", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ScopeID); trimmed != "" {
+		values.Set("scope_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.OwnerKind)); trimmed != "" {
+		values.Set("owner_kind", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.OwnerID); trimmed != "" {
+		values.Set("owner_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.SourceKind)); trimmed != "" {
+		values.Set("source_kind", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.SourceID); trimmed != "" {
+		values.Set("source_id", trimmed)
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
 	}
 	return values
 }

@@ -283,6 +283,7 @@ func (d *Driver) newAgentProcess(
 		StartedAt:          timeNowUTC(),
 		handle:             handle,
 		toolHost:           toolHost,
+		toolGateway:        normalized.ToolGateway,
 		processCtx:         procCtx,
 		cancelProcess:      cancelProcess,
 		permissions:        policy,
@@ -425,6 +426,13 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 			fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err),
 		)
 	}
+	if err := d.applySessionModel(ctx, process, normalized.PreferredModel); err != nil {
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session model negotiation failed",
+			fmt.Errorf("acp: set session model for %q: %w", normalized.AgentName, err),
+		)
+	}
 	return nil
 }
 
@@ -464,6 +472,13 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 			fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err),
 		)
 	}
+	if err := d.applySessionModel(ctx, process, normalized.PreferredModel); err != nil {
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session model negotiation failed",
+			fmt.Errorf("acp: set session model for %q: %w", normalized.AgentName, err),
+		)
+	}
 	return nil
 }
 
@@ -476,7 +491,7 @@ func (d *Driver) applySessionMode(
 		return nil
 	}
 
-	modeID := preferredSessionMode(process.Caps.SupportedModes, permissions)
+	modeID := preferredSessionMode(process.Caps.SupportedModes, permissions, process.toolGateway != nil)
 	if modeID == "" {
 		return nil
 	}
@@ -493,7 +508,32 @@ func (d *Driver) applySessionMode(
 	return err
 }
 
-func preferredSessionMode(supported []string, permissions aghconfig.PermissionMode) string {
+func (d *Driver) applySessionModel(ctx context.Context, process *AgentProcess, preferredModel string) error {
+	if ctx == nil || process == nil || process.conn == nil {
+		return nil
+	}
+	modelID := strings.TrimSpace(preferredModel)
+	if modelID == "" {
+		return nil
+	}
+
+	_, err := acpsdk.SendRequest[acpsdk.SetSessionModelResponse](
+		process.conn,
+		ctx,
+		acpsdk.AgentMethodSessionSetModel,
+		acpsdk.SetSessionModelRequest{
+			SessionId: acpsdk.SessionId(process.SessionID),
+			ModelId:   acpsdk.ModelId(modelID),
+		},
+	)
+	return err
+}
+
+func preferredSessionMode(
+	supported []string,
+	permissions aghconfig.PermissionMode,
+	toolGatewayEnabled bool,
+) string {
 	if len(supported) == 0 {
 		return ""
 	}
@@ -507,6 +547,14 @@ func preferredSessionMode(supported []string, permissions aghconfig.PermissionMo
 		lookup[strings.ToLower(trimmed)] = trimmed
 	}
 
+	if toolGatewayEnabled {
+		for _, candidate := range permissionGatewayModeCandidates() {
+			if matched, ok := lookup[strings.ToLower(candidate)]; ok {
+				return matched
+			}
+		}
+	}
+
 	candidates := sessionModeCandidates(permissions)
 	for _, candidate := range candidates {
 		if matched, ok := lookup[strings.ToLower(candidate)]; ok {
@@ -514,6 +562,13 @@ func preferredSessionMode(supported []string, permissions aghconfig.PermissionMo
 		}
 	}
 	return ""
+}
+
+func permissionGatewayModeCandidates() []string {
+	return []string{
+		"default",
+		"ask",
+	}
 }
 
 func sessionModeCandidates(permissions aghconfig.PermissionMode) []string {
@@ -945,6 +1000,7 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 		normalized.MCPServers = append([]aghconfig.MCPServer(nil), normalized.MCPServers...)
 	}
 	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
+	normalized.PreferredModel = strings.TrimSpace(normalized.PreferredModel)
 
 	return normalized, nil
 }

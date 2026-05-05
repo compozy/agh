@@ -64,9 +64,11 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskCreateCommand(deps))
 	cmd.AddCommand(newTaskGetCommand(deps))
 	cmd.AddCommand(newTaskUpdateCommand(deps))
+	cmd.AddCommand(newTaskDeleteCommand(deps))
 	cmd.AddCommand(newTaskPublishCommand(deps))
 	cmd.AddCommand(newTaskStartCommand(deps))
 	cmd.AddCommand(newTaskApproveCommand(deps))
+	cmd.AddCommand(newTaskRejectCommand(deps))
 	cmd.AddCommand(newTaskCancelCommand(deps))
 	cmd.AddCommand(newTaskNextCommand(deps))
 	cmd.AddCommand(newTaskHeartbeatCommand(deps))
@@ -347,6 +349,45 @@ func newTaskApproveCommand(deps commandDeps) *cobra.Command {
 			return client.ApproveTask(ctx, id, request)
 		},
 	)
+}
+
+func newTaskDeleteCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "delete <id>",
+		Short: "Delete a task",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			if err := client.DeleteTask(cmd.Context(), args[0]); err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskDeleteBundle(args[0]))
+		},
+	}
+	return cmd
+}
+
+func newTaskRejectCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "reject <id>",
+		Short: "Reject a pending approval task",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			rejected, err := client.RejectTask(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBundle(rejected))
+		},
+	}
+	return cmd
 }
 
 func newTaskExecutionCommand(
@@ -902,6 +943,7 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 	var (
 		idempotencyKey string
 		networkRaw     string
+		metadataRaw    string
 	)
 
 	cmd := &cobra.Command{
@@ -917,10 +959,18 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			run, err := client.EnqueueTaskRun(cmd.Context(), args[0], EnqueueTaskRunRequest{
+			request := EnqueueTaskRunRequest{
 				IdempotencyKey: strings.TrimSpace(idempotencyKey),
 				NetworkChannel: strings.TrimSpace(networkRaw),
-			})
+			}
+			if cmd.Flags().Changed("metadata") {
+				request.Metadata, err = parseJSONFlag("metadata", metadataRaw)
+				if err != nil {
+					return err
+				}
+			}
+
+			run, err := client.EnqueueTaskRun(cmd.Context(), args[0], request)
 			if err != nil {
 				return err
 			}
@@ -929,6 +979,7 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional run channel override")
+	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional run metadata JSON")
 	return cmd
 }
 
@@ -1538,6 +1589,28 @@ func taskExecutionBundle(item *TaskExecutionRecord) outputBundle {
 				return "", err
 			}
 			return renderHumanBlocks(taskBlock, runBlock), nil
+		},
+	}
+}
+
+func taskDeleteBundle(id string) outputBundle {
+	item := struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}{
+		ID:     strings.TrimSpace(id),
+		Status: "deleted",
+	}
+	return outputBundle{
+		jsonValue: item,
+		human: func() (string, error) {
+			return renderHumanSection("Task", []keyValue{
+				{Label: "ID", Value: stringOrDash(item.ID)},
+				{Label: "Status", Value: item.Status},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject("task", []string{"id", "status"}, []string{item.ID, item.Status}), nil
 		},
 	}
 }

@@ -2,9 +2,11 @@ package settings
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -1625,8 +1628,9 @@ func (f fakeWorkspaceResolver) List(context.Context) ([]workspacepkg.Workspace, 
 }
 
 type fakeSkillsRuntime struct {
-	skills  []*skillspkg.Skill
-	enabled map[string]bool
+	skills       []*skillspkg.Skill
+	enabled      map[string]bool
+	agentEnabled map[string]map[string]bool
 }
 
 func newFakeSkillsRuntime(skills ...*skillspkg.Skill) *fakeSkillsRuntime {
@@ -1638,8 +1642,9 @@ func newFakeSkillsRuntime(skills ...*skillspkg.Skill) *fakeSkillsRuntime {
 		enabled[skill.Meta.Name] = skill.Enabled
 	}
 	return &fakeSkillsRuntime{
-		skills:  append([]*skillspkg.Skill(nil), skills...),
-		enabled: enabled,
+		skills:       append([]*skillspkg.Skill(nil), skills...),
+		enabled:      enabled,
+		agentEnabled: make(map[string]map[string]bool),
 	}
 }
 
@@ -1658,6 +1663,43 @@ func (f *fakeSkillsRuntime) List() []*skillspkg.Skill {
 
 func (f *fakeSkillsRuntime) SetEnabled(name string, _ *workspacepkg.ResolvedWorkspace, enabled bool) error {
 	f.enabled[name] = enabled
+	return nil
+}
+
+func (f *fakeSkillsRuntime) ForAgent(
+	_ context.Context,
+	_ *workspacepkg.ResolvedWorkspace,
+	agentName string,
+) ([]*skillspkg.Skill, error) {
+	key := aghconfig.NormalizeAgentName(agentName)
+	out := make([]*skillspkg.Skill, 0, len(f.skills))
+	for _, skill := range f.skills {
+		if skill == nil {
+			continue
+		}
+		cloned := *skill
+		cloned.Enabled = f.enabled[skill.Meta.Name]
+		if scoped, ok := f.agentEnabled[key]; ok {
+			if enabled, ok := scoped[skill.Meta.Name]; ok {
+				cloned.Enabled = enabled
+			}
+		}
+		out = append(out, &cloned)
+	}
+	return out, nil
+}
+
+func (f *fakeSkillsRuntime) SetEnabledForAgent(
+	name string,
+	_ *workspacepkg.ResolvedWorkspace,
+	agentName string,
+	enabled bool,
+) error {
+	key := aghconfig.NormalizeAgentName(agentName)
+	if _, ok := f.agentEnabled[key]; !ok {
+		f.agentEnabled[key] = make(map[string]bool)
+	}
+	f.agentEnabled[key][name] = enabled
 	return nil
 }
 
@@ -1703,6 +1745,102 @@ func (f *fakeProviderSecretStore) PutSecret(
 	f.metadata[normalized] = metadata
 	f.plaintext[normalized] = plaintext
 	return metadata, nil
+}
+
+type recordingEventSummaryStore struct {
+	mu        sync.Mutex
+	summaries []store.EventSummary
+}
+
+func (r *recordingEventSummaryStore) WriteEventSummary(_ context.Context, summary store.EventSummary) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	summary.Content = append([]byte(nil), summary.Content...)
+	r.summaries = append(r.summaries, summary)
+	return nil
+}
+
+func (r *recordingEventSummaryStore) ListEventSummaries(
+	_ context.Context,
+	_ store.EventSummaryQuery,
+) ([]store.EventSummary, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	cloned := make([]store.EventSummary, 0, len(r.summaries))
+	for _, summary := range r.summaries {
+		next := summary
+		next.Content = append([]byte(nil), summary.Content...)
+		cloned = append(cloned, next)
+	}
+	return cloned, nil
+}
+
+func TestSettingsMutationsEmitObserveEvents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit settings changed for section updates", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+
+		eventStore := &recordingEventSummaryStore{}
+		service := testService(t, homePaths, Dependencies{
+			EventSummaries: eventStore,
+		})
+
+		_, err = service.UpdateSection(WithMutationSource(context.Background(), "http"), SectionUpdateRequest{
+			SectionRequest: SectionRequest{
+				Section: SectionGeneral,
+				Scope:   ScopeGlobal,
+			},
+			General: &GeneralSettings{
+				Defaults: cfg.Defaults,
+				Limits: aghconfig.LimitsConfig{
+					MaxSessions:         cfg.Limits.MaxSessions + 1,
+					MaxConcurrentAgents: cfg.Limits.MaxConcurrentAgents,
+				},
+				Permissions:    cfg.Permissions,
+				SessionTimeout: cfg.Session.Limits.Timeout,
+				HTTP:           cfg.HTTP,
+				Daemon:         cfg.Daemon,
+			},
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection() error = %v", err)
+		}
+
+		summaries, err := eventStore.ListEventSummaries(context.Background(), store.EventSummaryQuery{})
+		if err != nil {
+			t.Fatalf("ListEventSummaries() error = %v", err)
+		}
+		if got, want := len(summaries), 1; got != want {
+			t.Fatalf("len(summaries) = %d, want %d", got, want)
+		}
+		if got, want := summaries[0].Type, "settings.changed"; got != want {
+			t.Fatalf("summaries[0].Type = %q, want %q", got, want)
+		}
+
+		var content map[string]string
+		if err := json.Unmarshal(summaries[0].Content, &content); err != nil {
+			t.Fatalf("Unmarshal(content) error = %v", err)
+		}
+		if got, want := content["section"], string(SectionGeneral); got != want {
+			t.Fatalf("content.section = %q, want %q", got, want)
+		}
+		if got, want := content["source"], "http"; got != want {
+			t.Fatalf("content.source = %q, want %q", got, want)
+		}
+		if got, want := content["operation"], "patch"; got != want {
+			t.Fatalf("content.operation = %q, want %q", got, want)
+		}
+	})
 }
 
 func testService(t *testing.T, homePaths aghconfig.HomePaths, deps Dependencies) Service {

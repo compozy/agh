@@ -10,13 +10,12 @@ import (
 	"syscall"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghupdate "github.com/pedronauck/agh/internal/update"
 	"github.com/spf13/cobra"
 )
 
 const (
-	managedEnvName             = "AGH_MANAGED"
 	lifecycleStatusDeferred    = "deferred"
-	lifecycleStatusManual      = "manual"
 	lifecycleStatusUninstalled = "uninstalled"
 )
 
@@ -41,7 +40,7 @@ type lifecycleRecord struct {
 func detectManagedState(deps commandDeps) managedState {
 	manager := ""
 	if deps.getenv != nil {
-		manager = strings.TrimSpace(deps.getenv(managedEnvName))
+		manager = strings.TrimSpace(deps.getenv(aghupdate.ManagedEnvName))
 	}
 	return managedState{
 		Managed: manager != "",
@@ -94,38 +93,6 @@ func managedRecommendation(manager string, action string) string {
 		return "Use `sudo dnf upgrade agh` or the package name used to install AGH."
 	default:
 		return "Use the package manager that set AGH_MANAGED instead of mutating this install directly."
-	}
-}
-
-func newUpdateCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "update",
-		Short: "Report how to update the AGH binary",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			state := detectManagedState(deps)
-			record := lifecycleRecord{
-				Command: "update",
-				Managed: state.Managed,
-				Manager: state.Manager,
-			}
-			if state.Managed {
-				record.Status = lifecycleStatusDeferred
-				record.Message = "AGH is managed by an external package manager; no local update was performed."
-				record.Recommendation = managedRecommendation(state.Manager, "update AGH")
-				return writeCommandOutput(cmd, lifecycleBundle("Update", record))
-			}
-
-			homePaths, err := deps.resolveHome()
-			if err != nil {
-				return err
-			}
-			record.HomeDir = homePaths.HomeDir
-			record.Status = lifecycleStatusManual
-			record.Message = "No in-place updater is configured for this unmanaged AGH binary; no files were changed."
-			record.Recommendation = "Install a newer release archive, rerun `go install`, or rebuild from source."
-			return writeCommandOutput(cmd, lifecycleBundle("Update", record))
-		},
 	}
 }
 

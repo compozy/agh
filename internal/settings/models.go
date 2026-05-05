@@ -3,6 +3,7 @@ package settings
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"time"
 
@@ -14,14 +15,33 @@ import (
 )
 
 // ScopeKind identifies the supported settings scope.
-type ScopeKind = aghconfig.WriteScope
+type ScopeKind string
 
 const (
 	// ScopeGlobal selects the global AGH home scope.
-	ScopeGlobal = aghconfig.WriteScopeGlobal
+	ScopeGlobal ScopeKind = "global"
 	// ScopeWorkspace selects one workspace-local overlay scope.
-	ScopeWorkspace = aghconfig.WriteScopeWorkspace
+	ScopeWorkspace ScopeKind = "workspace"
+	// ScopeAgent selects one effective agent-local overlay scope.
+	ScopeAgent ScopeKind = "agent"
 )
+
+// Validate ensures the requested settings scope is supported.
+func (s ScopeKind) Validate() error {
+	switch s {
+	case ScopeGlobal, ScopeWorkspace, ScopeAgent:
+		return nil
+	default:
+		return fmt.Errorf("settings: invalid scope %q", s)
+	}
+}
+
+func (s ScopeKind) configWriteScope() aghconfig.WriteScope {
+	if s == ScopeWorkspace {
+		return aghconfig.WriteScopeWorkspace
+	}
+	return aghconfig.WriteScopeGlobal
+}
 
 // WriteTargetKind identifies the semantic persistence target for one mutation.
 type WriteTargetKind = aghconfig.WriteTargetKind
@@ -35,6 +55,10 @@ const (
 	WriteTargetGlobalMCPSidecar = aghconfig.WriteTargetGlobalMCPSidecar
 	// WriteTargetWorkspaceMCPSidecar persists to `<workspace>/.agh/mcp.json`.
 	WriteTargetWorkspaceMCPSidecar = aghconfig.WriteTargetWorkspaceMCPSidecar
+	// WriteTargetGlobalAgentFile persists to `~/.agh/agents/<name>/AGENT.md`.
+	WriteTargetGlobalAgentFile WriteTargetKind = "global-agent-file"
+	// WriteTargetWorkspaceAgentFile persists to `<root>/.agh/agents/<name>/AGENT.md`.
+	WriteTargetWorkspaceAgentFile WriteTargetKind = "workspace-agent-file"
 )
 
 // SectionName names one section-oriented settings resource.
@@ -109,6 +133,10 @@ const (
 	SourceKindGlobalMCPSidecar SourceKind = "global-mcp-sidecar"
 	// SourceKindWorkspaceMCPSidecar identifies the workspace MCP JSON sidecar.
 	SourceKindWorkspaceMCPSidecar SourceKind = "workspace-mcp-sidecar"
+	// SourceKindGlobalAgentFile identifies a global AGENT.md frontmatter source.
+	SourceKindGlobalAgentFile SourceKind = "global-agent-file"
+	// SourceKindWorkspaceAgentFile identifies a workspace/additional AGENT.md frontmatter source.
+	SourceKindWorkspaceAgentFile SourceKind = "workspace-agent-file"
 )
 
 // Service is the daemon-facing settings orchestration boundary.
@@ -125,6 +153,7 @@ type SectionRequest struct {
 	Section     SectionName
 	Scope       ScopeKind
 	WorkspaceID string
+	AgentName   string
 }
 
 // SectionUpdateRequest identifies one section mutation.
@@ -171,6 +200,7 @@ type SectionEnvelope struct {
 	Section         SectionName
 	Scope           ScopeKind
 	WorkspaceID     string
+	AgentName       string
 	AvailableScopes []ScopeKind
 	General         *GeneralSection
 	Memory          *MemorySection
@@ -199,6 +229,7 @@ type MutationResult struct {
 	Scope           ScopeKind        `json:"scope"`
 	WriteTarget     WriteTargetKind  `json:"write_target,omitempty"`
 	WorkspaceID     string           `json:"workspace_id,omitempty"`
+	AgentName       string           `json:"agent_name,omitempty"`
 	Behavior        MutationBehavior `json:"behavior"`
 	Applied         bool             `json:"applied"`
 	RestartRequired bool             `json:"restart_required"`
@@ -419,6 +450,7 @@ type SourceRef struct {
 	Kind        SourceKind
 	Scope       ScopeKind
 	WorkspaceID string
+	AgentName   string
 }
 
 // SourceMetadata reports precedence and target information for one resource.
@@ -437,6 +469,11 @@ type ProviderSettings struct {
 	RuntimeProvider string
 	Transport       string
 	BaseURL         string
+	AuthMode        aghconfig.ProviderAuthMode
+	EnvPolicy       aghconfig.ProviderEnvPolicy
+	HomePolicy      aghconfig.ProviderHomePolicy
+	AuthStatusCmd   string
+	AuthLoginCmd    string
 	CredentialSlots []aghconfig.ProviderCredentialSlot
 }
 
@@ -449,6 +486,17 @@ type ProviderCredentialStatus struct {
 	Required  bool
 	Present   bool
 	Source    string
+}
+
+// ProviderAuthStatus is a redacted provider authentication readiness summary.
+type ProviderAuthStatus struct {
+	Mode       aghconfig.ProviderAuthMode
+	EnvPolicy  aghconfig.ProviderEnvPolicy
+	HomePolicy aghconfig.ProviderHomePolicy
+	State      string
+	Message    string
+	StatusCmd  string
+	LoginCmd   string
 }
 
 // ProviderSecretWrite is one write-only provider secret mutation.
@@ -485,6 +533,7 @@ type ProviderItem struct {
 	Default          bool
 	CommandAvailable bool
 	Credentials      []ProviderCredentialStatus
+	AuthStatus       ProviderAuthStatus
 	SourceMetadata   SourceMetadata
 	Fallback         *ProviderFallback
 }
@@ -524,7 +573,7 @@ func builtinProviderSource() SourceRef {
 	return SourceRef{Kind: SourceKindBuiltinProvider, Scope: ScopeGlobal}
 }
 
-func sourceRefForWriteTarget(kind WriteTargetKind, workspaceID string) SourceRef {
+func sourceRefForWriteTarget(kind WriteTargetKind, workspaceID string, agentName string) SourceRef {
 	switch kind {
 	case WriteTargetGlobalConfig:
 		return SourceRef{Kind: SourceKindGlobalConfig, Scope: ScopeGlobal}
@@ -534,6 +583,15 @@ func sourceRefForWriteTarget(kind WriteTargetKind, workspaceID string) SourceRef
 		return SourceRef{Kind: SourceKindGlobalMCPSidecar, Scope: ScopeGlobal}
 	case WriteTargetWorkspaceMCPSidecar:
 		return SourceRef{Kind: SourceKindWorkspaceMCPSidecar, Scope: ScopeWorkspace, WorkspaceID: workspaceID}
+	case WriteTargetGlobalAgentFile:
+		return SourceRef{Kind: SourceKindGlobalAgentFile, Scope: ScopeAgent, AgentName: agentName}
+	case WriteTargetWorkspaceAgentFile:
+		return SourceRef{
+			Kind:        SourceKindWorkspaceAgentFile,
+			Scope:       ScopeAgent,
+			WorkspaceID: workspaceID,
+			AgentName:   agentName,
+		}
 	default:
 		return SourceRef{}
 	}
@@ -550,7 +608,7 @@ func availableTargetsForScope(scope ScopeKind) []WriteTargetKind {
 
 func singleTargetSourceMetadata(kind WriteTargetKind, workspaceID string) SourceMetadata {
 	return SourceMetadata{
-		EffectiveSource:  sourceRefForWriteTarget(kind, workspaceID),
+		EffectiveSource:  sourceRefForWriteTarget(kind, workspaceID, ""),
 		AvailableTargets: []WriteTargetKind{kind},
 	}
 }

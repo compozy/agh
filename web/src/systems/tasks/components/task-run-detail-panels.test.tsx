@@ -4,8 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => {
-    const { params: _params, to: _to, ...domRest } = rest as Record<string, unknown>;
-    return <a {...domRest}>{children}</a>;
+    const { params, to, ...domRest } = rest as Record<string, unknown>;
+    return (
+      <a data-params={JSON.stringify(params ?? {})} data-to={String(to ?? "")} {...domRest}>
+        {children}
+      </a>
+    );
   },
 }));
 
@@ -68,10 +72,28 @@ describe("TaskRunIdentityPanel", () => {
       "pr-341-review"
     );
     expect(screen.getByTestId("task-run-detail-session-link")).toHaveTextContent("sess_jf8d21");
+    expect(screen.getByTestId("task-run-detail-session-link")).toHaveAttribute(
+      "data-to",
+      "/agents/$name/sessions/$id"
+    );
+  });
+
+  it("links to the session permalink when only the run session id is available", () => {
+    render(<TaskRunIdentityPanel run={buildRun({ session: null } as never)} />);
+    expect(screen.getByTestId("task-run-detail-session-link")).toHaveTextContent("sess_jf8d21");
+    expect(screen.getByTestId("task-run-detail-session-link")).toHaveAttribute(
+      "data-to",
+      "/session/$id"
+    );
   });
 
   it("falls back to a missing-session indicator when no session is attached", () => {
-    render(<TaskRunIdentityPanel run={buildRun({ session: null } as never)} />);
+    const run = buildRun({ session: null } as never);
+    render(
+      <TaskRunIdentityPanel
+        run={{ ...run, run: { ...run.run, session_id: undefined } } as TaskRunDetailView}
+      />
+    );
     expect(screen.getByTestId("task-run-detail-session-missing")).toBeInTheDocument();
   });
 });

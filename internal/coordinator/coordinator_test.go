@@ -11,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 func TestDecideBootstrap(t *testing.T) {
@@ -121,15 +122,32 @@ func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 	t.Parallel()
 
 	policy := PermissionPolicy("ch-1", "ch-1", " ")
-	if !slices.Contains(policy.Tools, ToolAgentTaskNext) {
-		t.Fatalf("policy tools = %#v, want %q", policy.Tools, ToolAgentTaskNext)
+	if !slices.Contains(policy.Tools, toolspkg.ToolIDTaskRunClaimNext.String()) {
+		t.Fatalf("policy tools = %#v, want %q", policy.Tools, toolspkg.ToolIDTaskRunClaimNext)
 	}
-	for _, denied := range []string{"operator.task.cancel", "session.delete", "agent.spawn.coordinator"} {
+	if err := store.ValidateSessionLineage("coord-1", &store.SessionLineage{
+		SpawnRole:        "coordinator",
+		TTLExpiresAt:     ptrTime(time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)),
+		SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: session.DefaultSpawnMaxDepth},
+		PermissionPolicy: policy,
+	}); err != nil {
+		t.Fatalf("ValidateSessionLineage(coordinator policy) error = %v", err)
+	}
+	for _, denied := range []string{
+		toolspkg.ToolIDTaskCancel.String(),
+		toolspkg.ToolIDToolInfo.String(),
+		"agent.spawn.coordinator",
+	} {
 		if ToolAllowed(denied) {
 			t.Fatalf("ToolAllowed(%q) = true, want false", denied)
 		}
 	}
-	for _, allowed := range []string{ToolAgentContext, ToolAgentChannelSend, ToolAgentTaskComplete, ToolAgentSpawn} {
+	for _, allowed := range []string{
+		toolspkg.ToolIDSessionDescribe.String(),
+		toolspkg.ToolIDNetworkSend.String(),
+		toolspkg.ToolIDTaskRunComplete.String(),
+		toolspkg.ToolIDTaskCreate.String(),
+	} {
 		if !ToolAllowed(allowed) {
 			t.Fatalf("ToolAllowed(%q) = false, want true", allowed)
 		}
@@ -143,6 +161,10 @@ func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 	if got, want := policy.NetworkChannels, []string{"ch-1"}; !slices.Equal(got, want) {
 		t.Fatalf("NetworkChannels = %#v, want %#v", got, want)
 	}
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
 }
 
 func TestLineageAndHealthySession(t *testing.T) {

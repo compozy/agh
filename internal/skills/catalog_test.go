@@ -67,6 +67,36 @@ func TestBuildCatalogFormatsCatalogSortedEscapedAndWithUsageInstructions(t *test
 	}
 }
 
+func TestBuildCurrentCatalogFormatsAuthoritativeTurnScopedCatalog(t *testing.T) {
+	t.Parallel()
+
+	got := BuildCurrentCatalog([]*Skill{
+		{
+			Meta: SkillMeta{
+				Name:        "qa-marker-skill",
+				Description: "Turn-scoped marker.",
+			},
+			Enabled: true,
+		},
+	})
+
+	want := strings.Join([]string{
+		"<current-available-skills>",
+		`  <skill name="qa-marker-skill">Turn-scoped marker.</skill>`,
+		"</current-available-skills>",
+		"",
+		"The <current-available-skills> block above is the authoritative current skill state for this turn.",
+		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
+		"Use `agh__skill_view` to load full instructions for any skill.",
+		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
+		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+	}, "\n")
+
+	if got != want {
+		t.Fatalf("BuildCurrentCatalog() mismatch\nwant:\n%s\n\ngot:\n%s", want, got)
+	}
+}
+
 func TestBuildCatalogTruncatesDescriptionsAtTwoHundredCharactersWithEllipsis(t *testing.T) {
 	t.Parallel()
 

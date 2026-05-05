@@ -6,12 +6,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/testutil"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/soul"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 type soulIfMatchTestAuthoring struct {
@@ -54,6 +58,213 @@ func (s *soulIfMatchTestRefresher) RefreshSoulWithExpectedDigest(
 ) (session.SoulRefreshResult, error) {
 	s.calls++
 	return session.SoulRefreshResult{}, nil
+}
+
+type packageOwnedHeartbeatAuthoring struct {
+	putCalls      int
+	deleteCalls   int
+	rollbackCalls int
+}
+
+func (h *packageOwnedHeartbeatAuthoring) Validate(
+	context.Context,
+	heartbeat.ValidateRequest,
+) (heartbeat.ValidateResult, error) {
+	return heartbeat.ValidateResult{}, nil
+}
+
+func (h *packageOwnedHeartbeatAuthoring) Put(
+	context.Context,
+	heartbeat.PutRequest,
+) (heartbeat.MutationResult, error) {
+	h.putCalls++
+	return heartbeat.MutationResult{}, nil
+}
+
+func (h *packageOwnedHeartbeatAuthoring) Delete(
+	context.Context,
+	heartbeat.DeleteRequest,
+) (heartbeat.MutationResult, error) {
+	h.deleteCalls++
+	return heartbeat.MutationResult{}, nil
+}
+
+func (h *packageOwnedHeartbeatAuthoring) History(
+	context.Context,
+	heartbeat.HistoryRequest,
+) (heartbeat.HistoryResult, error) {
+	return heartbeat.HistoryResult{}, nil
+}
+
+func (h *packageOwnedHeartbeatAuthoring) Rollback(
+	context.Context,
+	heartbeat.RollbackRequest,
+) (heartbeat.MutationResult, error) {
+	h.rollbackCalls++
+	return heartbeat.MutationResult{}, nil
+}
+
+type packageOwnedAgentCatalog struct {
+	artifacts session.AgentArtifacts
+}
+
+func (c packageOwnedAgentCatalog) ListAgents(context.Context) ([]aghconfig.AgentDef, error) {
+	return []aghconfig.AgentDef{aghconfig.CloneAgentDef(c.artifacts.Agent)}, nil
+}
+
+func (c packageOwnedAgentCatalog) GetAgent(context.Context, string) (aghconfig.AgentDef, error) {
+	return aghconfig.CloneAgentDef(c.artifacts.Agent), nil
+}
+
+func (c packageOwnedAgentCatalog) ResolveAgentArtifacts(
+	string,
+	*workspacepkg.ResolvedWorkspace,
+) (session.AgentArtifacts, error) {
+	return c.artifacts, nil
+}
+
+func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		method        string
+		path          string
+		body          []byte
+		registerRoute func(handlerFixture)
+		assertCalls   func(*testing.T, *soulIfMatchTestAuthoring, *packageOwnedHeartbeatAuthoring)
+	}{
+		{
+			name:   "Should reject package-owned Soul writes",
+			method: http.MethodPut,
+			path:   "/agents/marketer/soul",
+			body:   []byte(`{"workspace_id":"ws-1","body":"new soul"}`),
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.PUT("/agents/:agent_name/soul", fixture.Handlers.PutAgentSoul)
+			},
+			assertCalls: func(t *testing.T, soulAuthoring *soulIfMatchTestAuthoring, _ *packageOwnedHeartbeatAuthoring) {
+				t.Helper()
+				if soulAuthoring.putCalls != 0 {
+					t.Fatalf("soul put calls = %d, want 0", soulAuthoring.putCalls)
+				}
+			},
+		},
+		{
+			name:   "Should reject package-owned Soul deletes",
+			method: http.MethodDelete,
+			path:   "/agents/marketer/soul",
+			body:   []byte(`{"workspace_id":"ws-1"}`),
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.DELETE("/agents/:agent_name/soul", fixture.Handlers.DeleteAgentSoul)
+			},
+			assertCalls: func(t *testing.T, soulAuthoring *soulIfMatchTestAuthoring, _ *packageOwnedHeartbeatAuthoring) {
+				t.Helper()
+				if soulAuthoring.deleteCalls != 0 {
+					t.Fatalf("soul delete calls = %d, want 0", soulAuthoring.deleteCalls)
+				}
+			},
+		},
+		{
+			name:   "Should reject package-owned Heartbeat writes",
+			method: http.MethodPut,
+			path:   "/agents/marketer/heartbeat",
+			body:   []byte(`{"workspace_id":"ws-1","body":"new heartbeat"}`),
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.PUT("/agents/:agent_name/heartbeat", fixture.Handlers.PutAgentHeartbeat)
+			},
+			assertCalls: func(t *testing.T, _ *soulIfMatchTestAuthoring, heartbeatAuthoring *packageOwnedHeartbeatAuthoring) {
+				t.Helper()
+				if heartbeatAuthoring.putCalls != 0 {
+					t.Fatalf("heartbeat put calls = %d, want 0", heartbeatAuthoring.putCalls)
+				}
+			},
+		},
+		{
+			name:   "Should reject package-owned Heartbeat rollback",
+			method: http.MethodPost,
+			path:   "/agents/marketer/heartbeat/rollback",
+			body:   []byte(`{"workspace_id":"ws-1","revision_id":"rev-hb-1"}`),
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.POST("/agents/:agent_name/heartbeat/rollback", fixture.Handlers.RollbackAgentHeartbeat)
+			},
+			assertCalls: func(t *testing.T, _ *soulIfMatchTestAuthoring, heartbeatAuthoring *packageOwnedHeartbeatAuthoring) {
+				t.Helper()
+				if heartbeatAuthoring.rollbackCalls != 0 {
+					t.Fatalf("heartbeat rollback calls = %d, want 0", heartbeatAuthoring.rollbackCalls)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			workspaceRoot := t.TempDir()
+			soulAuthoring := &soulIfMatchTestAuthoring{}
+			heartbeatAuthoring := &packageOwnedHeartbeatAuthoring{}
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{
+					ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+						if ref != "ws-1" {
+							return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+						}
+						return workspacepkg.ResolvedWorkspace{
+							Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+							Config: aghconfig.Config{
+								Agents: aghconfig.AgentsConfig{
+									Soul:      aghconfig.DefaultSoulConfig(),
+									Heartbeat: aghconfig.DefaultHeartbeatConfig(),
+								},
+							},
+						}, nil
+					},
+				},
+				nil,
+				nil,
+			)
+			fixture.Handlers.SoulAuthoring = soulAuthoring
+			fixture.Handlers.HeartbeatAuthoring = heartbeatAuthoring
+			fixture.Handlers.AgentCatalog = packageOwnedAgentCatalog{
+				artifacts: session.AgentArtifacts{
+					Agent:               aghconfig.AgentDef{Name: "marketer", Prompt: "Run marketing workflows."},
+					PackageOwned:        true,
+					SoulSourcePath:      ".agh/bundles/act/agents/marketer/SOUL.md",
+					SoulBody:            "Lead with campaign context.",
+					HeartbeatSourcePath: ".agh/bundles/act/agents/marketer/HEARTBEAT.md",
+					HeartbeatBody:       "Inspect campaigns and use AGH task APIs.",
+				},
+			}
+			tc.registerRoute(fixture)
+
+			req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, bytes.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(recorder, req)
+
+			if got, want := recorder.Code, http.StatusConflict; got != want {
+				t.Fatalf(
+					"%s %s status = %d, want %d body=%s",
+					tc.method,
+					tc.path,
+					got,
+					want,
+					recorder.Body.String(),
+				)
+			}
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(error payload) error = %v", err)
+			}
+			if !strings.Contains(payload.Error, "package-owned") {
+				t.Fatalf("payload.Error = %q, want package-owned context", payload.Error)
+			}
+			tc.assertCalls(t, soulAuthoring, heartbeatAuthoring)
+		})
+	}
 }
 
 func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {

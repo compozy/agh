@@ -181,7 +181,7 @@ type Revision struct {
 	NewSnapshotID  string
 	Body           string
 	ActorKind      ActorKind
-	ActorRef       string
+	ActorID        string
 	CreatedAt      time.Time
 }
 
@@ -430,7 +430,7 @@ func (r Revision) Normalize() Revision {
 	r.NewDigest = strings.TrimSpace(r.NewDigest)
 	r.NewSnapshotID = strings.TrimSpace(r.NewSnapshotID)
 	r.ActorKind = ActorKind(strings.TrimSpace(string(r.ActorKind)))
-	r.ActorRef = strings.TrimSpace(r.ActorRef)
+	r.ActorID = strings.TrimSpace(r.ActorID)
 	return r
 }
 
@@ -454,8 +454,8 @@ func (r Revision) Validate() error {
 		return fmt.Errorf("%w: new digest is required", ErrInvalidRevision)
 	case !ValidActorKind(normalized.ActorKind):
 		return fmt.Errorf("%w: invalid actor kind %q", ErrInvalidRevision, normalized.ActorKind)
-	case normalized.ActorRef == "":
-		return fmt.Errorf("%w: actor ref is required", ErrInvalidRevision)
+	case normalized.ActorID == "":
+		return fmt.Errorf("%w: actor id is required", ErrInvalidRevision)
 	case normalized.CreatedAt.IsZero():
 		return fmt.Errorf("%w: created_at is required", ErrInvalidRevision)
 	}

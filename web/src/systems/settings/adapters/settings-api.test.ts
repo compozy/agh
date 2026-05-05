@@ -10,6 +10,7 @@ import {
   getSettingsGeneral,
   getSettingsObservability,
   getSettingsRestartStatus,
+  getSettingsSkills,
   listSettingsSandboxes,
   listSettingsExtensions,
   listSettingsHooks,
@@ -23,6 +24,7 @@ import {
   triggerSettingsRestart,
   updateSettingsAutomation,
   updateSettingsGeneral,
+  updateSettingsSkills,
 } from "./settings-api";
 
 const generalSectionFixture = {
@@ -184,6 +186,73 @@ describe("section reads and updates", () => {
     });
   });
 
+  it("loads the skills section with agent-scope query params", async () => {
+    const skillsSection = {
+      section: "skills" as const,
+      scope: "agent" as const,
+      available_scopes: ["global" as const, "agent" as const],
+      agent_name: "coder",
+      workspace_id: "ws-polybot",
+      runtime_available: true,
+      discovered_count: 3,
+      disabled_count: 1,
+      config: {
+        enabled: true,
+        disabled_skills: ["review"],
+        poll_interval: "5m",
+        marketplace: { registry: "agh" },
+      },
+      links: [{ label: "skills", path: "/skills" }],
+    };
+
+    mockJsonResponse(skillsSection);
+
+    const result = await getSettingsSkills({
+      scope: "agent",
+      agent_name: " coder ",
+      workspace_id: " ws-polybot ",
+    });
+
+    expect(result).toEqual(skillsSection);
+    await expectFetchRequest({
+      path: "/api/settings/skills?scope=agent&workspace_id=ws-polybot&agent_name=coder",
+    });
+  });
+
+  it("updates the skills section with agent-scope query params", async () => {
+    mockJsonResponse({
+      ...mutationFixture,
+      section: "skills" as const,
+      scope: "agent" as const,
+      agent_name: "coder",
+      workspace_id: "ws-polybot",
+      write_target: "workspace-agent-file" as const,
+    });
+
+    const body = {
+      config: {
+        enabled: true,
+        disabled_skills: ["review"],
+        poll_interval: "5m",
+        marketplace: { registry: "agh" },
+      },
+    };
+
+    const result = await updateSettingsSkills(body, {
+      scope: "agent",
+      agent_name: " coder ",
+      workspace_id: " ws-polybot ",
+    });
+
+    expect(result.scope).toBe("agent");
+    expect(result.write_target).toBe("workspace-agent-file");
+    await expectFetchRequest({
+      body,
+      method: "PATCH",
+      path: "/api/settings/skills?scope=agent&workspace_id=ws-polybot&agent_name=coder",
+    });
+  });
+
   it("throws typed errors on failed section reads", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
@@ -205,6 +274,11 @@ describe("collection endpoints", () => {
           command_available: true,
           settings: {
             command: "codex",
+            auth_mode: "native_cli",
+            env_policy: "filtered",
+            home_policy: "operator",
+            auth_status_command: "codex auth status",
+            auth_login_command: "codex login",
             credential_slots: [
               {
                 name: "api_key",
@@ -219,6 +293,12 @@ describe("collection endpoints", () => {
             available_targets: ["global-config" as const],
             effective_source: { kind: "global-config" as const, scope: "global" as const },
           },
+          auth_status: {
+            mode: "native_cli",
+            env_policy: "filtered",
+            home_policy: "operator",
+            state: "native_cli",
+          },
         },
       ],
     };
@@ -228,6 +308,8 @@ describe("collection endpoints", () => {
 
     expect(result.providers).toHaveLength(1);
     expect(result.providers[0]?.source_metadata.effective_source.kind).toBe("global-config");
+    expect(result.providers[0]?.settings.auth_mode).toBe("native_cli");
+    expect(result.providers[0]?.auth_status?.state).toBe("native_cli");
     await expectFetchRequest({ path: "/api/settings/providers" });
   });
 
@@ -235,12 +317,26 @@ describe("collection endpoints", () => {
     mockJsonResponse({ ...mutationFixture, section: "general" as const });
 
     const result = await putSettingsProvider("openai", {
-      settings: { command: "codex", default_model: "gpt-5" },
+      settings: {
+        command: "codex",
+        default_model: "gpt-5",
+        auth_mode: "native_cli",
+        env_policy: "filtered",
+        home_policy: "operator",
+      },
     });
 
     expect(result.write_target).toBe("global-config");
     await expectFetchRequest({
-      body: { settings: { command: "codex", default_model: "gpt-5" } },
+      body: {
+        settings: {
+          command: "codex",
+          default_model: "gpt-5",
+          auth_mode: "native_cli",
+          env_policy: "filtered",
+          home_policy: "operator",
+        },
+      },
       method: "PUT",
       path: "/api/settings/providers/openai",
     });

@@ -12,6 +12,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/network"
 	observepkg "github.com/pedronauck/agh/internal/observe"
@@ -38,6 +39,10 @@ func TestBundleCatalogPayloadsAndDeclaredChannels(t *testing.T) {
 						{Name: " secondary ", Description: " Backup channel "},
 					},
 				},
+				Agents: []extensionpkg.BundleAgent{{
+					Path:  "agents/planner",
+					Agent: aghconfig.AgentDef{Name: "planner", Prompt: "Plan work."},
+				}},
 				Jobs:     []extensionpkg.BundleJob{{Name: "job-a"}},
 				Triggers: []extensionpkg.BundleTrigger{{Name: "trigger-a"}},
 				Bridges:  []extensionpkg.BundleBridgePreset{{Name: "bridge-a"}},
@@ -54,6 +59,9 @@ func TestBundleCatalogPayloadsAndDeclaredChannels(t *testing.T) {
 	}
 	if got, want := len(catalog[0].Profiles[0].Channels), 2; got != want {
 		t.Fatalf("len(profile channels) = %d, want %d", got, want)
+	}
+	if got, want := catalog[0].Profiles[0].AgentCount, 1; got != want {
+		t.Fatalf("profile.AgentCount = %d, want %d", got, want)
 	}
 	if !catalog[0].Profiles[0].Channels[0].Primary || catalog[0].Profiles[0].Channels[1].Primary {
 		t.Fatalf("channel primary flags = %#v", catalog[0].Profiles[0].Channels)
@@ -91,6 +99,12 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 		{name: "profile missing", err: bundlepkg.ErrProfileNotFound, want: http.StatusNotFound},
 		{name: "extension missing", err: extensionpkg.ErrExtensionNotFound, want: http.StatusNotFound},
 		{name: "default channel busy", err: bundlepkg.ErrDefaultChannelBusy, want: http.StatusConflict},
+		{name: "agent conflict", err: bundlepkg.ErrAgentConflict, want: http.StatusConflict},
+		{
+			name: "agent reference missing",
+			err:  bundlepkg.ErrAgentReferenceNotFound,
+			want: http.StatusUnprocessableEntity,
+		},
 		{
 			name: "extension has active bundles",
 			err:  extensionpkg.ErrExtensionHasActiveBundles,

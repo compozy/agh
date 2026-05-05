@@ -19,6 +19,8 @@ reviews:
     - "!**/*.xml"
     - "!**/*.mdc"
     - "!**/*.mdx"
+    - "!**/*.lock"
+    - "!**/*.sum"
     - "!.cursor/**"
     - "!.git/**"
     - "!.claude/**"

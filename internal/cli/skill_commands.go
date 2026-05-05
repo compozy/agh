@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
+	skillbundled "github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/spf13/cobra"
 )
 
@@ -26,12 +28,15 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSkillRemoveCommand(deps))
 	cmd.AddCommand(newSkillUpdateCommand(deps))
 	cmd.AddCommand(newSkillCreateCommand(deps))
+	cmd.AddCommand(newSkillEnableCommand(deps))
+	cmd.AddCommand(newSkillDisableCommand(deps))
 	return cmd
 }
 
 func newSkillListCommand(deps commandDeps) *cobra.Command {
 	var sourceFilter string
 	var workspace string
+	var agentName string
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -43,16 +48,19 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
   agh skill list --source bundled`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workspaceRef, err := commandWorkspaceFlag(cmd)
+			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.list"))
 			if err != nil {
 				return err
 			}
-			if workspaceRef != "" {
+			if scope.useDaemon {
 				client, err := clientFromDeps(deps)
 				if err != nil {
 					return err
 				}
-				records, err := client.ListSkills(cmd.Context(), SkillQuery{Workspace: workspaceRef})
+				records, err := client.ListSkills(
+					cmd.Context(),
+					scope.query,
+				)
 				if err != nil {
 					return err
 				}
@@ -63,7 +71,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 				return writeCommandOutput(cmd, skillListBundle(items))
 			}
 
-			ctx, err := loadSkillCommandContext(cmd.Context(), deps)
+			ctx, err := loadSkillCommandContext(cmd.Context(), deps, scope.query.ForAgent)
 			if err != nil {
 				return err
 			}
@@ -80,7 +88,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 		&sourceFilter,
 		"source",
 		"",
-		"Filter by source: bundled, marketplace, user, additional (or agents/.agents), or workspace",
+		"Filter by source: bundled, marketplace, user, additional, workspace, or agent-local",
 	)
 	cmd.Flags().StringVar(
 		&workspace,
@@ -88,12 +96,14 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 		"",
 		"Resolve daemon-managed skills from a workspace id, name, or path",
 	)
+	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
 	return cmd
 }
 
 func newSkillViewCommand(deps commandDeps) *cobra.Command {
 	var filePath string
 	var workspace string
+	var agentName string
 
 	cmd := &cobra.Command{
 		Use:   "view <name>",
@@ -115,6 +125,7 @@ func newSkillViewCommand(deps commandDeps) *cobra.Command {
 		"",
 		"Resolve the daemon-managed skill from a workspace id, name, or path",
 	)
+	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
 	return cmd
 }
 
@@ -123,14 +134,14 @@ func runSkillViewCommand(cmd *cobra.Command, deps commandDeps, name string, file
 	if skillName == "" {
 		return errors.New("skill name is required")
 	}
-	workspaceRef, err := commandWorkspaceFlag(cmd)
+	scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.view"))
 	if err != nil {
 		return err
 	}
-	if workspaceRef != "" {
-		return runDaemonSkillViewCommand(cmd, deps, skillName, filePath, workspaceRef)
+	if scope.useDaemon {
+		return runDaemonSkillViewCommand(cmd, deps, skillName, filePath, scope.query)
 	}
-	return runLocalSkillViewCommand(cmd, deps, skillName, filePath)
+	return runLocalSkillViewCommand(cmd, deps, skillName, filePath, scope.query.ForAgent)
 }
 
 func runDaemonSkillViewCommand(
@@ -138,7 +149,7 @@ func runDaemonSkillViewCommand(
 	deps commandDeps,
 	name string,
 	filePath string,
-	workspaceRef string,
+	query SkillQuery,
 ) error {
 	if strings.TrimSpace(filePath) != "" {
 		return fmt.Errorf("skill view --workspace does not support --file")
@@ -147,11 +158,11 @@ func runDaemonSkillViewCommand(
 	if err != nil {
 		return err
 	}
-	record, err := client.GetSkill(cmd.Context(), name, SkillQuery{Workspace: workspaceRef})
+	record, err := client.GetSkill(cmd.Context(), name, query)
 	if err != nil {
 		return err
 	}
-	content, err := client.GetSkillContent(cmd.Context(), name, SkillQuery{Workspace: workspaceRef})
+	content, err := client.GetSkillContent(cmd.Context(), name, query)
 	if err != nil {
 		return err
 	}
@@ -168,8 +179,14 @@ func runDaemonSkillViewCommand(
 	return writeCommandOutput(cmd, skillViewBundle(item, rendered))
 }
 
-func runLocalSkillViewCommand(cmd *cobra.Command, deps commandDeps, name string, filePath string) error {
-	ctx, err := loadSkillCommandContext(cmd.Context(), deps)
+func runLocalSkillViewCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	name string,
+	filePath string,
+	agentName string,
+) error {
+	ctx, err := loadSkillCommandContext(cmd.Context(), deps, agentName)
 	if err != nil {
 		return err
 	}
@@ -228,6 +245,7 @@ func runLocalSkillXMLViewCommand(cmd *cobra.Command, ctx skillCommandContext, sk
 
 func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 	var workspace string
+	var agentName string
 
 	cmd := &cobra.Command{
 		Use:   "info <name>",
@@ -236,23 +254,27 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
   agh skill info code-review`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			workspaceRef, err := commandWorkspaceFlag(cmd)
+			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.info"))
 			if err != nil {
 				return err
 			}
-			if workspaceRef != "" {
+			if scope.useDaemon {
 				client, err := clientFromDeps(deps)
 				if err != nil {
 					return err
 				}
-				record, err := client.GetSkill(cmd.Context(), args[0], SkillQuery{Workspace: workspaceRef})
+				record, err := client.GetSkill(
+					cmd.Context(),
+					args[0],
+					scope.query,
+				)
 				if err != nil {
 					return err
 				}
 				return writeCommandOutput(cmd, skillInfoBundle(skillInfoItemFromRecord(record)))
 			}
 
-			ctx, err := loadSkillCommandContext(cmd.Context(), deps)
+			ctx, err := loadSkillCommandContext(cmd.Context(), deps, scope.query.ForAgent)
 			if err != nil {
 				return err
 			}
@@ -287,6 +309,7 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 		"",
 		"Resolve the daemon-managed skill from a workspace id, name, or path",
 	)
+	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
 	return cmd
 }
 
@@ -343,6 +366,72 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 			}))
 		},
 	}
+}
+
+func newSkillEnableCommand(deps commandDeps) *cobra.Command {
+	return newSkillActionCommand(deps, "enable <name>", "Enable a daemon-managed skill", func(
+		ctx context.Context,
+		client DaemonClient,
+		name string,
+		query SkillQuery,
+	) (SkillActionRecord, error) {
+		return client.EnableSkill(ctx, name, query)
+	})
+}
+
+func newSkillDisableCommand(deps commandDeps) *cobra.Command {
+	return newSkillActionCommand(deps, "disable <name>", "Disable a daemon-managed skill", func(
+		ctx context.Context,
+		client DaemonClient,
+		name string,
+		query SkillQuery,
+	) (SkillActionRecord, error) {
+		return client.DisableSkill(ctx, name, query)
+	})
+}
+
+func newSkillActionCommand(
+	deps commandDeps,
+	use string,
+	short string,
+	action func(context.Context, DaemonClient, string, SkillQuery) (SkillActionRecord, error),
+) *cobra.Command {
+	var workspaceRef string
+	var agentName string
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			scope, err := resolveSkillCommandScope(
+				cmd.Context(),
+				cmd,
+				deps,
+				agentActionCLI("skill."+strings.Fields(use)[0]),
+			)
+			if err != nil {
+				return err
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			actionName := strings.Fields(use)[0]
+			result, err := action(
+				cmd.Context(),
+				client,
+				args[0],
+				scope.query,
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, skillActionBundle(args[0], actionName, result))
+		},
+	}
+	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace id, name, or path")
+	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
+	return cmd
 }
 
 func newSkillSearchCommand(deps commandDeps) *cobra.Command {
@@ -420,12 +509,20 @@ func newSkillRemoveCommand(deps commandDeps) *cobra.Command {
 
 			item, err := removeMarketplaceSkill(runtime.HomePaths.SkillsDir, name)
 			if err != nil {
+				if bundledSkillExists(name) {
+					return fmt.Errorf("skill %q is not a marketplace-installed skill", name)
+				}
 				return err
 			}
 
 			return writeCommandOutput(cmd, skillRemoveBundle(item))
 		},
 	}
+}
+
+func bundledSkillExists(name string) bool {
+	_, err := skillbundled.LoadContent(name)
+	return err == nil
 }
 
 func newSkillUpdateCommand(deps commandDeps) *cobra.Command {

@@ -9,6 +9,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/systems/settings/adapters/settings-api", () => ({
   getSettingsGeneral: vi.fn(),
+  getSettingsUpdate: vi.fn(),
   updateSettingsGeneral: vi.fn(),
   getSettingsRestartStatus: vi.fn(),
   triggerSettingsRestart: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
 
 import {
   getSettingsGeneral,
+  getSettingsUpdate,
   updateSettingsGeneral,
 } from "@/systems/settings/adapters/settings-api";
 import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
@@ -76,6 +78,18 @@ beforeEach(() => {
     recordMutation: useSettingsRestartStore.getState().recordMutation,
   });
   vi.mocked(getSettingsGeneral).mockResolvedValue(envelope);
+  vi.mocked(getSettingsUpdate).mockResolvedValue({
+    supported: true,
+    managed: false,
+    install_method: "direct-binary",
+    current_version: "v1.0.0",
+    latest_version: "v1.1.0",
+    available: true,
+    status: "available",
+    recommendation: "Run `agh update`.",
+    release_url: "https://github.com/compozy/agh/releases/tag/v1.1.0",
+    checked_at: "2026-05-03T19:00:00Z",
+  });
 });
 
 afterEach(() => {

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -643,6 +644,158 @@ func TestManagerAuditsBusyQueueOverflowAsRejected(t *testing.T) {
 		if got, want := status.MessagesRejected, int64(1); got != want {
 			t.Fatalf("Status.MessagesRejected = %d, want %d", got, want)
 		}
+	})
+}
+
+func TestManagerRejectsBogusWhoisFloodWithoutResourceGrowth(t *testing.T) {
+	t.Run("Should reject bogus whois flood while staying responsive", func(t *testing.T) {
+		// This scenario captures process-wide goroutine and heap baselines, so it
+		// must remain serial while other package tests are paused.
+		ctx := t.Context()
+		fixedNow := time.Date(2026, 5, 3, 9, 30, 0, 0, time.UTC)
+		prompter := newFakeDeliveryPrompter()
+		auditor := &recordingAuditWriter{}
+		manager, err := NewManager(
+			ctx,
+			testManagerConfig(),
+			prompter,
+			filepath.Join(t.TempDir(), "network.audit"),
+			nil,
+			WithManagerLogger(discardManagerLogger()),
+			WithManagerClock(func() time.Time { return fixedNow }),
+			WithManagerAuditWriter(auditor),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		if err := manager.JoinChannel(
+			ctx,
+			testJoinRequest("sess-sender", "coder.sess-sender", "builders"),
+		); err != nil {
+			t.Fatalf("JoinChannel(sender) error = %v", err)
+		}
+		if err := manager.JoinChannel(
+			ctx,
+			testJoinRequest("sess-receiver", "reviewer.sess-receiver", "builders"),
+		); err != nil {
+			t.Fatalf("JoinChannel(receiver) error = %v", err)
+		}
+		auditor.reset()
+
+		runtime.GC()
+		baselineGoroutines := runtime.NumGoroutine()
+		var baselineMemory runtime.MemStats
+		runtime.ReadMemStats(&baselineMemory)
+
+		baselineP95 := p95Duration(collectStatusLatencies(ctx, t, manager, 25))
+
+		const floodCount = 10_000
+		bogusWhoisPayload, err := json.Marshal(Envelope{
+			Protocol: ProtocolV0,
+			ID:       "msg-bogus-whois",
+			Kind:     KindWhois,
+			Channel:  "builders",
+			From:     "attacker.sess-bogus",
+			TS:       fixedNow.Unix(),
+			Body: mustRawJSON(t, map[string]any{
+				"type": "bogus-peer-card-request",
+			}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(bogus whois envelope) error = %v", err)
+		}
+
+		started := make(chan struct{})
+		done := make(chan struct{})
+		go func() {
+			close(started)
+			defer close(done)
+			for i := range floodCount {
+				manager.handleInboundMessage(bogusWhoisPayload)
+				if i%50 == 0 {
+					time.Sleep(2 * time.Millisecond)
+				}
+			}
+		}()
+
+		<-started
+		statusLatencies := collectStatusLatenciesUntil(done, func() time.Duration {
+			start := time.Now()
+			status, statusErr := manager.Status(ctx)
+			if statusErr != nil {
+				t.Fatalf("Status(during flood) error = %v", statusErr)
+			}
+			if status.Status != StatusRunning {
+				t.Fatalf("Status(during flood).Status = %q, want %q", status.Status, StatusRunning)
+			}
+			return time.Since(start)
+		})
+		if len(statusLatencies) == 0 {
+			t.Fatal("collected zero status latencies during flood")
+		}
+
+		cleanMessageID, err := manager.Send(ctx, SendRequest{
+			ID:        ptrString("msg-clean-during-flood"),
+			SessionID: "sess-sender",
+			Channel:   "builders",
+			Kind:      KindSay,
+			Body:      mustRawJSON(t, map[string]any{"text": "clean message during bogus flood"}),
+		})
+		if err != nil {
+			t.Fatalf("Send(clean during flood) error = %v", err)
+		}
+		prompter.waitForCalls(t, 1)
+		call := prompter.call(0)
+		if got, want := call.sessionID, "sess-receiver"; got != want {
+			t.Fatalf("clean delivery session = %q, want %q", got, want)
+		}
+		if !strings.Contains(call.message, "clean message during bogus flood") {
+			t.Fatalf("clean delivery prompt = %q, want clean flood message", call.message)
+		}
+		prompter.finishCall(0)
+		manager.deliveries.wait()
+
+		<-done
+		waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer waitCancel()
+		waitForCondition(waitCtx, t, func() bool {
+			return auditor.rejectedCount() == floodCount
+		}, "all bogus whois rejections to be audited")
+
+		duringP95 := p95Duration(statusLatencies)
+		if duringP95 > 200*time.Millisecond {
+			t.Fatalf("Status() p95 during flood = %s, want <= 200ms", duringP95)
+		}
+		if duringP95 > baselineP95*2 && duringP95 > 10*time.Millisecond {
+			t.Fatalf("Status() p95 during flood = %s, baseline p95 = %s, want within 2x", duringP95, baselineP95)
+		}
+
+		if got, want := auditor.countReceivedMessage(cleanMessageID), 1; got != want {
+			t.Fatalf("clean received audit count = %d, want %d", got, want)
+		}
+		if got := prompter.callCount(); got != 1 {
+			t.Fatalf("prompt calls after bogus flood = %d, want only the clean delivery", got)
+		}
+
+		runtime.GC()
+		var afterMemory runtime.MemStats
+		runtime.ReadMemStats(&afterMemory)
+		var delta uint64
+		if afterMemory.Alloc > baselineMemory.Alloc {
+			delta = afterMemory.Alloc - baselineMemory.Alloc
+		}
+		if delta > 200*1024*1024 {
+			t.Fatalf("heap allocation delta after flood = %d bytes, want < 200 MiB", delta)
+		}
+		waitForCondition(waitCtx, t, func() bool {
+			return runtime.NumGoroutine() <= baselineGoroutines+8
+		}, "goroutine count to return near baseline after bogus flood")
 	})
 }
 
@@ -1512,6 +1665,12 @@ func (w *recordingAuditWriter) rejectedForMessage(messageID string) []auditCall 
 	return filtered
 }
 
+func (w *recordingAuditWriter) rejectedCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.rejected)
+}
+
 func (w *recordingAuditWriter) reset() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -1519,4 +1678,45 @@ func (w *recordingAuditWriter) reset() {
 	w.received = nil
 	w.rejected = nil
 	w.delivered = nil
+}
+
+func collectStatusLatencies(ctx context.Context, t *testing.T, manager *Manager, count int) []time.Duration {
+	t.Helper()
+
+	latencies := make([]time.Duration, 0, count)
+	for range count {
+		start := time.Now()
+		status, err := manager.Status(ctx)
+		if err != nil {
+			t.Fatalf("Status() error = %v", err)
+		}
+		if status.Status != StatusRunning {
+			t.Fatalf("Status().Status = %q, want %q", status.Status, StatusRunning)
+		}
+		latencies = append(latencies, time.Since(start))
+	}
+	return latencies
+}
+
+func collectStatusLatenciesUntil(done <-chan struct{}, sample func() time.Duration) []time.Duration {
+	latencies := make([]time.Duration, 0, 64)
+	for {
+		select {
+		case <-done:
+			return latencies
+		default:
+			latencies = append(latencies, sample())
+			time.Sleep(time.Millisecond)
+		}
+	}
+}
+
+func p95Duration(values []time.Duration) time.Duration {
+	if len(values) == 0 {
+		return 0
+	}
+	ordered := append([]time.Duration(nil), values...)
+	slices.Sort(ordered)
+	index := max((len(ordered)*95+99)/100, 1)
+	return ordered[index-1]
 }

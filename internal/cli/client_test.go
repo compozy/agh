@@ -1146,6 +1146,9 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					if err != nil {
 						t.Fatalf("io.ReadAll(prompt body) error = %v", err)
 					}
+					if got := req.URL.Query().Get("format"); got != "raw" {
+						t.Fatalf("prompt format query = %q, want raw", got)
+					}
 					if !strings.Contains(string(body), `"message":"hello"`) {
 						t.Fatalf("prompt body = %s, want message", body)
 					}
@@ -1189,6 +1192,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"workspaces":[{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/alpha":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"agents":[{"name":"coder","provider":"fake","prompt":"hi"}],"skills":[{"name":"review","dir":"/workspace/project/.agh/skills/review","source":"workspace"}]}`,
+					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1":
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"agents":[{"name":"coder","provider":"fake","prompt":"hi"}],"skills":[{"name":"review","dir":"/workspace/project/.agh/skills/review","source":"workspace"}]}`,
@@ -1521,6 +1529,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	workspaceDetail, err := client.GetWorkspace(ctx, "alpha")
 	if err != nil || workspaceDetail.Workspace.ID != "ws-1" || len(workspaceDetail.Skills) != 1 {
 		t.Fatalf("GetWorkspace() = %#v, %v", workspaceDetail, err)
+	}
+
+	workspaceDetailByPath, err := client.GetWorkspace(ctx, "/workspace/project")
+	if err != nil || workspaceDetailByPath.Workspace.ID != "ws-1" || len(workspaceDetailByPath.Skills) != 1 {
+		t.Fatalf("GetWorkspace(path) = %#v, %v", workspaceDetailByPath, err)
 	}
 
 	updatedWorkspace, err := client.UpdateWorkspace(ctx, "ws-1", WorkspaceUpdateRequest{Name: ptr("beta")})
@@ -2188,6 +2201,9 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if payload.IdempotencyKey != "idem-1" || payload.NetworkChannel != "builders" {
 						t.Fatalf("enqueue run payload = %#v", payload)
 					}
+					if got, want := string(payload.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
+						t.Fatalf("enqueue run metadata = %q, want %q", got, want)
+					}
 					body := mustJSON(t, contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusQueued)})
 					return newHTTPResponse(http.StatusCreated, string(body)), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/tasks/task-1/runs":
@@ -2364,6 +2380,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		enqueued, err := client.EnqueueTaskRun(ctx, "task-1", EnqueueTaskRunRequest{
 			IdempotencyKey: "idem-1",
 			NetworkChannel: "builders",
+			Metadata:       json.RawMessage(`{"schema":"agh.harness.detached.v1"}`),
 		})
 		if err != nil || enqueued.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("EnqueueTaskRun() = %#v, %v", enqueued, err)

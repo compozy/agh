@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 )
 
@@ -272,11 +273,11 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 		t.Fatalf("automation jobs list error = %v", err)
 	}
 
-	var listed []JobRecord
+	var listed contract.JobsResponse
 	if err := json.Unmarshal([]byte(listJSON), &listed); err != nil {
 		t.Fatalf("json.Unmarshal(job list) error = %v", err)
 	}
-	if len(listed) != 1 || listQuery.Scope != automationpkg.AutomationScopeWorkspace ||
+	if len(listed.Jobs) != 1 || listQuery.Scope != automationpkg.AutomationScopeWorkspace ||
 		listQuery.WorkspaceID != "ws-alpha" ||
 		listQuery.Source != automationpkg.JobSourceDynamic ||
 		listQuery.Limit != 3 {
@@ -450,11 +451,11 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("automation triggers list error = %v", err)
 	}
-	var listed []TriggerRecord
+	var listed contract.TriggersResponse
 	if err := json.Unmarshal([]byte(stdout), &listed); err != nil {
 		t.Fatalf("json.Unmarshal(trigger list) error = %v", err)
 	}
-	if len(listed) != 1 || listTriggerQuery.WorkspaceID != "ws-alpha" ||
+	if len(listed.Triggers) != 1 || listTriggerQuery.WorkspaceID != "ws-alpha" ||
 		listTriggerQuery.Scope != automationpkg.AutomationScopeWorkspace ||
 		listTriggerQuery.Event != "webhook" ||
 		listTriggerQuery.Source != automationpkg.JobSourceDynamic ||

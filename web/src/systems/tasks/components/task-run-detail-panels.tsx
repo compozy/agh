@@ -31,9 +31,15 @@ function IdentityRow({
   );
 }
 
+function normalizeSessionText(value?: string | null): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
   const record = run.run;
   const session = run.session;
+  const linkedSessionID = normalizeSessionText(session?.session_id ?? record.session_id);
+  const linkedSessionAgent = normalizeSessionText(session?.agent_name);
 
   return (
     <Section aria-label="Run identity" data-testid="task-run-detail-identity" label="Run identity">
@@ -62,14 +68,23 @@ export function TaskRunIdentityPanel({ run }: TaskRunIdentityPanelProps) {
               </IdentityRow>
             ) : null}
             <IdentityRow label="Session">
-              {session?.session_id && session.agent_name ? (
+              {linkedSessionID && linkedSessionAgent ? (
                 <Link
                   className="font-mono text-[12px] text-[color:var(--color-accent)] hover:underline"
                   data-testid="task-run-detail-session-link"
-                  params={{ name: session.agent_name, id: session.session_id }}
+                  params={{ name: linkedSessionAgent, id: linkedSessionID }}
                   to="/agents/$name/sessions/$id"
                 >
-                  {session.session_id}
+                  {linkedSessionID}
+                </Link>
+              ) : linkedSessionID ? (
+                <Link
+                  className="font-mono text-[12px] text-[color:var(--color-accent)] hover:underline"
+                  data-testid="task-run-detail-session-link"
+                  params={{ id: linkedSessionID }}
+                  to="/session/$id"
+                >
+                  {linkedSessionID}
                 </Link>
               ) : (
                 <span

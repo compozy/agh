@@ -75,6 +75,7 @@ type Server struct {
 	toolApprovals     core.ToolApprovalIssuer
 	settings          core.SettingsService
 	settingsRestart   core.SettingsRestartController
+	settingsUpdate    core.SettingsUpdateController
 	vault             core.VaultService
 	workspaces        core.WorkspaceService
 	agentCatalog      core.AgentCatalog
@@ -119,6 +120,7 @@ type handlerConfig struct {
 	toolApprovals     core.ToolApprovalIssuer
 	settings          core.SettingsService
 	settingsRestart   core.SettingsRestartController
+	settingsUpdate    core.SettingsUpdateController
 	vault             core.VaultService
 	workspaces        core.WorkspaceService
 	agentCatalog      core.AgentCatalog
@@ -303,6 +305,13 @@ func WithSettingsService(service core.SettingsService) Option {
 func WithSettingsRestartController(controller core.SettingsRestartController) Option {
 	return func(server *Server) {
 		server.settingsRestart = controller
+	}
+}
+
+// WithSettingsUpdateController injects the daemon-owned update status surface for settings handlers.
+func WithSettingsUpdateController(controller core.SettingsUpdateController) Option {
+	return func(server *Server) {
+		server.settingsUpdate = controller
 	}
 }
 
@@ -570,6 +579,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		toolApprovals:     s.toolApprovals,
 		settings:          s.settings,
 		settingsRestart:   s.settingsRestart,
+		settingsUpdate:    s.settingsUpdate,
 		vault:             s.vault,
 		workspaces:        s.workspaces,
 		agentCatalog:      s.agentCatalog,
@@ -815,6 +825,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			ToolApprovals:                cfg.toolApprovals,
 			Settings:                     cfg.settings,
 			SettingsRestart:              cfg.settingsRestart,
+			SettingsUpdate:               cfg.settingsUpdate,
 			Vault:                        cfg.vault,
 			Workspaces:                   cfg.workspaces,
 			AgentCatalog:                 cfg.agentCatalog,

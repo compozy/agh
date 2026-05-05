@@ -1,10 +1,33 @@
 import { cn } from "@agh/ui";
-import type { ComponentProps, ReactNode } from "react";
+import { isValidElement, type ComponentProps, type ReactNode } from "react";
+
+function textFromNode(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textFromNode).join("");
+  if (isValidElement<{ children?: ReactNode }>(node)) return textFromNode(node.props.children);
+  return "";
+}
+
+function slugifyHeading(heading: string): string {
+  return heading
+    .replace(/<[^>]+>/g, "")
+    .replace(/`([^`]+)`/g, "$1")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/\s+/g, "-");
+}
+
+function resolveHeadingID(id: string | undefined, children: ReactNode): string | undefined {
+  if (id && id !== "$undefined") return id;
+  const generated = slugifyHeading(textFromNode(children));
+  return generated.length > 0 ? generated : undefined;
+}
 
 export function ProseH2({ id, children, className, ...props }: ComponentProps<"h2">) {
   return (
     <h2
-      id={id}
+      id={resolveHeadingID(id, children)}
       {...props}
       className={cn(
         "mt-16 border-t border-(--color-divider) pt-4 font-sans text-[clamp(1.7rem,3vw,2.45rem)] font-semibold leading-[1.05] tracking-[-0.035em] text-(--color-text-primary)",
@@ -19,7 +42,7 @@ export function ProseH2({ id, children, className, ...props }: ComponentProps<"h
 export function ProseH3({ id, children, className, ...props }: ComponentProps<"h3">) {
   return (
     <h3
-      id={id}
+      id={resolveHeadingID(id, children)}
       {...props}
       className={cn(
         "mt-10 font-sans text-[clamp(1.3rem,2.2vw,1.7rem)] font-semibold leading-[1.15] tracking-[-0.02em] text-(--color-text-primary)",

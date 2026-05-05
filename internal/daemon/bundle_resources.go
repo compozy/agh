@@ -13,8 +13,11 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/soul"
 )
 
 const bundleManagedIDPrefix = "daemon.sync.bundle."
@@ -266,7 +269,7 @@ func extensionManifestBundleDeclarationProvider(
 	runtime func() extensionRuntime,
 	logger *slog.Logger,
 ) bundleDeclarationProvider {
-	return func(_ context.Context) ([]bundlePublicationInput, error) {
+	return func(ctx context.Context) ([]bundlePublicationInput, error) {
 		if registry == nil || runtime == nil {
 			return nil, nil
 		}
@@ -288,7 +291,7 @@ func extensionManifestBundleDeclarationProvider(
 			if !info.Enabled {
 				continue
 			}
-			ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
+			ext, err := loadExtensionSnapshot(ctx, registry, manager, logger, info.Name)
 			if err != nil {
 				return nil, fmt.Errorf("daemon: load extension %q for bundle sync: %w", info.Name, err)
 			}
@@ -427,6 +430,12 @@ func newBundleResourceStore(
 		BundleCodec:     deps.bundleCodec,
 		Activations:     deps.activationStore,
 		ActivationCodec: deps.activationCodec,
+		Agents:          deps.agentStore,
+		AgentCodec:      deps.agentCodec,
+		Souls:           deps.soulStore,
+		SoulCodec:       deps.soulCodec,
+		Heartbeats:      deps.heartbeatStore,
+		HeartbeatCodec:  deps.heartbeatCodec,
 		Jobs:            deps.jobStore,
 		JobCodec:        deps.jobCodec,
 		Triggers:        deps.triggerStore,
@@ -449,6 +458,12 @@ type bundleResourceStoreDeps struct {
 	bundleStore     resources.Store[bundlepkg.BundleResourceSpec]
 	activationCodec resources.KindCodec[bundlepkg.ActivationResourceSpec]
 	activationStore resources.Store[bundlepkg.ActivationResourceSpec]
+	agentCodec      resources.KindCodec[aghconfig.AgentDef]
+	agentStore      resources.Store[aghconfig.AgentDef]
+	soulCodec       resources.KindCodec[soul.ResourceSpec]
+	soulStore       resources.Store[soul.ResourceSpec]
+	heartbeatCodec  resources.KindCodec[heartbeat.ResourceSpec]
+	heartbeatStore  resources.Store[heartbeat.ResourceSpec]
 	jobCodec        resources.KindCodec[automationpkg.Job]
 	jobStore        resources.Store[automationpkg.Job]
 	triggerCodec    resources.KindCodec[automationpkg.Trigger]
@@ -458,6 +473,27 @@ type bundleResourceStoreDeps struct {
 }
 
 func resolveBundleResourceStoreDeps(
+	state *bootState,
+	raw resources.RawStore,
+) (bundleResourceStoreDeps, error) {
+	deps, err := resolveBundleBaseResourceStoreDeps(state, raw)
+	if err != nil {
+		return bundleResourceStoreDeps{}, err
+	}
+	projectionDeps, err := resolveBundleProjectionResourceStoreDeps(state, raw)
+	if err != nil {
+		return bundleResourceStoreDeps{}, err
+	}
+	deps.jobCodec = projectionDeps.jobCodec
+	deps.jobStore = projectionDeps.jobStore
+	deps.triggerCodec = projectionDeps.triggerCodec
+	deps.triggerStore = projectionDeps.triggerStore
+	deps.bridgeCodec = projectionDeps.bridgeCodec
+	deps.bridgeStore = projectionDeps.bridgeStore
+	return deps, nil
+}
+
+func resolveBundleBaseResourceStoreDeps(
 	state *bootState,
 	raw resources.RawStore,
 ) (bundleResourceStoreDeps, error) {
@@ -479,6 +515,51 @@ func resolveBundleResourceStoreDeps(
 	if err != nil {
 		return bundleResourceStoreDeps{}, err
 	}
+	agentCodec, agentStore, err := resolveDaemonResourceStore[aghconfig.AgentDef](
+		state,
+		raw,
+		aghconfig.AgentResourceKind,
+		"bundle agent",
+	)
+	if err != nil {
+		return bundleResourceStoreDeps{}, err
+	}
+	soulCodec, soulStore, err := resolveDaemonResourceStore[soul.ResourceSpec](
+		state,
+		raw,
+		soul.ResourceKind,
+		"bundle soul",
+	)
+	if err != nil {
+		return bundleResourceStoreDeps{}, err
+	}
+	heartbeatCodec, heartbeatStore, err := resolveDaemonResourceStore[heartbeat.ResourceSpec](
+		state,
+		raw,
+		heartbeat.ResourceKind,
+		"bundle heartbeat",
+	)
+	if err != nil {
+		return bundleResourceStoreDeps{}, err
+	}
+	return bundleResourceStoreDeps{
+		bundleCodec:     bundleCodec,
+		bundleStore:     bundleStore,
+		activationCodec: activationCodec,
+		activationStore: activationStore,
+		agentCodec:      agentCodec,
+		agentStore:      agentStore,
+		soulCodec:       soulCodec,
+		soulStore:       soulStore,
+		heartbeatCodec:  heartbeatCodec,
+		heartbeatStore:  heartbeatStore,
+	}, nil
+}
+
+func resolveBundleProjectionResourceStoreDeps(
+	state *bootState,
+	raw resources.RawStore,
+) (bundleResourceStoreDeps, error) {
 	jobCodec, jobStore, err := resolveDaemonResourceStore[automationpkg.Job](
 		state,
 		raw,
@@ -507,16 +588,12 @@ func resolveBundleResourceStoreDeps(
 		return bundleResourceStoreDeps{}, err
 	}
 	return bundleResourceStoreDeps{
-		bundleCodec:     bundleCodec,
-		bundleStore:     bundleStore,
-		activationCodec: activationCodec,
-		activationStore: activationStore,
-		jobCodec:        jobCodec,
-		jobStore:        jobStore,
-		triggerCodec:    triggerCodec,
-		triggerStore:    triggerStore,
-		bridgeCodec:     bridgeCodec,
-		bridgeStore:     bridgeStore,
+		jobCodec:     jobCodec,
+		jobStore:     jobStore,
+		triggerCodec: triggerCodec,
+		triggerStore: triggerStore,
+		bridgeCodec:  bridgeCodec,
+		bridgeStore:  bridgeStore,
 	}, nil
 }
 

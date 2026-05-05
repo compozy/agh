@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -729,6 +730,75 @@ func TestResolveLocalAgentOverridesGlobalByName(t *testing.T) {
 	}
 	if got := agentModel(resolved.Agents, "reviewer"); got != "review" {
 		t.Fatalf("reviewer model = %q, want %q", got, "review")
+	}
+}
+
+func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := newTestHomePaths(t)
+	root := t.TempDir()
+
+	writeAgentDef(
+		t,
+		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "healthy", agentDefinitionFile),
+		"healthy",
+		"local",
+	)
+	writeFile(
+		t,
+		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "no-fence", agentDefinitionFile),
+		"plain body",
+	)
+	writeFile(
+		t,
+		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "unterminated", agentDefinitionFile),
+		"---\nname: broken",
+	)
+	writeFile(
+		t,
+		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "bom", agentDefinitionFile),
+		"\ufeff---\nname: broken\n---\nPrompt.",
+	)
+	writeFile(
+		t,
+		filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, "embedded-tab", agentDefinitionFile),
+		"---\nna\tme: broken\n---\nPrompt.",
+	)
+
+	store := newMockWorkspaceStore(Workspace{ID: "ws_agents", RootDir: root, Name: "repo"})
+	loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+	resolver := newTestResolver(t, store,
+		WithHomePaths(homePaths),
+		WithConfigLoader(loader.Load),
+	)
+
+	resolved, err := resolver.Resolve(ctx, "ws_agents")
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if got := agentModel(resolved.Agents, "healthy"); got != "local" {
+		t.Fatalf("healthy model = %q, want local", got)
+	}
+	if got, want := len(resolved.AgentDiagnostics), 4; got != want {
+		t.Fatalf("len(AgentDiagnostics) = %d, want %d: %#v", got, want, resolved.AgentDiagnostics)
+	}
+	kinds := make(map[string]string, len(resolved.AgentDiagnostics))
+	for _, diagnostic := range resolved.AgentDiagnostics {
+		kinds[diagnostic.Name] = diagnostic.ErrorKind
+		if diagnostic.Path == "" || diagnostic.Message == "" {
+			t.Fatalf("diagnostic = %#v, want path and message", diagnostic)
+		}
+	}
+	wantKinds := map[string]string{
+		"no-fence":     "frontmatter.missing",
+		"unterminated": "frontmatter.unterminated",
+		"bom":          "frontmatter.bom",
+		"embedded-tab": "frontmatter.invalid_key",
+	}
+	if !maps.Equal(kinds, wantKinds) {
+		t.Fatalf("diagnostic kinds = %#v, want %#v", kinds, wantKinds)
 	}
 }
 

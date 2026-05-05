@@ -12,7 +12,10 @@ import (
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/soul"
 	storepkg "github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -25,6 +28,9 @@ type bundleResourceUnitHarness struct {
 	resourceStore  *ResourceStore
 	bundles        resources.Store[BundleResourceSpec]
 	activations    resources.Store[ActivationResourceSpec]
+	agents         resources.Store[aghconfig.AgentDef]
+	souls          resources.Store[soul.ResourceSpec]
+	heartbeats     resources.Store[heartbeat.ResourceSpec]
 	jobs           resources.Store[automationpkg.Job]
 	triggers       resources.Store[automationpkg.Trigger]
 	bridges        resources.Store[bridgepkg.BridgeInstanceSpec]
@@ -360,6 +366,12 @@ func TestNewResourceStoreAppliesDefaultActor(t *testing.T) {
 		BundleCodec:     h.resourceStore.bundleCodec,
 		Activations:     h.activations,
 		ActivationCodec: h.resourceStore.activationCodec,
+		Agents:          h.agents,
+		AgentCodec:      h.resourceStore.agentCodec,
+		Souls:           h.souls,
+		SoulCodec:       h.resourceStore.soulCodec,
+		Heartbeats:      h.heartbeats,
+		HeartbeatCodec:  h.resourceStore.heartbeatCodec,
 		Jobs:            h.jobs,
 		JobCodec:        h.resourceStore.jobCodec,
 		Triggers:        h.triggers,
@@ -385,6 +397,12 @@ func TestNewResourceStoreAppliesDefaultActor(t *testing.T) {
 		{name: "bundle codec", mutate: func(cfg *ResourceStoreConfig) { cfg.BundleCodec = nil }},
 		{name: "activations", mutate: func(cfg *ResourceStoreConfig) { cfg.Activations = nil }},
 		{name: "activation codec", mutate: func(cfg *ResourceStoreConfig) { cfg.ActivationCodec = nil }},
+		{name: "agent store", mutate: func(cfg *ResourceStoreConfig) { cfg.Agents = nil }},
+		{name: "agent codec", mutate: func(cfg *ResourceStoreConfig) { cfg.AgentCodec = nil }},
+		{name: "soul store", mutate: func(cfg *ResourceStoreConfig) { cfg.Souls = nil }},
+		{name: "soul codec", mutate: func(cfg *ResourceStoreConfig) { cfg.SoulCodec = nil }},
+		{name: "heartbeat store", mutate: func(cfg *ResourceStoreConfig) { cfg.Heartbeats = nil }},
+		{name: "heartbeat codec", mutate: func(cfg *ResourceStoreConfig) { cfg.HeartbeatCodec = nil }},
 		{name: "job store", mutate: func(cfg *ResourceStoreConfig) { cfg.Jobs = nil }},
 		{name: "trigger store", mutate: func(cfg *ResourceStoreConfig) { cfg.Triggers = nil }},
 		{name: "bridge store", mutate: func(cfg *ResourceStoreConfig) { cfg.Bridges = nil }},
@@ -432,6 +450,18 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 	if err != nil {
 		t.Fatalf("NewActivationResourceCodec() error = %v", err)
 	}
+	agentCodec, err := aghconfig.NewAgentResourceCodec()
+	if err != nil {
+		t.Fatalf("NewAgentResourceCodec() error = %v", err)
+	}
+	soulCodec, err := soul.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("NewSoulResourceCodec() error = %v", err)
+	}
+	heartbeatCodec, err := heartbeat.NewResourceCodec()
+	if err != nil {
+		t.Fatalf("NewHeartbeatResourceCodec() error = %v", err)
+	}
 	jobCodec, err := automationpkg.NewJobResourceCodec()
 	if err != nil {
 		t.Fatalf("NewJobResourceCodec() error = %v", err)
@@ -447,6 +477,9 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 
 	bundleStore := mustNewUnitTypedStore(t, kernel, bundleCodec)
 	activationStore := mustNewUnitTypedStore(t, kernel, activationCodec)
+	agentStore := mustNewUnitTypedStore(t, kernel, agentCodec)
+	soulStore := mustNewUnitTypedStore(t, kernel, soulCodec)
+	heartbeatStore := mustNewUnitTypedStore(t, kernel, heartbeatCodec)
 	jobStore := mustNewUnitTypedStore(t, kernel, jobCodec)
 	triggerStore := mustNewUnitTypedStore(t, kernel, triggerCodec)
 	bridgeStore := mustNewUnitTypedStore(t, kernel, bridgeCodec)
@@ -458,6 +491,9 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 		actor:       actor,
 		bundles:     bundleStore,
 		activations: activationStore,
+		agents:      agentStore,
+		souls:       soulStore,
+		heartbeats:  heartbeatStore,
 		jobs:        jobStore,
 		triggers:    triggerStore,
 		bridges:     bridgeStore,
@@ -467,6 +503,12 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 		BundleCodec:     bundleCodec,
 		Activations:     activationStore,
 		ActivationCodec: activationCodec,
+		Agents:          agentStore,
+		AgentCodec:      agentCodec,
+		Souls:           soulStore,
+		SoulCodec:       soulCodec,
+		Heartbeats:      heartbeatStore,
+		HeartbeatCodec:  heartbeatCodec,
 		Jobs:            jobStore,
 		JobCodec:        jobCodec,
 		Triggers:        triggerStore,

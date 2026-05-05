@@ -13,7 +13,7 @@ describe("site config metadata helpers", () => {
     expect(canonicalPath("/runtime/")).toBe("/runtime/");
   });
 
-  it("creates canonical OpenGraph and Twitter metadata with defaults", () => {
+  it("creates canonical OpenGraph and Twitter metadata with dynamic OG images", () => {
     const metadata = createPageMetadata({
       title: "Runtime Overview",
       path: "/runtime",
@@ -22,6 +22,7 @@ describe("site config metadata helpers", () => {
     expect(metadata).toEqual({
       title: "Runtime Overview",
       description: siteConfig.description,
+      keywords: undefined,
       alternates: {
         canonical: "/runtime/",
       },
@@ -32,7 +33,7 @@ describe("site config metadata helpers", () => {
         siteName: "AGH",
         images: [
           {
-            url: "/opengraph-image",
+            url: "/og/runtime/image.png",
             width: 1200,
             height: 630,
             alt: "Runtime Overview | AGH",
@@ -43,9 +44,30 @@ describe("site config metadata helpers", () => {
         card: "summary_large_image",
         title: "Runtime Overview",
         description: siteConfig.description,
-        images: ["/opengraph-image"],
+        images: ["/og/runtime/image.png"],
       },
     });
+  });
+
+  it("falls back to static OG image for the home page", () => {
+    const metadata = createPageMetadata({ title: "AGH", path: "/" });
+    expect(metadata.openGraph.images).toEqual([
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "AGH | AGH",
+      },
+    ]);
+  });
+
+  it("emits keywords when provided", () => {
+    const metadata = createPageMetadata({
+      title: "Launch Post",
+      path: "/blog/launch",
+      keywords: ["alpha", "agh-network/v0"],
+    });
+    expect(metadata.keywords).toEqual(["alpha", "agh-network/v0"]);
   });
 
   it("preserves page descriptions and custom social images", () => {

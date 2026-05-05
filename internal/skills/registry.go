@@ -14,6 +14,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/filesnap"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -42,7 +43,15 @@ type Registry struct {
 	cfg    RegistryConfig
 	logger *slog.Logger
 	now    func() time.Time
+	events store.EventSummaryStore
 }
+
+type skillToggleScope int
+
+const (
+	skillToggleScopeGlobal skillToggleScope = iota
+	skillToggleScopeWorkspace
+)
 
 // WithLogger injects the logger used for registry diagnostics.
 func WithLogger(logger *slog.Logger) Option {
@@ -55,6 +64,14 @@ func WithLogger(logger *slog.Logger) Option {
 func WithNow(now func() time.Time) Option {
 	return func(registry *Registry) {
 		registry.now = now
+	}
+}
+
+// WithEventSummaryStore injects the optional global observe-event writer used
+// for public skills.shadow and skills.load_failed events.
+func WithEventSummaryStore(events store.EventSummaryStore) Option {
+	return func(registry *Registry) {
+		registry.events = events
 	}
 }
 
@@ -85,6 +102,17 @@ func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 	}
 
 	return registry
+}
+
+// SetEventSummaryStore updates the optional global observe-event writer after
+// registry construction.
+func (r *Registry) SetEventSummaryStore(events store.EventSummaryStore) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = events
 }
 
 // LoadAll loads bundled and user-level skills into the global registry snapshot.
@@ -167,11 +195,14 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 	}
 
 	now := r.now()
+	currentGlobalVersion := r.GlobalVersion()
 
 	r.mu.Lock()
 	r.evictExpiredWorkspaceLocked(now)
 
-	if cached := r.wsCache[cacheKey]; cached != nil && filesnap.Equal(cached.snapshots, load.snapshots) {
+	if cached := r.wsCache[cacheKey]; cached != nil &&
+		cached.globalVersion == currentGlobalVersion &&
+		filesnap.Equal(cached.snapshots, load.snapshots) {
 		cached.lastAccess = now
 		globalSkills := r.globalSkills
 		workspaceSkills := cached.skills
@@ -186,15 +217,28 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 		return nil, err
 	}
 
+	var shadowEvents []store.EventSummary
 	r.mu.Lock()
 	r.evictExpiredWorkspaceLocked(now)
-	r.wsCache[cacheKey] = &wsCache{
-		skills:     workspaceSkills,
-		snapshots:  load.snapshots,
-		lastAccess: now,
-	}
 	globalSkills := r.globalSkills
+	currentGlobalVersion = r.globalVersion.Load()
+	r.logWorkspaceSkillOverrides(globalSkills, workspaceSkills, resourceWorkspaceKey(resolved))
+	shadowEvents = r.buildSkillShadowSummaries(
+		globalSkills,
+		workspaceSkills,
+		"workspace",
+		"",
+		resourceWorkspaceKey(resolved),
+		"",
+	)
+	r.wsCache[cacheKey] = &wsCache{
+		skills:        workspaceSkills,
+		snapshots:     load.snapshots,
+		lastAccess:    now,
+		globalVersion: currentGlobalVersion,
+	}
 	r.mu.Unlock()
+	r.emitEventSummaries(ctx, shadowEvents)
 
 	return mergedSkillList(globalSkills, workspaceSkills), nil
 }
@@ -211,8 +255,15 @@ func (r *Registry) SetEnabled(name string, resolved *workspacepkg.ResolvedWorksp
 	defer r.mu.Unlock()
 
 	if r.resourceAuthority {
-		if skill := r.resourceSkillTargetLocked(trimmedName, resolved); skill != nil {
+		scope, cacheKey, skill := r.resourceSkillTargetLocked(trimmedName, resolved)
+		if skill != nil {
 			skill.Enabled = enabled
+			switch scope {
+			case skillToggleScopeWorkspace:
+				r.workspaceDisabled[cacheKey] = setDisabledSkill(r.workspaceDisabled[cacheKey], trimmedName, enabled)
+			default:
+				r.cfg.DisabledSkills = setDisabledSkill(r.cfg.DisabledSkills, trimmedName, enabled)
+			}
 			r.globalVersion.Add(1)
 			return nil
 		}
@@ -346,6 +397,26 @@ func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Reco
 		}
 	}
 
+	workspaceIDs := make([]string, 0, len(workspaceSkills))
+	for workspaceID := range workspaceSkills {
+		workspaceIDs = append(workspaceIDs, workspaceID)
+	}
+	slices.Sort(workspaceIDs)
+	for _, workspaceID := range workspaceIDs {
+		r.logWorkspaceSkillOverrides(globalSkills, workspaceSkills[workspaceID], workspaceID)
+		r.emitEventSummaries(
+			context.Background(),
+			r.buildSkillShadowSummaries(
+				globalSkills,
+				workspaceSkills[workspaceID],
+				"workspace",
+				"",
+				workspaceID,
+				"",
+			),
+		)
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.resourceAuthority = true
@@ -371,16 +442,6 @@ func (r *Registry) loadGlobalSkills(
 	if err := r.loadDirectorySkills(
 		ctx,
 		r.cfg.UserSkillsDir,
-		SourceUser,
-		skills,
-		snapshots,
-		disabledSkills,
-	); err != nil {
-		return nil, nil, err
-	}
-	if err := r.loadDirectorySkills(
-		ctx,
-		r.cfg.UserAgentsDir,
 		SourceUser,
 		skills,
 		snapshots,
@@ -655,18 +716,21 @@ func (r *Registry) resourceBackedWorkspaceSkills(resolved *workspacepkg.Resolved
 	return mergedSkillList(r.globalSkills, workspaceSkills), true
 }
 
-func (r *Registry) resourceSkillTargetLocked(name string, resolved *workspacepkg.ResolvedWorkspace) *Skill {
+func (r *Registry) resourceSkillTargetLocked(
+	name string,
+	resolved *workspacepkg.ResolvedWorkspace,
+) (skillToggleScope, string, *Skill) {
 	if r == nil || !r.resourceAuthority {
-		return nil
+		return skillToggleScopeGlobal, "", nil
 	}
 	if key := resourceWorkspaceKey(resolved); key != "" {
 		if workspaceSkills := r.resourceWorkspaces[key]; workspaceSkills != nil {
 			if skill := workspaceSkills[name]; skill != nil {
-				return skill
+				return skillToggleScopeWorkspace, workspaceCacheKey(resolved, nil), skill
 			}
 		}
 	}
-	return r.globalSkills[name]
+	return skillToggleScopeGlobal, "", r.globalSkills[name]
 }
 
 func (r *Registry) lookupSkillLocked(name string) (*Skill, bool) {
@@ -700,16 +764,53 @@ func mergeDisabledSkills(base []string, extra []string) []string {
 	return merged
 }
 
+func (r *Registry) logWorkspaceSkillOverrides(
+	globalSkills map[string]*Skill,
+	workspaceSkills map[string]*Skill,
+	workspaceID string,
+) {
+	if len(globalSkills) == 0 || len(workspaceSkills) == 0 {
+		return
+	}
+
+	names := make([]string, 0, len(workspaceSkills))
+	for name, skill := range workspaceSkills {
+		if skill == nil {
+			continue
+		}
+		if globalSkills[name] != nil {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+
+	for _, name := range names {
+		r.logSkillOverride(globalSkills[name], workspaceSkills[name], workspaceID)
+	}
+}
+
+func (r *Registry) logSkillOverride(existing *Skill, skill *Skill, workspaceID string) {
+	if r == nil || r.logger == nil || existing == nil || skill == nil {
+		return
+	}
+
+	attrs := []any{
+		"name", skill.Meta.Name,
+		"old_source", skillSourceName(existing.Source),
+		"new_source", skillSourceName(skill.Source),
+		"old_path", existing.FilePath,
+		"new_path", skill.FilePath,
+	}
+	if trimmedWorkspaceID := strings.TrimSpace(workspaceID); trimmedWorkspaceID != "" {
+		attrs = append(attrs, "workspace_id", trimmedWorkspaceID)
+	}
+
+	r.logger.Warn("skills: overriding skill", attrs...)
+}
+
 func (r *Registry) overlaySkill(dst map[string]*Skill, skill *Skill) {
 	if existing, ok := dst[skill.Meta.Name]; ok {
-		r.logger.Warn(
-			"skills: overriding skill",
-			"name", skill.Meta.Name,
-			"old_source", skillSourceName(existing.Source),
-			"new_source", skillSourceName(skill.Source),
-			"old_path", existing.FilePath,
-			"new_path", skill.FilePath,
-		)
+		r.logSkillOverride(existing, skill, "")
 	}
 
 	dst[skill.Meta.Name] = skill
@@ -766,6 +867,8 @@ func skillSourceName(source SkillSource) string {
 		return "additional"
 	case SourceWorkspace:
 		return "workspace"
+	case SourceAgentLocal:
+		return "agent-local"
 	default:
 		return "unknown"
 	}

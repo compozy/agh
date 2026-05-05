@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/subprocess"
 )
 
 const (
@@ -30,14 +32,21 @@ type promptActivitySupervisor struct {
 	turnID     string
 	turnSource TurnSource
 	startedAt  time.Time
+	deadlineAt *time.Time
 	config     aghconfig.SessionSupervisionConfig
 	events     chan acp.AgentEvent
 
-	mu        sync.Mutex
-	activity  store.SessionActivityMeta
-	warned    bool
-	timedOut  bool
-	closeOnce sync.Once
+	mu                    sync.Mutex
+	activity              store.SessionActivityMeta
+	warned                bool
+	timedOut              bool
+	unhealthy             bool
+	unhealthyWarned       bool
+	deadlineWarnAck       chan struct{}
+	deadlineWarnEvent     acp.AgentEvent
+	deadlineWarnPending   bool
+	deadlineWarnDelivered bool
+	closeOnce             sync.Once
 }
 
 func newPromptActivitySupervisor(
@@ -47,7 +56,12 @@ func newPromptActivitySupervisor(
 	turnState *promptTurnDispatchState,
 	config aghconfig.SessionSupervisionConfig,
 ) *promptActivitySupervisor {
-	supervisorCtx, cancel := context.WithCancel(ctx)
+	deadlineAt, hasDeadline := deadlineFromContext(ctx)
+	supervisorBase := context.Background()
+	if ctx != nil {
+		supervisorBase = context.WithoutCancel(ctx)
+	}
+	supervisorCtx, cancel := context.WithCancel(supervisorBase)
 	startedAt := time.Now().UTC()
 	if manager != nil && manager.now != nil {
 		startedAt = manager.now().UTC()
@@ -71,6 +85,7 @@ func newPromptActivitySupervisor(
 		turnID:     turnID,
 		turnSource: turnSource,
 		startedAt:  startedAt,
+		deadlineAt: deadlinePointer(deadlineAt, hasDeadline),
 		config:     config,
 		events:     make(chan acp.AgentEvent, 8),
 		activity: store.SessionActivityMeta{
@@ -163,29 +178,46 @@ func (s *promptActivitySupervisor) run() {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	var deadlineTimer *time.Timer
+	var deadlineCh <-chan time.Time
+	if deadlineAt := cloneTimePointer(s.deadlineAt); deadlineAt != nil {
+		wait := max(time.Until(deadlineAt.UTC()), 0)
+		deadlineTimer = time.NewTimer(wait)
+		deadlineCh = deadlineTimer.C
+		defer deadlineTimer.Stop()
+	}
+
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
 		case now := <-ticker.C:
-			s.evaluate(now.UTC())
+			if s.evaluate(now.UTC()) {
+				return
+			}
+		case now := <-deadlineCh:
+			s.handlePromptDeadline(now.UTC())
+			return
 		}
 	}
 }
 
-func (s *promptActivitySupervisor) evaluate(now time.Time) {
+func (s *promptActivitySupervisor) evaluate(now time.Time) bool {
 	if s == nil {
-		return
+		return false
 	}
-	if s.shouldEmitProgress(now) {
-		s.emitRuntimeEvent(acp.EventTypeRuntimeProgress, s.progressText(now), now)
+	processUnhealthy := s.handleUnhealthyProcess(now, true)
+	if !processUnhealthy && s.shouldEmitProgress(now) {
+		s.emitRuntimeEvent(acp.EventTypeRuntimeProgress, s.progressText(now), now, nil)
 	}
 	if s.shouldEmitWarning(now) {
-		s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, s.warningText(now), now)
+		s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, s.warningText(now), now, nil)
 	}
 	if s.shouldTimeout(now) {
 		s.handleTimeout(now)
+		return true
 	}
+	return false
 }
 
 func (s *promptActivitySupervisor) shouldEmitProgress(now time.Time) bool {
@@ -246,7 +278,49 @@ func (s *promptActivitySupervisor) handleTimeout(now time.Time) {
 	if s == nil || s.session == nil || s.manager == nil {
 		return
 	}
-	s.session.markRuntimeStalled(store.SessionStallReasonActivityTimeout, now)
+	s.handleTimeoutWithDetail(now, store.SessionStallReasonActivityTimeout, s.timeoutText(now), nil)
+}
+
+func (s *promptActivitySupervisor) handlePromptDeadline(now time.Time) {
+	if s == nil || s.session == nil || s.manager == nil {
+		return
+	}
+	if s.promptDeadlineWarningDelivered() {
+		return
+	}
+
+	warning, ok := s.promptDeadlineWarningEvent(now)
+	if !ok {
+		return
+	}
+	ack := s.preparePromptDeadlineWarning(warning)
+	s.recordRuntimeTimeout(now, store.SessionStallReasonPromptDeadlineExceeded)
+	s.emitPreparedRuntimeEvent(warning)
+	s.waitForPromptDeadlineWarningAck(ack)
+	s.cancelPromptAfterRuntimeTimeout()
+	s.stopSessionAfterRuntimeTimeout(store.SessionStallReasonPromptDeadlineExceeded)
+}
+
+func (s *promptActivitySupervisor) handleTimeoutWithDetail(
+	now time.Time,
+	stopDetail string,
+	text string,
+	raw json.RawMessage,
+) {
+	if s == nil || s.session == nil || s.manager == nil {
+		return
+	}
+	s.recordRuntimeTimeout(now, stopDetail)
+	s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, text, now, raw)
+	s.cancelPromptAfterRuntimeTimeout()
+	s.stopSessionAfterRuntimeTimeout(stopDetail)
+}
+
+func (s *promptActivitySupervisor) recordRuntimeTimeout(now time.Time, stopDetail string) {
+	if s == nil || s.session == nil || s.manager == nil {
+		return
+	}
+	s.session.markRuntimeStalled(stopDetail, now)
 	if err := s.manager.writeMeta(s.session); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime timeout stall failed", "turn_id", s.turnID, "error", err)
@@ -255,8 +329,12 @@ func (s *promptActivitySupervisor) handleTimeout(now time.Time) {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime timeout health failed", "turn_id", s.turnID, "error", err)
 	}
-	s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, s.timeoutText(now), now)
+}
 
+func (s *promptActivitySupervisor) cancelPromptAfterRuntimeTimeout() {
+	if s == nil || s.session == nil || s.manager == nil {
+		return
+	}
 	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.config.TimeoutCancelGrace)
 	cancelErr := s.manager.CancelPrompt(cancelCtx, s.session.ID)
 	cancel()
@@ -264,7 +342,12 @@ func (s *promptActivitySupervisor) handleTimeout(now time.Time) {
 		s.manager.sessionLogger(s.session).
 			Warn("session: cancel prompt after runtime timeout failed", "turn_id", s.turnID, "error", cancelErr)
 	}
+}
 
+func (s *promptActivitySupervisor) stopSessionAfterRuntimeTimeout(stopDetail string) {
+	if s == nil || s.session == nil || s.manager == nil {
+		return
+	}
 	timer := time.NewTimer(s.config.TimeoutCancelGrace)
 	defer timer.Stop()
 	select {
@@ -279,7 +362,7 @@ func (s *promptActivitySupervisor) handleTimeout(now time.Time) {
 		stopCtx,
 		s.session.ID,
 		CauseTimeout,
-		store.SessionStallReasonActivityTimeout,
+		stopDetail,
 	); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: stop session after runtime timeout failed", "turn_id", s.turnID, "error", err)
@@ -311,8 +394,14 @@ func (s *promptActivitySupervisor) touchWithTool(
 	if now.IsZero() {
 		now = s.now()
 	}
+	processUnhealthy := s.handleUnhealthyProcess(now, kind == runtimeActivityKindAgentWaiting)
+	if processUnhealthy && kind == runtimeActivityKindAgentWaiting {
+		return
+	}
 
 	s.mu.Lock()
+	s.unhealthy = false
+	s.unhealthyWarned = false
 	s.activity.TurnID = s.turnID
 	s.activity.TurnSource = string(s.turnSource)
 	s.activity.TurnStartedAt = timePtr(s.startedAt)
@@ -345,10 +434,24 @@ func (s *promptActivitySupervisor) touchWithTool(
 	}
 }
 
-func (s *promptActivitySupervisor) emitRuntimeEvent(eventType string, text string, now time.Time) {
+func (s *promptActivitySupervisor) emitRuntimeEvent(
+	eventType string,
+	text string,
+	now time.Time,
+	raw json.RawMessage,
+) {
 	if s == nil {
 		return
 	}
+	s.emitPreparedRuntimeEvent(s.buildRuntimeEvent(eventType, text, now, raw))
+}
+
+func (s *promptActivitySupervisor) buildRuntimeEvent(
+	eventType string,
+	text string,
+	now time.Time,
+	raw json.RawMessage,
+) acp.AgentEvent {
 	activity := s.runtimeActivity(now)
 	if s.session != nil && s.manager != nil {
 		if meta := storeActivityFromRuntime(activity); meta != nil {
@@ -359,17 +462,177 @@ func (s *promptActivitySupervisor) emitRuntimeEvent(eventType string, text strin
 			}
 		}
 	}
-	event := acp.AgentEvent{
+	return acp.AgentEvent{
 		Type:      eventType,
 		TurnID:    s.turnID,
 		Timestamp: now.UTC(),
 		Text:      strings.TrimSpace(text),
 		Runtime:   &activity,
+		Raw:       acp.CloneRawMessage(raw),
+	}
+}
+
+func (s *promptActivitySupervisor) emitPreparedRuntimeEvent(event acp.AgentEvent) {
+	if s == nil {
+		return
 	}
 	select {
 	case <-s.ctx.Done():
 	case s.events <- event:
 	}
+}
+
+func (s *promptActivitySupervisor) preparePromptDeadlineWarning(event acp.AgentEvent) chan struct{} {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deadlineWarnAck = make(chan struct{})
+	s.deadlineWarnEvent = event
+	s.deadlineWarnPending = true
+	s.deadlineWarnDelivered = false
+	return s.deadlineWarnAck
+}
+
+func (s *promptActivitySupervisor) waitForPromptDeadlineWarningAck(ack chan struct{}) {
+	if s == nil || ack == nil {
+		return
+	}
+	select {
+	case <-ack:
+	case <-s.ctx.Done():
+	}
+}
+
+func (s *promptActivitySupervisor) ackPromptDeadlineWarning(event acp.AgentEvent) {
+	if s == nil || !isPromptDeadlineWarningEvent(event) {
+		return
+	}
+
+	s.mu.Lock()
+	ack := s.deadlineWarnAck
+	s.deadlineWarnPending = false
+	s.deadlineWarnDelivered = true
+	s.deadlineWarnEvent = acp.AgentEvent{}
+	s.deadlineWarnAck = nil
+	s.mu.Unlock()
+
+	if ack == nil {
+		return
+	}
+	close(ack)
+}
+
+func (s *promptActivitySupervisor) pendingPromptDeadlineWarning() (acp.AgentEvent, bool) {
+	if s == nil {
+		return acp.AgentEvent{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.deadlineWarnPending || s.deadlineWarnDelivered {
+		return acp.AgentEvent{}, false
+	}
+	return s.deadlineWarnEvent, true
+}
+
+func (s *promptActivitySupervisor) shouldSkipDeliveredPromptDeadlineWarning(event acp.AgentEvent) bool {
+	if s == nil || !isPromptDeadlineWarningEvent(event) {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.deadlineWarnDelivered
+}
+
+func (s *promptActivitySupervisor) promptDeadlineWarningDelivered() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.deadlineWarnDelivered
+}
+
+func (s *promptActivitySupervisor) promptDeadlineWarningEvent(now time.Time) (acp.AgentEvent, bool) {
+	if s == nil {
+		return acp.AgentEvent{}, false
+	}
+
+	s.mu.Lock()
+	deadline := cloneTimePointer(s.deadlineAt)
+	pending := s.deadlineWarnPending
+	delivered := s.deadlineWarnDelivered
+	existing := s.deadlineWarnEvent
+	s.mu.Unlock()
+
+	if deadline == nil || delivered {
+		return acp.AgentEvent{}, false
+	}
+	if pending {
+		return existing, true
+	}
+
+	raw, err := jsonMarshalDeadlineWarning(s.runtimeActivity(now))
+	if err != nil && s.manager != nil && s.session != nil {
+		s.manager.sessionLogger(s.session).
+			Warn("session: marshal prompt deadline warning failed", "turn_id", s.turnID, "error", err)
+	}
+	return s.buildRuntimeEvent(acp.EventTypeRuntimeWarning, s.promptDeadlineText(now), now, raw), true
+}
+
+func isPromptDeadlineWarningEvent(event acp.AgentEvent) bool {
+	return event.Type == acp.EventTypeRuntimeWarning && event.Runtime != nil && event.Runtime.DeadlineAt != nil
+}
+
+func (s *promptActivitySupervisor) handleUnhealthyProcess(now time.Time, emitWarning bool) bool {
+	if s == nil || s.manager == nil || s.session == nil {
+		return false
+	}
+	proc := s.session.processHandle()
+	if proc == nil {
+		return false
+	}
+	health, ok := proc.HealthState()
+	if !ok || !processHealthFailureDetected(health) {
+		s.mu.Lock()
+		s.unhealthy = false
+		s.unhealthyWarned = false
+		s.mu.Unlock()
+		return false
+	}
+
+	shouldPersist := false
+	shouldWarn := false
+	s.mu.Lock()
+	if !s.unhealthy {
+		s.unhealthy = true
+		shouldPersist = true
+	}
+	if emitWarning && !s.unhealthyWarned {
+		s.unhealthyWarned = true
+		shouldWarn = true
+	}
+	s.mu.Unlock()
+
+	if shouldPersist {
+		s.session.markRuntimeStalled(store.SessionStallReasonProcessUnhealthy, now)
+		if err := s.manager.writeMeta(s.session); err != nil {
+			s.manager.sessionLogger(s.session).
+				Warn("session: persist unhealthy runtime stall failed", "turn_id", s.turnID, "error", err)
+		}
+		if _, err := s.manager.persistSessionHealthForSession(s.ctx, s.session, now, sessionHealthInput{
+			activePrompt: true,
+			attachable:   sessionAttachable(s.session),
+		}); err != nil {
+			s.manager.sessionLogger(s.session).
+				Warn("session: persist unhealthy runtime health failed", "turn_id", s.turnID, "error", err)
+		}
+	}
+	if shouldWarn {
+		s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, unhealthyProcessText(health), now, nil)
+	}
+	return true
 }
 
 func (s *promptActivitySupervisor) runtimeActivity(now time.Time) acp.RuntimeActivity {
@@ -384,6 +647,7 @@ func (s *promptActivitySupervisor) runtimeActivity(now time.Time) acp.RuntimeAct
 		TurnID:             strings.TrimSpace(s.activity.TurnID),
 		TurnSource:         strings.TrimSpace(s.activity.TurnSource),
 		TurnStartedAt:      cloneTimePointer(s.activity.TurnStartedAt),
+		DeadlineAt:         cloneTimePointer(s.deadlineAt),
 		LastActivityAt:     cloneTimePointer(s.activity.LastActivityAt),
 		LastActivityKind:   strings.TrimSpace(s.activity.LastActivityKind),
 		LastActivityDetail: strings.TrimSpace(s.activity.LastActivityDetail),
@@ -398,6 +662,7 @@ func (s *promptActivitySupervisor) runtimeActivity(now time.Time) acp.RuntimeAct
 		elapsed := now.UTC().Sub(s.startedAt.UTC())
 		if elapsed > 0 {
 			activity.ElapsedSeconds = int64(elapsed.Seconds())
+			activity.ElapsedMS = elapsed.Milliseconds()
 		}
 	}
 	return activity
@@ -432,6 +697,36 @@ func (s *promptActivitySupervisor) timeoutText(now time.Time) string {
 	return fmt.Sprintf("Runtime activity timed out (%d seconds idle).", activity.IdleSeconds)
 }
 
+func (s *promptActivitySupervisor) promptDeadlineText(now time.Time) string {
+	activity := s.runtimeActivity(now)
+	if activity.ElapsedMS <= 0 {
+		return "Prompt deadline exceeded."
+	}
+	return fmt.Sprintf("Prompt deadline exceeded after %d ms.", activity.ElapsedMS)
+}
+
+func unhealthyProcessText(health subprocess.HealthState) string {
+	parts := []string{"Runtime health check failed; prompt may be stalled."}
+	if detail := strings.TrimSpace(health.Message); detail != "" {
+		parts = append(parts, detail)
+	}
+	if lastErr := strings.TrimSpace(health.LastError); lastErr != "" {
+		parts = append(parts, lastErr)
+	}
+	return strings.Join(parts, " ")
+}
+
+func processHealthFailureDetected(health subprocess.HealthState) bool {
+	if health.Healthy {
+		return false
+	}
+	return !health.LastCheckedAt.IsZero() ||
+		health.ConsecutiveFailures > 0 ||
+		strings.TrimSpace(health.LastError) != "" ||
+		strings.TrimSpace(health.Message) != "" ||
+		len(health.Details) > 0
+}
+
 func (s *promptActivitySupervisor) idleSecondsLocked(now time.Time) int64 {
 	return store.SessionActivityIdleSeconds(&s.activity, now)
 }
@@ -441,6 +736,35 @@ func (s *promptActivitySupervisor) now() time.Time {
 		return s.manager.now().UTC()
 	}
 	return time.Now().UTC()
+}
+
+func deadlineFromContext(ctx context.Context) (time.Time, bool) {
+	if ctx == nil {
+		return time.Time{}, false
+	}
+	return ctx.Deadline()
+}
+
+func deadlinePointer(value time.Time, ok bool) *time.Time {
+	if !ok || value.IsZero() {
+		return nil
+	}
+	deadline := value.UTC()
+	return &deadline
+}
+
+func jsonMarshalDeadlineWarning(activity acp.RuntimeActivity) (json.RawMessage, error) {
+	payload := map[string]any{
+		"elapsed_ms": activity.ElapsedMS,
+	}
+	if activity.DeadlineAt != nil && !activity.DeadlineAt.IsZero() {
+		payload["deadline_at"] = activity.DeadlineAt.UTC().Format(time.RFC3339Nano)
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
 }
 
 func activityFromEvent(

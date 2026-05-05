@@ -15,9 +15,13 @@ func cloneSnapshots(snapshots map[string]filesnap.Snapshot) map[string]filesnap.
 
 func cloneResolvedWorkspace(src *ResolvedWorkspace) ResolvedWorkspace {
 	return ResolvedWorkspace{
-		Workspace:  cloneWorkspace(src.Workspace),
-		Config:     cloneConfig(&src.Config),
-		Agents:     cloneAgentDefs(src.Agents),
+		Workspace: cloneWorkspace(src.Workspace),
+		Config:    cloneConfig(&src.Config),
+		Agents:    cloneAgentDefs(src.Agents),
+		AgentDiagnostics: append(
+			[]AgentDiagnostic(nil),
+			src.AgentDiagnostics...,
+		),
 		Skills:     cloneSkillPaths(src.Skills),
 		Sandbox:    cloneSandboxResolved(src.Sandbox),
 		ResolvedAt: src.ResolvedAt,

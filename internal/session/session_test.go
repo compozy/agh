@@ -228,7 +228,7 @@ func TestBeginPromptSetupReturnsErrSessionNotActive(t *testing.T) {
 		UpdatedAt: time.Now().UTC(),
 	}
 
-	_, err := session.beginPromptSetup()
+	err := session.beginPromptSetup()
 	if !errors.Is(err, ErrSessionNotActive) {
 		t.Fatalf("beginPromptSetup() error = %v, want ErrSessionNotActive", err)
 	}

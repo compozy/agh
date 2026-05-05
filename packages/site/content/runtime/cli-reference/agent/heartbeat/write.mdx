@@ -14,16 +14,17 @@ agh agent heartbeat write <agent> [flags]
 ### Examples
 
 ```
-  agh agent heartbeat write coder --file HEARTBEAT.md --if-match sha256:old --json
+  agh agent heartbeat write coder --file HEARTBEAT.md --expected-digest sha256:old --json
 ```
 
 ### Options
 
 ```
+      --expected-digest string   Expected current Heartbeat digest for CAS
       --file string              Read authored context body from a file
   -h, --help                     help for write
       --idempotency-key string   Optional idempotency key
-      --if-match string          Expected current Heartbeat digest for CAS
+      --if-match string          Alias for --expected-digest
       --stdin                    Read authored context body from stdin
       --workspace string         Resolve the agent from a workspace id, name, or path
 ```

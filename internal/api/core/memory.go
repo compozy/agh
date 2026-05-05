@@ -276,9 +276,9 @@ func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayloa
 		payload.DreamEnabled = h.DreamTrigger.Enabled()
 		lastConsolidation, err := h.DreamTrigger.LastConsolidatedAt()
 		if err != nil {
-			return contract.MemoryHealthPayload{}, err
-		}
-		if !lastConsolidation.IsZero() {
+			payload.Status = memoryHealthStatusDegraded
+			payload.Reason = err.Error()
+		} else if !lastConsolidation.IsZero() {
 			lastConsolidation = lastConsolidation.UTC()
 			payload.LastConsolidation = &lastConsolidation
 		}

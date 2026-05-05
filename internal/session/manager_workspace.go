@@ -112,31 +112,51 @@ func resolveWorkspaceAgent(
 	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 }
 
-func (m *Manager) resolveWorkspaceAgent(
+func (m *Manager) resolveWorkspaceAgentArtifacts(
 	agentName string,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
+) (AgentArtifacts, error) {
 	if m != nil && m.agentResolver != nil {
-		return m.agentResolver.ResolveAgent(agentName, resolvedWorkspace)
+		if resolver, ok := m.agentResolver.(AgentArtifactResolver); ok {
+			return resolver.ResolveAgentArtifacts(agentName, resolvedWorkspace)
+		}
+		agent, err := m.agentResolver.ResolveAgent(agentName, resolvedWorkspace)
+		if err != nil {
+			return AgentArtifacts{}, err
+		}
+		return AgentArtifacts{Agent: agent}, nil
 	}
-	return resolveWorkspaceAgent(agentName, resolvedWorkspace)
+	agent, err := resolveWorkspaceAgent(agentName, resolvedWorkspace)
+	if err != nil {
+		return AgentArtifacts{}, err
+	}
+	return AgentArtifacts{Agent: agent}, nil
 }
 
-func (m *Manager) resolveWorkspaceSessionAgent(
+func (m *Manager) resolveWorkspaceAgentArtifactsForSession(
 	agentName string,
-	provider string,
+	sessionType Type,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
-) (aghconfig.ResolvedAgent, error) {
-	var resolver AgentResolver
-	if m != nil {
-		resolver = m.agentResolver
+) (AgentArtifacts, error) {
+	artifacts, err := m.resolveWorkspaceAgentArtifacts(agentName, resolvedWorkspace)
+	if err == nil {
+		return artifacts, nil
 	}
-	return resolveWorkspaceSessionAgent(agentName, provider, resolvedWorkspace, resolver)
+	if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+		return AgentArtifacts{}, err
+	}
+
+	fallback, ok := fallbackSessionAgentDef(agentName, sessionType)
+	if !ok {
+		return AgentArtifacts{}, err
+	}
+	return AgentArtifacts{Agent: fallback}, nil
 }
 
-func resolveWorkspaceSessionAgent(
+func resolveWorkspaceSessionAgentForType(
 	agentName string,
 	provider string,
+	sessionType Type,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 	agentResolver AgentResolver,
 ) (aghconfig.ResolvedAgent, error) {
@@ -154,7 +174,14 @@ func resolveWorkspaceSessionAgent(
 		agentDef, err = resolveWorkspaceAgent(agentName, resolvedWorkspace)
 	}
 	if err != nil {
-		return aghconfig.ResolvedAgent{}, err
+		if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			return aghconfig.ResolvedAgent{}, err
+		}
+		fallback, ok := fallbackSessionAgentDef(agentName, sessionType)
+		if !ok {
+			return aghconfig.ResolvedAgent{}, err
+		}
+		agentDef = fallback
 	}
 
 	resolved, err := resolvedWorkspace.Config.ResolveSessionAgent(agentDef, provider)
@@ -162,4 +189,14 @@ func resolveWorkspaceSessionAgent(
 		return aghconfig.ResolvedAgent{}, err
 	}
 	return resolved, nil
+}
+
+func fallbackSessionAgentDef(agentName string, sessionType Type) (aghconfig.AgentDef, bool) {
+	if normalizeSessionType(sessionType) != SessionTypeCoordinator {
+		return aghconfig.AgentDef{}, false
+	}
+	if strings.TrimSpace(agentName) != aghconfig.DefaultCoordinatorAgentName {
+		return aghconfig.AgentDef{}, false
+	}
+	return aghconfig.DefaultCoordinatorAgentDef(), true
 }

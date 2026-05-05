@@ -18,6 +18,7 @@ import {
   assertDaemonServedHTML,
   buildResolveWorkspaceRequest,
   prependPath,
+  requiresHTTPAPIReadinessProbe,
   renderRuntimeConfig,
   resolveRuntimeMode,
   runtimeURL,
@@ -158,8 +159,15 @@ export async function createBrowserRuntime(
   const runtimeEnv = await createRuntimeEnv(paths, binaryPath, env);
   const runtime = startDaemonProcess(binaryPath, repoRoot, runtimeEnv, paths.daemonLog);
   const baseURL = `http://${DEFAULT_HOST}:${httpPort}`;
-  await waitForRuntimeReady(baseURL, runtime.process, paths.daemonLog, options.readyTimeoutMs);
-  await validateDaemonServedRuntime(baseURL);
+  const requireHTTPAPIStatus = requiresHTTPAPIReadinessProbe(boundHost);
+  await waitForRuntimeReady(
+    baseURL,
+    runtime.process,
+    paths.daemonLog,
+    options.readyTimeoutMs,
+    requireHTTPAPIStatus
+  );
+  await validateDaemonServedRuntime(baseURL, requireHTTPAPIStatus);
 
   const activeRuntime = new ActiveBrowserRuntime({
     mode: "launch",
@@ -259,10 +267,17 @@ class ActiveBrowserRuntime implements BrowserRuntime {
   }
 }
 
-async function validateDaemonServedRuntime(baseURL: string): Promise<void> {
-  const statusResponse = await fetch(runtimeURL(baseURL, "/api/daemon/status"));
-  if (!statusResponse.ok) {
-    throw new Error(`daemon status probe failed for ${baseURL}: received ${statusResponse.status}`);
+async function validateDaemonServedRuntime(
+  baseURL: string,
+  requireHTTPAPIStatus = true
+): Promise<void> {
+  if (requireHTTPAPIStatus) {
+    const statusResponse = await fetch(runtimeURL(baseURL, "/api/daemon/status"));
+    if (!statusResponse.ok) {
+      throw new Error(
+        `daemon status probe failed for ${baseURL}: received ${statusResponse.status}`
+      );
+    }
   }
 
   const htmlResponse = await fetch(runtimeURL(baseURL, "/"));
@@ -277,7 +292,8 @@ async function waitForRuntimeReady(
   baseURL: string,
   child: ChildProcessWithoutNullStreams,
   daemonLogPath: string,
-  timeoutMs = DEFAULT_READY_TIMEOUT_MS
+  timeoutMs = DEFAULT_READY_TIMEOUT_MS,
+  requireHTTPAPIStatus = true
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
 
@@ -290,8 +306,13 @@ async function waitForRuntimeReady(
     }
 
     try {
-      const response = await fetch(runtimeURL(baseURL, "/api/daemon/status"));
+      const response = await fetch(
+        runtimeURL(baseURL, requireHTTPAPIStatus ? "/api/daemon/status" : "/")
+      );
       if (response.ok) {
+        if (!requireHTTPAPIStatus) {
+          assertDaemonServedHTML(await response.text(), baseURL);
+        }
         return;
       }
     } catch {

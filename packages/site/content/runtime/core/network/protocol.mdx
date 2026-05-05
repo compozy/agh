@@ -55,7 +55,7 @@ free-form direct-message intent.
 ## Interaction lifecycle
 
 An interaction is identified by `(channel, interaction_id)`. It is intentionally lightweight: it
-lets two peers correlate direct work, receipts, and trace updates without creating a workflow graph.
+lets two peers correlate direct work, receipts, and trace updates without creating a process graph.
 
 <Mermaid
   chart={`flowchart LR
@@ -66,7 +66,7 @@ lets two peers correlate direct work, receipts, and trace updates without creati
   TraceWorking --> TraceFailed["trace: failed"]
   TraceWorking --> TraceCanceled["trace: canceled"]
   TraceNeedsInput --> Direct`}
-  caption="Interactions are correlation containers. They do not replace tasks, jobs, or workflow state."
+  caption="Interactions are correlation containers. They do not replace tasks, jobs, or runtime state."
 />
 
 The runtime uses interaction fields to preserve causality and route follow-up messages. It still

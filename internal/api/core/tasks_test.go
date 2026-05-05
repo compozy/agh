@@ -557,6 +557,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 				Origin:         actor.Origin,
 				IdempotencyKey: spec.IdempotencyKey,
 				NetworkChannel: spec.NetworkChannel,
+				Metadata:       spec.Metadata,
 				QueuedAt:       now,
 			}, nil
 		},
@@ -762,7 +763,9 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		fixture.Engine,
 		http.MethodPost,
 		"/tasks/task-1/runs",
-		[]byte(`{"idempotency_key":"key-3","network_channel":"builders"}`),
+		[]byte(
+			`{"idempotency_key":"key-3","network_channel":"builders","metadata":{"schema":"agh.harness.detached.v1","kind":"harness_detached_run"}}`,
+		),
 	)
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("enqueue status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
@@ -892,6 +895,11 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	if enqueuedRun.IdempotencyKey != "key-3" || enqueuedRun.NetworkChannel != "builders" {
 		t.Fatalf("enqueued run = %#v", enqueuedRun)
+	}
+	if got, want := string(
+		enqueuedRun.Metadata,
+	), `{"schema":"agh.harness.detached.v1","kind":"harness_detached_run"}`; got != want {
+		t.Fatalf("enqueued run metadata = %q, want %q", got, want)
 	}
 	if claimedRun.IdempotencyKey != "claim-1" {
 		t.Fatalf("claimed run = %#v", claimedRun)

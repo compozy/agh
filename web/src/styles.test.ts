@@ -49,6 +49,12 @@ describe("Design Token System — styles.css", () => {
     expect(css).toMatch(/@import\s+["']tailwindcss["']/);
   });
 
+  it("imports the runtime fontsource faces in the web app stylesheet", () => {
+    expect(css).toMatch(/@import\s+["']@fontsource-variable\/inter["']/);
+    expect(css).toMatch(/@import\s+["']@fontsource\/jetbrains-mono\/500\.css["']/);
+    expect(css).toMatch(/@import\s+["']@fontsource\/jetbrains-mono\/600\.css["']/);
+  });
+
   it("registers workspace UI sources for Tailwind emission", () => {
     expect(css).toMatch(/@source\s+["']\.\.\/\.\.\/packages\/ui\/src\/\*\*\/\*\.\{ts,tsx\}["']/);
   });
@@ -153,12 +159,9 @@ describe("Design Token System — styles.css", () => {
     expect(tokens).toMatch(/--font-wordmark:[\s\S]*?"NuixyberNext"/);
   });
 
-  it("imports @fontsource-variable/inter", () => {
-    expect(tokens).toMatch(/@import\s+["']@fontsource-variable\/inter["']/);
-  });
-
-  it("imports @fontsource/jetbrains-mono", () => {
-    expect(tokens).toMatch(/@import\s+["']@fontsource\/jetbrains-mono/);
+  it("keeps the shared token stylesheet free of concrete font imports", () => {
+    expect(tokens).not.toMatch(/@fontsource-variable\/inter/);
+    expect(tokens).not.toMatch(/@fontsource\/jetbrains-mono/);
   });
 
   it("does NOT import @fontsource-variable/geist", () => {

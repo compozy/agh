@@ -316,6 +316,23 @@ func Parse(ctx context.Context, req ParseRequest) (ResolvedPolicy, error) {
 	return result, nil
 }
 
+// Empty returns a valid absent HEARTBEAT.md resolution for non-filesystem agent sources.
+func Empty(config aghconfig.HeartbeatConfig, sourcePath string) (ResolvedPolicy, error) {
+	if err := config.Validate(); err != nil {
+		return ResolvedPolicy{}, err
+	}
+	provenance, err := ConfigProvenanceFor(config)
+	if err != nil {
+		return ResolvedPolicy{}, err
+	}
+	safePath, diagnostic := safeSourcePath(sourcePath, "")
+	result := emptyResult(config, provenance, safePath)
+	if diagnostic != nil {
+		return resultWithDiagnostics(&result, []Diagnostic{*diagnostic})
+	}
+	return result, nil
+}
+
 // ConfigProvenanceFor returns the canonical config subset and digest used by Heartbeat.
 func ConfigProvenanceFor(cfg aghconfig.HeartbeatConfig) (ConfigProvenance, error) {
 	if err := cfg.Validate(); err != nil {

@@ -1,11 +1,10 @@
 /*
- * Shared design tokens. Consumers (packages/site, web/) own the single
- * `@import "tailwindcss"` call — this file must not re-import Tailwind.
+ * Shared design tokens. Consumers (packages/site, web/) own framework-level
+ * stylesheet setup, including the single `@import "tailwindcss"` call and any
+ * concrete font loading. This file must stay font-source agnostic so each
+ * surface can choose its own delivery path without shipping duplicate faces.
  */
 @import "tw-animate-css";
-@import "@fontsource-variable/inter";
-@import "@fontsource/jetbrains-mono/500.css";
-@import "@fontsource/jetbrains-mono/600.css";
 
 @custom-variant dark (&:is(.dark *));
 

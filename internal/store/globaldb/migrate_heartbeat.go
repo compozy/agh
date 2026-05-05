@@ -35,7 +35,7 @@ var agentHeartbeatStorageMigrationStatements = []string{
 			new_snapshot_id TEXT REFERENCES agent_heartbeat_snapshots(id) ON DELETE SET NULL,
 			body TEXT,
 			actor_kind TEXT NOT NULL CHECK (actor_kind IN ('user', 'agent', 'extension', 'system')),
-			actor_ref TEXT NOT NULL,
+			actor_id TEXT NOT NULL,
 			created_at TEXT NOT NULL
 		);`,
 	`CREATE INDEX IF NOT EXISTS idx_agent_heartbeat_revisions_agent_created

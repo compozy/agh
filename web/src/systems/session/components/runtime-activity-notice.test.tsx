@@ -13,6 +13,7 @@ const runtime: RuntimeActivityPayload = {
   turn_source: "user",
   current_tool: "Bash",
   idle_seconds: 42,
+  elapsed_ms: 660_000,
   elapsed_seconds: 660,
   last_activity_kind: "tool_call",
   last_activity_detail: "running command",

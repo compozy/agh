@@ -6,6 +6,9 @@ import {
   Button,
   Empty,
   Input,
+  NativeSelect,
+  NativeSelectOption,
+  PillGroup,
   Switch,
   Table,
   TableBody,
@@ -14,8 +17,12 @@ import {
   TableHeader,
   TableRow,
 } from "@agh/ui";
-import { useSettingsSkillsPage } from "@/hooks/routes/use-settings-skills-page";
-import type { SettingsSkillsSection } from "@/systems/settings";
+import {
+  useSettingsSkillsPage,
+  type SkillsScopeSelection,
+} from "@/hooks/routes/use-settings-skills-page";
+import type { AgentPayload } from "@/systems/agent";
+import type { SettingsScope, SettingsSkillsSection } from "@/systems/settings";
 import {
   SettingsFieldRow,
   SettingsPageActions,
@@ -24,6 +31,7 @@ import {
   SettingsSectionCard,
   SettingsStatusLine,
 } from "@/systems/settings/components";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 export const Route = createFileRoute("/_app/settings/skills")({
   component: SkillsSettingsPage,
@@ -77,15 +85,39 @@ function SkillsSettingsPage() {
           items={[
             <span key="discovered">{envelope.discovered_count} discovered</span>,
             <span key="disabled">{envelope.disabled_count} disabled</span>,
+            <span key="scope" data-testid="settings-page-skills-scope-label">
+              scope:{" "}
+              {page.selection.scope === "global"
+                ? "global"
+                : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`}
+            </span>,
+            page.selection.scope === "agent" && page.selectedWorkspaceContext ? (
+              <span key="context" data-testid="settings-page-skills-workspace-context-summary">
+                context: {page.selectedWorkspaceContext.name}
+              </span>
+            ) : null,
           ]}
         />
       }
       actions={<SettingsPageActions slug="skills" restart={restart} />}
       banner={<SettingsRestartBanner slug="skills" restart={restart} />}
     >
+      <ScopeSelector
+        selection={page.selection}
+        availableScopes={page.availableScopes}
+        agents={page.agents}
+        workspaces={page.workspaces}
+        onSelectGlobal={page.selectGlobal}
+        onSelectAgentScope={page.selectAgentScope}
+        onSelectAgent={page.selectAgent}
+        onSelectWorkspaceContext={page.selectWorkspaceContext}
+      />
       <OperationalLinksRow />
       <DisabledSkillsSection
         envelope={envelope}
+        selection={page.selection}
+        selectedAgent={page.selectedAgent}
+        selectedWorkspaceContext={page.selectedWorkspaceContext}
         draft={draft}
         onToggle={page.toggleDisabled}
         isDirty={page.isDisabledDirty}
@@ -96,18 +128,134 @@ function SkillsSettingsPage() {
         onSave={page.handleSaveDisabled}
         onReset={page.handleResetDisabled}
       />
-      <PolicySection
-        draft={draft}
-        setDraft={setDraft}
-        isDirty={page.isPolicyDirty}
-        isSaving={page.isSavingPolicy}
-        error={page.savePolicyError}
-        warnings={page.policyWarnings}
-        lastAppliedLabel={page.lastPolicyLabel}
-        onSave={page.handleSavePolicy}
-        onReset={page.handleResetPolicy}
-      />
+      {page.selection.scope === "global" ? (
+        <PolicySection
+          draft={draft}
+          setDraft={setDraft}
+          isDirty={page.isPolicyDirty}
+          isSaving={page.isSavingPolicy}
+          error={page.savePolicyError}
+          warnings={page.policyWarnings}
+          lastAppliedLabel={page.lastPolicyLabel}
+          onSave={page.handleSavePolicy}
+          onReset={page.handleResetPolicy}
+        />
+      ) : (
+        <AgentScopePolicyNotice />
+      )}
     </SettingsPageShell>
+  );
+}
+
+type SkillsScopeValue = "global" | "agent";
+
+interface ScopeSelectorProps {
+  selection: SkillsScopeSelection;
+  availableScopes: readonly SettingsScope[];
+  agents: AgentPayload[];
+  workspaces: WorkspacePayload[];
+  onSelectGlobal: () => void;
+  onSelectAgentScope: () => void;
+  onSelectAgent: (agentName: string) => void;
+  onSelectWorkspaceContext: (workspaceId: string) => void;
+}
+
+function ScopeSelector({
+  selection,
+  availableScopes,
+  agents,
+  workspaces,
+  onSelectGlobal,
+  onSelectAgentScope,
+  onSelectAgent,
+  onSelectWorkspaceContext,
+}: ScopeSelectorProps) {
+  const agentScopeAvailable = availableScopes.includes("agent");
+  const items: Array<{ value: SkillsScopeValue; label: string; testId: string }> = [
+    {
+      value: "global",
+      label: "Global",
+      testId: "settings-page-skills-scope-global",
+    },
+  ];
+  if (agentScopeAvailable) {
+    items.push({
+      value: "agent",
+      label: "Agent",
+      testId: "settings-page-skills-scope-agent",
+    });
+  }
+
+  return (
+    <SettingsSectionCard
+      eyebrow="Scope"
+      note="agent scope only changes logical disabled skills for one effective agent"
+    >
+      <div
+        className="flex flex-wrap items-center gap-2"
+        data-testid="settings-page-skills-scope-row"
+      >
+        <PillGroup<SkillsScopeValue>
+          items={items}
+          value={selection.scope}
+          size="sm"
+          aria-label="Skills scope"
+          onChange={next => {
+            if (next === "global") {
+              onSelectGlobal();
+              return;
+            }
+            onSelectAgentScope();
+          }}
+        />
+      </div>
+
+      {selection.scope === "agent" ? (
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <SettingsFieldRow
+            data-testid="settings-page-skills-agent-select"
+            label="Agent"
+            description="Select the logical agent that receives the tombstone list"
+            hint="AGENT.MD"
+            control={
+              <NativeSelect
+                className="w-56"
+                data-testid="settings-page-skills-agent-select-input"
+                value={selection.agentName}
+                onChange={event => onSelectAgent(event.target.value)}
+              >
+                {agents.map(agent => (
+                  <NativeSelectOption key={agent.name} value={agent.name}>
+                    {agent.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            }
+          />
+          <SettingsFieldRow
+            data-testid="settings-page-skills-workspace-context"
+            label="Workspace context"
+            description="Optional workspace resolver context for the selected agent"
+            hint="OPTIONAL"
+            control={
+              <NativeSelect
+                className="w-56"
+                data-testid="settings-page-skills-workspace-context-input"
+                value={selection.workspaceId ?? ""}
+                onChange={event => onSelectWorkspaceContext(event.target.value)}
+              >
+                <NativeSelectOption value="">Global resolution</NativeSelectOption>
+                {workspaces.map(workspace => (
+                  <NativeSelectOption key={workspace.id} value={workspace.id}>
+                    {workspace.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            }
+          />
+        </div>
+      ) : null}
+    </SettingsSectionCard>
   );
 }
 
@@ -130,6 +278,9 @@ function OperationalLinksRow() {
 
 interface DisabledSkillsSectionProps {
   envelope: SettingsSkillsSection;
+  selection: SkillsScopeSelection;
+  selectedAgent: AgentPayload | null;
+  selectedWorkspaceContext: WorkspacePayload | null;
   draft: SkillsConfig;
   onToggle: (name: string) => void;
   isDirty: boolean;
@@ -143,6 +294,9 @@ interface DisabledSkillsSectionProps {
 
 function DisabledSkillsSection({
   envelope,
+  selection,
+  selectedAgent,
+  selectedWorkspaceContext,
   draft,
   onToggle,
   isDirty,
@@ -160,7 +314,11 @@ function DisabledSkillsSection({
   return (
     <SettingsSectionCard
       eyebrow="Disabled skills"
-      note="applies immediately · no restart required"
+      note={
+        selection.scope === "agent"
+          ? `applies immediately · scoped to ${selectedAgent?.name ?? selection.agentName}${selectedWorkspaceContext ? ` via ${selectedWorkspaceContext.name}` : ""}`
+          : "applies immediately · no restart required"
+      }
       headerAction={
         <SaveControls
           slug="disabled"
@@ -178,8 +336,12 @@ function DisabledSkillsSection({
       {candidates.length === 0 ? (
         <Empty
           icon={Wrench}
-          title="No skills installed"
-          description="Manage availability from the Skills operational page; nothing has been disabled yet."
+          title={selection.scope === "agent" ? "No agent-local tombstones" : "No skills installed"}
+          description={
+            selection.scope === "agent"
+              ? "This agent is currently inheriting the effective skill set without disabled logical names."
+              : "Manage availability from the Skills operational page; nothing has been disabled yet."
+          }
           data-testid="settings-page-skills-disabled-empty"
         />
       ) : (
@@ -229,6 +391,21 @@ function DisabledSkillsSection({
           </Table>
         </div>
       )}
+    </SettingsSectionCard>
+  );
+}
+
+function AgentScopePolicyNotice() {
+  return (
+    <SettingsSectionCard
+      eyebrow="Marketplace & policy"
+      note="read-only in agent scope"
+      data-testid="settings-page-skills-agent-policy-note"
+    >
+      <p className="text-sm text-[color:var(--color-text-secondary)]">
+        Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
+        poll interval, and marketplace allowlists remain global settings.
+      </p>
     </SettingsSectionCard>
   );
 }

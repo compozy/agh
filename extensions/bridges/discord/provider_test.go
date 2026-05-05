@@ -574,6 +574,104 @@ func TestServeWebhookHTTPHandlesSignedMessageWebhookWithBatching(t *testing.T) {
 	}
 }
 
+func TestServeWebhookHTTPRejectsInvalidSignatureBeforeDispatch(t *testing.T) {
+	t.Run("Should reject invalid signature without dispatching inbound messages", func(t *testing.T) {
+		t.Parallel()
+
+		pub, _, err := ed25519.GenerateKey(nil)
+		if err != nil {
+			t.Fatalf("GenerateKey(valid) error = %v", err)
+		}
+		_, wrongPriv, err := ed25519.GenerateKey(nil)
+		if err != nil {
+			t.Fatalf("GenerateKey(wrong) error = %v", err)
+		}
+		now := time.Date(2026, 4, 15, 17, 10, 0, 0, time.UTC)
+		deliveries := make(chan bridgepkg.InboundMessageEnvelope, 1)
+		batcher, err := bridgesdk.NewInboundBatcher(bridgesdk.InboundBatcherConfig{
+			Context: context.Background(),
+			Delay:   time.Millisecond,
+			Dispatch: func(_ context.Context, batch bridgesdk.InboundBatch) error {
+				deliveries <- batch.Items[0]
+				return nil
+			},
+			Now: func() time.Time { return now },
+		})
+		if err != nil {
+			t.Fatalf("NewInboundBatcher() error = %v", err)
+		}
+		defer batcher.Close()
+
+		provider, err := newDiscordProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newDiscordProvider() error = %v", err)
+		}
+		provider.now = func() time.Time { return now }
+		provider.mu.Lock()
+		provider.routes["brg-discord"] = resolvedInstanceConfig{
+			instanceID:      "brg-discord",
+			managed:         testDiscordManagedInstance("brg-discord"),
+			webhookPath:     "/discord/brg-discord",
+			publicKey:       hex.EncodeToString(pub),
+			dedup:           bridgesdk.NewDedupCache(time.Minute, 16),
+			rateLimiter:     bridgesdk.NewFixedWindowRateLimiter(10, time.Minute),
+			inFlightLimiter: bridgesdk.NewInFlightLimiter(4),
+			batcher:         batcher,
+			dmPolicy:        bridgepkg.BridgeDMPolicyOpen,
+		}
+		provider.mu.Unlock()
+
+		payload := map[string]any{
+			"type": 1,
+			"event": map[string]any{
+				"id":        "evt-msg-1",
+				"type":      "MESSAGE_CREATE",
+				"timestamp": now.Format(time.RFC3339Nano),
+				"data": map[string]any{
+					"id":           "msg-1",
+					"channel_id":   "thread-1",
+					"guild_id":     "guild-1",
+					"parent_id":    "channel-1",
+					"channel_type": 11,
+					"content":      "Need a summary",
+					"timestamp":    now.Format(time.RFC3339Nano),
+					"author": map[string]any{
+						"id":       "user-1",
+						"username": "alice",
+					},
+				},
+			},
+		}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		timestamp := strconv.FormatInt(now.Unix(), 10)
+		signature := ed25519.Sign(wrongPriv, append([]byte(timestamp), body...))
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"http://discord.test/discord/brg-discord",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Signature-Timestamp", timestamp)
+		req.Header.Set("X-Signature-Ed25519", hex.EncodeToString(signature))
+		recorder := httptest.NewRecorder()
+
+		provider.serveWebhookHTTP(recorder, req)
+
+		if got, want := recorder.Code, http.StatusUnauthorized; got != want {
+			t.Fatalf("status = %d, want %d; body=%q", got, want, strings.TrimSpace(recorder.Body.String()))
+		}
+		select {
+		case envelope := <-deliveries:
+			t.Fatalf("unexpected dispatch for invalid signature: %#v", envelope)
+		default:
+		}
+	})
+}
+
 func TestDetermineInitialStateAndLifecycleHelpers(t *testing.T) {
 	t.Parallel()
 

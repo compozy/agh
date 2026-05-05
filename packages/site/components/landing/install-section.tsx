@@ -14,7 +14,7 @@ const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[
     id: "curl",
     label: "curl",
     command: "curl -fsSL https://agh.network/install.sh | sh",
-    note: "Recommended · macOS + Linux · verifies checksums and opens agh install",
+    note: "Recommended · macOS + Linux · verifies release provenance and opens agh install",
   },
   {
     id: "package",

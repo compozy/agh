@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
+	aghupdate "github.com/pedronauck/agh/internal/update"
+	"github.com/pedronauck/agh/internal/version"
 )
 
 type settingsRuntimeSurface struct {
@@ -409,4 +412,52 @@ func settingsRestartOperationFromDaemon(operation RestartOperation) core.Setting
 		UpdatedAt:          operation.UpdatedAt,
 		CompletedAt:        operation.CompletedAt,
 	}
+}
+
+type settingsUpdateController struct {
+	manager settingsUpdateManager
+}
+
+var _ core.SettingsUpdateController = settingsUpdateController{}
+
+type settingsUpdateManager interface {
+	Check(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error)
+}
+
+func (c settingsUpdateController) GetUpdate(ctx context.Context) (core.SettingsUpdateStatus, error) {
+	if c.manager == nil {
+		return core.SettingsUpdateStatus{}, errors.New("daemon: settings update manager is required")
+	}
+
+	state, _, err := c.manager.Check(ctx, aghupdate.CheckOptions{AllowCachedOnFailure: true})
+	if err != nil && strings.TrimSpace(state.Message) == "" && strings.TrimSpace(state.LastError) == "" {
+		return core.SettingsUpdateStatus{}, err
+	}
+
+	return core.SettingsUpdateStatus{
+		Supported:      state.Supported,
+		Managed:        state.Managed,
+		InstallMethod:  strings.TrimSpace(state.InstallMethod),
+		CurrentVersion: strings.TrimSpace(state.CurrentVersion),
+		LatestVersion:  strings.TrimSpace(state.LatestVersion),
+		Available:      state.Available,
+		Status:         strings.TrimSpace(string(state.Status)),
+		Recommendation: strings.TrimSpace(state.Recommendation),
+		ReleaseURL:     strings.TrimSpace(state.ReleaseURL),
+		CheckedAt:      state.CheckedAt,
+		LastError:      strings.TrimSpace(state.LastError),
+	}, nil
+}
+
+func newSettingsUpdateManager(d *Daemon) (*aghupdate.Manager, error) {
+	if d == nil {
+		return nil, errors.New("daemon: settings update daemon is required")
+	}
+
+	return aghupdate.NewManager(aghupdate.Config{
+		HomePaths:      d.homePaths,
+		CurrentVersion: version.Current().Version,
+		ExecutablePath: d.executable,
+		Getenv:         os.Getenv,
+	})
 }

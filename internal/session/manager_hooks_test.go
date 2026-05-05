@@ -307,8 +307,9 @@ func TestPromptUsesPatchedInputMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
-	if len(stored) == 0 || !strings.Contains(stored[0].Content, `"text":"patched message"`) {
-		t.Fatalf("stored user message content = %q, want patched text", stored[0].Content)
+	userMessage := storedEventByType(t, stored, acp.EventTypeUserMessage)
+	if !strings.Contains(userMessage.Content, `"text":"patched message"`) {
+		t.Fatalf("stored user message content = %q, want patched text", userMessage.Content)
 	}
 }
 
@@ -931,11 +932,9 @@ func TestMessageStartPatchUpdatesFirstAssistantChunk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query() error = %v", err)
 	}
-	if len(stored) < 2 {
-		t.Fatalf("stored events = %d, want at least 2", len(stored))
-	}
-	if !strings.Contains(stored[1].Content, patched) {
-		t.Fatalf("stored assistant content = %q, want patched reply", stored[1].Content)
+	assistantMessage := storedEventByType(t, stored, acp.EventTypeAgentMessage)
+	if !strings.Contains(assistantMessage.Content, patched) {
+		t.Fatalf("stored assistant content = %q, want patched reply", assistantMessage.Content)
 	}
 }
 

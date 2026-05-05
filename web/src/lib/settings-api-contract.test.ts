@@ -12,6 +12,8 @@ type GetSettingsGeneralResponse = OperationResponse<"getSettingsGeneral", 200>;
 type PutSettingsMCPServerQuery = OperationQuery<"putSettingsMCPServer">;
 type PutSettingsMCPServerBody = OperationRequestBody<"putSettingsMCPServer">;
 type ListSettingsMCPServersResponse = OperationResponse<"listSettingsMCPServers", 200>;
+type PutSettingsProviderBody = OperationRequestBody<"putSettingsProvider">;
+type ListSettingsProvidersResponse = OperationResponse<"listSettingsProviders", 200>;
 type GetSettingsObservabilityResponse = OperationResponse<"getSettingsObservability", 200>;
 type TriggerSettingsRestartResponse = OperationResponse<"triggerSettingsRestart", 202>;
 type GetSettingsRestartStatusPath = OperationPath<"getSettingsRestartStatus">;
@@ -33,11 +35,10 @@ describe("settings openapi contract", () => {
       | "observability"
       | "hooks-extensions"
     >();
-    expectTypeOf<GetSettingsGeneralResponse["scope"]>().toEqualTypeOf<"global" | "workspace">();
-    expectTypeOf<GetSettingsGeneralResponse["workspace_id"]>().toEqualTypeOf<string | undefined>();
-    expectTypeOf<GetSettingsGeneralResponse["available_scopes"][number]>().toEqualTypeOf<
-      "global" | "workspace"
-    >();
+    expectTypeOf<GetSettingsGeneralResponse["scope"]>().toEqualTypeOf<"global">();
+    expectTypeOf<
+      GetSettingsGeneralResponse["available_scopes"][number]
+    >().toEqualTypeOf<"global">();
     expectTypeOf<GetSettingsGeneralResponse["config_paths"]["log_file"]>().toEqualTypeOf<string>();
     expectTypeOf<GetSettingsGeneralResponse["config"]["session_timeout"]>().toEqualTypeOf<string>();
     expectTypeOf<GetSettingsGeneralResponse["runtime"]["available"]>().toEqualTypeOf<boolean>();
@@ -127,7 +128,7 @@ describe("settings openapi contract", () => {
       | undefined
     >();
     expectTypeOf<ListSettingsMCPServersResponse["mcp_servers"][number]["scope"]>().toEqualTypeOf<
-      "global" | "workspace"
+      "global" | "workspace" | "agent"
     >();
     expectTypeOf<
       ListSettingsMCPServersResponse["mcp_servers"][number]["source_metadata"]["effective_source"]["kind"]
@@ -137,26 +138,74 @@ describe("settings openapi contract", () => {
       | "workspace-config"
       | "global-mcp-sidecar"
       | "workspace-mcp-sidecar"
+      | "global-agent-file"
+      | "workspace-agent-file"
     >();
     expectTypeOf<
       ListSettingsMCPServersResponse["mcp_servers"][number]["source_metadata"]["available_targets"][number]
     >().toEqualTypeOf<
-      "global-config" | "workspace-config" | "global-mcp-sidecar" | "workspace-mcp-sidecar"
+      | "global-config"
+      | "workspace-config"
+      | "global-mcp-sidecar"
+      | "workspace-mcp-sidecar"
+      | "global-agent-file"
+      | "workspace-agent-file"
     >();
     expectTypeOf<
       ListSettingsMCPServersResponse["mcp_servers"][number]["source_metadata"]["shadowed_sources"]
     >().toEqualTypeOf<
       | {
+          agent_name?: string;
           kind:
             | "builtin-provider"
             | "global-config"
             | "workspace-config"
             | "global-mcp-sidecar"
-            | "workspace-mcp-sidecar";
-          scope: "global" | "workspace";
+            | "workspace-mcp-sidecar"
+            | "global-agent-file"
+            | "workspace-agent-file";
+          scope: "global" | "workspace" | "agent";
           workspace_id?: string;
         }[]
       | undefined
+    >();
+
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["auth_mode"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["env_policy"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["home_policy"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["auth_status_command"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      ListSettingsProvidersResponse["providers"][number]["settings"]["auth_login_command"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<ListSettingsProvidersResponse["providers"][number]["auth_status"]>().toEqualTypeOf<
+      | {
+          env_policy: string;
+          home_policy: string;
+          login_command?: string;
+          message?: string;
+          mode: string;
+          state: string;
+          status_command?: string;
+        }
+      | null
+      | undefined
+    >();
+    expectTypeOf<PutSettingsProviderBody["settings"]["auth_mode"]>().toEqualTypeOf<
+      string | undefined
+    >();
+    expectTypeOf<PutSettingsProviderBody["settings"]["env_policy"]>().toEqualTypeOf<
+      string | undefined
+    >();
+    expectTypeOf<PutSettingsProviderBody["settings"]["home_policy"]>().toEqualTypeOf<
+      string | undefined
     >();
 
     expectTypeOf<

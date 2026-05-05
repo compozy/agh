@@ -60,13 +60,13 @@ max_sessions = 10
 max_concurrent_agents = 20
 ```
 
-| Check                | Pass condition                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------------- |
-| HTTP bind            | `[http].host` is `localhost` unless AGH is intentionally protected by a reverse proxy or host firewall. |
-| UDS path             | `[daemon].socket` is inside a directory owned by the daemon user.                                       |
-| Log level            | `[log].level` is `info` or `warn` for unattended operation; use `debug` only for short investigations.  |
-| Limits               | Session and agent concurrency limits match the host capacity.                                           |
-| Provider environment | Required provider API keys are set in the service environment, not only in an interactive shell.        |
+| Check         | Pass condition                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP bind     | `[http].host` is `localhost` unless AGH is intentionally protected by a reverse proxy or host firewall.                               |
+| UDS path      | `[daemon].socket` is inside a directory owned by the daemon user.                                                                     |
+| Log level     | `[log].level` is `info` or `warn` for unattended operation; use `debug` only for short investigations.                                |
+| Limits        | Session and agent concurrency limits match the host capacity.                                                                         |
+| Provider auth | Native CLI providers are logged in for the service user, and `bound_secret` providers have resolvable `env:` or `vault:` credentials. |
 
 ## 3. Run under a service manager
 
@@ -75,7 +75,8 @@ The service manager should:
 - start `agh daemon start --foreground`
 - send `SIGTERM` during stop
 - restart on unexpected failure
-- provide the provider environment used by agent subprocesses
+- provide the provider environment used by `bound_secret` providers and run under the user whose
+  native provider logins should be visible
 - keep stdout and stderr in a known log location
 
 For concrete service files, see [Daemon Operations](/runtime/core/operations/daemon).
@@ -142,7 +143,7 @@ Back up at least:
 - `$AGH_HOME/skills/`
 - `$AGH_HOME/memory/`
 
-Use one of the backup procedures in [Database Operations](/runtime/core/operations/database). For
+Use one of the backup paths in [Database Operations](/runtime/core/operations/database). For
 unattended hosts, prefer a scheduled cold backup when the daemon can be stopped. If it cannot be
 stopped, use SQLite `.backup` instead of copying only the main database files.
 

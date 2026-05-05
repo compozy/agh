@@ -2,6 +2,9 @@ import "./global.css";
 import { Inter, JetBrains_Mono, Playfair_Display } from "next/font/google";
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { RootProvider } from "fumadocs-ui/provider/next";
 import { SiteFooter } from "@/components/site/site-footer";
 import { siteConfig } from "@/lib/site-config";
 
@@ -14,7 +17,7 @@ const inter = Inter({
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair",
-  display: "swap",
+  display: "block",
   weight: ["400", "500"],
 });
 
@@ -88,8 +91,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
-        {children}
-        <SiteFooter />
+        <RootProvider
+          search={{
+            options: {
+              type: "fetch",
+              api: "/api/search",
+            },
+          }}
+          theme={{ enabled: false }}
+        >
+          {children}
+          <SiteFooter />
+        </RootProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

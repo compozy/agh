@@ -41,7 +41,11 @@ type hostAPIBridgeDedupStore interface {
 	DeleteExpiredBridgeIngestDedup(ctx context.Context, now time.Time) (int64, error)
 }
 
-const hostAPIBusyRetryAttempts = 3
+const (
+	hostAPIBusyRetryAttempts         = 3
+	hostAPIBridgePromptRetryInterval = 10 * time.Millisecond
+	hostAPIBridgePromptRetryWindow   = 5 * time.Second
+)
 
 type hostAPIBridgeIngressContext struct {
 	params     hostAPIBridgesMessagesIngestParams
@@ -189,7 +193,14 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 	}
 
 	promptBody := renderInboundMessagePrompt(ingress.params)
-	route, err = h.promptBridgeRoute(ctx, *ingress.instance, ingress.routingKey, route, promptBody)
+	route, err = h.promptBridgeRoute(
+		ctx,
+		*ingress.instance,
+		ingress.routingKey,
+		route,
+		ingress.params,
+		promptBody,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -496,13 +507,14 @@ func (h *HostAPIHandler) promptBridgeRoute(
 	instance bridgepkg.BridgeInstance,
 	routingKey bridgepkg.RoutingKey,
 	route *bridgepkg.BridgeRoute,
+	envelope bridgepkg.InboundMessageEnvelope,
 	message string,
 ) (*bridgepkg.BridgeRoute, error) {
 	if route == nil {
 		return nil, unavailableRPCError(errors.New("bridge route is required"))
 	}
 
-	submission, err := h.submitPrompt(ctx, route.SessionID, message)
+	submission, err := h.submitBridgePrompt(ctx, route.SessionID, envelope, message)
 	if err == nil {
 		if registerErr := h.registerPromptDelivery(
 			ctx,
@@ -537,7 +549,7 @@ func (h *HostAPIHandler) promptBridgeRoute(
 		return nil, mapped
 	}
 
-	submission, err = h.submitPrompt(ctx, rebound.SessionID, message)
+	submission, err = h.submitBridgePrompt(ctx, rebound.SessionID, envelope, message)
 	if err != nil {
 		return nil, err
 	}
@@ -545,6 +557,145 @@ func (h *HostAPIHandler) promptBridgeRoute(
 		return nil, err
 	}
 	return rebound, nil
+}
+
+func (h *HostAPIHandler) submitBridgePrompt(
+	ctx context.Context,
+	sessionID string,
+	envelope bridgepkg.InboundMessageEnvelope,
+	message string,
+) (hostAPIPromptSubmission, error) {
+	if h.sessions == nil {
+		return hostAPIPromptSubmission{}, errors.New("extension: session manager is not configured")
+	}
+
+	lastSequence, err := h.latestSessionSequence(ctx, sessionID)
+	if err != nil {
+		return hostAPIPromptSubmission{}, err
+	}
+
+	eventsCh, err := h.promptBridgeSession(
+		context.WithoutCancel(ctx),
+		sessionID,
+		message,
+		bridgePromptNetworkMeta(envelope),
+	)
+	if err != nil {
+		return hostAPIPromptSubmission{}, err
+	}
+	go drainAgentEvents(eventsCh)
+
+	events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{
+		AfterSequence: lastSequence,
+	})
+	if err != nil {
+		return hostAPIPromptSubmission{}, err
+	}
+
+	return promptSubmissionFromStoredEvents(events)
+}
+
+func (h *HostAPIHandler) promptBridgeSession(
+	ctx context.Context,
+	sessionID string,
+	message string,
+	meta acp.PromptNetworkMeta,
+) (<-chan acp.AgentEvent, error) {
+	if networkSessions, ok := h.sessions.(hostAPINetworkPromptSessionManager); ok {
+		return h.retryBusyBridgePrompt(ctx, sessionID, func() (<-chan acp.AgentEvent, error) {
+			return networkSessions.PromptNetwork(ctx, sessionID, message, meta)
+		})
+	}
+
+	return h.retryBusyBridgePrompt(ctx, sessionID, func() (<-chan acp.AgentEvent, error) {
+		return h.sessions.Prompt(ctx, sessionID, message)
+	})
+}
+
+func (h *HostAPIHandler) retryBusyBridgePrompt(
+	ctx context.Context,
+	sessionID string,
+	submit func() (<-chan acp.AgentEvent, error),
+) (<-chan acp.AgentEvent, error) {
+	if submit == nil {
+		return nil, errors.New("extension: bridge prompt submitter is required")
+	}
+
+	var lastErr error
+	for attempt := range hostAPIBusyRetryAttempts {
+		eventsCh, err := submit()
+		if !errors.Is(err, session.ErrPromptInProgress) {
+			return eventsCh, err
+		}
+		lastErr = err
+		if attempt == hostAPIBusyRetryAttempts-1 {
+			break
+		}
+
+		waited, waitErr := h.waitForBridgePromptAvailability(ctx, sessionID)
+		if waitErr != nil {
+			return nil, waitErr
+		}
+		if !waited {
+			break
+		}
+	}
+
+	return nil, lastErr
+}
+
+func (h *HostAPIHandler) waitForBridgePromptAvailability(ctx context.Context, sessionID string) (bool, error) {
+	promptingSessions, ok := h.sessions.(hostAPIPromptingSessionManager)
+	if !ok {
+		return false, nil
+	}
+
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return false, errors.New("extension: bridge prompt session id is required")
+	}
+
+	deadline := time.Now().Add(hostAPIBridgePromptRetryWindow)
+	if ctxDeadline, ok := ctx.Deadline(); ok {
+		deadline = ctxDeadline
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		if !promptingSessions.IsPrompting(sessionID) {
+			return true, nil
+		}
+		if time.Now().After(deadline) {
+			return false, nil
+		}
+
+		timer := time.NewTimer(hostAPIBridgePromptRetryInterval)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return false, ctx.Err()
+		}
+	}
+}
+
+func bridgePromptNetworkMeta(envelope bridgepkg.InboundMessageEnvelope) acp.PromptNetworkMeta {
+	family := envelope.EventFamily.Normalize()
+	if family == "" {
+		family = bridgepkg.InboundEventFamilyMessage
+	}
+
+	return acp.PromptNetworkMeta{
+		MessageID: envelope.PlatformMessageID,
+		Kind:      string(family),
+		From:      strings.TrimSpace(envelope.PeerID),
+	}.Normalize()
 }
 
 func (h *HostAPIHandler) registerPromptDelivery(

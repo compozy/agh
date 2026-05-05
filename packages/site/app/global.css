@@ -11,18 +11,10 @@
  */
 @source "../../ui/src/**/*.{ts,tsx}";
 
-@font-face {
-  font-family: "NuixyberNext";
-  src: url("/fonts/NuixyberNext-Regular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 /*
  * Wire Next.js font variables into Tailwind's font tokens.
- * `--font-inter` and `--font-jetbrains-mono` are injected by next/font/google
- * in app/layout.tsx via the html className.
+ * `--font-inter`, `--font-jetbrains-mono`, and `--font-playfair` are injected
+ * by next/font in app/layout.tsx via the html className.
  */
 @theme inline {
   --font-sans: var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -60,6 +52,15 @@
   --color-fd-accent: #2e2c2b;
   --color-fd-accent-foreground: #e5e5e7;
   --color-fd-ring: #e8572a;
+  --color-fd-info: var(--color-info);
+  --color-fd-warning: var(--color-warning);
+  --color-fd-error: var(--color-danger);
+  --color-fd-success: var(--color-success);
+  --color-fd-idea: var(--color-accent);
+  --color-fd-diff-remove: var(--color-danger-tint);
+  --color-fd-diff-remove-symbol: var(--color-danger);
+  --color-fd-diff-add: var(--color-success-tint);
+  --color-fd-diff-add-symbol: var(--color-success);
 }
 
 /* Remove fumadocs banner wrapper padding on landing page only */
@@ -76,8 +77,7 @@ body:has(.site-home) .bg-fd-secondary\/50.p-3 {
 }
 
 body {
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)), var(--color-canvas);
+  background: var(--color-canvas);
   color: var(--color-text-primary);
   text-rendering: optimizeLegibility;
 }

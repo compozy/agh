@@ -28,6 +28,7 @@ type handlerConfig struct {
 	toolApprovals   core.ToolApprovalIssuer
 	settings        core.SettingsService
 	settingsRestart core.SettingsRestartController
+	settingsUpdate  core.SettingsUpdateController
 	vault           core.VaultService
 	workspaces      core.WorkspaceService
 	agentCatalog    core.AgentCatalog
@@ -89,7 +90,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:                "httpapi",
 			MaskInternalErrors:           true,
-			IncludeSessionWorkspaceInSSE: false,
+			IncludeSessionWorkspaceInSSE: true,
 			Sessions:                     cfg.sessions,
 			Tasks:                        cfg.tasks,
 			Network:                      cfg.network,
@@ -104,6 +105,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			ToolApprovals:                cfg.toolApprovals,
 			Settings:                     cfg.settings,
 			SettingsRestart:              cfg.settingsRestart,
+			SettingsUpdate:               cfg.settingsUpdate,
 			Vault:                        cfg.vault,
 			Workspaces:                   cfg.workspaces,
 			AgentCatalog:                 cfg.agentCatalog,

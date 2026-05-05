@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -25,15 +26,36 @@ func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary store.EventSum
 	if summary.Timestamp.IsZero() {
 		summary.Timestamp = g.now()
 	}
+	summary.EventCorrelation = summary.Normalize()
 
 	if _, err := g.db.ExecContext(
 		ctx,
-		`INSERT INTO event_summaries (id, session_id, type, agent_name, summary, timestamp)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO event_summaries (
+			id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id, claim_token_hash,
+			lease_until, coordinator_session_id, scheduler_reason, hook_event, hook_name,
+			actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
+			spawn_depth, summary, timestamp
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		summary.ID,
 		summary.SessionID,
 		summary.Type,
 		summary.AgentName,
+		string(summary.Content),
+		summary.TaskID,
+		summary.RunID,
+		summary.WorkflowID,
+		summary.ClaimTokenHash,
+		formatEventSummaryLeaseUntil(summary.LeaseUntil),
+		summary.CoordinatorSessionID,
+		summary.SchedulerReason,
+		summary.HookEvent,
+		summary.HookName,
+		summary.ActorKind,
+		summary.ActorID,
+		summary.ReleaseReason,
+		summary.ParentSessionID,
+		summary.RootSessionID,
+		summary.SpawnDepth,
 		store.NullableString(summary.Summary),
 		store.FormatTimestamp(summary.Timestamp),
 	); err != nil {
@@ -47,14 +69,14 @@ func (g *GlobalDB) ListEventSummaries(
 	ctx context.Context,
 	query store.EventSummaryQuery,
 ) ([]store.EventSummary, error) {
-	if err := g.checkReady(ctx, "list event summaries"); err != nil {
-		return nil, err
-	}
-	if err := query.Validate(); err != nil {
+	if err := g.validateEventSummaryQuery(ctx, query); err != nil {
 		return nil, err
 	}
 
-	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, type, agent_name, summary, timestamp FROM event_summaries`
+	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, type, agent_name, content_json,
+		task_id, run_id, workflow_id, claim_token_hash, lease_until, coordinator_session_id,
+		scheduler_reason, hook_event, hook_name, actor_kind, actor_id, release_reason,
+		parent_session_id, root_session_id, spawn_depth, summary, timestamp FROM event_summaries`
 	eventWhere, args := store.BuildClauses(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
@@ -65,7 +87,17 @@ func (g *GlobalDB) ListEventSummaries(
 
 	combinedQuery := eventQuery
 	if strings.TrimSpace(query.SessionID) == "" {
-		memoryQuery := `SELECT 1 AS source_rank, rowid AS source_rowid, id, '' AS session_id, type, agent_name, summary, timestamp FROM memory_operation_log`
+		memoryQuery := `SELECT 1 AS source_rank,
+			rowid AS source_rowid,
+			id,
+			'' AS session_id,
+			type,
+			agent_name,
+			'' AS content_json,
+			'' AS task_id, '' AS run_id, '' AS workflow_id, '' AS claim_token_hash, '' AS lease_until,
+			'' AS coordinator_session_id, '' AS scheduler_reason, '' AS hook_event, '' AS hook_name,
+			'' AS actor_kind, '' AS actor_id, '' AS release_reason, '' AS parent_session_id,
+			'' AS root_session_id, 0 AS spawn_depth, summary, timestamp FROM memory_operation_log`
 		memoryWhere, memoryArgs := store.BuildClauses(
 			store.StringClause("agent_name", query.AgentName),
 			store.StringClause("type", query.Type),
@@ -76,9 +108,15 @@ func (g *GlobalDB) ListEventSummaries(
 		args = append(args, memoryArgs...)
 	}
 
-	sqlQuery := `SELECT source_rowid, id, session_id, type, agent_name, summary, timestamp FROM (` + combinedQuery + `)`
+	sqlQuery := `SELECT source_rowid, id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id,
+		claim_token_hash, lease_until, coordinator_session_id, scheduler_reason, hook_event,
+		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
+		spawn_depth, summary, timestamp FROM (` + combinedQuery + `)`
 	if query.Limit > 0 {
-		sqlQuery = `SELECT source_rowid, id, session_id, type, agent_name, summary, timestamp
+		sqlQuery = `SELECT source_rowid, id, session_id, type, agent_name, content_json, task_id, run_id, workflow_id,
+			claim_token_hash, lease_until, coordinator_session_id, scheduler_reason, hook_event,
+			hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
+			spawn_depth, summary, timestamp
 			FROM (` + combinedQuery + ` ORDER BY timestamp DESC, source_rank DESC, source_rowid DESC LIMIT ?) AS recent_summaries
 			ORDER BY timestamp ASC, source_rank ASC, source_rowid ASC`
 		args = append(args, query.Limit)
@@ -107,6 +145,16 @@ func (g *GlobalDB) ListEventSummaries(
 	}
 
 	return summaries, nil
+}
+
+func (g *GlobalDB) validateEventSummaryQuery(
+	ctx context.Context,
+	query store.EventSummaryQuery,
+) error {
+	if err := g.checkReady(ctx, "list event summaries"); err != nil {
+		return err
+	}
+	return query.Validate()
 }
 
 // SweepObservability removes global observability rows older than cutoff.
@@ -291,9 +339,11 @@ func (g *GlobalDB) ListTokenStats(ctx context.Context, query store.TokenStatsQue
 
 func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 	var (
-		summary      store.EventSummary
-		summaryText  sql.NullString
-		timestampRaw string
+		summary        store.EventSummary
+		contentJSONRaw string
+		summaryText    sql.NullString
+		leaseUntilRaw  string
+		timestampRaw   string
 	)
 	if err := scanner.Scan(
 		&summary.Sequence,
@@ -301,6 +351,22 @@ func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 		&summary.SessionID,
 		&summary.Type,
 		&summary.AgentName,
+		&contentJSONRaw,
+		&summary.TaskID,
+		&summary.RunID,
+		&summary.WorkflowID,
+		&summary.ClaimTokenHash,
+		&leaseUntilRaw,
+		&summary.CoordinatorSessionID,
+		&summary.SchedulerReason,
+		&summary.HookEvent,
+		&summary.HookName,
+		&summary.ActorKind,
+		&summary.ActorID,
+		&summary.ReleaseReason,
+		&summary.ParentSessionID,
+		&summary.RootSessionID,
+		&summary.SpawnDepth,
 		&summaryText,
 		&timestampRaw,
 	); err != nil {
@@ -310,12 +376,27 @@ func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 	if summaryText.Valid {
 		summary.Summary = summaryText.String
 	}
+	if strings.TrimSpace(contentJSONRaw) != "" {
+		summary.Content = append(json.RawMessage(nil), []byte(contentJSONRaw)...)
+	}
+	if parsedLeaseUntil, err := store.ParseNullableTimestamp(leaseUntilRaw); err != nil {
+		return store.EventSummary{}, err
+	} else if parsedLeaseUntil != nil {
+		summary.LeaseUntil = parsedLeaseUntil
+	}
 	timestamp, err := store.ParseTimestamp(timestampRaw)
 	if err != nil {
 		return store.EventSummary{}, err
 	}
 	summary.Timestamp = timestamp
 	return summary, nil
+}
+
+func formatEventSummaryLeaseUntil(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return store.FormatNullableTimestamp(*value)
 }
 
 func scanTokenStats(scanner rowScanner) (store.TokenStats, error) {

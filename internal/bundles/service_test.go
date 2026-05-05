@@ -13,8 +13,11 @@ import (
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/testutil"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -27,6 +30,7 @@ type memoryStore struct {
 	activations map[string]Activation
 	inventory   map[string][]InventoryItem
 	bundles     []resources.Record[BundleResourceSpec]
+	agents      []resources.Record[aghconfig.AgentDef]
 	applied     []BundleActivationResourcePlan
 	applyErr    error
 
@@ -36,6 +40,7 @@ type memoryStore struct {
 	listBundleActivationsHook  func() ([]Activation, error)
 	listBundleInventoryHook    func(string) ([]InventoryItem, error)
 	listBundleResourcesHook    func() ([]resources.Record[BundleResourceSpec], error)
+	listAgentResourcesHook     func() ([]resources.Record[aghconfig.AgentDef], error)
 }
 
 func newMemoryStore() *memoryStore {
@@ -129,6 +134,15 @@ func (s *memoryStore) ListBundleResources(
 	return append([]resources.Record[BundleResourceSpec](nil), s.bundles...), nil
 }
 
+func (s *memoryStore) ListAgentResources(
+	_ context.Context,
+) ([]resources.Record[aghconfig.AgentDef], error) {
+	if s.listAgentResourcesHook != nil {
+		return s.listAgentResourcesHook()
+	}
+	return append([]resources.Record[aghconfig.AgentDef](nil), s.agents...), nil
+}
+
 func (s *memoryStore) ApplyBundleActivationResources(
 	_ context.Context,
 	plan BundleActivationResourcePlan,
@@ -138,15 +152,49 @@ func (s *memoryStore) ApplyBundleActivationResources(
 	}
 	next := plan
 	next.activeActivationIDs = cloneStringSet(plan.activeActivationIDs)
+	next.desiredAgents = cloneOwnedAgentResources(plan.desiredAgents)
+	next.desiredSouls = cloneOwnedSoulResources(plan.desiredSouls)
+	next.desiredHeartbeats = cloneOwnedHeartbeatResources(plan.desiredHeartbeats)
 	next.desiredJobs = cloneJobsForBundle(plan.desiredJobs)
 	next.desiredTriggers = cloneTriggersForBundle(plan.desiredTriggers)
 	next.desiredBridges = cloneBridgeInstancesForBundle(plan.desiredBridges)
+	next.agentOwners = copyStringMap(plan.agentOwners)
+	next.soulOwners = copyStringMap(plan.soulOwners)
+	next.heartbeatOwners = copyStringMap(plan.heartbeatOwners)
 	next.jobOwners = copyStringMap(plan.jobOwners)
 	next.triggerOwners = copyStringMap(plan.triggerOwners)
 	next.bridgeOwners = copyStringMap(plan.bridgeOwners)
 	next.declaredChannels = append([]DeclaredChannel(nil), plan.declaredChannels...)
 	s.applied = append(s.applied, next)
 	s.inventory = make(map[string][]InventoryItem)
+	s.applyDesiredAgentRecords(plan)
+	for _, agent := range plan.desiredAgents {
+		activationID := strings.TrimSpace(plan.agentOwners[strings.TrimSpace(agent.ID)])
+		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
+			ActivationID: activationID,
+			ResourceKind: string(aghconfig.AgentResourceKind),
+			ResourceID:   agent.ID,
+			ResourceName: agent.Spec.Name,
+		})
+	}
+	for _, spec := range plan.desiredSouls {
+		activationID := strings.TrimSpace(plan.soulOwners[strings.TrimSpace(spec.ID)])
+		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
+			ActivationID: activationID,
+			ResourceKind: string(soul.ResourceKind),
+			ResourceID:   spec.ID,
+			ResourceName: spec.Spec.AgentName,
+		})
+	}
+	for _, spec := range plan.desiredHeartbeats {
+		activationID := strings.TrimSpace(plan.heartbeatOwners[strings.TrimSpace(spec.ID)])
+		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
+			ActivationID: activationID,
+			ResourceKind: string(heartbeat.ResourceKind),
+			ResourceID:   spec.ID,
+			ResourceName: spec.Spec.AgentName,
+		})
+	}
 	for _, job := range plan.desiredJobs {
 		activationID := strings.TrimSpace(plan.jobOwners[strings.TrimSpace(job.ID)])
 		s.inventory[activationID] = append(s.inventory[activationID], InventoryItem{
@@ -175,6 +223,27 @@ func (s *memoryStore) ApplyBundleActivationResources(
 		})
 	}
 	return nil
+}
+
+func (s *memoryStore) applyDesiredAgentRecords(plan BundleActivationResourcePlan) {
+	preserved := make([]resources.Record[aghconfig.AgentDef], 0, len(s.agents)+len(plan.desiredAgents))
+	for _, record := range s.agents {
+		if record.Owner.Kind.Normalize() == BundleActivationOwnerKind {
+			continue
+		}
+		preserved = append(preserved, record)
+	}
+	for _, agent := range plan.desiredAgents {
+		activationID := strings.TrimSpace(plan.agentOwners[strings.TrimSpace(agent.ID)])
+		preserved = append(preserved, resources.Record[aghconfig.AgentDef]{
+			Kind:  aghconfig.AgentResourceKind,
+			ID:    strings.TrimSpace(agent.ID),
+			Scope: agent.Scope.Normalize(),
+			Owner: ownerForActivation(activationID),
+			Spec:  aghconfig.CloneAgentDef(agent.Spec),
+		})
+	}
+	s.agents = preserved
 }
 
 type staticExtensionLister struct {
@@ -229,9 +298,25 @@ func newMarketingExtension() *extensionpkg.Extension {
 						Description: "Primary marketing channel",
 					}},
 				},
+				Agents: []extensionpkg.BundleAgent{{
+					Path: "agents/marketer",
+					Agent: aghconfig.AgentDef{
+						Name:   "marketer",
+						Prompt: "Run marketing workflows.",
+						Model:  "sonnet",
+					},
+					Soul: &extensionpkg.BundleAgentSidecar{
+						SourcePath: "agents/marketer/SOUL.md",
+						Body:       "Lead with campaign context.",
+					},
+					Heartbeat: &extensionpkg.BundleAgentSidecar{
+						SourcePath: "agents/marketer/HEARTBEAT.md",
+						Body:       "Inspect campaign status and use AGH task APIs.",
+					},
+				}},
 				Jobs: []extensionpkg.BundleJob{{
 					Name:      "daily-sync",
-					AgentName: "planner",
+					AgentName: "marketer",
 					Prompt:    "Summarize campaign status",
 					Schedule:  automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "1h"},
 					Enabled:   true,
@@ -240,7 +325,7 @@ func newMarketingExtension() *extensionpkg.Extension {
 				}},
 				Triggers: []extensionpkg.BundleTrigger{{
 					Name:      "session-opened",
-					AgentName: "planner",
+					AgentName: "marketer",
 					Prompt:    "React to session open",
 					Event:     "session.created",
 					Enabled:   true,
@@ -265,17 +350,47 @@ func newMarketingExtension() *extensionpkg.Extension {
 
 func newMarketingService(store *memoryStore, opts ...Option) *Service {
 	ext := newMarketingExtension()
-	store.bundles = []resources.Record[BundleResourceSpec]{{
-		Kind:  BundleResourceKind,
-		ID:    BundleResourceID(ext.Info.Name, ext.Bundles[0].Name),
-		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-		Spec: BundleResourceSpec{
-			ExtensionName:              ext.Info.Name,
-			Bundle:                     ext.Bundles[0],
-			OwnerBridgePlatform:        ext.Manifest.Bridge.Platform,
-			OwnerProvidesBridgeAdapter: true,
-		},
-	}}
+	if len(store.agents) == 0 {
+		store.agents = []resources.Record[aghconfig.AgentDef]{plannerAgentRecord()}
+	}
+	return newServiceForExtensions(store, []*extensionpkg.Extension{ext}, opts...)
+}
+
+func newServiceForExtensions(
+	store *memoryStore,
+	extensions []*extensionpkg.Extension,
+	opts ...Option,
+) *Service {
+	byName := make(map[string]*extensionpkg.Extension, len(extensions))
+	infos := make([]extensionpkg.ExtensionInfo, 0, len(extensions))
+	bundles := make([]resources.Record[BundleResourceSpec], 0, len(extensions))
+	for _, ext := range extensions {
+		if ext == nil {
+			continue
+		}
+		byName[ext.Info.Name] = ext
+		infos = append(infos, extensionpkg.ExtensionInfo{Name: ext.Info.Name})
+		for _, bundle := range ext.Bundles {
+			ownerBridgePlatform := ""
+			ownerProvidesBridgeAdapter := false
+			if ext.Manifest != nil {
+				ownerBridgePlatform = ext.Manifest.Bridge.Platform
+				ownerProvidesBridgeAdapter = strings.TrimSpace(ownerBridgePlatform) != ""
+			}
+			bundles = append(bundles, resources.Record[BundleResourceSpec]{
+				Kind:  BundleResourceKind,
+				ID:    BundleResourceID(ext.Info.Name, bundle.Name),
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec: BundleResourceSpec{
+					ExtensionName:              ext.Info.Name,
+					Bundle:                     bundle,
+					OwnerBridgePlatform:        ownerBridgePlatform,
+					OwnerProvidesBridgeAdapter: ownerProvidesBridgeAdapter,
+				},
+			})
+		}
+	}
+	store.bundles = bundles
 	options := []Option{
 		WithConfiguredDefaultChannel("default"),
 		WithNow(func() time.Time {
@@ -285,15 +400,53 @@ func newMarketingService(store *memoryStore, opts ...Option) *Service {
 	options = append(options, opts...)
 	return NewService(
 		store,
-		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "marketing-team"}}},
-		func(name string) (*extensionpkg.Extension, error) {
-			if name != "marketing-team" {
+		staticExtensionLister{items: infos},
+		func(_ context.Context, name string) (*extensionpkg.Extension, error) {
+			ext, ok := byName[name]
+			if !ok {
 				return nil, extensionpkg.ErrExtensionNotFound
 			}
 			return ext, nil
 		},
 		options...,
 	)
+}
+
+func plannerAgentRecord() resources.Record[aghconfig.AgentDef] {
+	return resources.Record[aghconfig.AgentDef]{
+		Kind:  aghconfig.AgentResourceKind,
+		ID:    "agent_planner",
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Spec: aghconfig.AgentDef{
+			Name:   "planner",
+			Prompt: "Plan the work.",
+		},
+	}
+}
+
+func bundleAgentRecord(
+	id string,
+	name string,
+	scope resources.ResourceScope,
+) resources.Record[aghconfig.AgentDef] {
+	return resources.Record[aghconfig.AgentDef]{
+		Kind:  aghconfig.AgentResourceKind,
+		ID:    id,
+		Scope: scope,
+		Spec: aghconfig.AgentDef{
+			Name:   name,
+			Prompt: "Existing agent.",
+		},
+	}
+}
+
+func marketingExtensionNamed(name string) *extensionpkg.Extension {
+	ext := newMarketingExtension()
+	ext.Info.Name = name
+	if ext.Manifest != nil {
+		ext.Manifest.Name = name
+	}
+	return ext
 }
 
 func TestServiceActivateMaterializesManagedResources(t *testing.T) {
@@ -313,13 +466,25 @@ func TestServiceActivateMaterializesManagedResources(t *testing.T) {
 		t.Fatalf("Activate() error = %v", err)
 	}
 
-	if got, want := len(preview.Inventory), 3; got != want {
+	if got, want := len(preview.Inventory), 6; got != want {
 		t.Fatalf("len(preview.Inventory) = %d, want %d", got, want)
 	}
 	if got, want := len(store.applied), 1; got != want {
 		t.Fatalf("len(applied plans) = %d, want %d", got, want)
 	}
 	plan := store.applied[0]
+	if got, want := len(plan.desiredAgents), 1; got != want {
+		t.Fatalf("len(plan.desiredAgents) = %d, want %d", got, want)
+	}
+	if got, want := plan.desiredAgents[0].Spec.Name, "marketer"; got != want {
+		t.Fatalf("plan.desiredAgents[0].Spec.Name = %q, want %q", got, want)
+	}
+	if got, want := len(plan.desiredSouls), 1; got != want {
+		t.Fatalf("len(plan.desiredSouls) = %d, want %d", got, want)
+	}
+	if got, want := len(plan.desiredHeartbeats), 1; got != want {
+		t.Fatalf("len(plan.desiredHeartbeats) = %d, want %d", got, want)
+	}
 	if got, want := len(plan.desiredJobs), 1; got != want {
 		t.Fatalf("len(plan.desiredJobs) = %d, want %d", got, want)
 	}
@@ -373,7 +538,7 @@ func TestServiceCatalogPreviewListAndGetUseCanonicalResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PreviewActivation() error = %v", err)
 	}
-	if got, want := len(preview.Inventory), 3; got != want {
+	if got, want := len(preview.Inventory), 6; got != want {
 		t.Fatalf("len(preview.Inventory) = %d, want %d", got, want)
 	}
 	activated, err := service.Activate(testutil.Context(t), ActivateRequest{
@@ -396,9 +561,132 @@ func TestServiceCatalogPreviewListAndGetUseCanonicalResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetActivation() error = %v", err)
 	}
-	if got, want := len(loaded.Inventory), 3; got != want {
+	if got, want := len(loaded.Inventory), 6; got != want {
 		t.Fatalf("len(GetActivation().Inventory) = %d, want %d", got, want)
 	}
+}
+
+func TestServiceAgentValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject conflicting visible agent name", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		store.agents = []resources.Record[aghconfig.AgentDef]{
+			bundleAgentRecord("agent_existing_marketer", "marketer", resources.ResourceScope{
+				Kind: resources.ResourceScopeKindGlobal,
+			}),
+		}
+		service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
+
+		_, err := service.PreviewActivation(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		})
+		if !errors.Is(err, ErrAgentConflict) {
+			t.Fatalf("PreviewActivation() error = %v, want ErrAgentConflict", err)
+		}
+	})
+
+	t.Run("Should reject unresolved job agent reference", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		ext := newMarketingExtension()
+		ext.Bundles[0].Profiles[0].Jobs[0].AgentName = "missing-agent"
+		ext.Bundles[0].Profiles[0].Triggers = nil
+		service := newServiceForExtensions(store, []*extensionpkg.Extension{ext}, WithLogger(discardBundleTestLogger()))
+
+		_, err := service.PreviewActivation(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		})
+		if !errors.Is(err, ErrAgentReferenceNotFound) {
+			t.Fatalf("PreviewActivation() error = %v, want ErrAgentReferenceNotFound", err)
+		}
+	})
+
+	t.Run("Should reject unresolved trigger agent reference", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		ext := newMarketingExtension()
+		ext.Bundles[0].Profiles[0].Jobs = nil
+		ext.Bundles[0].Profiles[0].Triggers[0].AgentName = "missing-agent"
+		service := newServiceForExtensions(store, []*extensionpkg.Extension{ext}, WithLogger(discardBundleTestLogger()))
+
+		_, err := service.PreviewActivation(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		})
+		if !errors.Is(err, ErrAgentReferenceNotFound) {
+			t.Fatalf("PreviewActivation() error = %v, want ErrAgentReferenceNotFound", err)
+		}
+	})
+
+	t.Run("Should reject cross activation agent name overlap", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		left := marketingExtensionNamed("marketing-team-left")
+		right := marketingExtensionNamed("marketing-team-right")
+		resolver := memoryWorkspaceResolver{
+			resolveFn: func(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      idOrPath,
+						Name:    idOrPath,
+						RootDir: filepath.Join(t.TempDir(), idOrPath),
+					},
+				}, nil
+			},
+		}
+		service := newServiceForExtensions(
+			store,
+			[]*extensionpkg.Extension{left, right},
+			WithLogger(discardBundleTestLogger()),
+			WithWorkspaceResolver(resolver),
+		)
+		leftActivation := Activation{
+			ID:            ActivationResourceID(left.Info.Name, "marketing", "default", ScopeWorkspace, "ws-marketing"),
+			ExtensionName: left.Info.Name,
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeWorkspace,
+			WorkspaceID:   "ws-marketing",
+		}
+		rightActivation := Activation{
+			ID: ActivationResourceID(
+				right.Info.Name,
+				"marketing",
+				"default",
+				ScopeWorkspace,
+				"ws-marketing",
+			),
+			ExtensionName: right.Info.Name,
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeWorkspace,
+			WorkspaceID:   "ws-marketing",
+		}
+		store.activations[leftActivation.ID] = leftActivation
+		store.activations[rightActivation.ID] = rightActivation
+
+		err := service.Reconcile(testutil.Context(t))
+		if !errors.Is(err, ErrAgentConflict) {
+			t.Fatalf("Reconcile() error = %v, want ErrAgentConflict", err)
+		}
+		if got := len(store.applied); got != 0 {
+			t.Fatalf("len(applied plans) = %d, want 0 after validation failure", got)
+		}
+	})
 }
 
 func TestServiceReadMethodsValidateInputs(t *testing.T) {
@@ -565,7 +853,7 @@ func TestServiceRejectsMultipleDefaultChannelClaims(t *testing.T) {
 	service := NewService(
 		store,
 		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "ops-team"}}},
-		func(name string) (*extensionpkg.Extension, error) {
+		func(_ context.Context, name string) (*extensionpkg.Extension, error) {
 			if name != "ops-team" {
 				return nil, extensionpkg.ErrExtensionNotFound
 			}
@@ -628,6 +916,15 @@ func TestServiceDeactivateCleansUpManagedResources(t *testing.T) {
 	last := store.applied[len(store.applied)-1]
 	if got := len(last.activeActivationIDs); got != 0 {
 		t.Fatalf("len(last.activeActivationIDs) = %d, want 0", got)
+	}
+	if got := len(last.desiredAgents); got != 0 {
+		t.Fatalf("len(last.desiredAgents) after deactivate = %d, want 0", got)
+	}
+	if got := len(last.desiredSouls); got != 0 {
+		t.Fatalf("len(last.desiredSouls) after deactivate = %d, want 0", got)
+	}
+	if got := len(last.desiredHeartbeats); got != 0 {
+		t.Fatalf("len(last.desiredHeartbeats) after deactivate = %d, want 0", got)
 	}
 	if got := len(last.desiredJobs); got != 0 {
 		t.Fatalf("len(last.desiredJobs) after deactivate = %d, want 0", got)
@@ -750,7 +1047,7 @@ func TestServiceReconcileReturnsBeforeSyncWhenActivationResolutionFails(t *testi
 	service := NewService(
 		store,
 		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "marketing-team"}, {Name: "broken-team"}}},
-		func(name string) (*extensionpkg.Extension, error) {
+		func(_ context.Context, name string) (*extensionpkg.Extension, error) {
 			switch name {
 			case "marketing-team":
 				return marketing, nil
@@ -803,7 +1100,7 @@ func TestServicePreviewRejectsWebhookTriggers(t *testing.T) {
 	service := NewService(
 		store,
 		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: ext.Info.Name}}},
-		func(name string) (*extensionpkg.Extension, error) {
+		func(_ context.Context, name string) (*extensionpkg.Extension, error) {
 			if name != ext.Info.Name {
 				return nil, extensionpkg.ErrExtensionNotFound
 			}
@@ -863,7 +1160,7 @@ func TestServiceMaterializesExternalBridgeProviderPlatform(t *testing.T) {
 	service := NewService(
 		store,
 		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: consumer.Info.Name}}},
-		func(name string) (*extensionpkg.Extension, error) {
+		func(_ context.Context, name string) (*extensionpkg.Extension, error) {
 			switch name {
 			case consumer.Info.Name:
 				return consumer, nil
@@ -926,6 +1223,12 @@ func TestServiceActivateWorkspaceScopedResources(t *testing.T) {
 		t.Fatalf("Activation.WorkspaceID = %q, want %q", got, want)
 	}
 	plan := store.applied[0]
+	if got, want := plan.desiredAgents[0].Scope.Kind, resources.ResourceScopeKindWorkspace; got != want {
+		t.Fatalf("agent scope kind = %q, want %q", got, want)
+	}
+	if got, want := plan.desiredAgents[0].Scope.ID, "ws-marketing"; got != want {
+		t.Fatalf("agent scope id = %q, want %q", got, want)
+	}
 	if got, want := plan.desiredJobs[0].Scope, automationpkg.AutomationScopeWorkspace; got != want {
 		t.Fatalf("job scope = %q, want %q", got, want)
 	}
@@ -948,6 +1251,18 @@ func TestServiceActivateWorkspacePathUsesResolveOrRegister(t *testing.T) {
 	store := newMemoryStore()
 	called := false
 	resolver := memoryWorkspaceResolver{
+		resolveFn: func(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
+			if idOrPath != "ws-path" {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{
+					ID:      "ws-path",
+					RootDir: filepath.Join(t.TempDir(), "workspace"),
+					Name:    "path-workspace",
+				},
+			}, nil
+		},
 		resolveOrRegisterFn: func(_ context.Context, path string) (workspacepkg.ResolvedWorkspace, error) {
 			called = true
 			return workspacepkg.ResolvedWorkspace{

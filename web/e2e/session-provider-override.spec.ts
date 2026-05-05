@@ -26,6 +26,10 @@ const browserLifecycleAgent = "browser-lifecycle-agent";
 const overrideProvider = "qa-browser-override";
 const driftedDefaultProvider = "gemini";
 
+function browserLifecycleSessionPath(sessionId: string): string {
+  return `/agents/${browserLifecycleAgent}/sessions/${sessionId}`;
+}
+
 interface SessionPayload {
   id: string;
   agent_name: string;
@@ -83,9 +87,12 @@ test("operator can create a provider-override session and gets an inline resume 
 
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await expect(ui.appSidebar).toBeVisible();
-  await expect(ui.newSessionButton(browserLifecycleAgent)).toBeVisible();
+  await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
 
-  await ui.newSessionButton(browserLifecycleAgent).click();
+  await ui.agentRow(browserLifecycleAgent).click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${browserLifecycleAgent}`);
+  await expect(ui.agentPageNewSession).toBeVisible();
+  await ui.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
   await expect(appPage.getByTestId("session-create-agent-select")).toHaveValue(
@@ -135,7 +142,7 @@ test("operator can create a provider-override session and gets an inline resume 
 
   await expect
     .poll(() => new URL(appPage.url()).pathname)
-    .toContain(`/session/${createdSession.session.id}`);
+    .toBe(browserLifecycleSessionPath(createdSession.session.id));
   await expect(ui.chatHeader).toBeVisible();
   await expect(appPage.getByTestId("session-provider-badge")).toHaveText(overrideProvider);
   await browserArtifacts.captureScreenshot("session-provider-created", appPage);
@@ -224,13 +231,14 @@ async function assertSessionParity(
   }
   const { stdout } = await execFileAsync(
     runtime.paths.cliShim,
-    ["session", "status", sessionID, "-o", "json"],
+    ["session", "list", "--all", "-o", "json"],
     {
       env: cliEnv(runtime.paths),
     }
   );
-  const cliRecord = JSON.parse(stdout) as SessionPayload;
-  expect(cliRecord.provider).toBe(expectedProvider);
+  const cliRecords = JSON.parse(stdout) as SessionPayload[];
+  const cliRecord = cliRecords.find(session => session.id === sessionID);
+  expect(cliRecord?.provider).toBe(expectedProvider);
 }
 
 function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {

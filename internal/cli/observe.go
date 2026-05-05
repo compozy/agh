@@ -59,7 +59,7 @@ func newObserveEventsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, observeEventsBundle(events))
+			return writeObserveEventsOutput(cmd, events)
 		},
 	}
 	cmd.Flags().StringVar(&session, "session", "", "Filter by session id")
@@ -69,6 +69,17 @@ func newObserveEventsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N events")
 	cmd.Flags().BoolVar(&follow, "follow", false, "Stream new events over SSE")
 	return cmd
+}
+
+func writeObserveEventsOutput(cmd *cobra.Command, events []ObserveEventRecord) error {
+	mode, err := resolveOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if mode == OutputJSONL {
+		return writeJSONLines(cmd, events)
+	}
+	return writeCommandOutput(cmd, observeEventsBundle(events))
 }
 
 func newObserveHealthCommand(deps commandDeps) *cobra.Command {
@@ -141,7 +152,7 @@ func streamObserveEvents(cmd *cobra.Command, client DaemonClient, query ObserveE
 		}
 
 		switch mode {
-		case OutputJSON:
+		case OutputJSON, OutputJSONL:
 			if err := encoder.Encode(payload); err != nil {
 				return err
 			}
@@ -256,7 +267,7 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 func observeFailureSummary(health HealthStatus) string {
 	failures := health.Failures
 	if failures.Total == 0 {
-		return "none"
+		return statusStateNone
 	}
 	return fmt.Sprintf("%s (%d total)", stringOrDash(failures.Status), failures.Total)
 }

@@ -283,8 +283,13 @@ func TestSessionEventPayloadFromEventIncludesStopDiagnostics(t *testing.T) {
 			&session.Info{
 				WorkspaceID: "ws-alpha",
 				Workspace:   "/workspace",
-				StopReason:  store.StopAgentCrashed,
-				StopDetail:  "driver failed",
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "sess-parent",
+					RootSessionID:   "sess-root",
+					SpawnDepth:      2,
+				},
+				StopReason: store.StopAgentCrashed,
+				StopDetail: "driver failed",
 				Failure: &store.SessionFailure{
 					Kind:    store.FailureProcess,
 					Summary: "driver failed",
@@ -295,11 +300,114 @@ func TestSessionEventPayloadFromEventIncludesStopDiagnostics(t *testing.T) {
 		if payload.WorkspaceID != "ws-alpha" || payload.WorkspacePath != "/workspace" {
 			t.Fatalf("workspace payload = %#v", payload)
 		}
+		if payload.ParentSessionID != "sess-parent" ||
+			payload.RootSessionID != "sess-root" ||
+			payload.SpawnDepth != 2 {
+			t.Fatalf("lineage payload = %#v", payload)
+		}
 		if payload.StopReason != store.StopAgentCrashed || payload.StopDetail != "driver failed" {
 			t.Fatalf("stop payload = %#v", payload)
 		}
 		if payload.Failure == nil || payload.Failure.Kind != store.FailureProcess {
 			t.Fatalf("failure payload = %#v", payload.Failure)
+		}
+	})
+
+	t.Run("Should preserve correlation when unrelated payload fields are malformed", func(t *testing.T) {
+		t.Parallel()
+
+		leaseUntil := time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)
+		payload := core.SessionEventPayloadFromEvent(
+			store.SessionEvent{
+				ID:        "ev-correlation",
+				SessionID: "sess-1",
+				Sequence:  8,
+				TurnID:    "turn-2",
+				Type:      "tool_call",
+				AgentName: "coder",
+				Content:   `{"type":"tool_call","task_id":"task-1","claim_token_hash":"agh_claim_hash_123","lease_until":"2026-04-03T12:05:00Z","timestamp":"not-a-time"}`,
+				Timestamp: time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
+			},
+			nil,
+		)
+
+		if got, want := payload.TaskID, "task-1"; got != want {
+			t.Fatalf("payload.TaskID = %q, want %q", got, want)
+		}
+		if got, want := payload.ClaimTokenHash, "agh_claim_hash_123"; got != want {
+			t.Fatalf("payload.ClaimTokenHash = %q, want %q", got, want)
+		}
+		if payload.LeaseUntil == nil || !payload.LeaseUntil.Equal(leaseUntil) {
+			t.Fatalf("payload.LeaseUntil = %v, want %v", payload.LeaseUntil, leaseUntil)
+		}
+	})
+
+	t.Run("Should omit lease until when correlation has no lease", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.SessionEventPayloadFromEvent(
+			store.SessionEvent{
+				ID:        "ev-no-lease",
+				SessionID: "sess-1",
+				Sequence:  9,
+				TurnID:    "turn-3",
+				Type:      "agent_message",
+				AgentName: "coder",
+				Content:   `{"type":"agent_message","task_id":"task-1"}`,
+				Timestamp: time.Date(2026, 4, 3, 12, 2, 0, 0, time.UTC),
+			},
+			nil,
+		)
+
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if strings.Contains(string(raw), `"lease_until"`) {
+			t.Fatalf("payload JSON = %s, want lease_until to be omitted", raw)
+		}
+	})
+}
+
+func TestObserveEventPayloadFromEventIncludesLineage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include persisted observe lineage fields", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)
+		payload := core.ObserveEventPayloadFromEvent(store.EventSummary{
+			ID:              "sum-1",
+			SessionID:       "sess-child",
+			Type:            "agent_message",
+			AgentName:       "coder",
+			ParentSessionID: "sess-parent",
+			RootSessionID:   "sess-root",
+			SpawnDepth:      1,
+			Summary:         "hello",
+			Timestamp:       now,
+		})
+
+		if payload.ParentSessionID != "sess-parent" ||
+			payload.RootSessionID != "sess-root" ||
+			payload.SpawnDepth != 1 {
+			t.Fatalf("payload lineage = %#v", payload)
+		}
+	})
+
+	t.Run("Should preserve observe event content for global events", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.ObserveEventPayloadFromEvent(store.EventSummary{
+			ID:      "sum-global",
+			Type:    "settings.changed",
+			Content: []byte(`{"section":"skills","source":"http","operation":"patch"}`),
+		})
+
+		if got, want := string(
+			payload.Content,
+		), `{"section":"skills","source":"http","operation":"patch"}`; got != want {
+			t.Fatalf("payload.Content = %q, want %q", got, want)
 		}
 	})
 }

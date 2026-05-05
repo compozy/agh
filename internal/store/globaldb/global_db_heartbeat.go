@@ -244,7 +244,7 @@ func (g *GlobalDB) AppendHeartbeatRevision(
 		ctx,
 		`INSERT INTO agent_heartbeat_revisions (
 			id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
-			new_snapshot_id, body, actor_kind, actor_ref, created_at
+			new_snapshot_id, body, actor_kind, actor_id, created_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		normalized.WorkspaceID,
@@ -256,7 +256,7 @@ func (g *GlobalDB) AppendHeartbeatRevision(
 		store.NullableString(normalized.NewSnapshotID),
 		store.NullableString(normalized.Body),
 		string(normalized.ActorKind),
-		normalized.ActorRef,
+		normalized.ActorID,
 		store.FormatTimestamp(normalized.CreatedAt),
 	)
 	if err != nil {
@@ -278,7 +278,7 @@ func (g *GlobalDB) GetHeartbeatRevision(ctx context.Context, id string) (heartbe
 	revision, err := scanHeartbeatRevision(g.db.QueryRowContext(
 		ctx,
 		`SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
-			new_snapshot_id, body, actor_kind, actor_ref, created_at
+			new_snapshot_id, body, actor_kind, actor_id, created_at
 		FROM agent_heartbeat_revisions
 		WHERE id = ?`,
 		trimmedID,
@@ -309,7 +309,7 @@ func (g *GlobalDB) ListHeartbeatRevisions(
 	}
 
 	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
-			new_snapshot_id, body, actor_kind, actor_ref, created_at
+			new_snapshot_id, body, actor_kind, actor_id, created_at
 		FROM agent_heartbeat_revisions`
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),
@@ -359,7 +359,7 @@ func (g *GlobalDB) FindHeartbeatRevisionForRollback(
 	revision, err := scanHeartbeatRevision(g.db.QueryRowContext(
 		ctx,
 		`SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
-			new_snapshot_id, body, actor_kind, actor_ref, created_at
+			new_snapshot_id, body, actor_kind, actor_id, created_at
 		FROM agent_heartbeat_revisions
 		WHERE workspace_id = ? AND agent_name = ? AND id = ? AND operation IN ('write', 'rollback')`,
 		strings.TrimSpace(query.WorkspaceID),
@@ -934,7 +934,7 @@ func scanHeartbeatRevision(scanner rowScanner) (heartbeat.Revision, error) {
 		&newSnapshotID,
 		&body,
 		&actorKind,
-		&revision.ActorRef,
+		&revision.ActorID,
 		&createdRaw,
 	); err != nil {
 		return heartbeat.Revision{}, err

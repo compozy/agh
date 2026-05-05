@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -318,6 +319,135 @@ func TestHooksNotifierLifecycleForwarding(t *testing.T) {
 	})
 }
 
+func TestHooksNotifierEmitsGlobalHookDispatchSummariesForAutonomyHooks(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 5, 4, 22, 0, 0, 0, time.UTC)
+	decls := []hookspkg.HookDecl{
+		{
+			Name:         "coord-stop-observer",
+			Event:        hookspkg.HookCoordinatorStopped,
+			Mode:         hookspkg.HookModeSync,
+			Source:       hookspkg.HookSourceConfig,
+			Required:     true,
+			Priority:     1000,
+			PrioritySet:  true,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		},
+		{
+			Name:         "task-release-observer",
+			Event:        hookspkg.HookTaskRunReleased,
+			Mode:         hookspkg.HookModeSync,
+			Source:       hookspkg.HookSourceConfig,
+			Required:     true,
+			Priority:     1000,
+			PrioritySet:  true,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		},
+	}
+	executors := map[string]hookspkg.Executor{
+		"coord-stop-observer": hookspkg.NewTypedNativeExecutor(
+			func(
+				context.Context,
+				hookspkg.RegisteredHook,
+				hookspkg.CoordinatorStoppedPayload,
+			) (hookspkg.CoordinatorObservationPatch, error) {
+				return hookspkg.CoordinatorObservationPatch{}, nil
+			},
+		),
+		"task-release-observer": hookspkg.NewTypedNativeExecutor(
+			func(
+				context.Context,
+				hookspkg.RegisteredHook,
+				hookspkg.TaskRunReleasedPayload,
+			) (hookspkg.TaskRunObservationPatch, error) {
+				return hookspkg.TaskRunObservationPatch{}, nil
+			},
+		),
+	}
+
+	hooks := hookspkg.NewHooks(
+		hookspkg.WithLogger(discardLogger()),
+		hookspkg.WithNativeDeclarations(decls),
+		hookspkg.WithExecutorResolver(daemonExecutorResolver(executors)),
+	)
+	t.Cleanup(hooks.Close)
+	if err := hooks.Rebuild(testutil.Context(t)); err != nil {
+		t.Fatalf("Rebuild() error = %v", err)
+	}
+
+	summaries := &recordingEventSummaryWriter{}
+	notifier := newHooksNotifier(discardLogger(), func() time.Time { return fixedNow })
+	notifier.setRuntime(hooks, nil, summaries)
+
+	_, err := notifier.DispatchCoordinatorStopped(testutil.Context(t), hookspkg.CoordinatorStoppedPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookCoordinatorStopped,
+			Timestamp: fixedNow,
+		},
+		CoordinatorContext: hookspkg.CoordinatorContext{
+			WorkspaceID:          "ws-1",
+			AgentName:            "coordinator",
+			CoordinatorSessionID: "sess-coordinator-1",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			WorkflowID:           "wf-1",
+		},
+		StopReason: "completed",
+	})
+	if err != nil {
+		t.Fatalf("DispatchCoordinatorStopped() error = %v", err)
+	}
+
+	_, err = notifier.DispatchTaskRunReleased(testutil.Context(t), hookspkg.TaskRunReleasedPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookTaskRunReleased,
+			Timestamp: fixedNow,
+		},
+		TaskRunContext: hookspkg.TaskRunContext{
+			TaskID:        "task-1",
+			RunID:         "run-1",
+			WorkspaceID:   "ws-1",
+			WorkflowID:    "wf-1",
+			SessionID:     "sess-worker-1",
+			AgentName:     "worker",
+			ActorKind:     "agent_session",
+			ActorID:       "sess-worker-1",
+			ReleaseReason: "manual_release",
+		},
+		PreviousRunStatus: "claimed",
+		PreviousSessionID: "sess-worker-1",
+		RecoveryReason:    "manual_release",
+	})
+	if err != nil {
+		t.Fatalf("DispatchTaskRunReleased() error = %v", err)
+	}
+
+	records := summaries.snapshot()
+	if got, want := len(records), 4; got != want {
+		t.Fatalf("len(summary records) = %d, want %d", got, want)
+	}
+
+	coordinatorStart := findEventSummaryByHookName(t, records, "coord-stop-observer", "hook.dispatch.start")
+	if got, want := coordinatorStart.CoordinatorSessionID, "sess-coordinator-1"; got != want {
+		t.Fatalf("coordinator start CoordinatorSessionID = %q, want %q", got, want)
+	}
+	if got, want := coordinatorStart.WorkflowID, "wf-1"; got != want {
+		t.Fatalf("coordinator start WorkflowID = %q, want %q", got, want)
+	}
+
+	releaseStart := findEventSummaryByHookName(t, records, "task-release-observer", "hook.dispatch.start")
+	if got, want := releaseStart.ReleaseReason, "manual_release"; got != want {
+		t.Fatalf("release start ReleaseReason = %q, want %q", got, want)
+	}
+	if got, want := releaseStart.ActorID, "sess-worker-1"; got != want {
+		t.Fatalf("release start ActorID = %q, want %q", got, want)
+	}
+	if got, want := releaseStart.TaskID, "task-1"; got != want {
+		t.Fatalf("release start TaskID = %q, want %q", got, want)
+	}
+}
+
 func mustJSON(t *testing.T, value any) json.RawMessage {
 	t.Helper()
 
@@ -326,6 +456,23 @@ func mustJSON(t *testing.T, value any) json.RawMessage {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
 	return raw
+}
+
+func findEventSummaryByHookName(
+	t *testing.T,
+	summaries []store.EventSummary,
+	hookName string,
+	eventType string,
+) store.EventSummary {
+	t.Helper()
+
+	for _, summary := range summaries {
+		if summary.HookName == hookName && summary.Type == eventType {
+			return summary
+		}
+	}
+	t.Fatalf("missing event summary for hook %q type %q in %#v", hookName, eventType, summaries)
+	return store.EventSummary{}
 }
 
 type recordingLifecycleForwardNotifier struct {
@@ -342,6 +489,24 @@ func (n *recordingLifecycleForwardNotifier) OnSessionStopped(_ context.Context, 
 }
 
 func (n *recordingLifecycleForwardNotifier) OnAgentEvent(context.Context, string, any) {}
+
+type recordingEventSummaryWriter struct {
+	mu        sync.Mutex
+	summaries []store.EventSummary
+}
+
+func (w *recordingEventSummaryWriter) WriteEventSummary(_ context.Context, summary store.EventSummary) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.summaries = append(w.summaries, summary)
+	return nil
+}
+
+func (w *recordingEventSummaryWriter) snapshot() []store.EventSummary {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]store.EventSummary(nil), w.summaries...)
+}
 
 func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 	t.Parallel()

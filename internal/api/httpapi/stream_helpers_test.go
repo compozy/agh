@@ -369,11 +369,11 @@ func TestHelperBuildersCoverRemainingBranches(t *testing.T) {
 		t.Fatal("expected non-nil caps payload")
 	}
 	usage := int64(10)
-	payload := tokenUsagePayloadFromUsage(
+	payload := core.TokenUsagePayloadFromUsage(
 		&acp.TokenUsage{InputTokens: &usage, Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)},
 	)
-	if payload == nil || payload.Timestamp == "" {
-		t.Fatalf("tokenUsagePayloadFromUsage() = %#v", payload)
+	if payload == nil || payload.Timestamp.IsZero() {
+		t.Fatalf("TokenUsagePayloadFromUsage() = %#v", payload)
 	}
 	if !observeEventAfterCursor(
 		store.EventSummary{ID: "b", Sequence: 2, Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)},

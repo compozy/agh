@@ -77,9 +77,12 @@ type HookStoreOpener func(ctx context.Context, sessionID string, path string) (H
 type Option func(*Observer)
 
 type observedSession struct {
-	agentName      string
-	workspaceID    string
-	permissionMode string
+	agentName       string
+	workspaceID     string
+	permissionMode  string
+	parentSessionID string
+	rootSessionID   string
+	spawnDepth      int
 }
 
 // TaskHealthConfig controls task-run stuck detection in the read-side health view.
@@ -420,7 +423,7 @@ func (o *Observer) Close(ctx context.Context) error {
 // OnSessionCreated registers the session in the global observability database.
 func (o *Observer) OnSessionCreated(ctx context.Context, sess *session.Session) {
 	info := sess.Info()
-	snapshot := o.observedSessionSnapshot(ctx, info.ID, info.AgentName, info.WorkspaceID)
+	snapshot := o.observedSessionSnapshot(ctx, info.ID, info.AgentName, info.WorkspaceID, info.Lineage)
 
 	o.trackSession(info.ID, snapshot)
 
@@ -608,7 +611,7 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 			if info == nil || strings.TrimSpace(info.ID) != id {
 				continue
 			}
-			snapshot := o.observedSessionSnapshot(ctx, id, info.AgentName, info.WorkspaceID)
+			snapshot := o.observedSessionSnapshot(ctx, id, info.AgentName, info.WorkspaceID, info.Lineage)
 			o.trackSession(id, snapshot)
 			return snapshot, true
 		}
@@ -626,7 +629,7 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 		if strings.TrimSpace(info.ID) != id {
 			continue
 		}
-		snapshot := o.observedSessionSnapshot(ctx, id, info.AgentName, info.WorkspaceID)
+		snapshot := o.observedSessionSnapshot(ctx, id, info.AgentName, info.WorkspaceID, info.Lineage)
 		if strings.TrimSpace(info.State) != string(session.StateStopped) {
 			o.trackSession(id, snapshot)
 		}
@@ -640,12 +643,17 @@ func (o *Observer) observedSessionSnapshot(
 	sessionID string,
 	agentName string,
 	workspaceID string,
+	lineage *store.SessionLineage,
 ) observedSession {
 	requireObserverContext(ctx, "observedSessionSnapshot")
 
+	normalizedLineage := store.NormalizeSessionLineage(sessionID, lineage)
 	snapshot := observedSession{
-		agentName:   strings.TrimSpace(agentName),
-		workspaceID: strings.TrimSpace(workspaceID),
+		agentName:       strings.TrimSpace(agentName),
+		workspaceID:     strings.TrimSpace(workspaceID),
+		parentSessionID: normalizedLineage.ParentSessionID,
+		rootSessionID:   normalizedLineage.RootSessionID,
+		spawnDepth:      normalizedLineage.SpawnDepth,
 	}
 	if o.resolvePermissionMode == nil {
 		return snapshot
@@ -689,12 +697,17 @@ func (o *Observer) writeObservedEventSummary(
 	event acp.AgentEvent,
 	timestamp time.Time,
 ) error {
+	correlation := event.Normalize()
 	return o.registry.WriteEventSummary(ctx, store.EventSummary{
-		SessionID: sessionID,
-		Type:      strings.TrimSpace(event.Type),
-		AgentName: snapshot.agentName,
-		Summary:   summarizeEvent(event),
-		Timestamp: timestamp,
+		SessionID:        sessionID,
+		Type:             strings.TrimSpace(event.Type),
+		AgentName:        snapshot.agentName,
+		EventCorrelation: correlation,
+		ParentSessionID:  snapshot.parentSessionID,
+		RootSessionID:    snapshot.rootSessionID,
+		SpawnDepth:       snapshot.spawnDepth,
+		Summary:          summarizeEvent(event),
+		Timestamp:        timestamp,
 	})
 }
 

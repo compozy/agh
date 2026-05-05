@@ -1,7 +1,16 @@
 import { AlertCircle, Check, Database, KeyRound, Loader2, Plus, X } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Alert, AlertAction, AlertDescription, Button, Empty, Input } from "@agh/ui";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  Button,
+  Empty,
+  Input,
+  NativeSelect,
+  NativeSelectOption,
+} from "@agh/ui";
 
 import {
   useSettingsProvidersPage,
@@ -362,6 +371,112 @@ function ProviderEditor({
           }
         />
         <SettingsFieldRow
+          data-testid="settings-providers-editor-auth-mode"
+          label="Auth mode"
+          description="Owner of provider authentication at launch."
+          hint="REQUIRED"
+          control={
+            <NativeSelect
+              className="w-44 font-mono"
+              data-testid="settings-providers-editor-auth-mode-input"
+              value={draft.auth_mode}
+              onChange={event =>
+                onChange(current => ({
+                  ...current,
+                  auth_mode: event.target.value,
+                  ...(event.target.value === "bound_secret"
+                    ? {}
+                    : { target_env: "", secret_ref: "", secret_value: "", credential_slots: [] }),
+                }))
+              }
+            >
+              {["native_cli", "bound_secret", "none"].map(option => (
+                <NativeSelectOption key={option} value={option}>
+                  {option}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-env-policy"
+          label="Env policy"
+          description="Daemon environment inheritance policy for provider subprocesses."
+          hint="REQUIRED"
+          control={
+            <NativeSelect
+              className="w-40 font-mono"
+              data-testid="settings-providers-editor-env-policy-input"
+              value={draft.env_policy}
+              onChange={event =>
+                onChange(current => ({ ...current, env_policy: event.target.value }))
+              }
+            >
+              {["filtered", "isolated"].map(option => (
+                <NativeSelectOption key={option} value={option}>
+                  {option}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-home-policy"
+          label="Home policy"
+          description="Provider CLI state location policy."
+          hint="REQUIRED"
+          control={
+            <NativeSelect
+              className="w-40 font-mono"
+              data-testid="settings-providers-editor-home-policy-input"
+              value={draft.home_policy}
+              onChange={event =>
+                onChange(current => ({ ...current, home_policy: event.target.value }))
+              }
+            >
+              {["operator", "isolated"].map(option => (
+                <NativeSelectOption key={option} value={option}>
+                  {option}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-auth-status-command"
+          label="Status command"
+          description="Provider-owned command used for auth diagnostics."
+          hint="OPTIONAL"
+          control={
+            <Input
+              className="w-72 font-mono"
+              data-testid="settings-providers-editor-auth-status-command-input"
+              value={draft.auth_status_command}
+              placeholder="codex auth status"
+              onChange={event =>
+                onChange(current => ({ ...current, auth_status_command: event.target.value }))
+              }
+            />
+          }
+        />
+        <SettingsFieldRow
+          data-testid="settings-providers-editor-auth-login-command"
+          label="Login command"
+          description="Provider-owned command opened by provider auth login."
+          hint="OPTIONAL"
+          control={
+            <Input
+              className="w-72 font-mono"
+              data-testid="settings-providers-editor-auth-login-command-input"
+              value={draft.auth_login_command}
+              placeholder="codex login"
+              onChange={event =>
+                onChange(current => ({ ...current, auth_login_command: event.target.value }))
+              }
+            />
+          }
+        />
+        <SettingsFieldRow
           data-testid="settings-providers-editor-api-key"
           label="Target env"
           description="Environment variable injected from the provider credential slot."
@@ -374,6 +489,7 @@ function ProviderEditor({
                 data-testid="settings-providers-editor-api-key-input"
                 value={draft.target_env}
                 placeholder="ANTHROPIC_API_KEY"
+                disabled={draft.auth_mode !== "bound_secret"}
                 onChange={event =>
                   onChange(current => ({ ...current, target_env: event.target.value }))
                 }
@@ -394,6 +510,7 @@ function ProviderEditor({
                 data-testid="settings-providers-editor-secret-ref-input"
                 value={draft.secret_ref}
                 placeholder="env:OPENROUTER_API_KEY"
+                disabled={draft.auth_mode !== "bound_secret"}
                 onChange={event =>
                   onChange(current => ({ ...current, secret_ref: event.target.value }))
                 }
@@ -413,6 +530,7 @@ function ProviderEditor({
               value={draft.secret_value}
               type="password"
               placeholder="sk-..."
+              disabled={draft.auth_mode !== "bound_secret"}
               onChange={event =>
                 onChange(current => ({ ...current, secret_value: event.target.value }))
               }
@@ -435,6 +553,7 @@ function AdditionalCredentialSlotsEditor({
   onChange: (updater: (draft: ProviderDraft) => ProviderDraft) => void;
 }) {
   const additionalSlots = draft.credential_slots.slice(1);
+  const disabled = draft.auth_mode !== "bound_secret";
 
   return (
     <SettingsFieldRow
@@ -465,6 +584,7 @@ function AdditionalCredentialSlotsEditor({
                     aria-label={`Credential slot ${index} name`}
                     value={slot.name}
                     placeholder="organization"
+                    disabled={disabled}
                     onChange={event =>
                       onChange(current =>
                         updateCredentialSlot(current, index, { name: event.target.value })
@@ -476,6 +596,7 @@ function AdditionalCredentialSlotsEditor({
                     aria-label={`Credential slot ${index} target env`}
                     value={slot.target_env}
                     placeholder="OPENROUTER_ORG_ID"
+                    disabled={disabled}
                     onChange={event =>
                       onChange(current =>
                         updateCredentialSlot(current, index, { target_env: event.target.value })
@@ -487,6 +608,7 @@ function AdditionalCredentialSlotsEditor({
                     aria-label={`Credential slot ${index} secret ref`}
                     value={slot.secret_ref}
                     placeholder="env:OPENROUTER_ORG_ID"
+                    disabled={disabled}
                     onChange={event =>
                       onChange(current =>
                         updateCredentialSlot(current, index, { secret_ref: event.target.value })
@@ -499,6 +621,7 @@ function AdditionalCredentialSlotsEditor({
                     type="password"
                     value={draft.credential_secret_values[index] ?? ""}
                     placeholder="value"
+                    disabled={disabled}
                     onChange={event =>
                       onChange(current =>
                         updateCredentialSecretValue(current, index, event.target.value)
@@ -510,6 +633,7 @@ function AdditionalCredentialSlotsEditor({
                     variant="ghost"
                     size="icon"
                     aria-label={`Remove credential slot ${index}`}
+                    disabled={disabled}
                     onClick={() => onChange(current => removeCredentialSlot(current, index))}
                   >
                     <X className="size-3.5" />
@@ -523,6 +647,7 @@ function AdditionalCredentialSlotsEditor({
             variant="ghost"
             size="sm"
             className="w-fit"
+            disabled={disabled}
             onClick={() => onChange(addCredentialSlot)}
             data-testid="settings-providers-editor-add-credential-slot"
           >

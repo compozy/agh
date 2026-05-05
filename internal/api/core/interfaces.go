@@ -192,6 +192,17 @@ type SettingsService interface {
 	)
 }
 
+// SkillsRegistry exposes the daemon-owned skill catalog.
+type SkillsRegistry interface {
+	Get(name string) (*skills.Skill, bool)
+	List() []*skills.Skill
+	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
+	ForAgent(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace, agentName string) ([]*skills.Skill, error)
+	LoadContent(ctx context.Context, skill *skills.Skill) (string, error)
+	SetEnabled(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
+	SetEnabledForAgent(name string, resolved *workspacepkg.ResolvedWorkspace, agentName string, enabled bool) error
+}
+
 // VaultService exposes redacted secret metadata and write-only mutations to API transports.
 type VaultService interface {
 	GetMetadata(ctx context.Context, ref string) (vault.Metadata, error)
@@ -219,6 +230,26 @@ type SettingsRestartOperation struct {
 type SettingsRestartController interface {
 	RequestRestart(ctx context.Context) (SettingsRestartOperation, error)
 	GetRestartOperation(ctx context.Context, operationID string) (SettingsRestartOperation, error)
+}
+
+// SettingsUpdateStatus is the daemon-owned software-update snapshot exposed to settings transports.
+type SettingsUpdateStatus struct {
+	Supported      bool
+	Managed        bool
+	InstallMethod  string
+	CurrentVersion string
+	LatestVersion  string
+	Available      bool
+	Status         string
+	Recommendation string
+	ReleaseURL     string
+	CheckedAt      *time.Time
+	LastError      string
+}
+
+// SettingsUpdateController exposes the daemon-owned update status surface to settings transports.
+type SettingsUpdateController interface {
+	GetUpdate(ctx context.Context) (SettingsUpdateStatus, error)
 }
 
 // ResourceService exposes the operator-facing desired-state CRUD surface to API transports.
@@ -287,15 +318,6 @@ type AutomationManager interface {
 // TaskService exposes task-domain state and lifecycle surfaces to the API layer.
 type TaskService interface {
 	taskpkg.Manager
-}
-
-// SkillsRegistry exposes the skill catalog to the API layer.
-type SkillsRegistry interface {
-	Get(name string) (*skills.Skill, bool)
-	List() []*skills.Skill
-	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
-	LoadContent(ctx context.Context, skill *skills.Skill) (string, error)
-	SetEnabled(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
 }
 
 // WorkspaceService exposes workspace registration and resolution to the API layer.

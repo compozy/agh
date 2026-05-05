@@ -11,11 +11,14 @@ var (
 	delimiterBytes = []byte(delimiter)
 	crlfBytes      = []byte("\r\n")
 	lfBytes        = []byte("\n")
+	utf8BOMBytes   = []byte{0xEF, 0xBB, 0xBF}
 
 	// ErrMissing reports content that does not start with a valid YAML frontmatter block.
 	ErrMissing = errors.New("frontmatter: missing YAML frontmatter")
 	// ErrUnterminated reports content whose opening delimiter has no matching closing delimiter.
 	ErrUnterminated = errors.New("frontmatter: unterminated YAML frontmatter")
+	// ErrBOM reports content that starts with a UTF-8 BOM before the YAML frontmatter delimiter.
+	ErrBOM = errors.New("frontmatter: UTF-8 BOM before YAML frontmatter")
 )
 
 // Parts contains the parsed metadata bytes and normalized markdown body.
@@ -27,6 +30,9 @@ type Parts struct {
 // Split normalizes line endings and separates YAML frontmatter from the body.
 func Split(content []byte) (Parts, error) {
 	normalized := normalizeLineEndings(content)
+	if bytes.HasPrefix(normalized, utf8BOMBytes) {
+		return Parts{}, ErrBOM
+	}
 	if !bytes.HasPrefix(normalized, delimiterBytes) {
 		return Parts{}, ErrMissing
 	}

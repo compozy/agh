@@ -1,11 +1,13 @@
 package extensionpkg
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
@@ -58,7 +60,7 @@ description = " Operations "
 		t.Fatalf("os.WriteFile(ignore.txt) error = %v", err)
 	}
 
-	bundles, err := LoadBundleSpecs(rootDir, &Manifest{
+	bundles, err := LoadBundleSpecs(context.Background(), rootDir, &Manifest{
 		Name: "bundle-loader",
 		Resources: ResourcesConfig{
 			Bundles: []string{"bundles"},
@@ -83,6 +85,162 @@ description = " Operations "
 			"zeta channel description = %q, want Operations",
 			bundles[1].Profiles[0].Channels.Items[0].Description,
 		)
+	}
+}
+
+func TestLoadBundleSpecsLoadsProfileAgentsWithSidecars(t *testing.T) {
+	t.Parallel()
+
+	rootDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(rootDir, "bundles"), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(bundles) error = %v", err)
+	}
+	agentDir := filepath.Join(rootDir, "agents", "marketer")
+	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(agentDir) error = %v", err)
+	}
+	writeFile(t, filepath.Join(rootDir, "bundles", "marketing.toml"), `
+name = "marketing"
+
+[[profiles]]
+name = "default"
+
+[[profiles.agents]]
+path = "agents/marketer"
+`)
+	writeFile(t, filepath.Join(agentDir, "AGENT.md"), `---
+name: marketer
+provider: claude
+model: sonnet
+---
+
+Run marketing workflows.
+`)
+	writeFile(t, filepath.Join(agentDir, "mcp.json"), `{
+  "mcpServers": {
+    "linear": {
+      "command": "linear-mcp"
+    }
+  }
+}`)
+	writeFile(t, filepath.Join(agentDir, "capabilities.toml"), `
+[[capabilities]]
+id = "plan-campaign"
+summary = "Plan a campaign."
+outcome = "A campaign plan."
+version = "1.0.0"
+execution_outline = ["inspect", "plan"]
+requirements = ["workspace-write"]
+`)
+	writeFile(t, filepath.Join(agentDir, "SOUL.md"), "Lead with campaign context.")
+	writeFile(t, filepath.Join(agentDir, "HEARTBEAT.md"), "Inspect campaigns and use AGH task APIs.")
+
+	bundles, err := LoadBundleSpecs(context.Background(), rootDir, &Manifest{
+		Name: "bundle-loader",
+		Resources: ResourcesConfig{
+			Bundles: []string{"bundles"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("LoadBundleSpecs() error = %v", err)
+	}
+	if got, want := len(bundles), 1; got != want {
+		t.Fatalf("len(bundles) = %d, want %d", got, want)
+	}
+	agents := bundles[0].Profiles[0].Agents
+	if got, want := len(agents), 1; got != want {
+		t.Fatalf("len(profile.Agents) = %d, want %d", got, want)
+	}
+	agent := agents[0]
+	if got, want := agent.Path, "agents/marketer"; got != want {
+		t.Fatalf("agent.Path = %q, want %q", got, want)
+	}
+	if got, want := agent.Agent.Name, "marketer"; got != want {
+		t.Fatalf("agent.Agent.Name = %q, want %q", got, want)
+	}
+	if got, want := len(agent.Agent.MCPServers), 1; got != want {
+		t.Fatalf("len(agent.Agent.MCPServers) = %d, want %d", got, want)
+	}
+	if agent.Agent.Capabilities == nil || len(agent.Agent.Capabilities.Capabilities) != 1 {
+		t.Fatalf("agent.Agent.Capabilities = %#v, want one capability", agent.Agent.Capabilities)
+	}
+	if agent.Soul == nil || agent.Soul.SourcePath != "agents/marketer/SOUL.md" {
+		t.Fatalf("agent.Soul = %#v, want packaged SOUL sidecar", agent.Soul)
+	}
+	if agent.Heartbeat == nil || agent.Heartbeat.SourcePath != "agents/marketer/HEARTBEAT.md" {
+		t.Fatalf("agent.Heartbeat = %#v, want packaged HEARTBEAT sidecar", agent.Heartbeat)
+	}
+}
+
+func TestLoadBundleSpecsRejectsInvalidProfileAgents(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		setup func(*testing.T, string)
+	}{
+		{
+			name: "Should reject missing AGENT.md",
+			setup: func(t *testing.T, rootDir string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Join(rootDir, "agents", "missing"), 0o755); err != nil {
+					t.Fatalf("os.MkdirAll(missing) error = %v", err)
+				}
+				writeBundleWithAgents(t, rootDir, []string{"agents/missing"})
+			},
+		},
+		{
+			name: "Should reject absolute profile agent path",
+			setup: func(t *testing.T, rootDir string) {
+				t.Helper()
+				writeBundleWithAgents(t, rootDir, []string{filepath.Join(rootDir, "agents", "absolute")})
+			},
+		},
+		{
+			name: "Should reject duplicate profile agent names",
+			setup: func(t *testing.T, rootDir string) {
+				t.Helper()
+				writeProfileAgent(t, rootDir, "agents/alpha", "shared", "")
+				writeProfileAgent(t, rootDir, "agents/beta", "shared", "")
+				writeBundleWithAgents(t, rootDir, []string{"agents/alpha", "agents/beta"})
+			},
+		},
+		{
+			name: "Should reject invalid packaged sidecar",
+			setup: func(t *testing.T, rootDir string) {
+				t.Helper()
+				writeProfileAgent(
+					t,
+					rootDir,
+					"agents/invalid-sidecar",
+					"invalid-sidecar",
+					"---\nprovider: hidden\n---\nNope.",
+				)
+				writeBundleWithAgents(t, rootDir, []string{"agents/invalid-sidecar"})
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rootDir := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(rootDir, "bundles"), 0o755); err != nil {
+				t.Fatalf("os.MkdirAll(bundles) error = %v", err)
+			}
+			tc.setup(t, rootDir)
+
+			_, err := LoadBundleSpecs(context.Background(), rootDir, &Manifest{
+				Name: "bundle-loader",
+				Resources: ResourcesConfig{
+					Bundles: []string{"bundles"},
+				},
+			})
+			if !errors.Is(err, ErrBundleInvalid) {
+				t.Fatalf("LoadBundleSpecs() error = %v, want ErrBundleInvalid", err)
+			}
+		})
 	}
 }
 
@@ -152,7 +310,7 @@ func TestBundleDocumentToBundleSpecNormalizesValuesAndDefaults(t *testing.T) {
 		},
 	}
 
-	spec, err := doc.toBundleSpec()
+	spec, err := doc.toBundleSpec(context.Background(), t.TempDir())
 	if err != nil {
 		t.Fatalf("toBundleSpec() error = %v", err)
 	}
@@ -202,6 +360,42 @@ func TestBundleDocumentToBundleSpecNormalizesValuesAndDefaults(t *testing.T) {
 	}
 }
 
+func writeBundleWithAgents(t *testing.T, rootDir string, paths []string) {
+	t.Helper()
+
+	var builder strings.Builder
+	builder.WriteString("name = \"marketing\"\n\n[[profiles]]\nname = \"default\"\n")
+	for _, path := range paths {
+		builder.WriteString("\n[[profiles.agents]]\n")
+		builder.WriteString("path = ")
+		encoded, err := json.Marshal(path)
+		if err != nil {
+			t.Fatalf("json.Marshal(path) error = %v", err)
+		}
+		builder.WriteString(string(encoded))
+		builder.WriteByte('\n')
+	}
+	writeFile(t, filepath.Join(rootDir, "bundles", "marketing.toml"), builder.String())
+}
+
+func writeProfileAgent(t *testing.T, rootDir string, relPath string, name string, soulBody string) {
+	t.Helper()
+
+	agentDir := filepath.Join(rootDir, filepath.FromSlash(relPath))
+	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(agentDir) error = %v", err)
+	}
+	writeFile(t, filepath.Join(agentDir, "AGENT.md"), `---
+name: `+name+`
+---
+
+Run profile work.
+`)
+	if soulBody != "" {
+		writeFile(t, filepath.Join(agentDir, "SOUL.md"), soulBody)
+	}
+}
+
 func TestBundleDocumentToBundleSpecRejectsConflictingProfileDeclarations(t *testing.T) {
 	t.Parallel()
 
@@ -210,7 +404,7 @@ func TestBundleDocumentToBundleSpecRejectsConflictingProfileDeclarations(t *test
 		Bundle: bundleRawSpec{
 			Profiles: []bundleRawProfile{{Name: "bundle"}},
 		},
-	}).toBundleSpec()
+	}).toBundleSpec(context.Background(), t.TempDir())
 	if !errors.Is(err, ErrBundleInvalid) {
 		t.Fatalf("toBundleSpec() error = %v, want ErrBundleInvalid", err)
 	}

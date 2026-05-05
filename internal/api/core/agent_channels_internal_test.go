@@ -17,6 +17,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -64,6 +65,15 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 	if contextPayload.Context.Self.SessionID != "sess-agent" ||
 		contextPayload.Context.Workspace.ID != "ws-1" {
 		t.Fatalf("context = %#v, want caller identity", contextPayload.Context)
+	}
+	if contextPayload.Context.Session.Lineage == nil ||
+		contextPayload.Context.Session.Lineage.ParentSessionID != "sess-root" ||
+		contextPayload.Context.Session.Lineage.RootSessionID != "sess-root" ||
+		contextPayload.Context.Session.Lineage.SpawnDepth != 1 {
+		t.Fatalf(
+			"context session lineage = %#v, want propagated caller lineage",
+			contextPayload.Context.Session.Lineage,
+		)
 	}
 
 	channelsResp := performAgentCoreRequest(t, engine, http.MethodGet, "/agent/channels", nil, agentCoreHeaders())
@@ -469,9 +479,14 @@ func agentCoreSessionManager(t *testing.T) sessionManagerStub {
 				Workspace:   "/workspace/project",
 				Channel:     "builders",
 				Type:        session.SessionTypeUser,
-				State:       session.StateActive,
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "sess-root",
+					RootSessionID:   "sess-root",
+					SpawnDepth:      1,
+				},
+				State:     session.StateActive,
+				CreatedAt: now,
+				UpdatedAt: now,
 			}, nil
 		},
 	}
@@ -495,6 +510,7 @@ func agentCoreContextPayload(_ context.Context, info *session.Info) (contract.Ag
 			ID:        info.ID,
 			State:     info.State,
 			Channel:   info.Channel,
+			Lineage:   contract.SessionLineagePayloadFromStore(info.Lineage),
 			CreatedAt: info.CreatedAt,
 			UpdatedAt: info.UpdatedAt,
 		},

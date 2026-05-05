@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -16,85 +17,105 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		name            string
 		command         string
 		harness         ProviderHarness
+		authMode        ProviderAuthMode
 		runtimeProvider string
 		defaultModel    string
+		noSessionMCP    bool
+		loginCommand    string
 		apiKeyEnv       string
 		required        bool
 	}{
 		{
-			name:      "blackbox",
-			command:   "blackbox --experimental-acp",
-			harness:   ProviderHarnessACP,
-			apiKeyEnv: "BLACKBOX_API_KEY",
-			required:  false,
+			name:     "blackbox",
+			command:  "blackbox --experimental-acp",
+			harness:  ProviderHarnessACP,
+			authMode: ProviderAuthModeNativeCLI,
 		},
 		{
 			name:         "claude",
 			command:      "npx -y @agentclientprotocol/claude-agent-acp@latest",
 			harness:      ProviderHarnessACP,
+			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: "claude-sonnet-4-6",
-			apiKeyEnv:    "ANTHROPIC_API_KEY",
-			required:     false,
 		},
-		{name: "cline", command: "npx -y cline@latest --acp", harness: ProviderHarnessACP},
+		{
+			name:     "cline",
+			command:  "npx -y cline@latest --acp",
+			harness:  ProviderHarnessACP,
+			authMode: ProviderAuthModeNativeCLI,
+		},
 		{
 			name:         "codex",
 			command:      "npx -y @zed-industries/codex-acp@latest",
 			harness:      ProviderHarnessACP,
+			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: "gpt-5.4",
-			apiKeyEnv:    "OPENAI_API_KEY",
-			required:     false,
 		},
-		{name: "copilot", command: "copilot --acp --stdio", harness: ProviderHarnessACP},
-		{name: "cursor", command: "cursor-agent acp", harness: ProviderHarnessACP},
+		{
+			name:     "copilot",
+			command:  "copilot --acp --stdio",
+			harness:  ProviderHarnessACP,
+			authMode: ProviderAuthModeNativeCLI,
+		},
+		{name: "cursor", command: "cursor-agent acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
 			name:         "gemini",
 			command:      "gemini --acp",
 			harness:      ProviderHarnessACP,
+			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: "gemini-3.1-pro-preview",
-			apiKeyEnv:    "GEMINI_API_KEY",
-			required:     false,
 		},
-		{name: "goose", command: "goose acp", harness: ProviderHarnessACP},
-		{name: "hermes", command: "hermes acp", harness: ProviderHarnessACP},
-		{name: "junie", command: "junie --acp true", harness: ProviderHarnessACP},
+		{name: "goose", command: "goose acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
+		{name: "hermes", command: "hermes acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
+		{name: "junie", command: "junie --acp true", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
-			name:      "kimi-cli",
-			command:   "kimi acp",
-			harness:   ProviderHarnessACP,
-			apiKeyEnv: "KIMI_API_KEY",
-			required:  false,
+			name:     "kimi-cli",
+			command:  "kimi acp",
+			harness:  ProviderHarnessACP,
+			authMode: ProviderAuthModeNativeCLI,
 		},
-		{name: "kiro", command: "kiro-cli-chat acp", harness: ProviderHarnessACP},
-		{name: "opencode", command: "npx -y opencode-ai@latest acp", harness: ProviderHarnessACP},
-		{name: "openclaw", command: "openclaw acp", harness: ProviderHarnessACP},
-		{name: "openhands", command: "openhands acp", harness: ProviderHarnessACP},
+		{name: "kiro", command: "kiro-cli-chat acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
-			name:      "qoder",
-			command:   "npx -y @qoder-ai/qodercli@latest --acp",
-			harness:   ProviderHarnessACP,
-			apiKeyEnv: "QODER_PERSONAL_ACCESS_TOKEN",
-			required:  false,
+			name:     "opencode",
+			command:  "npx -y opencode-ai@latest acp",
+			harness:  ProviderHarnessACP,
+			authMode: ProviderAuthModeNativeCLI,
+		},
+		{
+			name:         "openclaw",
+			command:      "openclaw acp",
+			harness:      ProviderHarnessACP,
+			authMode:     ProviderAuthModeNativeCLI,
+			noSessionMCP: true,
+		},
+		{name: "openhands", command: "openhands acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
+		{
+			name:     "qoder",
+			command:  "npx -y @qoder-ai/qodercli@latest --acp",
+			harness:  ProviderHarnessACP,
+			authMode: ProviderAuthModeNativeCLI,
 		},
 		{
 			name:         "qwen-code",
 			command:      "npx -y @qwen-code/qwen-code@latest --acp --experimental-skills",
 			harness:      ProviderHarnessACP,
+			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: "qwen3.6-plus",
 		},
 		{
 			name:            "pi",
 			command:         "npx -y pi-acp@latest",
 			harness:         ProviderHarnessPiACP,
+			authMode:        ProviderAuthModeNativeCLI,
 			runtimeProvider: "anthropic",
 			defaultModel:    "claude-opus-4-7",
-			apiKeyEnv:       "ANTHROPIC_API_KEY",
-			required:        true,
+			loginCommand:    "npx -y pi-acp@latest --terminal-login",
 		},
 		{
 			name:            "openrouter",
 			command:         "npx -y pi-acp@latest",
 			harness:         ProviderHarnessPiACP,
+			authMode:        ProviderAuthModeBoundSecret,
 			runtimeProvider: "openrouter",
 			defaultModel:    "openai/gpt-5.4",
 			apiKeyEnv:       "OPENROUTER_API_KEY",
@@ -104,6 +125,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			name:            "zai",
 			command:         "npx -y pi-acp@latest",
 			harness:         ProviderHarnessPiACP,
+			authMode:        ProviderAuthModeBoundSecret,
 			runtimeProvider: "zai",
 			defaultModel:    "glm-4.6",
 			apiKeyEnv:       "ZAI_API_KEY",
@@ -113,6 +135,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			name:            "moonshot",
 			command:         "npx -y pi-acp@latest",
 			harness:         ProviderHarnessPiACP,
+			authMode:        ProviderAuthModeBoundSecret,
 			runtimeProvider: "kimi-coding",
 			defaultModel:    "kimi-k2-thinking",
 			apiKeyEnv:       "KIMI_API_KEY",
@@ -122,6 +145,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			name:            "vercel-ai-gateway",
 			command:         "npx -y pi-acp@latest",
 			harness:         ProviderHarnessPiACP,
+			authMode:        ProviderAuthModeBoundSecret,
 			runtimeProvider: "vercel-ai-gateway",
 			defaultModel:    "anthropic/claude-opus-4-7",
 			apiKeyEnv:       "AI_GATEWAY_API_KEY",
@@ -131,6 +155,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			name:            "xai",
 			command:         "npx -y pi-acp@latest",
 			harness:         ProviderHarnessPiACP,
+			authMode:        ProviderAuthModeBoundSecret,
 			runtimeProvider: "xai",
 			defaultModel:    "grok-4-fast-non-reasoning",
 			apiKeyEnv:       "XAI_API_KEY",
@@ -140,6 +165,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			name:            "minimax",
 			command:         "npx -y pi-acp@latest",
 			harness:         ProviderHarnessPiACP,
+			authMode:        ProviderAuthModeBoundSecret,
 			runtimeProvider: "minimax",
 			defaultModel:    "MiniMax-M2.1",
 			apiKeyEnv:       "MINIMAX_API_KEY",
@@ -149,6 +175,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			name:            "mistral",
 			command:         "npx -y pi-acp@latest",
 			harness:         ProviderHarnessPiACP,
+			authMode:        ProviderAuthModeBoundSecret,
 			runtimeProvider: "mistral",
 			defaultModel:    "devstral-medium-latest",
 			apiKeyEnv:       "MISTRAL_API_KEY",
@@ -158,6 +185,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			name:            "groq",
 			command:         "npx -y pi-acp@latest",
 			harness:         ProviderHarnessPiACP,
+			authMode:        ProviderAuthModeBoundSecret,
 			runtimeProvider: "groq",
 			defaultModel:    "openai/gpt-oss-120b",
 			apiKeyEnv:       "GROQ_API_KEY",
@@ -179,6 +207,9 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			if got.EffectiveHarness() != tc.harness {
 				t.Fatalf("BuiltinProviders()[%q].Harness = %q, want %q", tc.name, got.EffectiveHarness(), tc.harness)
 			}
+			if got.EffectiveAuthMode() != tc.authMode {
+				t.Fatalf("BuiltinProviders()[%q].AuthMode = %q, want %q", tc.name, got.EffectiveAuthMode(), tc.authMode)
+			}
 			if got.RuntimeProviderName(tc.name) != firstNonEmpty(tc.runtimeProvider, tc.name) {
 				t.Fatalf(
 					"BuiltinProviders()[%q].RuntimeProvider = %q, want %q",
@@ -193,6 +224,22 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 					tc.name,
 					got.DefaultModel,
 					tc.defaultModel,
+				)
+			}
+			if got.SessionMCPEnabled() == tc.noSessionMCP {
+				t.Fatalf(
+					"BuiltinProviders()[%q].SessionMCPEnabled() = %t, want %t",
+					tc.name,
+					got.SessionMCPEnabled(),
+					!tc.noSessionMCP,
+				)
+			}
+			if strings.TrimSpace(got.AuthLoginCmd) != tc.loginCommand {
+				t.Fatalf(
+					"BuiltinProviders()[%q].AuthLoginCmd = %q, want %q",
+					tc.name,
+					got.AuthLoginCmd,
+					tc.loginCommand,
 				)
 			}
 			slots := got.EffectiveCredentialSlots()
@@ -217,6 +264,40 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRepoRootConfigProviderDefaultsMatchBuiltinRegistry(t *testing.T) {
+	t.Parallel()
+
+	rootConfig := filepath.Join(repoRootFromConfigTest(t), "config.toml")
+	overlay := Config{Providers: map[string]ProviderConfig{}}
+	if err := ApplyConfigOverlayFile(rootConfig, &overlay); err != nil {
+		t.Fatalf("ApplyConfigOverlayFile(repo config) error = %v", err)
+	}
+
+	builtins := BuiltinProviders()
+	for name, provider := range overlay.Providers {
+		if provider.DefaultModel == "" {
+			continue
+		}
+		builtin, ok := builtins[name]
+		if !ok {
+			t.Fatalf("repo config provider %q is not in the builtin registry", name)
+		}
+		if got, want := provider.DefaultModel, builtin.DefaultModel; got != want {
+			t.Fatalf("repo config provider %q default_model = %q, want builtin %q", name, got, want)
+		}
+	}
+}
+
+func repoRootFromConfigTest(t *testing.T) string {
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller(0) failed")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 }
 
 func TestBuiltinProviderCommandsUseLatestDriverPackages(t *testing.T) {
@@ -321,9 +402,11 @@ func TestProviderConfigOverrideMergesWithBuiltins(t *testing.T) {
 	if provider.DefaultModel != "claude-opus-override" {
 		t.Fatalf("ResolveProvider() DefaultModel = %q, want %q", provider.DefaultModel, "claude-opus-override")
 	}
-	slots := provider.EffectiveCredentialSlots()
-	if len(slots) != 1 || slots[0].TargetEnv != "ANTHROPIC_API_KEY" || slots[0].SecretRef != "env:ANTHROPIC_API_KEY" {
-		t.Fatalf("ResolveProvider() CredentialSlots = %#v, want builtin Anthropic API key slot", slots)
+	if provider.EffectiveAuthMode() != ProviderAuthModeNativeCLI {
+		t.Fatalf("ResolveProvider() AuthMode = %q, want native_cli", provider.EffectiveAuthMode())
+	}
+	if slots := provider.EffectiveCredentialSlots(); len(slots) != 0 {
+		t.Fatalf("ResolveProvider() CredentialSlots = %#v, want no native CLI slots", slots)
 	}
 }
 
@@ -450,6 +533,100 @@ func TestProviderOverlayCredentialSlotsReplaceExistingSlots(t *testing.T) {
 	})
 }
 
+func TestProviderAuthModeValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject credential slots on native builtins without explicit bound secret auth", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"claude": {
+					CredentialSlots: []ProviderCredentialSlot{
+						apiKeyCredentialSlot("ANTHROPIC_API_KEY"),
+					},
+				},
+			},
+		}
+
+		_, err := cfg.ResolveProvider("claude")
+		if err == nil {
+			t.Fatal("ResolveProvider(native slot override) error = nil, want validation error")
+		}
+		if !strings.Contains(err.Error(), `auth_mode must be "bound_secret"`) {
+			t.Fatalf("ResolveProvider(native slot override) error = %v, want auth_mode guidance", err)
+		}
+	})
+
+	t.Run("Should allow explicit bound secret auth on native builtins", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"claude": {
+					AuthMode: ProviderAuthModeBoundSecret,
+					CredentialSlots: []ProviderCredentialSlot{
+						apiKeyCredentialSlot("ANTHROPIC_API_KEY"),
+					},
+				},
+			},
+		}
+
+		provider, err := cfg.ResolveProvider("claude")
+		if err != nil {
+			t.Fatalf("ResolveProvider(bound native override) error = %v", err)
+		}
+		if got, want := provider.EffectiveAuthMode(), ProviderAuthModeBoundSecret; got != want {
+			t.Fatalf("ResolveProvider() AuthMode = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject bound secret auth without credential slots", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"custom": {
+					Command:  "custom-agent --acp",
+					AuthMode: ProviderAuthModeBoundSecret,
+				},
+			},
+		}
+
+		_, err := cfg.ResolveProvider("custom")
+		if err == nil {
+			t.Fatal("ResolveProvider(bound without slots) error = nil, want validation error")
+		}
+		if !strings.Contains(err.Error(), "credential_slots is required") {
+			t.Fatalf("ResolveProvider(bound without slots) error = %v, want credential_slots guidance", err)
+		}
+	})
+
+	t.Run("Should reject credential slots when auth is none", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"custom": {
+					Command:  "custom-agent --acp",
+					AuthMode: ProviderAuthModeNone,
+					CredentialSlots: []ProviderCredentialSlot{
+						apiKeyCredentialSlot("CUSTOM_API_KEY"),
+					},
+				},
+			},
+		}
+
+		_, err := cfg.ResolveProvider("custom")
+		if err == nil {
+			t.Fatal("ResolveProvider(none with slots) error = nil, want validation error")
+		}
+		if !strings.Contains(err.Error(), "cannot be set when auth_mode is none") {
+			t.Fatalf("ResolveProvider(none with slots) error = %v, want none guidance", err)
+		}
+	})
+}
+
 func TestProviderCredentialSlotValidateRestrictsSecretRefs(t *testing.T) {
 	t.Parallel()
 
@@ -568,6 +745,9 @@ func TestResolveAgentRejectsPiProviderWithoutModel(t *testing.T) {
 		Command:         "npx -y pi-acp@latest",
 		Harness:         ProviderHarnessPiACP,
 		RuntimeProvider: "custom",
+		CredentialSlots: []ProviderCredentialSlot{
+			apiKeyCredentialSlot("CUSTOM_API_KEY"),
+		},
 	}
 	_, err = cfg.ResolveAgent(AgentDef{
 		Name:     "coder",
@@ -1092,10 +1272,11 @@ func TestResolveSessionAgent(t *testing.T) {
 				resolved.Model,
 			)
 		}
-		if len(resolved.CredentialSlots) != 1 ||
-			resolved.CredentialSlots[0].TargetEnv != "OPENAI_API_KEY" ||
-			resolved.CredentialSlots[0].SecretRef != "env:OPENAI_API_KEY" {
-			t.Fatalf("ResolveSessionAgent() CredentialSlots = %#v, want OpenAI API key slot", resolved.CredentialSlots)
+		if got, want := resolved.AuthMode, ProviderAuthModeNativeCLI; got != want {
+			t.Fatalf("ResolveSessionAgent() AuthMode = %q, want %q", got, want)
+		}
+		if len(resolved.CredentialSlots) != 0 {
+			t.Fatalf("ResolveSessionAgent() CredentialSlots = %#v, want no native CLI slots", resolved.CredentialSlots)
 		}
 
 		if got, want := len(resolved.MCPServers), 4; got != want {

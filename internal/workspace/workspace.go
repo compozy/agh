@@ -43,11 +43,20 @@ type Workspace struct {
 // ResolvedWorkspace is the computed workspace snapshot returned by a resolver.
 type ResolvedWorkspace struct {
 	Workspace
-	Config     aghconfig.Config
-	Agents     []aghconfig.AgentDef
-	Skills     []SkillPath
-	Sandbox    sandbox.Resolved
-	ResolvedAt time.Time
+	Config           aghconfig.Config
+	Agents           []aghconfig.AgentDef
+	AgentDiagnostics []AgentDiagnostic
+	Skills           []SkillPath
+	Sandbox          sandbox.Resolved
+	ResolvedAt       time.Time
+}
+
+// AgentDiagnostic reports one workspace-visible AGENT.md file that could not be loaded.
+type AgentDiagnostic struct {
+	Name      string
+	Path      string
+	ErrorKind string
+	Message   string
 }
 
 // SkillPath identifies a discovered skill directory and its origin.

@@ -431,7 +431,7 @@ export interface AgentSoulMutationAfterPayload {
   active: boolean;
   reason?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   revision_id?: string;
@@ -659,7 +659,7 @@ export interface AuthoredContextProvenance {
 
 export interface AuthoredMutationProvenance {
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
 }
@@ -3111,6 +3111,7 @@ export interface SkillSummary {
 
 export interface SkillsListParams {
   workspace?: string;
+  for_agent?: string;
 }
 
 export interface SpawnContext {
@@ -3751,7 +3752,7 @@ export interface TaskRunCompletedPayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -3778,7 +3779,7 @@ export interface TaskRunContext {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -3840,7 +3841,7 @@ export interface TaskRunEnqueuedPayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -3872,7 +3873,7 @@ export interface TaskRunFailedPayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -3905,7 +3906,7 @@ export interface TaskRunLeaseExpiredPayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -3934,7 +3935,7 @@ export interface TaskRunLeaseExtendedPayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -3963,7 +3964,7 @@ export interface TaskRunLeasePayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -3992,7 +3993,7 @@ export interface TaskRunLeaseRecoveredPayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -4025,7 +4026,7 @@ export interface TaskRunPostClaimPayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -4058,7 +4059,7 @@ export interface TaskRunPreClaimPayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;
@@ -4086,7 +4087,7 @@ export interface TaskRunReleasedPayload {
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
-  actor_ref?: string;
+  actor_id?: string;
   origin_kind?: string;
   origin_ref?: string;
   task_status?: string;

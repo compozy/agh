@@ -36,6 +36,21 @@ type configOverlay struct {
 	Autonomy      autonomyOverlay            `toml:"autonomy"`
 }
 
+// FileError preserves the source file for configuration read/decode failures.
+type FileError struct {
+	Op   string
+	Path string
+	Err  error
+}
+
+func (e FileError) Error() string {
+	return fmt.Sprintf("%s config file %q: %v", e.Op, e.Path, e.Err)
+}
+
+func (e FileError) Unwrap() error {
+	return e.Err
+}
+
 type daemonOverlay struct {
 	Socket *string `toml:"socket"`
 }
@@ -94,6 +109,7 @@ type sessionLimitsOverlay struct {
 type sessionSupervisionOverlay struct {
 	ActivityHeartbeatInterval *time.Duration `toml:"activity_heartbeat_interval"`
 	ProgressNotifyInterval    *time.Duration `toml:"progress_notify_interval"`
+	PromptDeadline            *time.Duration `toml:"prompt_deadline"`
 	InactivityWarningAfter    *time.Duration `toml:"inactivity_warning_after"`
 	InactivityTimeout         *time.Duration `toml:"inactivity_timeout"`
 	TimeoutCancelGrace        *time.Duration `toml:"timeout_cancel_grace"`
@@ -111,6 +127,12 @@ type providerOverlay struct {
 	RuntimeProvider *string                     `toml:"runtime_provider"`
 	Transport       *string                     `toml:"transport"`
 	BaseURL         *string                     `toml:"base_url"`
+	AuthMode        *ProviderAuthMode           `toml:"auth_mode"`
+	EnvPolicy       *ProviderEnvPolicy          `toml:"env_policy"`
+	HomePolicy      *ProviderHomePolicy         `toml:"home_policy"`
+	AuthStatusCmd   *string                     `toml:"auth_status_command"`
+	AuthLoginCmd    *string                     `toml:"auth_login_command"`
+	SessionMCP      *bool                       `toml:"session_mcp"`
 	Aliases         *[]string                   `toml:"aliases"`
 	CredentialSlots []providerCredentialOverlay `toml:"credential_slots"`
 	MCPServers      []mcpServerOverlay          `toml:"mcp_servers"`
@@ -311,7 +333,7 @@ func loadConfigOverlayFile(path string) (configOverlay, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return configOverlay{}, nil
 		}
-		return configOverlay{}, fmt.Errorf("read config file %q: %w", path, err)
+		return configOverlay{}, FileError{Op: "read", Path: path, Err: err}
 	}
 
 	return loadConfigOverlayBytes(contents, path)
@@ -322,7 +344,7 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 
 	meta, err := burnttoml.Decode(string(contents), &overlay)
 	if err != nil {
-		return overlay, fmt.Errorf("decode config file %q: %w", source, err)
+		return overlay, FileError{Op: "decode", Path: source, Err: err}
 	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
@@ -484,6 +506,9 @@ func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
 	if o.ProgressNotifyInterval != nil {
 		dst.ProgressNotifyInterval = *o.ProgressNotifyInterval
 	}
+	if o.PromptDeadline != nil {
+		dst.PromptDeadline = *o.PromptDeadline
+	}
 	if o.InactivityWarningAfter != nil {
 		dst.InactivityWarningAfter = *o.InactivityWarningAfter
 	}
@@ -522,6 +547,24 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	}
 	if o.BaseURL != nil {
 		dst.BaseURL = *o.BaseURL
+	}
+	if o.AuthMode != nil {
+		dst.AuthMode = *o.AuthMode
+	}
+	if o.EnvPolicy != nil {
+		dst.EnvPolicy = *o.EnvPolicy
+	}
+	if o.HomePolicy != nil {
+		dst.HomePolicy = *o.HomePolicy
+	}
+	if o.AuthStatusCmd != nil {
+		dst.AuthStatusCmd = *o.AuthStatusCmd
+	}
+	if o.AuthLoginCmd != nil {
+		dst.AuthLoginCmd = *o.AuthLoginCmd
+	}
+	if o.SessionMCP != nil {
+		dst.SessionMCP = boolRef(*o.SessionMCP)
 	}
 	if o.Aliases != nil {
 		dst.Aliases = append([]string(nil), (*o.Aliases)...)

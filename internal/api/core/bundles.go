@@ -204,6 +204,7 @@ func BundleCatalogPayloads(items []bundlepkg.CatalogEntry) []contract.BundleCata
 				Description:    strings.TrimSpace(profile.Description),
 				PrimaryChannel: strings.TrimSpace(profile.Channels.Primary),
 				Channels:       bundleChannelPayloads(profile.Channels),
+				AgentCount:     len(profile.Agents),
 				JobCount:       len(profile.Jobs),
 				TriggerCount:   len(profile.Triggers),
 				BridgeCount:    len(profile.Bridges),
@@ -220,10 +221,21 @@ func BundleCatalogPayloads(items []bundlepkg.CatalogEntry) []contract.BundleCata
 }
 
 func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleActivationPayload {
+	agents := make([]contract.BundleAgentPayload, 0, len(item.Profile.Agents))
 	jobs := make([]contract.BundleJobPayload, 0, len(item.Profile.Jobs))
 	triggers := make([]contract.BundleTriggerPayload, 0, len(item.Profile.Triggers))
 	bridges := make([]contract.BundleBridgePayload, 0, len(item.Profile.Bridges))
 	inventory := make([]contract.BundleInventoryPayload, 0, len(item.Inventory))
+	for _, agent := range item.Profile.Agents {
+		agents = append(agents, contract.BundleAgentPayload{
+			ID:           bundlepkgStableID("agt", item.Activation.ID, agent.Agent.Name),
+			Name:         strings.TrimSpace(agent.Agent.Name),
+			Provider:     strings.TrimSpace(agent.Agent.Provider),
+			Model:        strings.TrimSpace(agent.Agent.Model),
+			HasSoul:      agent.Soul != nil,
+			HasHeartbeat: agent.Heartbeat != nil,
+		})
+	}
 	for _, job := range item.Profile.Jobs {
 		jobs = append(jobs, contract.BundleJobPayload{
 			ID:        bundlepkgStableID("job", item.Activation.ID, job.Name),
@@ -277,6 +289,7 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 		WorkspaceID:                 strings.TrimSpace(item.Activation.WorkspaceID),
 		BindPrimaryChannelAsDefault: item.Activation.BindPrimaryChannelAsDefault,
 		Channels:                    bundleChannelPayloads(item.Profile.Channels),
+		Agents:                      agents,
 		Jobs:                        jobs,
 		Triggers:                    triggers,
 		Bridges:                     bridges,
@@ -326,8 +339,11 @@ func StatusForBundleError(err error) int {
 		errors.Is(err, extensionpkg.ErrExtensionNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, bundlepkg.ErrDefaultChannelBusy),
+		errors.Is(err, bundlepkg.ErrAgentConflict),
 		errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
 		return http.StatusConflict
+	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, bundlepkg.ErrWebhookUnsupported):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),

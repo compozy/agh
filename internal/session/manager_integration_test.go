@@ -710,7 +710,7 @@ func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
 	t.Run("Should reject a nil resolved workspace", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := resolveWorkspaceSessionAgent("coder", "", nil, nil)
+		_, err := resolveWorkspaceSessionAgentForType("coder", "", "", nil, nil)
 		if err == nil {
 			t.Fatal("resolveWorkspaceSessionAgent(nil workspace) error = nil, want non-nil")
 		}
@@ -719,7 +719,7 @@ func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
 		}
 	})
 
-	t.Run("Should allow a nil manager receiver when a workspace is provided", func(t *testing.T) {
+	t.Run("Should allow a nil agent resolver when a workspace is provided", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
@@ -736,13 +736,12 @@ func TestResolveWorkspaceSessionAgentGuardsNilInputs(t *testing.T) {
 			}},
 		}
 
-		var manager *Manager
-		resolved, err := manager.resolveWorkspaceSessionAgent("coder", "", resolvedWorkspace)
+		resolved, err := resolveWorkspaceSessionAgentForType("coder", "", "", resolvedWorkspace, nil)
 		if err != nil {
-			t.Fatalf("resolveWorkspaceSessionAgent(nil manager) error = %v", err)
+			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) error = %v", err)
 		}
 		if got, want := resolved.Provider, "claude"; got != want {
-			t.Fatalf("resolveWorkspaceSessionAgent(nil manager) provider = %q, want %q", got, want)
+			t.Fatalf("resolveWorkspaceSessionAgentForType(nil agent resolver) provider = %q, want %q", got, want)
 		}
 	})
 }

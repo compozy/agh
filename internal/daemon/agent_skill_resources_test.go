@@ -6,10 +6,13 @@ import (
 	"os"
 	"testing"
 
+	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
+	"github.com/pedronauck/agh/internal/soul"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -197,6 +200,109 @@ func TestResourceAgentCatalogResolveAgentValidation(t *testing.T) {
 	}
 }
 
+func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *testing.T) {
+	t.Parallel()
+
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
+	owner := resources.ResourceOwner{
+		Kind: bundlepkg.BundleActivationOwnerKind,
+		ID:   "act-marketing",
+	}
+	agentCatalog := newResourceCatalog(cloneAgentDef)
+	agentCatalog.Replace(1, []resources.Record[aghconfig.AgentDef]{
+		{
+			ID:    "agt-global",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Spec:  aghconfig.AgentDef{Name: "marketer", Prompt: "global marketer"},
+		},
+		{
+			ID:    "agt-marketer",
+			Scope: scope,
+			Owner: owner,
+			Spec:  aghconfig.AgentDef{Name: "marketer", Prompt: "bundled marketer"},
+		},
+	})
+	soulCatalog := newResourceCatalog(cloneSoulResourceSpec)
+	soulCatalog.Replace(1, []resources.Record[soul.ResourceSpec]{
+		{
+			ID:    "sol-marketer",
+			Scope: scope,
+			Owner: owner,
+			Spec: soul.ResourceSpec{
+				AgentName:       "marketer",
+				AgentResourceID: "agt-marketer",
+				SourcePath:      ".agh/bundles/act-marketing/agents/marketer/SOUL.md",
+				Body:            "Lead with campaign context.",
+			},
+		},
+		{
+			ID:    "sol-leak",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Owner: owner,
+			Spec: soul.ResourceSpec{
+				AgentName:       "marketer",
+				AgentResourceID: "agt-global",
+				SourcePath:      ".agh/bundles/act-marketing/agents/marketer/SOUL.md",
+				Body:            "Do not attach this global sidecar.",
+			},
+		},
+	})
+	heartbeatCatalog := newResourceCatalog(cloneHeartbeatResourceSpec)
+	heartbeatCatalog.Replace(1, []resources.Record[heartbeat.ResourceSpec]{{
+		ID:    "hbt-marketer",
+		Scope: scope,
+		Owner: owner,
+		Spec: heartbeat.ResourceSpec{
+			AgentName:       "marketer",
+			AgentResourceID: "agt-marketer",
+			SourcePath:      ".agh/bundles/act-marketing/agents/marketer/HEARTBEAT.md",
+			Body:            "Inspect campaign status and use AGH task APIs.",
+		},
+	}})
+
+	dependency := agentCatalogDependency(agentCatalog, agentSidecarCatalogs{
+		soul:      soulCatalog,
+		heartbeat: heartbeatCatalog,
+	})
+	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: t.TempDir()}}
+	artifacts, err := dependency.ResolveAgentArtifacts("marketer", resolved)
+	if err != nil {
+		t.Fatalf("ResolveAgentArtifacts(marketer) error = %v", err)
+	}
+	if !artifacts.PackageOwned {
+		t.Fatal("artifacts.PackageOwned = false, want true")
+	}
+	if got, want := artifacts.Agent.Prompt, "bundled marketer"; got != want {
+		t.Fatalf("artifacts.Agent.Prompt = %q, want %q", got, want)
+	}
+	if got, want := artifacts.SoulBody, "Lead with campaign context."; got != want {
+		t.Fatalf("artifacts.SoulBody = %q, want %q", got, want)
+	}
+	if got, want := artifacts.HeartbeatBody, "Inspect campaign status and use AGH task APIs."; got != want {
+		t.Fatalf("artifacts.HeartbeatBody = %q, want %q", got, want)
+	}
+
+	policy, ok, err := dependency.ResolveHeartbeatPolicy(context.Background(), heartbeat.AuthoringTarget{
+		AgentName:     "marketer",
+		WorkspaceID:   "ws-1",
+		WorkspaceRoot: resolved.RootDir,
+	})
+	if err != nil {
+		t.Fatalf("ResolveHeartbeatPolicy(marketer) error = %v", err)
+	}
+	if !ok {
+		t.Fatal("ResolveHeartbeatPolicy(marketer) ok = false, want true")
+	}
+	if !policy.Present || !policy.Valid || !policy.Active {
+		t.Fatalf(
+			"heartbeat policy flags = present:%v valid:%v active:%v, want all true",
+			policy.Present,
+			policy.Valid,
+			policy.Active,
+		)
+	}
+}
+
 func TestAgentSkillSmallHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -253,7 +359,7 @@ func TestAgentSkillSmallHelpers(t *testing.T) {
 func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 	t.Parallel()
 
-	agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+	rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
 	desired := agentSkillDesiredResources{
 		agents: []agentPublicationInput{{
 			sourceKey: "test/agent/coder",
@@ -285,6 +391,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 	}
 	triggered := make(map[resources.ResourceKind]int)
 	syncer := newAgentSkillSourceSyncer(
+		rawStore,
 		agentStore,
 		agentCodec,
 		skillStore,
@@ -332,6 +439,90 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		triggered[skillspkg.SkillResourceKind] != 2 ||
 		triggered[aghconfig.MCPServerResourceKind] != 2 {
 		t.Fatalf("triggered after replacement = %#v, want stale-delete/update triggers", triggered)
+	}
+}
+
+func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *testing.T) {
+	t.Parallel()
+
+	rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+	legacyScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-legacy"}
+	if _, err := rawStore.PutRaw(
+		context.Background(),
+		agentSkillSyncActor(),
+		resources.RawDraft{
+			Kind:  aghconfig.AgentResourceKind,
+			ID:    "daemon.sync.agent.legacy",
+			Scope: legacyScope,
+			SpecJSON: []byte(`{
+				"Name":"general",
+				"Tools":["*"],
+				"Prompt":"Legacy managed general agent"
+			}`),
+		},
+	); err != nil {
+		t.Fatalf("rawStore.PutRaw(legacy agent) error = %v", err)
+	}
+
+	syncer := newAgentSkillSourceSyncer(
+		rawStore,
+		agentStore,
+		agentCodec,
+		skillStore,
+		skillCodec,
+		mcpStore,
+		mcpCodec,
+		agentSkillSyncActor(),
+		discardLogger(),
+		nil,
+		func(context.Context) (agentSkillDesiredResources, error) {
+			return agentSkillDesiredResources{
+				agents: []agentPublicationInput{{
+					sourceKey: "daemon/general",
+					scope:     legacyScope,
+					spec: aghconfig.AgentDef{
+						Name:   "general",
+						Prompt: "Canonical managed general agent",
+					},
+				}},
+			}, nil
+		},
+	)
+
+	if err := syncer.Sync(context.Background()); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+
+	assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 1, 0, 0)
+
+	source := agentSkillSyncActor().Source
+	rawAgents, err := rawStore.ListRaw(context.Background(), agentSkillSyncActor(), resources.ResourceFilter{
+		Kind:   aghconfig.AgentResourceKind,
+		Source: &source,
+	})
+	if err != nil {
+		t.Fatalf("rawStore.ListRaw() error = %v", err)
+	}
+	if got, want := len(rawAgents), 1; got != want {
+		t.Fatalf("len(rawStore.ListRaw()) = %d, want %d", got, want)
+	}
+	if got, want := rawAgents[0].ID, "daemon.sync.agent.legacy"; got == want {
+		t.Fatalf("rawAgents[0].ID = %q, want legacy record replaced", got)
+	}
+
+	agents, err := agentStore.List(
+		context.Background(),
+		agentSkillSyncActor(),
+		resources.ResourceFilter{Source: &source},
+	)
+	if err != nil {
+		t.Fatalf("agentStore.List() error = %v", err)
+	}
+	if got, want := len(agents), 1; got != want {
+		t.Fatalf("len(agentStore.List()) = %d, want %d", got, want)
+	}
+	if got := agents[0].Spec.Tools; len(got) != 0 {
+		t.Fatalf("agents[0].Spec.Tools = %#v, want canonical empty tool set", got)
 	}
 }
 
@@ -394,6 +585,7 @@ func TestAppendAgentAndSkillResourcesPublishesMCPAttachments(t *testing.T) {
 func agentSkillSyncStores(
 	t *testing.T,
 ) (
+	resources.RawStore,
 	resources.Store[aghconfig.AgentDef],
 	resources.KindCodec[aghconfig.AgentDef],
 	resources.Store[skillspkg.SkillResourceSpec],
@@ -432,7 +624,7 @@ func agentSkillSyncStores(
 	if err != nil {
 		t.Fatalf("resources.NewStore(mcp) error = %v", err)
 	}
-	return agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec
+	return kernel, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec
 }
 
 func assertAgentSkillStoreCounts(

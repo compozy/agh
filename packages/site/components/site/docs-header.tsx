@@ -1,8 +1,6 @@
 "use client";
 
 import { buttonVariants, cn } from "@agh/ui";
-import Link from "fumadocs-core/link";
-import { usePathname } from "fumadocs-core/framework";
 import { useNotebookLayout } from "fumadocs-ui/layouts/notebook";
 import {
   isLayoutTabActive,
@@ -12,6 +10,8 @@ import {
 } from "fumadocs-ui/layouts/shared";
 import { Sidebar as SidebarIcon } from "lucide-react";
 import { useMemo, type ComponentProps } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 type WithUrl = Extract<LinkItemType, { url: string }>;
 

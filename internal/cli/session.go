@@ -28,6 +28,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionInspectCommand(deps))
 	cmd.AddCommand(newSessionResumeCommand(deps))
 	cmd.AddCommand(newSessionRepairCommand(deps))
+	cmd.AddCommand(newSessionApproveCommand(deps))
 	cmd.AddCommand(newSessionWaitCommand(deps))
 	cmd.AddCommand(newSessionPromptCommand(deps))
 	cmd.AddCommand(newSessionEventsCommand(deps))
@@ -238,6 +239,41 @@ func newSessionRepairCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
+func newSessionApproveCommand(deps commandDeps) *cobra.Command {
+	var request SessionApprovalRequest
+	cmd := &cobra.Command{
+		Use:   "approve <id>",
+		Short: "Approve or reject a pending session permission request",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			request.RequestID = strings.TrimSpace(request.RequestID)
+			request.TurnID = strings.TrimSpace(request.TurnID)
+			request.Decision = strings.TrimSpace(request.Decision)
+			if request.RequestID == "" && request.TurnID == "" {
+				return errors.New("cli: --request-id or --turn-id is required")
+			}
+			if request.Decision == "" {
+				return errors.New("cli: --decision is required")
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			result, err := client.ApproveSession(cmd.Context(), args[0], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, sessionApprovalBundle(args[0], result))
+		},
+	}
+	cmd.Flags().StringVar(&request.RequestID, "request-id", "", "Pending permission request id")
+	cmd.Flags().StringVar(&request.TurnID, "turn-id", "", "Pending permission turn id")
+	cmd.Flags().
+		StringVar(&request.Decision, "decision", "", "Decision: allow-once, allow-always, reject-once, or reject-always")
+	mustMarkFlagRequired(cmd, "decision")
+	return cmd
+}
+
 func newSessionWaitCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "wait <id>",
@@ -290,9 +326,16 @@ func newSessionPromptCommand(deps commandDeps) *cobra.Command {
   agh session prompt sess_1234 "Summarize the current changes."`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			mode, err := resolveOutputFormat(cmd)
+			if err != nil {
+				return err
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
+			}
+			if mode == OutputJSONL {
+				return streamPromptEventsJSONL(cmd, client, args[0], args[1])
 			}
 
 			events, err := client.PromptSession(cmd.Context(), args[0], args[1])
@@ -345,7 +388,7 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionEventsBundle(events))
+			return writeSessionEventsOutput(cmd, events)
 		},
 	}
 	cmd.Flags().StringVar(&eventType, "type", "", "Filter by event type")
@@ -353,6 +396,31 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show events since an RFC3339 timestamp or relative duration")
 	cmd.Flags().BoolVar(&follow, "follow", false, "Stream new events over SSE")
 	return cmd
+}
+
+func streamPromptEventsJSONL(cmd *cobra.Command, client DaemonClient, id string, message string) error {
+	return client.StreamPromptSession(cmd.Context(), id, message, func(event SSEEvent) error {
+		if len(event.Data) == 0 || strings.TrimSpace(string(event.Data)) == "[DONE]" {
+			return nil
+		}
+
+		var payload any
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
+			return fmt.Errorf("cli: decode prompt event: %w", err)
+		}
+		return writeJSONLine(cmd, payload)
+	})
+}
+
+func writeSessionEventsOutput(cmd *cobra.Command, events []SessionEventRecord) error {
+	mode, err := resolveOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if mode == OutputJSONL {
+		return writeJSONLines(cmd, events)
+	}
+	return writeCommandOutput(cmd, sessionEventsBundle(events))
 }
 
 func newSessionHistoryCommand(deps commandDeps) *cobra.Command {
@@ -404,7 +472,7 @@ func streamSessionEvents(cmd *cobra.Command, client DaemonClient, id string, que
 		}
 
 		switch mode {
-		case OutputJSON:
+		case OutputJSON, OutputJSONL:
 			if err := encoder.Encode(payload); err != nil {
 				return err
 			}
@@ -617,6 +685,32 @@ func sessionRepairBundle(record SessionRepairRecord) outputBundle {
 				sessionRepairIssueSummary(record.Issues),
 				sessionRepairActionSummary(record.Actions),
 			}), nil
+		},
+	}
+}
+
+func sessionApprovalBundle(sessionID string, record SessionApprovalRecord) outputBundle {
+	payload := struct {
+		SessionID string `json:"session_id"`
+		Status    string `json:"status"`
+	}{
+		SessionID: strings.TrimSpace(sessionID),
+		Status:    strings.TrimSpace(record.Status),
+	}
+	return outputBundle{
+		jsonValue: payload,
+		human: func() (string, error) {
+			return renderHumanSection("Session Approval", []keyValue{
+				{Label: "Session", Value: stringOrDash(payload.SessionID)},
+				{Label: "Status", Value: stringOrDash(payload.Status)},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"session_approval",
+				[]string{"session_id", "status"},
+				[]string{payload.SessionID, payload.Status},
+			), nil
 		},
 	}
 }

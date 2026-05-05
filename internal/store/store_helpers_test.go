@@ -157,11 +157,48 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			wantError: true,
 		},
 		{
+			name: "event summary missing session",
+			validate: func() error {
+				return (EventSummary{Type: "agent_message", AgentName: "coder"}).Validate()
+			},
+			wantError: true,
+		},
+		{
 			name: "event summary missing agent",
 			validate: func() error {
 				return (EventSummary{SessionID: "sess-1", Type: "agent_message"}).Validate()
 			},
 			wantError: true,
+		},
+		{
+			name: "global event summary settings changed",
+			validate: func() error {
+				return (EventSummary{Type: "settings.changed"}).Validate()
+			},
+		},
+		{
+			name: "global event summary skills shadow",
+			validate: func() error {
+				return (EventSummary{Type: "skills.shadow"}).Validate()
+			},
+		},
+		{
+			name: "global event summary skills load failed",
+			validate: func() error {
+				return (EventSummary{Type: "skills.load_failed"}).Validate()
+			},
+		},
+		{
+			name: "global event summary hook dispatch start",
+			validate: func() error {
+				return (EventSummary{Type: "hook.dispatch.start"}).Validate()
+			},
+		},
+		{
+			name: "global event summary hook dispatch complete",
+			validate: func() error {
+				return (EventSummary{Type: "hook.dispatch.complete"}).Validate()
+			},
 		},
 		{
 			name: "event summary query invalid",

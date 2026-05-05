@@ -102,11 +102,11 @@ function SettingsSectionNav() {
   return (
     <nav
       aria-label="Settings sections"
-      className="flex w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)] px-2 py-3"
+      className="flex w-full shrink-0 flex-wrap gap-1 overflow-y-auto border-b border-[color:var(--color-divider)] bg-[color:var(--color-canvas-deep)] px-2 py-2 xl:w-56 xl:flex-col xl:flex-nowrap xl:border-r xl:border-b-0 xl:py-3"
       data-testid="settings-section-nav"
     >
-      <SidebarSectionLabel className="px-2 pt-2 pb-1">Settings</SidebarSectionLabel>
-      <div className="flex flex-col gap-0.5">
+      <SidebarSectionLabel className="hidden px-2 pt-2 pb-1 xl:block">Settings</SidebarSectionLabel>
+      <div className="flex flex-wrap gap-1 xl:flex-col xl:flex-nowrap xl:gap-0.5">
         {SETTINGS_SECTIONS.map(section => (
           <SettingsSectionLink key={section.slug} section={section} />
         ))}
@@ -127,17 +127,17 @@ function SettingsSectionLink({ section }: { section: SettingsSectionDescriptor }
       data-testid={`settings-section-${section.slug}`}
       data-active={isActive ? "true" : "false"}
       aria-current={isActive ? "page" : undefined}
-      className={cn(NAV_ROW_CLASS, isActive && ACTIVE_NAV_ROW_CLASS)}
+      className={cn(NAV_ROW_CLASS, "shrink-0", isActive && ACTIVE_NAV_ROW_CLASS)}
     >
       {isActive && (
         <span
           aria-hidden="true"
-          className={ACTIVE_NAV_INDICATOR_CLASS}
+          className={cn(ACTIVE_NAV_INDICATOR_CLASS, "hidden xl:block")}
           data-testid={`settings-section-active-${section.slug}`}
         />
       )}
       <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-      <span className="truncate" title={section.label}>
+      <span className="whitespace-nowrap xl:truncate" title={section.label}>
         {section.label}
       </span>
     </Link>
@@ -154,7 +154,11 @@ function SettingsShellFrame({
   testId: string;
 }) {
   return (
-    <div className="flex flex-1 overflow-hidden" data-route-id={routeId} data-testid={testId}>
+    <div
+      className="flex flex-1 flex-col overflow-hidden xl:flex-row"
+      data-route-id={routeId}
+      data-testid={testId}
+    >
       <SettingsSectionNav />
       <div
         className="relative flex min-w-0 flex-1 flex-col overflow-hidden"

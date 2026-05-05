@@ -17,6 +17,8 @@ import (
 var (
 	// ErrPermissionDenied reports that the configured static policy rejected an operation.
 	ErrPermissionDenied = errors.New("acp: permission denied")
+	// ErrInvalidPath reports malformed tool paths rejected before filesystem access.
+	ErrInvalidPath = errors.New("acp: invalid path")
 	// ErrPathOutsideWorkspace reports that a requested path escapes the session root.
 	ErrPathOutsideWorkspace = errors.New("acp: path outside session workspace")
 	// ErrToolBlockedForNetworkTurn reports that daemon-side network turn policy rejected a tool operation.
@@ -137,7 +139,7 @@ func (p permissionPolicy) permissionDecision(request acpsdk.RequestPermissionReq
 		}
 		return decisionPending, true
 	case aghconfig.PermissionModeDenyAll:
-		return decisionPending, true
+		return decisionRejectOnce, false
 	default:
 		return decisionRejectOnce, false
 	}
@@ -146,7 +148,10 @@ func (p permissionPolicy) permissionDecision(request acpsdk.RequestPermissionReq
 func (p permissionPolicy) resolvePath(requestPath string) (string, error) {
 	target := strings.TrimSpace(requestPath)
 	if target == "" {
-		return "", errors.New("acp: request path is required")
+		return "", fmt.Errorf("%w: request path is required", ErrInvalidPath)
+	}
+	if strings.ContainsRune(target, 0) {
+		return "", fmt.Errorf("%w: request path contains NUL byte", ErrInvalidPath)
 	}
 
 	if !filepath.IsAbs(target) {

@@ -37,6 +37,162 @@ func (r fakeProviderSecretResolver) ResolveRef(ctx context.Context, ref string) 
 	return "", vault.ErrSecretNotFound
 }
 
+func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose provider auth metadata without injecting native credentials", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
+		resolved := aghconfig.ResolvedAgent{
+			Provider:   "claude",
+			Model:      "claude-sonnet-4-6",
+			Harness:    aghconfig.ProviderHarnessACP,
+			AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
+			EnvPolicy:  aghconfig.ProviderEnvPolicyFiltered,
+			HomePolicy: aghconfig.ProviderHomePolicyOperator,
+		}
+
+		opts, err := manager.prepareProviderForStart(testutil.Context(t), &Session{}, resolved, acp.StartOpts{
+			Env: []string{"ANTHROPIC_API_KEY=parent-secret", "KEEP=1"},
+		})
+		if err != nil {
+			t.Fatalf("prepareProviderForStart(native auth) error = %v", err)
+		}
+		if got := envValue(opts.Env, "ANTHROPIC_API_KEY"); got != "parent-secret" {
+			t.Fatalf("ANTHROPIC_API_KEY = %q, want untouched native CLI env", got)
+		}
+		if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-6" {
+			t.Fatalf("ANTHROPIC_MODEL = %q, want claude-sonnet-4-6", got)
+		}
+		if got := envValue(opts.Env, "AGH_MODEL"); got != "claude-sonnet-4-6" {
+			t.Fatalf("AGH_MODEL = %q, want claude-sonnet-4-6", got)
+		}
+		if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
+			t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
+		}
+		if got := envValue(opts.Env, "AGH_PROVIDER_ENV_POLICY"); got != "filtered" {
+			t.Fatalf("AGH_PROVIDER_ENV_POLICY = %q, want filtered", got)
+		}
+		if got := envValue(opts.Env, "AGH_PROVIDER_HOME_POLICY"); got != "operator" {
+			t.Fatalf("AGH_PROVIDER_HOME_POLICY = %q, want operator", got)
+		}
+	})
+
+	t.Run("Should set an AGH-owned provider home when isolated home policy is selected", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		manager := &Manager{
+			homePaths:       homePaths,
+			providerSecrets: fakeProviderSecretResolver{},
+		}
+		resolved := aghconfig.ResolvedAgent{
+			Provider:   "codex",
+			Model:      "gpt-5.4",
+			Harness:    aghconfig.ProviderHarnessACP,
+			AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
+			EnvPolicy:  aghconfig.ProviderEnvPolicyIsolated,
+			HomePolicy: aghconfig.ProviderHomePolicyIsolated,
+		}
+
+		opts, err := manager.prepareProviderForStart(testutil.Context(t), &Session{}, resolved, acp.StartOpts{
+			Env: []string{"HOME=/Users/operator", "CODEX_HOME=/Users/operator/.codex"},
+		})
+		if err != nil {
+			t.Fatalf("prepareProviderForStart(isolated home) error = %v", err)
+		}
+		wantHome := filepath.Join(homePaths.HomeDir, "providers", "codex")
+		if got := envValue(opts.Env, "PROVIDER_HOME"); got != wantHome {
+			t.Fatalf("PROVIDER_HOME = %q, want %q", got, wantHome)
+		}
+		if got := envValue(opts.Env, "HOME"); got != wantHome {
+			t.Fatalf("HOME = %q, want %q", got, wantHome)
+		}
+		if got := envValue(opts.Env, "CODEX_HOME"); got != filepath.Join(wantHome, "codex") {
+			t.Fatalf("CODEX_HOME = %q, want isolated codex home", got)
+		}
+		if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != "" {
+			t.Fatalf("ANTHROPIC_MODEL = %q, want empty for codex provider", got)
+		}
+		assertProviderRuntimeFileMode(t, wantHome, 0o700)
+		assertProviderRuntimeFileMode(t, filepath.Join(wantHome, "codex"), 0o700)
+	})
+
+	t.Run("Should preserve operator Pi auth directory for native Pi providers", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
+		session := &Session{sessionDir: t.TempDir()}
+		resolved := aghconfig.ResolvedAgent{
+			Provider:        "pi",
+			Model:           "claude-opus-4-7",
+			Harness:         aghconfig.ProviderHarnessPiACP,
+			RuntimeProvider: "anthropic",
+			AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
+			EnvPolicy:       aghconfig.ProviderEnvPolicyFiltered,
+			HomePolicy:      aghconfig.ProviderHomePolicyOperator,
+		}
+
+		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{
+			Env: []string{"KEEP=1"},
+		})
+		if err != nil {
+			t.Fatalf("prepareProviderForStart(native pi operator home) error = %v", err)
+		}
+		if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != "" {
+			t.Fatalf("PI_CODING_AGENT_DIR = %q, want operator Pi auth path untouched", got)
+		}
+		if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
+			t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
+		}
+		assertNoPath(t, filepath.Join(session.sessionDir, "provider-runtime", "pi"))
+	})
+
+	t.Run("Should isolate Pi auth directory when isolated home policy is selected", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		manager := &Manager{
+			homePaths:       homePaths,
+			providerSecrets: fakeProviderSecretResolver{},
+		}
+		session := &Session{sessionDir: t.TempDir()}
+		resolved := aghconfig.ResolvedAgent{
+			Provider:        "pi",
+			Model:           "claude-opus-4-7",
+			Harness:         aghconfig.ProviderHarnessPiACP,
+			RuntimeProvider: "anthropic",
+			AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
+			EnvPolicy:       aghconfig.ProviderEnvPolicyIsolated,
+			HomePolicy:      aghconfig.ProviderHomePolicyIsolated,
+		}
+
+		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{
+			Env: []string{"HOME=/Users/operator", "PI_CODING_AGENT_DIR=/Users/operator/.pi/agent"},
+		})
+		if err != nil {
+			t.Fatalf("prepareProviderForStart(native pi isolated home) error = %v", err)
+		}
+		wantHome := filepath.Join(homePaths.HomeDir, "providers", "pi")
+		wantAgentDir := filepath.Join(wantHome, ".pi", "agent")
+		if got := envValue(opts.Env, "HOME"); got != wantHome {
+			t.Fatalf("HOME = %q, want %q", got, wantHome)
+		}
+		if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != wantAgentDir {
+			t.Fatalf("PI_CODING_AGENT_DIR = %q, want %q", got, wantAgentDir)
+		}
+		assertProviderRuntimeFileMode(t, wantAgentDir, 0o700)
+		assertNoPath(t, filepath.Join(session.sessionDir, "provider-runtime", "pi"))
+	})
+}
+
 func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -62,6 +218,7 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 			RuntimeProvider: "openrouter",
 			BaseURL:         "https://openrouter.ai/api/v1",
 			Transport:       "openai",
+			AuthMode:        aghconfig.ProviderAuthModeBoundSecret,
 			CredentialSlots: []aghconfig.ProviderCredentialSlot{
 				{
 					Name:      "secondary",
@@ -138,6 +295,7 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 			Model:           "openai/gpt-5.4",
 			Harness:         aghconfig.ProviderHarnessPiACP,
 			RuntimeProvider: "openrouter",
+			AuthMode:        aghconfig.ProviderAuthModeBoundSecret,
 			CredentialSlots: []aghconfig.ProviderCredentialSlot{
 				{
 					Name:      "api_key",
@@ -175,15 +333,10 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		}
 	})
 
-	t.Run("Should pass Pi runtime contract through session start options", func(t *testing.T) {
+	t.Run("Should pass native Pi model selection through session start options", func(t *testing.T) {
 		t.Parallel()
 
-		secret := "sk-provider-runtime-secret-from-create"
-		h := newHarness(t, WithProviderSecretResolver(fakeProviderSecretResolver{
-			values: map[string]string{
-				"env:OPENROUTER_API_KEY": secret,
-			},
-		}))
+		h := newHarness(t)
 		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 		if err != nil {
 			t.Fatalf("Resolve(workspace) error = %v", err)
@@ -191,8 +344,8 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		resolved.Agents = []aghconfig.AgentDef{
 			{
 				Name:     "coder",
-				Provider: "openrouter",
-				Model:    "openai/gpt-5.4",
+				Provider: "pi",
+				Model:    "claude-opus-4-7",
 				Prompt:   "You are a coding assistant.",
 			},
 		}
@@ -201,21 +354,29 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 			if !strings.Contains(opts.Command, "pi-acp@latest") {
 				t.Fatalf("StartOpts.Command = %q, want pi-acp command", opts.Command)
 			}
-			assertPiRuntimeEnvContract(t, opts, "openrouter", secret)
+			if got := opts.PreferredModel; got != "anthropic/claude-opus-4-7" {
+				t.Fatalf("StartOpts.PreferredModel = %q, want anthropic/claude-opus-4-7", got)
+			}
+			if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != "" {
+				t.Fatalf("PI_CODING_AGENT_DIR = %q, want operator Pi auth path untouched", got)
+			}
+			if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
+				t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
+			}
 			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-pi-runtime"), nil
 		}
 
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
-			Name:      "pi-runtime-contract",
+			Name:      "pi-native-model-contract",
 			Workspace: h.workspaceID,
 		})
 		if err != nil {
-			t.Fatalf("Create(pi runtime contract) error = %v", err)
+			t.Fatalf("Create(pi native model contract) error = %v", err)
 		}
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-				t.Fatalf("Stop(pi runtime contract cleanup) error = %v", err)
+				t.Fatalf("Stop(pi native model contract cleanup) error = %v", err)
 			}
 		})
 	})
@@ -304,6 +465,16 @@ func assertProviderRuntimeFileMode(t *testing.T, path string, want os.FileMode) 
 	}
 	if got := info.Mode().Perm(); got != want {
 		t.Fatalf("mode(%q) = %#o, want %#o", path, got, want)
+	}
+}
+
+func assertNoPath(t *testing.T, path string) {
+	t.Helper()
+
+	if _, err := os.Stat(path); err == nil {
+		t.Fatalf("path %q exists, want absent", path)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(%q) error = %v, want not exist", path, err)
 	}
 }
 

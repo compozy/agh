@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -422,6 +423,66 @@ func TestSessionEventsFollowUsesSSE(t *testing.T) {
 	}
 }
 
+func TestSessionEventsJSONLOutput(t *testing.T) {
+	t.Run("Should render one persisted session event per JSONL line", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			sessionEventsFn: func(_ context.Context, id string, query SessionEventQuery) ([]SessionEventRecord, error) {
+				if id != "sess-1" {
+					t.Fatalf("SessionEvents() id = %q, want sess-1", id)
+				}
+				if query.Type != "agent_message" {
+					t.Fatalf("SessionEvents() query.Type = %q, want agent_message", query.Type)
+				}
+				return []SessionEventRecord{
+					{
+						ID:        "evt-1",
+						SessionID: id,
+						Sequence:  1,
+						Type:      "agent_message",
+						Timestamp: fixedTestNow,
+					},
+					{
+						ID:        "evt-2",
+						SessionID: id,
+						Sequence:  2,
+						Type:      "done",
+						Timestamp: fixedTestNow,
+					},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"events",
+			"sess-1",
+			"--type",
+			"agent_message",
+			"-o",
+			"jsonl",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session events jsonl) error = %v", err)
+		}
+
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("jsonl line count = %d, want 2; output=%q", len(lines), stdout)
+		}
+		var decoded SessionEventRecord
+		if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(first session event line) error = %v", err)
+		}
+		if decoded.ID != "evt-1" || decoded.Sequence != 1 {
+			t.Fatalf("decoded first event = %#v, want evt-1 sequence 1", decoded)
+		}
+	})
+}
+
 func TestSessionWaitReturnsImmediatelyForStoppedSession(t *testing.T) {
 	t.Parallel()
 
@@ -654,6 +715,97 @@ func TestSessionPromptRendersReturnedEvents(t *testing.T) {
 	if len(decoded) != 1 || decoded[0].Text != "hello back" {
 		t.Fatalf("decoded = %#v, want one agent event", decoded)
 	}
+}
+
+func TestSessionPromptJSONLOutput(t *testing.T) {
+	t.Run("Should stream prompt events as JSONL without buffering the completed turn", func(t *testing.T) {
+		t.Parallel()
+
+		var streamCalled bool
+		deps := newTestDeps(t, &stubClient{
+			promptSessionFn: func(context.Context, string, string) ([]AgentEventRecord, error) {
+				t.Fatal("PromptSession should not be called for prompt -o jsonl")
+				return nil, nil
+			},
+			streamPromptSessionFn: func(_ context.Context, id string, message string, handler SSEHandler) error {
+				streamCalled = true
+				if id != "sess-1" || message != "hello" {
+					t.Fatalf("StreamPromptSession() = (%q, %q), want (sess-1, hello)", id, message)
+				}
+				events := []SSEEvent{
+					{
+						Data: mustJSON(t, map[string]any{
+							"type":      "start",
+							"messageId": "turn-1",
+						}),
+					},
+					{
+						Data: mustJSON(t, map[string]any{
+							"type": "text-start",
+							"id":   "turn-1-text",
+						}),
+					},
+					{
+						Data: mustJSON(t, map[string]any{
+							"type":  "text-delta",
+							"id":    "turn-1-text",
+							"delta": "hello back",
+						}),
+					},
+					{
+						Data: mustJSON(t, map[string]any{
+							"type": "text-end",
+							"id":   "turn-1-text",
+						}),
+					},
+					{
+						Data: mustJSON(t, map[string]any{
+							"type":         "finish",
+							"finishReason": "stop",
+						}),
+					},
+					{
+						Data: []byte("[DONE]"),
+					},
+				}
+				for _, event := range events {
+					if err := handler(event); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "session", "prompt", "sess-1", "hello", "-o", "jsonl")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session prompt jsonl) error = %v", err)
+		}
+		if !streamCalled {
+			t.Fatal("StreamPromptSession was not called")
+		}
+
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 5 {
+			t.Fatalf("jsonl line count = %d, want 5; output=%q", len(lines), stdout)
+		}
+		partTypes := make([]string, 0, len(lines))
+		for _, line := range lines {
+			var payload map[string]any
+			if err := json.Unmarshal([]byte(line), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(prompt jsonl line) error = %v; line=%s", err, line)
+			}
+			partType, ok := payload["type"].(string)
+			if !ok {
+				t.Fatalf("prompt jsonl line missing type: %#v", payload)
+			}
+			partTypes = append(partTypes, partType)
+		}
+		wantTypes := []string{"start", "text-start", "text-delta", "text-end", "finish"}
+		if !reflect.DeepEqual(partTypes, wantTypes) {
+			t.Fatalf("prompt jsonl part types = %#v, want %#v", partTypes, wantTypes)
+		}
+	})
 }
 
 func TestSessionListBundleRendersHumanAndToon(t *testing.T) {

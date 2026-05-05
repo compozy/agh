@@ -27,6 +27,7 @@ const (
 var (
 	errSettingsServiceUnavailable = errors.New("settings service is not configured")
 	errSettingsRestartUnavailable = errors.New("settings restart controller is not configured")
+	errSettingsUpdateUnavailable  = errors.New("settings update controller is not configured")
 )
 
 // SettingsLogTailEventPayload is the shared SSE payload for daemon log tailing.
@@ -127,6 +128,22 @@ func (h *BaseHandlers) UpdateSettingsObservability(c *gin.Context) {
 // GetSettingsHooksExtensions returns the hooks and extensions settings section.
 func (h *BaseHandlers) GetSettingsHooksExtensions(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionHooksExtensions)
+}
+
+// GetSettingsUpdate returns the current software update status snapshot.
+func (h *BaseHandlers) GetSettingsUpdate(c *gin.Context) {
+	if h.SettingsUpdate == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errSettingsUpdateUnavailable)
+		return
+	}
+
+	status, err := h.SettingsUpdate.GetUpdate(c.Request.Context())
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, SettingsUpdateResponseFromStatus(status))
 }
 
 // UpdateSettingsHooksExtensions persists the hooks and extensions settings section.
@@ -376,13 +393,22 @@ func (h *BaseHandlers) updateSettingsSection(c *gin.Context, req settingspkg.Sec
 		return
 	}
 
-	result, err := h.Settings.UpdateSection(c.Request.Context(), req)
+	result, err := h.Settings.UpdateSection(
+		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, SettingsMutationResultPayloadFromResult(result))
+	payload, err := SettingsSectionMutationResultPayloadFromResult(result)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, payload)
 }
 
 func (h *BaseHandlers) listSettingsCollection(c *gin.Context, collection settingspkg.CollectionName) {
@@ -474,13 +500,22 @@ func (h *BaseHandlers) putSettingsCollectionItem(c *gin.Context, req settingspkg
 		return
 	}
 
-	result, err := h.Settings.PutCollectionItem(c.Request.Context(), req)
+	result, err := h.Settings.PutCollectionItem(
+		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, SettingsMutationResultPayloadFromResult(result))
+	payload, err := SettingsCollectionMutationResultPayloadFromResult(result)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, payload)
 }
 
 func (h *BaseHandlers) deleteSettingsCollectionItem(c *gin.Context, req settingspkg.CollectionItemDeleteRequest) {
@@ -489,13 +524,22 @@ func (h *BaseHandlers) deleteSettingsCollectionItem(c *gin.Context, req settings
 		return
 	}
 
-	result, err := h.Settings.DeleteCollectionItem(c.Request.Context(), req)
+	result, err := h.Settings.DeleteCollectionItem(
+		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, SettingsMutationResultPayloadFromResult(result))
+	payload, err := SettingsCollectionMutationResultPayloadFromResult(result)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, payload)
 }
 
 func parseSettingsSectionRequest(
@@ -506,10 +550,22 @@ func parseSettingsSectionRequest(
 	if err != nil {
 		return settingspkg.SectionRequest{}, err
 	}
+	agentName := strings.TrimSpace(c.Query("agent_name"))
+	if agentName != "" {
+		if section != settingspkg.SectionSkills {
+			return settingspkg.SectionRequest{}, NewSettingsValidationError(
+				errors.New("agent_name is only supported for skills"),
+			)
+		}
+		if err := aghconfig.ValidateAgentName(agentName); err != nil {
+			return settingspkg.SectionRequest{}, NewSettingsValidationError(err)
+		}
+	}
 	return settingspkg.SectionRequest{
 		Section:     section,
 		Scope:       scope,
 		WorkspaceID: workspaceID,
+		AgentName:   agentName,
 	}, nil
 }
 
@@ -746,6 +802,11 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 		RuntimeProvider: strings.TrimSpace(body.Settings.RuntimeProvider),
 		Transport:       strings.TrimSpace(body.Settings.Transport),
 		BaseURL:         strings.TrimSpace(body.Settings.BaseURL),
+		AuthMode:        aghconfig.ProviderAuthMode(strings.TrimSpace(body.Settings.AuthMode)),
+		EnvPolicy:       aghconfig.ProviderEnvPolicy(strings.TrimSpace(body.Settings.EnvPolicy)),
+		HomePolicy:      aghconfig.ProviderHomePolicy(strings.TrimSpace(body.Settings.HomePolicy)),
+		AuthStatusCmd:   strings.TrimSpace(body.Settings.AuthStatusCmd),
+		AuthLoginCmd:    strings.TrimSpace(body.Settings.AuthLoginCmd),
 		CredentialSlots: providerCredentialSlotsFromPayload(body.Settings.CredentialSlots),
 	}
 	return settingspkg.CollectionItemPutRequest{
@@ -764,6 +825,11 @@ func providerSettingsPayloadEmpty(payload contract.SettingsProviderSettingsPaylo
 		strings.TrimSpace(payload.RuntimeProvider) == "" &&
 		strings.TrimSpace(payload.Transport) == "" &&
 		strings.TrimSpace(payload.BaseURL) == "" &&
+		strings.TrimSpace(payload.AuthMode) == "" &&
+		strings.TrimSpace(payload.EnvPolicy) == "" &&
+		strings.TrimSpace(payload.HomePolicy) == "" &&
+		strings.TrimSpace(payload.AuthStatusCmd) == "" &&
+		strings.TrimSpace(payload.AuthLoginCmd) == "" &&
 		len(payload.CredentialSlots) == 0
 }
 

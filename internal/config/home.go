@@ -79,6 +79,24 @@ func ResolveHomePaths() (HomePaths, error) {
 	return resolveHomePaths(processEnvLookup)
 }
 
+// ResolveHomePathsForWorkspace resolves the canonical AGH home layout while
+// honoring AGH_HOME from the supplied workspace .env when the process env omits it.
+func ResolveHomePathsForWorkspace(workspaceRoot string) (HomePaths, error) {
+	workspaceRoot, err := resolveWorkspaceRoot(workspaceRoot)
+	if err != nil {
+		return HomePaths{}, err
+	}
+	lookup := processEnvLookup
+	dotenvLookup, err := loadDotEnvLookup(workspaceRoot)
+	if err != nil {
+		return HomePaths{}, err
+	}
+	if dotenvLookup != nil {
+		lookup = layeredEnvLookup(processEnvLookup, dotenvLookup)
+	}
+	return resolveHomePaths(lookup)
+}
+
 func resolveHomePaths(lookup envLookup) (HomePaths, error) {
 	homeDir, err := resolveHomeDir(lookup)
 	if err != nil {
@@ -164,31 +182,6 @@ func ResolvePath(path string) (string, error) {
 	}
 
 	return absPath, nil
-}
-
-// ResolveUserAgentsSkillsDir resolves the user-level `.agents/skills` directory.
-func ResolveUserAgentsSkillsDir(getenv func(string) string) (string, error) {
-	if getenv != nil {
-		if home := strings.TrimSpace(getenv("HOME")); home != "" {
-			resolvedHome, err := ResolvePath(home)
-			if err != nil {
-				return "", fmt.Errorf("config: resolve HOME for user agent skills: %w", err)
-			}
-			return filepath.Join(resolvedHome, ".agents", "skills"), nil
-		}
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("config: resolve user home for agent skills: %w", err)
-	}
-
-	resolvedHome, err := ResolvePath(home)
-	if err != nil {
-		return "", fmt.Errorf("config: resolve user home for agent skills: %w", err)
-	}
-
-	return filepath.Join(resolvedHome, ".agents", "skills"), nil
 }
 
 func expandUserPath(path string) (string, error) {

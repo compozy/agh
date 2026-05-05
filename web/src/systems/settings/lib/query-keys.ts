@@ -2,6 +2,7 @@ import type {
   SettingsMCPServerListFilter,
   SettingsSectionName,
   SettingsSectionSlug,
+  SettingsSkillsFilter,
 } from "../types";
 
 function normalizeText(value?: string | null): string {
@@ -20,6 +21,13 @@ export const settingsKeys = {
 
   sections: () => [...settingsKeys.all, "section"] as const,
   section: (section: SettingsSectionKey) => [...settingsKeys.sections(), section] as const,
+  skillsSection: (filter: SettingsSkillsFilter = {}) =>
+    [
+      ...settingsKeys.section("skills"),
+      filter.scope ?? "",
+      normalizeText(filter.workspace_id),
+      normalizeText(filter.agent_name),
+    ] as const,
 
   collections: () => [...settingsKeys.all, "collection"] as const,
 
@@ -44,4 +52,6 @@ export const settingsKeys = {
 
   restartRoot: () => [...settingsKeys.all, "restart"] as const,
   restartStatus: (operationId: string) => [...settingsKeys.restartRoot(), operationId] as const,
+
+  updateStatus: () => [...settingsKeys.all, "update"] as const,
 };

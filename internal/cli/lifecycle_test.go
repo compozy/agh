@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,20 +10,78 @@ import (
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghupdate "github.com/pedronauck/agh/internal/update"
 )
+
+type stubUpdateManager struct {
+	checkFn    func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error)
+	applyFn    func(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error)
+	restoreFn  func(aghupdate.AppliedBinary) error
+	finalizeFn func(aghupdate.AppliedBinary) error
+}
+
+func (s stubUpdateManager) Check(
+	ctx context.Context,
+	opts aghupdate.CheckOptions,
+) (aghupdate.State, *aghupdate.Release, error) {
+	if s.checkFn != nil {
+		return s.checkFn(ctx, opts)
+	}
+	return aghupdate.State{}, nil, nil
+}
+
+func (s stubUpdateManager) ApplyRelease(
+	ctx context.Context,
+	release *aghupdate.Release,
+) (aghupdate.AppliedBinary, error) {
+	if s.applyFn != nil {
+		return s.applyFn(ctx, release)
+	}
+	return aghupdate.AppliedBinary{}, nil
+}
+
+func (s stubUpdateManager) Restore(applied aghupdate.AppliedBinary) error {
+	if s.restoreFn != nil {
+		return s.restoreFn(applied)
+	}
+	return nil
+}
+
+func (s stubUpdateManager) Finalize(applied aghupdate.AppliedBinary) error {
+	if s.finalizeFn != nil {
+		return s.finalizeFn(applied)
+	}
+	return nil
+}
 
 func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{})
 	deps.getenv = func(key string) string {
-		if key == managedEnvName {
+		if key == aghupdate.ManagedEnvName {
 			return "homebrew"
 		}
 		return ""
 	}
 	deps.runInstallWizard = func(context.Context, installWizardInput) (installWizardSelection, error) {
 		return installWizardSelection{Provider: "claude", Model: "claude-sonnet-4-6"}, nil
+	}
+	deps.newUpdateManager = func(aghconfig.HomePaths) (updateManager, error) {
+		return stubUpdateManager{
+			checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
+				return aghupdate.State{
+					Managed:        true,
+					InstallMethod:  "homebrew",
+					CurrentVersion: "v1.0.0",
+					LatestVersion:  "v1.1.0",
+					Available:      true,
+					Status:         aghupdate.StatusDeferred,
+					Recommendation: "Use `brew upgrade --cask agh`.",
+					Message:        "AGH is managed by an external package manager; no local update was performed.",
+				}, &aghupdate.Release{Version: "v1.1.0"}, nil
+			},
+		}, nil
 	}
 
 	installOut, _, err := executeRootCommand(t, deps, "install", "-o", "json")
@@ -43,27 +100,13 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("managed update error = %v", err)
 	}
-	var update lifecycleRecord
+	var update updateRecord
 	if err := json.Unmarshal([]byte(updateOut), &update); err != nil {
 		t.Fatalf("json.Unmarshal(update) error = %v", err)
 	}
-	if update.Status != lifecycleStatusDeferred || !update.Managed || !strings.Contains(update.Recommendation, "brew") {
+	if update.Status != string(aghupdate.StatusDeferred) || !update.Managed ||
+		!strings.Contains(update.Recommendation, "brew") {
 		t.Fatalf("managed update record = %#v, want deferred brew recommendation", update)
-	}
-
-	deps.resolveHome = func() (aghconfig.HomePaths, error) {
-		return aghconfig.HomePaths{}, errors.New("broken local home")
-	}
-
-	updateOut, _, err = executeRootCommand(t, deps, "update", "-o", "json")
-	if err != nil {
-		t.Fatalf("managed update with broken local home error = %v", err)
-	}
-	if err := json.Unmarshal([]byte(updateOut), &update); err != nil {
-		t.Fatalf("json.Unmarshal(update with broken home) error = %v", err)
-	}
-	if update.Status != lifecycleStatusDeferred || update.HomeDir != "" {
-		t.Fatalf("managed update with broken local home = %#v, want deferred without home", update)
 	}
 
 	uninstallOut, _, err := executeRootCommand(t, deps, "uninstall", "--purge", "-o", "json")
@@ -151,21 +194,91 @@ func TestUninstallRemovesRuntimeArtifactsIdempotentlyAndRequiresForceForPurge(t 
 	}
 }
 
-func TestUpdateReportsManualPathForUnmanagedBinary(t *testing.T) {
+func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{})
-	out, _, err := executeRootCommand(t, deps, "update", "-o", "json")
-	if err != nil {
-		t.Fatalf("unmanaged update error = %v", err)
+	deps.newUpdateManager = func(aghconfig.HomePaths) (updateManager, error) {
+		return stubUpdateManager{
+			checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
+				return aghupdate.State{
+					Supported:      true,
+					Managed:        false,
+					InstallMethod:  "direct-binary",
+					CurrentVersion: "v1.0.0",
+					LatestVersion:  "v1.1.0",
+					Available:      true,
+					Status:         aghupdate.StatusAvailable,
+					Message:        "A newer stable AGH release is available.",
+				}, &aghupdate.Release{Version: "v1.1.0"}, nil
+			},
+		}, nil
 	}
-	var record lifecycleRecord
+
+	out, _, err := executeRootCommand(t, deps, "update", "--check", "-o", "json")
+	if err != nil {
+		t.Fatalf("update --check error = %v", err)
+	}
+	var record updateRecord
 	if err := json.Unmarshal([]byte(out), &record); err != nil {
 		t.Fatalf("json.Unmarshal(update) error = %v", err)
 	}
-	if record.Status != lifecycleStatusManual || record.Managed ||
-		!strings.Contains(record.Recommendation, "go install") {
-		t.Fatalf("unmanaged update record = %#v, want manual go install recommendation", record)
+	if record.Status != string(aghupdate.StatusAvailable) || record.Managed || record.InstallMethod != "direct-binary" {
+		t.Fatalf("update record = %#v, want available direct-binary update", record)
+	}
+}
+
+func TestUpdateAppliesReleaseAndRestartsDaemonWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{
+		triggerSettingsRestartFn: func(context.Context) (SettingsRestartActionRecord, error) {
+			return SettingsRestartActionRecord{OperationID: "op-123", Status: "pending"}, nil
+		},
+		getSettingsRestartStatusFn: func(context.Context, string) (SettingsRestartStatusRecord, error) {
+			return SettingsRestartStatusRecord{OperationID: "op-123", Status: "ready"}, nil
+		},
+	})
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	writeFile(t, homePaths.DaemonInfo, `{"pid":42,"port":2123,"started_at":"2026-04-03T12:00:00Z"}`)
+	deps.processAlive = func(int) bool { return true }
+	deps.newUpdateManager = func(aghconfig.HomePaths) (updateManager, error) {
+		return stubUpdateManager{
+			checkFn: func(context.Context, aghupdate.CheckOptions) (aghupdate.State, *aghupdate.Release, error) {
+				return aghupdate.State{
+					Supported:      true,
+					Managed:        false,
+					InstallMethod:  "direct-binary",
+					CurrentVersion: "v1.0.0",
+					LatestVersion:  "v1.1.0",
+					Available:      true,
+					Status:         aghupdate.StatusAvailable,
+					Message:        "A newer stable AGH release is available.",
+				}, &aghupdate.Release{Version: "v1.1.0"}, nil
+			},
+			applyFn: func(context.Context, *aghupdate.Release) (aghupdate.AppliedBinary, error) {
+				return aghupdate.AppliedBinary{
+					TargetPath: filepath.Join(t.TempDir(), "agh"),
+					BackupPath: filepath.Join(t.TempDir(), "agh.backup"),
+					Version:    "v1.1.0",
+				}, nil
+			},
+		}, nil
+	}
+
+	out, _, err := executeRootCommand(t, deps, "update", "-o", "json")
+	if err != nil {
+		t.Fatalf("update error = %v", err)
+	}
+	var record updateRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(update) error = %v", err)
+	}
+	if record.Status != string(aghupdate.StatusUpdated) || !record.DaemonRestarted {
+		t.Fatalf("update record = %#v, want updated with daemon restart", record)
 	}
 }
 

@@ -38,9 +38,7 @@ const (
 	transportUDSOverrideProvider = "qa-transport-override"
 )
 
-var errStopAfterUDSApprovalGap = errors.New("stop after documenting UDS approval gap")
-
-func TestUDSTransportApprovalRouteDocumentsNotImplementedGap(t *testing.T) {
+func TestUDSTransportApprovalFlowMatchesHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
@@ -68,17 +66,17 @@ func TestUDSTransportApprovalRouteDocumentsNotImplementedGap(t *testing.T) {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
 
-	attemptedApproval := false
-	_, err = runtimeHarness.PromptSessionHTTPWithEvents(
+	var approvedRequestID string
+	events, err := runtimeHarness.PromptSessionHTTPWithEvents(
 		ctx,
 		session.ID,
 		"request permission",
 		func(record e2etest.SSEEvent) error {
 			payload, ok := e2etest.PermissionPayloadFromSSE(record)
-			if !ok || payload.Decision != "" || attemptedApproval {
+			if !ok || payload.Decision != "" || approvedRequestID != "" {
 				return nil
 			}
-			attemptedApproval = true
+			approvedRequestID = payload.RequestID
 
 			resp := mustUnixRequest(
 				t,
@@ -102,17 +100,31 @@ func TestUDSTransportApprovalRouteDocumentsNotImplementedGap(t *testing.T) {
 			if closeErr != nil {
 				return fmt.Errorf("close UDS approval response body: %w", closeErr)
 			}
-			if err := e2etest.ValidateUDSApprovalNotImplemented(resp.StatusCode, body); err != nil {
+			if err := e2etest.ValidateUDSApprovalResponse(resp.StatusCode, body); err != nil {
 				return err
 			}
-			return errStopAfterUDSApprovalGap
+			return nil
 		},
 	)
-	if err != nil && !errors.Is(err, errStopAfterUDSApprovalGap) {
+	if err != nil {
 		t.Fatalf("PromptSessionHTTPWithEvents() error = %v", err)
 	}
-	if !attemptedApproval {
-		t.Fatal("attemptedApproval = false, want UDS approval attempt while permission request is pending")
+	if approvedRequestID == "" {
+		t.Fatal("approvedRequestID = empty, want pending permission request")
+	}
+
+	payloads := e2etest.PermissionPayloads(events)
+	if got, want := len(payloads), 2; got != want {
+		t.Fatalf("len(permission payloads) = %d, want %d; payloads=%#v", got, want, payloads)
+	}
+	if got, want := payloads[0].RequestID, approvedRequestID; got != want {
+		t.Fatalf("payloads[0].RequestID = %q, want %q", got, want)
+	}
+	if got := payloads[len(payloads)-1].Decision; got != "allow-always" {
+		t.Fatalf("final permission decision = %q, want %q", got, "allow-always")
+	}
+	if !e2etest.RecordsContainTextDelta(events, "allow-always") {
+		t.Fatalf("prompt events = %#v, want allow-always text delta", events)
 	}
 }
 
@@ -660,7 +672,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	var forbidden aghcontract.ErrorPayload
 	decodeHTTPJSON(t, httpPutResp, &forbidden)
 
-	var udsMutation aghcontract.MutationResult
+	var udsMutation aghcontract.SettingsGlobalWorkspaceCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodPut,
@@ -676,7 +688,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	); err != nil {
 		t.Fatalf("UDSJSON(PUT %s) error = %v", putPath, err)
 	}
-	if udsMutation.Scope != aghcontract.SettingsScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
+	if udsMutation.Scope != aghcontract.SettingsWorkspaceScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
 		t.Fatalf("UDS mutation = %#v, want workspace-scoped result", udsMutation)
 	}
 
@@ -689,29 +701,34 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 		nil,
 		nil,
 	)
-	if httpListResp.StatusCode != http.StatusOK {
+	if httpListResp.StatusCode != http.StatusForbidden {
 		body, _ := io.ReadAll(httpListResp.Body)
 		_ = httpListResp.Body.Close()
-		t.Fatalf("HTTP GET settings list status = %d, want %d; body=%s", httpListResp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf(
+			"HTTP GET settings list status = %d, want %d; body=%s",
+			httpListResp.StatusCode,
+			http.StatusForbidden,
+			string(body),
+		)
 	}
-	var httpList aghcontract.SettingsMCPServersResponse
-	decodeHTTPJSON(t, httpListResp, &httpList)
+	var listForbidden aghcontract.ErrorPayload
+	decodeHTTPJSON(t, httpListResp, &listForbidden)
 
 	var udsList aghcontract.SettingsMCPServersResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, listPath, nil, &udsList); err != nil {
 		t.Fatalf("UDSJSON(GET %s) error = %v", listPath, err)
 	}
-	if !reflect.DeepEqual(httpList, udsList) {
-		t.Fatalf("HTTP mcp list = %#v, want UDS parity %#v", httpList, udsList)
+	if !settingsMCPServerPresent(udsList.MCPServers, "server-a") {
+		t.Fatalf("UDS mcp list = %#v, want server-a after UDS mutation", udsList)
 	}
 
 	deletePath := "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=" +
 		url.QueryEscape(workspaceID) + "&target=sidecar"
-	var deleteResult aghcontract.MutationResult
+	var deleteResult aghcontract.SettingsGlobalWorkspaceCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodDelete, deletePath, nil, &deleteResult); err != nil {
 		t.Fatalf("UDSJSON(DELETE %s) error = %v", deletePath, err)
 	}
-	if deleteResult.Scope != aghcontract.SettingsScopeWorkspace || deleteResult.WorkspaceID != workspaceID {
+	if deleteResult.Scope != aghcontract.SettingsWorkspaceScopeWorkspace || deleteResult.WorkspaceID != workspaceID {
 		t.Fatalf("deleteResult = %#v, want workspace-scoped delete result", deleteResult)
 	}
 
@@ -723,24 +740,25 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 		nil,
 		nil,
 	)
-	if httpListResp.StatusCode != http.StatusOK {
+	if httpListResp.StatusCode != http.StatusForbidden {
 		body, _ := io.ReadAll(httpListResp.Body)
 		_ = httpListResp.Body.Close()
-		t.Fatalf("HTTP GET settings list after delete status = %d, want %d; body=%s", httpListResp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf(
+			"HTTP GET settings list after delete status = %d, want %d; body=%s",
+			httpListResp.StatusCode,
+			http.StatusForbidden,
+			string(body),
+		)
 	}
-	var httpListAfterDelete aghcontract.SettingsMCPServersResponse
-	decodeHTTPJSON(t, httpListResp, &httpListAfterDelete)
+	var listAfterDeleteForbidden aghcontract.ErrorPayload
+	decodeHTTPJSON(t, httpListResp, &listAfterDeleteForbidden)
 
 	var udsListAfterDelete aghcontract.SettingsMCPServersResponse
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, listPath, nil, &udsListAfterDelete); err != nil {
 		t.Fatalf("UDSJSON(GET %s after delete) error = %v", listPath, err)
 	}
-	if !reflect.DeepEqual(httpListAfterDelete, udsListAfterDelete) {
-		t.Fatalf(
-			"HTTP mcp list after delete = %#v, want UDS parity %#v",
-			httpListAfterDelete,
-			udsListAfterDelete,
-		)
+	if settingsMCPServerPresent(udsListAfterDelete.MCPServers, "server-a") {
+		t.Fatalf("UDS mcp list after delete = %#v, want server-a removed", udsListAfterDelete)
 	}
 }
 
@@ -776,6 +794,15 @@ func waitForUDSAutomationRun(
 
 func transportSettingsHTTPURL(harness *e2etest.RuntimeHarness, path string) string {
 	return fmt.Sprintf("http://127.0.0.1:%d%s", harness.Config.HTTP.Port, path)
+}
+
+func settingsMCPServerPresent(items []aghcontract.SettingsMCPServerItemPayload, name string) bool {
+	for _, item := range items {
+		if item.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func waitForCLIAutomationRun(

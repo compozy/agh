@@ -39,6 +39,7 @@ const aghEventDataSchema = z
         turn_id: z.string().optional(),
         turn_source: z.string().optional(),
         turn_started_at: z.string().nullable().optional(),
+        deadline_at: z.string().nullable().optional(),
         last_activity_at: z.string().nullable().optional(),
         last_activity_kind: z.string().optional(),
         last_activity_detail: z.string().optional(),
@@ -48,6 +49,7 @@ const aghEventDataSchema = z
         iteration_current: z.number().optional(),
         iteration_max: z.number().optional(),
         idle_seconds: z.number().optional(),
+        elapsed_ms: z.number(),
         elapsed_seconds: z.number().optional(),
       })
       .optional(),

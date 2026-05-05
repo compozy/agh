@@ -31,6 +31,14 @@ type startupPromptSectionProvider interface {
 	) (string, error)
 }
 
+type agentPromptSectionProvider interface {
+	PromptAgentSection(
+		ctx context.Context,
+		agent aghconfig.AgentDef,
+		workspace *workspacepkg.ResolvedWorkspace,
+	) (string, error)
+}
+
 var (
 	_ session.PromptAssembler        = (*ComposedAssembler)(nil)
 	_ session.StartupPromptAssembler = (*ComposedAssembler)(nil)
@@ -252,6 +260,9 @@ func promptSection(
 ) (string, error) {
 	if startupProvider, ok := provider.(startupPromptSectionProvider); ok {
 		return startupProvider.PromptStartupSection(ctx, startup, agent, workspace)
+	}
+	if agentProvider, ok := provider.(agentPromptSectionProvider); ok {
+		return agentProvider.PromptAgentSection(ctx, agent, workspace)
 	}
 	return provider.PromptSection(ctx, workspace)
 }

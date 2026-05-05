@@ -519,6 +519,29 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
 	}
+	senderOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		"net-sender",
+		"--channel",
+		"builders",
+		"--cwd",
+		h.workspace,
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("sender session new --channel error = %v", err)
+	}
+	var sender SessionRecord
+	if err := json.Unmarshal([]byte(senderOut), &sender); err != nil {
+		t.Fatalf("json.Unmarshal(sender session new --channel) error = %v", err)
+	}
 
 	statusOut, _, err := executeRootCommand(t, h.deps, "network", "status", "-o", "json")
 	if err != nil {
@@ -540,8 +563,17 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(peersOut), &peers); err != nil {
 		t.Fatalf("json.Unmarshal(network peers) error = %v", err)
 	}
-	if len(peers) != 1 || peers[0].SessionID == nil || *peers[0].SessionID != created.ID {
-		t.Fatalf("network peers = %#v, want created session peer", peers)
+	peerSessions := make(map[string]struct{}, len(peers))
+	for _, peer := range peers {
+		if peer.SessionID != nil {
+			peerSessions[*peer.SessionID] = struct{}{}
+		}
+	}
+	if _, ok := peerSessions[created.ID]; !ok {
+		t.Fatalf("network peers = %#v, want blocked receiver session peer", peers)
+	}
+	if _, ok := peerSessions[sender.ID]; !ok {
+		t.Fatalf("network peers = %#v, want sender session peer", peers)
 	}
 
 	channelsOut, _, err := executeRootCommand(t, h.deps, "network", "channels", "-o", "json")
@@ -552,8 +584,8 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(channelsOut), &channels); err != nil {
 		t.Fatalf("json.Unmarshal(network channels) error = %v", err)
 	}
-	if len(channels) != 1 || channels[0].Channel != "builders" || channels[0].PeerCount != 1 {
-		t.Fatalf("network channels = %#v, want builders peer_count=1", channels)
+	if len(channels) != 1 || channels[0].Channel != "builders" || channels[0].PeerCount != 2 {
+		t.Fatalf("network channels = %#v, want builders peer_count=2", channels)
 	}
 
 	events, err := h.runner.blockSession(created.ID)
@@ -569,7 +601,7 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 
 	sendOut, _, err := executeRootCommand(t, h.deps,
 		"network", "send",
-		"--session", created.ID,
+		"--session", sender.ID,
 		"--channel", "builders",
 		"--kind", "say",
 		"--body", `{"text":"queued hello"}`,
@@ -1116,11 +1148,11 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		var runs []RunRecord
+		var runs contract.RunsResponse
 		if err := json.Unmarshal([]byte(stdout), &runs); err != nil {
 			return false
 		}
-		return len(runs) > 0
+		return len(runs.Runs) > 0
 	})
 
 	historyHuman, _, err := executeRootCommand(t, h.deps, "automation", "triggers", "history", createdTrigger.ID, "-o", "human")
@@ -1135,11 +1167,11 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("automation triggers history json error = %v", err)
 	}
-	var triggerRuns []RunRecord
+	var triggerRuns contract.RunsResponse
 	if err := json.Unmarshal([]byte(historyJSON), &triggerRuns); err != nil {
 		t.Fatalf("json.Unmarshal(trigger history) error = %v", err)
 	}
-	if len(triggerRuns) == 0 || triggerRuns[0].TriggerID != createdTrigger.ID {
+	if len(triggerRuns.Runs) == 0 || triggerRuns.Runs[0].TriggerID != createdTrigger.ID {
 		t.Fatalf("trigger runs = %#v, want at least one run for trigger %q", triggerRuns, createdTrigger.ID)
 	}
 
@@ -1155,15 +1187,15 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("automation runs json error = %v", err)
 	}
-	var allRuns []RunRecord
+	var allRuns contract.RunsResponse
 	if err := json.Unmarshal([]byte(runsJSON), &allRuns); err != nil {
 		t.Fatalf("json.Unmarshal(automation runs) error = %v", err)
 	}
-	if len(allRuns) == 0 {
+	if len(allRuns.Runs) == 0 {
 		t.Fatal("expected at least one automation run in shared history")
 	}
 	found := false
-	for _, run := range allRuns {
+	for _, run := range allRuns.Runs {
 		if run.TriggerID == createdTrigger.ID {
 			found = true
 			break
@@ -1421,13 +1453,31 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		t.Fatal("expected created task id")
 	}
 
-	enqueueOut := mustExecuteRoot(t, h.deps, "task", "run", "enqueue", created.ID, "--idempotency-key", "idem-1", "--channel", "builders", "-o", "json")
+	enqueueOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"task",
+		"run",
+		"enqueue",
+		created.ID,
+		"--idempotency-key",
+		"idem-1",
+		"--channel",
+		"builders",
+		"--metadata",
+		`{"schema":"agh.harness.detached.v1"}`,
+		"-o",
+		"json",
+	)
 	var enqueued TaskRunRecord
 	if err := json.Unmarshal([]byte(enqueueOut), &enqueued); err != nil {
 		t.Fatalf("json.Unmarshal(task run enqueue) error = %v", err)
 	}
 	if enqueued.Status != taskpkg.TaskRunStatusQueued {
 		t.Fatalf("enqueued run = %#v, want queued", enqueued)
+	}
+	if got, want := string(enqueued.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
+		t.Fatalf("enqueued metadata = %q, want %q", got, want)
 	}
 
 	claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")
@@ -1468,6 +1518,9 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	}
 	if len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusCompleted {
 		t.Fatalf("runs = %#v, want completed run history", runs)
+	}
+	if got, want := string(runs[0].Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
+		t.Fatalf("runs[0].Metadata = %q, want %q", got, want)
 	}
 
 	getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")

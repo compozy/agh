@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,9 +16,10 @@ import (
 )
 
 type wsCache struct {
-	skills     map[string]*Skill
-	snapshots  map[string]filesnap.Snapshot
-	lastAccess time.Time
+	skills        map[string]*Skill
+	snapshots     map[string]filesnap.Snapshot
+	lastAccess    time.Time
+	globalVersion int64
 }
 
 type workspaceLoad struct {
@@ -28,6 +30,11 @@ type workspaceLoad struct {
 type workspaceSkillPath struct {
 	filePath string
 	source   SkillSource
+}
+
+type workspaceSkillRoot struct {
+	dir    string
+	source SkillSource
 }
 
 func (r *Registry) workspaceDisabledSkillsSnapshot(cacheKey string, configured []string) []string {
@@ -70,6 +77,10 @@ func (r *Registry) workspaceLoadFromResolved(
 ) (workspaceLoad, error) {
 	if resolved == nil {
 		return workspaceLoad{}, nil
+	}
+
+	if load, ok, err := workspaceLoadFromRoots(ctx, resolved); ok || err != nil {
+		return load, err
 	}
 
 	load := workspaceLoad{
@@ -116,6 +127,123 @@ func (r *Registry) workspaceLoadFromResolved(
 	}
 
 	return load, nil
+}
+
+func workspaceLoadFromRoots(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+) (workspaceLoad, bool, error) {
+	roots := workspaceSkillRoots(resolved)
+	if len(roots) == 0 {
+		return workspaceLoad{}, false, nil
+	}
+	if !workspaceSkillPathsMatchRoots(resolved.Skills, roots) {
+		return workspaceLoad{}, false, nil
+	}
+
+	load := workspaceLoad{
+		paths:     make([]workspaceSkillPath, 0),
+		snapshots: make(map[string]filesnap.Snapshot),
+	}
+
+	// Load lower-precedence roots first so later overlays preserve the
+	// documented workspace > additional ordering and emit shadow audits.
+	for idx := len(roots) - 1; idx >= 0; idx-- {
+		if err := checkRegistryContext(ctx); err != nil {
+			return workspaceLoad{}, true, fmt.Errorf(
+				"skills: check registry context while loading workspace skill roots: %w",
+				err,
+			)
+		}
+
+		root := roots[idx]
+		paths, dirSnapshots, err := scanDirectoryWithSnapshots(root.dir)
+		if err != nil {
+			return workspaceLoad{}, true, err
+		}
+		maps.Copy(load.snapshots, dirSnapshots)
+		if err := recordSidecarSnapshots(paths, load.snapshots); err != nil {
+			return workspaceLoad{}, true, err
+		}
+		for _, path := range paths {
+			load.paths = append(load.paths, workspaceSkillPath{
+				filePath: path,
+				source:   root.source,
+			})
+		}
+	}
+
+	return load, true, nil
+}
+
+func workspaceSkillRoots(resolved *workspacepkg.ResolvedWorkspace) []workspaceSkillRoot {
+	if resolved == nil {
+		return nil
+	}
+
+	roots := make([]workspaceSkillRoot, 0, len(resolved.AdditionalDirs)+1)
+	if root := strings.TrimSpace(resolved.RootDir); root != "" {
+		roots = append(roots, workspaceSkillRoot{
+			dir:    filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName),
+			source: SourceWorkspace,
+		})
+	}
+	for _, additionalDir := range resolved.AdditionalDirs {
+		if root := strings.TrimSpace(additionalDir); root != "" {
+			roots = append(roots, workspaceSkillRoot{
+				dir:    filepath.Join(root, aghconfig.DirName, aghconfig.SkillsDirName),
+				source: SourceAdditional,
+			})
+		}
+	}
+
+	return roots
+}
+
+func workspaceSkillPathsMatchRoots(
+	paths []workspacepkg.SkillPath,
+	roots []workspaceSkillRoot,
+) bool {
+	for _, path := range paths {
+		loadPath, include, err := workspaceSkillLoadPath(path)
+		if err != nil {
+			return false
+		}
+		if !include {
+			continue
+		}
+		if !workspaceSkillPathMatchesAnyRoot(loadPath.filePath, roots) {
+			return false
+		}
+	}
+	return true
+}
+
+func workspaceSkillPathMatchesAnyRoot(path string, roots []workspaceSkillRoot) bool {
+	for _, root := range roots {
+		if workspaceSkillPathMatchesRoot(path, root.dir) {
+			return true
+		}
+	}
+	return false
+}
+
+func workspaceSkillPathMatchesRoot(path string, root string) bool {
+	trimmedPath := strings.TrimSpace(path)
+	trimmedRoot := strings.TrimSpace(root)
+	if trimmedPath == "" || trimmedRoot == "" {
+		return false
+	}
+
+	rel, err := filepath.Rel(trimmedRoot, trimmedPath)
+	if err != nil {
+		return false
+	}
+	rel = strings.TrimSpace(rel)
+	if rel == "" || rel == "." {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func workspaceCacheKeyPaths(resolved *workspacepkg.ResolvedWorkspace) ([]workspaceSkillPath, bool) {

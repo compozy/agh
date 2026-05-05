@@ -5,13 +5,16 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/sandbox"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/toolruntime"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -71,6 +74,25 @@ type TurnEndNotifier func(sessionID string)
 // PromptInputAugmenter can add bounded daemon-local context before prompt dispatch.
 type PromptInputAugmenter func(ctx context.Context, session *Session, message string) (string, error)
 
+// AgentArtifacts returns an agent definition and optional resource-backed authored-context sidecars.
+type AgentArtifacts struct {
+	Agent               aghconfig.AgentDef
+	ResourceID          string
+	OwnerKind           string
+	OwnerID             string
+	Scope               resources.ResourceScope
+	PackageOwned        bool
+	SoulSourcePath      string
+	SoulBody            string
+	HeartbeatSourcePath string
+	HeartbeatBody       string
+}
+
+// AgentArtifactResolver resolves agent provenance and sidecars when available.
+type AgentArtifactResolver interface {
+	ResolveAgentArtifacts(name string, resolved *workspacepkg.ResolvedWorkspace) (AgentArtifacts, error)
+}
+
 func normalizeTurnSource(source TurnSource) TurnSource {
 	switch TurnSource(strings.TrimSpace(string(source))) {
 	case "", TurnSourceUser:
@@ -98,12 +120,15 @@ type AgentProcess struct {
 	done                <-chan struct{}
 	waitFn              func() error
 	stderrFn            func() string
+	healthStateFn       func() subprocess.HealthState
 	approvePermissionFn func(context.Context, acp.ApproveRequest) error
 	requestPermissionFn func(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error)
 	configureRuntimeFn  func(func() TurnSource)
 	toolHostFn          func() sandbox.ToolHost
 	toolHost            sandbox.ToolHost
 	native              any
+	waitOverrideMu      sync.RWMutex
+	waitErrOverride     error
 }
 
 // AgentProcessOptions defines the exported fields and lifecycle hooks needed to construct an AgentProcess.
@@ -119,6 +144,7 @@ type AgentProcessOptions struct {
 	Done              <-chan struct{}
 	Wait              func() error
 	Stderr            func() string
+	HealthState       func() subprocess.HealthState
 	ApprovePermission func(context.Context, acp.ApproveRequest) error
 	RequestPermission func(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error)
 	ConfigureRuntime  func(func() TurnSource)
@@ -159,6 +185,7 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 		done:                done,
 		waitFn:              waitFn,
 		stderrFn:            stderrFn,
+		healthStateFn:       opts.HealthState,
 		approvePermissionFn: opts.ApprovePermission,
 		requestPermissionFn: opts.RequestPermission,
 		configureRuntimeFn:  opts.ConfigureRuntime,
@@ -174,12 +201,27 @@ func (p *AgentProcess) Done() <-chan struct{} {
 // Wait blocks until the runtime process exits and returns its terminal error state.
 func (p *AgentProcess) Wait() error {
 	<-p.Done()
+	p.waitOverrideMu.RLock()
+	override := p.waitErrOverride
+	p.waitOverrideMu.RUnlock()
+	if override != nil {
+		return override
+	}
 	return p.waitFn()
 }
 
 // Stderr returns any captured stderr output for the runtime process.
 func (p *AgentProcess) Stderr() string {
 	return p.stderrFn()
+}
+
+// HealthState returns the latest runtime health snapshot when the driver
+// exposes subprocess health monitoring.
+func (p *AgentProcess) HealthState() (subprocess.HealthState, bool) {
+	if p == nil || p.healthStateFn == nil {
+		return subprocess.HealthState{}, false
+	}
+	return p.healthStateFn(), true
 }
 
 // ToolHost returns the sandbox-owned tool host when the process exposes one.
@@ -219,23 +261,33 @@ func (p *AgentProcess) configureRuntime(currentTurnSource func() TurnSource) {
 	p.configureRuntimeFn(currentTurnSource)
 }
 
+func (p *AgentProcess) setWaitErrorOverride(err error) {
+	if p == nil {
+		return
+	}
+	p.waitOverrideMu.Lock()
+	defer p.waitOverrideMu.Unlock()
+	p.waitErrOverride = err
+}
+
 func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 	if proc == nil {
 		return nil
 	}
 
 	return &AgentProcess{
-		PID:       proc.PID,
-		AgentName: proc.AgentName,
-		Command:   proc.Command,
-		Args:      append([]string(nil), proc.Args...),
-		Cwd:       proc.Cwd,
-		SessionID: proc.SessionID,
-		Caps:      proc.Caps,
-		StartedAt: proc.StartedAt,
-		done:      proc.Done(),
-		waitFn:    proc.Wait,
-		stderrFn:  proc.Stderr,
+		PID:           proc.PID,
+		AgentName:     proc.AgentName,
+		Command:       proc.Command,
+		Args:          append([]string(nil), proc.Args...),
+		Cwd:           proc.Cwd,
+		SessionID:     proc.SessionID,
+		Caps:          proc.Caps,
+		StartedAt:     proc.StartedAt,
+		done:          proc.Done(),
+		waitFn:        proc.Wait,
+		stderrFn:      proc.Stderr,
+		healthStateFn: proc.HealthState,
 		approvePermissionFn: func(ctx context.Context, req acp.ApproveRequest) error {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -309,6 +361,11 @@ type AgentResolver interface {
 // SkillRegistry resolves the active skill set for a workspace during session start.
 type SkillRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
+	ForAgent(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+	) ([]*skillspkg.Skill, error)
 }
 
 // MCPResolver resolves skill-declared MCP servers into runtime config entries.

@@ -195,6 +195,9 @@ export const sessionEventsFixture: SessionEventPayload[] = [
     type: "message.created",
     workspace_id: primarySessionFixture.workspace_id,
     workspace_path: primarySessionFixture.workspace_path,
+    parent_session_id: primarySessionFixture.lineage?.parent_session_id,
+    root_session_id: primarySessionFixture.lineage?.root_session_id,
+    spawn_depth: primarySessionFixture.lineage?.spawn_depth ?? 0,
   },
   {
     id: "event_002",
@@ -210,6 +213,9 @@ export const sessionEventsFixture: SessionEventPayload[] = [
     type: "tool.called",
     workspace_id: primarySessionFixture.workspace_id,
     workspace_path: primarySessionFixture.workspace_path,
+    parent_session_id: primarySessionFixture.lineage?.parent_session_id,
+    root_session_id: primarySessionFixture.lineage?.root_session_id,
+    spawn_depth: primarySessionFixture.lineage?.spawn_depth ?? 0,
   },
 ];
 

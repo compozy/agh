@@ -236,6 +236,41 @@ func TestDispatchACPAgentHookEventDefaultsAndIgnoresUnsupportedInputs(t *testing
 	)
 }
 
+func TestDispatchACPAgentHookEventSkipsPendingToolCallPreCall(t *testing.T) {
+	t.Parallel()
+
+	got := make(chan hookspkg.ToolPreCallPayload, 1)
+	runtime := &fakeHookRuntime{
+		onToolPreCall: func(_ context.Context, payload hookspkg.ToolPreCallPayload) error {
+			got <- payload
+			return nil
+		},
+	}
+
+	raw := toolEventRaw("tool_call", "", nil)
+	raw["status"] = "pending"
+	dispatchACPAgentHookEvent(
+		testutil.Context(t),
+		nil,
+		runtime,
+		hookspkg.SessionContext{SessionID: "sess-pending"},
+		acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			SessionID:  "acp-session-pending",
+			TurnID:     "turn-pending",
+			ToolCallID: "tool-pending",
+			Raw:        mustMarshalJSON(t, raw),
+		},
+		time.Time{},
+	)
+
+	select {
+	case payload := <-got:
+		t.Fatalf("unexpected pending tool.pre_call payload = %#v", payload)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func TestHookAgentEventHelpersHandlePointerAndAliasInputs(t *testing.T) {
 	t.Parallel()
 

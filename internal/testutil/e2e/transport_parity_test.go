@@ -102,20 +102,28 @@ func TestRuntimeHarnessPromptSessionWithEventsInvokesCallback(t *testing.T) {
 	}
 }
 
-func TestValidateUDSApprovalNotImplementedReportsDocumentedGap(t *testing.T) {
+func TestValidateUDSApprovalResponseChecksApprovedPayload(t *testing.T) {
 	t.Parallel()
 
-	body := []byte(`{"error":"interactive permission approval is not implemented"}`)
-	if err := ValidateUDSApprovalNotImplemented(http.StatusNotImplemented, body); err != nil {
-		t.Fatalf("ValidateUDSApprovalNotImplemented() error = %v", err)
+	body := []byte(`{"status":"approved"}`)
+	if err := ValidateUDSApprovalResponse(http.StatusOK, body); err != nil {
+		t.Fatalf("ValidateUDSApprovalResponse() error = %v", err)
 	}
 
-	err := ValidateUDSApprovalNotImplemented(http.StatusBadGateway, body)
+	err := ValidateUDSApprovalResponse(http.StatusBadGateway, body)
 	if err == nil {
-		t.Fatal("ValidateUDSApprovalNotImplemented() error = nil, want status failure")
+		t.Fatal("ValidateUDSApprovalResponse() error = nil, want status failure")
 	}
-	if !strings.Contains(err.Error(), "want 501") {
-		t.Fatalf("ValidateUDSApprovalNotImplemented() error = %q, want status mismatch", err)
+	if !strings.Contains(err.Error(), "want 200") {
+		t.Fatalf("ValidateUDSApprovalResponse() error = %q, want status mismatch", err)
+	}
+
+	err = ValidateUDSApprovalResponse(http.StatusOK, []byte(`{"status":"pending"}`))
+	if err == nil {
+		t.Fatal("ValidateUDSApprovalResponse(pending) error = nil, want payload failure")
+	}
+	if !strings.Contains(err.Error(), "want approved") {
+		t.Fatalf("ValidateUDSApprovalResponse(pending) error = %q, want payload mismatch", err)
 	}
 }
 

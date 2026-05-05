@@ -97,7 +97,7 @@ None support agent-scoped memory — context that persists across sessions, belo
 Each agent is a self-contained directory:
 
 ```
-.agents/
+.agh/agents/
   code-reviewer/
     AGENT.md                    # Agent definition (frontmatter + prompt)
     capabilities.toml           # Optional local capability catalog sidecar
@@ -128,7 +128,7 @@ In AGH, self-contained agent directories may also include optional runtime sidec
 Agent directories can live in:
 
 - `~/.agh/agents/<name>/` — user-level agents (available everywhere)
-- `<workspace>/.agents/<name>/` — project-level agents (shared via version control)
+- `<workspace>/.agh/agents/<name>/` — project-level agents (shared via version control)
 
 ### 2.2 AGENT.md Format
 
@@ -173,16 +173,16 @@ to understand team preferences and project context.
 
 **Core fields** (existing AgentDef, unchanged):
 
-| Field         | Type        | Required | Description                                          |
-| ------------- | ----------- | -------- | ---------------------------------------------------- |
-| `name`        | string      | Yes      | Agent identifier (lowercase, alphanumeric + hyphens) |
-| `description` | string      | No       | One-line description for discovery and selection     |
-| `provider`    | string      | Yes      | AI provider (claude, openai, gemini, etc.)           |
-| `model`       | string      | No       | Model identifier (defaults to provider's default)    |
-| `command`     | string      | No       | Custom command to spawn the agent subprocess         |
-| `tools`       | []string    | No       | Tool allowlist                                       |
-| `permissions` | string      | No       | Permission mode (plan, auto, default)                |
-| `mcp_servers` | []MCPServer | No       | MCP server declarations                              |
+| Field         | Type        | Required | Description                                       |
+| ------------- | ----------- | -------- | ------------------------------------------------- |
+| `name`        | string      | Yes      | Logical agent name used as the directory name     |
+| `description` | string      | No       | One-line description for discovery and selection  |
+| `provider`    | string      | Yes      | AI provider (claude, openai, gemini, etc.)        |
+| `model`       | string      | No       | Model identifier (defaults to provider's default) |
+| `command`     | string      | No       | Custom command to spawn the agent subprocess      |
+| `tools`       | []string    | No       | Tool allowlist                                    |
+| `permissions` | string      | No       | Permission mode (plan, auto, default)             |
+| `mcp_servers` | []MCPServer | No       | MCP server declarations                           |
 
 **New fields — Skills configuration:**
 
@@ -202,21 +202,23 @@ to understand team preferences and project context.
 
 ### 2.4 Skills Resolution Hierarchy
 
-When the daemon assembles the prompt for a session with a specific agent, skills are resolved in five layers:
+When the daemon assembles the prompt for a session with a specific agent, skills are resolved in six layers:
 
 ```
 1. Bundled skills (go:embed)                         — base, immutable
-2. Global skills (~/.agh/skills/ + ~/.agents/skills/) — user-level
-3. Workspace skills (.agents/skills/ + .agh/skills/)  — project-level
-4. Extra sources (skills.extra_sources paths)         — agent-declared
-5. Agent skills (.agents/<name>/skills/)              — agent-specific, highest precedence
+2. Marketplace skills (~/.agh/skills/ with .agh-meta.json) — installed and managed
+3. User skills (~/.agh/skills/)                           — manual user-level entries
+4. Additional skills (<additional>/.agh/skills/)         — additional roots
+5. Workspace skills (<workspace>/.agh/skills/)           — workspace-level entries
+6. Agent skills (.agh/agents/<name>/skills/)             — agent-specific, highest precedence
 ```
 
 **Override rules:**
 
-- Same-name collision: highest precedence wins (agent skill overrides global skill)
+- Same-name collision: highest precedence wins (agent skill overrides the current winner)
 - `skills.disabled` removes named skills from inherited layers before merge
-- `skills.inherit: false` skips layers 1-3, uses only agent-specific and extra sources
+- `skills.inherit: false` is still draft and rejected by the current runtime
+- `skills.extra_sources` is still draft and rejected by the current runtime
 - Override audit trail logs all shadows for debugging
 
 **Example:** Agent `code-reviewer` has `skills.disabled: [agh-session-guide]` and a local `review-checklist` skill. The effective skill set is: all global/workspace skills minus `agh-session-guide`, plus the agent's `review-checklist` (which would override any global skill with the same name).
@@ -226,7 +228,7 @@ When the daemon assembles the prompt for a session with a specific agent, skills
 ```
 1. Global memory (~/.agh/memory/)                 — user-wide context
 2. Workspace memory (.agh/memory/)                — project context
-3. Agent memory (.agents/<name>/memory/)           — agent-specific, highest precedence
+3. Agent memory (.agh/agents/<name>/memory/)      — agent-specific, highest precedence
 ```
 
 **Merge rules:**
@@ -243,8 +245,8 @@ When the daemon assembles the prompt for a session with a specific agent, skills
 1. Agent generates memory content (via tool call or embedded prompt instruction)
 2. Daemon receives write request with target `scope` (agent | workspace | global)
 3. Default scope comes from `memory.scope` in AGENT.md
-4. File written to `.agents/<name>/memory/<file>.md` (for agent scope)
-5. Index file `.agents/<name>/memory/MEMORY.md` updated automatically
+4. File written to `.agh/agents/<name>/memory/<file>.md` (for agent scope)
+5. Index file `.agh/agents/<name>/memory/MEMORY.md` updated automatically
 
 **Automatic Consolidation.** If `memory.auto_consolidate: true`:
 
@@ -262,10 +264,10 @@ The agent directory is the atomic unit of portability:
 
 ```bash
 # Copy the complete agent (definition + skills + memory)
-cp -r .agents/code-reviewer/ /other/project/.agents/
+cp -r .agh/agents/code-reviewer/ /other/project/.agh/agents/
 
 # Share via version control
-git add .agents/code-reviewer/
+git add .agh/agents/code-reviewer/
 git commit -m "feat: add code-reviewer agent"
 
 # Export/import (future marketplace integration)
@@ -283,7 +285,7 @@ That portability also applies to optional runtime sidecars that belong to the ag
 # Agent management
 agh agent list                            # List available agents (user + workspace)
 agh agent info <name>                     # Show AGENT.md + skills + memories
-agh agent create <name>                   # Scaffold .agents/<name>/ with full structure
+agh agent create <name>                   # Scaffold .agh/agents/<name>/ with full structure
 
 # Agent-scoped skills
 agh agent skills <name>                   # List effective (merged) skills
@@ -354,7 +356,7 @@ func (r *Registry) ForAgent(
     // 1. If inherit=true: collect global skills (bundled + user + marketplace)
     // 2. If inherit=true: collect workspace skills
     // 3. Collect extra_sources skills
-    // 4. Collect .agents/<name>/skills/
+    // 4. Collect .agh/agents/<name>/skills/
     // 5. Apply agentDef.Skills.Disabled (remove named skills)
     // 6. Resolve overrides by precedence (agent > extra > workspace > global)
     // 7. Return final merged list
@@ -372,7 +374,7 @@ func (a *Assembler) ForAgent(
 ) (string, error) {
     // 1. If inherit=true: load global memory index
     // 2. If inherit=true: load workspace memory index
-    // 3. Load .agents/<name>/memory/MEMORY.md
+    // 3. Load .agh/agents/<name>/memory/MEMORY.md
     // 4. Apply shadow rules (agent > workspace > global)
     // 5. Return concatenated context
 }
@@ -385,7 +387,7 @@ func (a *Assembler) ForAgent(
 ### Directory Structure
 
 ```
-.agents/code-reviewer/
+.agh/agents/code-reviewer/
   AGENT.md
   skills/
     review-checklist/

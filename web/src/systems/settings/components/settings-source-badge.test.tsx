@@ -52,6 +52,23 @@ describe("SettingsSourceBadge", () => {
     expect(shadow).toHaveTextContent("BUILTIN");
   });
 
+  it("includes agent identity for agent-scoped file sources", () => {
+    render(
+      <SettingsSourceBadge
+        data-testid="badge"
+        source={{
+          kind: "workspace-agent-file",
+          scope: "agent",
+          agent_name: "reviewer",
+          workspace_id: "ws_alpha",
+        }}
+      />
+    );
+    expect(screen.getByTestId("badge-effective")).toHaveTextContent(
+      "WS-AGENT · reviewer · ws_alpha"
+    );
+  });
+
   it("omits the shadow group when no lower precedence sources are present", () => {
     render(
       <SettingsSourceBadge

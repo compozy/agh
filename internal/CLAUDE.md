@@ -59,6 +59,14 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 - **Identity proof-stripping defense.** In any signed-message processing path (AGH Network v1), an identity in verified format (`nickname@fingerprint`) without valid `proof` MUST classify as `rejected`, not `unverified`.
 - **External-call timeouts.** Outbound HTTP/network calls MUST use a client with an explicit timeout. `http.DefaultClient` is forbidden in production code paths.
 - **Load-time security scan.** Every non-bundled skill is scanned via `internal/skills.VerifyContent` on every load (not just install). Critical findings block; warning findings log; info findings log silently. Bundled skills are exempt because `go:embed` provides immutability.
+- **Provider auth boundary.** Native ACP providers (`auth_mode = native_cli`) use provider-owned
+  CLI login/session state and MUST NOT require AGH-bound API-key `credential_slots`. Bound secrets
+  are legal only under `auth_mode = bound_secret`, where AGH resolves `env:` or
+  `vault:providers/<provider>/<slot>` refs and injects exactly those values. Provider env/home
+  policy is part of this security boundary: `env_policy = filtered` strips secret-shaped daemon
+  variables, `env_policy = isolated` starts from a minimal allowlist, and
+  `home_policy = isolated` points providers at `$AGH_HOME/providers/<provider>` without copying
+  operator credentials.
 
 ## Package Layout
 
@@ -92,6 +100,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 | `internal/network`              | AGH Network channels/peers/wire, NATS profile                                 |
 | `internal/observe`              | Event recording, health metrics, query engine                                 |
 | `internal/procutil`             | Process utilities, process-group signaling, Windows fallback                  |
+| `internal/providerenv`          | Provider env/home isolation helpers shared by session launch and CLI auth     |
 | `internal/registry`             | Skill/agent/capability registry helpers                                       |
 | `internal/resources`            | Resource projector / codec / validate                                         |
 | `internal/retry`                | Retry primitives                                                              |

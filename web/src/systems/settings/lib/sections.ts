@@ -7,8 +7,8 @@ import {
   Puzzle,
   Server,
   SlidersHorizontal,
-  Workflow,
   Wrench,
+  Zap,
 } from "lucide-react";
 
 import type { SettingsSectionDescriptor, SettingsSectionSlug } from "../types";
@@ -22,7 +22,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
   { slug: "mcp-servers", label: "MCP Servers", icon: Server },
   { slug: "memory", label: "Memory", icon: Brain },
   { slug: "skills", label: "Skills", icon: Wrench },
-  { slug: "automation", label: "Automation", icon: Workflow },
+  { slug: "automation", label: "Automation", icon: Zap },
   { slug: "network", label: "Network", icon: Network },
   { slug: "observability", label: "Observability", icon: Activity },
   { slug: "hooks-extensions", label: "Hooks & Extensions", icon: Puzzle },

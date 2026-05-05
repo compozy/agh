@@ -641,10 +641,11 @@ func (b *harnessReentryBridge) evaluateDecision(
 		target:           target,
 		syntheticMessage: buildDetachedHarnessSyntheticMessage(task, run, summary),
 		syntheticMeta: acp.PromptSyntheticMeta{
-			TaskID:    task.ID,
-			TaskRunID: run.ID,
-			Reason:    reason,
-			Summary:   summary,
+			TaskID:         task.ID,
+			TaskRunID:      run.ID,
+			ClaimTokenHash: strings.TrimSpace(run.ClaimTokenHash),
+			Reason:         reason,
+			Summary:        summary,
 		},
 	}
 }
@@ -767,10 +768,11 @@ func (b *harnessReentryBridge) dispatchWake(item harnessSyntheticWake) {
 	eventsCh, promptErr := b.sessions.PromptSynthetic(b.ctx, item.targetSessionID, session.SyntheticPromptOpts{
 		Message: item.syntheticMessage,
 		Metadata: acp.PromptSyntheticMeta{
-			TaskID:    item.syntheticMeta.TaskID,
-			TaskRunID: item.syntheticMeta.TaskRunID,
-			Reason:    item.syntheticMeta.Reason,
-			Summary:   item.syntheticMeta.Summary,
+			TaskID:         item.syntheticMeta.TaskID,
+			TaskRunID:      item.syntheticMeta.TaskRunID,
+			ClaimTokenHash: item.syntheticMeta.ClaimTokenHash,
+			Reason:         item.syntheticMeta.Reason,
+			Summary:        item.syntheticMeta.Summary,
 		},
 	})
 	if promptErr != nil {
@@ -811,6 +813,13 @@ func (b *harnessReentryBridge) dispatchHeartbeatWake(item harnessSyntheticWake) 
 		AgentName:   strings.TrimSpace(item.targetAgentName),
 		SessionID:   strings.TrimSpace(item.targetSessionID),
 		Source:      heartbeat.WakeSourceHarnessReentry,
+		SyntheticCorrelation: heartbeat.WakeSyntheticCorrelation{
+			TaskID:               item.syntheticMeta.TaskID,
+			TaskRunID:            item.syntheticMeta.TaskRunID,
+			WorkflowID:           item.syntheticMeta.WorkflowID,
+			ClaimTokenHash:       item.syntheticMeta.ClaimTokenHash,
+			CoordinatorSessionID: item.syntheticMeta.CoordinatorSessionID,
+		},
 	})
 	if err != nil {
 		b.finalizeRunOutcome(
@@ -866,12 +875,17 @@ func (b *harnessReentryBridge) PromptHeartbeatWake(
 		Message: req.Message,
 		TurnID:  req.TurnID,
 		Metadata: acp.PromptSyntheticMeta{
-			Reason:           heartbeat.SyntheticReasonHeartbeatWake,
-			Summary:          req.Summary,
-			WakeEventID:      req.WakeEventID,
-			PolicySnapshotID: req.PolicySnapshotID,
-			PolicyDigest:     req.PolicyDigest,
-			ConfigDigest:     req.ConfigDigest,
+			TaskID:               req.SyntheticCorrelation.TaskID,
+			TaskRunID:            req.SyntheticCorrelation.TaskRunID,
+			WorkflowID:           req.SyntheticCorrelation.WorkflowID,
+			ClaimTokenHash:       req.SyntheticCorrelation.ClaimTokenHash,
+			CoordinatorSessionID: req.SyntheticCorrelation.CoordinatorSessionID,
+			Reason:               heartbeat.SyntheticReasonHeartbeatWake,
+			Summary:              req.Summary,
+			WakeEventID:          req.WakeEventID,
+			PolicySnapshotID:     req.PolicySnapshotID,
+			PolicyDigest:         req.PolicyDigest,
+			ConfigDigest:         req.ConfigDigest,
 		},
 		SkipIfBusy: true,
 	})
@@ -1097,13 +1111,20 @@ func (b *harnessReentryBridge) writeEventSummaryWithContext(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := b.store.WriteEventSummary(ctx, store.EventSummary{
+	summaryPayload := store.EventSummary{
 		SessionID: targetSessionID,
 		Type:      strings.TrimSpace(eventType),
 		AgentName: targetAgentName,
 		Summary:   strings.TrimSpace(summary),
 		Timestamp: timestamp,
-	}); err != nil {
+	}
+	if b.sessions != nil {
+		info, err := b.sessions.Status(ctx, targetSessionID)
+		if err == nil && info != nil {
+			summaryPayload = harnessEventSummaryWithLineage(summaryPayload, info.Lineage)
+		}
+	}
+	if err := b.store.WriteEventSummary(ctx, summaryPayload); err != nil {
 		b.logger.Warn(
 			"daemon: write detached harness event summary failed",
 			"session_id", targetSessionID,

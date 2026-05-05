@@ -585,7 +585,17 @@ func TestGlobalDBMigrationHelpers(t *testing.T) {
 			t.Fatalf("foreign key table for %s = %q, want sessions_new", table, refTable)
 		}
 	}
-	checkForeignKey("event_summaries_new")
+	checkNoForeignKey := func(table string) {
+		rows, queryErr := tx.QueryContext(testutil.Context(t), `PRAGMA foreign_key_list(`+table+`)`)
+		if queryErr != nil {
+			t.Fatalf("PRAGMA foreign_key_list(%s) error = %v", table, queryErr)
+		}
+		defer func() { _ = rows.Close() }()
+		if rows.Next() {
+			t.Fatalf("foreign_key_list(%s) returned rows, want none", table)
+		}
+	}
+	checkNoForeignKey("event_summaries_new")
 	checkForeignKey("token_stats_new")
 	checkForeignKey("permission_log_new")
 	if err := tx.Rollback(); err != nil {

@@ -28,7 +28,7 @@ for the change you actually want.
 | One skill                           | `SKILL.md`                                                                 | You are defining reusable instructions, optional MCP metadata, or skill-owned hooks.                                                                           |
 | MCP server configuration            | `mcp.json`                                                                 | MCP declarations are easier to manage as JSON sidecars than inline frontmatter.                                                                                |
 | Encrypted AGH-managed secrets       | [Vault](/runtime/core/configuration/vault)                                 | Store write-only `vault:<namespace>/...` values and inspect redacted metadata through CLI, HTTP, UDS, web, or session-scoped views.                            |
-| Provider credentials                | provider settings, `credential_slots`, or environment variables            | Bind API-key providers to `env:` or encrypted `vault:providers/<provider>/<slot>` refs without exposing raw secrets in diagnostics.                            |
+| Provider authentication             | provider settings, native CLI login, `credential_slots`, or Vault          | Let native ACP providers use their own CLI login state, and bind API-key providers to `env:` or encrypted `vault:providers/<provider>/<slot>` refs.            |
 | Filesystem locations and precedence | file-locations reference                                                   | You need to know where AGH looks for agents, skills, sessions, memory, or overlays.                                                                            |
 
 ## Read in this order

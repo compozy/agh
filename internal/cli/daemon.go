@@ -13,6 +13,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	aghlogger "github.com/pedronauck/agh/internal/logger"
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/version"
 	"github.com/spf13/cobra"
@@ -495,7 +496,7 @@ func spawnDetachedDaemonProcess(
 	child, err := procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
 		Binary:  binary,
 		Args:    []string{"daemon", "start", "--foreground", "--" + internalChildFlagName},
-		Sandbox: os.Environ(),
+		Sandbox: aghlogger.WithMirrorToStderrEnv(os.Environ(), false),
 		LogPath: homePaths.LogFile,
 	})
 	if err != nil {

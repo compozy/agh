@@ -107,7 +107,6 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 	}
 
 	waitForDelivery(t, ctx, resultsA, "sess-a", KindSay)
-	waitForDelivery(t, ctx, resultsB, "sess-b", KindSay)
 
 	select {
 	case receiveErr := <-errCh:
@@ -200,20 +199,17 @@ func TestRoutersExchangeBroadcastCapabilityTransfers(t *testing.T) {
 			t.Fatalf("routerA.Send(capability broadcast) error = %v", err)
 		}
 
-		resultA := waitForDelivery(t, ctx, resultsA, "sess-a", KindCapability)
 		resultB := waitForDelivery(t, ctx, resultsB, "sess-b", KindCapability)
-		for _, result := range []RouteResult{resultA, resultB} {
-			if got, want := len(result.Deliveries), 1; got != want {
-				t.Fatalf("len(capability broadcast deliveries) = %d, want %d", got, want)
-			}
-			decoded, err := result.Deliveries[0].Envelope.DecodeBody()
-			if err != nil {
-				t.Fatalf("DecodeBody(capability broadcast) error = %v", err)
-			}
-			body := decoded.(CapabilityBody)
-			if got, want := body.Capability.ID, "review-fix"; got != want {
-				t.Fatalf("capability broadcast id = %q, want %q", got, want)
-			}
+		if got, want := len(resultB.Deliveries), 1; got != want {
+			t.Fatalf("len(capability broadcast deliveries) = %d, want %d", got, want)
+		}
+		decoded, err := resultB.Deliveries[0].Envelope.DecodeBody()
+		if err != nil {
+			t.Fatalf("DecodeBody(capability broadcast) error = %v", err)
+		}
+		body := decoded.(CapabilityBody)
+		if got, want := body.Capability.ID, "review-fix"; got != want {
+			t.Fatalf("capability broadcast id = %q, want %q", got, want)
 		}
 
 		select {

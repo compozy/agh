@@ -49,11 +49,12 @@ type SyntheticWakePrompter interface {
 
 // WakeRequest identifies one advisory Heartbeat wake decision.
 type WakeRequest struct {
-	WorkspaceID string
-	AgentName   string
-	SessionID   string
-	Source      WakeSource
-	DryRun      bool
+	WorkspaceID          string
+	AgentName            string
+	SessionID            string
+	Source               WakeSource
+	DryRun               bool
+	SyntheticCorrelation WakeSyntheticCorrelation
 }
 
 // WakeDecision reports the auditable result of one Heartbeat wake decision.
@@ -68,16 +69,38 @@ type WakeDecision struct {
 	Diagnostics       []Diagnostic
 }
 
+// WakeSyntheticCorrelation carries optional claimed-run lineage for synthetic
+// wake prompts emitted through the heartbeat path.
+type WakeSyntheticCorrelation struct {
+	TaskID               string
+	TaskRunID            string
+	WorkflowID           string
+	ClaimTokenHash       string
+	CoordinatorSessionID string
+}
+
+// Normalize returns a trimmed copy of the wake synthetic correlation fields.
+func (c WakeSyntheticCorrelation) Normalize() WakeSyntheticCorrelation {
+	return WakeSyntheticCorrelation{
+		TaskID:               strings.TrimSpace(c.TaskID),
+		TaskRunID:            strings.TrimSpace(c.TaskRunID),
+		WorkflowID:           strings.TrimSpace(c.WorkflowID),
+		ClaimTokenHash:       strings.TrimSpace(c.ClaimTokenHash),
+		CoordinatorSessionID: strings.TrimSpace(c.CoordinatorSessionID),
+	}
+}
+
 // SyntheticWakePromptRequest carries the prompt input and stable Heartbeat correlation metadata.
 type SyntheticWakePromptRequest struct {
-	SessionID        string
-	Message          string
-	TurnID           string
-	WakeEventID      string
-	PolicySnapshotID string
-	PolicyDigest     string
-	ConfigDigest     string
-	Summary          string
+	SessionID            string
+	Message              string
+	TurnID               string
+	WakeEventID          string
+	PolicySnapshotID     string
+	PolicyDigest         string
+	ConfigDigest         string
+	Summary              string
+	SyntheticCorrelation WakeSyntheticCorrelation
 }
 
 // SyntheticWakePromptResult reports the session prompt turn selected for a sent wake.
@@ -361,14 +384,15 @@ func (s *ManagedWakeService) dispatchWakePrompt(
 		return dryRunDecision(decision), nil
 	}
 	promptResult, promptErr := s.prompter.PromptHeartbeatWake(ctx, SyntheticWakePromptRequest{
-		SessionID:        req.SessionID,
-		Message:          heartbeatWakePrompt(envelope),
-		TurnID:           decision.SyntheticPromptID,
-		WakeEventID:      decision.WakeEventID,
-		PolicySnapshotID: snapshot.ID,
-		PolicyDigest:     snapshot.Digest,
-		ConfigDigest:     snapshot.ConfigDigest,
-		Summary:          envelope.Summary,
+		SessionID:            req.SessionID,
+		Message:              heartbeatWakePrompt(envelope),
+		TurnID:               decision.SyntheticPromptID,
+		WakeEventID:          decision.WakeEventID,
+		PolicySnapshotID:     snapshot.ID,
+		PolicyDigest:         snapshot.Digest,
+		ConfigDigest:         snapshot.ConfigDigest,
+		Summary:              envelope.Summary,
+		SyntheticCorrelation: req.SyntheticCorrelation,
 	})
 	if promptErr != nil {
 		result := WakeResultFailed
@@ -592,11 +616,12 @@ func (s *ManagedWakeService) currentTime() time.Time {
 
 func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 	normalized := WakeRequest{
-		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
-		AgentName:   strings.TrimSpace(req.AgentName),
-		SessionID:   strings.TrimSpace(req.SessionID),
-		Source:      WakeSource(strings.TrimSpace(string(req.Source))),
-		DryRun:      req.DryRun,
+		WorkspaceID:          strings.TrimSpace(req.WorkspaceID),
+		AgentName:            strings.TrimSpace(req.AgentName),
+		SessionID:            strings.TrimSpace(req.SessionID),
+		Source:               WakeSource(strings.TrimSpace(string(req.Source))),
+		DryRun:               req.DryRun,
+		SyntheticCorrelation: req.SyntheticCorrelation.Normalize(),
 	}
 	switch {
 	case normalized.WorkspaceID == "":

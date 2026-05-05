@@ -8,18 +8,24 @@ import {
   settingsNetworkOptions,
   settingsObservabilityOptions,
   settingsSkillsOptions,
+  settingsUpdateOptions,
 } from "../lib/query-options";
+import type { SettingsSkillsFilter } from "../types";
 
 export function useSettingsGeneral() {
   return useQuery(settingsGeneralOptions());
+}
+
+export function useSettingsUpdate() {
+  return useQuery(settingsUpdateOptions());
 }
 
 export function useSettingsMemory() {
   return useQuery(settingsMemoryOptions());
 }
 
-export function useSettingsSkills() {
-  return useQuery(settingsSkillsOptions());
+export function useSettingsSkills(filter: SettingsSkillsFilter = {}) {
+  return useQuery(settingsSkillsOptions(filter));
 }
 
 export function useSettingsAutomation() {

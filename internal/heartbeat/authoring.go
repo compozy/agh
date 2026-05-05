@@ -756,7 +756,7 @@ func (s *ManagedHeartbeatAuthoringService) appendRevision(
 		NewSnapshotID:  newSnapshotID,
 		Body:           body,
 		ActorKind:      actorKind,
-		ActorRef:       actorRef,
+		ActorID:        actorRef,
 		CreatedAt:      s.now(),
 	}
 	revision, err := s.store.AppendHeartbeatRevision(ctx, revision)

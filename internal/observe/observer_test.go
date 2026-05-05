@@ -70,6 +70,11 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 
 	h := newHarness(t)
 	sess := newSession("sess-summary", session.StateActive, h.workspace, h.now)
+	sess.Lineage = &store.SessionLineage{
+		ParentSessionID: "sess-parent",
+		RootSessionID:   "sess-root",
+		SpawnDepth:      1,
+	}
 	h.observer.OnSessionCreated(testutil.Context(t), sess)
 
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
@@ -88,6 +93,11 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 	}
 	if events[0].Summary != "assistant replied with the requested diff" {
 		t.Fatalf("events[0].Summary = %q", events[0].Summary)
+	}
+	if events[0].ParentSessionID != "sess-parent" ||
+		events[0].RootSessionID != "sess-root" ||
+		events[0].SpawnDepth != 1 {
+		t.Fatalf("events[0] lineage = %#v", events[0])
 	}
 }
 
@@ -210,7 +220,7 @@ func TestObserverSessionSnapshotRequiresContext(t *testing.T) {
 		{
 			name: "Should panic when building an observed session snapshot with nil context",
 			call: func(observer *Observer) {
-				observer.observedSessionSnapshot(nilContext(), "sess-nil-context", "coder", observerWorkspaceID)
+				observer.observedSessionSnapshot(nilContext(), "sess-nil-context", "coder", observerWorkspaceID, nil)
 			},
 		},
 	}

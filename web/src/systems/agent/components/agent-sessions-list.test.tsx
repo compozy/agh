@@ -48,6 +48,7 @@ describe("AgentSessionsList", () => {
         id: "sess_one",
         updated_at: "2026-04-17T18:10:30Z",
         activity: {
+          elapsed_ms: 60_000,
           elapsed_seconds: 60,
           idle_seconds: 0,
           iteration_current: 1,
@@ -59,6 +60,7 @@ describe("AgentSessionsList", () => {
         id: "sess_two",
         updated_at: "2026-04-17T18:10:30Z",
         activity: {
+          elapsed_ms: 60_000,
           elapsed_seconds: 60,
           idle_seconds: 0,
           iteration_current: 1,
@@ -91,6 +93,7 @@ describe("AgentSessionsList", () => {
       makeSession({
         id: "sess_zero_duration",
         activity: {
+          elapsed_ms: 0,
           elapsed_seconds: 0,
           idle_seconds: 0,
           iteration_current: 0,

@@ -210,6 +210,7 @@ type ObserveEventsParams struct {
 // SkillsListParams filters skills by workspace scope.
 type SkillsListParams struct {
 	Workspace string `json:"workspace,omitempty"`
+	ForAgent  string `json:"for_agent,omitempty"`
 }
 
 // AgentSoulGetParams identifies one workspace-visible Soul read model.

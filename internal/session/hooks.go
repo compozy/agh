@@ -81,6 +81,13 @@ type ConversationHooks interface {
 	DispatchMessageEnd(context.Context, hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error)
 }
 
+// ToolHooks groups provider-native tool execution hook dispatch.
+type ToolHooks interface {
+	DispatchToolPreCall(context.Context, hookspkg.ToolPreCallPayload) (hookspkg.ToolPreCallPayload, error)
+	DispatchToolPostCall(context.Context, hookspkg.ToolPostCallPayload) (hookspkg.ToolPostCallPayload, error)
+	DispatchToolPostError(context.Context, hookspkg.ToolPostErrorPayload) (hookspkg.ToolPostErrorPayload, error)
+}
+
 // CompactionHooks groups context compaction hook dispatch.
 type CompactionHooks interface {
 	DispatchContextPreCompact(
@@ -128,6 +135,7 @@ type HookSet struct {
 	Events          EventHooks
 	Agent           AgentHooks
 	Conversation    ConversationHooks
+	Tools           ToolHooks
 	Compaction      CompactionHooks
 	Spawn           SpawnHooks
 	AuthoredContext AuthoredContextHooks
@@ -139,6 +147,7 @@ var _ PromptHooks = noopPromptHooks{}
 var _ EventHooks = noopEventHooks{}
 var _ AgentHooks = noopAgentHooks{}
 var _ ConversationHooks = noopConversationHooks{}
+var _ ToolHooks = noopToolHooks{}
 var _ CompactionHooks = noopCompactionHooks{}
 var _ SpawnHooks = noopSpawnHooks{}
 var _ AuthoredContextHooks = noopAuthoredContextHooks{}
@@ -195,6 +204,13 @@ func (h HookSet) conversation() ConversationHooks {
 		return h.Conversation
 	}
 	return noopConversationHooks{}
+}
+
+func (h HookSet) tools() ToolHooks {
+	if h.Tools != nil {
+		return h.Tools
+	}
+	return noopToolHooks{}
 }
 
 func (h HookSet) compaction() CompactionHooks {
@@ -395,6 +411,29 @@ func (noopConversationHooks) DispatchMessageEnd(
 	_ context.Context,
 	payload hookspkg.MessageEndPayload,
 ) (hookspkg.MessageEndPayload, error) {
+	return payload, nil
+}
+
+type noopToolHooks struct{}
+
+func (noopToolHooks) DispatchToolPreCall(
+	_ context.Context,
+	payload hookspkg.ToolPreCallPayload,
+) (hookspkg.ToolPreCallPayload, error) {
+	return payload, nil
+}
+
+func (noopToolHooks) DispatchToolPostCall(
+	_ context.Context,
+	payload hookspkg.ToolPostCallPayload,
+) (hookspkg.ToolPostCallPayload, error) {
+	return payload, nil
+}
+
+func (noopToolHooks) DispatchToolPostError(
+	_ context.Context,
+	payload hookspkg.ToolPostErrorPayload,
+) (hookspkg.ToolPostErrorPayload, error) {
 	return payload, nil
 }
 

@@ -33,7 +33,7 @@ func migrateAgentSoulSnapshots(ctx context.Context, tx *sql.Tx) error {
 			body             TEXT NOT NULL DEFAULT '',
 			diagnostics_json TEXT NOT NULL DEFAULT '[]',
 			actor_kind       TEXT NOT NULL DEFAULT '',
-			actor_ref        TEXT NOT NULL DEFAULT '',
+			actor_id         TEXT NOT NULL DEFAULT '',
 			origin_kind      TEXT NOT NULL DEFAULT '',
 			origin_ref       TEXT NOT NULL DEFAULT '',
 			created_at       TEXT NOT NULL

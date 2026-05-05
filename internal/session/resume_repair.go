@@ -123,7 +123,13 @@ func RepairLegacyProvider(
 		return store.SessionMeta{}, fmt.Errorf("session: repair provider for %q: %w", strings.TrimSpace(meta.ID), err)
 	}
 
-	resolved, err := resolveWorkspaceSessionAgent(meta.AgentName, "", &resolvedWorkspace, opts.AgentResolver)
+	resolved, err := resolveWorkspaceSessionAgentForType(
+		meta.AgentName,
+		"",
+		normalizeSessionType(Type(meta.SessionType)),
+		&resolvedWorkspace,
+		opts.AgentResolver,
+	)
 	if err != nil {
 		logger.Warn(
 			"session.resume.legacy_provider_repair_failed",
@@ -230,7 +236,12 @@ func (m *Manager) validateInfrastructure(ctx context.Context, meta store.Session
 				})
 			}
 
-			if agentErr := m.validateResumeAgent(meta.AgentName, meta.Provider, &resolvedWorkspace); agentErr != nil {
+			if agentErr := m.validateResumeAgent(
+				meta.AgentName,
+				meta.Provider,
+				normalizeSessionType(Type(meta.SessionType)),
+				&resolvedWorkspace,
+			); agentErr != nil {
 				errs = append(errs, resumeValidationError{
 					check: resumeValidationCheckAgent,
 					err: fmt.Errorf(
@@ -274,9 +285,20 @@ func validateWorkspaceRoot(path string) error {
 func (m *Manager) validateResumeAgent(
 	agentName string,
 	provider string,
+	sessionType Type,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 ) error {
-	if _, err := m.resolveWorkspaceSessionAgent(agentName, provider, resolvedWorkspace); err != nil {
+	var resolver AgentResolver
+	if m != nil {
+		resolver = m.agentResolver
+	}
+	if _, err := resolveWorkspaceSessionAgentForType(
+		agentName,
+		provider,
+		sessionType,
+		resolvedWorkspace,
+		resolver,
+	); err != nil {
 		return err
 	}
 	return nil

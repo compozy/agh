@@ -658,13 +658,17 @@ func writeTransportProviderOverrideConfig(
 		}
 		tree.SetPath(append(providerPath, "command"), strings.TrimSpace(command))
 		tree.SetPath(append(providerPath, "default_model"), "transport-override-model")
-		tree.SetPath(append(providerPath, "credential_slots"), []map[string]any{{
+		credentialSlot, err := tomltree.TreeFromMap(map[string]any{
 			"name":       "api_key",
 			"target_env": "TRANSPORT_OVERRIDE_API_KEY",
 			"secret_ref": "env:TRANSPORT_OVERRIDE_API_KEY",
 			"kind":       "api_key",
 			"required":   false,
-		}})
+		})
+		if err != nil {
+			t.Fatalf("TreeFromMap(credential slot) error = %v", err)
+		}
+		tree.SetPath(append(providerPath, "credential_slots"), []*tomltree.Tree{credentialSlot})
 	} else {
 		if tree.GetPath(providerPath) != nil {
 			if err := tree.DeletePath(providerPath); err != nil {

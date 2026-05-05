@@ -492,7 +492,7 @@ Remember auth migration details and session handling.
 		discardLogger(),
 		resolver,
 		nil,
-		defaultPromptInputAugmenterDescriptors(memory.NewRecallAugmenter(store))...,
+		defaultPromptInputAugmenterDescriptors(memory.NewRecallAugmenter(store), nil)...,
 	)
 	if err != nil {
 		t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)

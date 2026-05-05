@@ -26,6 +26,7 @@ import (
 	"github.com/pedronauck/agh/internal/skills/bundled"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
+	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
 	"github.com/pedronauck/agh/internal/toolruntime"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -671,6 +672,59 @@ func TestResumeMissingACPStateFallbackPreservesRecoveredCrashClassification(t *t
 	}
 }
 
+func TestResumeMissingACPStateFallbackLogsAtInfoLevel(t *testing.T) {
+	t.Parallel()
+
+	logs := newCaptureLogHandler()
+	h := newHarness(t, WithLogger(slog.New(logs)))
+	session := createSession(t, h)
+	originalACP := session.Info().ACPSessionID
+
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+		if opts.ResumeSessionID != "" {
+			return nil, fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				acp.ErrLoadSessionFailed,
+				opts.ResumeSessionID,
+				opts.AgentName,
+				&acpsdk.RequestError{
+					Code:    -32002,
+					Message: "Resource not found: " + opts.ResumeSessionID,
+				},
+			)
+		}
+		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
+		t.Fatalf("first resume start ResumeSessionID = %q, want %q", got, originalACP)
+	}
+
+	record, ok := logs.FindByMessage("session.resume.load_session_missing_fallback")
+	if !ok {
+		t.Fatalf("missing load_session_missing_fallback log: %#v", logs.Records())
+	}
+	if got, want := record.Level, slog.LevelInfo; got != want {
+		t.Fatalf("fallback log level = %v, want %v", got, want)
+	}
+	assertCapturedLogAttr(t, record, "session_id", session.ID)
+	assertCapturedLogAttr(t, record, "agent_name", "coder")
+	assertCapturedLogAttr(t, record, "provider", "claude")
+	assertCapturedLogAttr(t, record, "phase", "resume")
+}
+
 func TestResumeFailureRestoresStoppedMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -921,6 +975,7 @@ func TestPumpPromptReturnsWhenContextIsCanceledWhileWaitingForSource(t *testing.
 			nil,
 			out,
 			nil,
+			nil,
 		)
 	}()
 
@@ -967,6 +1022,7 @@ func TestPumpPromptDrainsRuntimeEventsAfterTurnDone(t *testing.T) {
 			runtimeEvents,
 			out,
 			nil,
+			nil,
 		)
 	}()
 
@@ -988,6 +1044,44 @@ func TestPumpPromptDrainsRuntimeEventsAfterTurnDone(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("pumpPrompt() did not return after draining runtime events")
 	}
+}
+
+func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should prefer a ready runtime event over a ready source event", func(t *testing.T) {
+		t.Parallel()
+
+		source := make(chan acp.AgentEvent, 1)
+		runtimeEvents := make(chan acp.AgentEvent, 1)
+		loop := &promptPumpLoopState{source: source, runtime: runtimeEvents}
+
+		source <- acp.AgentEvent{Type: acp.EventTypeError, TurnID: "turn-runtime-priority"}
+		runtimeEvents <- acp.AgentEvent{
+			Type:   acp.EventTypeRuntimeWarning,
+			TurnID: "turn-runtime-priority",
+		}
+
+		event, runtimeEvent, ok := nextPromptPumpEvent(testutil.Context(t), loop)
+		if !ok {
+			t.Fatal("nextPromptPumpEvent() ok = false, want true")
+		}
+		if !runtimeEvent {
+			t.Fatal("nextPromptPumpEvent() runtimeEvent = false, want true")
+		}
+		if got, want := event.Type, acp.EventTypeRuntimeWarning; got != want {
+			t.Fatalf("nextPromptPumpEvent() type = %q, want %q", got, want)
+		}
+
+		select {
+		case remaining := <-source:
+			if got, want := remaining.Type, acp.EventTypeError; got != want {
+				t.Fatalf("remaining source event type = %q, want %q", got, want)
+			}
+		default:
+			t.Fatal("source event drained unexpectedly")
+		}
+	})
 }
 
 func receivePromptEvent(t *testing.T, events <-chan acp.AgentEvent) acp.AgentEvent {
@@ -1062,6 +1156,221 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	}
 	if got := h.notifier.eventCount(session.ID); got != 3 {
 		t.Fatalf("notifier events = %d, want 3", got)
+	}
+}
+
+func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, WithSessionSupervision(aghconfig.SessionSupervisionConfig{
+		ActivityHeartbeatInterval: time.Hour,
+		ProgressNotifyInterval:    0,
+		InactivityWarningAfter:    0,
+		InactivityTimeout:         0,
+		TimeoutCancelGrace:        200 * time.Millisecond,
+		PromptDeadline:            20 * time.Millisecond,
+	}))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	source := make(chan acp.AgentEvent, 1)
+	var promptTurnID string
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		promptTurnID = req.TurnID
+		return source, nil
+	}
+	h.driver.cancelHook = func(proc *fakeProcess) error {
+		source <- acp.AgentEvent{
+			Type:      acp.EventTypeError,
+			SessionID: proc.handle.SessionID,
+			TurnID:    promptTurnID,
+			Timestamp: time.Now().UTC(),
+			Error:     `{"code":-32603,"message":"Internal error","data":{"error":"context deadline exceeded"}}`,
+		}
+		close(source)
+		return nil
+	}
+
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "long running")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	events := collectEvents(t, eventsCh)
+	if got, want := len(events), 2; got != want {
+		t.Fatalf("Prompt() events = %d, want %d", got, want)
+	}
+	if got, want := events[0].Type, acp.EventTypeRuntimeWarning; got != want {
+		t.Fatalf("Prompt() first event type = %q, want %q", got, want)
+	}
+	if got, want := events[1].Type, acp.EventTypeError; got != want {
+		t.Fatalf("Prompt() second event type = %q, want %q", got, want)
+	}
+	if events[0].Runtime == nil || events[0].Runtime.DeadlineAt == nil {
+		t.Fatalf("Prompt() first runtime = %#v, want deadline payload", events[0].Runtime)
+	}
+	if got := h.driver.cancelCalls; got != 1 {
+		t.Fatalf("driver cancel calls = %d, want 1", got)
+	}
+	if got := h.driver.stopCalls; got != 0 {
+		t.Fatalf("driver stop calls = %d, want 0", got)
+	}
+}
+
+func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	originalACP := session.Info().ACPSessionID
+	t.Cleanup(func() {
+		if _, ok := h.manager.Get(session.ID); ok {
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		}
+	})
+
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		events := make(chan acp.AgentEvent, 1)
+		go func() {
+			defer close(events)
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeError,
+				SessionID: originalACP,
+				TurnID:    req.TurnID,
+				Timestamp: time.Now().UTC(),
+				Error:     `{"code":-32603,"message":"Internal error: The Claude Agent process exited unexpectedly. Please start a new session."}`,
+				Failure: &store.SessionFailure{
+					Kind:    store.FailureProcess,
+					Summary: `{"code":-32603,"message":"Internal error: The Claude Agent process exited unexpectedly. Please start a new session."}`,
+				},
+			}
+		}()
+		return events, nil
+	}
+
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	events := collectEvents(t, eventsCh)
+	if got, want := len(events), 1; got != want {
+		t.Fatalf("Prompt() events = %d, want %d", got, want)
+	}
+	if got, want := events[0].Type, acp.EventTypeError; got != want {
+		t.Fatalf("Prompt() first event type = %q, want %q", got, want)
+	}
+	if events[0].Failure == nil || events[0].Failure.Kind != store.FailureProcess {
+		t.Fatalf("Prompt() failure = %#v, want process_exit", events[0].Failure)
+	}
+
+	waitForCondition(t, "session stopped after fatal prompt failure", func() bool {
+		_, ok := h.manager.Get(session.ID)
+		return !ok && h.notifier.stoppedCount() == 1
+	})
+
+	if got := h.driver.stopCalls; got != 1 {
+		t.Fatalf("driver stop calls = %d, want 1", got)
+	}
+
+	meta := readMeta(t, session.MetaPath())
+	if got := meta.State; got != string(StateStopped) {
+		t.Fatalf("meta state = %q, want %q", got, StateStopped)
+	}
+	if meta.StopReason == nil || *meta.StopReason != store.StopAgentCrashed {
+		t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopAgentCrashed)
+	}
+	if meta.Failure == nil || meta.Failure.Kind != store.FailureProcess {
+		t.Fatalf("meta.Failure = %#v, want process_exit", meta.Failure)
+	}
+
+	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+		if opts.ResumeSessionID != "" {
+			return nil, fmt.Errorf(
+				"%w: load session %q for %q: %w",
+				acp.ErrLoadSessionFailed,
+				opts.ResumeSessionID,
+				opts.AgentName,
+				&acpsdk.RequestError{
+					Code:    -32002,
+					Message: "Resource not found: " + opts.ResumeSessionID,
+				},
+			)
+		}
+		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+	})
+
+	if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
+		t.Fatalf("first resume start ResumeSessionID = %q, want %q", got, originalACP)
+	}
+	if got := h.driver.startCalls[2].ResumeSessionID; got != "" {
+		t.Fatalf("fallback resume start ResumeSessionID = %q, want empty", got)
+	}
+	if got := resumed.Info().ACPSessionID; got == "" || got == originalACP {
+		t.Fatalf("resumed ACPSessionID = %q, want fresh ACP session id distinct from %q", got, originalACP)
+	}
+}
+
+func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		if _, ok := h.manager.Get(session.ID); ok {
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		}
+	})
+
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		events := make(chan acp.AgentEvent, 1)
+		go func() {
+			defer close(events)
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeError,
+				SessionID: session.Info().ACPSessionID,
+				TurnID:    req.TurnID,
+				Timestamp: time.Now().UTC(),
+				Error:     `{"code":-32603,"message":"Internal error","data":{"details":"Tool invocation failed"}}`,
+				Failure: &store.SessionFailure{
+					Kind:    store.FailurePrompt,
+					Summary: `{"code":-32603,"message":"Internal error","data":{"details":"Tool invocation failed"}}`,
+				},
+			}
+		}()
+		return events, nil
+	}
+
+	eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	events := collectEvents(t, eventsCh)
+	if got, want := len(events), 1; got != want {
+		t.Fatalf("Prompt() events = %d, want %d", got, want)
+	}
+
+	if _, ok := h.manager.Get(session.ID); !ok {
+		t.Fatal("session removed after generic prompt failure, want still active")
+	}
+	if got := h.driver.stopCalls; got != 0 {
+		t.Fatalf("driver stop calls = %d, want 0", got)
+	}
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume(active) error = %v", err)
+	}
+	if resumed != session {
+		t.Fatalf("Resume(active) returned %p, want %p", resumed, session)
 	}
 }
 
@@ -1237,6 +1546,100 @@ func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	}
 	if !strings.Contains(storedBeforePrompt[0].Content, `"text":"remember me"`) {
 		t.Fatalf("stored user_message content = %s", storedBeforePrompt[0].Content)
+	}
+}
+
+func TestPromptRejectsConcurrentUserPromptWithoutPersistingSecondInput(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
+	})
+
+	firstPromptEntered := make(chan struct{})
+	releaseFirstPrompt := make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() {
+		releaseOnce.Do(func() {
+			close(releaseFirstPrompt)
+		})
+	})
+
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		events := make(chan acp.AgentEvent)
+		go func() {
+			defer close(events)
+			if req.TurnID != "turn-1" {
+				return
+			}
+
+			close(firstPromptEntered)
+			<-releaseFirstPrompt
+
+			ts := time.Now().UTC()
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				TurnID:    req.TurnID,
+				Timestamp: ts,
+				Text:      "first prompt complete",
+			}
+			events <- acp.AgentEvent{
+				Type:       acp.EventTypeDone,
+				TurnID:     req.TurnID,
+				Timestamp:  ts,
+				StopReason: "end_turn",
+			}
+		}()
+		return events, nil
+	}
+
+	firstEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "first prompt")
+	if err != nil {
+		t.Fatalf("Prompt(first) error = %v", err)
+	}
+	<-firstPromptEntered
+
+	_, err = h.manager.Prompt(testutil.Context(t), session.ID, "second prompt")
+	if !errors.Is(err, ErrPromptInProgress) {
+		t.Fatalf("Prompt(second) error = %v, want ErrPromptInProgress", err)
+	}
+	if got, want := len(h.driver.promptCalls), 1; got != want {
+		t.Fatalf("len(promptCalls) while first prompt active = %d, want %d", got, want)
+	}
+
+	storedWhileBusy, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query(while busy) error = %v", err)
+	}
+	if got, want := countEventType(storedWhileBusy, acp.EventTypeUserMessage), 1; got != want {
+		t.Fatalf("countEventType(user_message) while busy = %d, want %d", got, want)
+	}
+
+	releaseOnce.Do(func() {
+		close(releaseFirstPrompt)
+	})
+	_ = collectEvents(t, firstEvents)
+
+	storedAfterRelease, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Query(after release) error = %v", err)
+	}
+	if got, want := countEventType(storedAfterRelease, acp.EventTypeUserMessage), 1; got != want {
+		t.Fatalf("countEventType(user_message) after release = %d, want %d", got, want)
+	}
+
+	thirdEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "third prompt")
+	if err != nil {
+		t.Fatalf("Prompt(third) error = %v", err)
+	}
+	_ = collectEvents(t, thirdEvents)
+
+	if got, want := len(h.driver.promptCalls), 2; got != want {
+		t.Fatalf("len(promptCalls) after recovery = %d, want %d", got, want)
 	}
 }
 
@@ -1520,10 +1923,12 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	eventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
 		Message: "synthetic wake-up",
 		Metadata: acp.PromptSyntheticMeta{
-			TaskID:    "task-1",
-			TaskRunID: "run-1",
-			Reason:    "task_run_completed",
-			Summary:   "background work finished",
+			TaskID:               "task-1",
+			TaskRunID:            "run-1",
+			ClaimTokenHash:       "sha256:claim-1",
+			CoordinatorSessionID: "sess-coordinator-1",
+			Reason:               "task_run_completed",
+			Summary:              "background work finished",
 		},
 	})
 	if err != nil {
@@ -1542,6 +1947,9 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	}
 	if got, want := h.driver.promptCalls[0].Meta.Synthetic.TaskRunID, "run-1"; got != want {
 		t.Fatalf("promptCalls[0].Meta.Synthetic.TaskRunID = %q, want %q", got, want)
+	}
+	if got, want := h.driver.promptCalls[0].Meta.Synthetic.ClaimTokenHash, "sha256:claim-1"; got != want {
+		t.Fatalf("promptCalls[0].Meta.Synthetic.ClaimTokenHash = %q, want %q", got, want)
 	}
 
 	stored, err := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
@@ -1577,6 +1985,19 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	}
 	if got, want := syntheticPayload["summary"], "background work finished"; got != want {
 		t.Fatalf("stored synthetic summary = %v, want %q", got, want)
+	}
+	notified := h.notifier.eventsForSession(session.ID)
+	if len(notified) == 0 {
+		t.Fatal("notified events = 0, want synthetic observe notification")
+	}
+	if got, want := notified[0].SchedulerReason, "task_run_completed"; got != want {
+		t.Fatalf("notified[0].SchedulerReason = %q, want %q", got, want)
+	}
+	if got, want := notified[0].ClaimTokenHash, "sha256:claim-1"; got != want {
+		t.Fatalf("notified[0].ClaimTokenHash = %q, want %q", got, want)
+	}
+	if got, want := notified[0].CoordinatorSessionID, "sess-coordinator-1"; got != want {
+		t.Fatalf("notified[0].CoordinatorSessionID = %q, want %q", got, want)
 	}
 }
 
@@ -2356,6 +2777,49 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	}
 	if releases := hosted.releaseSessionIDs(); !slices.Contains(releases, session.ID) {
 		t.Fatalf("hosted releases = %#v, want released session %q", releases, session.ID)
+	}
+}
+
+func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{
+			ID:      h.workspaceID,
+			RootDir: h.workspace,
+			Name:    h.workspaceName,
+		},
+		Config: h.cfg,
+		Agents: []aghconfig.AgentDef{{
+			Name:     "coder",
+			Provider: "openclaw",
+			Prompt:   "You are helpful.",
+		}},
+	})
+	hosted := &recordingHostedMCPLauncher{
+		server: aghconfig.MCPServer{
+			Name:      "agh-hosted-tools",
+			Transport: aghconfig.MCPServerTransportStdio,
+			Command:   "/bin/agh",
+		},
+	}
+	h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted))
+
+	session := createSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	got := h.driver.startCalls[0]
+	if got.Command != "openclaw acp" {
+		t.Fatalf("start command = %q, want openclaw acp", got.Command)
+	}
+	if len(got.MCPServers) != 0 {
+		t.Fatalf("start MCPServers = %#v, want none for provider without session MCP support", got.MCPServers)
+	}
+	if requests := hosted.launchRequests(); len(requests) != 0 {
+		t.Fatalf("hosted launch requests = %#v, want none", requests)
 	}
 }
 
@@ -3236,6 +3700,12 @@ func (n *fakeNotifier) eventCount(sessionID string) int {
 	return len(n.events[sessionID])
 }
 
+func (n *fakeNotifier) eventsForSession(sessionID string) []acp.AgentEvent {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]acp.AgentEvent(nil), n.events[sessionID]...)
+}
+
 func (n *fakeNotifier) notificationOrder() []string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -3470,6 +3940,14 @@ func (r *fakeSkillRegistry) ForWorkspace(
 
 	skills := r.skillsByWorkspace[resolved.ID]
 	return append([]*skillspkg.Skill(nil), skills...), nil
+}
+
+func (r *fakeSkillRegistry) ForAgent(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	_ string,
+) ([]*skillspkg.Skill, error) {
+	return r.ForWorkspace(ctx, resolved)
 }
 
 func (r *fakeSkillRegistry) setSkills(workspaceID string, skills []*skillspkg.Skill) {
@@ -3799,6 +4277,7 @@ type fakeProcess struct {
 	closed  bool
 	waitErr error
 	stderr  string
+	health  subprocess.HealthState
 	handle  *AgentProcess
 }
 
@@ -3811,7 +4290,8 @@ type sessionApproveCapture struct {
 
 func newFakeProcess(agentName string, command string, cwd string, sessionID string) *fakeProcess {
 	proc := &fakeProcess{
-		done: make(chan struct{}),
+		done:   make(chan struct{}),
+		health: subprocess.HealthState{Healthy: true},
 	}
 	proc.handle = &AgentProcess{
 		PID:       1,
@@ -3828,6 +4308,11 @@ func newFakeProcess(agentName string, command string, cwd string, sessionID stri
 		done:      proc.done,
 		waitFn:    proc.wait,
 		stderrFn:  proc.stderrOutput,
+		healthStateFn: func() subprocess.HealthState {
+			proc.mu.Lock()
+			defer proc.mu.Unlock()
+			return proc.health
+		},
 	}
 	return proc
 }
@@ -3843,6 +4328,12 @@ func (p *fakeProcess) stderrOutput() string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.stderr
+}
+
+func (p *fakeProcess) setHealth(state subprocess.HealthState) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.health = state
 }
 
 func (p *fakeProcess) exit() {

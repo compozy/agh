@@ -104,11 +104,12 @@ describe("HomeHeader", () => {
     }
 
     for (const link of screen.getAllByRole("link", { name: "AGH Network" })) {
-      expect(link.getAttribute("class")).toContain("text-(--color-accent)");
+      expect(link.getAttribute("class")).toContain("text-(--color-text-primary)");
+      expect(link.getAttribute("class")).toContain("bg-(--color-surface-elevated)");
       expect(link.getAttribute("aria-current")).toBe("location");
     }
     for (const link of screen.getAllByRole("link", { name: "Home" })) {
-      expect(link.getAttribute("class")).not.toContain("text-(--color-accent)");
+      expect(link.getAttribute("class")).not.toContain("bg-(--color-surface-elevated)");
       expect(link.getAttribute("aria-current")).toBeNull();
     }
   });
@@ -120,7 +121,8 @@ describe("HomeHeader", () => {
 
     for (const link of screen.getAllByRole("link", { name: "Blog" })) {
       expect(link.getAttribute("aria-current")).toBe("page");
-      expect(link.getAttribute("class")).toContain("text-(--color-accent)");
+      expect(link.getAttribute("class")).toContain("text-(--color-text-primary)");
+      expect(link.getAttribute("class")).toContain("bg-(--color-surface-elevated)");
     }
   });
 
@@ -129,8 +131,8 @@ describe("HomeHeader", () => {
 
     expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(2);
 
-    const githubLink = screen.getByRole("link", { name: "GitHub repository" });
-    expect(githubLink.getAttribute("href")).toBe("https://github.com/compozy/agh");
+    const githubLink = screen.getByRole("link", { name: "Compozy on GitHub" });
+    expect(githubLink.getAttribute("href")).toBe("https://github.com/compozy");
     expect(githubLink.getAttribute("target")).toBe("_blank");
     expect(githubLink.getAttribute("rel")).toContain("noopener");
     expect(githubLink.getAttribute("rel")).toContain("noreferrer");

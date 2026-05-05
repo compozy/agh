@@ -1,0 +1,1670 @@
+# TechSpec — Memory v2 (Slice 1)
+
+**Status:** Approved
+**Date:** 2026-05-04
+**Author:** mem-v2 program (Pedro + Claude pairing)
+**Peer review:** Codex (`gpt-5.5` `xhigh`) — verdict NOT-READY → blockers B1-B6 + nits N1-N14 incorporated; verdict now READY-AFTER-INCORPORATION.
+**Source corpus:** 13 analyses + 12 ADRs in `.compozy/tasks/mem-v2/`
+**Inputs:** `analysis.md` (overarching), `analysis_agh-current.md` (audit), `analysis_integration-map.md` (decision matrix), 9 competitor analyses, 4 design analyses (`agent-scope-dilemma`, `layered-scope`, `session-ledger-retention`, `write-controller`, `extraction-location`).
+
+---
+
+## MVP Boundary
+
+**MVP = Slice 1 (this TechSpec). All four Eixos ship as one atomic deliverable.** Memory v2 is enabled by default — there is no `[memory.v2] enabled` feature flag. The current memory subsystem is replaced atomically per the greenfield-delete rule. The slice covers:
+
+- **Eixo 1 (Spine)** — scope identity, event-log spine, write controller, frozen prompt snapshot, deterministic recall pipeline, agent-manageability parity (CLI/HTTP/UDS/native tools), observability.
+- **Eixo 2 (Dreaming v2)** — extends existing `internal/memory/dream.go` with recall signals, 4-component scoring, promotion gates, dedicated dreaming agent, DLQ.
+- **Eixo 3 (`MemoryProvider` ABC)** — 10-hook lifecycle, single active provider per workspace, bundled local provider as reference implementation, daemon delegation.
+- **Eixo 4 (Hermes engineering parity)** — FTS5 trigram twin index, jittered write retry helper, SSE `<memory-context>` scrubber, `parent_session_id` lineage, atomic write pattern, pre-write content scan, char caps, action-cue header.
+- **Extractor (Mode A)** — `on_post_response` hook → forked extractor sub-agent → bounded queue + coalesce → `_inbox/` JSONL → controller reads.
+
+**Post-MVP (out of this TechSpec):**
+
+- **Slice 2** — real compactor, pre-compaction flush hook, `Compacted.replacement_history` resume, independent compaction model.
+- **Slice 3** — sqlite-vec embeddings, optional LLM ranker, paraphrase recall.
+- **Slice 4** — external memory providers (Mem0, Honcho, Hindsight) over `MemoryProvider` ABC.
+- **Slice 5** — AGH Network memory federation with explicit namespace exchange.
+- **Slice 6** — KG / triple store / bi-temporal validity / spreading activation.
+- **Per-directory `AGENTS.md` resolver changes** — separate workstream; instruction hierarchy ≠ memory hierarchy (P11 in `analysis.md` §3).
+
+**No fallback. No compat shim. No placeholder.** Greenfield-delete per `internal/CLAUDE.md`. Slice 1 is a single atomic change; the migration list in §"Greenfield Delete Targets" enumerates every delete target.
+
+---
+
+## Executive Summary
+
+Memory v2 replaces AGH's current dual-scope, file-only memory store with a layered system aligned to production-validated patterns from Hermes, OpenClaw, Codex, and Claude Code. The architecture is **híbrido escopado** (ADR-001): Markdown files are authoritative for curated content; `memory_events` append-only log is authoritative for operations and audit; SQLite catalog is a derived index. Three first-class scopes (`global` / `workspace` / `agent`, ADR-002) with `agent` two-tier (`agent-workspace ▸ agent-global`). Deeper-scope shadow-by-id is the precedence rule — never silent merge.
+
+The write path goes through one typed controller (ADR-009) deciding ADD/UPDATE/DELETE/NOOP/REJECT via a **lexical/entity-only algorithm** in Slice 1 — content-hash exact match, entity-slot match against the catalog, FTS5/trigram surface-form similarity, plus an LLM tiebreaker only when entity slots are genuinely ambiguous (e.g., multiple plausible target slugs). **No embeddings, no cosine similarity in Slice 1** — that capability graduates to Slice 3 alongside vector retrieval. The read path is deterministic in Slice 1 (FTS5 unicode61 + FTS5 trigram + weighted score + scope shadow + top-K, ADR-011) with optional vector + LLM ranker explicitly deferred to Slice 3. Every memory mutation persists to a `memory_decisions` write-ahead log before the file mutation lands; the row stores `prior_content`, `post_content`, `post_content_hash`, `target_filename`, `frontmatter`, and `idempotency_key` so replay deterministically reconstructs curated state after crash. `agh memory decisions revert` rolls back via `prior_content`.
+
+Extension surface is the Hermes-style 10-hook `MemoryProvider` ABC (ADR-008), extending the speculative `ProviderHookRunner` types currently declared but unconsumed in `internal/memory/types.go`. **All shared DTOs live in `internal/memory/contract`** — extension authors import only from `contract`, never from `controller`/`recall`/`extractor` (boundary fix per peer-review B4). The bundled local provider (SQLite catalog + Markdown store) is the reference implementation; external providers (Mem0/Honcho/Hindsight) become Slice 4 plugins.
+
+**ACP boundary.** AGH manages its own curated memory layer (MEMORY.md, topic files, daily logs, `_inbox/`, `_system/`). ACP providers (Claude Code, Codex, Hermes adapter, OpenClaw adapter) manage their own context independently — compaction, system-prompt assembly, provider-side memory. **AGH does not detect, coordinate with, or pass-through provider context-management.** If both AGH and a provider inject memory, that's the operator's choice when picking a provider; AGH does not try to be smart about it. Per peer-review B6: simplify rather than add a coordination flag.
+
+Stable workspace identity (ADR-004) replaces today's path-keyed catalog rows that orphan on `mv`. Per-workspace catalog DB (ADR-003) at `<workspace>/.agh/agh.db` partitions write contention; `$AGH_HOME/agh.db` retains global memory + observability. Session ledgers materialize as `~/.agh/sessions/<workspace_id>/<session_id>/ledger.jsonl` on `OnSessionEnd` (ADR-006). Daily logs (`<scope>/memory/daily/YYYY-MM-DD.md`) ship with rotation, cold-archive, and never-hard-delete defaults (ADR-007).
+
+The dreaming worker extends today's `Time → Sessions → Lock` cascade with goclaw-grade signals + scoring + promotion (ADR-007 retention; ADR-005 `_system/dreaming/` outputs) — without rewriting the proven lock semantics.
+
+**Primary trade-off:** Slice 1 is fat (4 Eixos in one TechSpec) to ship at-or-better-than-Hermes parity from day 1 (ADR-012). The alternative (split into 1A foundation + 1B intelligence) was rejected because it forfeits competitive parity for an indeterminate window and triggers two-touch-rule violations on the third structural change. **Secondary trade-off:** Slice 1 controller is lexical/entity-only — semantic paraphrase dedup is deferred to Slice 3 alongside vector. This keeps Slice 1 free of the embedding pipeline (no cgo gate, no provider-model dependency for writes) at the cost of weaker UPDATE detection on paraphrased contradictions.
+
+---
+
+## System Architecture
+
+### Component overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          AGH Memory v2 — Slice 1                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   Read path                              Write path                     │
+│   ─────────                              ──────────                     │
+│   Recaller (recall)         ←──┐         Controller (controller)        │
+│   ▸ FTS5 unicode61              │         ▸ rule-first decision         │
+│   ▸ FTS5 trigram                │         ▸ LLM tiebreaker (haiku)      │
+│   ▸ scope shadow-by-id          │         ▸ memory_decisions WAL        │
+│   ▸ top-K + freshness banner    │         ▸ pre-write content scan     │
+│        │                        │              │                        │
+│        ▼                        │              ▼                        │
+│   Assembler ────► system prompt │         Store (file + catalog)        │
+│   (frozen-snapshot at boot)     │         ▸ atomic file write           │
+│                                 │         ▸ FTS5 trigger sync           │
+│                                 │         ▸ memory_events emit          │
+│   Sources of writes:            │              │                        │
+│                                 │              ▼                        │
+│   1. CLI / HTTP / UDS  ─────────┘         <scope>/memory/*.md          │
+│   2. Native tool (memory_propose)          + agh.db (per workspace)    │
+│   3. Extractor sub-agent (post-turn)                                    │
+│      _inbox/ ──► controller                                             │
+│   4. Dreaming worker (rule-gated)                                       │
+│   5. ad_hoc note (memory_note tool)                                     │
+│   6. Provider extension (OnMemoryWrite hook)                            │
+│                                                                         │
+│   Lifecycle hooks (typed dispatch):                                     │
+│   ─────────────────────────────────                                     │
+│   on_session_started ──► provider.Initialize + assembler frozen snapshot│
+│   hook.session.message_persisted ──► extractor (forked)                 │
+│   on_session_stopped ──► provider.OnSessionEnd + ledger.jsonl writer    │
+│   on_idle ──► dreaming worker tick                                      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Filesystem layout
+
+```
+$AGH_HOME/                                ← global scope root
+├── agh.db                                ← global catalog + memory_events + observability
+├── memory/
+│   ├── MEMORY.md                         ← projection, ≤200 lines / 25 KB
+│   ├── <type>_<slug>.md                  ← curated topic files (frontmatter)
+│   ├── daily/YYYY-MM-DD.md
+│   └── _system/{dreaming,extractor,ad_hoc}/   ← never injected (ADR-005)
+├── agents/<agent>/
+│   ├── AGENT.md                          ← unchanged (existing)
+│   ├── SOUL.md                           ← unchanged (existing internal/soul)
+│   ├── HEARTBEAT.md                      ← unchanged (existing internal/heartbeat)
+│   └── memory/                           ← agent-global tier (ADR-002)
+│       └── (same structure as global)
+├── sessions/<workspace_id>/<session_id>/ ← session ledgers (ADR-006)
+│   ├── meta.json                         ← unchanged shape, extended fields
+│   └── ledger.jsonl                      ← materialized on OnSessionEnd
+└── sessions/_unbound/<session_id>/       ← sessions with no workspace bound
+
+<workspace>/.agh/                         ← workspace + agent-workspace
+├── workspace.toml                        ← workspace_id (ADR-004)
+├── agh.db                                ← workspace catalog + memory_events (ADR-003)
+├── memory/                               ← workspace scope
+│   └── (same structure as global)
+└── agents/<agent>/memory/                ← agent-workspace tier (ADR-002)
+    └── (same structure)
+```
+
+### Architectural Boundaries
+
+Per `internal/CLAUDE.md` "designed for incremental extension" + "daemon is the sole composition root":
+
+**New packages (one file-level home each, no domain/infra split):**
+
+- **`internal/memory/contract`** — **canonical extension-facing DTOs (B4 fix).** Owns every type that crosses the daemon ↔ extension boundary: `Scope`, `AgentTier`, `Origin`, `Type`, `Header`, `Provenance`, `Op`, `DecisionSource`, `Candidate`, `Decision`, `Query`, `RecallOptions`, `Packaged`, `Block`, `PackagedEntry`, `Trigger`, `TurnRecord`, `TranscriptSnapshot`, `WriteRecord`, `ProviderInit`, `SnapshotRequest`, `SnapshotResult`, `RecallRequest`, `RecallResult`, `PrefetchRequest`, `PreCompressRequest`, `PreCompressHint`, `SessionEndRecord`, `SessionSwitchRecord`, plus the `MemoryProvider` interface itself. Depends only on the standard library + `internal/logger`. **Imports from `controller`/`recall`/`extractor`/`store` are forbidden** — those packages depend on `contract`, never the reverse.
+- `internal/memory/controller` — ADR-009 write controller; depends on `internal/memory/contract`, `internal/memory/store`, `internal/store` helpers, `internal/tools` (LLM dispatch only — used solely for the entity-slot ambiguity tiebreaker).
+- `internal/memory/recall` — ADR-011 deterministic recall; depends on `internal/memory/contract`, `internal/memory/store`, `internal/store/workspacedb`, `internal/store/globaldb`.
+- `internal/memory/extractor` — ADR-010 forked extractor sub-agent; depends on `internal/memory/contract`, `internal/memory/controller`, `internal/hooks`, `internal/acp` (subagent spawn), `internal/transcript`.
+- `internal/memory/provider/local` — ADR-008 bundled provider implementation; depends on `internal/memory/contract`, `internal/memory/store`, `internal/memory/recall`, `internal/memory/controller`.
+- `internal/sessions/ledger` — ADR-006 ledger materializer; depends on `internal/store/sessiondb`, `internal/fileutil`.
+- `internal/store/workspacedb` — ADR-003 per-workspace DB helpers; mirrors `internal/store/globaldb`.
+
+**Existing packages extended (no rename, no delete except where ADR-012 lists greenfield-delete):**
+
+- `internal/memory/types.go` — hard-cut delete after the DTO split. Shared contract types move to `internal/memory/contract`; any remaining internal-only types move to package-local files in the same slice. The file does not remain as a compat shim.
+- `internal/memory/store.go` — extends `Backend` for 3-scope including agent two-tier; new `ForAgent(workspaceID, agentName, tier)` clone method. Imports from `internal/memory/contract`.
+- `internal/memory/dream.go` — kept; extended at composition root with new signals + scoring inputs.
+- `internal/memory/consolidation/runtime.go` — kept; gated by ADR-009 controller for promotion writes.
+- `internal/hooks/dispatch_events.go` — adds `hook.session.message_persisted` typed event.
+- `internal/sse/` — adds `<memory-context>` scrubber filter.
+- `internal/situation/service.go` — adds frozen-snapshot capture at session boot.
+- `internal/workspace/` — extends `Resolver.Resolve` to load/create `<workspace>/.agh/workspace.toml` (ADR-004).
+
+**Import discipline (CI-enforced via `mage Boundaries`):**
+
+- `internal/memory/contract` is the **only** memory package extensions import. It imports nothing from `internal/memory` or other internal AGH packages (except `internal/logger`).
+- `internal/memory/{controller, recall, extractor, store, provider/local}` all import `internal/memory/contract`. None imports another sibling except as documented above (controller ← store; recall ← store; extractor ← controller + acp + hooks; provider/local ← controller + recall + store).
+- `internal/memory/*` packages import `internal/store/*`, `internal/fileutil`, `internal/frontmatter`, `internal/logger`, never `internal/daemon` or `internal/api/*`.
+- `internal/extension/host_api.go` exposes `MemoryProviderRegistry`; extensions register implementations from outside the daemon graph and only see `internal/memory/contract`.
+- `internal/daemon/boot.go` is the only place that wires `Controller`, `Recaller`, `Extractor`, `LedgerMaterializer`, `MemoryProviderRegistry`, and the bundled local provider.
+- **`mage Boundaries` is updated in the same commit** that introduces `internal/memory/contract`, `internal/memory/controller`, `internal/memory/recall`, `internal/memory/extractor`, `internal/memory/provider/local`, `internal/sessions/ledger`, `internal/store/workspacedb`. CI fails on import-cycle or boundary violations.
+
+**No back-pointers between packages. Functional options for constructors. Hooks dispatch at call site (never tail event tables).**
+
+---
+
+## Public Interfaces / Types
+
+> All types below live in **`internal/memory/contract`** per peer-review B4. Callers switch directly to `contract` in the same slice; `internal/memory/types.go` is deleted once the move lands.
+
+### Scope + actor + provenance taxonomy
+
+```go
+// internal/memory/contract/scope.go
+
+type Scope string
+const (
+    ScopeGlobal    Scope = "global"
+    ScopeWorkspace Scope = "workspace"
+    ScopeAgent     Scope = "agent"
+)
+
+type AgentTier string
+const (
+    AgentTierWorkspace AgentTier = "workspace" // <workspace>/.agh/agents/<agent>/memory/
+    AgentTierGlobal    AgentTier = "global"    // $AGH_HOME/agents/<agent>/memory/
+)
+
+type Origin string
+const (
+    OriginCLI       Origin = "cli"
+    OriginHTTP      Origin = "http"
+    OriginUDS       Origin = "uds"
+    OriginTool      Origin = "tool"        // agh__memory_propose / agh__memory_note
+    OriginExtractor Origin = "extractor"
+    OriginDreaming  Origin = "dreaming"
+    OriginFile      Origin = "file"        // operator edited markdown directly
+    OriginProvider  Origin = "provider"
+)
+
+type Type string
+const (
+    TypeUser      Type = "user"
+    TypeFeedback  Type = "feedback"
+    TypeProject   Type = "project"
+    TypeReference Type = "reference"
+)
+
+// Header is the YAML frontmatter contract for every curated memory file.
+type Header struct {
+    Name        string    `yaml:"name"`
+    Description string    `yaml:"description"`
+    Type        Type      `yaml:"type"`
+    Scope       Scope     `yaml:"scope"`
+    AgentName   string    `yaml:"agent,omitempty"`
+    AgentTier   AgentTier `yaml:"agent_tier,omitempty"`
+    Provenance  Provenance `yaml:"provenance,omitempty"`
+}
+
+type Provenance struct {
+    SourceSessionIDs []string  `yaml:"source_sessions,omitempty"`
+    SourceActor      Origin    `yaml:"source_actor"`
+    Confidence       string    `yaml:"confidence,omitempty"` // high|medium|low
+    SupersededBy     string    `yaml:"superseded_by,omitempty"`
+    CreatedAt        time.Time `yaml:"created_at"`
+    UpdatedAt        time.Time `yaml:"updated_at"`
+}
+```
+
+### Write controller
+
+```go
+// internal/memory/contract/controller.go (ADR-009; B1 lexical-only; B3 replay material)
+
+type Op uint8
+const (
+    OpNoop   Op = iota
+    OpAdd
+    OpUpdate
+    OpDelete
+    OpReject
+)
+
+type DecisionSource string
+const (
+    SourceRule DecisionSource = "rule"
+    SourceLLM  DecisionSource = "llm"
+)
+
+// Candidate carries one fact proposed for the curated layer. Slice 1 has NO
+// embedding field — the controller decides via content hash + entity-slot
+// match + FTS5 surface-form similarity. Embeddings re-enter the contract
+// only in Slice 3 alongside vector retrieval.
+type Candidate struct {
+    WorkspaceID  string
+    Scope        Scope
+    AgentName    string         // when Scope == ScopeAgent
+    AgentTier    AgentTier      // when Scope == ScopeAgent
+    Origin       Origin
+    Content      string         // raw candidate body (post-frontmatter)
+    Frontmatter  Header         // typed YAML header (must validate)
+    Entity       string         // optional slot ("city", "email")
+    Attribute    string         // optional ("preferred_email")
+    Metadata     map[string]string
+    SubmittedAt  time.Time
+}
+
+// Decision carries enough material to deterministically replay the file
+// mutation after a crash. post_content + post_content_hash + target_filename
+// + frontmatter make the decision row a write-ahead-log of the file state,
+// not just an audit trail.
+type Decision struct {
+    ID                string         // ULID
+    CandidateHash     string         // blake2b of normalized candidate
+    IdempotencyKey    string         // composite: blake2b(workspace_id|scope|agent|tier|target_filename|op|candidate_hash|post_content_hash|frontmatter_hash|prompt_version) — peer-review NB1+NB3: includes op/content/frontmatter/version so legitimate retries with different rendering or YAML header do not collide
+    Op                Op
+    Targets           []string       // existing memory IDs for UPDATE/DELETE
+    TargetFilename    string         // path relative to scope root, e.g. "feedback_pedro_ci.md"
+    Frontmatter       Header         // YAML header that will be written
+    PostContent       string         // full file body that will be written (ADD/UPDATE only)
+    PostContentHash   string         // blake2b of PostContent
+    PriorContent      string         // pre-mutation body (UPDATE/DELETE only) — for revert
+    Confidence        float32        // 0..1
+    Source            DecisionSource
+    RuleTrace         []RuleHit
+    LLMTrace          *LLMCall       // nil unless escalated to entity-slot tiebreaker
+    Reason            string         // ≤120 chars
+    PromptVersion     string         // pinned to template version when LLM is used
+    DecidedAt         time.Time
+}
+
+type Controller interface {
+    // Decide is sync. MUST return within Config.MaxLatency.
+    // On context cancel or LLM failure, falls back to RuleTrace's terminal decision.
+    // Decision is persisted to memory_decisions BEFORE the file mutation lands.
+    Decide(ctx context.Context, c Candidate) (Decision, error)
+}
+```
+
+### Recall pipeline
+
+```go
+// internal/memory/contract/recall.go (ADR-011)
+
+type Query struct {
+    WorkspaceID string
+    AgentName   string             // optional; selects agent scope
+    QueryText   string
+    ContextHint string             // optional context-aware rewrite hint
+}
+
+type RecallOptions struct {
+    TopK                  int
+    RawCandidates         int
+    IncludeAlreadySurfaced bool
+    IncludeSystem         bool
+    AlreadySurfaced       []string // chunk IDs already surfaced this session
+}
+
+type Packaged struct {
+    Blocks []Block            // one per scope, least-specific first
+    Header CacheStableHeader  // precomputed; identical across turns where blocks are identical
+}
+
+type Block struct {
+    Scope     Scope
+    AgentTier AgentTier
+    Entries   []PackagedEntry
+}
+
+type PackagedEntry struct {
+    ID             string
+    Title          string
+    Body           string
+    AgeDays        int
+    StalenessBanner string         // empty if fresh
+    WhyRecalled    []string        // rule-trace, debug-only
+}
+
+type Recaller interface {
+    Recall(ctx context.Context, q Query, opts RecallOptions) (Packaged, error)
+}
+```
+
+### Extractor
+
+```go
+// internal/memory/contract/extractor.go (ADR-010; types live in contract per B4)
+
+type Trigger string
+const (
+    TriggerPostMessage     Trigger = "post_message"     // mode A
+    TriggerCompactionFlush Trigger = "compaction_flush" // mode B (Slice 2)
+)
+
+type TurnRecord struct {
+    SessionID         string
+    RootSessionID     string
+    ParentSessionID   string         // empty for root sessions
+    AgentID           string
+    ActorKind         string         // "agent_root" | "agent_subagent" | ...
+    WorkspaceID       string
+    SinceMessageSeq   int64           // exclusive
+    UntilMessageSeq   int64           // inclusive
+    Snapshot          TranscriptSnapshot
+    Trigger           Trigger
+}
+
+type Extractor interface {
+    Extract(ctx context.Context, turn TurnRecord) ([]Candidate, error)
+    Drain(ctx context.Context) error
+}
+```
+
+### MemoryProvider ABC
+
+```go
+// internal/memory/contract/provider.go (ADR-008; B4 — only contract types referenced)
+
+type ProviderInit struct {
+    WorkspaceID string
+    Config      map[string]any  // provider-specific config from [memory.provider.<name>]
+    Logger      *slog.Logger
+}
+
+type SnapshotRequest struct {
+    Scope       Scope
+    AgentName   string
+    AgentTier   AgentTier
+    WorkspaceID string
+}
+
+type SnapshotResult struct {
+    Markdown string
+    AgeMs    int64
+}
+
+type RecallRequest struct {
+    Query
+    Options RecallOptions
+}
+
+type RecallResult struct {
+    Packaged
+}
+
+type WriteRecord struct {
+    Decision  Decision   // contract.Decision — peer-review B4 (no controller import)
+    Candidate Candidate  // contract.Candidate
+}
+
+type MemoryProvider interface {
+    Initialize(ctx context.Context, init ProviderInit) error
+    SystemPromptBlock(ctx context.Context, req SnapshotRequest) (SnapshotResult, error)
+
+    // Optional methods — implementations may return ErrNotImplemented; daemon falls back to local.
+    Recall(ctx context.Context, req RecallRequest) (RecallResult, error)
+    Prefetch(ctx context.Context, req PrefetchRequest) error
+    SyncTurn(ctx context.Context, rec TurnRecord) error
+    OnPreCompress(ctx context.Context, req PreCompressRequest) (PreCompressHint, error)
+
+    // Lifecycle (mandatory).
+    OnSessionEnd(ctx context.Context, rec SessionEndRecord) error
+    OnSessionSwitch(ctx context.Context, rec SessionSwitchRecord) error
+    OnMemoryWrite(ctx context.Context, rec WriteRecord) error
+    Shutdown(ctx context.Context) error
+}
+```
+
+### Session ledger
+
+```go
+// internal/sessions/ledger/types.go (ADR-006)
+
+type LedgerMaterializer interface {
+    // Materialize reads all events for sessionID from events.db and writes a
+    // forensic JSONL ledger to ~/.agh/sessions/<workspaceID>/<sessionID>/ledger.jsonl.
+    // Idempotent: re-running on an existing ledger checksums and skips.
+    Materialize(ctx context.Context, sessionID string) error
+}
+```
+
+`ledger.jsonl` is self-describing. Line 1 is a `ledger_meta` record `{type, version, session_id, workspace_id, spawn_parent_id?, started_at, ended_at}`; subsequent lines are ordered event records. Sub-agent sessions materialize their own ledgers with `spawn_parent_id` set, while the parent ledger records the spawn edge separately.
+
+Session ledgers are **forensic only**. They are never a memory scope, recall never reads them directly, they are never accepted as controller write targets, and there is **no** `agh memory promote --session` surface in Slice 1. Durable memory promotion happens only through extractor/controller/dreaming decisions and explicit `agh memory promote <filename>` on curated files.
+
+---
+
+## Data Models
+
+### `memory_catalog_entries` (extended; per-workspace + global DBs)
+
+```sql
+CREATE TABLE memory_catalog_entries (
+    id              TEXT PRIMARY KEY,         -- ULID
+    workspace_id    TEXT,                     -- nullable for global; FK to workspace.toml
+    scope           TEXT NOT NULL CHECK (scope IN ('global','workspace','agent')),
+    agent_name      TEXT,                     -- when scope='agent'
+    agent_tier      TEXT CHECK (agent_tier IN ('workspace','global')), -- when scope='agent'
+    type            TEXT NOT NULL CHECK (type IN ('user','feedback','project','reference')),
+    slug            TEXT NOT NULL,
+    filename        TEXT NOT NULL,
+    content_hash    TEXT NOT NULL,
+    description     TEXT,
+    injection       INTEGER NOT NULL DEFAULT 1, -- 0 = _system/ artifact
+    mtime_ms        INTEGER NOT NULL,
+    indexed_at      INTEGER NOT NULL,
+    UNIQUE(workspace_id, scope, agent_name, agent_tier, type, slug)
+);
+CREATE INDEX idx_catalog_scope ON memory_catalog_entries(scope, agent_name, agent_tier, type);
+```
+
+**Field rationale:**
+
+- `id` ULID (sortable; debuggable). Side-table over JSON for matchable state per Marker 5.
+- `workspace_id` nullable: global-scope rows have NULL; workspace and agent-workspace rows set it.
+- `scope` + `agent_name` + `agent_tier`: full scope tuple; matches ADR-002's read precedence.
+- `injection` boolean: ADR-005 `_system/` exclusion is enforced via WHERE clause.
+- `(workspace_id, scope, agent_name, agent_tier, type, slug)` UNIQUE: enforces shadow-by-id uniqueness within a tier; cross-tier shadowing handled at recall time.
+
+### `memory_chunks` + FTS5
+
+```sql
+CREATE TABLE memory_chunks (
+    id           TEXT PRIMARY KEY,
+    file_id      TEXT NOT NULL REFERENCES memory_catalog_entries(id) ON DELETE CASCADE,
+    content      TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    start_line   INTEGER NOT NULL,
+    end_line     INTEGER NOT NULL,
+    indexed_at   INTEGER NOT NULL
+);
+CREATE INDEX idx_chunks_file ON memory_chunks(file_id);
+
+CREATE VIRTUAL TABLE memory_chunks_fts USING fts5(
+    content,
+    content=memory_chunks,
+    content_rowid=rowid,
+    tokenize='unicode61'
+);
+CREATE VIRTUAL TABLE memory_chunks_fts_trigram USING fts5(
+    content,
+    content=memory_chunks,
+    content_rowid=rowid,
+    tokenize='trigram'
+);
+-- AI/AD/AU triggers keep both FTS tables in sync with memory_chunks.
+```
+
+**Side-table-vs-JSON decision (Marker 5):** chunks are matchable state queried by FTS5; side-table is mandatory. JSON metadata blobs are forbidden for content because FTS5 cannot index them.
+
+### `memory_events` (append-only observability log; per-workspace + global DBs)
+
+**Naming model (peer-review B5).** `memory_events.op` stores **canonical dotted event names** matching the §Monitoring observability taxonomy 1:1. The CHECK constraint enumerates the closed set; new events require a numbered migration to extend the enum (greenfield-discipline). The conflated snake-case-vs-dotted mix from the previous draft is removed.
+
+```sql
+CREATE TABLE memory_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    op              TEXT NOT NULL CHECK (op IN
+        -- Write controller outcomes (one per Decision unless NOOP)
+        ('memory.write.committed',
+         'memory.write.rejected',
+         'memory.write.shadowed',
+         'memory.write.reindex',
+         'memory.write.reverted',
+        -- Recall pipeline
+         'memory.recall.executed',
+         'memory.recall.skipped',
+         'memory.recall.signal_dropped',
+         'memory.recall.signal_update_failed',
+         'memory.decisions.audit_summarized',     -- WAL retention compact-audit row (peer-review NB5)
+         'memory.decisions.pruned',               -- WAL retention prune event (peer-review NB5)
+        -- Dreaming worker
+         'memory.dream.run.started',
+         'memory.dream.run.promoted',
+         'memory.dream.run.failed',
+        -- Extractor
+         'memory.extractor.started',
+         'memory.extractor.completed',
+         'memory.extractor.failed',
+         'memory.extractor.coalesced',
+         'memory.extractor.dropped',
+        -- Daily housekeeping
+         'memory.daily.rotated',
+         'memory.daily.archived',
+         'memory.daily.restored',
+         'memory.daily.purged',
+         'memory.daily.archive_purged',         -- safety-valve eviction (ADR-007 OC5)
+        -- Provider lifecycle
+         'memory.provider.enabled',
+         'memory.provider.disabled',
+         'memory.provider.collision',
+        -- Workspace / agent lifecycle
+         'memory.workspace.relocated',
+         'memory.workspace.recovered',
+         'memory.agent.purged',
+        -- Migration
+         'memory.migration.applied')),
+    scope           TEXT,                    -- 'global' | 'workspace' | 'agent'; nullable for migration events
+    agent_name      TEXT,
+    agent_tier      TEXT,
+    workspace_id    TEXT,
+    session_id      TEXT,
+    actor_kind      TEXT NOT NULL,           -- operator | extractor | dreaming | provider | tool | file | system
+    decision_id     TEXT,                    -- FK to memory_decisions (when op derives from a Decision)
+    target_id       TEXT,                    -- catalog entry ID when the event references a curated row
+    metadata        TEXT NOT NULL DEFAULT '{}', -- JSON blob, opaque per-op extras
+    ts_ms           INTEGER NOT NULL
+);
+CREATE INDEX idx_events_workspace ON memory_events(workspace_id, ts_ms);
+CREATE INDEX idx_events_op ON memory_events(op, ts_ms);
+CREATE INDEX idx_events_session ON memory_events(session_id, ts_ms);
+```
+
+**Note:** `memory_events.op` (observability events) is **separate from** `memory_decisions.op` (controller outcomes ADD/UPDATE/DELETE/NOOP/REJECT). Linkage is via `memory_events.decision_id → memory_decisions.id` when an event derives from a Decision (`memory.write.committed`, `memory.write.rejected`, `memory.write.shadowed`, `memory.write.reverted`).
+
+**Side-table-vs-JSON decision (Marker 5):** every queryable field is a column. `metadata` is JSON for opaque per-op extras (e.g., shadow event records `winner_scope`/`loser_scope` in metadata; recall events record query+filters; archive_purged records `bytes_freed`/`oldest_date`). Operators query through structured columns; metadata is forensic only.
+
+### `memory_decisions` (write-ahead log; per-workspace + global DBs)
+
+**Replay invariant (peer-review B3 fix).** A decision row carries enough deterministic material to reconstruct the file mutation after a crash before the file lands. Replay reads decision rows in `decided_at` order, applies each in idempotent fashion (skip when `idempotency_key` already-applied), and the curated tree converges to the same state regardless of when the crash happened.
+
+```sql
+CREATE TABLE memory_decisions (
+    id                TEXT PRIMARY KEY,           -- ULID
+    candidate_hash    TEXT NOT NULL,              -- blake2b of normalized candidate content
+    idempotency_key   TEXT NOT NULL UNIQUE,       -- composite (peer-review NB1+NB3): blake2b(workspace_id|scope|agent|tier|target_filename|op|candidate_hash|post_content_hash|frontmatter_hash|prompt_version)
+    frontmatter_hash  TEXT NOT NULL,              -- blake2b of YAML-serialized frontmatter; included in idempotency_key per NB3
+    workspace_id      TEXT,                       -- nullable for global-scope decisions
+    scope             TEXT NOT NULL,
+    agent_name        TEXT,
+    agent_tier        TEXT,
+    op                TEXT NOT NULL CHECK (op IN ('noop','add','update','delete','reject')),
+    targets           TEXT NOT NULL DEFAULT '[]', -- JSON array of catalog IDs (UPDATE/DELETE)
+    target_filename   TEXT NOT NULL,              -- relative to scope root, e.g. "feedback_pedro_ci.md"
+    frontmatter       TEXT NOT NULL DEFAULT '{}', -- YAML-serialized contract.Header
+    post_content      TEXT,                       -- full body that lands on disk (ADD/UPDATE only)
+    post_content_hash TEXT,                       -- blake2b of post_content (ADD/UPDATE only)
+    prior_content     TEXT,                       -- pre-mutation body (UPDATE/DELETE only) — for revert
+    confidence        REAL NOT NULL,
+    source            TEXT NOT NULL CHECK (source IN ('rule','llm')),
+    rule_trace        TEXT NOT NULL,              -- JSON
+    llm_trace         TEXT,                       -- JSON; nullable
+    reason            TEXT,
+    prompt_version    TEXT,                       -- pinned to template version when LLM is used
+    applied_at        INTEGER,                    -- unix ms when file mutation completed; NULL until applied
+    decided_at        INTEGER NOT NULL
+);
+CREATE INDEX idx_decisions_workspace ON memory_decisions(workspace_id, decided_at);
+CREATE INDEX idx_decisions_op ON memory_decisions(op, decided_at);
+CREATE INDEX idx_decisions_unapplied ON memory_decisions(applied_at) WHERE applied_at IS NULL;
+```
+
+**Replay flow:**
+1. On daemon boot, query `WHERE applied_at IS NULL ORDER BY decided_at`.
+2. For each unapplied row: re-derive `idempotency_key`, check if `target_filename` on disk has `post_content_hash`. If yes → mark `applied_at = now()`. If no → re-apply atomically (`fileutil.AtomicWrite(target_filename, post_content)`) then mark `applied_at`.
+3. The QA proof "Replay-reconstructs-state" walks decisions and asserts the curated tree matches the expected state.
+
+**Field rationale:**
+- `idempotency_key` UNIQUE prevents double-apply on retry; mandatory column, not nullable. **Composition includes `op`, `post_content_hash`, `frontmatter_hash`, `prompt_version`** (peer-review NB1 + NB3) so a legitimate ADD followed by UPDATE on the same target — or the same body with a header rewrite — does not collide; only true duplicates collapse.
+- `post_content` + `post_content_hash` are the WAL bytes — without them, replay cannot deterministically reconstruct the file.
+- `target_filename` makes the row self-describing — replay does not need to walk the catalog to know what to write.
+- `frontmatter` JSON-serializes the typed `contract.Header` so the YAML reproduction is byte-stable across replays.
+- `applied_at` is the reconciliation barrier; non-null = file mutation completed; null = WAL entry still pending.
+
+### `memory_recall_signals` (live in Slice 1; peer-review B2 fix)
+
+**Live, not stub.** Slice 1 ships full read+write paths. `Recaller.Recall()` updates these rows fire-and-forget after every successful recall. The dreaming worker's fourth gate reads them; promotion writes flip `promoted_at`.
+
+```sql
+CREATE TABLE memory_recall_signals (
+    chunk_id              TEXT PRIMARY KEY REFERENCES memory_chunks(id) ON DELETE CASCADE,
+    recall_count          INTEGER NOT NULL DEFAULT 0,
+    last_recalled_at      INTEGER,
+    recall_score          REAL NOT NULL DEFAULT 0,
+    freshness_started_at  INTEGER NOT NULL,        -- cold-start protection
+    promoted_at           INTEGER,                 -- nullable; non-null = dreaming worker promoted to a synthesized entry
+    promotion_run_id      TEXT,                    -- ULID of the dreaming run that promoted this chunk; nullable
+    last_score_update_at  INTEGER NOT NULL         -- reconciliation barrier for EMA updates
+);
+
+CREATE INDEX idx_signals_unpromoted ON memory_recall_signals(promoted_at, recall_score)
+    WHERE promoted_at IS NULL;
+
+CREATE INDEX idx_signals_recent ON memory_recall_signals(last_recalled_at);
+```
+
+**Field rationale:**
+- `promoted_at` flips from NULL to a unix-ms when the dreaming worker writes a synthesized entry consuming this chunk. The partial index supports the fourth-gate query "give me unpromoted candidates with `recall_score >= threshold`" in O(log N).
+- `promotion_run_id` links back to a `memory_consolidations.id` row for forensics — operator can see "which dreaming pass promoted this signal".
+- `last_score_update_at` makes the EMA update idempotent across racing recall paths (concurrent recall calls update via compare-and-swap on this barrier).
+- `chunk_id` cascades on chunk delete — when a curated entry is deleted, its signal history is cleaned up.
+
+**Write path (Slice 1) with bounded queue + observability (peer-review NB2 fix):**
+
+1. After `Recaller.Recall()` returns a non-empty `Packaged`, surfaced chunks are enqueued onto a per-workspace bounded channel (`SignalRecorder`) — capacity `[memory.recall.signals] queue_capacity` (default 256).
+2. A worker goroutine drains the queue and updates rows via `INSERT OR REPLACE` with the `last_score_update_at` barrier check (idempotent across racing recalls).
+3. **Queue overflow** (when the channel is full) drops the **oldest** entry, increments `memory_recall_signal_updates_total{status="dropped"}`, and emits a canonical event `memory.recall.signal_dropped` to `memory_events`.
+4. **Update failures** (DB error, barrier conflict beyond retry) increment `memory_recall_signal_updates_total{status="failed"}` and emit `memory.recall.signal_update_failed`.
+5. **Successful updates** increment `memory_recall_signal_updates_total{status="ok"}`.
+6. Recall surface latency is preserved (failures do not bubble to the caller), but visibility is preserved (alerts fire on drop/fail rate).
+7. `agh memory extractor status` and a new `agh memory signals status` CLI verb expose queue depth + drop rate to operators.
+
+**Read path (Slice 1):**
+1. Dreaming worker fourth gate queries `WHERE promoted_at IS NULL ORDER BY recall_score DESC LIMIT N`.
+2. Below the configured threshold count → skip synthesis, stamp `last_run_at` (anti-thrashing).
+3. Above threshold → synthesize → on success `MarkPromoted(chunk_ids, run_id)` flips `promoted_at = now`, `promotion_run_id = run_id` for the consumed chunks.
+
+### `memory_consolidations`
+
+```sql
+CREATE TABLE memory_consolidations (
+    id              TEXT PRIMARY KEY,
+    scope           TEXT NOT NULL,
+    workspace_id    TEXT,
+    agent_name      TEXT,
+    last_run_at     INTEGER NOT NULL,
+    last_promotion_at INTEGER,
+    debounce_until  INTEGER NOT NULL,
+    status          TEXT NOT NULL CHECK (status IN ('idle','running','failed')),
+    failure_reason  TEXT
+);
+```
+
+### `workspace.toml` (ADR-004)
+
+`workspace_id` is a **ULID** (Crockford base32, 26 chars, lexicographically sortable by creation time) — not UUIDv7 (peer-review N11). Validation regex `^[0-9A-HJ-KMNP-TV-Z]{26}$`. Permission-denied on creation is a fatal init error, not silent ephemeral fallback (peer-review safety #8).
+
+```toml
+workspace_id          = "01HXJ9YR4Q7M..."   # ULID
+created_at            = "2026-05-04T14:30:00Z"
+realpath_at_creation  = "/Users/pedronauck/dev/projeto-a"  # informational only
+```
+
+### Migrations (numbered, registry-driven; `agh-schema-migration` skill mandatory)
+
+- `00NN_memv2_extend_catalog.sql` — extends `memory_catalog_entries` with `agent_name`, `agent_tier`, `injection`, `workspace_id` columns; extends `scope` CHECK to `('global','workspace','agent')`.
+- `00NN_memv2_chunks_and_fts.sql` — creates `memory_chunks`, `memory_chunks_fts` (unicode61), `memory_chunks_fts_trigram`, AI/AD/AU triggers.
+- `00NN_memv2_events.sql` — creates `memory_events`.
+- `00NN_memv2_decisions.sql` — creates `memory_decisions`.
+- `00NN_memv2_recall_signals.sql` — creates `memory_recall_signals` table with **live data flow in Slice 1** (peer-review NB4): `RecordRecall` writes through the `SignalRecorder` bounded queue + metrics on every successful recall; the dreaming fourth gate reads via the partial unpromoted index; `MarkPromoted` flips `promoted_at`. There is no "stub" or "slice 2 wires writes" path.
+- `00NN_memv2_consolidations.sql` — creates `memory_consolidations`.
+- `00NN_memv2_workspace_id_backfill.sql` — runtime migration creates `<workspace>/.agh/workspace.toml` for each existing workspace, backfills `workspace_id` into catalog rows, deletes the legacy `workspace_root` column.
+
+**No `EnsureSchema`. No `ensureColumn`. No alias columns. Hard cuts only (per `agh-schema-migration` + ADR-012 greenfield-delete).**
+
+---
+
+## API Endpoints
+
+### CLI verbs (all support `-o json` and `-o jsonl` per SD-011)
+
+**`--agent` and `--agent-tier` are mandatory for any verb that targets `--scope agent`** (peer-review N5). Without `--agent`, `--scope agent` errors out with `memory.scope.agent_required`.
+
+```
+# Memory CRUD — every verb supports --agent / --agent-tier consistently
+agh memory list   [--scope X] [--workspace Y] [--agent A] [--agent-tier T] [--type T] [--include-shadowed] [--include-system]
+agh memory show   <filename> [--scope X] [--agent A] [--agent-tier T] [--include-system]
+agh memory write  [--scope X] [--agent A] [--agent-tier T] --type T --name N --content @file.md
+agh memory edit   <filename> [--scope X] [--agent A] [--agent-tier T] --content @file.md
+agh memory delete <filename> [--scope X] [--agent A] [--agent-tier T]
+agh memory search <query>    [--scope X] [--agent A] [--agent-tier T] [--top-k N] [--include-system]
+agh memory reindex [--scope X] [--agent A] [--agent-tier T] [--workspace Y]
+agh memory history [--operation OP] [--scope X] [--agent A] [--agent-tier T] [--since DUR]
+agh memory health
+agh memory promote <filename> --from <scope[:tier]> --to <scope[:tier]> [--agent A]
+agh memory reset [--scope X] [--agent A] [--agent-tier T] [--workspace Y] [--include-system] [--include-daily] [--dry-run]
+agh memory reload [--scope X]                       # invalidates frozen snapshot for next session boot only (N7)
+agh memory scope-show                               # debug; resolved precedence chain
+
+# Decisions / audit
+agh memory decisions list [--scope X] [--workspace Y] [--op OP] [--since DUR] [--reason PATTERN]
+agh memory decisions show <id>
+agh memory decisions revert <id> [--dry-run]
+
+# Recall trace (forensic)
+agh memory recall trace <session_id> <turn_seq>
+
+# Dreaming
+agh memory dream show <date>
+agh memory dream retry <run_id>
+agh memory dream trigger [--scope X] [--workspace Y]
+agh memory dream status
+
+# Daily logs
+agh memory daily ls [--scope X] [--workspace Y]
+agh memory daily show <date> [--scope X]
+agh memory daily archive [--older-than DUR] [--dry-run]
+agh memory daily restore <date> [--scope X]
+agh memory daily purge --older-than DUR [--dry-run]
+
+# Sessions / ledger
+agh sessions list [--workspace X]
+agh sessions show <id>
+agh sessions replay <id>
+agh sessions prune --older-than DUR
+agh sessions repair
+
+# Extractor
+agh memory extractor status [--session <id>]
+agh memory extractor list-pending
+agh memory extractor replay --session <id> [--from-dlq]
+agh memory extractor drain [--timeout 60s]
+agh memory extractor disable [--session <id>]
+
+# Provider
+agh memory provider list
+agh memory provider enable <name>
+agh memory provider disable <name>
+
+# ad_hoc
+agh memory adhoc list [--scope X]
+agh memory adhoc show <slug>
+
+# Workspace
+agh workspace info
+agh workspace list
+agh workspace recover --realpath <path>
+```
+
+### Native tools (read-only by default; write is policy-gated)
+
+- `agh__memory_list` — replaces the current built-in `memory_list`; read-only catalog list with scope/agent/type filters (peer-review N6 — distinct from search). Returns metadata only, no content.
+- `agh__memory_search` — replaces the current built-in `memory_search`; read-only full-text search via `Recaller.Recall()`. Available to all agents by default.
+- `agh__memory_show` — replaces the current built-in `memory_read`; read-only; loads a single curated entry by filename. Sub-agents inherit.
+- `agh__memory_propose` — new write tool; routes through `Controller.Decide()`. Policy-gated by `agent.memory.write_policy = "commit" | "propose" | "deny"`. Default `commit` for root agent; `deny` for sub-agents.
+- `agh__memory_note` — new ad_hoc delta-note tool; writes to `_system/ad_hoc/<ts>-<slug>.md`. Schema validates path containment via `isAGHAdhocPath`. Available to root agents by default; configurable.
+- The current built-in `memory_history` descriptor is **removed** from the native-tool registry in Slice 1. History remains agent-manageable through CLI/HTTP/UDS (`agh memory history`, `GET /memory/history`) rather than a direct built-in tool.
+
+### HTTP / UDS endpoints (parity with CLI; REST-shape normalized per peer-review N12)
+
+REST routes follow noun/`{resource}` shape consistently. `internal/api/contract` adds:
+
+- **Memories**: `GET /memory`, `GET /memory/{filename}`, `POST /memory`, `PATCH /memory/{filename}`, `DELETE /memory/{filename}`
+- **Search / utility**: `POST /memory/search`, `POST /memory/reindex`, `GET /memory/health`, `GET /memory/scope-show`
+- **History**: `GET /memory/history` (events stream), `GET /memory/recall-traces/{session_id}/{turn_seq}` (forensic recall trace)
+- **Lifecycle ops**: `POST /memory/promote`, `POST /memory/reset`, `POST /memory/reload`
+- **Decisions** (controller WAL): `GET /memory/decisions`, `GET /memory/decisions/{id}`, `POST /memory/decisions/{id}/revert`
+- **Dreaming runs**: `GET /memory/dreams`, `GET /memory/dreams/{date}`, `POST /memory/dreams/{run_id}/retry`, `POST /memory/dreams/trigger`, `GET /memory/dreams/status`
+- **Daily logs**: `GET /memory/daily`, `GET /memory/daily/{date}`, `POST /memory/daily/archive`, `POST /memory/daily/{date}/restore`, `POST /memory/daily/purge`
+- **Extractor**: `GET /memory/extractor/status`, `GET /memory/extractor/pending`, `POST /memory/extractor/replay`, `POST /memory/extractor/drain`, `POST /memory/extractor/disable`
+- **Providers**: `GET /memory/providers`, `POST /memory/providers/{name}/enable`, `POST /memory/providers/{name}/disable`
+- **ad_hoc notes**: `GET /memory/adhoc`, `GET /memory/adhoc/{slug}`
+- **Sessions**: `GET /sessions`, `GET /sessions/{id}`, `GET /sessions/{id}/replay`, `POST /sessions/prune`, `POST /sessions/repair`
+- **Workspace resolution / repair**: `GET /workspaces`, `GET /workspaces/{id}`, `POST /workspaces/resolve`
+
+Slice 1 reuses the existing plural `workspaces` resource family rather than introducing a new singular `/workspace/*` namespace. `POST /workspaces/resolve` is the transport surface for resolver-backed identity creation, lookup, and repair of `.agh/workspace.toml`.
+
+Codegen co-ship via `agh-contract-codegen-coship` skill — every contract addition regenerates `openapi/agh.json` and `web/src/generated/agh-openapi.d.ts` in the same commit.
+
+---
+
+## Safety Invariants
+
+Numbered list per Marker 6 (lease + concurrency + ownership invariants):
+
+1. **Single write path.** Every curated-memory mutation flows through `Controller.Decide()`. Direct `Store.Add()` is removed; only `Store.ApplyDecision(decision)` is exported. The daemon-owned file watcher observes only curated files (`MEMORY.md`, `<type>_<slug>.md`) under scope roots, excludes `_system/`, `daily/`, `_inbox/`, and session ledgers, debounces for 500 ms, and converts external add/update/delete into repair-only `Origin = file` decisions on the same controller path. If the observed bytes already match an unapplied WAL row's `post_content_hash`, replay only stamps `applied_at`; otherwise the controller decides from the observed state. There is no bypass path.
+2. **Decision-before-mutation with deterministic replay.** A `memory_decisions` row containing `post_content`, `post_content_hash`, `target_filename`, `frontmatter`, and `idempotency_key` is persisted *before* the corresponding file mutation lands. Crash before file mutation leaves a row with `applied_at = NULL`; daemon-boot replay re-applies pending rows idempotently and the curated tree converges to the same state. (Peer-review B3 fix.)
+3. **Atomic write.** All curated file writes use `mkstemp + fsync + rename` via `internal/fileutil.AtomicWrite`. Half-write impossible.
+4. **`BEGIN IMMEDIATE` per workspace.** Event-log + catalog + decisions updates commit in one transaction per workspace DB. Cross-workspace mutations use a saga pattern with explicit compensation steps documented in the operation's `metadata` JSON; cross-DB transactions are not attempted (peer-review OC2). `agh memory promote` is **copy-by-default**: the target tier receives a new curated entry and the source remains until an explicit delete. Slice 1 does not silently "move then delete" across DBs.
+5. **Frozen snapshot invariant.** `Assembler.LoadPromptIndex(scope)` is captured once at session boot. Mid-session writes do NOT mutate the captured snapshot. `agh memory reload` invalidates the snapshot for the **next session boot only** — there is no "next turn" semantic; in-session refresh is deliberately not provided in Slice 1 to keep prompt-cache stable (peer-review N7).
+6. **Sub-agent read-only.** Sub-agent controllers are configured with `Mode = ReadOnly`; write tools fail closed. Defense in depth: native tool registry also denies writes for `actor_kind == agent_subagent`. Parent-side extractor may process sub-agent traces, but every resulting Decision carries `Provenance.SourceActor = "agent_subagent"` so synthesized entries are not attributed to the user.
+7. **`_system/` non-injection.** No file under `_system/` ever appears in a `Packaged` block. Enforced at three layers: `Scan` skip, catalog `injection = 0`, recall `WHERE injection = 1` filter.
+8. **Workspace_id stability.** Catalog rows key on `workspace_id`, not path. `mv` workspace does not orphan rows. `<workspace>/.agh/workspace.toml` is the canonical workspace identity; resolver reads or creates on first touch. Permission-denied write to `workspace.toml` is a fatal init error (no silent ephemeral fallback) — peer-review OC adjustment to ADR-004.
+9. **DLQ replay determinism.** Failed extractions land in `_system/extractor/failures/<run_id>.json` containing the turn payload, `prompt_version`, `model`, `coalesced_with` ranges, and an `idempotency_key`. Dreaming failures land in `_system/dream/failures/<run_id>.json` (separate path per peer-review N4). Replay is idempotent — re-running produces the same decision events.
+10. **Provider single-active invariant.** At most one **external** provider is active per workspace. Bundled local provider is always-on as fallback. Provider enable/disable emits canonical events (`memory.provider.enabled` / `memory.provider.disabled`); collisions emit `memory.provider.collision` and reject registration.
+11. **Extractor bounded queue.** Per session, ≤1 in-flight + ≤1 queued extraction. Overflow merges (concat message-seq ranges) and emits `memory.extractor.coalesced`. Hard ceiling at 16 coalesced → drop oldest with `memory.extractor.dropped` event.
+12. **`_inbox/` single-consumer invariant.** Extractor and future compaction-flush producers are append-only writers to `$AGH_HOME/memory/_inbox/<session_id>/`. A single daemon-owned `InboxConsumer` started from `internal/daemon/boot.go` owns read/decode/rename/delete. Producers never read or delete inbox files. Decode/apply failures move the file to `_system/extractor/failures/`; success deletes it atomically after all candidate lines are applied.
+13. **Detached lifetime.** Extractor and dreaming worker run under `context.WithoutCancel(parent)` with re-attached deadline. **Manager/daemon-owned** `WaitGroup` tracks in-flight (never request-owned per peer-review caveat); daemon shutdown calls `Drain(ctx, drain_timeout)` (default 60s).
+14. **Greenfield delete.** No alias fields, no compat shims, no schema fallback paths. Migration delta is enumerated in `## Greenfield Delete Targets` and lands in one commit per ADR-012.
+
+---
+
+## Implementation Design
+
+### Eixo 1 — Spine
+
+**Scope identity (ADR-002 / ADR-004).** Three scopes; `agent` is two-tier. `internal/workspace.Resolver.Resolve` reads or creates `<workspace>/.agh/workspace.toml` and returns `(workspace_id, realpath)`. `internal/config/agent.go::AgentDef` gains `Memory.Scope` and `Memory.AgentTier` fields, both validated against the canonical scope+tier enums. When omitted, the runtime defaults to `Scope = agent`, `AgentTier = workspace` for both globally-defined and workspace-defined agents; this is the least-leakage default. Sessions without a bound workspace cannot materialize `agent-workspace` writes and fail closed with `memory.scope.workspace_required` rather than silently routing to `global`.
+
+**Event-log spine (ADR-001).** `memory_events` is the audit/observability authority, not the recovery WAL or live-signal store. Every controller decision, recall, shadow event, daily-log rotation, archive, purge, and provider lifecycle transition emits a row. Crash replay authority lives in `memory_decisions`; live recall-signal state lives in `memory_recall_signals`; dreaming gate/runtime state lives in `memory_consolidations`. Existing `memory_operation_log` is renamed to `memory_events` in the migration (greenfield rename, no alias).
+
+**Write controller (ADR-009; lexical/entity-only in Slice 1 per peer-review B1).** `internal/memory/controller` package. The Slice 1 algorithm is fully **deterministic + lexical**, with a narrow LLM tiebreaker reserved for entity-slot ambiguity (multiple plausible target slugs, not similarity scoring):
+
+```
+Decide(candidate):
+  if policy violation (size, scope, threat scan): → REJECT
+  hash = blake2b(normalize(candidate.content))
+  if hash already in store: → NOOP (exact dup, O(1))
+  if frontmatter.entity != "" AND frontmatter.attribute != "":
+      slot_targets = catalog.LookupBySlot(scope, entity, attribute)
+      if len(slot_targets) == 0: → ADD (fresh slot)
+      if len(slot_targets) == 1:
+          if slot_targets[0].content == candidate.content: → NOOP (no change)
+          else: → UPDATE(target = slot_targets[0])
+      if len(slot_targets) > 1: → escalate to llmDecide (genuine slot ambiguity)
+  else:
+      // No entity slot declared — match by surface form via FTS5 unicode61 + trigram
+      fts_hits = ftsSearch(scope, candidate.content, top_k=5)
+      if no hits with overlap > minimum surface-form threshold: → ADD
+      if exact-name slug collision (`<type>_<slug>`): → UPDATE(target = first match)
+      else: → escalate to llmDecide (ambiguous surface match)
+
+llmDecide(candidate, candidates):
+  budget = 1 LLM call, 250 ms timeout, top-K=5 in prompt
+  prompt inputs (peer-review cross-cutting #1 — make explicit):
+    - candidate.frontmatter.entity, candidate.frontmatter.attribute
+    - candidate.content (truncated to 1000 chars)
+    - rule_trace summary (which rules matched)
+    - for each candidate target (≤5):
+        target.id, target.target_filename, target.frontmatter.entity, target.frontmatter.attribute,
+        target.content snippet (≤300 chars), target.last_updated_at
+  output = strict JSON {op, target_id?, confidence, reason}
+  on schema-invalid OR timeout OR error: → NOOP (fallback)
+  return validated decision
+```
+
+The prompt template lives at `internal/memory/prompts/decide.v1.tmpl` and includes regression tests asserting the input fields above are present.
+
+**No cosine similarity, no embeddings, no `0.72/0.88/0.92` thresholds in Slice 1.** Those graduate to Slice 3 alongside vector retrieval.
+
+`mode = "hybrid" | "rules" | "llm"` config keys still allow operational profiles:
+- `hybrid` (default): full algorithm above
+- `rules`: ambiguity band collapses to NOOP (no LLM call)
+- `llm`: rule path becomes pre-validator only (REJECT/NOOP-on-exact-dup), every other path escalates
+
+Decision is persisted to `memory_decisions` with all replay material (B3) **before** the file mutation lands.
+
+**Frozen prompt snapshot.** `internal/situation/service.go::Service.SystemPrompt(...)` captures the curated indexes at session boot via `Assembler.LoadPromptIndex(scope)`. Mid-session writes do not mutate the captured snapshot. `agh memory reload` invalidates for the next boot.
+
+**Deterministic recall (ADR-011).** `internal/memory/recall` package. FTS5 unicode61 + FTS5 trigram + weighted score (config-tunable: `bm25_unicode = 0.55`, `bm25_trigram = 0.20`, `recency = 0.15`, `recall_signal = 0.10`) + scope shadow-by-id + top-K (default 5) + freshness banner. No vector. No LLM ranker.
+
+**Agent-manageability parity.** Every CLI verb has HTTP and UDS parity. Native tools: `agh__memory_search`, `agh__memory_show` (read-only); `agh__memory_propose`, `agh__memory_note` (policy-gated writes).
+
+**Observability.** Canonical events listed in §Monitoring (per-row in `memory_events`). Recall events record query, scope filters, candidate IDs and scores, decision, provenance, redaction summary. Operators query via `agh memory history` and `agh memory recall trace`.
+
+### Eixo 2 — Dreaming v2
+
+**Extends, doesn't replace, the existing runtime.** `internal/memory/dream.go` (456 LOC) and `internal/memory/consolidation/runtime.go` (464 LOC) keep their `Time → Sessions → Lock` cascade and lock-rollback semantics (`analysis_agh-current.md` §16 don't-lose list).
+
+**Add a fourth gate (signal threshold).** After Time + Sessions + Lock pass, the gate evaluates whether at least N candidates from `memory_recall_signals` exceed the promotion score threshold. If not, the gate skips synthesis and stamps `last_run_at` (anti-thrashing).
+
+**Recall feedback loop (live in Slice 1 per peer-review B2).** `Recaller.Recall()` writes one row per surfaced chunk to `memory_recall_signals` via fire-and-forget goroutine: `recall_count += 1`, `last_recalled_at = now`, `recall_score = ema_update(prev_score, similarity)`, `last_score_update_at = now` (idempotent compare-and-swap on the barrier). Recall surface latency is preserved (failure to update is logged, not bubbled). Weights start at goclaw defaults, tunable via `[memory.dream.scoring]` (peer-review N8 — moved out of `[memory.controller.scoring]` to keep dream weights distinct from controller thresholds).
+
+**4-component promotion scoring.** When the dreaming worker runs, it reads `memory_recall_signals` and applies:
+
+```
+score = freq_w · norm_recall_count
+      + rel_w  · norm_recall_score
+      + rec_w  · recency_decay(last_recalled_at, half_life=14d)
+      + fresh_w · cold_start_protection(freshness_started_at)
+```
+
+Defaults: `freq=0.30, rel=0.35, rec=0.20, fresh=0.15`. All config keys.
+
+**Promotion gates + `MarkPromoted` (live in Slice 1 per peer-review B2).** Gates: ≥5 unpromoted candidates with `recall_count ≥ 2` and `score ≥ 0.75` queried via the partial index on `memory_recall_signals(promoted_at, recall_score) WHERE promoted_at IS NULL`. Synthesized output at `<scope>/memory/_system/dreaming/YYYYMMDD-<llm-slug>.md`. After successful synthesis: `MarkPromoted(chunk_ids[], run_id)` flips `promoted_at = now` and `promotion_run_id = run_id` for the consumed chunks, then emits `memory.dream.run.promoted` to the event log.
+
+**Dedicated dreaming agent.** New built-in agent role `dreaming-curator` with sandboxed tool whitelist (`isAGHDreamingPath` validator). Replaces today's "any configured agent" approach. Prompt versioned at `internal/memory/prompts/dream.v1.tmpl`.
+
+**DLQ + retry (separate from extractor DLQ per peer-review N4).** On synthesis failure, write `<scope>/memory/_system/dream/failures/<run_id>.json` with the input candidates + error + replay command + prompt/model versioning + `idempotency_key`. `agh memory dream retry <run_id>` re-runs the synthesis with the same input. The extractor's DLQ at `_system/extractor/failures/` is reserved for extraction failures only — paths do not collide.
+
+### Eixo 3 — `MemoryProvider` ABC (ADR-008; B4 boundary fix)
+
+**Extend declared types into a stable, dependency-light contract.** `internal/memory/types.go::ProviderHookRunner` / `ProviderHookRequest` / `ProviderHookResult` / `ProviderHookEvent` move to `internal/memory/contract` and become the v2 ABC. The contract package depends only on standard library + `internal/logger`. Extension authors import only `internal/memory/contract`; no controller/recall/extractor types leak through the public surface (peer-review B4). Slice 1 hard-cuts every caller to `contract` in the same change; `internal/memory/types.go` does not remain as a migration shim.
+
+**Bundled local provider.** `internal/memory/provider/local` implements all 10 methods against the existing catalog + Markdown store. Always present. Always enabled. Other providers ride on top via `internal/extension`.
+
+**Daemon delegation.** `internal/daemon/boot.go` constructs `MemoryProviderRegistry` and routes every memory operation through the active provider. Optional methods (Recall, Prefetch, SyncTurn, OnPreCompress) on a non-bundled provider that returns `ErrNotImplemented` fall through to the bundled local provider.
+
+**Single active provider per workspace.** Selected via `[memory.provider]` block. Provider tools dedup against built-in tool names; collisions reject at register time with a structured error.
+
+### Eixo 4 — Hermes engineering parity
+
+**FTS5 trigram twin index.** Schema migration adds `memory_chunks_fts_trigram` virtual table. Recall pipeline queries both unicode61 and trigram in parallel and merges by `chunk_id` with weighted score. Fixes CJK + paraphrase resilience.
+
+**Jittered write retry helper.** `internal/store.ExecuteWrite(ctx, db, fn)` wraps `BEGIN IMMEDIATE` + 15-retry loop + 20-150 ms jitter + periodic WAL checkpoint. All SQL writers (controller, recall, extractor, dreaming, ledger) go through it. Per-DB; works for both `$AGH_HOME/agh.db` and `<workspace>/.agh/agh.db`.
+
+**`<memory-context>` SSE scrubber.** `internal/sse` adds a streaming filter that neutralizes memory-fence markers in assistant output. Prevents the model from leaking its own injection.
+
+**`parent_session_id` lineage chain.** `internal/store/sessiondb` extension stores `parent_session_id` on session metadata; Resume walks lineage forward to message-bearing descendants. Compaction (Slice 2) extends this chain.
+
+**Atomic write pattern.** `internal/fileutil.AtomicWrite(path, content)` does `mkstemp + fsync + rename`. All curated-file writes use it.
+
+**Pre-write `_scan_memory_content` + `WHAT_NOT_TO_SAVE` (peer-review N14).** Two complementary write gates:
+
+1. **Threat scan** — Hermes regex catalog ported verbatim: invisible Unicode (`memory_tool.py:86-104`), prompt-injection markers ("ignore previous", "you are now"), exfiltration patterns (`curl`, `nc`, `base64 -d`), persistence hooks (`launchctl`, `cron`, `systemd`). Reject + emit `memory.write.rejected` event.
+2. **`WHAT_NOT_TO_SAVE` policy** — versioned prompt artifact at `internal/memory/prompts/what_not_to_save.v1.md` enumerating the closed denylist (code patterns, debugging fixes, ephemeral state, anything already in CLAUDE.md, transcript dumps). Two roles:
+   - **Extractor system prompt** includes `WHAT_NOT_TO_SAVE` so the forked sub-agent self-filters before producing candidates.
+   - **Controller pre-write hook** runs a deterministic regex pass (`internal/memory/scan/whatnottosave.go`) on the candidate body — matches reject with `memory.write.rejected` + `metadata.reason = "what_not_to_save"`.
+
+Both gates run in `Controller.Decide()` before the rule/LLM algorithm. Versioned: any update to the policy file is a numbered prompt-version bump and ships with regression tests.
+
+**Char caps.** `MEMORY.md` capped at 200 lines / 25 KB. Truncation banner appended when capped. Per-file caps configurable via `[memory.file] max_lines = 200, max_bytes = 25600`.
+
+**Action-cue header phrasing.** Recall packaging uses Claude Code's eval-validated header (`memoryTypes.ts` 3/3 vs 0/3 effect). Versioned prompt at `internal/memory/prompts/recall_header.v1.tmpl`.
+
+### Extractor (Mode A — ADR-010)
+
+`internal/memory/extractor` package. Hooked at `hook.session.message_persisted` (new typed event). Forked sub-agent with sandboxed tool whitelist (`createAutoMemCanUseTool` analog). Per-session bounded queue (cap 1 in-flight + 1 queued); overflow merges. DLQ at `<scope>/memory/_system/extractor/failures/`. Output to `$AGH_HOME/memory/_inbox/<session_id>/<utc>-<message_seq>.jsonl`.
+
+`internal/daemon/boot.go` starts one daemon-owned `InboxConsumer` that processes inbox files FIFO by mtime: rename to a transient processing name, decode candidate lines, run `Controller.Decide()` + `Store.ApplyDecision()`, then delete on success. Producers never delete inbox files. Decode or apply failures move the file into the extractor failure surface so replay tooling can see the exact payload that failed.
+
+**Sub-agent rule.** `actor_kind != "agent_subagent" AND parent_session_id == ""` — root only.
+
+**Mutual exclusion.** If main agent invoked `agh__memory_propose` in the same turn, extractor no-ops for that turn (`hasMemoryWritesSince` analog).
+
+---
+
+## Integration Points
+
+### ACP — explicit non-coordination boundary (peer-review B6 fix)
+
+- **AGH manages memory; ACP providers manage context. No coordination.** AGH writes to its own curated layer (MEMORY.md, topic files, `_inbox/`, daily logs, `_system/`). ACP providers (Claude Code, Codex, Hermes adapter, OpenClaw adapter) manage their own context independently — compaction, system-prompt assembly, provider-side memory injection. **AGH does not detect, pass-through, or coordinate with provider context-management.**
+- **No `native_context_management` flag.** The peer-review B6 originally suggested introducing such a coordination flag; the simpler answer is to draw a clean boundary instead. AGH's memory is AGH's. Provider context is the provider's. If both inject memory into the system prompt, that's a concern the operator addresses by choosing a provider — not something AGH tries to be smart about.
+- **Provider environment.** Memory v2 introduces no new ACP env vars; provider env policy (`bound_secret`, `filtered`, `isolated` per `internal/CLAUDE.md`) continues unchanged.
+- **Sub-agent inheritance.** Sub-agents fork from parent's curated snapshot at session boot; controller `Mode = ReadOnly` enforced at runtime.
+
+### Extension contract
+
+- New host API methods: `MemoryProviderRegistry.Register(name, factory)`, `MemoryProviderRegistry.Active(workspace_id) MemoryProvider`.
+- Extensions implementing `MemoryProvider` register their factory at install; daemon delegates per workspace.
+- Tool registration: providers may register additional tools via existing extension manifest; collision detection rejects duplicates of built-in `agh__memory_*` tool names.
+
+### Hooks
+
+- New typed event: `hook.session.message_persisted` (extractor entry point).
+- Reused: `on_session_started` (provider Initialize + frozen snapshot), `on_session_stopped` (provider OnSessionEnd + ledger materializer), `on_idle` (dreaming worker tick).
+
+**Provider lifecycle method naming canonical (peer-review N13):**
+
+| Hook event | Provider method called | Timing |
+|---|---|---|
+| Daemon boot, per workspace | `Initialize(ctx, ProviderInit)` | Once per workspace at first read/write or daemon start |
+| `on_session_started` | `SystemPromptBlock(ctx, SnapshotRequest)` | Captures prompt block to inject; called once per session boot |
+| Per-recall query | `Recall(ctx, RecallRequest)` (optional) | When invoked from `Recaller` and provider implements |
+| Pre-turn prefetch | `Prefetch(ctx, PrefetchRequest)` (optional) | Before next turn; provider warms cache |
+| Per-turn after assistant message persisted | `SyncTurn(ctx, TurnRecord)` (optional) | Provider may sync turn state |
+| Pre-compaction (Slice 2 only) | `OnPreCompress(ctx, PreCompressRequest)` (optional) | Provider may opt out of compaction or hint preserved content |
+| `on_session_stopped` | `OnSessionEnd(ctx, SessionEndRecord)` | Provider may finalize state |
+| Session split / fork | `OnSessionSwitch(ctx, SessionSwitchRecord)` | Provider notified of session boundary |
+| Each Decision write | `OnMemoryWrite(ctx, WriteRecord)` | Provider observes the controller's commit |
+| Daemon shutdown | `Shutdown(ctx)` | Per-workspace cleanup |
+
+`Initialize` is **per-workspace, per-daemon-lifetime** (not per-session). `SystemPromptBlock` is per-session-boot. `OnMemoryWrite` is per-Decision regardless of session.
+
+### Skills
+
+- No skill changes in Slice 1. Procedural memory (skills) remains in `internal/skills` with its own precedence (ADR-002 explicitly separates memory hierarchy from instruction hierarchy).
+
+### `internal/api/contract` + codegen
+
+- All new types (Decision, Candidate, Packaged, Block, etc.) are contract types regenerated via `make codegen`. `agh-contract-codegen-coship` skill enforces same-PR regeneration.
+
+---
+
+## Extensibility Integration Plan
+
+| Surface | Change | ADR ref |
+|---|---|---|
+| **Extension manifest** | `internal/extension/contract` gains new optional capability `memory.provider` with provider name + version + config schema. | ADR-008 |
+| **Hooks** | `internal/hooks/dispatch_events.go` adds typed event `hook.session.message_persisted`. Reused: `on_session_started`, `on_session_stopped`, `on_idle`. No changes to existing event signatures. | ADR-010 |
+| **Skills** | Unaffected. Procedural memory remains in `internal/skills`. Memory hierarchy ≠ instruction hierarchy (P11). | n/a |
+| **Tools / resources** | `internal/tools/builtin/memory.go` hard-cuts the current `memory_list` / `memory_read` / `memory_search` / `memory_history` descriptors to the Slice 1 set: `agh__memory_list`, `agh__memory_show`, `agh__memory_search`, `agh__memory_propose`, `agh__memory_note`. External provider tools dedup against built-in names; collision rejects at register time. | ADR-008 |
+| **Bundles** | Unaffected. | n/a |
+| **Registries** | `internal/extension/host_api.go` gains `MemoryProviderRegistry`; `internal/daemon/boot.go` is the only composition root that wires active-provider selection. | ADR-008 |
+| **Bridge SDKs** | Unaffected. | n/a |
+| **MCP sidecars** | Unaffected. | n/a |
+| **Protocol docs** | `packages/site/content/runtime/core/extensions/` and `packages/site/content/runtime/core/hooks/` gain the provider-ABC and `hook.session.message_persisted` docs. | ADR-008 |
+
+---
+
+## Agent Manageability Plan
+
+Every memory operation is reachable from CLI, HTTP, and UDS, with structured outputs (`-o json` / `-o jsonl`) and deterministic error contracts. Native tools cover the agent-driven path. Per SD-011: UI-only manageability is incomplete — the API surface above is the contract.
+
+| Capability | CLI verb | HTTP route | Native tool |
+|---|---|---|---|
+| List memories | `agh memory list` | `GET /memory` | `agh__memory_list` |
+| Show memory | `agh memory show <f>` | `GET /memory/{filename}` | `agh__memory_show` |
+| Write (operator) | `agh memory write` | `POST /memory` | n/a |
+| Write (agent) | n/a | n/a | `agh__memory_propose` (policy-gated) |
+| Edit | `agh memory edit <f>` | `PATCH /memory/{filename}` | `agh__memory_propose` |
+| Delete | `agh memory delete <f>` | `DELETE /memory/{filename}` | `agh__memory_propose` |
+| Search | `agh memory search` | `POST /memory/search` | `agh__memory_search` |
+| Reindex | `agh memory reindex` | `POST /memory/reindex` | n/a (operator-only) |
+| History | `agh memory history` | `GET /memory/history` | n/a |
+| Health | `agh memory health` | `GET /memory/health` | n/a |
+| Promote | `agh memory promote` | `POST /memory/promote` | n/a |
+| Reset | `agh memory reset` | `POST /memory/reset` | n/a |
+| Reload snapshot | `agh memory reload` | `POST /memory/reload` | n/a |
+| Scope show | `agh memory scope-show` | `GET /memory/scope-show` | n/a |
+| Decisions list | `agh memory decisions list` | `GET /memory/decisions` | n/a |
+| Decisions show | `agh memory decisions show` | `GET /memory/decisions/{id}` | n/a |
+| Decisions revert | `agh memory decisions revert` | `POST /memory/decisions/{id}/revert` | n/a |
+| Recall trace | `agh memory recall trace` | `GET /memory/recall/trace` | n/a |
+| Dream show | `agh memory dream show` | `GET /memory/dream/show/{date}` | n/a |
+| Dream retry | `agh memory dream retry` | `POST /memory/dream/retry/{run_id}` | n/a |
+| Dream trigger | `agh memory dream trigger` | `POST /memory/dream/trigger` | n/a |
+| Daily logs | `agh memory daily *` | `/memory/daily/*` | n/a |
+| Sessions ledger | `agh sessions *` | `/sessions/*` | n/a |
+| Extractor | `agh memory extractor *` | `/memory/extractor/*` | n/a |
+| Provider | `agh memory provider *` | `/memory/providers/*` | n/a |
+| ad_hoc | `agh memory adhoc *` | `/memory/adhoc/*` | `agh__memory_note` |
+| Workspace list | `agh workspace list` | `GET /workspaces` | n/a |
+| Workspace info | `agh workspace info` | `GET /workspaces/{id}` or `POST /workspaces/resolve` when resolving by path | n/a |
+| Workspace recover / resolve | `agh workspace recover --realpath <path>` | `POST /workspaces/resolve` | n/a |
+
+**Deterministic errors.** All endpoints return structured error payloads `{code, message, details}` with stable `code` strings (e.g. `memory.scope.invalid`, `memory.controller.timeout`, `memory.provider.collision`). No free-form error messages on the wire.
+
+### Hard-cut public surface changes
+
+| Current surface | Slice 1 surface | Action |
+|---|---|---|
+| `agh memory read <filename>` | `agh memory show <filename>` | Hard-cut rename. Generated CLI docs and site refs update in the same slice. |
+| `agh memory consolidate` | `agh memory dream trigger` | Hard-cut rename. Consolidation becomes operator-facing dreaming terminology. |
+| `GET /memory/search` | `POST /memory/search` | Hard-cut method change; query payload becomes explicit and extensible. |
+| `PUT /memory/{filename}` | `POST /memory` and `PATCH /memory/{filename}` | Hard-cut split between create and explicit edit semantics. |
+| Built-in tools `memory_list`, `memory_read`, `memory_search`, `memory_history` | `agh__memory_list`, `agh__memory_show`, `agh__memory_search`, `agh__memory_propose`, `agh__memory_note` | Hard-cut registry rewrite. `memory_history` is removed from built-ins in Slice 1. |
+| Planned `web/src/routes/memory/*` namespace | Existing knowledge/settings surfaces under `web/src/routes/_app/**` | No new top-level memory route tree in Slice 1; extend the existing app surfaces instead. |
+
+---
+
+## Config Lifecycle
+
+All new keys live under `[memory.*]` blocks in `config.toml`. There is **no `[memory.v2] enabled` feature flag** (peer-review N2) — Memory v2 is the memory subsystem; the migration runs once and the new behavior is active. Every key below is hot-reloadable unless noted.
+
+```toml
+[memory.controller]
+mode = "hybrid"                             # hybrid | rules | llm
+max_latency = "300ms"
+default_op_on_fail = "noop"
+
+# No cosine/embedding thresholds in Slice 1 (peer-review B1).
+# The Slice 1 controller is lexical/entity-only — see ADR-009 algorithm.
+# Cosine thresholds graduate to Slice 3 alongside vector retrieval.
+
+[memory.controller.llm]
+enabled = true
+model = "anthropic/claude-haiku-4"
+top_k = 5                                   # candidates passed to entity-slot tiebreaker
+prompt_version = "v1"
+timeout = "250ms"
+max_tokens_out = 256
+
+[memory.controller.policy]
+max_content_chars = 4096
+max_writes_per_min = 60
+allow_origins = ["cli", "http", "uds", "tool", "extractor", "dreaming", "file", "provider"]
+
+[memory.recall]
+top_k = 5
+raw_candidates = 50
+fusion = "weighted"                         # weighted | rrf (rrf reserved for slice 3)
+include_already_surfaced = false
+include_system = false
+
+[memory.recall.weights]
+bm25_unicode = 0.55
+bm25_trigram = 0.20
+recency = 0.15
+recall_signal = 0.10
+
+[memory.recall.freshness]
+banner_after_days = 1
+
+[memory.recall.signals]                      # peer-review NB2 — RecordRecall observability
+queue_capacity = 256                          # bounded channel; oldest-drops on overflow
+worker_retry_max = 3                          # per-update retries before failure event
+metrics_enabled = true
+
+[memory.decisions]                            # peer-review cross-cutting #3 — WAL retention
+prune_after_applied_days = 90                 # decisions with applied_at older than this are pruned
+keep_audit_summary = true                     # before pruning, emit memory.decisions.audit_summarized event (NB5)
+max_post_content_bytes = 65536                # per-row body size cap; oversize rows store a content-hash ref instead
+
+# Audit/prune event lifecycle (peer-review NB5):
+# 1. WAL retention sweeper finds decisions WHERE applied_at < now - prune_after_applied_days.
+# 2. If keep_audit_summary = true, emit memory.decisions.audit_summarized with the period summary.
+# 3. Delete the rows; emit memory.decisions.pruned with prune count + bounds.
+
+[memory.extractor]
+enabled = true
+mode = "post_message"                       # post_message | compaction_flush | hybrid (slice 2)
+throttle_turns = 1
+deadline = "60s"
+sandbox_inbox_only = true
+inbox_path = "$AGH_HOME/memory/_inbox"
+dlq_path = "$AGH_HOME/memory/_system/extractor/failures"
+model = ""                                  # empty = forked from main; or e.g. "anthropic/claude-haiku-4"
+
+[memory.extractor.queue]
+capacity = 1
+coalesce_max = 16
+
+[memory.dream]
+enabled = true
+agent = "dreaming-curator"
+min_hours = 24
+min_sessions = 3                            # match code default; doc drift fixed (analysis_agh-current §16)
+debounce = "10m"
+prompt_version = "v1"
+
+[memory.dream.gates]
+min_unpromoted = 5
+min_recall_count = 2
+min_score = 0.75
+
+[memory.dream.scoring]                       # peer-review N8 — moved out of [memory.controller.scoring]
+recency_half_life_days = 14
+weights = { frequency = 0.30, relevance = 0.35, recency = 0.20, freshness = 0.15 }
+
+[memory.session]
+ledger_format = "jsonl"
+ledger_root = "$AGH_HOME/sessions"
+events_purge_grace = "24h"
+cold_archive_days = 30
+hard_delete_days = 0                        # 0 = never; explicit prune via CLI
+max_archive_bytes = 10737418240             # 10 GiB safety valve
+unbound_partition = "_unbound"
+
+[memory.daily]
+max_bytes = 1048576                         # 1 MiB
+max_lines = 5000
+rotate_format = "{date}.{seq}.md"
+dreaming_window = 7
+cold_archive_days = 30
+hard_delete_days = 0
+max_archive_bytes = 1073741824              # 1 GiB safety valve
+sweep_hour = 3                              # local hour for daily housekeeping
+archive_path = "_system/archive"
+
+[memory.file]
+max_lines = 200                             # MEMORY.md cap
+max_bytes = 25600
+
+[memory.provider]
+name = ""                                   # empty = bundled local; or "mem0" | "honcho" | ... (slice 4)
+timeout = "2s"                              # per-provider method deadline before fail-open to bundled local
+failure_threshold = 5                       # consecutive failures before circuit opens
+cooldown = "30s"                            # how long the circuit stays open before retry
+
+[memory.workspace]
+toml_path = "<workspace>/.agh/workspace.toml"   # informational; not configurable
+auto_create = true                          # creates workspace.toml on first touch
+```
+
+**Config-lifecycle requirements (per SD-011):**
+
+- Structs in `internal/config` mirror every key.
+- Defaults set in `internal/config/defaults.go`.
+- Merge/overlay via existing config layering (system → user → workspace → flags).
+- Validation in `internal/config/validate.go` rejects unknown enum values, negative integers, weights that don't sum to 1.0 (where applicable).
+- `internal/config/tool_surface.go` exposes every new key that agents must inspect or mutate through config tools.
+- `internal/api/httpapi/routes.go` + `internal/api/udsapi/routes.go` extend `GET/PATCH /settings/memory` for the same keyset.
+- Web settings co-ship through `web/src/routes/_app/settings/memory.tsx`, `web/src/hooks/routes/use-settings-memory-page.ts`, and `web/src/systems/settings/**`.
+- Examples and prose live under `packages/site/content/runtime/core/memory/`, `packages/site/content/runtime/core/configuration/`, `packages/site/content/runtime/core/hooks/`, `packages/site/content/runtime/core/extensions/`, `packages/site/content/runtime/core/workspaces/`, and `packages/site/content/runtime/cli-reference/{memory,workspace,session}/`.
+- Generated CLI docs (`make cli-docs`) and site docs ship with the slice.
+- Tests: every key has at least one round-trip test (`config_test.go`) and one validation test.
+
+---
+
+## Web/Docs Impact
+
+| Path | Change | Owner |
+|---|---|---|
+| `web/src/routes/_app/knowledge.tsx`, `web/src/hooks/routes/use-knowledge-page.ts`, `web/src/systems/knowledge/**` | Extend the existing knowledge surface into the Slice 1 memory inspector: list/show/edit plus decision-history entry points. No new top-level `routes/memory/*` tree in Slice 1. | web/ |
+| `web/src/routes/_app/settings/memory.tsx`, `web/src/hooks/routes/use-settings-memory-page.ts`, `web/src/systems/settings/**` | Extend the existing settings surface with the new `[memory.*]` config shape, validation, provider circuit-breaker settings, and workspace-identity visibility. | web/ |
+| `web/src/generated/agh-openapi.d.ts` | Regenerated via `make codegen`; ships with the slice. | web/ |
+| `packages/site/content/runtime/core/memory/*.mdx` | Update memory concepts and operator-facing semantics: scopes, precedence, controller, recall, dreaming, providers. | site/ |
+| `packages/site/content/runtime/core/extensions/*.mdx`, `packages/site/content/runtime/core/hooks/*.mdx` | Document the `MemoryProvider` ABC, `hook.session.message_persisted`, and the AGH-memory vs provider-native-memory boundary. | site/ |
+| `packages/site/content/runtime/core/configuration/{config-toml,file-locations}.mdx`, `packages/site/content/runtime/core/workspaces/*.mdx`, `packages/site/content/runtime/core/sessions/*.mdx` | Document config keys, `.agh/workspace.toml`, `_inbox/`, session-ledger materialization, and workspace recovery. | site/ |
+| `packages/site/content/runtime/cli-reference/{memory,workspace,session}/*.mdx`, `packages/site/content/runtime/api-reference/index.mdx` | Regenerated CLI/API references and reviewed prose for the renamed / added surfaces. | site/ |
+
+`cy-web-docs-impact` skill will be invoked at task generation to populate per-task subitems.
+
+---
+
+## Impact Analysis
+
+| Component | Impact Type | Description and Risk | Required Action |
+|---|---|---|---|
+| `internal/memory/types.go` | deleted/split | Shared contract DTOs move to `internal/memory/contract`; speculative shapes are deleted. **Risk: medium** — every consumer recompiles, but the public seam becomes stable. | Hard-cut every caller to `internal/memory/contract`; no re-export shim. |
+| `internal/memory/store.go` | modified | `Backend` extended for 3-scope; `ForAgent(workspaceID, agentName, tier)` method added. | Backwards-incompat; one-pass rename per greenfield rule. |
+| `internal/memory/dream.go` | modified | New gate (signal threshold) appended to existing Time → Sessions → Lock cascade. Gate cascade preserved. | Extend, do not rewrite. |
+| `internal/memory/consolidation/runtime.go` | modified | Gated by `memory_recall_signals` and the new dreaming agent. Ticker + EnqueueCheck + WorkspaceResolver patterns kept. | Extend; behavior changes via config keys. |
+| `internal/memory/controller` | new | ADR-009. | New package; no upstream consumers until daemon wires it. |
+| `internal/memory/recall` | new | ADR-011. | New package. |
+| `internal/memory/extractor` | new | ADR-010. | New package; depends on `internal/acp` for sub-agent spawn. |
+| `internal/memory/contract` | new | ADR-008. | New package. |
+| `internal/memory/provider/local` | new | ADR-008 reference impl. | New package. |
+| `internal/sessions/ledger` | new | ADR-006. | New package. |
+| `internal/store/workspacedb` | new | ADR-003. | New package; mirrors globaldb. |
+| `internal/hooks/dispatch_events.go` | modified | New typed event `hook.session.message_persisted`. | Add enum value; emit at call site. |
+| `internal/sse/` | modified | New scrubber filter. | Add filter; integration test for fence neutralization. |
+| `internal/situation/service.go` | modified | Frozen snapshot capture at session boot. | Extend; existing snapshot logic preserved. |
+| `internal/workspace/` | modified | Resolver loads/creates `<workspace>/.agh/workspace.toml`. | Backwards-incompat for existing workspaces; backfill migration. |
+| `internal/config/agent.go` | modified | `AgentDef.Memory.Scope` and `Memory.AgentTier` fields. | Add fields; **default-empty validates as `Scope = agent, AgentTier = workspace`** for both global and workspace agent definitions. Unbound sessions reject `agent-workspace` writes instead of silently routing to global. |
+| `internal/api/core/handlers_memory.go` | modified | All new HTTP routes. | Add handlers; codegen co-ship via `agh-contract-codegen-coship`. |
+| `internal/api/httpapi/routes.go`, `internal/api/udsapi/routes.go` | modified | Register the new memory/session/workspace route shapes and hard-cut the renamed surfaces. | Keep HTTP and UDS in lockstep; no route drift. |
+| `internal/cli/memory.go`, `internal/cli/client.go` | modified | All new CLI verbs plus client payload/route changes for `show`, `edit`, `dream`, and workspace resolve/recover. | Add commands; structured output mandatory; hard-cut old verbs. |
+| `internal/daemon/boot.go` | modified | Composition root wires `Controller`, `Recaller`, `Extractor`, `LedgerMaterializer`, `MemoryProviderRegistry`, bundled local provider. | Single composition point. |
+| `internal/tools/builtin/memory.go` | modified | Hard-cut built-in descriptor set from `memory_*` to the Slice 1 `agh__memory_*` registry. | Rename/remove descriptors in one slice; no aliases. |
+| `internal/config/tool_surface.go` | modified | Config-tool readable/writable memory keys expand with recall-signal, provider resilience, session, daily, and workspace settings. | Keep config lifecycle agent-manageable. |
+| `web/src/routes/_app/knowledge.tsx`, `web/src/routes/_app/settings/memory.tsx`, `web/src/hooks/routes/{use-knowledge-page,use-settings-memory-page}.ts`, `web/src/systems/{knowledge,settings}/**` | modified/new | Extend the existing app surfaces; no separate `routes/memory/*` tree in Slice 1. | Web follow-up TechSpec may deepen inspector/dream/daily UI later. |
+| `packages/site/content/runtime/{core,cli-reference,api-reference}/**` | new/modified | Memory architecture, config/workspace/session docs, extension guide, and generated CLI/API reference pages. | `cy-web-docs-impact` populates concrete task subitems. |
+| Existing `memory_operation_log` table | renamed | Becomes `memory_events` with extended op enum. **Greenfield-rename, no alias.** | Numbered migration. |
+| Existing `workspace_root TEXT` catalog column | deleted | Replaced by `workspace_id`. | Numbered migration backfills then drops. |
+| `internal/memory/types.go` legacy declarations | deleted/moved | `ContextRefResolver`, `ContextRef`, `ContextRefKind`, `ResolvedContext`, `ResolvedContextItem`, and `TokenBudget` are deleted; shared `ProviderHook*` declarations move into `internal/memory/contract`. | Greenfield hard cut; no shim remains in `types.go`. |
+| `internal/memory/interfaces_test.go` | modified | Future-seam guard test extended for the v2 contracts. | Update assertions. |
+
+---
+
+## Test Plan
+
+Per-section bullet list with concrete assertions and verification commands. Per `agh-test-conventions` skill: `t.Run("Should ...")` subtests, `t.Parallel` default with `t.Setenv` opt-out, table-driven layout, status-code + body assertions, `-race` discipline, 80% coverage floor per package.
+
+### Eixo 1 — Spine
+
+- **`internal/memory/controller`** (lexical/entity-only per B1):
+  - `TestController_Decide_HashHitReturnsNoop` — exact-content hash returns NOOP without LLM.
+  - `TestController_Decide_FreshSlotReturnsAdd` — entity declared + no slot match → ADD.
+  - `TestController_Decide_NoEntityNoSurfaceMatchReturnsAdd` — no entity declared + no FTS hits → ADD.
+  - `TestController_Decide_SingleSlotMatchUnchangedReturnsNoop` — entity slot match + same content → NOOP.
+  - `TestController_Decide_SingleSlotMatchContradictsReturnsUpdate` — entity slot match + different attribute value → UPDATE(target).
+  - `TestController_Decide_MultipleSlotMatchEscalatesToLLM` — multiple plausible target slugs → LLM tiebreaker.
+  - `TestController_Decide_ExactSlugCollisionReturnsUpdate` — `<type>_<slug>` filename collision → UPDATE.
+  - `TestController_Decide_LLMTimeoutFallsBackToNoop` — 250 ms timeout + NOOP fallback recorded.
+  - `TestController_Decide_LLMSchemaDriftFallsBackToNoop` — invalid JSON output → NOOP.
+  - `TestController_Decide_RejectOnContentScan` — invisible Unicode in content → REJECT + audit event.
+  - `TestController_Decide_RejectOnWhatNotToSave` — transcript-dump candidate → REJECT (peer-review N14).
+  - `TestController_Decide_PriorContentStoredOnUpdate` — UPDATE persists prior_content for revert.
+  - `TestController_Decide_PostContentPersistedOnAdd` — ADD persists post_content + post_content_hash + target_filename + frontmatter (B3).
+  - `TestController_Decide_IdempotencyKeyUnique` — duplicate Decide call with same Candidate produces same idempotency_key → second insert rejected.
+  - `TestController_Decide_IdempotencyKeyDistinctOnDifferentOp` — same target_filename + content but ADD followed by UPDATE produces distinct idempotency_keys (peer-review NB1 regression).
+  - `TestController_Decide_IdempotencyKeyDistinctOnPostContentChange` — same op + target but different `post_content` produces distinct keys (NB1).
+  - `TestController_Decide_IdempotencyKeyDistinctOnPromptVersionChange` — same fields + bumped `prompt_version` produces distinct keys (NB1).
+  - `TestController_Decide_IdempotencyKeyDistinctOnFrontmatterChange` — same body + same op + same version but distinct frontmatter (e.g., `entity` slot rewrite) produces distinct keys (peer-review NB3).
+  - `TestController_Decide_ModeRulesNeverCallsLLM` — `mode = "rules"` collapses ambiguity to NOOP.
+  - `TestController_Decide_NoEmbeddingFieldOnCandidate` — compile-time assertion that `Candidate` struct has no `Embedding` field in Slice 1 (B1).
+- **`internal/memory/recall`**:
+  - `TestRecaller_Recall_ScopePrecedenceShadowByID` — agent-workspace shadows workspace shadows global.
+  - `TestRecaller_Recall_ShadowedEntryEmitsEvent` — `op=shadowed` event written.
+  - `TestRecaller_Recall_AlreadySurfacedFiltered` — paths in opts.AlreadySurfaced excluded.
+  - `TestRecaller_Recall_SystemNamespaceExcluded` — `_system/` chunks not returned unless IncludeSystem.
+  - `TestRecaller_Recall_StalenessBannerAppears` — entries older than 1 day get banner.
+  - `TestRecaller_Recall_TopKCap` — never returns more than opts.TopK.
+  - `TestRecaller_Recall_TrigramFTSHandlesCJK` — Chinese / Japanese queries match via trigram FTS.
+  - `TestRecaller_Recall_StableHeaderAcrossTurns` — content-hash header identical across turns with same blocks.
+  - `TestRecaller_Recall_RecordRecallFiresAndForgets` — `memory_recall_signals` updated post-recall (eventually).
+- **`internal/memory/store`**:
+  - `TestStore_AtomicWrite_MkstempFsyncRename` — partial-write impossible.
+  - `TestStore_ForAgent_ResolvesPath` — agent-workspace path resolves correctly.
+  - `TestStore_FrozenSnapshot_NotMutatedMidSession` — mid-session writes don't change captured snapshot.
+  - `TestStore_ReloadInvalidatesNextSessionBoot` — `agh memory reload` invalidates for next session boot only (peer-review N7; no in-session refresh).
+  - `TestStore_ReplayUnappliedDecisions_ReconstructsState` — boot-time replay walks `memory_decisions WHERE applied_at IS NULL` and reconstructs curated tree (B3).
+  - `TestStore_ReplayIdempotent` — running replay twice produces same on-disk state (B3).
+  - `TestStore_ReplayRespectsIdempotencyKey` — duplicate decision rows with same idempotency_key apply once (B3).
+- **`internal/situation`**:
+  - `TestService_SystemPrompt_FrozenAtBoot` — captures snapshot once.
+
+### Eixo 2 — Dreaming v2 (signals live per B2)
+
+- **`internal/memory/recall`** (signal write path):
+  - `TestRecaller_RecordRecall_FireAndForget_UpdatesRow` — surfaced chunk gets recall_count + 1, last_recalled_at set.
+  - `TestRecaller_RecordRecall_BarrierIdempotent` — concurrent recalls converge via `last_score_update_at` compare-and-swap.
+  - `TestRecaller_RecordRecall_FailureDoesNotBubbleToCaller` — DB error logged; recall surface latency preserved.
+  - `TestSignalRecorder_QueueOverflowDropsOldest` — bounded queue at capacity drops oldest, increments `dropped` metric, emits `memory.recall.signal_dropped` (peer-review NB2).
+  - `TestSignalRecorder_FailureEmitsEventAndMetric` — DB failure → `memory.recall.signal_update_failed` event + `failed` metric (NB2).
+  - `TestSignalRecorder_SuccessIncrementsOkMetric` — happy path increments `ok` metric (NB2).
+- **`internal/memory/dream`** (extend existing):
+  - `TestDream_FourthGate_BlocksWhenNoUnpromotedSignals` — partial index `WHERE promoted_at IS NULL` returns < min_unpromoted → skip + stamp last_run_at.
+  - `TestDream_FourthGate_PassesWhenSignalsExceedThreshold` — synthesis runs with the queried candidate set.
+  - `TestDream_AntiThrashing_StampsLastRunOnEmptyFilter` — empty filter still stamps.
+  - `TestDream_MarkPromoted_FlipsPromotedAtAndRunID` — successful synthesis updates `promoted_at` + `promotion_run_id` for consumed chunks (B2).
+  - `TestDream_FailedSynthesis_DoesNotMarkPromoted` — chunks remain unpromoted on failure.
+  - `TestDream_DLQ_OnSynthesisFailure_WritesFailureFile` — DLQ at `_system/dream/failures/<run_id>.json` (separate from extractor DLQ — peer-review N4).
+  - `TestDream_DLQ_RetryIsIdempotent` — replay produces same events.
+  - `TestDream_PromotedOutputAtSystemDir` — output at `_system/dreaming/YYYYMMDD-<slug>.md`.
+  - `TestDream_DedicatedAgentSandbox_DeniesNonDreamingPaths` — sandbox rejects writes outside `_system/dreaming/`.
+- **`internal/memory/consolidation/runtime`**:
+  - `TestRuntime_PreservesLockRollbackSemantics` — existing test cases still pass (don't-lose).
+  - `TestRuntime_TickerRespectsDebounce` — debounce honored.
+
+### Eixo 3 — Provider ABC
+
+- **`internal/memory/contract`**:
+  - `TestProvider_AllMethodsCompile` — interface-compile-time assertion via `var _ MemoryProvider = (*localProvider)(nil)`.
+- **`internal/memory/provider/local`**:
+  - `TestLocalProvider_AllMethodsImplemented` — every method returns successfully.
+  - `TestLocalProvider_OnMemoryWriteEmitsAuditEvent` — provider write → `memory_events` row.
+  - `TestLocalProvider_RecallDelegatesToRecaller` — Recall returns Packaged identical to direct `Recaller.Recall`.
+- **`internal/extension/host_api`**:
+  - `TestHostAPI_MemoryProviderRegistry_RegistersProvider` — Register + Active.
+  - `TestHostAPI_MemoryProviderRegistry_ToolNameCollisionRejects` — provider tool with built-in name fails to register.
+- **`internal/daemon/boot`**:
+  - `TestBoot_BundledProviderAlwaysActive` — local provider active even when external configured.
+  - `TestBoot_LifecycleHooksFiredInOrder` — Initialize → SystemPromptBlock → ... → Shutdown order verified.
+
+### Eixo 4 — Hermes engineering parity
+
+- **`internal/store`**:
+  - `TestExecuteWrite_RetriesOnBusy` — 15 retries with jitter on SQLITE_BUSY.
+  - `TestExecuteWrite_PeriodicWalCheckpoint` — checkpoint after N writes.
+- **`internal/sse`**:
+  - `TestScrubber_NeutralizesMemoryContextFence` — `<memory-context>` markers stripped from streaming output.
+- **`internal/store/sessiondb`**:
+  - `TestParentSessionLineage_ResumeWalksForward` — resume reaches message-bearing descendant.
+- **`internal/fileutil`**:
+  - `TestAtomicWrite_PartialFailureNoLeakage` — interrupted write leaves no partial file.
+- **`internal/memory/scan`** (pre-write content scan):
+  - `TestScan_InvisibleUnicodeRejected` — zero-width chars trigger REJECT.
+  - `TestScan_PromptInjectionPatternsRejected` — "ignore previous" patterns rejected.
+  - `TestScan_ExfiltrationCommandsRejected` — `curl http://...`, `nc -e` patterns rejected.
+- **`internal/memory/store`**:
+  - `TestMemoryMd_TruncatedAtCap` — file at 200 lines / 25 KB shows truncation banner.
+
+### Extractor (ADR-010)
+
+- **`internal/memory/extractor`**:
+  - `TestExtractor_PostMessageHookFiresOnRoot` — root session triggers extraction.
+  - `TestExtractor_SubAgentSkipped` — sub-agent session no-ops.
+  - `TestExtractor_SandboxDeniesNonInboxWrites` — write outside `_inbox/` denied + audit.
+  - `TestExtractor_BoundedQueueCoalesces` — overflow merges + `coalesced` event.
+  - `TestExtractor_HardCeilingDropsOldest` — 16+ coalesced + `dropped` event.
+  - `TestExtractor_DLQOnFailure_CursorDoesNotAdvance` — failure preserves cursor.
+  - `TestExtractor_DLQReplayIsIdempotent` — replay produces same events.
+  - `TestExtractor_MutualExclusionWithProposeTool` — explicit propose call → extractor no-ops.
+  - `TestExtractor_DrainsOnShutdown` — daemon shutdown waits up to drain_timeout.
+  - `TestExtractor_DetachedContext` — extraction outlives parent ctx; deadline re-attached.
+
+### Session ledger (ADR-006)
+
+- **`internal/sessions/ledger`**:
+  - `TestMaterializer_OnSessionEndProducesJSONL` — JSONL written at expected path.
+  - `TestMaterializer_Idempotent` — re-running checksums and skips.
+  - `TestMaterializer_UnboundSessionGoesToUnboundPartition` — `_unbound/` partition for non-workspace sessions.
+  - `TestMaterializer_PrunePolicyRespectsCfg` — `prune --older-than DUR` removes correct files.
+
+### Workspace ID (ADR-004)
+
+- **`internal/workspace`**:
+  - `TestResolver_CreatesWorkspaceTomlOnFirstTouch` — first call generates ULID.
+  - `TestResolver_ReadsExistingWorkspaceToml` — second call reads same ULID.
+  - `TestResolver_WorkspaceMoveSurvivesViaTomlMove` — `mv` preserves identity.
+  - `TestResolver_BackupCreatedAtAghHome` — backup mirror at `$AGH_HOME/workspaces/<id>.toml.bak`.
+  - `TestResolver_RecoverFlow` — `agh workspace recover --realpath` reconnects.
+
+### Per-workspace DB (ADR-003)
+
+- **`internal/store/workspacedb`**:
+  - `TestOpenWorkspace_LazyCreatesDB` — first open creates `<workspace>/.agh/agh.db`.
+  - `TestOpenWorkspace_RunsMigrationsToHead` — migrations applied on every open.
+  - `TestOpenWorkspace_RejectsAheadSchema` — daemon refuses DB ahead of binary version.
+  - `TestOpenWorkspace_ConnectionCacheInvalidatesOnDelete` — workspace removal closes handle.
+
+### Cross-cutting QA proofs (eval-driven; integration-tagged)
+
+These are the 12 named QA proofs from `analysis.md` §5 that gate the slice merge:
+
+1. **Snapshot-on-next-session** — write memory → next session sees it.
+2. **No-mid-session-mutation** — mid-session update does not mutate current snapshot.
+3. **Reload-affects-next-session-only** — `agh memory reload` invalidates snapshot for the next **session boot**, not the current session. There is no "next turn" semantic (peer-review N7).
+4. **Agent-scope-isolation** — agent-A memory does not leak into agent-B recall.
+5. **Workspace-move-no-orphan** — `mv` workspace; rows still resolve via stable workspace_id.
+6. **Stale-banner** — memory older than 1 day shows banner in recall.
+7. **Delete-removes-from-recall-with-audit** — delete + recall miss + audit row.
+8. **Replay-decision-WAL-reconstructs-state** — boot-time replay of `memory_decisions` rows where `applied_at IS NULL` reconstructs curated state deterministically (peer-review NN3 — `memory_decisions` is the WAL, not `memory_events`).
+9. **Recall-signal-records-and-promotes** — recall fires signal; threshold promotes.
+10. **DLQ-retryable** — synthesis failure → DLQ → retry produces correct events.
+11. **Provider-ABC-all-hooks-fire** — bundled + mock external provider both see all 10 hooks in order.
+12. **Content-scan-rejects-payload** — invisible Unicode + injection markers rejected with audit.
+
+Each QA proof is one Go integration test under `internal/memory/<package>/integration_test.go` with `//go:build integration`. Run via `make test-integration`.
+
+### Verification commands
+
+- `make verify` — gate before commit. Zero warnings, zero errors. Includes `make test`, `make lint`, `make boundaries`, `make build`, `make codegen-check`.
+- `make test` — unit tests with `-race`.
+- `make test-integration` — integration tests including the 12 QA proofs above.
+- `make test-e2e-runtime` — daemon-side E2E exercising the new CLI verbs end-to-end.
+- `make test-e2e-web` — web-side E2E for the memory inspector + decision history pages (Slice 1 minimum web surface).
+
+---
+
+## Development Sequencing
+
+### Build Order
+
+Numbered; each step explicitly states which prior steps it depends on. Updated per peer-review hidden-dependency findings + missing-steps additions.
+
+1. **Schema DDL migrations only** — write all numbered migration files (catalog extension, chunks+FTS, events, decisions, recall_signals — non-stub per B2, consolidations). DDL only; **no `workspace_id` backfill in this step**. Apply on test DB; verify; commit. **Depends on:** none. *(Peer-review cross-cutting #2: split DDL from resolver-backed backfill.)*
+2. **`internal/memory/contract` package created** (B4 boundary fix) — Scope/AgentTier/Origin/Type enums + Header/Provenance + Op/DecisionSource + Candidate/Decision (with B3 replay fields, no Embedding per B1) + Query/RecallOptions/Packaged + TurnRecord + WriteRecord + ProviderInit + MemoryProvider interface. Imports only stdlib + `internal/logger`. **Depends on:** none.
+3. **`internal/memory/types.go` hard-cut deletion** — shared DTOs move to `contract`; callers switch directly; speculative shapes are deleted. **Depends on:** step 2.
+4. **`internal/store` jittered helper** — `ExecuteWrite(ctx, db, fn)` wraps `BEGIN IMMEDIATE` + 15-retry + WAL checkpoint. **Depends on:** step 1.
+5. **`internal/store/workspacedb`** — per-workspace DB open + migration runner. **Depends on:** steps 1, 4.
+6. **`internal/fileutil.AtomicWrite`** — `mkstemp + fsync + rename`. **Depends on:** none.
+7. **`internal/workspace` resolver** — load/create `workspace.toml`, return `(workspace_id, realpath)`. Permission-denied is fatal init error — **no silent ephemeral fallback** (peer-review safety #8 + cross-cutting #5). **Depends on:** steps 2, 6.
+
+7b. **`workspace_id` backfill migration** — runtime backfill walks existing catalog rows, calls the workspace resolver to create or load `workspace.toml`, fills `workspace_id` columns, then drops the legacy `workspace_root` column. Idempotent: re-run produces same state. **Depends on:** steps 1, 7. *(Peer-review cross-cutting #2.)*
+8. **`internal/memory/store.go` extended** — `ForWorkspace(workspaceID, root)` and `ForAgent(workspaceID, agentName, tier)`; replay-on-boot path. Uses fileutil + workspacedb + jittered helper. **Depends on:** steps 2, 4, 5, 6, 7.
+9. **`internal/memory/scan`** — pre-write threat scanner + `WHAT_NOT_TO_SAVE` deterministic regex pass (peer-review N14). **Depends on:** step 2.
+10. **`internal/memory/prompts/`** — versioned prompt templates: `decide.v1.tmpl` (controller LLM tiebreaker), `dream.v1.tmpl` (dreaming agent), `extract.v1.tmpl` (extractor sub-agent), `what_not_to_save.v1.md` (policy). With template tests. **Depends on:** none.
+11. **`internal/memory/controller`** — lexical/entity-only algorithm (B1) + `memory_decisions` WAL with replay material (B3). **Depends on:** steps 2, 8, 9, 10.
+12. **`internal/memory/recall`** — FTS5 + trigram + scope shadow + packaging + `RecordRecall` fire-and-forget signal writer (B2 live). **Depends on:** steps 2, 8.
+13. **`internal/memory/provider/local`** — bundled provider implementing all 10 hooks against contract types only. **Depends on:** steps 2, 11, 12.
+14. **`internal/extension/host_api` — MemoryProviderRegistry** — registry + tool dedup; collision rejects with `memory.provider.collision` event. **Depends on:** steps 2, 13.
+15. **`internal/situation/service.go` — frozen snapshot** — capture at session boot; `agh memory reload` invalidates next-boot only. **Depends on:** steps 12, 13.
+16. **`internal/sse` scrubber** — `<memory-context>` fence neutralizer in streaming pipeline. **Depends on:** none.
+17. **`internal/store/sessiondb` — parent_session_id** — schema + resume walk. **Depends on:** step 1.
+18. **`internal/sessions/ledger`** — JSONL materializer at OnSessionEnd. **Depends on:** steps 1, 6, 17.
+19. **`internal/hooks/dispatch_events.go`** — add `hook.session.message_persisted`. **Depends on:** none.
+20. **`internal/memory/extractor`** — Mode A forked extractor + bounded queue (cap 1+1, merge-on-overflow) + DLQ at `_system/extractor/failures/` + sandbox tool whitelist + manager-owned WaitGroup. **Depends on:** steps 2, 11, 19.
+21. **`internal/memory/dream` extended** — fourth gate (signal threshold via partial index) + dedicated dreaming agent + `MarkPromoted` flips `promoted_at` + DLQ at `_system/dream/failures/` (peer-review N4). **Depends on:** steps 2, 11, 12, 13.
+22. **`internal/memory/consolidation/runtime` extended** — wire dreaming agent invocation; preserve Time → Sessions → Lock cascade as gates 1-3, signal-threshold as gate 4. **Depends on:** step 21.
+23. **`internal/config` extensions** — TOML structs for every `[memory.*]` block, defaults in `defaults.go`, validation in `validate.go`, config-tool exposure in `internal/config/tool_surface.go`, examples in `cmd/agh/configtemplates/`, and settings transport parity. Round-trip + validation tests per key. **Depends on:** step 2.
+24. **Native tool registration** — `internal/tools/builtin/memory.go` and `internal/daemon/native_tools.go` hard-cut the current built-ins to `agh__memory_list`, `agh__memory_search`, `agh__memory_show`, `agh__memory_propose`, `agh__memory_note` with policy gates. **Depends on:** steps 11, 12, 13, 14.
+25. **`internal/api/contract` types** — request/response schemas for all new endpoints. **Depends on:** steps 11, 12, 13, 20.
+26. **`internal/api/core/handlers_memory.go` + route registration** — implement handlers and register them in `internal/api/httpapi/routes.go` and `internal/api/udsapi/routes.go` (REST-shape per peer-review N12). **Depends on:** step 25.
+27. **`internal/cli/memory.go` + `internal/cli/client.go`** — CLI verbs with consistent `--agent` / `--agent-tier` flags (peer-review N5) plus the hard-cut rename/update of the existing memory client surface. **Depends on:** step 25.
+28. **`make codegen`** — regenerate `openapi/agh.json` and `web/src/generated/agh-openapi.d.ts`. Verify codegen-check passes as a separate gate. **Depends on:** step 25.
+29. **`mage Boundaries` update** — register every new `internal/memory/*` package + `internal/sessions/ledger` + `internal/store/workspacedb` in the boundaries graph. **Depends on:** steps 2, 11, 12, 13, 14, 18, 20, 21.
+30. **`internal/daemon/boot.go`** — composition root wires Controller, Recaller, Extractor, LedgerMaterializer, MemoryProviderRegistry, bundled local provider, native tool registry. No feature flag (peer-review N2). **Depends on:** steps 11, 12, 13, 14, 15, 18, 20, 21, 24, 27.
+31. **Web memory/settings surfaces** — extend `web/src/routes/_app/knowledge.tsx`, `web/src/routes/_app/settings/memory.tsx`, `web/src/hooks/routes/use-knowledge-page.ts`, `web/src/hooks/routes/use-settings-memory-page.ts`, and `web/src/systems/{knowledge,settings}/**` for the Slice 1 minimum (list/show/edit + decision history). **Depends on:** step 28.
+32. **`make cli-docs` + runtime site docs generation** — update `packages/site/content/runtime/core/{memory,configuration,hooks,extensions,workspaces,sessions}/**`, `packages/site/content/runtime/cli-reference/{memory,workspace,session}/**`, and `packages/site/content/runtime/api-reference/index.mdx`. **Depends on:** steps 27, 28.
+33. **Integration tests for 12 QA proofs.** **Depends on:** steps 11, 12, 13, 18, 20, 21, 27, 30.
+34. **`make verify` + `make codegen-check` end-to-end** before merge. **Depends on:** all prior steps.
+
+### Technical Dependencies
+
+- **Existing AGH infrastructure (no version bump required):** SQLite with FTS5 unicode61 + FTS5 trigram tokenizer compiled in (already shipped). Internal embedding pipeline NOT required for Slice 1 (deferred to Slice 3).
+- **External:** Anthropic API access for the haiku-class LLM (write-controller tiebreaker + extractor sub-agent). When `[memory.controller] mode = "rules"`, the LLM dependency is fully removable. When `[memory.extractor] model = ""` and the ACP driver supports prompt-cache reads, the extractor reuses the parent's model without an extra credential. No mandatory new external service.
+- **Team:** Codex peer review on the TechSpec draft (opt-in via `cy-spec-peer-review`) recommended before tasks generate.
+- **CI:** `make verify` and `make codegen-check` are the gates. No new CI workflows.
+
+---
+
+## Monitoring and Observability
+
+### Canonical events (per-row in `memory_events` + emitted to observability spine)
+
+All events carry the standard correlation keys (`workspace_id`, `session_id`, `agent_name`, `actor_kind`, `claim_token_hash` if applicable). Per `internal/CLAUDE.md` Observability section. Names match `memory_events.op` CHECK enum 1:1.
+
+| Event | Source | Fields |
+|---|---|---|
+| `memory.write.committed` | controller | decision_id, op, scope, target_id |
+| `memory.write.rejected` | controller | scope, reason, content_scan_match |
+| `memory.write.shadowed` | recall packaging | winner_scope, loser_scope, target_id |
+| `memory.write.reindex` | reindex flow | scope, files_indexed |
+| `memory.write.reverted` | revert command | decision_id, target_id, prior_content_hash |
+| `memory.recall.executed` | recall | query_hash, scope_filters, returned_ids, scores |
+| `memory.recall.skipped` | recall | reason (trivial / empty / etc.) |
+| `memory.recall.signal_dropped` | signal recorder | chunk_id, queue_depth, dropped_oldest |
+| `memory.recall.signal_update_failed` | signal recorder | chunk_id, error_class, attempt |
+| `memory.decisions.audit_summarized` | WAL retention | scope, summary_period, decisions_count, oldest_decision_id |
+| `memory.decisions.pruned` | WAL retention | scope, pruned_count, oldest_decided_at, newest_decided_at |
+| `memory.dream.run.started` | dreaming | scope, candidates_considered |
+| `memory.dream.run.promoted` | dreaming | promoted_chunk_ids, promotion_run_id |
+| `memory.dream.run.failed` | dreaming | run_id, failure_reason |
+| `memory.extractor.started` | extractor | session_id, since_seq, until_seq |
+| `memory.extractor.completed` | extractor | candidate_count, duration_ms |
+| `memory.extractor.failed` | extractor | error_class, attempt |
+| `memory.extractor.coalesced` | extractor | dropped_turn_count |
+| `memory.extractor.dropped` | extractor | dropped_turn_count |
+| `memory.daily.rotated` | daily housekeeping | scope, date, seq |
+| `memory.daily.archived` | daily housekeeping | scope, date_range |
+| `memory.daily.restored` | daily housekeeping | scope, date |
+| `memory.daily.purged` | daily housekeeping | scope, date_range |
+| `memory.daily.archive_purged` | safety-valve | scope, bytes_freed, oldest_date |
+| `memory.provider.enabled` | provider registry | name |
+| `memory.provider.disabled` | provider registry | name |
+| `memory.provider.collision` | provider registry | name, conflicting_tool |
+| `memory.workspace.relocated` | workspace resolver | workspace_id, old_realpath, new_realpath |
+| `memory.workspace.recovered` | workspace resolver | workspace_id, realpath |
+| `memory.agent.purged` | agent removal | workspace_id, agent_name |
+| `memory.migration.applied` | schema migration | migration_id, db_path |
+
+### Metrics
+
+- `memory_decisions_total{op, source}` — counter (rule vs LLM, op outcome).
+- `memory_decisions_latency_seconds{source}` — histogram (p50/p95/p99 budgets in ADR-009).
+- `memory_recall_latency_seconds` — histogram (p50/p95 budgets in ADR-011).
+- `memory_extractor_queue_depth{session_id}` — gauge (queue capacity = 1; coalesced count exposed).
+- `memory_dream_runs_total{status}` — counter.
+- `memory_provider_active{workspace_id, name, role}` — gauge; `role ∈ {bundled, external}`. Bundled local provider is always 1; external provider is 1 when enabled, 0 otherwise. The previous "+1 if external" formulation conflated roles; the explicit `role` label resolves it (peer-review N9).
+- `memory_recall_signal_updates_total{status}` — counter; `status ∈ {ok, dropped, failed}`. Surfaces the live RecordRecall path (peer-review NB2). Alert when `dropped + failed / ok > 0.01`.
+- `memory_recall_signal_queue_depth{workspace_id}` — gauge; current bounded-queue depth per workspace. Saturation = drops imminent.
+
+### Alerting thresholds
+
+- `memory_decisions_latency_seconds{source="rule"} p95 > 10ms` for >5 min — investigate FTS5 / catalog query.
+- `memory_decisions_latency_seconds{source="llm"} p95 > 500ms` — investigate LLM bridge.
+- `memory_extractor_dropped_total / memory_extractor_started_total > 0.05` — investigate extraction load; tune queue.
+- `memory_dream_runs_total{status="failed"} > 0` over 10 min — DLQ inspection.
+
+### Log events
+
+- `slog`-style structured logs at INFO for every controller decision (op, scope, source, latency).
+- DEBUG for rule-trace and LLM-trace details.
+- WARN for content-scan rejects and provider collisions.
+- ERROR for extractor failures (with DLQ path) and dream synthesis failures.
+
+---
+
+## Technical Considerations
+
+### Key Decisions (recap; full ADRs referenced below)
+
+| Decision | Chosen | Rejected alternatives |
+|---|---|---|
+| Source-of-truth model | Hybrid escopado (Markdown + event log + catalog) | Pure event-sourced; pure Markdown |
+| Scopes | 3 scopes with agent two-tier | Memory-follows-definition (C1); workspace-bound only (C2); per-agent declared scope (C5) |
+| Catalog DB | Per-workspace + global | Single global; per-agent; per-scope |
+| Workspace identity | ULID in `workspace.toml` | Git-canonical-root; path-hash; global registry |
+| `_system/` namespace | Reserved invariant | Filename prefix; out-of-tree; DB-only |
+| Session ledger | Hybrid live + forensic JSONL | events.db only; JSONL authoritative; in-workspace |
+| Daily retention | 1 MiB cap, rotate, cold-archive 30d, never hard-delete | Silent drop; uncapped; strict tiering; compact-then-delete |
+| Provider ABC | 10 hooks, extend declared types | 4-hook subset; defer entirely; Letta/Mem0 verbatim |
+| Write controller | Hybrid rule-first + LLM tiebreaker | Pure LLM; pure rules; async eventual; Mem0g three-call |
+| Extraction location | Mode A on_post_response forked extractor | Mode B compaction-flush only; Mode D deferred two-phase; Mode C inside Decide |
+| Recall pipeline | Deterministic FTS5 + trigram + scope | Hybrid FTS+vector; full hybrid+ranker; file scan + Sonnet |
+| Slice 1 scope | Fat (4 Eixos in single TechSpec) | Split 1A/1B variants |
+
+### Known Risks
+
+- **`mode = "hybrid"` LLM bridge dependency.** Slice 1 ships with `mode = "hybrid"` default. If LLM access is unavailable in some operator deployments, set `mode = "rules"` — full functionality preserved minus ambiguity-band escalation. Documented in CLI `--help` and site docs.
+- **FTS5 trigram availability.** Requires sqlite ≥ 3.34 with trigram support. AGH bundles its own sqlite via `internal/store` dependency; minimum version pinned. CI matrix includes a "minimal-sqlite" lane to detect regressions.
+- **Per-workspace DB lock contention.** Workspaces with many concurrent agents stress the per-DB lock. Mitigated by `BEGIN IMMEDIATE` jittered retry; if contention exceeds 15-retry budget, log + fail the write rather than block indefinitely.
+- **Workspace_id orphaning in pathological cases.** Operator manually deletes `<workspace>/.agh/workspace.toml`; `workspace.toml.bak` mirror at `$AGH_HOME/workspaces/<id>.toml.bak` enables `agh workspace recover`.
+- **Provider-namespace collision with built-in tools.** Provider-supplied tools dedup against built-in `agh__memory_*` names; collision rejects at register time with structured error. Operators see startup error log + provider stays disabled until resolved.
+- **Greenfield delete operational impact.** Workspaces created before Slice 1 lose their existing `memory_operation_log` rows in the rename; backfill migration captures all historical operations as `memory_events` rows; no data loss expected, but operators with custom tooling against the old table name must update.
+
+### Assumptions / Defaults
+
+Per-section. Pre-empts "what if" questions.
+
+- **Default scope precedence.** `agent-workspace ▸ agent-global ▸ workspace ▸ global` (deeper wins). Cannot be reordered.
+- **Default agent memory binding.** When `AgentDef.Memory.Scope` is omitted, the runtime defaults to `scope = agent`, `agent_tier = workspace` for both global and workspace agent definitions. Cross-workspace durability is opt-in through explicit promotion to `agent-global`.
+- **Default scope for memory types.** `user`/`feedback` → `global`; `project`/`reference` → `workspace`. Overridable per-agent via `AgentDef.Memory.Scope`.
+- **Default `memory.controller.mode`.** `hybrid`. Rules-only deployments set `mode = "rules"` explicitly.
+- **Default extractor mode.** `post_message`. Compaction-flush enables in Slice 2.
+- **Default extractor model.** Empty string = forked from main agent. Override with `[memory.extractor] model = "anthropic/claude-haiku-4"` for cost savings on non-cache-supporting drivers.
+- **Default recall top_k.** 5. Tunable per recall call.
+- **Default freshness banner.** Memories older than 1 day show banner. Operators tune via `[memory.recall.freshness] banner_after_days`.
+- **Default dream cadence.** 24h between runs (Time gate); ≥3 sessions touched (Sessions gate); signal-threshold gate (4-component score ≥ 0.75 on ≥5 candidates).
+- **Default daily retention.** 1 MiB / 5000-line cap; 7-day dreaming window; 30-day cold-archive; never hard-delete by default.
+- **Workspace bound vs unbound sessions.** Sessions launched outside any workspace go under `~/.agh/sessions/_unbound/<session_id>/`. Memory operations from unbound sessions go to `global` scope (cannot write workspace or agent-workspace).
+- **Sub-agent memory rule.** Sub-agents inherit parent's frozen snapshot; controller is `Mode = ReadOnly`; cannot write directly. Parent's extractor processes sub-agent traces post-hoc.
+- **Native tool default permissions.** `agh__memory_search`, `agh__memory_show` enabled for all agents; `agh__memory_propose` enabled for root agents (commit mode), denied for sub-agents; `agh__memory_note` enabled for root agents.
+- **Provider default.** Bundled local provider always active. External provider opt-in via `[memory.provider] name = "..."`.
+
+---
+
+## Greenfield Delete Targets
+
+(Peer-review N3 — surfaced as first-class section.) Greenfield-delete per `internal/CLAUDE.md`. Every item below disappears in the same single-commit migration that lands Slice 1; no aliases, no compat shims, no schema fallback paths.
+
+| Target | Type | Reason | Replacement |
+|---|---|---|---|
+| `internal/memory/types.go::ContextRefResolver`, `ContextRef`, `ContextRefKind`, `ResolvedContext`, `ResolvedContextItem`, `TokenBudget` | Go types | Speculative shapes; never consumed; `interfaces_test.go` future-seam guard explicitly forbids runtime use | Removed entirely. Re-author under `internal/memory/contract` if needed in Slice 3+. |
+| `internal/memory/catalog.go::deriveWorkspaceRoot(path)` | Go function | Path-keyed identity is the orphan bug (`analysis_agh-current.md` §3, §16) | Replaced by `internal/workspace.Resolver.Resolve` returning stable `workspace_id` (ADR-004). |
+| `memory_catalog_entries.workspace_root TEXT` column | SQLite column | Same as above — path-keyed | Replaced by `workspace_id TEXT NOT NULL`. Migration backfills via on-the-fly `workspace.toml` creation, then drops the old column. |
+| `memory_operation_log` table | SQLite table | Renamed; conflated audit-light operations with observability events | Replaced by `memory_events` with canonical dotted op enum (peer-review B5). |
+| `EnsureSchema`-style boot reconciliation for column changes (anywhere in `internal/memory/*`) | Go function + tests | Forbidden by `agh-schema-migration` skill (`L-008`) | All schema lives in numbered registry. Boot calls `migrations.RunToHead(db)`. |
+| LLM-callable `Write` tools that bypass the controller | Go tool registrations | Violates "single write path" invariant | Only `agh__memory_propose` and `agh__memory_note` write; both route through `Controller.Decide()`. Audit `internal/tools/*` and `internal/daemon/native_tools.go` for offenders. |
+| Per-agent ad-hoc `ALTER TABLE` | Anywhere | OpenFang anti-pattern (`analysis_openfang.md`) | All schema in migrations registry. |
+| Hard-coded `consolidation.min_sessions=5` doc claim | `internal/CLAUDE.md` text | Doc drift — code default is 3 (`dream.go:20`); peer-review surfaced in `analysis_agh-current.md` §16 | Doc updated to match `min_sessions = 3`; config key under `[memory.dream] min_sessions` is the single source. |
+| `[memory.v2] enabled` feature flag | TOML key | Per peer-review N2 + ADR-012 update — Memory v2 is the memory subsystem | Removed. Migration enables the new behavior unconditionally. |
+| Cosine similarity thresholds in controller config (`near_dup_threshold`, `update_threshold`, `ambiguity_low`, `ambiguity_high`) | Config keys | Peer-review B1 — Slice 1 controller is lexical-only | Removed. Cosine returns in Slice 3 alongside vector. |
+| `Embedding []float32` field on `Candidate` | Go struct field | Peer-review B1 — Slice 1 has no embedding pipeline | Removed from contract. Re-introduced in Slice 3. |
+| Speculative `[memory.controller.dedup]` and `[memory.controller.scoring]` config blocks | TOML | Conflates dream weights into controller scope (peer-review N8) | Dream weights move to `[memory.dream.scoring]`. Controller-only config stays under `[memory.controller.*]`. |
+| `internal/memory/types.go::OperationRecord` (if it exists with redaction gaps) | Go type | Audit per `internal/CLAUDE.md` Security Invariants — `claim_token` redaction non-negotiable | Replaced by canonical event row in `memory_events` with redacted metadata JSON. |
+| `internal/memory/types.go` as a migration shim | Go file pattern | Violates the greenfield hard-cut rule and keeps the contract boundary ambiguous | Delete the file after callers move to `internal/memory/contract`; no compat re-export. |
+| Built-in tool descriptors `memory_read`, `memory_history` in `internal/tools/builtin/memory.go` | Native-tool public surface | Slice 1 hard-cuts the registry to the new `agh__memory_*` set | `memory_read` → `agh__memory_show`; `memory_history` removed from built-ins. |
+| `agh memory read` CLI verb and generated docs | Public CLI surface | Rename to match the native-tool / API `show` terminology | Replaced by `agh memory show`. |
+| `agh memory consolidate` CLI/API surface | Public CLI/API surface | Consolidation becomes operator-facing dreaming terminology in Slice 1 | Replaced by `agh memory dream trigger` and the `/memory/dreams/*` family. |
+
+**Two-touch rule preservation.** The migration constitutes the second structural touch on `internal/memory/*`. Any post-Slice-1 follow-up that needs to revisit the same files (e.g., Slice 2's compactor wiring) is the third touch and warrants a redesign-grade TechSpec, not a patch.
+
+---
+
+## Open Concerns Tracking
+
+After the repair above, only **non-normative** follow-ups remain. None of the items below changes schema ownership, public-surface semantics, or the dependency graph, so `cy-create-tasks` should treat them as ordinary task subitems or QA-tail work rather than reopen architecture.
+
+| ID | Concern | Disposition | Where it lands |
+|---|---|---|---|
+| **OC1** | Controller quality baselines need eval data | Track as task subitem | `_tasks.md` includes an eval-harness task with synthetic + real-transcript baselines for false-update / false-noop rates |
+| **OC5** | Daily "never hard-delete" has safety-valve exception | Slice 1 QA + retro with metric | `memory.daily.archive_purged` event makes safety-valve deletions visible; Slice 1 retro reviews emission frequency |
+| **OC6** | Richer web inspector may need its own follow-up TechSpec | Defer to follow-up TechSpec | Slice 1 web minimum is list/show/edit + decision history. Dream dashboard, daily UI, and deeper forensics can graduate later |
+| **OC8** | Extractor cost envelope not yet proven in production | Slice 1 telemetry + retro | Metrics `memory_extractor_*` and `memory_recall_signal_*` per §Monitoring drive the first post-ship tuning pass |
+
+With the resolved hard cuts above, the spec is task-generation ready: remaining follow-ups do not require new ADR work and do not alter task ordering.
+
+---
+
+## Architecture Decision Records
+
+Slice 1 is governed by the following ADRs, which capture each load-bearing structural decision with full alternatives and consequences. Read them before implementing.
+
+- [ADR-001: Hybrid Escopado as Memory Source-of-Truth Model](adrs/adr-001.md) — Markdown authoritative for curated content; event log authoritative for operations; catalog as derived index.
+- [ADR-002: Three Scopes with Agent Two-Tier](adrs/adr-002.md) — `global`/`workspace`/`agent` with `agent-workspace ▸ agent-global` precedence; shadow-by-id never silent merge.
+- [ADR-003: Per-Workspace Catalog Database](adrs/adr-003.md) — `$AGH_HOME/agh.db` (global) + `<workspace>/.agh/agh.db` (workspace+agent); `BEGIN IMMEDIATE` per workspace.
+- [ADR-004: Stable Workspace ID via .agh/workspace.toml](adrs/adr-004.md) — ULID stored in workspace.toml; survives `mv`; backed up at `$AGH_HOME/workspaces/<id>.toml.bak`.
+- [ADR-005: `_system/` Namespace Invariant](adrs/adr-005.md) — never injected into prompt; hosts dreaming output, extractor logs, ad_hoc delta notes.
+- [ADR-006: Session Ledger Hybrid (events.db Live + ledger.jsonl Forensic)](adrs/adr-006.md) — events.db live truth; OnSessionEnd materializes JSONL at `~/.agh/sessions/<workspace_id>/<session_id>/`.
+- [ADR-007: Daily-Log Retention Policy](adrs/adr-007.md) — 1 MiB / 5000-line cap, seq rotation, dreaming reads 7 days, cold-archive 30 days, never hard-delete by default.
+- [ADR-008: MemoryProvider Extension ABC — Hermes 10-Hook Lifecycle](adrs/adr-008.md) — extends declared `ProviderHookRunner` types into the production ABC; bundled local provider as reference.
+- [ADR-009: Write Controller — Hybrid Rule-First with LLM-as-Tiebreaker](adrs/adr-009.md) — sub-ms typical, LLM only on ambiguity band, configurable to pure-rule or pure-LLM, audit + rollback.
+- [ADR-010: Fact Extraction Location — Hybrid Per-Turn Hook + Optional Compaction Flush](adrs/adr-010.md) — Mode A `on_post_response` extractor in Slice 1; Mode B compaction flush in Slice 2.
+- [ADR-011: Recall Pipeline — Deterministic-First with Optional Vector + LLM Ranker](adrs/adr-011.md) — Slice 1 deterministic-only (FTS5 + trigram + scope shadow + top-K); vector + ranker in Slice 3.
+- [ADR-012: Slice 1 Fat Scope — Single TechSpec with Four Eixos](adrs/adr-012.md) — keep slice fat to ship at-or-better-than-Hermes parity from day 1; split rejected.
+
+---
+
+*End of TechSpec — Slice 1. ~1100 lines. The next artifact is `cy-create-tasks` decomposing this into an implementable dependency graph.*

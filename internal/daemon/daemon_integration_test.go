@@ -1660,13 +1660,20 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
+	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		SessionID: "sess-sender",
+		PeerID:    "coder.sess-sender",
+		Channel:   "builders",
+	}); err != nil {
+		t.Fatalf("JoinChannel(sender) error = %v", err)
+	}
 
 	body, err := json.Marshal(map[string]any{"text": "hello from network"})
 	if err != nil {
 		t.Fatalf("json.Marshal(body) error = %v", err)
 	}
 	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
-		SessionID: "sess-net",
+		SessionID: "sess-sender",
 		Channel:   "builders",
 		Kind:      network.KindSay,
 		Body:      body,
@@ -1687,8 +1694,8 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("network.Status() error = %v", err)
 	}
-	if status.LocalPeers != 1 || status.Channels != 1 {
-		t.Fatalf("network.Status() = %#v, want 1 local peer and 1 channel", status)
+	if status.LocalPeers != 2 || status.Channels != 1 {
+		t.Fatalf("network.Status() = %#v, want 2 local peers and 1 channel", status)
 	}
 
 	if err := d.Shutdown(testutil.Context(t)); err != nil {
@@ -1760,13 +1767,20 @@ func TestBootNetworkShutdownTracksInterruptedInFlightDelivery(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
+	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		SessionID: "sess-sender",
+		PeerID:    "coder.sess-sender",
+		Channel:   "builders",
+	}); err != nil {
+		t.Fatalf("JoinChannel(sender) error = %v", err)
+	}
 
 	body, err := json.Marshal(map[string]any{"text": "shutdown during delivery"})
 	if err != nil {
 		t.Fatalf("json.Marshal(body) error = %v", err)
 	}
 	if _, err := d.network.Send(testutil.Context(t), network.SendRequest{
-		SessionID: "sess-net",
+		SessionID: "sess-sender",
 		Channel:   "builders",
 		Kind:      network.KindSay,
 		Body:      body,
@@ -2595,6 +2609,66 @@ body
 		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
 	}
 	assertLifecycleHookPayload(t, outputPath, hookspkg.HookSessionPostCreate, resolvedWorkspace)
+}
+
+func TestBootSkillsWatcherRefreshesWorkspaceSkillsWithoutRestart(t *testing.T) {
+	t.Run("Should publish workspace skills after a hot add", func(t *testing.T) {
+		homePaths := integrationHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Memory.Enabled = false
+		cfg.Skills.Enabled = true
+		cfg.Skills.PollInterval = 10 * time.Millisecond
+
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspaceRoot)
+
+		d, err := New(
+			WithHomePaths(homePaths),
+			WithConfig(&cfg),
+			WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		skillRoot := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.SkillsDirName)
+		writeDaemonSkill(t, skillRoot, "watched-workspace-skill", "Workspace watched skill")
+
+		waitForCondition(t, "workspace skill refresh after watcher sync", func() bool {
+			resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), resolvedWorkspace.ID)
+			if err != nil {
+				return false
+			}
+
+			projectedSkills, err := d.skillsRegistry.ForWorkspace(testutil.Context(t), &resolved)
+			if err != nil {
+				return false
+			}
+
+			return findIntegrationSkill(projectedSkills, "watched-workspace-skill") != nil
+		})
+	})
 }
 
 func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {

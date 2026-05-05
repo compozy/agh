@@ -1413,8 +1413,14 @@ type StubSkillsRegistry struct {
 	GetFn          func(name string) (*skills.Skill, bool)
 	ListFn         func() []*skills.Skill
 	ForWorkspaceFn func(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
-	LoadContentFn  func(ctx context.Context, skill *skills.Skill) (string, error)
-	SetEnabledFn   func(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
+	ForAgentFn     func(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+	) ([]*skills.Skill, error)
+	LoadContentFn        func(ctx context.Context, skill *skills.Skill) (string, error)
+	SetEnabledFn         func(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
+	SetEnabledForAgentFn func(name string, resolved *workspacepkg.ResolvedWorkspace, agentName string, enabled bool) error
 }
 
 func (s StubSkillsRegistry) Get(name string) (*skills.Skill, bool) {
@@ -1441,6 +1447,20 @@ func (s StubSkillsRegistry) ForWorkspace(
 	return nil, nil
 }
 
+func (s StubSkillsRegistry) ForAgent(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+) ([]*skills.Skill, error) {
+	if s.ForAgentFn != nil {
+		return s.ForAgentFn(ctx, resolved, agentName)
+	}
+	if s.ForWorkspaceFn != nil {
+		return s.ForWorkspaceFn(ctx, resolved)
+	}
+	return nil, nil
+}
+
 func (s StubSkillsRegistry) LoadContent(ctx context.Context, skill *skills.Skill) (string, error) {
 	if s.LoadContentFn != nil {
 		return s.LoadContentFn(ctx, skill)
@@ -1449,6 +1469,21 @@ func (s StubSkillsRegistry) LoadContent(ctx context.Context, skill *skills.Skill
 }
 
 func (s StubSkillsRegistry) SetEnabled(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error {
+	if s.SetEnabledFn != nil {
+		return s.SetEnabledFn(name, resolved, enabled)
+	}
+	return nil
+}
+
+func (s StubSkillsRegistry) SetEnabledForAgent(
+	name string,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+	enabled bool,
+) error {
+	if s.SetEnabledForAgentFn != nil {
+		return s.SetEnabledForAgentFn(name, resolved, agentName, enabled)
+	}
 	if s.SetEnabledFn != nil {
 		return s.SetEnabledFn(name, resolved, enabled)
 	}

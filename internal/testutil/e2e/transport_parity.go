@@ -157,20 +157,23 @@ func semanticSSEEvent(record SSEEvent) string {
 	return inferSSEEventName(record.Data)
 }
 
-// ValidateUDSApprovalNotImplemented checks the currently documented approval
-// parity gap on the UDS transport.
-func ValidateUDSApprovalNotImplemented(statusCode int, body []byte) error {
+// ValidateUDSApprovalResponse checks the UDS approval transport contract.
+func ValidateUDSApprovalResponse(statusCode int, body []byte) error {
 	trimmedBody := string(bytes.TrimSpace(body))
-	if statusCode != http.StatusNotImplemented {
+	if statusCode != http.StatusOK {
 		return fmt.Errorf(
 			"UDS approve status = %d, want %d; body=%s",
 			statusCode,
-			http.StatusNotImplemented,
+			http.StatusOK,
 			trimmedBody,
 		)
 	}
-	if !strings.Contains(strings.ToLower(trimmedBody), "not implemented") {
-		return fmt.Errorf("UDS approve 501 body must explain not implemented behavior: %s", trimmedBody)
+	var payload aghcontract.SessionApprovalResponse
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return fmt.Errorf("decode UDS approval response: %w", err)
+	}
+	if payload.Status != "approved" {
+		return fmt.Errorf("UDS approve status payload = %q, want approved", payload.Status)
 	}
 	return nil
 }

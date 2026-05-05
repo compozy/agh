@@ -65,6 +65,14 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
   ].join("\n");
 }
 
+export function requiresHTTPAPIReadinessProbe(host: string | undefined): boolean {
+  const normalized = host?.trim().replace(/^\[/, "").replace(/\]$/, "").toLowerCase() ?? "";
+  if (normalized === "" || normalized === "localhost" || normalized === "::1") {
+    return true;
+  }
+  return /^127(?:\.|$)/.test(normalized);
+}
+
 export function runtimeURL(baseURL: string, pathname = "/"): string {
   const url = new URL(ensureLeadingSlash(pathname), `${baseURL.replace(/\/$/, "")}/`);
   return url.toString();

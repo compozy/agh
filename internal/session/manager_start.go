@@ -315,12 +315,13 @@ func (m *Manager) prepareSessionStartRuntime(
 	spec *sessionStartSpec,
 	updatedAt time.Time,
 ) (sessionStartRuntime, error) {
-	agentDef, err := m.resolveWorkspaceAgent(spec.agentName, &spec.workspace)
+	artifacts, err := m.resolveWorkspaceAgentArtifactsForSession(spec.agentName, spec.sessionType, &spec.workspace)
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
+	agentDef := artifacts.Agent
 
-	if err := m.prepareSessionStartSoul(ctx, spec, agentDef, updatedAt); err != nil {
+	if err := m.prepareSessionStartSoul(ctx, spec, artifacts, updatedAt); err != nil {
 		return sessionStartRuntime{}, err
 	}
 
@@ -372,8 +373,11 @@ func (m *Manager) sessionMCPServers(
 	spec *sessionStartSpec,
 	resolved aghconfig.ResolvedAgent,
 ) ([]aghconfig.MCPServer, error) {
+	if !resolved.SessionMCP {
+		return nil, nil
+	}
 	if m.hostedMCP == nil {
-		return m.resolveStartMCPServers(ctx, &spec.workspace, resolved.MCPServers)
+		return m.resolveStartMCPServers(ctx, &spec.workspace, resolved.Name, resolved.MCPServers)
 	}
 	hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{
 		SessionID:   spec.sessionID,
@@ -538,16 +542,48 @@ func (m *Manager) sessionStartOpts(
 		Command:         resolved.Command,
 		Cwd:             s.workspace.RootDir,
 		AdditionalDirs:  append([]string(nil), s.workspace.AdditionalDirs...),
-		Env:             sessionStartEnv(os.Environ(), session),
+		Env:             sessionStartEnvForProvider(os.Environ(), session, resolved.EnvPolicy),
 		MCPServers:      mcpServers,
 		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
 		SystemPrompt:    resolved.Prompt,
+		PreferredModel:  preferredACPModel(resolved),
 		ResumeSessionID: s.acpSessionID,
+		ToolGateway:     newProviderNativeToolGateway(m, session),
 	}
 }
 
+func preferredACPModel(resolved aghconfig.ResolvedAgent) string {
+	if resolved.Harness != aghconfig.ProviderHarnessPiACP ||
+		resolved.AuthMode != aghconfig.ProviderAuthModeNativeCLI {
+		return ""
+	}
+	model := strings.TrimSpace(resolved.Model)
+	if model == "" {
+		return ""
+	}
+	runtimeProvider := strings.TrimSpace(resolved.RuntimeProvider)
+	if runtimeProvider == "" {
+		runtimeProvider = strings.TrimSpace(resolved.Provider)
+	}
+	if runtimeProvider == "" || strings.HasPrefix(model, runtimeProvider+"/") {
+		return model
+	}
+	return runtimeProvider + "/" + model
+}
+
 func sessionStartEnv(base []string, session *Session) []string {
+	return sessionStartEnvForProvider(base, session, aghconfig.ProviderEnvPolicyFiltered)
+}
+
+func sessionStartEnvForProvider(
+	base []string,
+	session *Session,
+	envPolicy aghconfig.ProviderEnvPolicy,
+) []string {
 	env := procutil.FilteredDaemonEnv(base)
+	if envPolicy == aghconfig.ProviderEnvPolicyIsolated {
+		env = procutil.IsolatedDaemonEnv(base)
+	}
 	if session == nil {
 		return env
 	}

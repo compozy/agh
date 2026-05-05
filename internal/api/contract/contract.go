@@ -66,6 +66,7 @@ type RuntimeActivityPayload struct {
 	TurnID             string     `json:"turn_id,omitempty"`
 	TurnSource         string     `json:"turn_source,omitempty"`
 	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	DeadlineAt         *time.Time `json:"deadline_at,omitempty"`
 	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
 	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
 	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
@@ -76,6 +77,7 @@ type RuntimeActivityPayload struct {
 	IterationMax       int        `json:"iteration_max"`
 	IdleSeconds        int64      `json:"idle_seconds"`
 	ElapsedSeconds     int64      `json:"elapsed_seconds"`
+	ElapsedMS          int64      `json:"elapsed_ms"`
 }
 
 // SessionSandboxPayload is the shared session sandbox response payload.
@@ -98,19 +100,23 @@ type ACPCapsPayload struct {
 
 // SessionEventPayload is the shared session event response payload.
 type SessionEventPayload struct {
-	ID            string                 `json:"id"`
-	SessionID     string                 `json:"session_id"`
-	Sequence      int64                  `json:"sequence"`
-	TurnID        string                 `json:"turn_id"`
-	Type          string                 `json:"type"`
-	AgentName     string                 `json:"agent_name"`
-	WorkspaceID   string                 `json:"workspace_id,omitempty"`
-	WorkspacePath string                 `json:"workspace_path,omitempty"`
-	Content       json.RawMessage        `json:"content"`
-	StopReason    store.StopReason       `json:"stop_reason,omitempty"`
-	StopDetail    string                 `json:"stop_detail,omitempty"`
-	Failure       *SessionFailurePayload `json:"failure,omitempty"`
-	Timestamp     time.Time              `json:"timestamp"`
+	ID            string `json:"id"`
+	SessionID     string `json:"session_id"`
+	Sequence      int64  `json:"sequence"`
+	TurnID        string `json:"turn_id"`
+	Type          string `json:"type"`
+	AgentName     string `json:"agent_name"`
+	WorkspaceID   string `json:"workspace_id,omitempty"`
+	WorkspacePath string `json:"workspace_path,omitempty"`
+	store.EventCorrelation
+	ParentSessionID string                 `json:"parent_session_id,omitempty"`
+	RootSessionID   string                 `json:"root_session_id,omitempty"`
+	SpawnDepth      int                    `json:"spawn_depth"`
+	Content         json.RawMessage        `json:"content"`
+	StopReason      store.StopReason       `json:"stop_reason,omitempty"`
+	StopDetail      string                 `json:"stop_detail,omitempty"`
+	Failure         *SessionFailurePayload `json:"failure,omitempty"`
+	Timestamp       time.Time              `json:"timestamp"`
 }
 
 // TurnHistoryPayload is the shared turn history response payload.
@@ -148,16 +154,24 @@ type SessionRepairActionPayload struct {
 
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
-	Name        string               `json:"name"`
-	Provider    string               `json:"provider"`
-	Command     string               `json:"command,omitempty"`
-	Model       string               `json:"model,omitempty"`
-	Tools       []string             `json:"tools,omitempty"`
-	Toolsets    []string             `json:"toolsets,omitempty"`
-	DenyTools   []string             `json:"deny_tools,omitempty"`
-	Permissions string               `json:"permissions,omitempty"`
-	MCPServers  []AgentMCPServerJSON `json:"mcp_servers,omitempty"`
-	Prompt      string               `json:"prompt"`
+	Name        string                   `json:"name"`
+	Provider    string                   `json:"provider"`
+	Command     string                   `json:"command,omitempty"`
+	Model       string                   `json:"model,omitempty"`
+	Tools       []string                 `json:"tools,omitempty"`
+	Toolsets    []string                 `json:"toolsets,omitempty"`
+	DenyTools   []string                 `json:"deny_tools,omitempty"`
+	Permissions string                   `json:"permissions,omitempty"`
+	MCPServers  []AgentMCPServerJSON     `json:"mcp_servers,omitempty"`
+	Prompt      string                   `json:"prompt"`
+	Diagnostics []AgentDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
+// AgentDiagnosticPayload reports one malformed agent definition encountered during discovery.
+type AgentDiagnosticPayload struct {
+	Path      string `json:"path"`
+	ErrorKind string `json:"error_kind"`
+	Message   string `json:"message"`
 }
 
 // AgentMCPServerJSON is the shared MCP server response payload.
@@ -211,12 +225,17 @@ type TokenUsagePayload struct {
 
 // ObserveEventPayload is the shared observability event response payload.
 type ObserveEventPayload struct {
-	ID        string    `json:"id"`
-	SessionID string    `json:"session_id"`
-	Type      string    `json:"type"`
-	AgentName string    `json:"agent_name"`
-	Summary   string    `json:"summary,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	ID        string          `json:"id"`
+	SessionID string          `json:"session_id"`
+	Type      string          `json:"type"`
+	AgentName string          `json:"agent_name"`
+	Content   json.RawMessage `json:"content,omitempty"`
+	store.EventCorrelation
+	ParentSessionID string    `json:"parent_session_id,omitempty"`
+	RootSessionID   string    `json:"root_session_id,omitempty"`
+	SpawnDepth      int       `json:"spawn_depth"`
+	Summary         string    `json:"summary,omitempty"`
+	Timestamp       time.Time `json:"timestamp"`
 }
 
 // ObserveHealthPayload is the shared observability health response payload.
@@ -299,6 +318,7 @@ type SessionActivityHealthPayload struct {
 	TurnID             string     `json:"turn_id,omitempty"`
 	TurnSource         string     `json:"turn_source,omitempty"`
 	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	DeadlineAt         *time.Time `json:"deadline_at,omitempty"`
 	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
 	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
 	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
@@ -309,6 +329,7 @@ type SessionActivityHealthPayload struct {
 	IterationMax       int        `json:"iteration_max"`
 	IdleSeconds        int64      `json:"idle_seconds"`
 	ElapsedSeconds     int64      `json:"elapsed_seconds"`
+	ElapsedMS          int64      `json:"elapsed_ms"`
 	Status             string     `json:"status"`
 	StallState         string     `json:"stall_state,omitempty"`
 	StallReason        string     `json:"stall_reason,omitempty"`
@@ -797,6 +818,9 @@ type SessionProviderOptionPayload struct {
 	Harness         string `json:"harness,omitempty"`
 	RuntimeProvider string `json:"runtime_provider,omitempty"`
 	DefaultModel    string `json:"default_model,omitempty"`
+	AuthMode        string `json:"auth_mode,omitempty"`
+	EnvPolicy       string `json:"env_policy,omitempty"`
+	HomePolicy      string `json:"home_policy,omitempty"`
 }
 
 // SkillPayload is the HTTP response type for a skill.

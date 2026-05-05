@@ -48,9 +48,10 @@ describe("session lifecycle selectors", () => {
     expect(selectors.permissionAllowOnce).toBe(
       `locator:${sessionLifecycleTestIds.permissionAllowOnce}`
     );
-    expect(selectors.newSessionButton("browser-lifecycle-agent")).toBe(
-      "locator:new-session-browser-lifecycle-agent"
+    expect(selectors.agentRow("browser-lifecycle-agent")).toBe(
+      "locator:agent-row-browser-lifecycle-agent"
     );
+    expect(selectors.agentPageNewSession).toBe("locator:agent-page-new-session");
   });
 });
 
@@ -262,6 +263,7 @@ describe("tasks operator selectors", () => {
 
     expect(selectors.navTasks).toBe(`locator:${tasksOperatorTestIds.navTasks}`);
     expect(selectors.modeList).toBe(`locator:${tasksOperatorTestIds.modeList}`);
+    expect(selectors.modeKanban).toBe(`locator:${tasksOperatorTestIds.modeKanban}`);
     expect(selectors.modeDashboard).toBe(`locator:${tasksOperatorTestIds.modeDashboard}`);
     expect(selectors.modeInbox).toBe(`locator:${tasksOperatorTestIds.modeInbox}`);
     expect(selectors.openCreate).toBe(`locator:${tasksOperatorTestIds.openCreate}`);

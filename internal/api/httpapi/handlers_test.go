@@ -122,6 +122,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/settings/sandboxes",
 		"GET /api/settings/sandboxes/:name",
 		"GET /api/settings/general",
+		"GET /api/settings/update",
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
 		"GET /api/settings/mcp-servers",
@@ -1269,7 +1270,10 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 		t.Fatalf("last data = %q, want [DONE]", string(records[len(records)-1].Data))
 	}
 
-	var finishPart promptFinishPayload
+	var finishPart struct {
+		Type         string `json:"type"`
+		FinishReason string `json:"finishReason,omitempty"`
+	}
 	var finishFields map[string]json.RawMessage
 	for _, record := range records {
 		if len(record.Data) > 0 && string(record.Data) != "[DONE]" {
@@ -1524,6 +1528,9 @@ func TestSessionEventsAndHistoryHandlers(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	var gotQuery store.EventQuery
 	manager := stubSessionManager{
+		StatusFn: func(context.Context, string) (*session.Info, error) {
+			return newSessionInfo("sess-123"), nil
+		},
 		EventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
 			gotQuery = query
 			return []store.SessionEvent{{
@@ -1572,9 +1579,31 @@ func TestSessionEventsAndHistoryHandlers(t *testing.T) {
 		t.Fatalf("query = %#v", gotQuery)
 	}
 
+	var events struct {
+		Events []sessionEventPayload `json:"events"`
+	}
+	decodeJSONResponse(t, eventsResp, &events)
+	if len(events.Events) != 1 || events.Events[0].Sequence != 7 {
+		t.Fatalf("events = %#v", events.Events)
+	}
+	if events.Events[0].WorkspaceID != "ws-workspace" || events.Events[0].WorkspacePath != "/workspace" {
+		t.Fatalf("event workspace = %#v", events.Events[0])
+	}
+
 	historyResp := performRequest(t, engine, http.MethodGet, "/api/sessions/sess-123/history", nil)
 	if historyResp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", historyResp.Code, http.StatusOK, historyResp.Body.String())
+	}
+
+	var history struct {
+		History []contract.TurnHistoryPayload `json:"history"`
+	}
+	decodeJSONResponse(t, historyResp, &history)
+	if len(history.History) != 1 || history.History[0].TurnID != "turn-1" {
+		t.Fatalf("history = %#v", history.History)
+	}
+	if got := history.History[0].Events[0]; got.WorkspaceID != "ws-workspace" || got.WorkspacePath != "/workspace" {
+		t.Fatalf("history event workspace = %#v", got)
 	}
 }
 

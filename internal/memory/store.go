@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -41,6 +42,7 @@ type Store struct {
 	maxIndexBytes int
 	logger        *slog.Logger
 	catalog       *catalog
+	mu            *sync.Mutex
 }
 
 var _ Backend = (*Store)(nil)
@@ -52,6 +54,7 @@ func NewStore(globalDir string, opts ...StoreOption) *Store {
 		maxIndexLines: defaultIndexLines,
 		maxIndexBytes: defaultIndexBytes,
 		logger:        slog.Default(),
+		mu:            &sync.Mutex{},
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -159,13 +162,23 @@ func (s *Store) Write(scope Scope, filename string, content []byte) error {
 	if err != nil {
 		return err
 	}
+	unlock := s.lockMutations()
+	defer unlock()
+
 	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
 		return fmt.Errorf("memory: ensure directory %q: %w", filepath.Dir(path), err)
 	}
 	if err := fileutil.AtomicWriteFile(path, content, filePerm); err != nil {
 		return fmt.Errorf("memory: write %q: %w", path, err)
 	}
-	s.syncScopeAfterMutation(scope.Normalize(), filepath.Base(path), "write")
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("memory: stat written file %q: %w", path, err)
+	}
+	header.Filename = filepath.Base(path)
+	header.FilePath = path
+	header.ModTime = info.ModTime()
+	s.syncScopeAfterWrite(scope.Normalize(), header, content)
 	s.logMutationEvent("write", scope.Normalize(), filepath.Base(path))
 
 	return nil
@@ -177,13 +190,16 @@ func (s *Store) Delete(scope Scope, filename string) error {
 	if err != nil {
 		return err
 	}
+	unlock := s.lockMutations()
+	defer unlock()
+
 	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("memory: delete %q: %w", path, err)
 	}
 	if filepath.Base(path) == indexFilename {
 		return nil
 	}
-	s.syncScopeAfterMutation(scope.Normalize(), filepath.Base(path), "delete")
+	s.syncScopeAfterDelete(scope.Normalize(), filepath.Base(path))
 	s.logMutationEvent("delete", scope.Normalize(), filepath.Base(path))
 
 	return nil
@@ -599,6 +615,177 @@ func (s *Store) syncCatalogScope(ctx context.Context, scope Scope, headers []Hea
 	return nil
 }
 
+func (s *Store) syncScopeAfterWrite(scope Scope, header Header, content []byte) {
+	if err := s.syncScopeAfterWriteErr(context.Background(), scope.Normalize(), header, content); err != nil {
+		s.warn(
+			"memory: sync derived state failed after mutation",
+			"action", "write",
+			"scope", scope.Normalize(),
+			"filename", strings.TrimSpace(header.Filename),
+			"error", err,
+		)
+	}
+}
+
+func (s *Store) syncScopeAfterWriteErr(ctx context.Context, scope Scope, header Header, content []byte) error {
+	if needsFullSync, err := s.needsFullSyncAfterMutation(ctx, scope, strings.TrimSpace(header.Filename)); err != nil {
+		return err
+	} else if needsFullSync {
+		return s.syncScope(ctx, scope)
+	}
+
+	if err := s.syncIndexAfterWrite(scope, header); err != nil {
+		return err
+	}
+	if s.catalog == nil {
+		return nil
+	}
+
+	workspaceRoot := ""
+	if scope.Normalize() == ScopeWorkspace {
+		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+	}
+	doc, err := buildCatalogDocument(scope, workspaceRoot, header, content)
+	if err != nil {
+		return err
+	}
+	return s.catalog.upsertDocument(ctx, doc)
+}
+
+func (s *Store) syncScopeAfterDelete(scope Scope, filename string) {
+	if err := s.syncScopeAfterDeleteErr(
+		context.Background(),
+		scope.Normalize(),
+		strings.TrimSpace(filename),
+	); err != nil {
+		s.warn(
+			"memory: sync derived state failed after mutation",
+			"action", "delete",
+			"scope", scope.Normalize(),
+			"filename", strings.TrimSpace(filename),
+			"error", err,
+		)
+	}
+}
+
+func (s *Store) syncScopeAfterDeleteErr(ctx context.Context, scope Scope, filename string) error {
+	if needsFullSync, err := s.needsFullSyncAfterMutation(ctx, scope, strings.TrimSpace(filename)); err != nil {
+		return err
+	} else if needsFullSync {
+		return s.syncScope(ctx, scope)
+	}
+
+	if err := s.syncIndexAfterDelete(scope, filename); err != nil {
+		return err
+	}
+	if s.catalog == nil {
+		return nil
+	}
+
+	workspaceRoot := ""
+	if scope.Normalize() == ScopeWorkspace {
+		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+	}
+	return s.catalog.deleteDocument(ctx, scope, workspaceRoot, filename)
+}
+
+func (s *Store) needsFullSyncAfterMutation(ctx context.Context, scope Scope, filename string) (bool, error) {
+	indexMissing, err := s.indexMissingWithExistingDocuments(scope, filename)
+	if err != nil {
+		return false, err
+	}
+	if indexMissing {
+		return true, nil
+	}
+	if s.catalog == nil {
+		return false, nil
+	}
+
+	workspaceRoot := ""
+	if scope.Normalize() == ScopeWorkspace {
+		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+	}
+	ready, err := s.catalog.scopeReady(ctx, scope, workspaceRoot)
+	if err != nil {
+		return false, err
+	}
+	return !ready, nil
+}
+
+func (s *Store) indexMissingWithExistingDocuments(scope Scope, mutatedFilename string) (bool, error) {
+	dir, err := s.dirForScope(scope)
+	if err != nil {
+		return false, err
+	}
+	indexPath := filepath.Join(dir, indexFilename)
+	if _, err := os.Stat(indexPath); err == nil {
+		return false, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("memory: stat index %q: %w", indexPath, err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("memory: inspect memory directory %q: %w", dir, err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || shouldSkipFile(entry.Name()) || entry.Name() == strings.TrimSpace(mutatedFilename) {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func (s *Store) syncIndexAfterWrite(scope Scope, header Header) error {
+	dir, err := s.dirForScope(scope)
+	if err != nil {
+		return err
+	}
+	indexPath := filepath.Join(dir, indexFilename)
+	lines, err := readIndexLines(indexPath)
+	if err != nil {
+		return err
+	}
+
+	filename := strings.TrimSpace(header.Filename)
+	updated := []string{renderIndexLine(header)}
+	for _, line := range lines {
+		target, ok := firstMarkdownLinkTarget(line)
+		if ok && target == filename {
+			continue
+		}
+		updated = append(updated, line)
+	}
+	return writeIndexLines(indexPath, updated)
+}
+
+func (s *Store) syncIndexAfterDelete(scope Scope, filename string) error {
+	dir, err := s.dirForScope(scope)
+	if err != nil {
+		return err
+	}
+	indexPath := filepath.Join(dir, indexFilename)
+	lines, err := readIndexLines(indexPath)
+	if err != nil {
+		return err
+	}
+
+	targetFilename := strings.TrimSpace(filename)
+	updated := make([]string, 0, len(lines))
+	for _, line := range lines {
+		target, ok := firstMarkdownLinkTarget(line)
+		if ok && target == targetFilename {
+			continue
+		}
+		updated = append(updated, line)
+	}
+	return writeIndexLines(indexPath, updated)
+}
+
 func (s *Store) warn(msg string, args ...any) {
 	if s.logger != nil {
 		s.logger.Warn(msg, args...)
@@ -821,18 +1008,6 @@ func (s *Store) logCatalogEvent(ctx context.Context, record OperationRecord) err
 	return s.catalog.logEvent(ctx, record)
 }
 
-func (s *Store) syncScopeAfterMutation(scope Scope, filename string, action string) {
-	if err := s.syncScope(context.Background(), scope.Normalize()); err != nil {
-		s.warn(
-			"memory: sync derived state failed after mutation",
-			"action", strings.TrimSpace(action),
-			"scope", scope.Normalize(),
-			"filename", strings.TrimSpace(filename),
-			"error", err,
-		)
-	}
-}
-
 func (s *Store) logMutationEvent(action string, scope Scope, filename string) {
 	workspaceRoot := ""
 	if scope.Normalize() == ScopeWorkspace {
@@ -856,6 +1031,14 @@ func (s *Store) logMutationEvent(action string, scope Scope, filename string) {
 			"error", err,
 		)
 	}
+}
+
+func (s *Store) lockMutations() func() {
+	if s == nil || s.mu == nil {
+		return func() {}
+	}
+	s.mu.Lock()
+	return s.mu.Unlock
 }
 
 func truncateIndex(content string, maxLines int, maxBytes int) (string, bool) {
@@ -948,6 +1131,39 @@ func renderIndexLine(header Header) string {
 		return fmt.Sprintf("- [%s](%s)", header.Name, header.Filename)
 	}
 	return fmt.Sprintf("- [%s](%s) - %s", header.Name, header.Filename, header.Description)
+}
+
+func readIndexLines(path string) ([]string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("memory: read index %q: %w", path, err)
+	}
+
+	lines := make([]string, 0)
+	for line := range strings.SplitSeq(string(content), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		lines = append(lines, trimmed)
+	}
+	return lines, nil
+}
+
+func writeIndexLines(path string, lines []string) error {
+	if len(lines) == 0 {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("memory: remove empty index %q: %w", path, err)
+		}
+		return nil
+	}
+	if err := fileutil.AtomicWriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), filePerm); err != nil {
+		return fmt.Errorf("memory: write index %q: %w", path, err)
+	}
+	return nil
 }
 
 func indexMatchesHeaders(content string, headers []Header) bool {

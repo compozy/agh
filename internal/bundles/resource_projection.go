@@ -8,7 +8,10 @@ import (
 
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/resources"
+	"github.com/pedronauck/agh/internal/soul"
 )
 
 // BundleActivationResourcePlan is the owned-resource composition plan produced from bundle.activation records.
@@ -16,9 +19,15 @@ type BundleActivationResourcePlan struct {
 	revision            int64
 	operations          int
 	activeActivationIDs map[string]struct{}
+	desiredAgents       []ownedAgentResource
+	desiredSouls        []ownedSoulResource
+	desiredHeartbeats   []ownedHeartbeatResource
 	desiredJobs         []automationpkg.Job
 	desiredTriggers     []automationpkg.Trigger
 	desiredBridges      []bridgepkg.BridgeInstance
+	agentOwners         map[string]string
+	soulOwners          map[string]string
+	heartbeatOwners     map[string]string
 	jobOwners           map[string]string
 	triggerOwners       map[string]string
 	bridgeOwners        map[string]string
@@ -78,44 +87,69 @@ func (s *Service) Build(
 	if err != nil {
 		return nil, err
 	}
-	operations := len(state.desiredJobs) + len(state.desiredTriggers) + len(state.desiredBridges)
-	jobOwners, triggerOwners, bridgeOwners := ownedResourceMaps(state.inventoryByActivation)
+	operations := len(state.desiredAgents) + len(state.desiredSouls) + len(state.desiredHeartbeats) +
+		len(state.desiredJobs) + len(state.desiredTriggers) + len(state.desiredBridges)
+	owners := ownedResourceMaps(state.inventoryByActivation)
 	return &BundleActivationResourcePlan{
 		revision:            revision,
 		operations:          operations,
 		activeActivationIDs: cloneStringSet(state.activeActivationIDs),
+		desiredAgents:       cloneOwnedAgentResources(state.desiredAgents),
+		desiredSouls:        cloneOwnedSoulResources(state.desiredSouls),
+		desiredHeartbeats:   cloneOwnedHeartbeatResources(state.desiredHeartbeats),
 		desiredJobs:         cloneJobsForBundle(state.desiredJobs),
 		desiredTriggers:     cloneTriggersForBundle(state.desiredTriggers),
 		desiredBridges:      cloneBridgeInstancesForBundle(state.desiredBridges),
-		jobOwners:           jobOwners,
-		triggerOwners:       triggerOwners,
-		bridgeOwners:        bridgeOwners,
+		agentOwners:         owners.agents,
+		soulOwners:          owners.souls,
+		heartbeatOwners:     owners.heartbeats,
+		jobOwners:           owners.jobs,
+		triggerOwners:       owners.triggers,
+		bridgeOwners:        owners.bridges,
 		effectiveDefault:    strings.TrimSpace(state.effectiveDefault),
 		effectiveSource:     strings.TrimSpace(state.effectiveSource),
 		declaredChannels:    append([]DeclaredChannel(nil), state.declaredChannels...),
 	}, nil
 }
 
-func ownedResourceMaps(
-	inventoryByActivation map[string][]InventoryItem,
-) (map[string]string, map[string]string, map[string]string) {
-	jobOwners := make(map[string]string)
-	triggerOwners := make(map[string]string)
-	bridgeOwners := make(map[string]string)
+type ownedResourceOwnerMaps struct {
+	agents     map[string]string
+	souls      map[string]string
+	heartbeats map[string]string
+	jobs       map[string]string
+	triggers   map[string]string
+	bridges    map[string]string
+}
+
+func ownedResourceMaps(inventoryByActivation map[string][]InventoryItem) ownedResourceOwnerMaps {
+	owners := ownedResourceOwnerMaps{
+		agents:     make(map[string]string),
+		souls:      make(map[string]string),
+		heartbeats: make(map[string]string),
+		jobs:       make(map[string]string),
+		triggers:   make(map[string]string),
+		bridges:    make(map[string]string),
+	}
 	for activationID, items := range inventoryByActivation {
 		ownerID := strings.TrimSpace(activationID)
 		for _, item := range items {
 			switch resources.ResourceKind(strings.TrimSpace(item.ResourceKind)) {
+			case aghconfig.AgentResourceKind:
+				owners.agents[strings.TrimSpace(item.ResourceID)] = ownerID
+			case soul.ResourceKind:
+				owners.souls[strings.TrimSpace(item.ResourceID)] = ownerID
+			case heartbeat.ResourceKind:
+				owners.heartbeats[strings.TrimSpace(item.ResourceID)] = ownerID
 			case automationpkg.JobResourceKind:
-				jobOwners[strings.TrimSpace(item.ResourceID)] = ownerID
+				owners.jobs[strings.TrimSpace(item.ResourceID)] = ownerID
 			case automationpkg.TriggerResourceKind:
-				triggerOwners[strings.TrimSpace(item.ResourceID)] = ownerID
+				owners.triggers[strings.TrimSpace(item.ResourceID)] = ownerID
 			case bridgepkg.BridgeInstanceResourceKind:
-				bridgeOwners[strings.TrimSpace(item.ResourceID)] = ownerID
+				owners.bridges[strings.TrimSpace(item.ResourceID)] = ownerID
 			}
 		}
 	}
-	return jobOwners, triggerOwners, bridgeOwners
+	return owners
 }
 
 // Apply writes owned automation and bridge desired-state records through canonical stores.
@@ -148,6 +182,9 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 	bundleLookup := newBundleRecordLookup(bundleRecords)
 	state := reconcileState{
 		activeActivationIDs:   make(map[string]struct{}, len(activations)),
+		desiredAgents:         make([]ownedAgentResource, 0),
+		desiredSouls:          make([]ownedSoulResource, 0),
+		desiredHeartbeats:     make([]ownedHeartbeatResource, 0),
 		desiredJobs:           make([]automationpkg.Job, 0),
 		desiredTriggers:       make([]automationpkg.Trigger, 0),
 		desiredBridges:        make([]bridgepkg.BridgeInstance, 0),
@@ -161,7 +198,7 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 	errs := make([]error, 0)
 	for _, activation := range activations {
 		state.activeActivationIDs[strings.TrimSpace(activation.ID)] = struct{}{}
-		resolved, resolveErr := s.resolveActivationFromBundleLookup(activation, bundleLookup)
+		resolved, resolveErr := s.resolveActivationFromBundleLookup(ctx, activation, bundleLookup)
 		if resolveErr != nil {
 			errs = append(errs, resolveErr)
 			state.inventoryByActivation[activation.ID] = nil
@@ -170,6 +207,9 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 
 		state.inventoryByActivation[activation.ID] = cloneInventoryItems(resolved.inventory)
 		state.declaredChannels = append(state.declaredChannels, resolved.channels...)
+		state.desiredAgents = append(state.desiredAgents, resolved.agents...)
+		state.desiredSouls = append(state.desiredSouls, resolved.souls...)
+		state.desiredHeartbeats = append(state.desiredHeartbeats, resolved.heartbeats...)
 		state.desiredJobs = append(state.desiredJobs, resolved.jobs...)
 		state.desiredTriggers = append(state.desiredTriggers, resolved.triggers...)
 		state.desiredBridges = append(state.desiredBridges, resolved.bridges...)
@@ -187,6 +227,9 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 			errs = append(errs, resolveErr)
 		}
 	}
+	if err := validateDesiredAgentScopeConflicts(state.desiredAgents); err != nil {
+		errs = append(errs, err)
+	}
 	if len(errs) > 0 {
 		return reconcileState{}, errors.Join(errs...)
 	}
@@ -194,6 +237,7 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 }
 
 func (s *Service) resolveActivationFromBundleLookup(
+	ctx context.Context,
 	activation Activation,
 	bundleLookup bundleRecordLookup,
 ) (resolvedActivation, error) {
@@ -236,11 +280,20 @@ func (s *Service) resolveActivationFromBundleLookup(
 		specContentHash: specContentHash,
 	}
 	resolved.channels = declaredChannelsForProfile(activation, bundle, profile)
-	resolved.jobs, resolved.triggers, resolved.bridges, resolved.inventory, err =
-		s.materializeActivationResources(activation, bundleRecord, bundle, profile)
+	materialized, err := s.materializeActivationResources(ctx, activation, bundleRecord, bundle, profile)
 	if err != nil {
 		return resolvedActivation{}, err
 	}
+	if err := s.validateActivationAgentBindings(ctx, activation, materialized); err != nil {
+		return resolvedActivation{}, err
+	}
+	resolved.agents = materialized.agents
+	resolved.souls = materialized.souls
+	resolved.heartbeats = materialized.heartbeats
+	resolved.jobs = materialized.jobs
+	resolved.triggers = materialized.triggers
+	resolved.bridges = materialized.bridges
+	resolved.inventory = materialized.inventory
 	return resolved, nil
 }
 
@@ -251,6 +304,49 @@ func cloneStringSet(values map[string]struct{}) map[string]struct{} {
 	cloned := make(map[string]struct{}, len(values))
 	for value := range values {
 		cloned[strings.TrimSpace(value)] = struct{}{}
+	}
+	return cloned
+}
+
+func cloneOwnedAgentResources(values []ownedAgentResource) []ownedAgentResource {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]ownedAgentResource, 0, len(values))
+	for _, value := range values {
+		cloned = append(cloned, ownedAgentResource{
+			ID:    strings.TrimSpace(value.ID),
+			Scope: value.Scope.Normalize(),
+			Spec:  aghconfig.CloneAgentDef(value.Spec),
+		})
+	}
+	return cloned
+}
+
+func cloneOwnedSoulResources(values []ownedSoulResource) []ownedSoulResource {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]ownedSoulResource, 0, len(values))
+	for _, value := range values {
+		next := value
+		next.ID = strings.TrimSpace(next.ID)
+		next.Scope = next.Scope.Normalize()
+		cloned = append(cloned, next)
+	}
+	return cloned
+}
+
+func cloneOwnedHeartbeatResources(values []ownedHeartbeatResource) []ownedHeartbeatResource {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]ownedHeartbeatResource, 0, len(values))
+	for _, value := range values {
+		next := value
+		next.ID = strings.TrimSpace(next.ID)
+		next.Scope = next.Scope.Normalize()
+		cloned = append(cloned, next)
 	}
 	return cloned
 }

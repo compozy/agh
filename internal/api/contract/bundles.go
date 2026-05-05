@@ -7,6 +7,7 @@ type BundleProfileCatalogPayload struct {
 	Description    string                 `json:"description,omitempty"`
 	PrimaryChannel string                 `json:"primary_channel,omitempty"`
 	Channels       []BundleChannelPayload `json:"channels,omitempty"`
+	AgentCount     int                    `json:"agent_count,omitempty"`
 	JobCount       int                    `json:"job_count,omitempty"`
 	TriggerCount   int                    `json:"trigger_count,omitempty"`
 	BridgeCount    int                    `json:"bridge_count,omitempty"`
@@ -23,6 +24,15 @@ type BundleChannelPayload struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Primary     bool   `json:"primary,omitempty"`
+}
+
+type BundleAgentPayload struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Provider     string `json:"provider,omitempty"`
+	Model        string `json:"model,omitempty"`
+	HasSoul      bool   `json:"has_soul,omitempty"`
+	HasHeartbeat bool   `json:"has_heartbeat,omitempty"`
 }
 
 type BundleJobPayload struct {
@@ -72,6 +82,7 @@ type BundleActivationPayload struct {
 	WorkspaceID                 string                   `json:"workspace_id,omitempty"`
 	BindPrimaryChannelAsDefault bool                     `json:"bind_primary_channel_as_default"`
 	Channels                    []BundleChannelPayload   `json:"channels,omitempty"`
+	Agents                      []BundleAgentPayload     `json:"agents,omitempty"`
 	Jobs                        []BundleJobPayload       `json:"jobs,omitempty"`
 	Triggers                    []BundleTriggerPayload   `json:"triggers,omitempty"`
 	Bridges                     []BundleBridgePayload    `json:"bridges,omitempty"`

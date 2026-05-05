@@ -22,6 +22,25 @@ func OpenSQLiteDatabase(
 	path string,
 	initialize func(context.Context, *sql.DB) error,
 ) (*sql.DB, error) {
+	return openSQLiteDatabaseWithPragmas(ctx, path, nil, initialize)
+}
+
+// OpenSQLiteDatabaseWithPragmas opens a SQLite database with additional driver-level pragmas.
+func OpenSQLiteDatabaseWithPragmas(
+	ctx context.Context,
+	path string,
+	pragmas []string,
+	initialize func(context.Context, *sql.DB) error,
+) (*sql.DB, error) {
+	return openSQLiteDatabaseWithPragmas(ctx, path, pragmas, initialize)
+}
+
+func openSQLiteDatabaseWithPragmas(
+	ctx context.Context,
+	path string,
+	pragmas []string,
+	initialize func(context.Context, *sql.DB) error,
+) (*sql.DB, error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return nil, errors.New("store: database path is required")
@@ -30,7 +49,7 @@ func OpenSQLiteDatabase(
 		return nil, fmt.Errorf("store: create database directory for %q: %w", cleanPath, err)
 	}
 
-	db, err := openSQLiteDatabaseOnce(ctx, cleanPath, initialize)
+	db, err := openSQLiteDatabaseOnce(ctx, cleanPath, initialize, pragmas...)
 	if err == nil {
 		return db, nil
 	}
@@ -44,7 +63,7 @@ func OpenSQLiteDatabase(
 		return nil, errors.Join(err, fmt.Errorf("store: recover sqlite database %q: %w", cleanPath, recoverErr))
 	}
 
-	db, reopenErr := openSQLiteDatabaseOnce(ctx, cleanPath, initialize)
+	db, reopenErr := openSQLiteDatabaseOnce(ctx, cleanPath, initialize, pragmas...)
 	if reopenErr != nil {
 		return nil, errors.Join(
 			err,
@@ -58,8 +77,9 @@ func openSQLiteDatabaseOnce(
 	ctx context.Context,
 	path string,
 	initialize func(context.Context, *sql.DB) error,
+	extraPragmas ...string,
 ) (*sql.DB, error) {
-	db, err := sql.Open(sqliteDriverName, sqliteDSN(path))
+	db, err := sql.Open(sqliteDriverName, sqliteDSN(path, extraPragmas...))
 	if err != nil {
 		return nil, fmt.Errorf("store: open sqlite database %q: %w", path, err)
 	}
@@ -85,7 +105,7 @@ func openSQLiteDatabaseOnce(
 	return db, nil
 }
 
-func sqliteDSN(path string) string {
+func sqliteDSN(path string, extraPragmas ...string) string {
 	u := url.URL{
 		Scheme: "file",
 		Path:   filepath.ToSlash(path),
@@ -95,6 +115,11 @@ func sqliteDSN(path string) string {
 	query.Add("_pragma", "foreign_keys(ON)")
 	query.Add("_pragma", "journal_mode(WAL)")
 	query.Add("_pragma", "synchronous(NORMAL)")
+	for _, pragma := range extraPragmas {
+		if trimmed := strings.TrimSpace(pragma); trimmed != "" {
+			query.Add("_pragma", trimmed)
+		}
+	}
 	u.RawQuery = query.Encode()
 	return u.String()
 }

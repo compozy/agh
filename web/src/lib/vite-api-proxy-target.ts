@@ -1,12 +1,20 @@
-export const defaultApiProxyTarget = "http://localhost:2123";
+export const defaultApiProxyTarget = "http://localhost:2123/";
 
 const apiProxyTargetEnvKey = "AGH_WEB_API_PROXY_TARGET";
 
 export function resolveApiProxyTarget(env: Record<string, string | undefined>): string {
+  return parseApiProxyTarget(env).toString();
+}
+
+export function resolveApiProxyOrigin(env: Record<string, string | undefined>): string {
+  return parseApiProxyTarget(env).origin;
+}
+
+function parseApiProxyTarget(env: Record<string, string | undefined>): URL {
   const rawOverride = env[apiProxyTargetEnvKey];
   const override = rawOverride?.trim();
   if (!override) {
-    return defaultApiProxyTarget;
+    return new URL(defaultApiProxyTarget);
   }
 
   let parsed: URL;
@@ -18,5 +26,5 @@ export function resolveApiProxyTarget(env: Record<string, string | undefined>): 
     );
   }
 
-  return parsed.toString();
+  return parsed;
 }

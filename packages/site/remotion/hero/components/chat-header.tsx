@@ -42,7 +42,7 @@ export function ChatHeader({ activeAgent, sessionName }: ChatHeaderProps) {
     whiteSpace: "nowrap",
   };
   const chevron: CSSProperties = {
-    color: TOKENS.textTertiary,
+    color: TOKENS.textLabel,
     display: "inline-flex",
     alignItems: "center",
     flexShrink: 0,
@@ -60,7 +60,7 @@ export function ChatHeader({ activeAgent, sessionName }: ChatHeaderProps) {
     display: "flex",
     alignItems: "center",
     gap: 6,
-    color: TOKENS.textTertiary,
+    color: TOKENS.textLabel,
     flexShrink: 0,
   };
   const iconBtn: CSSProperties = {
@@ -70,7 +70,7 @@ export function ChatHeader({ activeAgent, sessionName }: ChatHeaderProps) {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    color: TOKENS.textTertiary,
+    color: TOKENS.textLabel,
   };
 
   return (

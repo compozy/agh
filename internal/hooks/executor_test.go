@@ -3,7 +3,9 @@ package hooks
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"runtime"
 	"strings"
 	"testing"
@@ -95,6 +97,32 @@ func TestSubprocessExecutorExecutePassesPayloadViaStdin(t *testing.T) {
 	}
 	if !bytes.Equal(output, payload) {
 		t.Fatalf("output = %q, want %q", string(output), string(payload))
+	}
+}
+
+func TestSubprocessExecutorExecuteCapturesLargeJSONPatch(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("subprocess shell test requires POSIX shell")
+	}
+
+	payloadBytes := 64 * 1024
+	command := fmt.Sprintf(
+		"printf '{\"prompt\":\"'; yes a | tr -d '\\n' | head -c %d; printf '\"}'",
+		payloadBytes,
+	)
+	executor := NewSubprocessExecutor("/bin/sh", []string{"-c", command})
+
+	output, err := executor.Execute(t.Context(), RegisteredHook{Name: "large-json-hook"}, nil)
+	if err != nil {
+		t.Fatalf("Execute() error = %v, want nil", err)
+	}
+	if !json.Valid(output) {
+		t.Fatalf("output is not valid JSON: %q", string(output))
+	}
+	if strings.Contains(string(output), subprocessCaptureTruncate) {
+		t.Fatalf("output contains truncation marker, want full JSON patch")
 	}
 }
 
@@ -221,9 +249,17 @@ func TestSubprocessExecutorExecuteCapsCapturedOutput(t *testing.T) {
 		t.Skip("subprocess shell test requires POSIX shell")
 	}
 
+	overflowBytes := subprocessCaptureLimitBytes + 1024
 	executor := NewSubprocessExecutor(
 		"/bin/sh",
-		[]string{"-c", "yes x | tr -d '\\n' | head -c 9000; yes y | tr -d '\\n' | head -c 9000 >&2; exit 7"},
+		[]string{
+			"-c",
+			fmt.Sprintf(
+				"yes x | tr -d '\\n' | head -c %[1]d; "+
+					"yes y | tr -d '\\n' | head -c %[1]d >&2; exit 7",
+				overflowBytes,
+			),
+		},
 	)
 
 	output, err := executor.Execute(t.Context(), RegisteredHook{Name: "truncate-hook"}, nil)

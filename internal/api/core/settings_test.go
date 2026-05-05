@@ -126,6 +126,19 @@ func (s *stubSettingsRestartController) RequestRestart(
 	return core.SettingsRestartOperation{}, nil
 }
 
+type stubSettingsUpdateController struct {
+	GetFn    func(context.Context) (core.SettingsUpdateStatus, error)
+	GetCalls int
+}
+
+func (s *stubSettingsUpdateController) GetUpdate(ctx context.Context) (core.SettingsUpdateStatus, error) {
+	s.GetCalls++
+	if s.GetFn != nil {
+		return s.GetFn(ctx)
+	}
+	return core.SettingsUpdateStatus{}, nil
+}
+
 func (s *stubSettingsRestartController) GetRestartOperation(
 	ctx context.Context,
 	operationID string,
@@ -145,6 +158,7 @@ type settingsHandlerFixture struct {
 	StreamDone chan struct{}
 	Service    *stubSettingsService
 	Restart    *stubSettingsRestartController
+	Update     *stubSettingsUpdateController
 }
 
 func newSettingsHandlerFixture(
@@ -169,12 +183,14 @@ func newSettingsHandlerFixture(
 	if restartController == nil {
 		restartController = &stubSettingsRestartController{}
 	}
+	updateController := &stubSettingsUpdateController{}
 
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 		TransportName:      transport,
 		MaskInternalErrors: false,
 		Settings:           settingsService,
 		SettingsRestart:    restartController,
+		SettingsUpdate:     updateController,
 		HomePaths:          homePaths,
 		Config:             cfg,
 		Logger:             testutil.DiscardLogger(),
@@ -196,12 +212,14 @@ func newSettingsHandlerFixture(
 		StreamDone: streamDone,
 		Service:    settingsService,
 		Restart:    restartController,
+		Update:     updateController,
 	}
 }
 
 func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings := engine.Group("/api/settings")
 	settings.GET("/general", handlers.GetSettingsGeneral)
+	settings.GET("/update", handlers.GetSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
@@ -296,6 +314,43 @@ func TestStatusForSettingsError(t *testing.T) {
 				t.Fatalf("StatusForSettingsError(%v) = %d, want %d", tc.err, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestGetSettingsUpdateReturnsCurrentSnapshot(t *testing.T) {
+	t.Parallel()
+
+	fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+	fixture.Update.GetFn = func(context.Context) (core.SettingsUpdateStatus, error) {
+		checkedAt := time.Date(2026, 5, 3, 19, 0, 0, 0, time.UTC)
+		return core.SettingsUpdateStatus{
+			Supported:      true,
+			Managed:        false,
+			InstallMethod:  "direct-binary",
+			CurrentVersion: "v1.0.0",
+			LatestVersion:  "v1.1.0",
+			Available:      true,
+			Status:         "available",
+			Recommendation: "Run `agh update`.",
+			ReleaseURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
+			CheckedAt:      &checkedAt,
+		}, nil
+	}
+
+	resp := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/update", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("GET /api/settings/update status = %d, want 200", resp.Code)
+	}
+
+	var payload contract.SettingsUpdateResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(update response) error = %v", err)
+	}
+	if payload.Status != contract.SettingsUpdateStatusAvailable || payload.InstallMethod != "direct-binary" {
+		t.Fatalf("update payload = %#v, want available direct-binary", payload)
+	}
+	if fixture.Update.GetCalls != 1 {
+		t.Fatalf("GetCalls = %d, want 1", fixture.Update.GetCalls)
 	}
 }
 
@@ -1253,7 +1308,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				},
 				PutCollectionItemFn: func(_ context.Context, req settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error) {
 					return settingspkg.MutationResult{
-						Section:  settingspkg.SectionHooksExtensions,
+						Section:  settingspkg.SectionName(req.Collection),
 						Scope:    req.Scope,
 						Behavior: settingspkg.MutationBehaviorAppliedNow,
 						Applied:  true,
@@ -1279,7 +1334,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 func assertAppliedSettingsMutation(t *testing.T, resp *httptest.ResponseRecorder) {
 	t.Helper()
 
-	var payload contract.MutationResult
+	var payload contract.SettingsGlobalSectionMutationResult
 	testutil.DecodeJSONResponse(t, resp, &payload)
 	if !payload.Applied || payload.Behavior != contract.SettingsMutationBehaviorAppliedNow {
 		t.Fatalf("settings mutation payload = %#v, want applied_now", payload)
@@ -1469,7 +1524,7 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		},
 		DeleteItemFn: func(_ context.Context, req settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error) {
 			return settingspkg.MutationResult{
-				Section:  settingspkg.SectionHooksExtensions,
+				Section:  settingspkg.SectionName(req.Collection),
 				Scope:    req.Scope,
 				Behavior: settingspkg.MutationBehaviorAppliedNow,
 				Applied:  true,
@@ -1501,6 +1556,33 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		if got, want := resp.Code, http.StatusOK; got != want {
 			t.Fatalf("%s status = %d, want %d; body=%s", path, got, want, resp.Body.String())
 		}
+	}
+}
+
+func TestSettingsRejectsAgentNameOutsideSkills(t *testing.T) {
+	t.Parallel()
+
+	service := &stubSettingsService{}
+	fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+
+	resp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/api/settings/general?agent_name=coder",
+		nil,
+	)
+	if got, want := resp.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+	}
+	if service.GetSectionCalls != 0 {
+		t.Fatalf("GetSectionCalls = %d, want 0", service.GetSectionCalls)
+	}
+
+	var payload contract.ErrorPayload
+	decodeJSON(t, resp.Body.Bytes(), &payload)
+	if !strings.Contains(payload.Error, "agent_name is only supported for skills") {
+		t.Fatalf("payload.Error = %q, want agent_name validation", payload.Error)
 	}
 }
 
@@ -1702,7 +1784,7 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 	service := &stubSettingsService{
 		PutCollectionItemFn: func(_ context.Context, req settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error) {
 			return settingspkg.MutationResult{
-				Section:         settingspkg.SectionHooksExtensions,
+				Section:         settingspkg.SectionName(req.Collection),
 				Scope:           req.Scope,
 				WriteTarget:     settingspkg.WriteTargetWorkspaceMCPSidecar,
 				WorkspaceID:     req.WorkspaceID,
@@ -1715,7 +1797,7 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		},
 		DeleteItemFn: func(_ context.Context, req settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error) {
 			return settingspkg.MutationResult{
-				Section:         settingspkg.SectionHooksExtensions,
+				Section:         settingspkg.SectionName(req.Collection),
 				Scope:           req.Scope,
 				WriteTarget:     settingspkg.WriteTargetWorkspaceMCPSidecar,
 				WorkspaceID:     req.WorkspaceID,
@@ -1774,7 +1856,7 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		t.Fatalf("PUT response leaked raw secret value: %s", putResp.Body.String())
 	}
 
-	var putPayload contract.MutationResult
+	var putPayload contract.SettingsGlobalWorkspaceCollectionMutationResult
 	decodeJSON(t, putResp.Body.Bytes(), &putPayload)
 	if putPayload.WriteTarget != contract.SettingsWriteTargetWorkspaceMCPSidecar ||
 		putPayload.RestartScope != "daemon" ||

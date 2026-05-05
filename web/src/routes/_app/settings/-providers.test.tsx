@@ -28,27 +28,21 @@ const claudeEntry: SettingsProviderEntry = {
   settings: {
     command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
     default_model: "claude-sonnet-4-6",
-    credential_slots: [
-      {
-        name: "api_key",
-        target_env: "ANTHROPIC_API_KEY",
-        secret_ref: "env:ANTHROPIC_API_KEY",
-        kind: "api_key",
-        required: false,
-      },
-    ],
+    auth_mode: "native_cli",
+    env_policy: "filtered",
+    home_policy: "operator",
+    auth_status_command: "claude auth status",
+    auth_login_command: "claude login",
   },
-  credentials: [
-    {
-      name: "api_key",
-      target_env: "ANTHROPIC_API_KEY",
-      secret_ref: "env:ANTHROPIC_API_KEY",
-      kind: "api_key",
-      required: false,
-      present: true,
-      source: "env",
-    },
-  ],
+  auth_status: {
+    mode: "native_cli",
+    env_policy: "filtered",
+    home_policy: "operator",
+    state: "native_cli",
+    message: "Provider owns authentication through its native CLI login state.",
+    status_command: "claude auth status",
+    login_command: "claude login",
+  },
   source_metadata: {
     available_targets: ["global-config"],
     effective_source: { kind: "global-config", scope: "global" },
@@ -67,6 +61,9 @@ const builtinEntry: SettingsProviderEntry = {
   settings: {
     command: "npx -y @zed-industries/codex-acp@latest",
     default_model: "gpt-5.4",
+    auth_mode: "bound_secret",
+    env_policy: "filtered",
+    home_policy: "operator",
     credential_slots: [
       {
         name: "api_key",
@@ -88,6 +85,13 @@ const builtinEntry: SettingsProviderEntry = {
       source: "env",
     },
   ],
+  auth_status: {
+    mode: "bound_secret",
+    env_policy: "filtered",
+    home_policy: "operator",
+    state: "missing_required",
+    message: "Missing required AGH-managed provider credential.",
+  },
   source_metadata: {
     available_targets: ["global-config"],
     effective_source: { kind: "builtin-provider", scope: "global" },
@@ -237,9 +241,12 @@ describe("ProvidersSettingsPage", () => {
     expect(screen.getByTestId("settings-page-providers-card-claude-command")).toHaveTextContent(
       "npx -y @agentclientprotocol/claude-agent-acp@latest"
     );
-    expect(
-      screen.getByTestId("settings-page-providers-card-claude-credential-state")
-    ).toHaveTextContent("BOUND");
+    expect(screen.getByTestId("settings-page-providers-card-claude-auth-mode")).toHaveTextContent(
+      "native_cli"
+    );
+    expect(screen.getByTestId("settings-page-providers-card-claude-auth-status")).toHaveTextContent(
+      "native_cli"
+    );
     expect(
       screen.getByTestId("settings-page-providers-card-claude-source-effective")
     ).toHaveTextContent("CONFIG");
@@ -320,23 +327,20 @@ describe("ProvidersSettingsPage", () => {
           command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
           display_name: "Claude",
           default_model: "claude-sonnet-4-6",
-          target_env: "ANTHROPIC_API_KEY",
+          target_env: "",
           harness: "acp",
           runtime_provider: "",
           transport: "",
           base_url: "",
-          secret_ref: "env:ANTHROPIC_API_KEY",
+          auth_mode: "native_cli",
+          env_policy: "filtered",
+          home_policy: "operator",
+          auth_status_command: "claude auth status",
+          auth_login_command: "claude login",
+          secret_ref: "",
           secret_value: "",
-          credential_slots: [
-            {
-              name: "api_key",
-              target_env: "ANTHROPIC_API_KEY",
-              secret_ref: "env:ANTHROPIC_API_KEY",
-              kind: "api_key",
-              required: false,
-            },
-          ],
-          credential_secret_values: [""],
+          credential_slots: [],
+          credential_secret_values: [],
         },
         entry: claudeEntry,
       },
@@ -370,6 +374,11 @@ describe("ProvidersSettingsPage", () => {
           runtime_provider: "",
           transport: "",
           base_url: "",
+          auth_mode: "bound_secret",
+          env_policy: "filtered",
+          home_policy: "operator",
+          auth_status_command: "",
+          auth_login_command: "",
           secret_ref: "env:ANTHROPIC_API_KEY",
           secret_value: "",
           credential_slots: [

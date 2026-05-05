@@ -45,6 +45,9 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 		append(
 			defaultPromptInputAugmenterDescriptors(
 				memory.NewRecallAugmenter(daemonInstance.memoryStore),
+				newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
+					return daemonInstance.workspaceResolver
+				}),
 				daemonInstance.situationContext.Augment,
 			),
 			promptInputAugmenterDescriptor{
@@ -86,6 +89,8 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, "Relevant durable memory for this turn:") {
 		t.Fatalf("user prompt message = %q, want durable memory recall", got)
+	} else if !strings.Contains(got, "<current-available-skills>") {
+		t.Fatalf("user prompt message = %q, want current skills catalog", got)
 	} else if !strings.Contains(got, "SUFFIX CONTEXT") {
 		t.Fatalf("user prompt message = %q, want suffix augmenter output", got)
 	}
@@ -106,8 +111,10 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 	}
 	drainHarnessIntegrationEvents(networkEvents)
 
-	if got := driver.promptCalls[1].Message; got != "network note\n\nSUFFIX CONTEXT" {
-		t.Fatalf("network prompt message = %q, want augmented network dispatch", got)
+	if got := driver.promptCalls[1].Message; !strings.Contains(got, "<current-available-skills>") {
+		t.Fatalf("network prompt message = %q, want current skills catalog", got)
+	} else if !strings.HasSuffix(got, "network note\n\nSUFFIX CONTEXT") {
+		t.Fatalf("network prompt message = %q, want augmented network dispatch with preserved suffix", got)
 	}
 	if got := driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
 		t.Fatalf("network prompt turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)

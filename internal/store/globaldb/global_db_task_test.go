@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
@@ -61,7 +62,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 	assertTableColumns(t, globalDB.db, "task_triage_state", []string{
 		"task_id",
 		"actor_kind",
-		"actor_ref",
+		"actor_id",
 		"is_read",
 		"archived",
 		"dismissed",
@@ -114,7 +115,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"run_id",
 		"event_type",
 		"actor_kind",
-		"actor_ref",
+		"actor_id",
 		"origin_kind",
 		"origin_ref",
 		"payload_json",
@@ -1617,6 +1618,19 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 	)`); err != nil {
 		t.Fatalf("create legacy task_events table error = %v", err)
 	}
+	if _, err := legacyDB.ExecContext(ctx, `CREATE TABLE task_triage_state (
+		task_id TEXT NOT NULL,
+		actor_kind TEXT NOT NULL,
+		actor_ref TEXT NOT NULL,
+		is_read BOOLEAN NOT NULL DEFAULT 0,
+		archived BOOLEAN NOT NULL DEFAULT 0,
+		dismissed BOOLEAN NOT NULL DEFAULT 0,
+		last_seen_activity_at TEXT,
+		updated_at TEXT NOT NULL,
+		PRIMARY KEY (task_id, actor_kind, actor_ref)
+	)`); err != nil {
+		t.Fatalf("create legacy task_triage_state table error = %v", err)
+	}
 	if _, err := legacyDB.ExecContext(ctx, `INSERT INTO tasks (
 		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description, status,
 		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
@@ -1654,6 +1668,51 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 			t.Fatalf("insert legacy task event error = %v", err)
 		}
 	}
+	if _, err := legacyDB.ExecContext(ctx, `INSERT INTO task_triage_state (
+		task_id, actor_kind, actor_ref, is_read, archived, dismissed, last_seen_activity_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"legacy-task-events",
+		string(taskpkg.ActorKindHuman),
+		"user:alice",
+		1,
+		0,
+		0,
+		"2026-04-14T12:05:00.000000000Z",
+		"2026-04-14T12:05:00.000000000Z",
+	); err != nil {
+		t.Fatalf("insert legacy task triage state error = %v", err)
+	}
+	if err := store.RunMigrations(ctx, legacyDB, nil); err != nil {
+		t.Fatalf("create schema_migrations table error = %v", err)
+	}
+
+	seedPath := filepath.Join(t.TempDir(), "seed.db")
+	seedDB, err := sql.Open("sqlite", seedPath)
+	if err != nil {
+		t.Fatalf("sql.Open(seed) error = %v", err)
+	}
+	if err := store.RunMigrations(ctx, seedDB, globalSchemaMigrations[:15]); err != nil {
+		t.Fatalf("seed RunMigrations() error = %v", err)
+	}
+	seedRecords, err := store.AppliedMigrations(ctx, seedDB)
+	if err != nil {
+		t.Fatalf("seed AppliedMigrations() error = %v", err)
+	}
+	if err := seedDB.Close(); err != nil {
+		t.Fatalf("seedDB.Close() error = %v", err)
+	}
+	for _, record := range seedRecords {
+		if _, err := legacyDB.ExecContext(
+			ctx,
+			`INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`,
+			record.Version,
+			record.Name,
+			record.Checksum,
+			store.FormatTimestamp(record.AppliedAt),
+		); err != nil {
+			t.Fatalf("insert legacy schema migration error = %v", err)
+		}
+	}
 	if err := legacyDB.Close(); err != nil {
 		t.Fatalf("legacyDB.Close() error = %v", err)
 	}
@@ -1674,7 +1733,7 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 		"run_id",
 		"event_type",
 		"actor_kind",
-		"actor_ref",
+		"actor_id",
 		"origin_kind",
 		"origin_ref",
 		"payload_json",
@@ -1685,6 +1744,16 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 		"uq_task_events_event_seq",
 		"idx_task_events_task_seq",
 	)
+	assertTableColumns(t, globalDB.db, "task_triage_state", []string{
+		"task_id",
+		"actor_kind",
+		"actor_id",
+		"is_read",
+		"archived",
+		"dismissed",
+		"last_seen_activity_at",
+		"updated_at",
+	})
 
 	record, err := globalDB.GetTaskEventRecord(ctx, "evt-2")
 	if err != nil {
@@ -1711,6 +1780,17 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 	}; got[0] != want[0] ||
 		got[1] != want[1] {
 		t.Fatalf("record sequences = %#v, want %#v", got, want)
+	}
+
+	triage, err := globalDB.GetTaskTriageState(ctx, "legacy-task-events", taskpkg.ActorIdentity{
+		Kind: taskpkg.ActorKindHuman,
+		Ref:  "user:alice",
+	})
+	if err != nil {
+		t.Fatalf("GetTaskTriageState() error = %v", err)
+	}
+	if !triage.Read {
+		t.Fatalf("triage.Read = %t, want true", triage.Read)
 	}
 }
 

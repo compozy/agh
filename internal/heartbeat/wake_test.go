@@ -99,6 +99,59 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve optional synthetic correlation on sent wake prompts", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		cfg := aghconfig.DefaultHeartbeatConfig()
+		store := newFakeWakeStore(t)
+		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
+		health := newFakeWakeHealth()
+		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
+		prompter := &fakeWakePrompter{}
+		service := newTestWakeService(t, store, health, prompter, cfg, base)
+
+		decision, err := service.Wake(context.Background(), WakeRequest{
+			WorkspaceID: "ws-1",
+			AgentName:   "coder",
+			SessionID:   "sess-1",
+			Source:      WakeSourceHarnessReentry,
+			SyntheticCorrelation: WakeSyntheticCorrelation{
+				TaskID:               "task-1",
+				TaskRunID:            "run-1",
+				WorkflowID:           "wf-1",
+				ClaimTokenHash:       "sha256:claim-1",
+				CoordinatorSessionID: "sess-coordinator-1",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Wake() error = %v", err)
+		}
+		if decision.Result != WakeResultSent {
+			t.Fatalf("Wake() result = %q, want sent", decision.Result)
+		}
+
+		requests := prompter.requestsSnapshot()
+		if got, want := len(requests), 1; got != want {
+			t.Fatalf("prompt requests = %d, want %d", got, want)
+		}
+		if got, want := requests[0].SyntheticCorrelation.TaskID, "task-1"; got != want {
+			t.Fatalf("prompt synthetic task id = %q, want %q", got, want)
+		}
+		if got, want := requests[0].SyntheticCorrelation.TaskRunID, "run-1"; got != want {
+			t.Fatalf("prompt synthetic task run id = %q, want %q", got, want)
+		}
+		if got, want := requests[0].SyntheticCorrelation.WorkflowID, "wf-1"; got != want {
+			t.Fatalf("prompt synthetic workflow id = %q, want %q", got, want)
+		}
+		if got, want := requests[0].SyntheticCorrelation.ClaimTokenHash, "sha256:claim-1"; got != want {
+			t.Fatalf("prompt synthetic claim token hash = %q, want %q", got, want)
+		}
+		if got, want := requests[0].SyntheticCorrelation.CoordinatorSessionID, "sess-coordinator-1"; got != want {
+			t.Fatalf("prompt synthetic coordinator session id = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should skip ineligible session health with a closed audit reason", func(t *testing.T) {
 		t.Parallel()
 

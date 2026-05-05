@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,9 +13,19 @@ import (
 	"strings"
 	"time"
 
+	burnttoml "github.com/BurntSushi/toml"
 	"github.com/kballard/go-shellquote"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/spf13/cobra"
+)
+
+const (
+	configEnvKey        = "env"
+	configSecretEnvKey  = "secret_env"
+	configProvidersKey  = "providers"
+	configSessionMCPKey = "session_mcp"
 )
 
 type configEntry struct {
@@ -44,11 +55,15 @@ type configValueRecord struct {
 }
 
 type configSetRecord struct {
-	Path     string `json:"path"`
-	Value    any    `json:"value"`
-	Scope    string `json:"scope"`
-	Target   string `json:"target"`
-	Redacted bool   `json:"redacted"`
+	Path            string `json:"path"`
+	Value           any    `json:"value"`
+	Scope           string `json:"scope"`
+	Target          string `json:"target"`
+	Redacted        bool   `json:"redacted"`
+	Behavior        string `json:"behavior"`
+	Applied         bool   `json:"applied"`
+	RestartRequired bool   `json:"restart_required"`
+	RestartScope    string `json:"restart_scope,omitempty"`
 }
 
 type configPathRecord struct {
@@ -70,7 +85,36 @@ type configValidateRecord struct {
 	WorkspaceRoot string                        `json:"workspace_root,omitempty"`
 	ConfigFile    string                        `json:"config_file"`
 	Redacted      bool                          `json:"redacted"`
+	Errors        []configValidationError       `json:"errors,omitempty"`
 	DotEnv        *aghconfig.DotEnvRepairReport `json:"dot_env,omitempty"`
+}
+
+type configValidationError struct {
+	Code    string `json:"code"`
+	Path    string `json:"path,omitempty"`
+	File    string `json:"file,omitempty"`
+	Line    int    `json:"line,omitempty"`
+	Column  int    `json:"column,omitempty"`
+	Message string `json:"message"`
+}
+
+type configValidationFailedError struct {
+	err error
+}
+
+type configMutationLifecycle struct {
+	Behavior        string
+	Applied         bool
+	RestartRequired bool
+	RestartScope    string
+}
+
+func (e configValidationFailedError) Error() string {
+	return e.err.Error()
+}
+
+func (e configValidationFailedError) Unwrap() error {
+	return e.err
 }
 
 type configSetValueKind int
@@ -99,6 +143,7 @@ var (
 		"limits.max_concurrent_agents": configSetInt,
 		"session.limits.timeout":       configSetDuration,
 		"session.supervision.activity_heartbeat_interval": configSetDuration,
+		"session.supervision.prompt_deadline":             configSetDuration,
 		"session.supervision.progress_notify_interval":    configSetDuration,
 		"session.supervision.inactivity_warning_after":    configSetDuration,
 		"session.supervision.inactivity_timeout":          configSetDuration,
@@ -278,9 +323,26 @@ func newConfigSetCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			lifecycle, err := classifyConfigSetLifecycle(path)
+			if err != nil {
+				return err
+			}
 			value, err := parseConfigSetValue(kind, args[1])
 			if err != nil {
 				return err
+			}
+			if liveRecord, err := maybeApplyConfigSetViaDaemon(
+				cmd.Context(),
+				deps,
+				homePaths,
+				target,
+				path,
+				value,
+				redacted,
+			); err != nil {
+				return err
+			} else if liveRecord != nil {
+				return writeCommandOutput(cmd, configSetBundle(*liveRecord))
 			}
 			if _, err := aghconfig.EditConfigOverlay(
 				homePaths,
@@ -298,11 +360,15 @@ func newConfigSetCommand(deps commandDeps) *cobra.Command {
 				outputValue = aghconfig.RedactedValue()
 			}
 			return writeCommandOutput(cmd, configSetBundle(configSetRecord{
-				Path:     strings.Join(path, "."),
-				Value:    outputValue,
-				Scope:    string(target.Scope()),
-				Target:   target.Path(),
-				Redacted: redacted,
+				Path:            strings.Join(path, "."),
+				Value:           outputValue,
+				Scope:           string(target.Scope()),
+				Target:          target.Path(),
+				Redacted:        redacted,
+				Behavior:        lifecycle.Behavior,
+				Applied:         lifecycle.Applied,
+				RestartRequired: lifecycle.RestartRequired,
+				RestartScope:    lifecycle.RestartScope,
 			}))
 		},
 	}
@@ -321,11 +387,23 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 		Short: "Show resolved AGH config paths",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			homePaths, err := deps.resolveHome()
+			scope, err := parseWriteScope(scopeRaw)
 			if err != nil {
 				return err
 			}
-			scope, err := parseWriteScope(scopeRaw)
+			homeWorkspace := ""
+			if scope == aghconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
+				homeWorkspace, err = resolveConfigWorkspaceRoot(deps, workspaceRoot)
+				if err != nil {
+					return err
+				}
+			} else {
+				homeWorkspace, err = currentWorkingDirectory(deps)
+				if err != nil {
+					return err
+				}
+			}
+			homePaths, err := deps.resolveHomeForWorkspace(homeWorkspace)
 			if err != nil {
 				return err
 			}
@@ -347,10 +425,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 				SelectedConfigTarget: selected.Path(),
 			}
 			if scope == aghconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
-				workspace, err := resolveConfigWorkspaceRoot(deps, workspaceRoot)
-				if err != nil {
-					return err
-				}
+				workspace := homeWorkspace
 				workspaceConfig, err := aghconfig.ResolveConfigWriteTarget(
 					homePaths,
 					workspace,
@@ -400,11 +475,18 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 		Short: "Validate AGH configuration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			homePaths, err := deps.resolveHome()
+			workspace, err := resolveOptionalConfigWorkspaceRoot(workspaceRoot)
 			if err != nil {
 				return err
 			}
-			workspace, err := resolveOptionalConfigWorkspaceRoot(workspaceRoot)
+			homeWorkspace := workspace
+			if homeWorkspace == "" {
+				homeWorkspace, err = currentWorkingDirectory(deps)
+				if err != nil {
+					return err
+				}
+			}
+			homePaths, err := deps.resolveHomeForWorkspace(homeWorkspace)
 			if err != nil {
 				return err
 			}
@@ -427,7 +509,19 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 				loadOptions = append(loadOptions, aghconfig.WithWorkspaceRoot(workspace))
 			}
 			if _, err := aghconfig.LoadForHome(homePaths, loadOptions...); err != nil {
-				return err
+				record := configValidateRecord{
+					Status:        "invalid",
+					Scope:         scopeForWorkspace(workspace),
+					WorkspaceRoot: workspace,
+					ConfigFile:    homePaths.ConfigFile,
+					Redacted:      true,
+					Errors:        configValidationErrors(err),
+					DotEnv:        dotenvReport,
+				}
+				if writeErr := writeCommandOutput(cmd, configValidateBundle(record)); writeErr != nil {
+					return writeErr
+				}
+				return configValidationFailedError{err: err}
 			}
 			return writeCommandOutput(cmd, configValidateBundle(configValidateRecord{
 				Status:        "valid",
@@ -442,6 +536,39 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root whose overlay should be validated")
 	cmd.Flags().BoolVar(&repairEnv, "repair-env", false, "Repair a structured workspace .env before validating")
 	return cmd
+}
+
+func configValidationErrors(err error) []configValidationError {
+	record := configValidationError{
+		Code:    "config.invalid",
+		Message: err.Error(),
+	}
+	var fileErr aghconfig.FileError
+	if errors.As(err, &fileErr) {
+		record.File = fileErr.Path
+		switch fileErr.Op {
+		case "decode":
+			record.Code = "config.decode"
+		case "read":
+			record.Code = "config.read"
+		default:
+			record.Code = "config.file"
+		}
+	}
+	var parseErr burnttoml.ParseError
+	if errors.As(err, &parseErr) {
+		record.Code = "config.parse"
+		record.Line = parseErr.Position.Line
+		record.Column = parseErr.Position.Col
+		record.Message = parseErr.Message
+	}
+	var validationErr aghconfig.ValidationError
+	if errors.As(err, &validationErr) {
+		record.Code = "config.validation"
+		record.Path = validationErr.Path
+		record.Message = validationErr.Error()
+	}
+	return []configValidationError{record}
 }
 
 func newConfigEditCommand(deps commandDeps) *cobra.Command {
@@ -478,10 +605,13 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 				return fmt.Errorf("cli: edited config failed validation: %w", err)
 			}
 			return writeCommandOutput(cmd, configSetBundle(configSetRecord{
-				Path:   "",
-				Value:  "edited",
-				Scope:  string(target.Scope()),
-				Target: target.Path(),
+				Path:            "",
+				Value:           "edited",
+				Scope:           string(target.Scope()),
+				Target:          target.Path(),
+				Behavior:        string(settingspkg.MutationBehaviorRestartRequired),
+				RestartRequired: true,
+				RestartScope:    "daemon",
 			}))
 		},
 	}
@@ -491,11 +621,18 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 }
 
 func loadConfigForDisplay(deps commandDeps, workspaceRoot string) (aghconfig.Config, string, error) {
-	homePaths, err := deps.resolveHome()
+	workspace, err := resolveOptionalConfigWorkspaceRoot(workspaceRoot)
 	if err != nil {
 		return aghconfig.Config{}, "", err
 	}
-	workspace, err := resolveOptionalConfigWorkspaceRoot(workspaceRoot)
+	homeWorkspace := workspace
+	if homeWorkspace == "" {
+		homeWorkspace, err = currentWorkingDirectory(deps)
+		if err != nil {
+			return aghconfig.Config{}, "", err
+		}
+	}
+	homePaths, err := deps.resolveHomeForWorkspace(homeWorkspace)
 	if err != nil {
 		return aghconfig.Config{}, "", err
 	}
@@ -515,10 +652,6 @@ func configWriteTarget(
 	scopeRaw string,
 	workspaceRoot string,
 ) (aghconfig.HomePaths, aghconfig.WriteTarget, string, error) {
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
-	}
 	scope, err := parseWriteScope(scopeRaw)
 	if err != nil {
 		return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
@@ -529,12 +662,25 @@ func configWriteTarget(
 		if err != nil {
 			return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
 		}
+	} else {
+		workspace, err = currentWorkingDirectory(deps)
+		if err != nil {
+			return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
+		}
 	}
-	target, err := aghconfig.ResolveConfigWriteTarget(homePaths, workspace, scope)
+	homePaths, err := deps.resolveHomeForWorkspace(workspace)
 	if err != nil {
 		return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
 	}
-	return homePaths, target, workspace, nil
+	writeWorkspace := ""
+	if scope == aghconfig.WriteScopeWorkspace {
+		writeWorkspace = workspace
+	}
+	target, err := aghconfig.ResolveConfigWriteTarget(homePaths, writeWorkspace, scope)
+	if err != nil {
+		return aghconfig.HomePaths{}, aghconfig.WriteTarget{}, "", err
+	}
+	return homePaths, target, writeWorkspace, nil
 }
 
 func parseWriteScope(raw string) (aghconfig.WriteScope, error) {
@@ -645,7 +791,7 @@ func configMapNode(value reflect.Value, fieldName string) (any, bool) {
 	result := make(map[string]any, value.Len())
 	for _, key := range sortedReflectMapKeys(value) {
 		mapKey := fmt.Sprint(key.Interface())
-		if strings.EqualFold(fieldName, "env") || strings.EqualFold(fieldName, "secret_env") {
+		if strings.EqualFold(fieldName, configEnvKey) || strings.EqualFold(fieldName, configSecretEnvKey) {
 			result[mapKey] = aghconfig.RedactedValue()
 			continue
 		}
@@ -747,7 +893,12 @@ func flattenConfigValue(entries *[]configEntry, path string, value any, redacted
 			if path != "" {
 				nextPath = path + "." + key
 			}
-			flattenConfigValue(entries, nextPath, typed[key], redacted || key == "env" || key == "secret_env")
+			flattenConfigValue(
+				entries,
+				nextPath,
+				typed[key],
+				redacted || key == configEnvKey || key == configSecretEnvKey,
+			)
 		}
 	case []any:
 		if len(typed) == 0 {
@@ -813,6 +964,10 @@ func configSetBundle(record configSetRecord) outputBundle {
 		{Label: "Scope", Value: stringOrDash(record.Scope)},
 		{Label: "Target", Value: stringOrDash(record.Target)},
 		{Label: "Redacted", Value: strconv.FormatBool(record.Redacted)},
+		{Label: "Behavior", Value: stringOrDash(record.Behavior)},
+		{Label: "Applied", Value: strconv.FormatBool(record.Applied)},
+		{Label: "Restart Required", Value: strconv.FormatBool(record.RestartRequired)},
+		{Label: "Restart Scope", Value: stringOrDash(record.RestartScope)},
 	}
 	return outputBundle{
 		jsonValue: record,
@@ -820,13 +975,112 @@ func configSetBundle(record configSetRecord) outputBundle {
 			return renderHumanSection("Config", rows), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("config_set", []string{"path", "value", "scope", "target", "redacted"}, []string{
+			return renderToonObject("config_set", []string{
+				"path",
+				"value",
+				"scope",
+				"target",
+				"redacted",
+				"behavior",
+				"applied",
+				"restart_required",
+				"restart_scope",
+			}, []string{
 				record.Path,
 				formatConfigValue(record.Value),
 				record.Scope,
 				record.Target,
 				strconv.FormatBool(record.Redacted),
+				record.Behavior,
+				strconv.FormatBool(record.Applied),
+				strconv.FormatBool(record.RestartRequired),
+				record.RestartScope,
 			}), nil
+		},
+	}
+}
+
+func maybeApplyConfigSetViaDaemon(
+	ctx context.Context,
+	deps commandDeps,
+	homePaths aghconfig.HomePaths,
+	target aghconfig.WriteTarget,
+	path []string,
+	value any,
+	redacted bool,
+) (*configSetRecord, error) {
+	if !supportsDaemonManagedConfigSet(path, target) {
+		return nil, nil
+	}
+
+	_, running, err := daemonInfo(homePaths, deps)
+	if err != nil {
+		return nil, fmt.Errorf("cli: inspect daemon state for config set: %w", err)
+	}
+	if !running {
+		return nil, nil
+	}
+
+	disabledSkills, ok := value.([]string)
+	if !ok {
+		return nil, fmt.Errorf(
+			"cli: config set %q expects a string slice payload, got %T",
+			strings.Join(path, "."),
+			value,
+		)
+	}
+
+	cfg, err := deps.loadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("cli: load current config for daemon-backed config set: %w", err)
+	}
+	cfg.Skills.DisabledSkills = append([]string(nil), disabledSkills...)
+
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return nil, fmt.Errorf("cli: create daemon client for config set: %w", err)
+	}
+	result, err := client.UpdateSettingsSkills(ctx, UpdateSettingsSkillsRequest{
+		Config: settingsSkillsPayloadFromConfig(cfg.Skills),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cli: apply %q via daemon settings surface: %w", strings.Join(path, "."), err)
+	}
+
+	outputValue := value
+	if redacted {
+		outputValue = aghconfig.RedactedValue()
+	}
+	return &configSetRecord{
+		Path:            strings.Join(path, "."),
+		Value:           outputValue,
+		Scope:           string(target.Scope()),
+		Target:          target.Path(),
+		Redacted:        redacted,
+		Behavior:        string(result.Behavior),
+		Applied:         result.Applied,
+		RestartRequired: result.RestartRequired,
+		RestartScope:    result.RestartScope,
+	}, nil
+}
+
+func supportsDaemonManagedConfigSet(path []string, target aghconfig.WriteTarget) bool {
+	return target.Scope() == aghconfig.WriteScopeGlobal &&
+		len(path) == 2 &&
+		path[0] == "skills" &&
+		path[1] == "disabled_skills"
+}
+
+func settingsSkillsPayloadFromConfig(cfg aghconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
+	return contract.SettingsSkillsConfigPayload{
+		Enabled:                 cfg.Enabled,
+		DisabledSkills:          append([]string(nil), cfg.DisabledSkills...),
+		PollInterval:            cfg.PollInterval.String(),
+		AllowedMarketplaceMCP:   append([]string(nil), cfg.AllowedMarketplaceMCP...),
+		AllowedMarketplaceHooks: append([]string(nil), cfg.AllowedMarketplaceHooks...),
+		Marketplace: contract.SettingsMarketplacePayload{
+			Registry: cfg.Marketplace.Registry,
+			BaseURL:  cfg.Marketplace.BaseURL,
 		},
 	}
 }
@@ -1029,6 +1283,9 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 	if kind, ok := configScalarMutationKinds[joined]; ok {
 		return kind, false, nil
 	}
+	if len(path) == 3 && path[0] == configProvidersKey && path[2] == configSessionMCPKey {
+		return configSetBool, false, nil
+	}
 	if isProviderMutationPath(path) {
 		return configSetString, false, nil
 	}
@@ -1039,10 +1296,85 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 	return configSetString, false, fmt.Errorf("cli: config path %q is not supported by config set", joined)
 }
 
+func classifyConfigSetLifecycle(path []string) (configMutationLifecycle, error) {
+	field := strings.Join(path, ".")
+	section := settingsSectionForConfigMutation(path)
+	if section == "" {
+		return restartRequiredConfigLifecycle(), nil
+	}
+	classification, err := settingspkg.ClassifyMutation(settingspkg.MutationDescriptor{
+		Section:       section,
+		ChangedFields: []string{field},
+	})
+	if err != nil {
+		return configMutationLifecycle{}, fmt.Errorf(
+			"cli: classify lifecycle for config path %q: %w",
+			field,
+			err,
+		)
+	}
+	return configLifecycleFromSettings(classification), nil
+}
+
+func settingsSectionForConfigMutation(path []string) settingspkg.SectionName {
+	if len(path) == 0 {
+		return ""
+	}
+	switch path[0] {
+	case "daemon", "defaults", "http", "limits", "permissions", "session":
+		return settingspkg.SectionGeneral
+	case "memory":
+		return settingspkg.SectionMemory
+	case "skills":
+		return settingspkg.SectionSkills
+	case "automation":
+		return settingspkg.SectionAutomation
+	case "network":
+		return settingspkg.SectionNetwork
+	case "log", "observability":
+		return settingspkg.SectionObservability
+	case "extensions", "hooks":
+		return settingspkg.SectionHooksExtensions
+	case configProvidersKey:
+		return settingspkg.SectionName(settingspkg.CollectionProviders)
+	case "mcp-servers":
+		return settingspkg.SectionName(settingspkg.CollectionMCPServers)
+	case configPathSandboxes:
+		return settingspkg.SectionName(settingspkg.CollectionSandboxes)
+	default:
+		return ""
+	}
+}
+
+func configLifecycleFromSettings(classification settingspkg.MutationClassification) configMutationLifecycle {
+	return configMutationLifecycle{
+		Behavior:        string(classification.Behavior),
+		Applied:         classification.Applied,
+		RestartRequired: classification.RestartRequired,
+		RestartScope:    classification.RestartScope,
+	}
+}
+
+func restartRequiredConfigLifecycle() configMutationLifecycle {
+	return configMutationLifecycle{
+		Behavior:        string(settingspkg.MutationBehaviorRestartRequired),
+		RestartRequired: true,
+		RestartScope:    "daemon",
+	}
+}
+
+const configPathSandboxes = "sandboxes"
+
 func isProviderMutationPath(path []string) bool {
-	if len(path) == 3 && path[0] == "providers" {
+	if len(path) == 3 && path[0] == configProvidersKey {
 		switch path[2] {
-		case "command", "default_model":
+		case "command",
+			"default_model",
+			"auth_mode",
+			"env_policy",
+			"home_policy",
+			"auth_status_command",
+			"auth_login_command":
 			return true
 		}
 	}
@@ -1050,9 +1382,9 @@ func isProviderMutationPath(path []string) bool {
 }
 
 func classifySandboxMutationPath(path []string) (configSetValueKind, bool, bool) {
-	if len(path) == 4 && path[0] == "sandboxes" {
+	if len(path) == 4 && path[0] == configPathSandboxes {
 		switch path[2] {
-		case "env", "secret_env":
+		case configEnvKey, configSecretEnvKey:
 			return configSetString, true, true
 		case "network":
 			return classifySandboxNetworkMutationPath(path[3])
@@ -1060,7 +1392,7 @@ func classifySandboxMutationPath(path []string) (configSetValueKind, bool, bool)
 			return classifySandboxDaytonaMutationPath(path[3])
 		}
 	}
-	if len(path) == 3 && path[0] == "sandboxes" {
+	if len(path) == 3 && path[0] == configPathSandboxes {
 		switch path[2] {
 		case "backend", "sync_mode", "persistence", "runtime_root":
 			return configSetString, false, true

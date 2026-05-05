@@ -476,7 +476,7 @@ type AuthoredContextProvenance struct {
 // AuthoredMutationProvenance records who caused a managed authored-context mutation.
 type AuthoredMutationProvenance struct {
 	ActorKind  string `json:"actor_kind,omitempty"`
-	ActorRef   string `json:"actor_ref,omitempty"`
+	ActorID    string `json:"actor_id,omitempty"`
 	OriginKind string `json:"origin_kind,omitempty"`
 	OriginRef  string `json:"origin_ref,omitempty"`
 }
@@ -824,7 +824,7 @@ type TaskRunContext struct {
 	AgentName             string    `json:"agent_name,omitempty"`
 	SessionID             string    `json:"session_id,omitempty"`
 	ActorKind             string    `json:"actor_kind,omitempty"`
-	ActorRef              string    `json:"actor_ref,omitempty"`
+	ActorID               string    `json:"actor_id,omitempty"`
 	OriginKind            string    `json:"origin_kind,omitempty"`
 	OriginRef             string    `json:"origin_ref,omitempty"`
 	TaskStatus            string    `json:"task_status,omitempty"`

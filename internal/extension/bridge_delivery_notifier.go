@@ -18,6 +18,7 @@ type BridgeDeliveryNotifier struct {
 }
 
 var _ session.Notifier = (*BridgeDeliveryNotifier)(nil)
+var _ session.AgentEventNotifier = (*BridgeDeliveryNotifier)(nil)
 
 // NewBridgeDeliveryNotifier wraps the provided downstream notifier with
 // session-to-bridge delivery projection.
@@ -59,20 +60,57 @@ func (n *BridgeDeliveryNotifier) OnAgentEvent(ctx context.Context, sessionID str
 	if n == nil {
 		return
 	}
-	if n.broker != nil {
-		if event, ok := payload.(acp.AgentEvent); ok {
-			if err := n.broker.ProjectEvent(ctx, sessionID, projectionEventFromAgentEvent(event)); err != nil {
-				slog.ErrorContext(ctx, "extension: project bridge delivery event",
-					"session_id", sessionID,
-					"event_type", event.Type,
-					"turn_id", event.TurnID,
-					"error", err,
-				)
-			}
-		}
+	n.projectAgentEvent(ctx, sessionID, payload)
+	if n.downstream != nil {
+		n.downstream.OnAgentEvent(ctx, sessionID, payload)
+	}
+}
+
+// OnAgentEventForSession preserves the richer session-aware notifier path when
+// the downstream chain supports it.
+func (n *BridgeDeliveryNotifier) OnAgentEventForSession(
+	ctx context.Context,
+	sess *session.Session,
+	payload any,
+) {
+	if n == nil {
+		return
+	}
+
+	sessionID := ""
+	if sess != nil {
+		sessionID = sess.ID
+	}
+	n.projectAgentEvent(ctx, sessionID, payload)
+
+	if aware, ok := n.downstream.(session.AgentEventNotifier); ok {
+		aware.OnAgentEventForSession(ctx, sess, payload)
+		return
 	}
 	if n.downstream != nil {
 		n.downstream.OnAgentEvent(ctx, sessionID, payload)
+	}
+}
+
+func (n *BridgeDeliveryNotifier) projectAgentEvent(
+	ctx context.Context,
+	sessionID string,
+	payload any,
+) {
+	if n == nil || n.broker == nil {
+		return
+	}
+	event, ok := payload.(acp.AgentEvent)
+	if !ok {
+		return
+	}
+	if err := n.broker.ProjectEvent(ctx, sessionID, projectionEventFromAgentEvent(event)); err != nil {
+		slog.ErrorContext(ctx, "extension: project bridge delivery event",
+			"session_id", sessionID,
+			"event_type", event.Type,
+			"turn_id", event.TurnID,
+			"error", err,
+		)
 	}
 }
 

@@ -130,6 +130,23 @@ func (c *unixSocketClient) GetTool(
 	return response, nil
 }
 
+func (c *unixSocketClient) CreateToolApproval(
+	ctx context.Context,
+	id string,
+	request ToolApprovalRequest,
+) (ToolApprovalRecord, error) {
+	request.SessionID = strings.TrimSpace(request.SessionID)
+	request.WorkspaceID = strings.TrimSpace(request.WorkspaceID)
+	request.AgentName = strings.TrimSpace(request.AgentName)
+	request.InputDigest = strings.TrimSpace(request.InputDigest)
+	var response contract.ToolApprovalResponse
+	path := "/api/tools/" + url.PathEscape(strings.TrimSpace(id)) + "/approvals"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return ToolApprovalRecord{}, err
+	}
+	return response.Approval, nil
+}
+
 func (c *unixSocketClient) InvokeTool(
 	ctx context.Context,
 	id string,

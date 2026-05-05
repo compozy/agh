@@ -162,10 +162,23 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 
 	if session, ok := m.Get(target); ok {
 		recorder := session.recorderHandle()
-		if recorder == nil {
+		if recorder != nil {
+			return recorder, func() error { return nil }, nil
+		}
+		waited, err := m.waitForSessionFinalization(ctx, target)
+		if err != nil {
+			return nil, nil, fmt.Errorf("session: wait for finalization for %q: %w", target, err)
+		}
+		if !waited {
 			return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
 		}
-		return recorder, func() error { return nil }, nil
+		if session, ok := m.Get(target); ok {
+			recorder := session.recorderHandle()
+			if recorder == nil {
+				return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
+			}
+			return recorder, func() error { return nil }, nil
+		}
 	}
 
 	if _, err := m.readMetaWithContext(ctx, target); err != nil {
@@ -191,6 +204,27 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 		return recorder.Close(closeCtx)
 	}
 	return recorder, cleanup, nil
+}
+
+func (m *Manager) waitForSessionFinalization(ctx context.Context, id string) (bool, error) {
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return false, nil
+	}
+
+	m.mu.RLock()
+	done, ok := m.finalizing[target]
+	m.mu.RUnlock()
+	if !ok || done == nil {
+		return false, nil
+	}
+
+	select {
+	case <-done:
+		return true, nil
+	case <-ctx.Done():
+		return true, ctx.Err()
+	}
 }
 
 func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.SessionMeta, error) {

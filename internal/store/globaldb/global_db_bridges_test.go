@@ -145,6 +145,97 @@ func TestGlobalDBBridgeGuardClauses(t *testing.T) {
 	}
 }
 
+func TestOpenGlobalDBMigratesLegacyBridgeSecretBindingsVaultRefColumn(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	db, err := openSQLiteDatabase(ctx, dbPath, nil)
+	if err != nil {
+		t.Fatalf("openSQLiteDatabase() error = %v", err)
+	}
+
+	if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:10]); err != nil {
+		t.Fatalf("RunMigrations(v1-v10) error = %v", err)
+	}
+
+	now := time.Date(2026, 5, 1, 18, 30, 0, 0, time.UTC)
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO bridge_instances (
+			id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, dm_policy, routing_policy, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"brg-legacy",
+		string(bridges.ScopeGlobal),
+		nil,
+		"telegram",
+		"telegram-adapter",
+		"Legacy Bridge",
+		string(bridges.BridgeInstanceSourceDynamic),
+		true,
+		string(bridges.BridgeStatusReady),
+		string(bridges.BridgeDMPolicyOpen),
+		`{"include_peer":true}`,
+		store.FormatTimestamp(now),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("ExecContext(insert bridge instance) error = %v", err)
+	}
+
+	legacyRef := "vault:bridges/brg-legacy/bot_token"
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO bridge_secret_bindings (
+			bridge_instance_id, binding_name, secret_ref, kind, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?)`,
+		"brg-legacy",
+		"bot_token",
+		legacyRef,
+		"token",
+		store.FormatTimestamp(now),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("ExecContext(insert bridge binding) error = %v", err)
+	}
+
+	if _, err := db.ExecContext(
+		ctx,
+		`ALTER TABLE bridge_secret_bindings RENAME COLUMN secret_ref TO vault_ref`,
+	); err != nil {
+		t.Fatalf("ExecContext(rename secret_ref->vault_ref) error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(legacy db setup) error = %v", err)
+	}
+
+	globalDB, err := OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(legacy bridge schema) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := globalDB.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(migrated global db) error = %v", err)
+		}
+	})
+
+	assertTableColumns(t, globalDB.db, "bridge_secret_bindings", []string{
+		"bridge_instance_id",
+		"binding_name",
+		"secret_ref",
+		"kind",
+		"created_at",
+		"updated_at",
+	})
+
+	binding, err := globalDB.GetBridgeSecretBinding(ctx, "brg-legacy", "bot_token")
+	if err != nil {
+		t.Fatalf("GetBridgeSecretBinding() error = %v", err)
+	}
+	if got, want := binding.SecretRef, legacyRef; got != want {
+		t.Fatalf("binding.SecretRef = %q, want %q", got, want)
+	}
+}
+
 func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 	t.Parallel()
 

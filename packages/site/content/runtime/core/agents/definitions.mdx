@@ -104,6 +104,7 @@ These are the frontmatter fields accepted by the current `internal/config` parse
 | `toolsets`    | string array                | no       | empty                               | Additional canonical ToolsetIDs such as `agh__tasks` or `linear__read`. Runtime discovery adds `agh__bootstrap` and `agh__catalog` unless denied.                              |
 | `deny_tools`  | string array                | no       | empty                               | Same grammar as `tools`. Denies can overlap allows and are interpreted as a narrowing layer by registry policy.                                                                |
 | `permissions` | string                      | no       | `[permissions].mode`                | `deny-all`, `approve-reads`, or `approve-all`.                                                                                                                                 |
+| `skills`      | object                      | no       | empty                               | Currently supports `disabled`, a string array of logical skill names disabled for this agent after precedence resolution.                                                      |
 | `mcp_servers` | array of MCP server objects | no       | merged with config/provider servers | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                                      |
 | `hooks`       | array of hook declarations  | no       | none                                | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                                            |
 
@@ -198,23 +199,23 @@ Read the task, inspect the repository before editing, keep changes limited to th
 surface, run the relevant verification commands, and summarize the exact files changed.
 ```
 
-## Draft RFC fields not accepted today
+## RFC 001 drift
 
-RFC 001 proposes a larger portable agent format. The current parser is strict, so these fields
-must not be used in a live `AGENT.md` yet.
+RFC 001 proposes a larger portable agent format. The current parser and runtime diverge from that
+draft in these ways today:
 
-| RFC field                 | Proposed type | Current behavior              |
-| ------------------------- | ------------- | ----------------------------- |
-| `description`             | string        | Rejected as an unknown field. |
-| `skills.inherit`          | boolean       | Rejected as an unknown field. |
-| `skills.disabled`         | string array  | Rejected as an unknown field. |
-| `skills.extra_sources`    | string array  | Rejected as an unknown field. |
-| `memory.inherit`          | boolean       | Rejected as an unknown field. |
-| `memory.scope`            | string        | Rejected as an unknown field. |
-| `memory.auto_consolidate` | boolean       | Rejected as an unknown field. |
+| RFC field                 | Proposed type | Current behavior                                                                                     |
+| ------------------------- | ------------- | ---------------------------------------------------------------------------------------------------- |
+| `description`             | string        | Rejected as an unknown field.                                                                        |
+| `skills.inherit`          | boolean       | Rejected as an unknown field.                                                                        |
+| `skills.disabled`         | string array  | Accepted. Disables the logical skill for this agent without falling back to a lower-precedence copy. |
+| `skills.extra_sources`    | string array  | Rejected as an unknown field.                                                                        |
+| `memory.inherit`          | boolean       | Rejected as an unknown field.                                                                        |
+| `memory.scope`            | string        | Rejected as an unknown field.                                                                        |
+| `memory.auto_consolidate` | boolean       | Rejected as an unknown field.                                                                        |
 
-Agent-scoped skills and memory are still part of the design direction, but today skills and memory
-are resolved by the runtime systems, not by agent frontmatter.
+Agent-scoped memory is still part of the design direction. Skill resolution remains runtime-owned,
+but `skills.disabled` is now persisted in `AGENT.md` as the agent-scoped tombstone list.
 
 ## Common validation failures
 

@@ -38,8 +38,8 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     .toEqual([
       "General",
       "Providers",
+      "Vault",
       "MCP Servers",
-      "Environments",
       "Memory",
       "Skills",
       "Automation",

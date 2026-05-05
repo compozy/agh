@@ -6,6 +6,7 @@ import {
   assertDaemonServedHTML,
   buildResolveWorkspaceRequest,
   normalizeBaseURL,
+  requiresHTTPAPIReadinessProbe,
   renderRuntimeConfig,
   resolveRuntimeMode,
   runtimeURL,
@@ -58,6 +59,15 @@ describe("runtime helpers", () => {
         socketPath: "/tmp/agh.sock",
       })
     ).toContain("[network]\nenabled = true\n");
+  });
+
+  it("requires API readiness probes only for loopback HTTP bindings", () => {
+    expect(requiresHTTPAPIReadinessProbe("")).toBe(true);
+    expect(requiresHTTPAPIReadinessProbe("localhost")).toBe(true);
+    expect(requiresHTTPAPIReadinessProbe("127.0.0.1")).toBe(true);
+    expect(requiresHTTPAPIReadinessProbe("[::1]")).toBe(true);
+    expect(requiresHTTPAPIReadinessProbe("0.0.0.0")).toBe(false);
+    expect(requiresHTTPAPIReadinessProbe("192.168.1.10")).toBe(false);
   });
 
   it("joins runtime URLs against the daemon origin", () => {

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Rss } from "lucide-react";
+import { Rss } from "lucide-react";
 import { ChangelogTocRail } from "@/components/blog/changelog-toc-rail";
 import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
 import { ReleaseEntry } from "@/components/blog/release-entry";
 import { allReleases } from "@/lib/blog";
-import { createPageMetadata, siteConfig } from "@/lib/site-config";
+import { createPageMetadata } from "@/lib/site-config";
 
 export const metadata: Metadata = createPageMetadata({
   title: "Changelog",
@@ -15,7 +15,6 @@ export const metadata: Metadata = createPageMetadata({
 
 export default function ChangelogPage() {
   const releases = allReleases();
-  const githubReleases = `${siteConfig.githubUrl}/releases`;
 
   return (
     <>
@@ -41,14 +40,6 @@ export default function ChangelogPage() {
               <Rss size={12} aria-hidden />
               <span className="font-mono text-[11px] uppercase tracking-[0.06em]">RSS</span>
             </Link>
-            <Link
-              href={githubReleases}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-(--color-divider) px-3.5 font-sans text-[13px] text-(--color-text-secondary) hover:text-(--color-text-primary)"
-            >
-              <span>Watch on GitHub</span>
-            </Link>
           </div>
         </div>
       </section>
@@ -65,7 +56,8 @@ export default function ChangelogPage() {
                 <p className="mt-4 max-w-[62ch] text-sm leading-[1.7] text-(--color-text-secondary)">
                   Published entries will appear here once tagged release notes land in the content
                   layer. Until then, use the install guide for the current runtime path, read the
-                  launch post for product context, or watch GitHub releases for tagged artifacts.
+                  launch post for product context, or subscribe to the RSS feed for new release
+                  notes.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Link
@@ -79,14 +71,6 @@ export default function ChangelogPage() {
                     className="inline-flex h-9 items-center justify-center rounded-lg border border-(--color-divider) px-3.5 font-sans text-sm font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-hover)"
                   >
                     Read the launch post
-                  </Link>
-                  <Link
-                    href={githubReleases}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-(--color-divider) px-3.5 font-sans text-sm font-medium text-(--color-text-primary) transition-colors hover:bg-(--color-hover)"
-                  >
-                    Watch GitHub releases <ArrowUpRight size={13} aria-hidden />
                   </Link>
                 </div>
               </section>

@@ -21,6 +21,8 @@
         "@agh/ui": "workspace:*",
         "@orama/orama": "^3.1.18",
         "@remotion/player": "^4.0.448",
+        "@vercel/analytics": "^2.0.1",
+        "@vercel/speed-insights": "^2.0.0",
         "fumadocs-core": "^16.7.16",
         "fumadocs-mdx": "^14.3.0",
         "fumadocs-openapi": "^10",
@@ -32,6 +34,9 @@
         "react-dom": "^19.2.5",
         "reading-time": "^1.5.0",
         "rehype-pretty-code": "^0.14.3",
+        "remark": "^15.0.1",
+        "remark-gfm": "^4.0.1",
+        "remark-mdx": "^3.1.1",
         "remotion": "^4.0.448",
         "shiki": "^4.0.2",
         "velite": "^0.3.1"
