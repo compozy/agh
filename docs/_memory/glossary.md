@@ -92,7 +92,50 @@ Inside AGH, agent-facing CLI commands resolve identity from `AGH_SESSION_ID` / `
 
 ### Message Kinds (MVP allowlist)
 
-The seven canonical kinds: `greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`.
+The six canonical core kinds: `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.
+
+Message kinds describe what happened. They do not describe where the message lives.
+
+### Conversation Surfaces
+
+Conversation-bearing messages use `surface` to declare where they live:
+
+- `surface:"thread"` for public-thread messages.
+- `surface:"direct"` for direct-room messages.
+
+`greet` and `whois` are discovery messages and must not carry a conversation surface.
+
+### `public_thread`
+
+A public N-to-N conversation container inside one `channel`.
+
+Wire shape:
+
+- `surface:"thread"`
+- `thread_id`
+
+Public threads are visible to peers with access to the channel. A public thread can contain ordinary chat,
+capability transfers, and zero or more lifecycle-bearing work units.
+
+### `direct_room`
+
+A restricted two-party conversation container inside one `channel`.
+
+Wire shape:
+
+- `surface:"direct"`
+- `direct_id`
+
+Direct rooms restrict default runtime visibility to the two room peers plus operator/audit access. They are not
+cryptographic privacy and do not imply end-to-end encryption.
+
+### `work_id`
+
+Lifecycle-bearing work inside exactly one conversation container. `work_id` is not a conversation identifier,
+task-run identifier, route key, claim token, or queue lease.
+
+Receipts and traces require `work_id`. Ordinary `say` and `capability` messages carry `work_id` only when they
+open or continue lifecycle-bearing work.
 
 For coordination channels (autonomy MVP): `status`, `request`, `reply`, `blocker`, `handoff`, `result`, `review_request`.
 
@@ -111,10 +154,16 @@ Future-RFC kinds explicitly NOT in MVP: `contract-net`, `multi-home`, `vote`, `r
 
 `verified` / `unverified` / `rejected`. Default classification for non-conformant proofs is `rejected` (not `unverified`).
 
+RFC 004 signed content includes `surface`, `thread_id`, `direct_id`, and `work_id` when present. A receiver must
+verify canonical bytes before injecting defaults.
+
 ### NATS Subject Mapping (v1)
 
 - `agh.network.v1.<channel>.broadcast`
 - `agh.network.v1.<channel>.peer.<route_token>`
+
+NATS peer subjects are transport routing subjects. They do not replace `surface:"direct"` and they do not create
+direct-room membership.
 
 ### Replay Defense
 
