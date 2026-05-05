@@ -148,6 +148,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.List(operator) error = %v", err)
 		}
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDNetworkStatus)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDNetworkThreads)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDNetworkDirectResolve)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDNetworkWork)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDSessionHealth)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatStatus)
@@ -166,6 +169,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		for _, id := range []toolspkg.ToolID{
 			toolspkg.ToolIDNetworkStatus,
+			toolspkg.ToolIDNetworkThreads,
+			toolspkg.ToolIDNetworkDirectResolve,
+			toolspkg.ToolIDNetworkWork,
 			toolspkg.ToolIDSessionList,
 			toolspkg.ToolIDSessionHealth,
 			toolspkg.ToolIDAgentHeartbeatStatus,
@@ -238,10 +244,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		tasks := &nativeTaskManager{}
 		networkService := &nativeNetworkStub{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills:     newLoadedNativeSkillRegistry(t),
-			Network:    networkService,
-			Tasks:      tasks,
-			Automation: apitest.StubAutomationManager{},
+			Skills:       newLoadedNativeSkillRegistry(t),
+			Network:      networkService,
+			NetworkStore: apitest.StubNetworkStore{},
+			Tasks:        tasks,
+			Automation:   apitest.StubAutomationManager{},
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return &nativeMCPAuthStatusProvider{}
 			},
@@ -259,6 +266,20 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDSkillView, json.RawMessage(`{"name":7}`)},
 			{toolspkg.ToolIDNetworkPeers, json.RawMessage(`{"channel":7}`)},
 			{toolspkg.ToolIDNetworkSend, json.RawMessage(`{"channel":"default","kind":"say","body":"bad"}`)},
+			{
+				toolspkg.ToolIDNetworkSend,
+				json.RawMessage(`{"channel":"default","kind":"say","surface":"direct","body":{}}`),
+			},
+			{
+				toolspkg.ToolIDNetworkSend,
+				json.RawMessage(`{"channel":"default","kind":"say","body":{},"interaction_id":"old"}`),
+			},
+			{toolspkg.ToolIDNetworkThreads, json.RawMessage(`{"channel":"builders","interaction_id":"old"}`)},
+			{toolspkg.ToolIDNetworkThreadMessages, json.RawMessage(`{"channel":"builders","limit":"bad"}`)},
+			{toolspkg.ToolIDNetworkDirects, json.RawMessage(`{"channel":"builders","limit":"bad"}`)},
+			{toolspkg.ToolIDNetworkDirectResolve, json.RawMessage(`{"channel":"builders","peer_id":7}`)},
+			{toolspkg.ToolIDNetworkDirectMessages, json.RawMessage(`{"channel":"builders","limit":"bad"}`)},
+			{toolspkg.ToolIDNetworkWork, json.RawMessage(`{"work_id":7}`)},
 			{toolspkg.ToolIDTaskList, json.RawMessage(`{"limit":"bad"}`)},
 			{toolspkg.ToolIDTaskRead, json.RawMessage(`{"task_id":7}`)},
 			{toolspkg.ToolIDTaskCreate, json.RawMessage(`{"scope":"global","title":"root","parent_task_id":"nope"}`)},
@@ -1229,7 +1250,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkSend,
 				Input: json.RawMessage(
-					`{"session_id":"sess-missing","channel":"default","kind":"say","body":{"text":"hello"}}`,
+					`{"session_id":"sess-missing","channel":"default","surface":"thread","thread_id":"thread_native_send","kind":"say","body":{"text":"hello"}}`,
 				),
 			},
 		)
@@ -1242,8 +1263,455 @@ func TestDaemonNativeTools(t *testing.T) {
 		if networkService.lastSend.SessionID != "sess-missing" {
 			t.Fatalf("SendRequest.SessionID = %q, want input session", networkService.lastSend.SessionID)
 		}
+		if networkService.lastSend.Surface == nil || *networkService.lastSend.Surface != network.SurfaceThread {
+			t.Fatalf("SendRequest.Surface = %v, want thread", networkService.lastSend.Surface)
+		}
 		if got, want := string(networkService.lastSend.Body), `{"text":"hello"}`; got != want {
 			t.Fatalf("SendRequest.Body = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should dispatch native network thread direct and work tools through the store boundary", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		sessionID := "sess-local"
+		directID, peerA, peerB, err := network.DirectRoomIdentity("builders", "coder.sess-abc", "reviewer.sess-xyz")
+		if err != nil {
+			t.Fatalf("DirectRoomIdentity() error = %v", err)
+		}
+		resolvedDirects := make(map[string]store.NetworkDirectRoomSummary)
+		resolveCalls := 0
+		storeStub := apitest.StubNetworkStore{
+			ListThreadsFn: func(
+				_ context.Context,
+				channel string,
+				query store.NetworkThreadQuery,
+			) ([]store.NetworkThreadSummary, error) {
+				if channel != "builders" || query.Limit != 2 || query.After != "thread_root" {
+					t.Fatalf("ListThreads channel/query = %q/%#v, want requested filters", channel, query)
+				}
+				return []store.NetworkThreadSummary{{
+					Channel:            channel,
+					ThreadID:           "thread_launch",
+					RootMessageID:      "msg_thread_root",
+					Title:              "Launch",
+					OpenedByPeerID:     "coder.sess-abc",
+					OpenedSessionID:    sessionID,
+					OpenedAt:           now,
+					LastActivityAt:     now,
+					MessageCount:       2,
+					ParticipantCount:   2,
+					OpenWorkCount:      1,
+					LastMessagePreview: "ready",
+				}}, nil
+			},
+			ListDirectRoomsFn: func(
+				_ context.Context,
+				channel string,
+				query store.NetworkDirectRoomQuery,
+			) ([]store.NetworkDirectRoomSummary, error) {
+				if channel != "builders" || query.PeerID != "reviewer.sess-xyz" || query.Limit != 3 {
+					t.Fatalf("ListDirectRooms channel/query = %q/%#v, want requested filters", channel, query)
+				}
+				return []store.NetworkDirectRoomSummary{{
+					Channel:            channel,
+					DirectID:           directID,
+					PeerA:              peerA,
+					PeerB:              peerB,
+					OpenedAt:           now,
+					LastActivityAt:     now,
+					MessageCount:       1,
+					OpenWorkCount:      1,
+					LastMessagePreview: "handoff",
+				}}, nil
+			},
+			ResolveDirectRoomFn: func(
+				_ context.Context,
+				entry store.NetworkDirectRoomEntry,
+			) (store.NetworkDirectRoomSummary, error) {
+				resolveCalls++
+				if entry.Channel != "builders" || entry.DirectID != directID || entry.PeerA != peerA ||
+					entry.PeerB != peerB {
+					t.Fatalf("ResolveDirectRoom entry = %#v, want deterministic direct room", entry)
+				}
+				if summary, ok := resolvedDirects[entry.DirectID]; ok {
+					return summary, nil
+				}
+				summary := store.NetworkDirectRoomSummary{
+					Channel:            entry.Channel,
+					DirectID:           entry.DirectID,
+					PeerA:              entry.PeerA,
+					PeerB:              entry.PeerB,
+					OpenedAt:           entry.OpenedAt,
+					LastActivityAt:     entry.LastActivityAt,
+					MessageCount:       0,
+					OpenWorkCount:      0,
+					LastMessagePreview: "created",
+				}
+				resolvedDirects[entry.DirectID] = summary
+				return summary, nil
+			},
+			ListConversationMessagesFn: func(
+				_ context.Context,
+				ref store.NetworkConversationRef,
+				query store.NetworkConversationMessageQuery,
+			) ([]store.NetworkConversationMessage, error) {
+				switch ref.Surface {
+				case store.NetworkSurfaceThread:
+					if ref.Channel != "builders" || ref.ThreadID != "thread_launch" ||
+						query.Kind != store.NetworkKindSay || query.WorkID != "work_launch" {
+						t.Fatalf("ListConversationMessages thread ref/query = %#v/%#v", ref, query)
+					}
+					return []store.NetworkConversationMessage{{
+						MessageID:   "msg_thread_launch",
+						Channel:     ref.Channel,
+						Surface:     ref.Surface,
+						ThreadID:    ref.ThreadID,
+						Direction:   "sent",
+						PeerFrom:    "coder.sess-abc",
+						Kind:        store.NetworkKindSay,
+						WorkID:      "work_launch",
+						Text:        "secret agh_claim_RESULT123",
+						PreviewText: "secret agh_claim_RESULT123",
+						Body:        json.RawMessage(`{"text":"secret agh_claim_BODY123"}`),
+						Timestamp:   now,
+					}}, nil
+				case store.NetworkSurfaceDirect:
+					if ref.Channel != "builders" || ref.DirectID != directID || query.Limit != 4 {
+						t.Fatalf("ListConversationMessages direct ref/query = %#v/%#v", ref, query)
+					}
+					return []store.NetworkConversationMessage{{
+						MessageID:   "msg_direct_launch",
+						Channel:     ref.Channel,
+						Surface:     ref.Surface,
+						DirectID:    ref.DirectID,
+						Direction:   "received",
+						PeerFrom:    "reviewer.sess-xyz",
+						Kind:        store.NetworkKindTrace,
+						WorkID:      "work_direct",
+						PreviewText: "handoff",
+						Body:        json.RawMessage(`{"state":"needs_input"}`),
+						Timestamp:   now,
+					}}, nil
+				default:
+					t.Fatalf("ListConversationMessages ref = %#v, want thread or direct", ref)
+					return nil, nil
+				}
+			},
+			GetWorkFn: func(_ context.Context, workID string) (store.NetworkWorkEntry, error) {
+				if workID != "work_launch" {
+					t.Fatalf("GetWork workID = %q, want work_launch", workID)
+				}
+				return store.NetworkWorkEntry{
+					WorkID:          workID,
+					Channel:         "builders",
+					Surface:         store.NetworkSurfaceThread,
+					ThreadID:        "thread_launch",
+					OpenedByPeerID:  "coder.sess-abc",
+					OpenedSessionID: sessionID,
+					TargetPeerID:    "reviewer.sess-xyz",
+					State:           "needs_input",
+					OpenedAt:        now,
+					LastActivityAt:  now,
+				}, nil
+			},
+		}
+		networkService := &nativeNetworkStub{
+			peers: []network.PeerInfo{
+				{SessionID: &sessionID, PeerID: "coder.sess-abc", Channel: "builders", Local: true},
+				{PeerID: "reviewer.sess-xyz", Channel: "builders", Local: false},
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Network:      networkService,
+			NetworkStore: storeStub,
+		}, nativeApproveAllPolicyInputs())
+
+		threadsResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkThreads,
+				Input:  json.RawMessage(`{"channel":"builders","limit":2,"after":"thread_root"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(network_threads) error = %v", err)
+		}
+		requireNativeStructuredContains(t, threadsResult, []byte(`"thread_launch"`))
+
+		threadMessagesResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkThreadMessages,
+				Input: json.RawMessage(
+					`{"channel":"builders","thread_id":"thread_launch","kind":"say","work_id":"work_launch","limit":5}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(network_thread_messages) error = %v", err)
+		}
+		requireNativeStructuredContains(t, threadMessagesResult, []byte(`"msg_thread_launch"`))
+		requireNativeStructuredExcludes(t, threadMessagesResult, []byte(`agh_claim_RESULT123`))
+		requireNativeStructuredExcludes(t, threadMessagesResult, []byte(`agh_claim_BODY123`))
+
+		directsResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkDirects,
+				Input:  json.RawMessage(`{"channel":"builders","peer_id":"reviewer.sess-xyz","limit":3}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(network_directs) error = %v", err)
+		}
+		requireNativeStructuredContains(t, directsResult, []byte(directID))
+
+		for i := range 2 {
+			resolveResult, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: sessionID},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDNetworkDirectResolve,
+					Input:  json.RawMessage(`{"channel":"builders","peer_id":"reviewer.sess-xyz"}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(network_direct_resolve #%d) error = %v", i+1, err)
+			}
+			requireNativeStructuredContains(t, resolveResult, []byte(directID))
+		}
+		if resolveCalls != 2 || len(resolvedDirects) != 1 {
+			t.Fatalf(
+				"direct resolve calls/map = %d/%d, want idempotent same direct room",
+				resolveCalls,
+				len(resolvedDirects),
+			)
+		}
+
+		directMessagesResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkDirectMessages,
+				Input: json.RawMessage(
+					fmt.Sprintf(
+						`{"channel":"builders","direct_id":%q,"kind":"trace","work_id":"work_direct","limit":4}`,
+						directID,
+					),
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(network_direct_messages) error = %v", err)
+		}
+		requireNativeStructuredContains(t, directMessagesResult, []byte(`"msg_direct_launch"`))
+
+		workResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkWork,
+				Input:  json.RawMessage(`{"work_id":"work_launch"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(network_work) error = %v", err)
+		}
+		requireNativeStructuredContains(t, workResult, []byte(`"state":"needs_input"`))
+	})
+
+	t.Run(
+		"Should reject native network send with the same conversation validation as HTTP payloads",
+		func(t *testing.T) {
+			t.Parallel()
+
+			networkService := &nativeNetworkStub{}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Network: networkService,
+			}, nativeApproveAllPolicyInputs())
+			invalidPayloads := []json.RawMessage{
+				json.RawMessage(
+					`{"session_id":"sess-scope","channel":"","surface":"thread","thread_id":"thread_bad","kind":"say","body":{"text":"blank channel"}}`,
+				),
+				json.RawMessage(
+					`{"session_id":"sess-scope","channel":"default","surface":"thread","kind":"say","body":{"text":"missing thread"}}`,
+				),
+				json.RawMessage(
+					`{"session_id":"sess-scope","channel":"default","surface":"direct","kind":"say","body":{"text":"missing direct"}}`,
+				),
+				json.RawMessage(
+					`{"session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_bad","direct_id":"direct_99401d24bee62651d189e5a561785466","kind":"say","body":{"text":"both"}}`,
+				),
+				json.RawMessage(
+					`{"session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_bad","kind":"receipt","body":{"status":"accepted"}}`,
+				),
+			}
+			for _, input := range invalidPayloads {
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{SessionID: "sess-scope"},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkSend, Input: input},
+				)
+				if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+					t.Fatalf("Registry.Call(network_send %s) error = %v, want ErrToolInvalidInput", input, err)
+				}
+			}
+			if networkService.sendCalls != 0 {
+				t.Fatalf("Network.Send calls = %d, want 0", networkService.sendCalls)
+			}
+		},
+	)
+
+	t.Run("Should reject native network read inputs through validation helpers", func(t *testing.T) {
+		t.Parallel()
+
+		sessionID := "sess-local"
+		cases := []struct {
+			name  string
+			scope toolspkg.Scope
+			id    toolspkg.ToolID
+			input json.RawMessage
+		}{
+			{
+				name:  "Should reject blank thread list channel",
+				id:    toolspkg.ToolIDNetworkThreads,
+				input: json.RawMessage(`{"channel":""}`),
+			},
+			{
+				name:  "Should reject negative thread list limit",
+				id:    toolspkg.ToolIDNetworkThreads,
+				input: json.RawMessage(`{"channel":"builders","limit":-1}`),
+			},
+			{
+				name:  "Should reject invalid thread message container",
+				id:    toolspkg.ToolIDNetworkThreadMessages,
+				input: json.RawMessage(`{"channel":"builders","thread_id":"bad"}`),
+			},
+			{
+				name: "Should reject conflicting thread message cursors",
+				id:   toolspkg.ToolIDNetworkThreadMessages,
+				input: json.RawMessage(
+					`{"channel":"builders","thread_id":"thread_launch","before":"msg_later","after":"msg_earlier"}`,
+				),
+			},
+			{
+				name:  "Should reject negative direct list limit",
+				id:    toolspkg.ToolIDNetworkDirects,
+				input: json.RawMessage(`{"channel":"builders","limit":-1}`),
+			},
+			{
+				name:  "Should reject invalid direct message container",
+				id:    toolspkg.ToolIDNetworkDirectMessages,
+				input: json.RawMessage(`{"channel":"builders","direct_id":"bad"}`),
+			},
+			{
+				name:  "Should require direct resolve caller session",
+				id:    toolspkg.ToolIDNetworkDirectResolve,
+				input: json.RawMessage(`{"channel":"builders","peer_id":"coder.sess-abc"}`),
+			},
+			{
+				name:  "Should reject invalid direct resolve peer id",
+				scope: toolspkg.Scope{SessionID: sessionID},
+				id:    toolspkg.ToolIDNetworkDirectResolve,
+				input: json.RawMessage(`{"channel":"builders","peer_id":"bad peer"}`),
+			},
+			{
+				name:  "Should reject same-peer direct resolve",
+				scope: toolspkg.Scope{SessionID: sessionID},
+				id:    toolspkg.ToolIDNetworkDirectResolve,
+				input: json.RawMessage(`{"channel":"builders","peer_id":"coder.sess-abc"}`),
+			},
+			{
+				name:  "Should reject invalid work lookup id",
+				id:    toolspkg.ToolIDNetworkWork,
+				input: json.RawMessage(`{"work_id":"bad/path"}`),
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				networkService := &nativeNetworkStub{
+					peers: []network.PeerInfo{{
+						SessionID: &sessionID,
+						PeerID:    "coder.sess-abc",
+						Channel:   "builders",
+						Local:     true,
+					}},
+				}
+				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+					Network:      networkService,
+					NetworkStore: apitest.StubNetworkStore{},
+				}, nativeApproveAllPolicyInputs())
+				_, err := registry.Call(t.Context(), tc.scope, toolspkg.CallRequest{ToolID: tc.id, Input: tc.input})
+				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+			})
+		}
+	})
+
+	t.Run("Should surface unresolved native direct peer lookup as a backend network error", func(t *testing.T) {
+		t.Parallel()
+
+		sessionID := "sess-local"
+		networkService := &nativeNetworkStub{
+			peers: []network.PeerInfo{{
+				SessionID: &sessionID,
+				PeerID:    "coder.sess-abc",
+				Channel:   "builders",
+				Local:     true,
+			}},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Network:      networkService,
+			NetworkStore: apitest.StubNetworkStore{},
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: sessionID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkDirectResolve,
+				Input:  json.RawMessage(`{"channel":"builders","peer_id":"reviewer.sess-xyz"}`),
+			},
+		)
+		if !errors.Is(err, network.ErrTargetPeerNotFound) || !errors.Is(err, toolspkg.ErrToolBackendFailed) {
+			t.Fatalf(
+				"Registry.Call(network_direct_resolve missing peer) error = %v, want wrapped target peer error",
+				err,
+			)
+		}
+	})
+
+	t.Run("Should surface native direct list store errors as backend failures", func(t *testing.T) {
+		t.Parallel()
+
+		storeErr := errors.New("direct list failed")
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Network: &nativeNetworkStub{},
+			NetworkStore: apitest.StubNetworkStore{
+				ListDirectRoomsFn: func(
+					context.Context,
+					string,
+					store.NetworkDirectRoomQuery,
+				) ([]store.NetworkDirectRoomSummary, error) {
+					return nil, storeErr
+				},
+			},
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkDirects,
+				Input:  json.RawMessage(`{"channel":"builders","peer_id":"reviewer.sess-xyz"}`),
+			},
+		)
+		if !errors.Is(err, storeErr) || !errors.Is(err, toolspkg.ErrToolBackendFailed) {
+			t.Fatalf("Registry.Call(network_directs store error) error = %v, want wrapped store backend error", err)
 		}
 	})
 
@@ -1261,7 +1729,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkSend,
 				Input: json.RawMessage(
-					`{"session_id":"sess-scope","channel":"default","kind":"say","body":{"claim_token":"agh_claim_SECRET123"}}`,
+					`{"session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"agh_claim_SECRET123"}}`,
 				),
 			},
 		)
@@ -1337,7 +1805,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			BindID:   bind.BindID,
 			ToolName: toolspkg.ToolIDNetworkSend.String(),
 			Input: json.RawMessage(
-				`{"session_id":"sess-scope","channel":"default","kind":"say","body":{"claim_token":"agh_claim_HOSTED123"}}`,
+				`{"session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"agh_claim_HOSTED123"}}`,
 			),
 		}, peer)
 		var toolErr *toolspkg.ToolError
@@ -1348,6 +1816,93 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if networkService.sendCalls != 0 {
 			t.Fatalf("Network.Send calls = %d, want 0", networkService.sendCalls)
+		}
+	})
+
+	t.Run("Should expose hosted MCP network schemas identical to native descriptors", func(t *testing.T) {
+		t.Parallel()
+
+		networkService := &nativeNetworkStub{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Network:      networkService,
+			NetworkStore: apitest.StubNetworkStore{},
+		}, nativeApproveAllPolicyInputs())
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatalf("os.Executable() error = %v", err)
+		}
+		counter := byte(42)
+		service, err := mcppkg.NewHostedService(mcppkg.HostedConfig{
+			Enabled:        true,
+			BindNonceTTL:   time.Minute,
+			ExpectedBinary: executable,
+			Registry: func() toolspkg.Registry {
+				return registry
+			},
+			Now: func() time.Time {
+				return time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+			},
+			NonceReader: func(dst []byte) error {
+				for i := range dst {
+					dst[i] = counter
+					counter++
+				}
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewHostedService() error = %v", err)
+		}
+		launch, err := service.Launch(t.Context(), mcppkg.HostedLaunchRequest{
+			SessionID:   "sess-schema",
+			WorkspaceID: "ws-1",
+			AgentName:   "coder",
+		})
+		if err != nil {
+			t.Fatalf("Launch() error = %v", err)
+		}
+		peer := mcppkg.PeerInfo{
+			PID:            os.Getpid(),
+			UID:            os.Getuid(),
+			GID:            os.Getgid(),
+			ExecutablePath: executable,
+			Supported:      true,
+		}
+		bind, err := service.Bind(
+			t.Context(),
+			mcppkg.HostedBindRequest{SessionID: "sess-schema", Nonce: launch.Args[len(launch.Args)-1]},
+			peer,
+		)
+		if err != nil {
+			t.Fatalf("Bind() error = %v", err)
+		}
+		nativeDescriptors := nativeDescriptorMap(builtintools.NativeDescriptors())
+		hostedViews := make(map[toolspkg.ToolID]toolspkg.ToolView, len(bind.Tools))
+		for _, view := range bind.Tools {
+			hostedViews[view.Descriptor.ID] = view
+		}
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDNetworkSend,
+			toolspkg.ToolIDNetworkThreads,
+			toolspkg.ToolIDNetworkThreadMessages,
+			toolspkg.ToolIDNetworkDirects,
+			toolspkg.ToolIDNetworkDirectResolve,
+			toolspkg.ToolIDNetworkDirectMessages,
+			toolspkg.ToolIDNetworkWork,
+		} {
+			hosted, ok := hostedViews[id]
+			if !ok {
+				t.Fatalf("hosted MCP projection missing network tool %s", id)
+			}
+			native := nativeDescriptors[id]
+			if !bytes.Equal(hosted.Descriptor.InputSchema, native.InputSchema) {
+				t.Fatalf(
+					"%s hosted input schema = %s, want native schema %s",
+					id,
+					hosted.Descriptor.InputSchema,
+					native.InputSchema,
+				)
+			}
 		}
 	})
 
@@ -2294,6 +2849,14 @@ func nativeToolViewByID(views []toolspkg.ToolView, id toolspkg.ToolID) *toolspkg
 		}
 	}
 	return nil
+}
+
+func nativeDescriptorMap(descriptors []toolspkg.Descriptor) map[toolspkg.ToolID]toolspkg.Descriptor {
+	values := make(map[toolspkg.ToolID]toolspkg.Descriptor, len(descriptors))
+	for _, descriptor := range descriptors {
+		values[descriptor.ID] = descriptor
+	}
+	return values
 }
 
 func requireNativeToolAvailable(t *testing.T, views []toolspkg.ToolView, id toolspkg.ToolID) {

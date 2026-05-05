@@ -24,6 +24,9 @@ const (
 	ArtifactKindEvents               ArtifactKind = "events"
 	ArtifactKindTransportOutputs     ArtifactKind = "transport_outputs"
 	ArtifactKindNetworkMessages      ArtifactKind = "network_messages"
+	ArtifactKindNetworkThreads       ArtifactKind = "network_threads"
+	ArtifactKindNetworkDirectRooms   ArtifactKind = "network_direct_rooms"
+	ArtifactKindNetworkWork          ArtifactKind = "network_work"
 	ArtifactKindNetworkAudit         ArtifactKind = "network_audit"
 	ArtifactKindAutomationRuns       ArtifactKind = "automation_runs"
 	ArtifactKindTasks                ArtifactKind = "tasks"
@@ -54,6 +57,9 @@ var artifactSpecs = map[ArtifactKind]artifactSpec{
 	ArtifactKindEvents:               {relativePath: "events.json"},
 	ArtifactKindTransportOutputs:     {relativePath: "transport_outputs", isDir: true},
 	ArtifactKindNetworkMessages:      {relativePath: "network_messages.json"},
+	ArtifactKindNetworkThreads:       {relativePath: "network_threads.json"},
+	ArtifactKindNetworkDirectRooms:   {relativePath: "network_direct_rooms.json"},
+	ArtifactKindNetworkWork:          {relativePath: "network_work.json"},
 	ArtifactKindNetworkAudit:         {relativePath: "network_audit.json"},
 	ArtifactKindAutomationRuns:       {relativePath: "automation_runs.json"},
 	ArtifactKindTasks:                {relativePath: "tasks.json"},

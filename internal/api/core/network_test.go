@@ -72,17 +72,19 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		t.Parallel()
 
 		req := contract.NetworkSendRequest{
-			SessionID:     " sess-a ",
-			Channel:       " builders ",
-			Kind:          "say",
-			To:            " reviewer.sess-b ",
-			Body:          json.RawMessage(`{"text":"hello"}`),
-			InteractionID: " int-1 ",
-			ReplyTo:       " msg-root ",
-			TraceID:       " trace-1 ",
-			CausationID:   " cause-1 ",
-			ExpiresAt:     &deadline,
-			ID:            " msg-1 ",
+			SessionID:   " sess-a ",
+			Channel:     " builders ",
+			Surface:     " thread ",
+			ThreadID:    " thread_launch_db ",
+			Kind:        "say",
+			To:          " reviewer.sess-b ",
+			Body:        json.RawMessage(`{"text":"hello"}`),
+			WorkID:      " work-1 ",
+			ReplyTo:     " msg-root ",
+			TraceID:     " trace-1 ",
+			CausationID: " cause-1 ",
+			ExpiresAt:   &deadline,
+			ID:          " msg-1 ",
 			Ext: map[string]json.RawMessage{
 				"agh.workflow_id":     json.RawMessage(`"wf-1"`),
 				"agh.handoff_version": json.RawMessage(`3`),
@@ -98,6 +100,15 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		}
 		if converted.To == nil || *converted.To != "reviewer.sess-b" {
 			t.Fatalf("converted.To = %#v, want reviewer.sess-b", converted.To)
+		}
+		if converted.Surface == nil || *converted.Surface != network.SurfaceThread {
+			t.Fatalf("converted.Surface = %#v, want thread", converted.Surface)
+		}
+		if converted.ThreadID == nil || *converted.ThreadID != "thread_launch_db" {
+			t.Fatalf("converted.ThreadID = %#v, want thread_launch_db", converted.ThreadID)
+		}
+		if converted.WorkID == nil || *converted.WorkID != "work-1" {
+			t.Fatalf("converted.WorkID = %#v, want work-1", converted.WorkID)
 		}
 		if converted.ExpiresAt == nil || *converted.ExpiresAt != deadline {
 			t.Fatalf("converted.ExpiresAt = %#v, want %d", converted.ExpiresAt, deadline)
@@ -166,6 +177,8 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		_, err := core.NetworkSendRequestFromPayload(contract.NetworkSendRequest{
 			SessionID: "sess-a",
 			Channel:   "builders",
+			Surface:   "thread",
+			ThreadID:  "thread_claim_docs",
 			Kind:      "say",
 			Body: json.RawMessage(
 				`{"claim_token_hash":"sha256:abc","description":"see agh_claim_token docs"}`,
@@ -173,6 +186,131 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("NetworkSendRequestFromPayload() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should enforce conversation surface validation in NetworkSendRequest", func(t *testing.T) {
+		t.Parallel()
+
+		validBody := json.RawMessage(`{"text":"hello"}`)
+		tests := []struct {
+			name    string
+			req     contract.NetworkSendRequest
+			wantErr bool
+		}{
+			{
+				name: "Should accept matching thread container",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Surface:   "thread",
+					ThreadID:  "thread_launch_db",
+					Kind:      "say",
+					Body:      validBody,
+				},
+			},
+			{
+				name: "Should accept matching direct container with work",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Surface:   "direct",
+					DirectID:  "direct_99401d24bee62651d189e5a561785466",
+					Kind:      "receipt",
+					WorkID:    "work-1",
+					Body:      json.RawMessage(`{"status":"accepted"}`),
+				},
+			},
+			{
+				name: "Should reject missing surface",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Kind:      "say",
+					Body:      validBody,
+				},
+				wantErr: true,
+			},
+			{
+				name: "Should reject opposite container for thread surface",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Surface:   "thread",
+					DirectID:  "direct_99401d24bee62651d189e5a561785466",
+					Kind:      "say",
+					Body:      validBody,
+				},
+				wantErr: true,
+			},
+			{
+				name: "Should reject opposite container for direct surface",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Surface:   "direct",
+					ThreadID:  "thread_launch_db",
+					Kind:      "say",
+					Body:      validBody,
+				},
+				wantErr: true,
+			},
+			{
+				name: "Should reject greet conversation fields",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Surface:   "thread",
+					ThreadID:  "thread_launch_db",
+					Kind:      "greet",
+					Body:      json.RawMessage(`{"hello":"world"}`),
+				},
+				wantErr: true,
+			},
+			{
+				name: "Should reject receipt without work",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Surface:   "thread",
+					ThreadID:  "thread_launch_db",
+					Kind:      "receipt",
+					Body:      json.RawMessage(`{"status":"accepted"}`),
+				},
+				wantErr: true,
+			},
+			{
+				name: "Should reject trace without work",
+				req: contract.NetworkSendRequest{
+					SessionID: "sess-a",
+					Channel:   "builders",
+					Surface:   "thread",
+					ThreadID:  "thread_launch_db",
+					Kind:      "trace",
+					Body:      json.RawMessage(`{"event":"progress"}`),
+				},
+				wantErr: true,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := core.NetworkSendRequestFromPayload(tc.req)
+				if tc.wantErr {
+					if err == nil {
+						t.Fatal("NetworkSendRequestFromPayload() error = nil, want validation error")
+					}
+					if !errors.Is(err, core.ErrNetworkValidation) {
+						t.Fatalf("NetworkSendRequestFromPayload() error = %v, want network validation", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("NetworkSendRequestFromPayload() error = %v, want nil", err)
+				}
+			})
 		}
 	})
 
@@ -186,8 +324,10 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		envelope := network.Envelope{
 			Protocol:    network.ProtocolV0,
 			ID:          "msg-1",
-			Kind:        network.KindDirect,
+			Kind:        network.KindSay,
 			Channel:     "builders",
+			Surface:     networkSurfacePtr(network.SurfaceDirect),
+			DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
 			From:        "reviewer.sess-b",
 			ReplyTo:     &replyTo,
 			TraceID:     &traceID,
@@ -452,6 +592,251 @@ func bundleStableIDForTest(prefix string, parts ...string) string {
 	return prefix + "_" + hex.EncodeToString(sum[:8])
 }
 
+func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
+	t.Parallel()
+
+	openedAt := time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
+	threadID := "thread_launch_db"
+	directID := "direct_99401d24bee62651d189e5a561785466"
+	workID := "work-1"
+	fixture := newHandlerFixture(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+	fixture.Handlers.Config.Network.Enabled = true
+	fixture.Handlers.Network = testutil.StubNetworkService{}
+	fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+		ListThreadsFn: func(
+			_ context.Context,
+			channel string,
+			query store.NetworkThreadQuery,
+		) ([]store.NetworkThreadSummary, error) {
+			if channel != "builders" || query.Limit != 5 || query.After != "thread_before" {
+				t.Fatalf("ListThreads() channel=%q query=%#v, want builders limit/after", channel, query)
+			}
+			return []store.NetworkThreadSummary{{
+				Channel:          channel,
+				ThreadID:         threadID,
+				RootMessageID:    "msg-root",
+				Title:            "Launch DB",
+				OpenedByPeerID:   "coder.sess-abc",
+				OpenedSessionID:  "sess-local",
+				OpenedAt:         openedAt,
+				LastActivityAt:   openedAt,
+				MessageCount:     2,
+				ParticipantCount: 2,
+				OpenWorkCount:    1,
+			}}, nil
+		},
+		GetThreadFn: func(_ context.Context, channel string, gotThreadID string) (store.NetworkThreadSummary, error) {
+			if channel != "builders" || gotThreadID != threadID {
+				t.Fatalf("GetThread() channel=%q threadID=%q, want builders/%s", channel, gotThreadID, threadID)
+			}
+			return store.NetworkThreadSummary{
+				Channel:        channel,
+				ThreadID:       gotThreadID,
+				RootMessageID:  "msg-root",
+				OpenedAt:       openedAt,
+				LastActivityAt: openedAt,
+			}, nil
+		},
+		ListDirectRoomsFn: func(
+			_ context.Context,
+			channel string,
+			query store.NetworkDirectRoomQuery,
+		) ([]store.NetworkDirectRoomSummary, error) {
+			if channel != "builders" || query.PeerID != "reviewer.sess-xyz" || query.Limit != 3 {
+				t.Fatalf("ListDirectRooms() channel=%q query=%#v, want builders reviewer limit", channel, query)
+			}
+			return []store.NetworkDirectRoomSummary{{
+				Channel:        channel,
+				DirectID:       directID,
+				PeerA:          "coder.sess-abc",
+				PeerB:          "reviewer.sess-xyz",
+				OpenedAt:       openedAt,
+				LastActivityAt: openedAt,
+				MessageCount:   1,
+				OpenWorkCount:  1,
+			}}, nil
+		},
+		GetDirectRoomFn: func(_ context.Context, channel string, gotDirectID string) (store.NetworkDirectRoomSummary, error) {
+			if channel != "builders" || gotDirectID != directID {
+				t.Fatalf("GetDirectRoom() channel=%q directID=%q, want builders/%s", channel, gotDirectID, directID)
+			}
+			return store.NetworkDirectRoomSummary{
+				Channel:        channel,
+				DirectID:       gotDirectID,
+				PeerA:          "coder.sess-abc",
+				PeerB:          "reviewer.sess-xyz",
+				OpenedAt:       openedAt,
+				LastActivityAt: openedAt,
+			}, nil
+		},
+		ListConversationMessagesFn: func(
+			_ context.Context,
+			ref store.NetworkConversationRef,
+			query store.NetworkConversationMessageQuery,
+		) ([]store.NetworkConversationMessage, error) {
+			if ref.Channel != "builders" || query.Kind != "say" || query.WorkID != workID {
+				t.Fatalf("ListConversationMessages() ref=%#v query=%#v, want builders say work", ref, query)
+			}
+			switch ref.Surface {
+			case store.NetworkSurfaceThread:
+				if ref.ThreadID != threadID || ref.DirectID != "" {
+					t.Fatalf("thread ref = %#v, want %s", ref, threadID)
+				}
+			case store.NetworkSurfaceDirect:
+				if ref.DirectID != directID || ref.ThreadID != "" {
+					t.Fatalf("direct ref = %#v, want %s", ref, directID)
+				}
+			default:
+				t.Fatalf("ref.Surface = %q, want thread or direct", ref.Surface)
+			}
+			return []store.NetworkConversationMessage{{
+				MessageID:   "msg-1",
+				SessionID:   "sess-local",
+				Channel:     "builders",
+				Surface:     ref.Surface,
+				ThreadID:    ref.ThreadID,
+				DirectID:    ref.DirectID,
+				Direction:   network.AuditDirectionReceived,
+				PeerFrom:    "reviewer.sess-xyz",
+				Kind:        string(network.KindSay),
+				WorkID:      workID,
+				PreviewText: "hello",
+				Body:        json.RawMessage(`{"text":"hello"}`),
+				Timestamp:   openedAt,
+			}}, nil
+		},
+		GetWorkFn: func(_ context.Context, gotWorkID string) (store.NetworkWorkEntry, error) {
+			if gotWorkID != workID {
+				t.Fatalf("GetWork() workID=%q, want %s", gotWorkID, workID)
+			}
+			return store.NetworkWorkEntry{
+				WorkID:         gotWorkID,
+				Channel:        "builders",
+				Surface:        store.NetworkSurfaceThread,
+				ThreadID:       threadID,
+				State:          store.NetworkWorkStateSubmitted,
+				OpenedAt:       openedAt,
+				LastActivityAt: openedAt,
+			}, nil
+		},
+	}
+
+	t.Run("Should list threads", func(t *testing.T) {
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/builders/threads?limit=5&after=thread_before",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("threads status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.NetworkThreadsResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if len(payload.Threads) != 1 || payload.Threads[0].ThreadID != threadID {
+			t.Fatalf("threads payload = %#v, want thread %s", payload.Threads, threadID)
+		}
+	})
+
+	t.Run("Should show thread", func(t *testing.T) {
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders/threads/"+threadID, nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("thread status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.NetworkThreadResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Thread.ThreadID != threadID {
+			t.Fatalf("thread payload = %#v, want %s", payload.Thread, threadID)
+		}
+	})
+
+	t.Run("Should list thread messages", func(t *testing.T) {
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/builders/threads/"+threadID+"/messages?kind=say&work_id="+workID,
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("thread messages status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.NetworkThreadMessagesResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if len(payload.Messages) != 1 || payload.Messages[0].Surface != store.NetworkSurfaceThread {
+			t.Fatalf("thread messages payload = %#v, want thread message", payload.Messages)
+		}
+	})
+
+	t.Run("Should list direct rooms", func(t *testing.T) {
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/builders/directs?peer_id=reviewer.sess-xyz&limit=3",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("directs status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.NetworkDirectRoomsResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if len(payload.Directs) != 1 || payload.Directs[0].DirectID != directID {
+			t.Fatalf("directs payload = %#v, want direct %s", payload.Directs, directID)
+		}
+	})
+
+	t.Run("Should show direct room", func(t *testing.T) {
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/channels/builders/directs/"+directID, nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("direct status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.NetworkDirectRoomResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Direct.DirectID != directID {
+			t.Fatalf("direct payload = %#v, want %s", payload.Direct, directID)
+		}
+	})
+
+	t.Run("Should list direct messages", func(t *testing.T) {
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/network/channels/builders/directs/"+directID+"/messages?kind=say&work_id="+workID,
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("direct messages status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.NetworkDirectRoomMessagesResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if len(payload.Messages) != 1 || payload.Messages[0].Surface != store.NetworkSurfaceDirect {
+			t.Fatalf("direct messages payload = %#v, want direct message", payload.Messages)
+		}
+	})
+
+	t.Run("Should show work", func(t *testing.T) {
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/network/work/"+workID, nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("work status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.NetworkWorkResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Work.WorkID != workID || payload.Work.ThreadID != threadID {
+			t.Fatalf("work payload = %#v, want work %s on thread %s", payload.Work, workID, threadID)
+		}
+	})
+}
+
 func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 	t.Parallel()
 
@@ -560,8 +945,10 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			return []network.Envelope{{
 				Protocol: network.ProtocolV0,
 				ID:       "msg-inbox",
-				Kind:     network.KindDirect,
+				Kind:     network.KindSay,
 				Channel:  "builders",
+				Surface:  networkSurfacePtr(network.SurfaceDirect),
+				DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
 				From:     "reviewer.sess-a",
 				ReplyTo:  &replyTo,
 				TraceID:  &traceID,
@@ -646,7 +1033,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			http.MethodPost,
 			"/network/send",
 			[]byte(
-				`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`,
+				`{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_launch_db","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`,
 			),
 		)
 		if sendResp.Code != http.StatusOK {
@@ -2793,7 +3180,9 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/network/send",
-			[]byte(`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"text":"hello"}}`),
+			[]byte(
+				`{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_launch_db","kind":"say","body":{"text":"hello"}}`,
+			),
 		)
 		if resp.Code != http.StatusNotFound {
 			t.Fatalf("send error code = %d, want %d", resp.Code, http.StatusNotFound)
@@ -4087,6 +4476,14 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 }
 
 func timePtr(value time.Time) *time.Time {
+	return &value
+}
+
+func networkSurfacePtr(value network.Surface) *network.Surface {
+	return &value
+}
+
+func stringPtr(value string) *string {
 	return &value
 }
 

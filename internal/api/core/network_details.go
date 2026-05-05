@@ -985,18 +985,16 @@ func networkKindSortRank(kind string) int {
 	switch strings.TrimSpace(kind) {
 	case string(network.KindSay):
 		return 0
-	case string(network.KindDirect):
-		return 1
 	case string(network.KindReceipt):
-		return 2
+		return 1
 	case string(network.KindCapability):
-		return 3
+		return 2
 	case string(network.KindGreet):
-		return 4
+		return 3
 	case string(network.KindWhois):
-		return 5
+		return 4
 	case string(network.KindTrace):
-		return 6
+		return 5
 	default:
 		return 100
 	}
@@ -1149,6 +1147,9 @@ func NetworkChannelMessagePayloadFromView(
 	return contract.NetworkChannelMessagePayload{
 		MessageID:          strings.TrimSpace(entry.MessageID),
 		Channel:            strings.TrimSpace(entry.Channel),
+		Surface:            strings.TrimSpace(entry.Surface),
+		ThreadID:           strings.TrimSpace(entry.ThreadID),
+		DirectID:           strings.TrimSpace(entry.DirectID),
 		Kind:               strings.TrimSpace(entry.Kind),
 		Direction:          strings.TrimSpace(entry.Direction),
 		PeerFrom:           strings.TrimSpace(entry.PeerFrom),
@@ -1156,7 +1157,7 @@ func NetworkChannelMessagePayloadFromView(
 		DisplayName:        displayName,
 		SessionID:          payloadSessionID,
 		Local:              local,
-		InteractionID:      strings.TrimSpace(entry.InteractionID),
+		WorkID:             strings.TrimSpace(entry.WorkID),
 		ReplyTo:            strings.TrimSpace(entry.ReplyTo),
 		TraceID:            strings.TrimSpace(entry.TraceID),
 		CausationID:        strings.TrimSpace(entry.CausationID),
@@ -1364,22 +1365,22 @@ func extendPresenceEpisode(current *networkTimelineMessageView, next store.Netwo
 
 func cloneNetworkMessageEntry(entry store.NetworkMessageEntry) store.NetworkMessageEntry {
 	return store.NetworkMessageEntry{
-		MessageID:     strings.TrimSpace(entry.MessageID),
-		SessionID:     strings.TrimSpace(entry.SessionID),
-		Channel:       strings.TrimSpace(entry.Channel),
-		Direction:     strings.TrimSpace(entry.Direction),
-		PeerFrom:      strings.TrimSpace(entry.PeerFrom),
-		PeerTo:        strings.TrimSpace(entry.PeerTo),
-		Kind:          strings.TrimSpace(entry.Kind),
-		InteractionID: strings.TrimSpace(entry.InteractionID),
-		ReplyTo:       strings.TrimSpace(entry.ReplyTo),
-		TraceID:       strings.TrimSpace(entry.TraceID),
-		CausationID:   strings.TrimSpace(entry.CausationID),
-		Intent:        strings.TrimSpace(entry.Intent),
-		Text:          entry.Text,
-		PreviewText:   strings.TrimSpace(entry.PreviewText),
-		Body:          cloneRawMessage(entry.Body),
-		Timestamp:     entry.Timestamp.UTC(),
+		MessageID:   strings.TrimSpace(entry.MessageID),
+		SessionID:   strings.TrimSpace(entry.SessionID),
+		Channel:     strings.TrimSpace(entry.Channel),
+		Direction:   strings.TrimSpace(entry.Direction),
+		PeerFrom:    strings.TrimSpace(entry.PeerFrom),
+		PeerTo:      strings.TrimSpace(entry.PeerTo),
+		Kind:        strings.TrimSpace(entry.Kind),
+		WorkID:      strings.TrimSpace(entry.WorkID),
+		ReplyTo:     strings.TrimSpace(entry.ReplyTo),
+		TraceID:     strings.TrimSpace(entry.TraceID),
+		CausationID: strings.TrimSpace(entry.CausationID),
+		Intent:      strings.TrimSpace(entry.Intent),
+		Text:        entry.Text,
+		PreviewText: strings.TrimSpace(entry.PreviewText),
+		Body:        cloneRawMessage(entry.Body),
+		Timestamp:   entry.Timestamp.UTC(),
 	}
 }
 

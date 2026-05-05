@@ -214,8 +214,9 @@ Rules:
   `id`, `summary`, `outcome`, and `digest`.
 - Receivers SHOULD verify `capability.digest` against the canonical structured document before
   caching or forwarding it. A mismatch MUST be treated as `verification_failed`.
-- A `capability` envelope MAY open or continue an interaction when `interaction_id` is present,
-  inheriting the same lifecycle rules as `direct`.
+- A `capability` envelope MUST carry a conversation surface (`surface:"thread"` with `thread_id`,
+  or `surface:"direct"` with `direct_id`) and MAY carry a `work_id`. When `work_id` is present,
+  the capability participates in the same lifecycle rules as a `say` envelope with `work_id`.
 
 Discovery and transfer therefore cover different needs over one concept: discovery is lightweight
 hint metadata scoped to peer cards and `whois`, and transfer is the digest-bound hand-off of the

@@ -247,6 +247,38 @@ func TestCapabilityCheckerAutomationMethodsMapToExpectedCapabilities(t *testing.
 	}
 }
 
+func TestCapabilityCheckerNetworkMethodsShouldMapToExpectedCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		method     string
+		capability string
+	}{
+		{method: "network/status", capability: "network.read"},
+		{method: "network/channels", capability: "network.read"},
+		{method: "network/peers", capability: "network.read"},
+		{method: "network/threads", capability: "network.read"},
+		{method: "network/thread/get", capability: "network.read"},
+		{method: "network/thread/messages", capability: "network.read"},
+		{method: "network/directs", capability: "network.read"},
+		{method: "network/direct/resolve", capability: "network.write"},
+		{method: "network/direct/messages", capability: "network.read"},
+		{method: "network/work/get", capability: "network.read"},
+		{method: "network/send", capability: "network.write"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method, func(t *testing.T) {
+			t.Parallel()
+
+			checker := newTestCapabilityChecker("ext", SourceUser, []string{tt.method}, []string{tt.capability})
+			if err := checker.CheckHostAPI("ext", tt.method); err != nil {
+				t.Fatalf("CheckHostAPI(%q) error = %v, want nil", tt.method, err)
+			}
+		})
+	}
+}
+
 func TestCapabilityCheckerRegisterShouldGrantRequestedCapabilitiesForTrustedSources(t *testing.T) {
 	t.Parallel()
 

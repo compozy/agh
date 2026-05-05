@@ -289,7 +289,7 @@ func (h *BaseHandlers) ListAgentSoulHistory(c *gin.Context) {
 		h.respondError(c, StatusForSoulError(errSoulAuthoringUnavailable), errSoulAuthoringUnavailable)
 		return
 	}
-	limit, err := parsePositiveIntQuery(c, "limit")
+	limit, err := parsePositiveIntQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -543,7 +543,7 @@ func (h *BaseHandlers) ListAgentHeartbeatHistory(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(errHeartbeatAuthoringMissing), errHeartbeatAuthoringMissing)
 		return
 	}
-	limit, err := parsePositiveIntQuery(c, "limit")
+	limit, err := parsePositiveIntQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return

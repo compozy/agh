@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -148,6 +149,9 @@ func TestEnqueueRunFromPeerRejectsChannelMismatchAndAudits(t *testing.T) {
 		PeerID:    peerID,
 		Channel:   "ops",
 		RequestID: "req-enqueue-1",
+		Surface:   SurfaceThread,
+		ThreadID:  "thread_task_ingress",
+		WorkID:    "work_task_ingress",
 	}, taskpkg.EnqueueRun{
 		TaskID:         "task-1",
 		IdempotencyKey: "idem-1",
@@ -181,6 +185,90 @@ func TestEnqueueRunFromPeerRejectsChannelMismatchAndAudits(t *testing.T) {
 	if got, want := records[0].Reason, "channel_mismatch"; got != want {
 		t.Fatalf("audit reason = %q, want %q", got, want)
 	}
+}
+
+func TestEnqueueRunFromPeerAttachesNetworkWorkMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should attach server-derived network metadata to task runs", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 14, 18, 1, 0, 0, time.UTC)
+		peerID := "reviewer.sess-ops"
+		auditor := &taskIngressAuditRecorder{}
+		var captured taskpkg.EnqueueRun
+		manager := &Manager{
+			logger:  discardManagerLogger(),
+			now:     func() time.Time { return now },
+			peers:   newRemotePeerRegistry(t, now, "ops", peerID, []string{networkTaskWriteCapability}),
+			auditor: auditor,
+			tasks: fakeNetworkTaskService{
+				getTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
+					return &taskpkg.View{
+						Task: taskpkg.Task{
+							ID:             id,
+							Scope:          taskpkg.ScopeGlobal,
+							Title:          "Bound task",
+							NetworkChannel: "ops",
+						},
+					}, nil
+				},
+				enqueueRunFn: func(_ context.Context, spec taskpkg.EnqueueRun, _ taskpkg.ActorContext) (*taskpkg.Run, error) {
+					captured = spec
+					return &taskpkg.Run{
+						ID:             "run-1",
+						TaskID:         spec.TaskID,
+						IdempotencyKey: spec.IdempotencyKey,
+						NetworkChannel: spec.NetworkChannel,
+						Metadata:       spec.Metadata,
+					}, nil
+				},
+			},
+		}
+
+		run, err := manager.EnqueueRunFromPeer(context.Background(), TaskIngressContext{
+			PeerID:      peerID,
+			Channel:     "ops",
+			RequestID:   "msg-enqueue-task",
+			Surface:     SurfaceThread,
+			ThreadID:    "thread_task_ingress",
+			WorkID:      "work_task_ingress",
+			ReplyTo:     "msg-root-task",
+			TraceID:     "trace-task-ingress",
+			CausationID: "msg-root-task",
+		}, taskpkg.EnqueueRun{
+			TaskID:         "task-1",
+			IdempotencyKey: "idem-1",
+			NetworkChannel: "ops",
+			Metadata:       json.RawMessage(`{"user":"kept"}`),
+		})
+		if err != nil {
+			t.Fatalf("EnqueueRunFromPeer() error = %v", err)
+		}
+		if got, want := run.Metadata, captured.Metadata; string(got) != string(want) {
+			t.Fatalf("run.Metadata = %s, want captured metadata %s", got, want)
+		}
+
+		var metadata map[string]string
+		if err := json.Unmarshal(captured.Metadata, &metadata); err != nil {
+			t.Fatalf("json.Unmarshal(captured.Metadata) error = %v", err)
+		}
+		for key, want := range map[string]string{
+			"user":                 "kept",
+			"network_work_id":      "work_task_ingress",
+			"network_message_id":   "msg-enqueue-task",
+			"network_channel":      "ops",
+			"network_surface":      string(SurfaceThread),
+			"network_thread_id":    "thread_task_ingress",
+			"network_reply_to":     "msg-root-task",
+			"network_trace_id":     "trace-task-ingress",
+			"network_causation_id": "msg-root-task",
+		} {
+			if got := metadata[key]; got != want {
+				t.Fatalf("metadata[%q] = %q, want %q in %s", key, got, want, captured.Metadata)
+			}
+		}
+	})
 }
 
 func TestCreateTaskFromPeerUsesServerDerivedIdentityAndAcceptedAudit(t *testing.T) {

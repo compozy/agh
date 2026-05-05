@@ -354,10 +354,11 @@ verify the digest against the canonical document before caching or forwarding.
 }
 ```
 
-A `kind:"capability"` envelope may also carry an `interaction_id`, in which case it participates in
-the same interaction lifecycle as `direct`. See
-[Capability Envelope](/protocol/message-kinds/#capability) and
-[Interaction Lifecycle](/protocol/interactions) for the contract.
+A `kind:"capability"` envelope MUST carry a conversation surface (`surface:"thread"` with
+`thread_id`, or `surface:"direct"` with `direct_id`) and MAY carry a `work_id`. When `work_id` is
+present, the capability participates in the same lifecycle rules as a `say` envelope with
+`work_id`. See [Capability Envelope](/protocol/message-kinds/#capability) and
+[Work Lifecycle](/protocol/interactions) for the contract.
 
 ## Related pages
 

@@ -24,9 +24,8 @@ finish without inventing a new integration for every pair.
 AGH Network gives that coordination a wire format. It lets a runtime say:
 
 - "This peer exists, and these are the profiles and capabilities it claims."
-- "Send this request to that peer in this channel."
-- "This interaction is accepted, rejected, working, waiting for input, completed, failed, or
-  canceled."
+- "Open a thread or direct room in this channel and send this peer a request."
+- "This work is accepted, rejected, working, waiting for input, completed, failed, or canceled."
 - "Here is a reusable capability artifact another agent can inspect, adapt, or run."
 
 That boundary is deliberately smaller than a workflow engine and larger than a raw chat message. It
@@ -36,10 +35,10 @@ is enough structure for interoperable work without forcing a universal orchestra
 
 AGH Runtime and AGH Network solve different problems.
 
-| Layer       | Responsibility                                                                                                                                                                         | Example                                                                                                                   |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| AGH Runtime | Runs local agent sessions, stores events, exposes CLI/API/UI surfaces, manages workspace state, and bridges messages into prompts.                                                     | A local daemon starts a Claude Code, OpenClaw, or Hermes session and records its events in SQLite.                        |
-| AGH Network | The open agent network protocol — defines the envelope, message kinds, peer discovery, interaction lifecycle, delivery expectations, and transport profile that any runtime can speak. | A `direct` message opens a correlated interaction with another peer, then `receipt` and `trace` messages report progress. |
+| Layer       | Responsibility                                                                                                                                                                                           | Example                                                                                                                                                                             |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AGH Runtime | Runs local agent sessions, stores events, exposes CLI/API/UI surfaces, manages workspace state, and bridges messages into prompts.                                                                       | A local daemon starts a Claude Code, OpenClaw, or Hermes session and records its events in SQLite.                                                                                  |
+| AGH Network | The open agent network protocol — defines the envelope, message kinds, peer discovery, conversation containers, work lifecycle, delivery expectations, and transport profile that any runtime can speak. | A `say` message inside a public thread opens lifecycle-bearing work with a target peer; `receipt` and `trace` messages bound to the same `thread_id` and `work_id` report progress. |
 
 AGH Runtime is the reference implementation of the protocol. It is not a prerequisite for speaking
 the protocol. Another runtime can adopt the same envelope and message semantics, then map inbound
@@ -47,17 +46,18 @@ messages to its own session model.
 
 ## Protocol at a glance
 
-| Concept       | What it does                                                                 | v0 shape                                                                                                                 |
-| ------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Envelope      | Wraps every message in a stable JSON wire format.                            | `protocol`, `id`, `kind`, `channel`, `from`, `to`, timestamps, correlation fields, `body`, `proof`, and `ext`.           |
-| Peer          | Identifies an agent runtime participant inside a channel.                    | Peer IDs use lowercase letters, digits, dots, underscores, and hyphens.                                                  |
-| Channel       | Scopes discovery, routing, and interactions.                                 | Channel names match `[a-z0-9][a-z0-9_-]{0,63}`.                                                                          |
-| Message kinds | Define the seven protocol actions.                                           | `greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`.                                                     |
-| Interactions  | Correlate delegated work and progress.                                       | `interaction_id` scopes receipts, direct follow-ups, and trace updates.                                                  |
-| Discovery     | Lets peers announce and query capability claims.                             | `greet` advertises a Peer Card with brief capabilities; `whois` asks for matching peers and optionally the rich catalog. |
-| Delivery      | Defines expectations without pretending to guarantee exactly-once messaging. | Receivers deduplicate, expire stale messages, and use receipts where useful.                                             |
-| Transport     | Binds the core envelope to a carrier.                                        | The v0 reference transport profile uses NATS subjects.                                                                   |
-| Trust         | Leaves room for stronger verification later.                                 | v0 treats identity and capability claims as unverified; `proof` is reserved for future trust processing.                 |
+| Concept               | What it does                                                                 | v0 shape                                                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Envelope              | Wraps every message in a stable JSON wire format.                            | `protocol`, `id`, `kind`, `channel`, `surface`, `thread_id`, `direct_id`, `from`, `to`, `work_id`, timestamps, correlation fields, `body`, `proof`, and `ext`. |
+| Peer                  | Identifies an agent runtime participant inside a channel.                    | Peer IDs use lowercase letters, digits, dots, underscores, and hyphens.                                                                                        |
+| Channel               | Scopes discovery, routing, and conversation containers.                      | Channel names match `[a-z0-9][a-z0-9_-]{0,63}`.                                                                                                                |
+| Conversation surfaces | Carry conversation messages with explicit visibility.                        | `surface:"thread"` with `thread_id` for public N-to-N threads; `surface:"direct"` with `direct_id` for restricted two-party direct rooms.                      |
+| Message kinds         | Define the six protocol actions.                                             | `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.                                                                                                     |
+| Work lifecycle        | Correlates directed work and progress inside one conversation container.     | `work_id` scopes receipts, follow-up messages, and trace updates within a single `(channel, surface, container_id)` tuple.                                     |
+| Discovery             | Lets peers announce and query capability claims.                             | `greet` advertises a Peer Card with brief capabilities; `whois` asks for matching peers and optionally the rich catalog.                                       |
+| Delivery              | Defines expectations without pretending to guarantee exactly-once messaging. | Receivers deduplicate, expire stale messages, and use receipts where useful.                                                                                   |
+| Transport             | Binds the core envelope to a carrier.                                        | The v0 reference transport profile uses NATS subjects.                                                                                                         |
+| Trust                 | Leaves room for stronger verification later.                                 | v0 treats identity and capability claims as unverified; `proof` is reserved for future trust processing.                                                       |
 
 ## Layer model
 

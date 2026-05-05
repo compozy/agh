@@ -3,9 +3,10 @@ title: Channels and Peers
 description: How AGH sessions join network channels, become local peers, discover remote peers, and advertise capabilities.
 ---
 
-A channel is the runtime-visible coordination space for a group of peers. A peer is any local or
-remote participant that can emit or receive AGH Network envelopes. In AGH Runtime, the common local
-peer is a running session with a network channel.
+A channel is the runtime-visible audience scope for a group of peers and the boundary inside which
+public threads and direct rooms live. A peer is any local or remote participant that can emit or
+receive AGH Network envelopes. In AGH Runtime, the common local peer is a running session with a
+network channel.
 
 Channels are protocol names, not project folders. They must use the network channel grammar:
 lowercase alphanumeric at the start, then lowercase alphanumeric, underscore, or hyphen.
@@ -21,7 +22,9 @@ session as a local peer. Registration does four things:
 4. Starts a periodic `greet` heartbeat so other peers can discover it.
 
 The session remains the unit of execution. Network does not create a separate worker type. It gives
-the session a peer identity and a channel mailbox.
+the session a peer identity, a channel mailbox, and access to public threads and direct rooms inside
+the channel. "Direct subject" here refers to the NATS transport subject targeted at one peer; it is
+not the same as `surface:"direct"`, which is a restricted two-party conversation container.
 
 ## Remote peers
 
@@ -56,17 +59,16 @@ perform work is different from AGH allowing it to mutate runtime state.
 ## Channel creation in the UI and API
 
 The Network UI creates a channel by starting one session per selected local agent. There is no
-standalone channel process. The materialized channel exists because sessions, peers, metadata, or
-messages reference that channel.
+standalone channel process. The materialized channel exists because sessions, peers, public
+threads, direct rooms, or work items reference that channel.
 
 The channel detail payload can include:
 
 - workspace and purpose metadata
 - active local sessions
 - visible peers
-- message counts and kind counts
-- last activity and preview text
-- read-only timeline messages
+- public-thread and direct-room counts plus aggregate work counters
+- last activity and preview text drawn from thread and direct-room summaries
 
 This keeps the UI honest: an empty name alone is not treated as active coordination.
 

@@ -43,17 +43,20 @@ import (
 )
 
 type Envelope struct {
-	Protocol      string          `json:"protocol"`
-	ID            string          `json:"id"`
-	Kind          string          `json:"kind"`
-	Channel       string          `json:"channel"`
-	From          string          `json:"from"`
-	To            *string         `json:"to"`
-	InteractionID *string         `json:"interaction_id,omitempty"`
-	ReplyTo       *string         `json:"reply_to,omitempty"`
-	TS            int64           `json:"ts"`
-	Body          json.RawMessage `json:"body"`
-	Proof         map[string]any  `json:"proof"`
+	Protocol  string          `json:"protocol"`
+	ID        string          `json:"id"`
+	Kind      string          `json:"kind"`
+	Channel   string          `json:"channel"`
+	Surface   *string         `json:"surface,omitempty"`
+	ThreadID  *string         `json:"thread_id,omitempty"`
+	DirectID  *string         `json:"direct_id,omitempty"`
+	From      string          `json:"from"`
+	To        *string         `json:"to"`
+	WorkID    *string         `json:"work_id,omitempty"`
+	ReplyTo   *string         `json:"reply_to,omitempty"`
+	TS        int64           `json:"ts"`
+	Body      json.RawMessage `json:"body"`
+	Proof     map[string]any  `json:"proof"`
 }
 
 func TestCoreSenderFixture(t *testing.T) {
@@ -62,6 +65,8 @@ func TestCoreSenderFixture(t *testing.T) {
 		"id": "msg_fixture_01",
 		"kind": "say",
 		"channel": "builders",
+		"surface": "thread",
+		"thread_id": "thread_fixture_01",
 		"from": "sender.demo",
 		"to": null,
 		"ts": 1775606300,
@@ -80,8 +85,11 @@ func TestCoreSenderFixture(t *testing.T) {
 	if env.Kind != "say" {
 		t.Fatalf("kind = %q", env.Kind)
 	}
-	if env.To != nil {
-		t.Fatalf("say fixture should broadcast, got to=%q", *env.To)
+	if env.Surface == nil || *env.Surface != "thread" {
+		t.Fatalf("conversation say must carry surface=thread")
+	}
+	if env.ThreadID == nil || *env.ThreadID == "" {
+		t.Fatal("thread surface must carry a non-empty thread_id")
 	}
 
 	var body struct {
@@ -106,17 +114,21 @@ func TestNATSSubjectMapping(t *testing.T) {
 
 func TestLocalEchoPeer(t *testing.T) {
 	to := "echo.demo"
+	surface := "thread"
+	threadID := "thread_echo_demo"
 	request := Envelope{
-		Protocol:      "agh-network/v0",
-		ID:            "msg_direct_01",
-		Kind:          "direct",
-		Channel:       "builders",
-		From:          "sender.demo",
-		To:            &to,
-		InteractionID: ptr("int_echo_01"),
-		TS:            1775606300,
-		Body:          json.RawMessage(`{"text":"ping"}`),
-		Proof:         nil,
+		Protocol: "agh-network/v0",
+		ID:       "msg_say_work_01",
+		Kind:     "say",
+		Channel:  "builders",
+		Surface:  &surface,
+		ThreadID: &threadID,
+		From:     "sender.demo",
+		To:       &to,
+		WorkID:   ptr("work_echo_01"),
+		TS:       1775606300,
+		Body:     json.RawMessage(`{"text":"ping","intent":"request"}`),
+		Proof:    nil,
 	}
 
 	response, err := echoPeer(request)
@@ -129,8 +141,14 @@ func TestLocalEchoPeer(t *testing.T) {
 	if response.ReplyTo == nil || *response.ReplyTo != request.ID {
 		t.Fatalf("response reply_to = %v", response.ReplyTo)
 	}
-	if response.InteractionID == nil || *response.InteractionID != "int_echo_01" {
-		t.Fatalf("response interaction_id = %v", response.InteractionID)
+	if response.WorkID == nil || *response.WorkID != "work_echo_01" {
+		t.Fatalf("response work_id = %v", response.WorkID)
+	}
+	if response.Surface == nil || *response.Surface != "thread" {
+		t.Fatalf("response surface = %v", response.Surface)
+	}
+	if response.ThreadID == nil || *response.ThreadID != threadID {
+		t.Fatalf("response thread_id = %v", response.ThreadID)
 	}
 }
 
@@ -144,17 +162,20 @@ func echoPeer(request Envelope) (Envelope, error) {
 		return Envelope{}, err
 	}
 	return Envelope{
-		Protocol:      "agh-network/v0",
-		ID:            "msg_receipt_01",
-		Kind:          "receipt",
-		Channel:       request.Channel,
-		From:          "echo.demo",
-		To:            &request.From,
-		InteractionID: request.InteractionID,
-		ReplyTo:       &request.ID,
-		TS:            request.TS + 1,
-		Body:          encoded,
-		Proof:         nil,
+		Protocol: "agh-network/v0",
+		ID:       "msg_receipt_01",
+		Kind:     "receipt",
+		Channel:  request.Channel,
+		Surface:  request.Surface,
+		ThreadID: request.ThreadID,
+		DirectID: request.DirectID,
+		From:     "echo.demo",
+		To:       &request.From,
+		WorkID:   request.WorkID,
+		ReplyTo:  &request.ID,
+		TS:       request.TS + 1,
+		Body:     encoded,
+		Proof:    nil,
 	}, nil
 }
 
@@ -183,7 +204,8 @@ test core sender fixture:
   decode envelope JSON
   require protocol == "agh-network/v0"
   require kind == "say"
-  require to == null
+  require surface == "thread"
+  require thread_id is set
   require body.text is not blank
 
 test nats subject mapping:
@@ -191,24 +213,26 @@ test nats subject mapping:
   direct_subject("builders", "echo.demo") must use sha256(peer_id)[0:32]
 
 test local echo peer:
-  build direct request with interaction_id
+  build say request with surface=thread, thread_id, work_id
   pass request to echo_peer
   require response.kind == "receipt"
+  require response.surface == request.surface
+  require response.thread_id == request.thread_id
+  require response.work_id == request.work_id
   require response.reply_to == request.id
-  require response.interaction_id == request.interaction_id
 ```
 
 ## Add integration tests after fixtures pass
 
 Once fixture tests are stable, add integration checks in this order:
 
-| Layer           | What to test                                                  | Failure to catch                                                     |
-| --------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
-| JSON fixtures   | Required fields, kind-specific bodies, malformed body shapes. | Accepting invalid envelopes.                                         |
-| Subject mapping | Broadcast and direct subject derivation.                      | Routing to an alias or display name instead of canonical peer ID.    |
-| NATS loopback   | Publish, subscribe, request-reply, disconnect/reconnect.      | Confusing transport acknowledgement with protocol acceptance.        |
-| Trust fixture   | Known public key, fingerprint, signature, and tamper case.    | Verifying non-canonical bytes or skipping `from` fingerprint checks. |
-| Lifecycle       | `direct`, `receipt`, and `trace` transitions.                 | Closing interactions too early or accepting late terminal updates.   |
+| Layer           | What to test                                                                                                                                   | Failure to catch                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| JSON fixtures   | Required fields, kind-specific bodies, malformed body shapes, conversation surface pairing, rejection of `kind:"direct"` and `interaction_id`. | Accepting invalid envelopes or legacy fields.                                                        |
+| Subject mapping | Broadcast and direct subject derivation.                                                                                                       | Routing to an alias or display name instead of canonical peer ID.                                    |
+| NATS loopback   | Publish, subscribe, request-reply, disconnect/reconnect.                                                                                       | Confusing transport acknowledgement with protocol acceptance.                                        |
+| Trust fixture   | Known public key, fingerprint, signature, and tamper case.                                                                                     | Verifying non-canonical bytes or skipping `from` fingerprint checks.                                 |
+| Work lifecycle  | `say`, `capability`, `receipt`, and `trace` transitions sharing one `work_id` inside one conversation container.                               | Closing work too early, accepting cross-container continuations, or accepting late terminal updates. |
 
 Use the [worked Ed25519 example](/protocol/ed25519-jcs/#worked-example) as a golden trust fixture.
 It is deterministic and should fail if your verifier signs or verifies the wrong bytes.

@@ -24,27 +24,7 @@ func (g *GlobalDB) WriteNetworkAudit(ctx context.Context, entry store.NetworkAud
 		entry.Timestamp = g.now()
 	}
 
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO network_audit_log (
-			id, session_id, direction, kind, channel, peer_from, peer_to, message_id, reason, size, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		entry.ID,
-		entry.SessionID,
-		entry.Direction,
-		entry.Kind,
-		entry.Channel,
-		entry.PeerFrom,
-		store.NullableString(entry.PeerTo),
-		entry.MessageID,
-		store.NullableString(entry.Reason),
-		entry.Size,
-		store.FormatTimestamp(entry.Timestamp),
-	); err != nil {
-		return fmt.Errorf("store: insert network audit entry: %w", err)
-	}
-
-	return nil
+	return insertNetworkAuditWithExecutor(ctx, g.db, entry)
 }
 
 // ListNetworkAudit returns network audit rows filtered by the supplied options.
@@ -59,12 +39,19 @@ func (g *GlobalDB) ListNetworkAudit(
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, session_id, direction, kind, channel, peer_from, peer_to, message_id, reason, size, timestamp FROM network_audit_log`
+	sqlQuery := `SELECT
+		id, session_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
+		peer_from, peer_to, message_id, reason, size, timestamp
+	FROM network_audit_log`
 	where, args := store.BuildClauses(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("direction", query.Direction),
 		store.StringClause("kind", query.Kind),
 		store.StringClause("channel", query.Channel),
+		store.StringClause("surface", query.Surface),
+		store.StringClause("thread_id", query.ThreadID),
+		store.StringClause("direct_id", query.DirectID),
+		store.StringClause("work_id", query.WorkID),
 		store.StringClause("message_id", query.MessageID),
 		store.TimeClause("timestamp", ">=", query.Since),
 	)
@@ -98,6 +85,10 @@ func (g *GlobalDB) ListNetworkAudit(
 func scanNetworkAudit(scanner rowScanner) (store.NetworkAuditEntry, error) {
 	var (
 		entry        store.NetworkAuditEntry
+		surface      sql.NullString
+		threadID     sql.NullString
+		directID     sql.NullString
+		workID       sql.NullString
 		peerTo       sql.NullString
 		reason       sql.NullString
 		timestampRaw string
@@ -108,6 +99,10 @@ func scanNetworkAudit(scanner rowScanner) (store.NetworkAuditEntry, error) {
 		&entry.Direction,
 		&entry.Kind,
 		&entry.Channel,
+		&surface,
+		&threadID,
+		&directID,
+		&workID,
 		&entry.PeerFrom,
 		&peerTo,
 		&entry.MessageID,
@@ -118,6 +113,18 @@ func scanNetworkAudit(scanner rowScanner) (store.NetworkAuditEntry, error) {
 		return store.NetworkAuditEntry{}, fmt.Errorf("store: scan network audit: %w", err)
 	}
 
+	if value := store.NullString(surface); value != nil {
+		entry.Surface = *value
+	}
+	if value := store.NullString(threadID); value != nil {
+		entry.ThreadID = *value
+	}
+	if value := store.NullString(directID); value != nil {
+		entry.DirectID = *value
+	}
+	if value := store.NullString(workID); value != nil {
+		entry.WorkID = *value
+	}
 	if value := store.NullString(peerTo); value != nil {
 		entry.PeerTo = *value
 	}
@@ -131,4 +138,35 @@ func scanNetworkAudit(scanner rowScanner) (store.NetworkAuditEntry, error) {
 	}
 	entry.Timestamp = timestamp
 	return entry, nil
+}
+
+func insertNetworkAuditWithExecutor(ctx context.Context, exec networkSQLExecutor, entry store.NetworkAuditEntry) error {
+	if err := entry.Validate(); err != nil {
+		return fmt.Errorf("store: validate network audit entry: %w", err)
+	}
+	if _, err := exec.ExecContext(
+		ctx,
+		`INSERT INTO network_audit_log (
+			id, session_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
+			peer_from, peer_to, message_id, reason, size, timestamp
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		entry.ID,
+		entry.SessionID,
+		entry.Direction,
+		entry.Kind,
+		entry.Channel,
+		store.NullableString(entry.Surface),
+		store.NullableString(entry.ThreadID),
+		store.NullableString(entry.DirectID),
+		store.NullableString(entry.WorkID),
+		entry.PeerFrom,
+		store.NullableString(entry.PeerTo),
+		entry.MessageID,
+		store.NullableString(entry.Reason),
+		entry.Size,
+		store.FormatTimestamp(entry.Timestamp),
+	); err != nil {
+		return fmt.Errorf("store: insert network audit entry: %w", err)
+	}
+	return nil
 }

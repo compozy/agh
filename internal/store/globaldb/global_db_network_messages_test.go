@@ -21,11 +21,14 @@ func TestOpenGlobalDBCreatesNetworkTimelineLogSchema(t *testing.T) {
 		"message_id",
 		"session_id",
 		"channel",
+		"surface",
+		"thread_id",
+		"direct_id",
 		"direction",
 		"peer_from",
 		"peer_to",
 		"kind",
-		"interaction_id",
+		"work_id",
 		"reply_to",
 		"trace_id",
 		"causation_id",
@@ -49,6 +52,8 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 		MessageID:   "msg_say_01",
 		SessionID:   "sess-audit",
 		Channel:     "builders",
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    "thread_patch_42",
 		Direction:   "sent",
 		PeerFrom:    "coder.sess-audit",
 		Kind:        "say",
@@ -62,6 +67,8 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 	if err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{
 		MessageID:   "msg_say_01",
 		Channel:     "builders",
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    "thread_patch_42",
 		Direction:   "sent",
 		PeerFrom:    "coder.sess-audit",
 		Kind:        "say",
@@ -74,17 +81,19 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 		t.Fatalf("WriteNetworkMessage(duplicate) error = %v", err)
 	}
 	if err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{
-		MessageID:     "msg_say_02",
-		Channel:       "builders",
-		Direction:     "received",
-		PeerFrom:      "reviewer.sess-remote",
-		PeerTo:        "coder.sess-audit",
-		Kind:          "direct",
-		InteractionID: "ix-1",
-		Text:          "review in progress",
-		PreviewText:   "review in progress",
-		Body:          []byte(`{"text":"review in progress"}`),
-		Timestamp:     recordedAt.Add(time.Minute),
+		MessageID:   "msg_say_02",
+		Channel:     "builders",
+		Surface:     store.NetworkSurfaceDirect,
+		DirectID:    "direct_0123456789abcdef0123456789abcdef",
+		Direction:   "received",
+		PeerFrom:    "reviewer.sess-remote",
+		PeerTo:      "coder.sess-audit",
+		Kind:        "say",
+		WorkID:      "work_patch_42",
+		Text:        "review in progress",
+		PreviewText: "review in progress",
+		Body:        []byte(`{"text":"review in progress"}`),
+		Timestamp:   recordedAt.Add(time.Minute),
 	}); err != nil {
 		t.Fatalf("WriteNetworkMessage(second) error = %v", err)
 	}
@@ -117,8 +126,14 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 	if got, want := entries[1].PeerTo, "coder.sess-audit"; got != want {
 		t.Fatalf("entries[1].PeerTo = %q, want %q", got, want)
 	}
-	if got, want := entries[1].InteractionID, "ix-1"; got != want {
-		t.Fatalf("entries[1].InteractionID = %q, want %q", got, want)
+	if got, want := entries[1].Surface, store.NetworkSurfaceDirect; got != want {
+		t.Fatalf("entries[1].Surface = %q, want %q", got, want)
+	}
+	if got, want := entries[1].DirectID, "direct_0123456789abcdef0123456789abcdef"; got != want {
+		t.Fatalf("entries[1].DirectID = %q, want %q", got, want)
+	}
+	if got, want := entries[1].WorkID, "work_patch_42"; got != want {
+		t.Fatalf("entries[1].WorkID = %q, want %q", got, want)
 	}
 	if got, want := string(entries[1].Body), `{"text":"review in progress"}`; got != want {
 		t.Fatalf("entries[1].Body = %q, want %q", got, want)
@@ -135,6 +150,8 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		{
 			MessageID:   "msg-1",
 			Channel:     "builders",
+			Surface:     store.NetworkSurfaceThread,
+			ThreadID:    "thread_cursor",
 			Direction:   "sent",
 			PeerFrom:    "peer-a",
 			Kind:        "say",
@@ -145,6 +162,8 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		{
 			MessageID:   "msg-2a",
 			Channel:     "builders",
+			Surface:     store.NetworkSurfaceThread,
+			ThreadID:    "thread_cursor",
 			Direction:   "sent",
 			PeerFrom:    "peer-a",
 			Kind:        "say",
@@ -155,6 +174,8 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		{
 			MessageID:   "msg-2b",
 			Channel:     "builders",
+			Surface:     store.NetworkSurfaceThread,
+			ThreadID:    "thread_cursor",
 			Direction:   "sent",
 			PeerFrom:    "peer-a",
 			Kind:        "say",
@@ -165,10 +186,12 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		{
 			MessageID:   "msg-3",
 			Channel:     "builders",
+			Surface:     store.NetworkSurfaceDirect,
+			DirectID:    "direct_0123456789abcdef0123456789abcdef",
 			Direction:   "received",
 			PeerFrom:    "peer-b",
 			PeerTo:      "peer-a",
-			Kind:        "direct",
+			Kind:        "say",
 			PreviewText: "three",
 			Body:        []byte(`{"text":"three"}`),
 			Timestamp:   recordedAt.Add(2 * time.Minute),
@@ -176,10 +199,12 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		{
 			MessageID:   "msg-4",
 			Channel:     "retro",
+			Surface:     store.NetworkSurfaceDirect,
+			DirectID:    "direct_fedcba9876543210fedcba9876543210",
 			Direction:   "received",
 			PeerFrom:    "peer-c",
 			PeerTo:      "peer-d",
-			Kind:        "direct",
+			Kind:        "say",
 			PreviewText: "four",
 			Body:        []byte(`{"text":"four"}`),
 			Timestamp:   recordedAt.Add(3 * time.Minute),
@@ -330,11 +355,14 @@ func TestGlobalDBListNetworkMessagesWrapsTimestampParseFailures(t *testing.T) {
 			message_id,
 			session_id,
 			channel,
+			surface,
+			thread_id,
+			direct_id,
 			direction,
 			peer_from,
 			peer_to,
 			kind,
-			interaction_id,
+			work_id,
 			reply_to,
 			trace_id,
 			causation_id,
@@ -343,10 +371,13 @@ func TestGlobalDBListNetworkMessagesWrapsTimestampParseFailures(t *testing.T) {
 			preview_text,
 			body_json,
 			timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"msg_bad_timestamp",
 		nil,
 		"builders",
+		store.NetworkSurfaceThread,
+		"thread_bad_timestamp",
+		nil,
 		"sent",
 		"coder.sess-audit",
 		nil,
@@ -380,6 +411,8 @@ func TestGlobalDBWriteNetworkMessageRejectsNonCanonicalDirection(t *testing.T) {
 	err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{
 		MessageID:   "msg_bad_direction",
 		Channel:     "builders",
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    "thread_bad_direction",
 		Direction:   " sent ",
 		PeerFrom:    "coder.sess-audit",
 		Kind:        "say",

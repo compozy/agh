@@ -177,7 +177,7 @@ func TestHostAPIRejectsSensitiveParams(t *testing.T) {
 		host := aghsdk.NewHostAPI(transport, func() bool { return true })
 		err := host.Request(
 			context.Background(),
-			aghsdk.HostAPIMethodResourcesSnapshot,
+			aghsdk.HostAPIMethodNetworkSend,
 			map[string]any{"claim_token": "agh_claim_secret"},
 			&json.RawMessage{},
 		)

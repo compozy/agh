@@ -75,21 +75,24 @@ import (
 )
 
 type Envelope struct {
-	Protocol      string         `json:"protocol"`
-	ID            string         `json:"id"`
-	Kind          string         `json:"kind"`
-	Channel       string         `json:"channel"`
-	From          string         `json:"from"`
-	To            *string        `json:"to"`
-	InteractionID *string        `json:"interaction_id,omitempty"`
-	ReplyTo       *string        `json:"reply_to,omitempty"`
-	TraceID       *string        `json:"trace_id,omitempty"`
-	CausationID   *string        `json:"causation_id,omitempty"`
-	TS            int64          `json:"ts"`
-	ExpiresAt     *int64         `json:"expires_at,omitempty"`
-	Body          map[string]any `json:"body"`
-	Proof         map[string]any `json:"proof"`
-	Ext           map[string]any `json:"ext,omitempty"`
+	Protocol    string         `json:"protocol"`
+	ID          string         `json:"id"`
+	Kind        string         `json:"kind"`
+	Channel     string         `json:"channel"`
+	Surface     *string        `json:"surface,omitempty"`
+	ThreadID    *string        `json:"thread_id,omitempty"`
+	DirectID    *string        `json:"direct_id,omitempty"`
+	From        string         `json:"from"`
+	To          *string        `json:"to"`
+	WorkID      *string        `json:"work_id,omitempty"`
+	ReplyTo     *string        `json:"reply_to,omitempty"`
+	TraceID     *string        `json:"trace_id,omitempty"`
+	CausationID *string        `json:"causation_id,omitempty"`
+	TS          int64          `json:"ts"`
+	ExpiresAt   *int64         `json:"expires_at,omitempty"`
+	Body        map[string]any `json:"body"`
+	Proof       map[string]any `json:"proof"`
+	Ext         map[string]any `json:"ext,omitempty"`
 }
 
 func main() {
@@ -114,20 +117,37 @@ func main() {
 	channel := "builders"
 	senderID := "sender.demo"
 	echoID := "echo.demo"
+	threadID := "thread_nats_demo"
 
 	if err := subscribeEchoPeer(echo, channel, echoID); err != nil {
 		log.Fatalf("subscribe echo peer: %v", err)
 	}
 
-	broadcast := envelope("msg_say_01", "say", channel, senderID, nil, map[string]any{
-		"text":   "hello over NATS",
-		"intent": "demo",
+	greet := envelope("msg_greet_01", "greet", channel, senderID, nil, map[string]any{
+		"peer_card": map[string]any{
+			"peer_id":               senderID,
+			"display_name":          "Sender Demo",
+			"profiles_supported":    []string{"agh-network/v0"},
+			"capabilities":          []string{},
+			"artifacts_supported":   []string{},
+			"trust_modes_supported": []string{"unverified"},
+		},
 	})
-	if err := publish(sender, broadcastSubject(channel), broadcast); err != nil {
-		log.Fatalf("publish broadcast: %v", err)
+	if err := publish(sender, broadcastSubject(channel), greet); err != nil {
+		log.Fatalf("publish greet: %v", err)
 	}
 
-	interactionID := "int_whois_01"
+	threadSay := envelope("msg_say_01", "say", channel, senderID, nil, map[string]any{
+		"text":   "hello inside thread_nats_demo",
+		"intent": "demo",
+	})
+	threadSurface := "thread"
+	threadSay.Surface = &threadSurface
+	threadSay.ThreadID = &threadID
+	if err := publish(sender, broadcastSubject(channel), threadSay); err != nil {
+		log.Fatalf("publish thread say: %v", err)
+	}
+
 	request := envelope("msg_whois_01", "whois", channel, senderID, &echoID, map[string]any{
 		"type":  "request",
 		"query": echoID,
@@ -268,7 +288,10 @@ echo subscribes to:
   "agh.network.v0.builders.broadcast"
   "agh.network.v0.builders.peer." + route_token(echo_id)
 
-sender publishes say envelope to:
+sender publishes greet envelope to:
+  "agh.network.v0.builders.broadcast"
+
+sender publishes say envelope (surface=thread, thread_id=thread_nats_demo) to:
   "agh.network.v0.builders.broadcast"
 
 sender sends whois request envelope to:
@@ -277,7 +300,6 @@ sender sends whois request envelope to:
 echo receives whois request:
   build whois response envelope
   set response.reply_to = request.id
-  set response.interaction_id = request.interaction_id
   publish response to the NATS reply subject
 
 sender decodes response
@@ -289,12 +311,15 @@ assert response.reply_to == request.id
 The example uses NATS request-reply so the tutorial can run in one process. Do not treat the NATS
 reply subject as the protocol correlation model. AGH Network still relies on:
 
-| Envelope field   | Role                                      |
-| ---------------- | ----------------------------------------- |
-| `id`             | Unique message identity.                  |
-| `reply_to`       | Message being answered.                   |
-| `interaction_id` | Logical interaction thread.               |
-| `trace_id`       | Larger operational flow, when one exists. |
+| Envelope field | Role                                                        |
+| -------------- | ----------------------------------------------------------- |
+| `id`           | Unique message identity.                                    |
+| `reply_to`     | Message being answered.                                     |
+| `surface`      | Conversation container shape on conversation-bearing kinds. |
+| `thread_id`    | Public thread identifier when `surface == "thread"`.        |
+| `direct_id`    | Direct-room identifier when `surface == "direct"`.          |
+| `work_id`      | Lifecycle correlation inside one conversation container.    |
+| `trace_id`     | Larger operational flow, when one exists.                   |
 
 For v1 verified peers, the route token changes to the verified fingerprint and the prefix becomes
 `agh.network.v1`; see the [NATS binding reference](/protocol/nats/). The core envelope correlation
@@ -311,6 +336,7 @@ go run ./nats-transport.go
 Expected output:
 
 ```text
+echo saw broadcast greet from=sender.demo
 echo saw broadcast say from=sender.demo
 received whois reply_to=msg_whois_01 from=echo.demo
 ```

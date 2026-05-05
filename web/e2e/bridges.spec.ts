@@ -153,7 +153,7 @@ test("operator can edit bridge config, enable runtime, observe health updates, a
   );
   await browserArtifacts.captureScreenshot("bridge-test-delivery-result", appPage);
 
-  await appPage.getByRole("button", { name: "Close" }).click();
+  await bridgeUI.testDeliveryDialog.getByRole("button", { name: "Close" }).click();
   await expect(bridgeUI.testDeliveryDialog).toBeHidden();
 
   const ingress = await triggerBrowserBridgeIngress(runtime, seeded);

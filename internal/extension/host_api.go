@@ -21,6 +21,7 @@ import (
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	"github.com/pedronauck/agh/internal/frontmatter"
 	"github.com/pedronauck/agh/internal/memory"
+	"github.com/pedronauck/agh/internal/network"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
@@ -71,6 +72,8 @@ type HostAPIHandler struct {
 	sessions         hostAPISessionManager
 	automation       HostAPIAutomationManager
 	tasks            hostAPITaskManager
+	network          hostAPINetworkService
+	networkStore     store.NetworkConversationStore
 	memory           *memory.Store
 	observer         hostAPIObserver
 	skills           hostAPISkillsRegistry
@@ -127,6 +130,13 @@ type hostAPINetworkPromptSessionManager interface {
 
 type hostAPIPromptingSessionManager interface {
 	IsPrompting(id string) bool
+}
+
+type hostAPINetworkService interface {
+	Send(ctx context.Context, req network.SendRequest) (string, error)
+	ListPeers(ctx context.Context, channel string) ([]network.PeerInfo, error)
+	ListChannels(ctx context.Context) ([]network.ChannelInfo, error)
+	Status(ctx context.Context) (*network.Status, error)
 }
 
 type hostAPIObserver interface {
@@ -275,6 +285,20 @@ func WithHostAPIAutomationManager(manager HostAPIAutomationManager) HostAPIOptio
 func WithHostAPITaskManager(manager hostAPITaskManager) HostAPIOption {
 	return func(handler *HostAPIHandler) {
 		handler.tasks = manager
+	}
+}
+
+// WithHostAPINetworkService injects the network runtime used by network Host API methods.
+func WithHostAPINetworkService(service hostAPINetworkService) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.network = service
+	}
+}
+
+// WithHostAPINetworkStore injects the durable conversation store used by network Host API methods.
+func WithHostAPINetworkStore(networkStore store.NetworkConversationStore) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.networkStore = networkStore
 	}
 }
 
@@ -481,7 +505,7 @@ func normalizeHostAPIHandlerDefaults(handler *HostAPIHandler) {
 }
 
 func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc {
-	return map[string]hostAPIMethodFunc{
+	handlers := map[string]hostAPIMethodFunc{
 		"automation/jobs":                                              handler.handleAutomationJobs,
 		"automation/jobs/get":                                          handler.handleAutomationJobsGet,
 		"automation/jobs/create":                                       handler.handleAutomationJobsCreate,
@@ -555,6 +579,8 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		"sessions/stop":                                                handler.handleSessionsStop,
 		"skills/list":                                                  handler.handleSkillsList,
 	}
+	registerHostAPINetworkMethodHandlers(handler, handlers)
+	return handlers
 }
 
 // Handle dispatches one Host API request for the named extension.
@@ -1750,7 +1776,7 @@ func (h *HostAPIHandler) submitPrompt(
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
 	}
-	go drainAgentEvents(eventsCh)
+	drainAgentEvents(eventsCh)
 
 	events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{
 		AfterSequence: lastSequence,

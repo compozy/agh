@@ -95,6 +95,17 @@ const (
 	HostAPIMethodTasksRunsComplete           HostAPIMethod = "tasks/runs/complete"
 	HostAPIMethodTasksRunsFail               HostAPIMethod = "tasks/runs/fail"
 	HostAPIMethodTasksRunsCancel             HostAPIMethod = "tasks/runs/cancel"
+	HostAPIMethodNetworkStatus               HostAPIMethod = "network/status"
+	HostAPIMethodNetworkChannels             HostAPIMethod = "network/channels"
+	HostAPIMethodNetworkPeers                HostAPIMethod = "network/peers"
+	HostAPIMethodNetworkThreads              HostAPIMethod = "network/threads"
+	HostAPIMethodNetworkThreadGet            HostAPIMethod = "network/thread/get"
+	HostAPIMethodNetworkThreadMessages       HostAPIMethod = "network/thread/messages"
+	HostAPIMethodNetworkDirects              HostAPIMethod = "network/directs"
+	HostAPIMethodNetworkDirectResolve        HostAPIMethod = "network/direct/resolve"
+	HostAPIMethodNetworkDirectMessages       HostAPIMethod = "network/direct/messages"
+	HostAPIMethodNetworkWorkGet              HostAPIMethod = "network/work/get"
+	HostAPIMethodNetworkSend                 HostAPIMethod = "network/send"
 	HostAPIMethodResourcesList               HostAPIMethod = "resources/list"
 	HostAPIMethodResourcesGet                HostAPIMethod = "resources/get"
 	HostAPIMethodResourcesSnapshot           HostAPIMethod = "resources/snapshot"
@@ -106,7 +117,7 @@ const (
 
 // AllHostAPIMethods returns the canonical Host API method registry in wire order.
 func AllHostAPIMethods() []HostAPIMethod {
-	return []HostAPIMethod{
+	methods := []HostAPIMethod{
 		HostAPIMethodSessionsList,
 		HostAPIMethodSessionsCreate,
 		HostAPIMethodSessionsPrompt,
@@ -172,6 +183,9 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodTasksRunsComplete,
 		HostAPIMethodTasksRunsFail,
 		HostAPIMethodTasksRunsCancel,
+	}
+	methods = append(methods, networkHostAPIMethods()...)
+	methods = append(methods,
 		HostAPIMethodResourcesList,
 		HostAPIMethodResourcesGet,
 		HostAPIMethodResourcesSnapshot,
@@ -179,6 +193,23 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodBridgesMessagesIngest,
 		HostAPIMethodBridgesInstancesGet,
 		HostAPIMethodBridgesInstancesReportState,
+	)
+	return methods
+}
+
+func networkHostAPIMethods() []HostAPIMethod {
+	return []HostAPIMethod{
+		HostAPIMethodNetworkStatus,
+		HostAPIMethodNetworkChannels,
+		HostAPIMethodNetworkPeers,
+		HostAPIMethodNetworkThreads,
+		HostAPIMethodNetworkThreadGet,
+		HostAPIMethodNetworkThreadMessages,
+		HostAPIMethodNetworkDirects,
+		HostAPIMethodNetworkDirectResolve,
+		HostAPIMethodNetworkDirectMessages,
+		HostAPIMethodNetworkWorkGet,
+		HostAPIMethodNetworkSend,
 	}
 }
 

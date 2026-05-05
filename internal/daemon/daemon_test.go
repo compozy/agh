@@ -5516,6 +5516,64 @@ func (r *recordingRegistry) ListNetworkMessages(
 	return nil, nil
 }
 
+func (r *recordingRegistry) ResolveDirectRoom(
+	context.Context,
+	store.NetworkDirectRoomEntry,
+) (store.NetworkDirectRoomSummary, error) {
+	return store.NetworkDirectRoomSummary{}, nil
+}
+
+func (r *recordingRegistry) WriteConversationMessage(
+	context.Context,
+	store.NetworkConversationMessage,
+) (store.NetworkConversationWriteResult, error) {
+	return store.NetworkConversationWriteResult{}, nil
+}
+
+func (r *recordingRegistry) ListThreads(
+	context.Context,
+	string,
+	store.NetworkThreadQuery,
+) ([]store.NetworkThreadSummary, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) GetThread(
+	context.Context,
+	string,
+	string,
+) (store.NetworkThreadSummary, error) {
+	return store.NetworkThreadSummary{}, store.ErrNetworkConversationNotFound
+}
+
+func (r *recordingRegistry) ListDirectRooms(
+	context.Context,
+	string,
+	store.NetworkDirectRoomQuery,
+) ([]store.NetworkDirectRoomSummary, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) GetDirectRoom(
+	context.Context,
+	string,
+	string,
+) (store.NetworkDirectRoomSummary, error) {
+	return store.NetworkDirectRoomSummary{}, store.ErrNetworkConversationNotFound
+}
+
+func (r *recordingRegistry) ListConversationMessages(
+	context.Context,
+	store.NetworkConversationRef,
+	store.NetworkConversationMessageQuery,
+) ([]store.NetworkConversationMessage, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) GetWork(context.Context, string) (store.NetworkWorkEntry, error) {
+	return store.NetworkWorkEntry{}, store.ErrNetworkConversationNotFound
+}
+
 func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
 	return nil
 }
@@ -6565,6 +6623,48 @@ func (f *fakeHookRuntime) DispatchSessionHealthUpdateAfter(
 	_ context.Context,
 	payload hookspkg.SessionHealthUpdateAfterPayload,
 ) (hookspkg.SessionHealthUpdateAfterPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkThreadOpened(
+	_ context.Context,
+	payload hookspkg.NetworkThreadOpenedPayload,
+) (hookspkg.NetworkThreadOpenedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkDirectRoomOpened(
+	_ context.Context,
+	payload hookspkg.NetworkDirectRoomOpenedPayload,
+) (hookspkg.NetworkDirectRoomOpenedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkMessagePersisted(
+	_ context.Context,
+	payload hookspkg.NetworkMessagePersistedPayload,
+) (hookspkg.NetworkMessagePersistedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkWorkOpened(
+	_ context.Context,
+	payload hookspkg.NetworkWorkOpenedPayload,
+) (hookspkg.NetworkWorkOpenedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkWorkTransitioned(
+	_ context.Context,
+	payload hookspkg.NetworkWorkTransitionedPayload,
+) (hookspkg.NetworkWorkTransitionedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkWorkClosed(
+	_ context.Context,
+	payload hookspkg.NetworkWorkClosedPayload,
+) (hookspkg.NetworkWorkClosedPayload, error) {
 	return payload, nil
 }
 

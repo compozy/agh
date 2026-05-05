@@ -890,7 +890,8 @@ func (o hooksOverlay) Apply(dst *HooksConfig) error {
 		}
 	}
 
-	for idx, raw := range o.Declarations {
+	for idx := range o.Declarations {
+		raw := &o.Declarations[idx]
 		decl, err := raw.toHookDecl(hookspkg.HookSourceConfig, "")
 		if err != nil {
 			return fmt.Errorf("hooks.declarations[%d]: %w", idx, err)

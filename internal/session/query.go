@@ -160,24 +160,23 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 		return nil, nil, errors.New("session: session id is required")
 	}
 
-	if session, ok := m.Get(target); ok {
-		recorder := session.recorderHandle()
-		if recorder != nil {
-			return recorder, func() error { return nil }, nil
-		}
-		waited, err := m.waitForSessionFinalization(ctx, target)
-		if err != nil {
-			return nil, nil, fmt.Errorf("session: wait for finalization for %q: %w", target, err)
-		}
-		if !waited {
-			return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
-		}
+	waited, err := m.waitForSessionFinalization(ctx, target)
+	if err != nil {
+		return nil, nil, fmt.Errorf("session: wait for finalization for %q: %w", target, err)
+	}
+	if !waited {
 		if session, ok := m.Get(target); ok {
 			recorder := session.recorderHandle()
-			if recorder == nil {
+			if recorder != nil {
+				return recorder, func() error { return nil }, nil
+			}
+			waited, err = m.waitForSessionFinalization(ctx, target)
+			if err != nil {
+				return nil, nil, fmt.Errorf("session: wait for finalization for %q: %w", target, err)
+			}
+			if !waited {
 				return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
 			}
-			return recorder, func() error { return nil }, nil
 		}
 	}
 

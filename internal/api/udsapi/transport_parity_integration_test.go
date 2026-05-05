@@ -429,13 +429,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 		t,
 		ctx,
 		"waitForHTTPObserveEvents",
-		[]string{
-			"harness.context_resolved",
-			"harness.section_selected",
-			"harness.context_resolved",
-			"harness.augmenter_applied",
-			"harness.augmenter_applied",
-		},
+		wantTransportObserveHarnessTypes(),
 		func(fetchCtx context.Context) ([]aghcontract.ObserveEventPayload, error) {
 			var response aghcontract.ObserveEventsResponse
 			err := runtimeHarness.HTTPJSON(
@@ -452,13 +446,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 		t,
 		ctx,
 		"waitForUDSObserveEvents",
-		[]string{
-			"harness.context_resolved",
-			"harness.section_selected",
-			"harness.context_resolved",
-			"harness.augmenter_applied",
-			"harness.augmenter_applied",
-		},
+		wantTransportObserveHarnessTypes(),
 		func(fetchCtx context.Context) ([]aghcontract.ObserveEventPayload, error) {
 			var response aghcontract.ObserveEventsResponse
 			err := runtimeHarness.UDSJSON(
@@ -475,13 +463,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	if !reflect.DeepEqual(httpHarnessEvents, udsHarnessEvents) {
 		t.Fatalf("HTTP harness events = %#v, want UDS parity %#v", httpHarnessEvents, udsHarnessEvents)
 	}
-	if got, want := observeEventTypes(httpHarnessEvents), []string{
-		"harness.context_resolved",
-		"harness.section_selected",
-		"harness.context_resolved",
-		"harness.augmenter_applied",
-		"harness.augmenter_applied",
-	}; !slices.Equal(got, want) {
+	if got, want := observeEventTypes(httpHarnessEvents), wantTransportObserveHarnessTypes(); !slices.Equal(got, want) {
 		t.Fatalf("harness event types = %#v, want %#v", got, want)
 	}
 	if !strings.Contains(httpHarnessEvents[0].Summary, "surface=startup") {
@@ -495,6 +477,12 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	}
 	if !strings.Contains(httpHarnessEvents[3].Summary, "augmenter=durable_memory") {
 		t.Fatalf("augmenter summary = %q, want durable memory metadata", httpHarnessEvents[3].Summary)
+	}
+	if !strings.Contains(httpHarnessEvents[4].Summary, "augmenter=skills") {
+		t.Fatalf("augmenter summary = %q, want skills metadata", httpHarnessEvents[4].Summary)
+	}
+	if !strings.Contains(httpHarnessEvents[5].Summary, "augmenter=situation") {
+		t.Fatalf("augmenter summary = %q, want situation metadata", httpHarnessEvents[5].Summary)
 	}
 }
 
@@ -993,6 +981,17 @@ func waitForTransportObserveEvents(
 			)
 		case <-ticker.C:
 		}
+	}
+}
+
+func wantTransportObserveHarnessTypes() []string {
+	return []string{
+		"harness.context_resolved",
+		"harness.section_selected",
+		"harness.context_resolved",
+		"harness.augmenter_applied",
+		"harness.augmenter_applied",
+		"harness.augmenter_applied",
 	}
 }
 

@@ -135,29 +135,44 @@ func (o HookRunOutcome) Validate() error {
 	}
 }
 
+// NetworkMatcher narrows network observation hooks by low-cardinality fields.
+type NetworkMatcher struct {
+	Channel   string `json:"channel,omitempty"    yaml:"channel,omitempty"`
+	Surface   string `json:"surface,omitempty"    yaml:"surface,omitempty"`
+	Kind      string `json:"kind,omitempty"       yaml:"kind,omitempty"`
+	Direction string `json:"direction,omitempty"  yaml:"direction,omitempty"`
+	WorkState string `json:"work_state,omitempty" yaml:"work_state,omitempty"`
+}
+
+// CompactionMatcher narrows context-compaction hooks by compaction metadata.
+type CompactionMatcher struct {
+	Reason   string `json:"compaction_reason,omitempty"   yaml:"compaction_reason,omitempty"`
+	Strategy string `json:"compaction_strategy,omitempty" yaml:"compaction_strategy,omitempty"`
+}
+
 // HookMatcher narrows when a hook is eligible to run.
 type HookMatcher struct {
-	AgentName          string           `json:"agent_name,omitempty"          yaml:"agent_name,omitempty"`
-	AgentType          string           `json:"agent_type,omitempty"          yaml:"agent_type,omitempty"`
-	WorkspaceID        string           `json:"workspace_id,omitempty"        yaml:"workspace_id,omitempty"`
-	WorkspaceRoot      string           `json:"workspace_root,omitempty"      yaml:"workspace_root,omitempty"`
-	SessionType        string           `json:"session_type,omitempty"        yaml:"session_type,omitempty"`
-	SandboxID          string           `json:"sandbox_id,omitempty"          yaml:"sandbox_id,omitempty"`
-	SandboxBackend     string           `json:"sandbox_backend,omitempty"     yaml:"sandbox_backend,omitempty"`
-	SandboxProfile     string           `json:"sandbox_profile,omitempty"     yaml:"sandbox_profile,omitempty"`
-	SyncDirection      string           `json:"sync_direction,omitempty"      yaml:"sync_direction,omitempty"`
-	InputClass         string           `json:"input_class,omitempty"         yaml:"input_class,omitempty"`
-	ACPEventType       string           `json:"acp_event_type,omitempty"      yaml:"acp_event_type,omitempty"`
-	TurnID             string           `json:"turn_id,omitempty"             yaml:"turn_id,omitempty"`
-	ToolID             string           `json:"tool_id,omitempty"             yaml:"tool_id,omitempty"`
-	ToolName           string           `json:"tool_name,omitempty"           yaml:"tool_name,omitempty"`
-	ToolReadOnly       *bool            `json:"tool_read_only,omitempty"      yaml:"tool_read_only,omitempty"`
-	DecisionClass      string           `json:"decision_class,omitempty"      yaml:"decision_class,omitempty"`
-	MessageRole        string           `json:"message_role,omitempty"        yaml:"message_role,omitempty"`
-	MessageDeltaType   string           `json:"message_delta_type,omitempty"  yaml:"message_delta_type,omitempty"`
-	CompactionReason   string           `json:"compaction_reason,omitempty"   yaml:"compaction_reason,omitempty"`
-	CompactionStrategy string           `json:"compaction_strategy,omitempty" yaml:"compaction_strategy,omitempty"`
-	Autonomy           *AutonomyMatcher `json:"autonomy,omitempty"            yaml:"autonomy,omitempty"`
+	AgentName          string `json:"agent_name,omitempty"         yaml:"agent_name,omitempty"`
+	AgentType          string `json:"agent_type,omitempty"         yaml:"agent_type,omitempty"`
+	WorkspaceID        string `json:"workspace_id,omitempty"       yaml:"workspace_id,omitempty"`
+	WorkspaceRoot      string `json:"workspace_root,omitempty"     yaml:"workspace_root,omitempty"`
+	SessionType        string `json:"session_type,omitempty"       yaml:"session_type,omitempty"`
+	SandboxID          string `json:"sandbox_id,omitempty"         yaml:"sandbox_id,omitempty"`
+	SandboxBackend     string `json:"sandbox_backend,omitempty"    yaml:"sandbox_backend,omitempty"`
+	SandboxProfile     string `json:"sandbox_profile,omitempty"    yaml:"sandbox_profile,omitempty"`
+	SyncDirection      string `json:"sync_direction,omitempty"     yaml:"sync_direction,omitempty"`
+	InputClass         string `json:"input_class,omitempty"        yaml:"input_class,omitempty"`
+	ACPEventType       string `json:"acp_event_type,omitempty"     yaml:"acp_event_type,omitempty"`
+	TurnID             string `json:"turn_id,omitempty"            yaml:"turn_id,omitempty"`
+	ToolID             string `json:"tool_id,omitempty"            yaml:"tool_id,omitempty"`
+	ToolName           string `json:"tool_name,omitempty"          yaml:"tool_name,omitempty"`
+	ToolReadOnly       *bool  `json:"tool_read_only,omitempty"     yaml:"tool_read_only,omitempty"`
+	DecisionClass      string `json:"decision_class,omitempty"     yaml:"decision_class,omitempty"`
+	MessageRole        string `json:"message_role,omitempty"       yaml:"message_role,omitempty"`
+	MessageDeltaType   string `json:"message_delta_type,omitempty" yaml:"message_delta_type,omitempty"`
+	*NetworkMatcher    `                                                     yaml:",inline,omitempty"`
+	*CompactionMatcher `                                                     yaml:",inline,omitempty"`
+	Autonomy           *AutonomyMatcher `json:"autonomy,omitempty"           yaml:"autonomy,omitempty"`
 }
 
 // AutonomyMatcher narrows autonomy hooks by task, coordinator, and spawn correlation fields.

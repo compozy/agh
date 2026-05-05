@@ -169,7 +169,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(first) error = %v", err)
 	}
-	if got, want := len(firstRecords), 16; got != want {
+	if got, want := len(firstRecords), 17; got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
 	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
@@ -223,6 +223,9 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if firstRecords[15].Version != 16 || firstRecords[15].Name != "rename_actor_ref_columns_to_actor_id" {
 		t.Fatalf("firstRecords[15] = %#v, want rename_actor_ref_columns_to_actor_id v16", firstRecords[15])
 	}
+	if firstRecords[16].Version != 17 || firstRecords[16].Name != "rebuild_network_conversation_containers" {
+		t.Fatalf("firstRecords[16] = %#v, want rebuild_network_conversation_containers v17", firstRecords[16])
+	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
 	}
@@ -240,7 +243,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(second) error = %v", err)
 	}
-	if got, want := len(secondRecords), 16; got != want {
+	if got, want := len(secondRecords), 17; got != want {
 		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 	}
 	for i := range firstRecords {

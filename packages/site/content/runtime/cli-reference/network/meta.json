@@ -1,4 +1,4 @@
 {
     "title": "Network",
-    "pages": ["index", "channels", "inbox", "peers", "send", "status"]
+    "pages": ["index", "channels", "inbox", "peers", "send", "status", "directs", "threads", "work"]
 }

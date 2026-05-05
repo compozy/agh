@@ -224,6 +224,12 @@ func NetworkStatusPayloadFromStatus(status *network.Status) *contract.NetworkSta
 		MessagesDelivered:    status.MessagesDelivered,
 		WorkflowTaggedEvents: status.WorkflowTaggedEvents,
 		HandoffTaggedEvents:  status.HandoffTaggedEvents,
+		OpenThreads:          status.OpenThreads,
+		OpenDirectRooms:      status.OpenDirectRooms,
+		OpenWorkItems:        status.OpenWorkItems,
+		ConversationMessages: status.ConversationMessages,
+		WorkTransitions:      status.WorkTransitions,
+		DirectResolves:       status.DirectResolves,
 		LastDisconnect:       strings.TrimSpace(status.LastDisconnect),
 		KindMetrics:          kindMetrics,
 	}
@@ -249,6 +255,9 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 	if err := validateNetworkSendNoRawClaimToken(req); err != nil {
 		return network.SendRequest{}, err
 	}
+	if err := validateNetworkSendConversation(req); err != nil {
+		return network.SendRequest{}, err
+	}
 
 	sendReq := network.SendRequest{
 		SessionID: strings.TrimSpace(req.SessionID),
@@ -261,8 +270,18 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 	if to := strings.TrimSpace(req.To); to != "" {
 		sendReq.To = ptrString(to)
 	}
-	if interactionID := strings.TrimSpace(req.InteractionID); interactionID != "" {
-		sendReq.InteractionID = ptrString(interactionID)
+	if surface := strings.TrimSpace(req.Surface); surface != "" {
+		networkSurface := network.Surface(surface)
+		sendReq.Surface = &networkSurface
+	}
+	if threadID := strings.TrimSpace(req.ThreadID); threadID != "" {
+		sendReq.ThreadID = ptrString(threadID)
+	}
+	if directID := strings.TrimSpace(req.DirectID); directID != "" {
+		sendReq.DirectID = ptrString(directID)
+	}
+	if workID := strings.TrimSpace(req.WorkID); workID != "" {
+		sendReq.WorkID = ptrString(workID)
 	}
 	if replyTo := strings.TrimSpace(req.ReplyTo); replyTo != "" {
 		sendReq.ReplyTo = ptrString(replyTo)
@@ -278,6 +297,55 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 	}
 
 	return sendReq, nil
+}
+
+func validateNetworkSendConversation(req contract.NetworkSendRequest) error {
+	kind := network.Kind(strings.TrimSpace(req.Kind))
+	if err := kind.Validate(); err != nil {
+		return NewNetworkValidationError(err)
+	}
+
+	surface := strings.TrimSpace(req.Surface)
+	threadID := strings.TrimSpace(req.ThreadID)
+	directID := strings.TrimSpace(req.DirectID)
+	workID := strings.TrimSpace(req.WorkID)
+	if kind == network.KindGreet || kind == network.KindWhois {
+		if surface != "" || threadID != "" || directID != "" || workID != "" {
+			return NewNetworkValidationError(fmt.Errorf(
+				"%w: %s cannot carry conversation or work fields",
+				network.ErrInvalidField,
+				kind,
+			))
+		}
+		return nil
+	}
+
+	if surface == "" {
+		if threadID != "" || directID != "" {
+			return NewNetworkValidationError(fmt.Errorf("%w: surface is required", network.ErrMissingField))
+		}
+		return NewNetworkValidationError(fmt.Errorf("%w: surface is required", network.ErrMissingField))
+	}
+	ref := network.ConversationRef{
+		Channel:  strings.TrimSpace(req.Channel),
+		Surface:  network.Surface(surface),
+		ThreadID: threadID,
+		DirectID: directID,
+	}
+	if err := ref.Validate(); err != nil {
+		return NewNetworkValidationError(err)
+	}
+	if workID != "" {
+		if err := network.ValidateWorkID(workID); err != nil {
+			return NewNetworkValidationError(err)
+		}
+	}
+	if kind == network.KindCapability || kind == network.KindReceipt || kind == network.KindTrace {
+		if workID == "" {
+			return NewNetworkValidationError(fmt.Errorf("%w: work_id is required", network.ErrMissingField))
+		}
+	}
+	return nil
 }
 
 // validateNetworkSendNoRawClaimToken keeps raw claim_token fields out of client-controlled network payloads.
@@ -303,17 +371,20 @@ func validateNetworkSendNoRawClaimToken(req contract.NetworkSendRequest) error {
 // from the original request plus the assigned message id.
 func NetworkSendPayloadFromRequest(id string, req contract.NetworkSendRequest) contract.NetworkSendPayload {
 	return contract.NetworkSendPayload{
-		ID:            strings.TrimSpace(id),
-		SessionID:     strings.TrimSpace(req.SessionID),
-		Channel:       strings.TrimSpace(req.Channel),
-		Kind:          strings.TrimSpace(req.Kind),
-		To:            strings.TrimSpace(req.To),
-		InteractionID: strings.TrimSpace(req.InteractionID),
-		ReplyTo:       strings.TrimSpace(req.ReplyTo),
-		TraceID:       strings.TrimSpace(req.TraceID),
-		CausationID:   strings.TrimSpace(req.CausationID),
-		ExpiresAt:     cloneInt64Ptr(req.ExpiresAt),
-		Ext:           cloneRawMap(req.Ext),
+		ID:          strings.TrimSpace(id),
+		SessionID:   strings.TrimSpace(req.SessionID),
+		Channel:     strings.TrimSpace(req.Channel),
+		Surface:     strings.TrimSpace(req.Surface),
+		ThreadID:    strings.TrimSpace(req.ThreadID),
+		DirectID:    strings.TrimSpace(req.DirectID),
+		Kind:        strings.TrimSpace(req.Kind),
+		To:          strings.TrimSpace(req.To),
+		WorkID:      strings.TrimSpace(req.WorkID),
+		ReplyTo:     strings.TrimSpace(req.ReplyTo),
+		TraceID:     strings.TrimSpace(req.TraceID),
+		CausationID: strings.TrimSpace(req.CausationID),
+		ExpiresAt:   cloneInt64Ptr(req.ExpiresAt),
+		Ext:         cloneRawMap(req.Ext),
 	}
 }
 
@@ -569,22 +640,33 @@ func NetworkEnvelopePayloadsFromEnvelopes(envelopes []network.Envelope) []contra
 // NetworkEnvelopePayloadFromEnvelope converts one surfaced envelope into the shared payload.
 func NetworkEnvelopePayloadFromEnvelope(envelope network.Envelope) contract.NetworkEnvelopePayload {
 	return contract.NetworkEnvelopePayload{
-		Protocol:      envelope.Protocol,
-		ID:            envelope.ID,
-		Kind:          string(envelope.Kind),
-		Channel:       envelope.Channel,
-		From:          envelope.From,
-		To:            cloneStringPtr(envelope.To),
-		InteractionID: cloneStringPtr(envelope.InteractionID),
-		ReplyTo:       cloneStringPtr(envelope.ReplyTo),
-		TraceID:       cloneStringPtr(envelope.TraceID),
-		CausationID:   cloneStringPtr(envelope.CausationID),
-		TS:            envelope.TS,
-		ExpiresAt:     cloneInt64Ptr(envelope.ExpiresAt),
-		Body:          cloneRawMessage(envelope.Body),
-		Proof:         cloneProofPtr(envelope.Proof),
-		Ext:           cloneRawMap(envelope.Ext),
+		Protocol:    envelope.Protocol,
+		ID:          envelope.ID,
+		Kind:        string(envelope.Kind),
+		Channel:     envelope.Channel,
+		Surface:     cloneSurfacePtr(envelope.Surface),
+		ThreadID:    cloneStringPtr(envelope.ThreadID),
+		DirectID:    cloneStringPtr(envelope.DirectID),
+		From:        envelope.From,
+		To:          cloneStringPtr(envelope.To),
+		WorkID:      cloneStringPtr(envelope.WorkID),
+		ReplyTo:     cloneStringPtr(envelope.ReplyTo),
+		TraceID:     cloneStringPtr(envelope.TraceID),
+		CausationID: cloneStringPtr(envelope.CausationID),
+		TS:          envelope.TS,
+		ExpiresAt:   cloneInt64Ptr(envelope.ExpiresAt),
+		Body:        cloneRawMessage(envelope.Body),
+		Proof:       cloneProofPtr(envelope.Proof),
+		Ext:         cloneRawMap(envelope.Ext),
 	}
+}
+
+func cloneSurfacePtr(value *network.Surface) *string {
+	if value == nil {
+		return nil
+	}
+	copyValue := strings.TrimSpace(string(*value))
+	return &copyValue
 }
 
 func cloneStringPtr(value *string) *string {

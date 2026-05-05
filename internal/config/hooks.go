@@ -54,6 +54,11 @@ type parsedHookMatcher struct {
 	DecisionClass      string `yaml:"decision_class,omitempty"      toml:"decision_class,omitempty"`
 	MessageRole        string `yaml:"message_role,omitempty"        toml:"message_role,omitempty"`
 	MessageDeltaType   string `yaml:"message_delta_type,omitempty"  toml:"message_delta_type,omitempty"`
+	Channel            string `yaml:"channel,omitempty"             toml:"channel,omitempty"`
+	Surface            string `yaml:"surface,omitempty"             toml:"surface,omitempty"`
+	Kind               string `yaml:"kind,omitempty"                toml:"kind,omitempty"`
+	Direction          string `yaml:"direction,omitempty"           toml:"direction,omitempty"`
+	WorkState          string `yaml:"work_state,omitempty"          toml:"work_state,omitempty"`
 	CompactionReason   string `yaml:"compaction_reason,omitempty"   toml:"compaction_reason,omitempty"`
 	CompactionStrategy string `yaml:"compaction_strategy,omitempty" toml:"compaction_strategy,omitempty"`
 }
@@ -119,7 +124,7 @@ func (c HooksConfig) Validate() error {
 	return nil
 }
 
-func (d parsedHookDeclaration) toHookDecl(
+func (d *parsedHookDeclaration) toHookDecl(
 	source hookspkg.HookSource,
 	scopeAgentName string,
 ) (hookspkg.HookDecl, error) {
@@ -160,7 +165,7 @@ func (d parsedHookDeclaration) toHookDecl(
 	return decl, nil
 }
 
-func (d parsedHookDeclaration) resolveExecutor() (
+func (d *parsedHookDeclaration) resolveExecutor() (
 	string,
 	[]string,
 	map[string]string,
@@ -194,21 +199,30 @@ func (d parsedHookDeclaration) resolveExecutor() (
 
 func (m parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookMatcher, error) {
 	matcher := hookspkg.HookMatcher{
-		AgentName:          strings.TrimSpace(m.AgentName),
-		AgentType:          strings.TrimSpace(m.AgentType),
-		WorkspaceID:        strings.TrimSpace(m.WorkspaceID),
-		WorkspaceRoot:      strings.TrimSpace(m.WorkspaceRoot),
-		SessionType:        strings.TrimSpace(m.SessionType),
-		InputClass:         strings.TrimSpace(m.InputClass),
-		ACPEventType:       strings.TrimSpace(m.ACPEventType),
-		TurnID:             strings.TrimSpace(m.TurnID),
-		ToolID:             strings.TrimSpace(m.ToolID),
-		ToolName:           strings.TrimSpace(m.ToolName),
-		DecisionClass:      strings.TrimSpace(m.DecisionClass),
-		MessageRole:        strings.TrimSpace(m.MessageRole),
-		MessageDeltaType:   strings.TrimSpace(m.MessageDeltaType),
-		CompactionReason:   strings.TrimSpace(m.CompactionReason),
-		CompactionStrategy: strings.TrimSpace(m.CompactionStrategy),
+		AgentName:        strings.TrimSpace(m.AgentName),
+		AgentType:        strings.TrimSpace(m.AgentType),
+		WorkspaceID:      strings.TrimSpace(m.WorkspaceID),
+		WorkspaceRoot:    strings.TrimSpace(m.WorkspaceRoot),
+		SessionType:      strings.TrimSpace(m.SessionType),
+		InputClass:       strings.TrimSpace(m.InputClass),
+		ACPEventType:     strings.TrimSpace(m.ACPEventType),
+		TurnID:           strings.TrimSpace(m.TurnID),
+		ToolID:           strings.TrimSpace(m.ToolID),
+		ToolName:         strings.TrimSpace(m.ToolName),
+		DecisionClass:    strings.TrimSpace(m.DecisionClass),
+		MessageRole:      strings.TrimSpace(m.MessageRole),
+		MessageDeltaType: strings.TrimSpace(m.MessageDeltaType),
+	}
+	matcher.NetworkMatcher = &hookspkg.NetworkMatcher{
+		Channel:   strings.TrimSpace(m.Channel),
+		Surface:   strings.TrimSpace(m.Surface),
+		Kind:      strings.TrimSpace(m.Kind),
+		Direction: strings.TrimSpace(m.Direction),
+		WorkState: strings.TrimSpace(m.WorkState),
+	}
+	matcher.CompactionMatcher = &hookspkg.CompactionMatcher{
+		Reason:   strings.TrimSpace(m.CompactionReason),
+		Strategy: strings.TrimSpace(m.CompactionStrategy),
 	}
 	if m.ToolReadOnly != nil {
 		value := *m.ToolReadOnly

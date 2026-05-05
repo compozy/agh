@@ -474,6 +474,25 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 	})
 
+	t.Run("Should wait for finalization before returning active recorder", func(t *testing.T) {
+		h := newHarness(t)
+		session := createSession(t, h)
+		done := make(chan struct{})
+		h.manager.mu.Lock()
+		h.manager.finalizing[session.ID] = done
+		h.manager.mu.Unlock()
+		t.Cleanup(func() {
+			h.manager.finishFinalization(session.ID)
+			_ = h.manager.Stop(testutil.Context(t), session.ID)
+		})
+
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
+		if _, _, err := h.manager.openQueryRecorder(ctx, session.ID); !errors.Is(err, context.Canceled) {
+			t.Fatalf("openQueryRecorder(finalizing canceled ctx) error = %v, want context.Canceled", err)
+		}
+	})
+
 	t.Run("finalizing active session reopens stored events after recorder closes", func(t *testing.T) {
 		h := newHarness(t)
 		session := createSession(t, h)

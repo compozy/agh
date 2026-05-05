@@ -362,6 +362,7 @@ type nativeToolAvailabilitySet struct {
 	registry         toolspkg.NativeAvailabilityFunc
 	skills           toolspkg.NativeAvailabilityFunc
 	network          toolspkg.NativeAvailabilityFunc
+	networkRead      toolspkg.NativeAvailabilityFunc
 	sessions         toolspkg.NativeAvailabilityFunc
 	sessionHealth    toolspkg.NativeAvailabilityFunc
 	heartbeatStatus  toolspkg.NativeAvailabilityFunc
@@ -385,7 +386,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	bindings := make(map[toolspkg.ToolID]nativeToolBinding, 32)
 	addNativeToolBindings(bindings, n.registryToolBindings(availability.registry))
 	addNativeToolBindings(bindings, n.skillToolBindings(availability.skills))
-	addNativeToolBindings(bindings, n.networkToolBindings(availability.network))
+	addNativeToolBindings(bindings, n.networkToolBindings(availability.network, availability.networkRead))
 	addNativeToolBindings(bindings, n.sessionToolBindings(availability.sessions))
 	addNativeToolBindings(
 		bindings,
@@ -417,6 +418,9 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		registry: n.registryAvailability(),
 		skills:   n.dependencyAvailability(func() bool { return n.deps.Skills != nil }),
 		network:  n.dependencyAvailability(func() bool { return n.deps.Network != nil }),
+		networkRead: n.dependencyAvailability(func() bool {
+			return n.deps.Network != nil && n.deps.NetworkStore != nil
+		}),
 		sessions: n.dependencyAvailability(func() bool { return n.deps.Sessions != nil }),
 		sessionHealth: n.dependencyAvailability(func() bool {
 			return n.deps.SessionHealth != nil
@@ -510,6 +514,7 @@ func (n *daemonNativeTools) skillToolBindings(
 
 func (n *daemonNativeTools) networkToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
+	readAvailability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDNetworkStatus: {
@@ -531,6 +536,30 @@ func (n *daemonNativeTools) networkToolBindings(
 		toolspkg.ToolIDNetworkSend: {
 			call:         n.networkSend,
 			availability: availability,
+		},
+		toolspkg.ToolIDNetworkThreads: {
+			call:         n.networkThreads,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkThreadMessages: {
+			call:         n.networkThreadMessages,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkDirects: {
+			call:         n.networkDirects,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkDirectResolve: {
+			call:         n.networkDirectResolve,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkDirectMessages: {
+			call:         n.networkDirectMessages,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkWork: {
+			call:         n.networkWork,
+			availability: readAvailability,
 		},
 	}
 }
@@ -976,7 +1005,7 @@ func (n *daemonNativeTools) networkPeers(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"peers": peers}, fmt.Sprintf("%d peers", len(peers)))
+	return structuredNetworkResult(map[string]any{"peers": peers}, fmt.Sprintf("%d peers", len(peers)))
 }
 
 func (n *daemonNativeTools) networkStatus(
@@ -996,7 +1025,7 @@ func (n *daemonNativeTools) networkStatus(
 	if payload == nil {
 		return toolspkg.ToolResult{}, errors.New("daemon: network status is required")
 	}
-	return structuredResult(map[string]any{"network": payload}, payload.Status)
+	return structuredNetworkResult(map[string]any{"network": payload}, payload.Status)
 }
 
 func (n *daemonNativeTools) networkChannels(
@@ -1026,7 +1055,7 @@ func (n *daemonNativeTools) networkChannels(
 		channels = payload
 		count = len(payload)
 	}
-	return structuredResult(map[string]any{"channels": channels}, fmt.Sprintf("%d channels", count))
+	return structuredNetworkResult(map[string]any{"channels": channels}, fmt.Sprintf("%d channels", count))
 }
 
 func (n *daemonNativeTools) networkInbox(
@@ -1047,7 +1076,7 @@ func (n *daemonNativeTools) networkInbox(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.NetworkEnvelopePayloadsFromEnvelopes(messages)
-	return structuredResult(map[string]any{"messages": payload}, fmt.Sprintf("%d messages", len(payload)))
+	return structuredNetworkResult(map[string]any{"messages": payload}, fmt.Sprintf("%d messages", len(payload)))
 }
 
 func (n *daemonNativeTools) networkSend(
@@ -1061,18 +1090,21 @@ func (n *daemonNativeTools) networkSend(
 	}
 	sessionID := firstNonEmpty(input.SessionID, req.SessionID, scope.SessionID)
 	sendReq, err := core.NetworkSendRequestFromPayload(contract.NetworkSendRequest{
-		SessionID:     sessionID,
-		Channel:       strings.TrimSpace(input.Channel),
-		Kind:          strings.TrimSpace(input.Kind),
-		To:            strings.TrimSpace(input.To),
-		Body:          cloneJSON(input.Body),
-		InteractionID: strings.TrimSpace(input.InteractionID),
-		ReplyTo:       strings.TrimSpace(input.ReplyTo),
-		TraceID:       strings.TrimSpace(input.TraceID),
-		CausationID:   strings.TrimSpace(input.CausationID),
-		ExpiresAt:     input.ExpiresAt,
-		ID:            strings.TrimSpace(input.ID),
-		Ext:           map[string]json.RawMessage(cloneExtensionMap(input.Ext)),
+		SessionID:   sessionID,
+		Channel:     strings.TrimSpace(input.Channel),
+		Surface:     strings.TrimSpace(input.Surface),
+		ThreadID:    strings.TrimSpace(input.ThreadID),
+		DirectID:    strings.TrimSpace(input.DirectID),
+		Kind:        strings.TrimSpace(input.Kind),
+		To:          strings.TrimSpace(input.To),
+		Body:        cloneJSON(input.Body),
+		WorkID:      strings.TrimSpace(input.WorkID),
+		ReplyTo:     strings.TrimSpace(input.ReplyTo),
+		TraceID:     strings.TrimSpace(input.TraceID),
+		CausationID: strings.TrimSpace(input.CausationID),
+		ExpiresAt:   input.ExpiresAt,
+		ID:          strings.TrimSpace(input.ID),
+		Ext:         map[string]json.RawMessage(cloneExtensionMap(input.Ext)),
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkSendToolError(req.ToolID, err)
@@ -1081,7 +1113,262 @@ func (n *daemonNativeTools) networkSend(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"message_id": messageID}, messageID)
+	return structuredNetworkResult(map[string]any{"message_id": messageID}, messageID)
+}
+
+func (n *daemonNativeTools) networkThreads(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkThreadsInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	query := store.NetworkThreadQuery{
+		Limit: input.Limit,
+		After: strings.TrimSpace(input.After),
+	}
+	if err := query.Validate(); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	threads, err := n.deps.NetworkStore.ListThreads(ctx, channel, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := core.NetworkThreadSummaryPayloadsFromStore(threads)
+	return structuredNetworkResult(map[string]any{"threads": payload}, fmt.Sprintf("%d threads", len(payload)))
+}
+
+func (n *daemonNativeTools) networkThreadMessages(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkThreadMessagesInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	ref := store.NetworkConversationRef{
+		Channel:  channel,
+		Surface:  store.NetworkSurfaceThread,
+		ThreadID: strings.TrimSpace(input.ThreadID),
+	}
+	payload, err := n.networkConversationMessages(ctx, req.ToolID, ref, networkConversationMessageQueryInput{
+		Before: strings.TrimSpace(input.Before),
+		After:  strings.TrimSpace(input.After),
+		Kind:   strings.TrimSpace(input.Kind),
+		WorkID: strings.TrimSpace(input.WorkID),
+		Limit:  input.Limit,
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredNetworkResult(map[string]any{"messages": payload}, fmt.Sprintf("%d messages", len(payload)))
+}
+
+func (n *daemonNativeTools) networkDirects(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkDirectsInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	query := store.NetworkDirectRoomQuery{
+		PeerID: strings.TrimSpace(input.PeerID),
+		Limit:  input.Limit,
+		After:  strings.TrimSpace(input.After),
+	}
+	if err := query.Validate(); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	directs, err := n.deps.NetworkStore.ListDirectRooms(ctx, channel, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := core.NetworkDirectRoomPayloadsFromStore(directs)
+	return structuredNetworkResult(map[string]any{"directs": payload}, fmt.Sprintf("%d directs", len(payload)))
+}
+
+func (n *daemonNativeTools) networkDirectResolve(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkDirectResolveInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID := firstNonEmpty(input.SessionID, req.SessionID, scope.SessionID)
+	if sessionID == "" {
+		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "session_id")
+	}
+	peerID := strings.TrimSpace(input.PeerID)
+	if err := network.ValidatePeerID(peerID); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	localPeer, remotePeer, err := n.resolveNetworkDirectRoomPeers(ctx, channel, sessionID, peerID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkToolError(req.ToolID, err)
+	}
+	directID, peerA, peerB, err := network.DirectRoomIdentity(channel, localPeer.PeerID, remotePeer.PeerID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkToolError(req.ToolID, err)
+	}
+	now := time.Now().UTC()
+	direct, err := n.deps.NetworkStore.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
+		Channel:        channel,
+		DirectID:       directID,
+		PeerA:          peerA,
+		PeerB:          peerB,
+		OpenedAt:       now,
+		LastActivityAt: now,
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := core.NetworkDirectRoomPayloadFromStore(direct)
+	return structuredNetworkResult(map[string]any{"direct": payload}, payload.DirectID)
+}
+
+func (n *daemonNativeTools) networkDirectMessages(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkDirectMessagesInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	ref := store.NetworkConversationRef{
+		Channel:  channel,
+		Surface:  store.NetworkSurfaceDirect,
+		DirectID: strings.TrimSpace(input.DirectID),
+	}
+	payload, err := n.networkConversationMessages(ctx, req.ToolID, ref, networkConversationMessageQueryInput{
+		Before: strings.TrimSpace(input.Before),
+		After:  strings.TrimSpace(input.After),
+		Kind:   strings.TrimSpace(input.Kind),
+		WorkID: strings.TrimSpace(input.WorkID),
+		Limit:  input.Limit,
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredNetworkResult(map[string]any{"messages": payload}, fmt.Sprintf("%d messages", len(payload)))
+}
+
+func (n *daemonNativeTools) networkWork(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkWorkInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workID := strings.TrimSpace(input.WorkID)
+	if err := network.ValidateWorkID(workID); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	work, err := n.deps.NetworkStore.GetWork(ctx, workID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	payload := core.NetworkWorkPayloadFromStore(work)
+	return structuredNetworkResult(map[string]any{"work": payload}, payload.WorkID)
+}
+
+func (n *daemonNativeTools) networkConversationMessages(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	ref store.NetworkConversationRef,
+	input networkConversationMessageQueryInput,
+) ([]contract.NetworkConversationMessagePayload, error) {
+	if err := ref.Validate(); err != nil {
+		return nil, nativeNetworkInputError(id, err)
+	}
+	query := store.NetworkConversationMessageQuery{
+		BeforeMessageID: strings.TrimSpace(input.Before),
+		AfterMessageID:  strings.TrimSpace(input.After),
+		Kind:            strings.TrimSpace(input.Kind),
+		WorkID:          strings.TrimSpace(input.WorkID),
+		Limit:           input.Limit,
+	}
+	if err := query.Validate(); err != nil {
+		return nil, nativeNetworkInputError(id, err)
+	}
+	messages, err := n.deps.NetworkStore.ListConversationMessages(ctx, ref, query)
+	if err != nil {
+		return nil, err
+	}
+	return core.NetworkConversationMessagePayloadsFromStore(messages), nil
+}
+
+func (n *daemonNativeTools) resolveNetworkDirectRoomPeers(
+	ctx context.Context,
+	channel string,
+	sessionID string,
+	peerID string,
+) (network.PeerInfo, network.PeerInfo, error) {
+	peers, err := n.deps.Network.ListPeers(ctx, channel)
+	if err != nil {
+		return network.PeerInfo{}, network.PeerInfo{}, err
+	}
+	var local network.PeerInfo
+	localFound := false
+	var remote network.PeerInfo
+	remoteFound := false
+	for _, peer := range peers {
+		if strings.TrimSpace(peer.PeerID) == peerID {
+			remote = peer
+			remoteFound = true
+		}
+		if peer.SessionID == nil || strings.TrimSpace(*peer.SessionID) != sessionID || !peer.Local {
+			continue
+		}
+		local = peer
+		localFound = true
+	}
+	if !localFound {
+		return network.PeerInfo{}, network.PeerInfo{}, fmt.Errorf(
+			"%w: session=%q channel=%q",
+			network.ErrLocalPeerNotFound,
+			sessionID,
+			channel,
+		)
+	}
+	if !remoteFound {
+		return network.PeerInfo{}, network.PeerInfo{}, fmt.Errorf(
+			"%w: peer_id=%q channel=%q",
+			network.ErrTargetPeerNotFound,
+			peerID,
+			channel,
+		)
+	}
+	return local, remote, nil
 }
 
 func (n *daemonNativeTools) sessionList(
@@ -2238,18 +2525,72 @@ type networkInboxInput struct {
 }
 
 type networkSendInput struct {
-	SessionID     string               `json:"session_id,omitempty"`
-	Channel       string               `json:"channel"`
-	Kind          string               `json:"kind"`
-	To            string               `json:"to,omitempty"`
-	Body          json.RawMessage      `json:"body"`
-	InteractionID string               `json:"interaction_id,omitempty"`
-	ReplyTo       string               `json:"reply_to,omitempty"`
-	TraceID       string               `json:"trace_id,omitempty"`
-	CausationID   string               `json:"causation_id,omitempty"`
-	ExpiresAt     *int64               `json:"expires_at,omitempty"`
-	ID            string               `json:"id,omitempty"`
-	Ext           network.ExtensionMap `json:"ext,omitempty"`
+	SessionID   string               `json:"session_id,omitempty"`
+	Channel     string               `json:"channel"`
+	Surface     string               `json:"surface,omitempty"`
+	ThreadID    string               `json:"thread_id,omitempty"`
+	DirectID    string               `json:"direct_id,omitempty"`
+	Kind        string               `json:"kind"`
+	To          string               `json:"to,omitempty"`
+	Body        json.RawMessage      `json:"body"`
+	WorkID      string               `json:"work_id,omitempty"`
+	ReplyTo     string               `json:"reply_to,omitempty"`
+	TraceID     string               `json:"trace_id,omitempty"`
+	CausationID string               `json:"causation_id,omitempty"`
+	ExpiresAt   *int64               `json:"expires_at,omitempty"`
+	ID          string               `json:"id,omitempty"`
+	Ext         network.ExtensionMap `json:"ext,omitempty"`
+}
+
+type networkThreadsInput struct {
+	Channel string `json:"channel"`
+	Limit   int    `json:"limit,omitempty"`
+	After   string `json:"after,omitempty"`
+}
+
+type networkThreadMessagesInput struct {
+	Channel  string `json:"channel"`
+	ThreadID string `json:"thread_id"`
+	Before   string `json:"before,omitempty"`
+	After    string `json:"after,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	WorkID   string `json:"work_id,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
+}
+
+type networkDirectsInput struct {
+	Channel string `json:"channel"`
+	PeerID  string `json:"peer_id,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
+	After   string `json:"after,omitempty"`
+}
+
+type networkDirectResolveInput struct {
+	SessionID string `json:"session_id,omitempty"`
+	Channel   string `json:"channel"`
+	PeerID    string `json:"peer_id"`
+}
+
+type networkDirectMessagesInput struct {
+	Channel  string `json:"channel"`
+	DirectID string `json:"direct_id"`
+	Before   string `json:"before,omitempty"`
+	After    string `json:"after,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	WorkID   string `json:"work_id,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
+}
+
+type networkConversationMessageQueryInput struct {
+	Before string
+	After  string
+	Kind   string
+	WorkID string
+	Limit  int
+}
+
+type networkWorkInput struct {
+	WorkID string `json:"work_id"`
 }
 
 type sessionListInput struct {
@@ -2788,6 +3129,35 @@ func nativeNetworkSendToolError(id toolspkg.ToolID, err error) error {
 	return err
 }
 
+func nativeNetworkToolError(id toolspkg.ToolID, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, network.ErrMissingField) || errors.Is(err, network.ErrInvalidField) ||
+		errors.Is(err, core.ErrNetworkValidation) {
+		return nativeNetworkInputError(id, err)
+	}
+	return err
+}
+
+func nativeNetworkInputError(id toolspkg.ToolID, err error) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeInvalidInput,
+		id,
+		taskpkg.RedactClaimTokens(err.Error()),
+		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+		toolspkg.ReasonSchemaInvalid,
+	)
+}
+
+func nativeNetworkChannel(id toolspkg.ToolID, value string) (string, error) {
+	channel := strings.TrimSpace(value)
+	if err := network.ValidateChannel(channel); err != nil {
+		return "", nativeNetworkInputError(id, err)
+	}
+	return channel, nil
+}
+
 func autonomyToolErrorCodeAndReason(reason taskpkg.AutonomyReasonCode) (
 	toolspkg.ErrorCode,
 	toolspkg.ReasonCode,
@@ -3283,6 +3653,23 @@ func structuredResult(value any, preview string) (toolspkg.ToolResult, error) {
 	}
 	if result.Preview != "" {
 		result.Content = []toolspkg.ToolContent{{Type: "text", Text: result.Preview}}
+	}
+	return result, nil
+}
+
+func structuredNetworkResult(value any, preview string) (toolspkg.ToolResult, error) {
+	result, err := structuredResult(value, preview)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	redactedStructured := json.RawMessage(taskpkg.RedactClaimTokens(string(result.Structured)))
+	if !json.Valid(redactedStructured) {
+		return toolspkg.ToolResult{}, errors.New("daemon: redacted network tool result is invalid JSON")
+	}
+	result.Structured = redactedStructured
+	result.Preview = strings.TrimSpace(taskpkg.RedactClaimTokens(result.Preview))
+	for idx := range result.Content {
+		result.Content[idx].Text = taskpkg.RedactClaimTokens(result.Content[idx].Text)
 	}
 	return result, nil
 }

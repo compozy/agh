@@ -4,7 +4,7 @@
         {
             "name": "browser-lifecycle-agent",
             "provider": "claude",
-            "permissions": "deny-all",
+            "permissions": "approve-reads",
             "prompt": "You are the browser lifecycle test agent.",
             "turns": [
                 {

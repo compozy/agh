@@ -28,6 +28,18 @@ const (
 	ToolIDNetworkInbox ToolID = "agh__network_inbox"
 	// ToolIDNetworkSend sends one network message through the existing network manager.
 	ToolIDNetworkSend ToolID = "agh__network_send"
+	// ToolIDNetworkThreads lists public network thread summaries.
+	ToolIDNetworkThreads ToolID = "agh__network_threads"
+	// ToolIDNetworkThreadMessages reads messages in one public network thread.
+	ToolIDNetworkThreadMessages ToolID = "agh__network_thread_messages"
+	// ToolIDNetworkDirects lists direct-room summaries.
+	ToolIDNetworkDirects ToolID = "agh__network_directs"
+	// ToolIDNetworkDirectResolve creates or returns one deterministic direct room.
+	ToolIDNetworkDirectResolve ToolID = "agh__network_direct_resolve"
+	// ToolIDNetworkDirectMessages reads messages in one direct room.
+	ToolIDNetworkDirectMessages ToolID = "agh__network_direct_messages"
+	// ToolIDNetworkWork reads one network work lifecycle row.
+	ToolIDNetworkWork ToolID = "agh__network_work"
 	// ToolIDSessionList lists runtime sessions.
 	ToolIDSessionList ToolID = "agh__session_list"
 	// ToolIDSessionStatus reads one runtime session snapshot.

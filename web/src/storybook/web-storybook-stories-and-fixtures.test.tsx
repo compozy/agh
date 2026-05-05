@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { storyAgentNames } from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
 import { memoryHeadersFixture } from "@/systems/knowledge/mocks";
-import { networkChannelMessagesFixture, networkChannelsFixture } from "@/systems/network/mocks";
+import { networkChannelsFixture, networkThreadMessagesFixture } from "@/systems/network/mocks";
 import {
   multiHunkEditToolMessageFixture,
   sessionFixtures,
@@ -27,7 +27,12 @@ describe("storybook story and fixture regressions", () => {
       import("@/systems/knowledge/components/stories/knowledge-detail-panel.stories"),
       import("@/systems/knowledge/components/stories/knowledge-list-panel.stories"),
       import("@/systems/network/components/stories/network-create-channel-dialog.stories"),
-      import("@/systems/network/storybook").then(module => module.networkWorkspaceShellStories),
+      import("@/systems/network/storybook").then(module => module.networkShellStories),
+      import("@/systems/network/storybook").then(module => module.networkChannelRailStories),
+      import("@/systems/network/storybook").then(module => module.networkChannelHeaderStories),
+      import("@/systems/network/storybook").then(module => module.networkTimelineStories),
+      import("@/systems/network/storybook").then(module => module.networkMessageRowStories),
+      import("@/systems/network/storybook").then(module => module.networkThreadOverlayStories),
       import("@/routes/_app/stories/-network.stories"),
       import("@/systems/automation/components/stories/automation-editor-dialog.stories"),
       import("@/systems/session/components/stories/copy-button.stories"),
@@ -39,7 +44,7 @@ describe("storybook story and fixture regressions", () => {
       agentStoryModules.then(module => module.agentStatsGridStories),
     ]);
 
-    expect(modules).toHaveLength(13);
+    expect(modules).toHaveLength(18);
 
     for (const module of modules) {
       expect(module.default).toBeDefined();
@@ -65,10 +70,7 @@ describe("storybook story and fixture regressions", () => {
         fromWeb("src/systems/network/components/stories/network-create-channel-dialog.stories.tsx"),
         "utf8"
       ),
-      readFile(
-        fromWeb("src/systems/network/components/stories/network-workspace-shell.stories.tsx"),
-        "utf8"
-      ),
+      readFile(fromWeb("src/systems/network/components/stories/network-shell.stories.tsx"), "utf8"),
       readFile(fromWeb("src/routes/_app/stories/-network.stories.tsx"), "utf8"),
       readFile(
         fromWeb("src/systems/automation/components/stories/automation-editor-dialog.stories.tsx"),
@@ -93,7 +95,7 @@ describe("storybook story and fixture regressions", () => {
       knowledgeListStory,
       stylesSource,
       networkCreateDialogStory,
-      networkWorkspaceShellStory,
+      networkShellStory,
       networkRouteStory,
       automationEditorDialogStory,
       copyButtonStory,
@@ -125,8 +127,8 @@ describe("storybook story and fixture regressions", () => {
     expect(networkCreateDialogStory).toContain(
       'purpose: "Coordinate VIP merchant escalations between risk, support, and settlement partners.",'
     );
-    expect(networkWorkspaceShellStory).toContain("NetworkWorkspaceShell");
-    expect(networkWorkspaceShellStory).toContain("networkChannelMessagesFixture");
+    expect(networkShellStory).toContain("NetworkShell");
+    expect(networkShellStory).toContain("networkThreadsFixture");
     expect(networkRouteStory).toContain('"routes/app/network"');
     expect(networkRouteStory).toContain("storybookMswParameters");
     expect(automationEditorDialogStory).toContain(
@@ -174,7 +176,7 @@ describe("storybook story and fixture regressions", () => {
     );
     expect(sessionFixtures.length).toBeGreaterThanOrEqual(8);
     expect(networkChannelsFixture.channels.length).toBeGreaterThanOrEqual(8);
-    expect(networkChannelMessagesFixture.length).toBeGreaterThanOrEqual(20);
+    expect(networkThreadMessagesFixture.length).toBeGreaterThanOrEqual(20);
     expect(TASK_FIXTURES.length).toBeGreaterThanOrEqual(15);
     expect(taskDashboardFixture.totals.tasks_total).toBe(TASK_FIXTURES.length);
     expect(memoryHeadersFixture.length).toBeGreaterThanOrEqual(5);

@@ -30,11 +30,6 @@ type AuditStore interface {
 	WriteNetworkAudit(ctx context.Context, entry store.NetworkAuditEntry) error
 }
 
-// MessageStore is the persistence surface consumed by the network timeline writer.
-type MessageStore interface {
-	WriteNetworkMessage(ctx context.Context, entry store.NetworkMessageEntry) error
-}
-
 // AuditWriter records network activity into the configured sinks.
 type AuditWriter interface {
 	RecordSent(ctx context.Context, sessionID string, envelope Envelope) error
@@ -64,41 +59,14 @@ type TaskIngressAuditWriter interface {
 // FileAuditWriter writes normalized network audit records to a JSONL file and
 // optionally mirrors them into a persistent store.
 type FileAuditWriter struct {
-	path         string
-	store        AuditStore
-	messageStore MessageStore
-	now          func() time.Time
-	presence     auditPresenceWindow
+	path  string
+	store AuditStore
+	now   func() time.Time
 
 	fileMu sync.Mutex
 }
 
 type AuditWriterOption func(*FileAuditWriter)
-
-type auditPresenceWindow struct {
-	duration time.Duration
-	lastSeen map[string]time.Time
-	mu       sync.Mutex
-}
-
-// WithAuditWriterPresenceWindow suppresses repeated greet heartbeats from the
-// operator timeline while leaving the raw audit trail untouched.
-func WithAuditWriterPresenceWindow(window time.Duration) AuditWriterOption {
-	return func(writer *FileAuditWriter) {
-		if writer == nil {
-			return
-		}
-		if window <= 0 {
-			writer.presence.duration = 0
-			writer.presence.lastSeen = nil
-			return
-		}
-		writer.presence.duration = window
-		if writer.presence.lastSeen == nil {
-			writer.presence.lastSeen = make(map[string]time.Time)
-		}
-	}
-}
 
 // NewAuditWriter constructs the dual-path network audit writer.
 func NewAuditWriter(path string, auditStore AuditStore, opts ...AuditWriterOption) (*FileAuditWriter, error) {
@@ -113,7 +81,6 @@ func NewAuditWriter(path string, auditStore AuditStore, opts ...AuditWriterOptio
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		messageStore: messageStoreFromAuditStore(auditStore),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -121,17 +88,6 @@ func NewAuditWriter(path string, auditStore AuditStore, opts ...AuditWriterOptio
 		}
 	}
 	return writer, nil
-}
-
-func messageStoreFromAuditStore(auditStore AuditStore) MessageStore {
-	if auditStore == nil {
-		return nil
-	}
-	messageStore, ok := auditStore.(MessageStore)
-	if !ok {
-		return nil
-	}
-	return messageStore
 }
 
 var _ AuditWriter = (*FileAuditWriter)(nil)
@@ -230,58 +186,8 @@ func (w *FileAuditWriter) record(
 		auditWriteErr = w.store.WriteNetworkAudit(ctx, entry)
 		recordErr = errors.Join(recordErr, auditWriteErr)
 	}
-	if w.messageStore == nil || auditWriteErr != nil {
-		return recordErr
-	}
-
-	messageEntry, ok, messageErr := normalizeTimelineMessageEntry(sessionID, direction, envelope, entry.Timestamp)
-	if messageErr != nil {
-		recordErr = errors.Join(recordErr, messageErr)
-		return recordErr
-	}
-	if ok {
-		if w.shouldWriteTimelineMessage(messageEntry) {
-			recordErr = errors.Join(recordErr, w.messageStore.WriteNetworkMessage(ctx, messageEntry))
-		}
-	}
 
 	return recordErr
-}
-
-func (w *FileAuditWriter) shouldWriteTimelineMessage(entry store.NetworkMessageEntry) bool {
-	if strings.TrimSpace(entry.Kind) != string(KindGreet) {
-		return true
-	}
-	if w == nil || w.presence.duration <= 0 {
-		return true
-	}
-
-	key := strings.Join([]string{
-		strings.TrimSpace(entry.Direction),
-		strings.TrimSpace(entry.Channel),
-		strings.TrimSpace(entry.PeerFrom),
-		strings.TrimSpace(entry.PeerTo),
-	}, "\x00")
-
-	at := entry.Timestamp.UTC()
-	w.presence.mu.Lock()
-	defer w.presence.mu.Unlock()
-
-	if w.presence.lastSeen == nil {
-		w.presence.lastSeen = make(map[string]time.Time)
-	}
-	cutoff := at.Add(-w.presence.duration)
-	for existingKey, seenAt := range w.presence.lastSeen {
-		if seenAt.Before(cutoff) {
-			delete(w.presence.lastSeen, existingKey)
-		}
-	}
-	lastSeen, ok := w.presence.lastSeen[key]
-	w.presence.lastSeen[key] = at
-	if !ok {
-		return true
-	}
-	return at.Sub(lastSeen) > w.presence.duration
 }
 
 // NormalizeAuditEntry derives a consistent audit row from envelope metadata.
@@ -311,6 +217,10 @@ func NormalizeAuditEntry(
 		Direction: strings.TrimSpace(direction),
 		Kind:      strings.TrimSpace(string(envelope.Kind)),
 		Channel:   strings.TrimSpace(envelope.Channel),
+		Surface:   trimmedSurfaceValue(envelope.Surface),
+		ThreadID:  trimmedPointerValue(envelope.ThreadID),
+		DirectID:  trimmedPointerValue(envelope.DirectID),
+		WorkID:    trimmedPointerValue(envelope.WorkID),
 		PeerFrom:  strings.TrimSpace(envelope.From),
 		PeerTo:    peerTo,
 		MessageID: strings.TrimSpace(envelope.ID),
@@ -350,26 +260,25 @@ func normalizeTimelineMessageEntry(
 		peerTo = strings.TrimSpace(*envelope.To)
 	}
 	entry := store.NetworkMessageEntry{
-		MessageID:     strings.TrimSpace(envelope.ID),
-		SessionID:     strings.TrimSpace(sessionID),
-		Channel:       strings.TrimSpace(envelope.Channel),
-		Direction:     strings.TrimSpace(direction),
-		PeerFrom:      strings.TrimSpace(envelope.From),
-		PeerTo:        peerTo,
-		Kind:          strings.TrimSpace(string(envelope.Kind)),
-		PreviewText:   previewForBody(body),
-		Body:          cloneRawMessage(envelope.Body),
-		Timestamp:     at.UTC(),
-		InteractionID: trimmedPointerValue(envelope.InteractionID),
-		ReplyTo:       trimmedPointerValue(envelope.ReplyTo),
-		TraceID:       trimmedPointerValue(envelope.TraceID),
-		CausationID:   trimmedPointerValue(envelope.CausationID),
+		MessageID:   strings.TrimSpace(envelope.ID),
+		SessionID:   strings.TrimSpace(sessionID),
+		Channel:     strings.TrimSpace(envelope.Channel),
+		Surface:     trimmedSurfaceValue(envelope.Surface),
+		ThreadID:    trimmedPointerValue(envelope.ThreadID),
+		DirectID:    trimmedPointerValue(envelope.DirectID),
+		Direction:   strings.TrimSpace(direction),
+		PeerFrom:    strings.TrimSpace(envelope.From),
+		PeerTo:      peerTo,
+		Kind:        strings.TrimSpace(string(envelope.Kind)),
+		PreviewText: previewForBody(body),
+		Body:        cloneRawMessage(envelope.Body),
+		Timestamp:   at.UTC(),
+		WorkID:      trimmedPointerValue(envelope.WorkID),
+		ReplyTo:     trimmedPointerValue(envelope.ReplyTo),
+		TraceID:     trimmedPointerValue(envelope.TraceID),
+		CausationID: trimmedPointerValue(envelope.CausationID),
 	}
-	switch value := body.(type) {
-	case SayBody:
-		entry.Intent = strings.TrimSpace(value.Intent)
-		entry.Text = value.Text
-	case DirectBody:
+	if value, ok := body.(SayBody); ok {
 		entry.Intent = strings.TrimSpace(value.Intent)
 		entry.Text = value.Text
 	}
@@ -415,6 +324,13 @@ func trimmedPointerValue(value *string) string {
 		return ""
 	}
 	return strings.TrimSpace(*value)
+}
+
+func trimmedSurfaceValue(value *Surface) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(string(*value))
 }
 
 func (w *FileAuditWriter) appendFile(entry store.NetworkAuditEntry) error {

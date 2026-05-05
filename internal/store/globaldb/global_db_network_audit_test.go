@@ -25,6 +25,10 @@ func TestOpenGlobalDBCreatesNetworkAuditLogSchema(t *testing.T) {
 		"direction",
 		"kind",
 		"channel",
+		"surface",
+		"thread_id",
+		"direct_id",
+		"work_id",
 		"peer_from",
 		"peer_to",
 		"message_id",
@@ -47,8 +51,11 @@ func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
 	if err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
 		SessionID: "sess-network-audit",
 		Direction: "sent",
-		Kind:      "direct",
+		Kind:      "say",
 		Channel:   "builders",
+		Surface:   store.NetworkSurfaceDirect,
+		DirectID:  "direct_0123456789abcdef0123456789abcdef",
+		WorkID:    "work_patch_42",
 		PeerFrom:  "coder.sess-network-audit",
 		PeerTo:    "reviewer.sess-xyz",
 		MessageID: "msg_direct_01",
@@ -90,6 +97,15 @@ func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
 	}
 	if got, want := entries[0].PeerTo, "reviewer.sess-xyz"; got != want {
 		t.Fatalf("entries[0].PeerTo = %q, want %q", got, want)
+	}
+	if got, want := entries[0].Surface, store.NetworkSurfaceDirect; got != want {
+		t.Fatalf("entries[0].Surface = %q, want %q", got, want)
+	}
+	if got, want := entries[0].DirectID, "direct_0123456789abcdef0123456789abcdef"; got != want {
+		t.Fatalf("entries[0].DirectID = %q, want %q", got, want)
+	}
+	if got, want := entries[0].WorkID, "work_patch_42"; got != want {
+		t.Fatalf("entries[0].WorkID = %q, want %q", got, want)
 	}
 
 	if got, want := entries[1].Direction, "rejected"; got != want {
@@ -196,13 +212,18 @@ func TestGlobalDBListNetworkAuditWrapsTimestampParseFailures(t *testing.T) {
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_audit_log (
-			id, session_id, direction, kind, channel, peer_from, peer_to, message_id, reason, size, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, session_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
+			peer_from, peer_to, message_id, reason, size, timestamp
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"naud_bad_timestamp",
 		"sess-network-bad-timestamp",
 		"sent",
-		"direct",
+		"say",
 		"builders",
+		store.NetworkSurfaceThread,
+		"thread_bad_timestamp",
+		nil,
+		nil,
 		"coder.sess-network-bad-timestamp",
 		nil,
 		"msg_bad_timestamp_01",

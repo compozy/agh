@@ -12,6 +12,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	networkSurfaceThread  = "thread"
+	networkSurfaceDirect  = "direct"
+	networkKindSay        = "say"
+	networkKindCapability = "capability"
+	networkKindReceipt    = "receipt"
+	networkKindTrace      = "trace"
+	networkKindGreet      = "greet"
+	networkKindWhois      = "whois"
+)
+
 func newNetworkCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "network",
@@ -21,6 +32,9 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newNetworkStatusCommand(deps))
 	cmd.AddCommand(newNetworkPeersCommand(deps))
 	cmd.AddCommand(newNetworkChannelsCommand(deps))
+	cmd.AddCommand(newNetworkThreadsCommand(deps))
+	cmd.AddCommand(newNetworkDirectsCommand(deps))
+	cmd.AddCommand(newNetworkWorkCommand(deps))
 	cmd.AddCommand(newNetworkSendCommand(deps))
 	cmd.AddCommand(newNetworkInboxCommand(deps))
 	return cmd
@@ -89,22 +103,356 @@ func newNetworkChannelsCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func newNetworkSendCommand(deps commandDeps) *cobra.Command {
-	var (
-		sessionID     string
-		channel       string
-		kind          string
-		to            string
-		bodyRaw       string
-		interactionID string
-		replyTo       string
-		traceID       string
-		causationID   string
-		expiresAtRaw  string
-		id            string
-		extRaw        string
-	)
+type networkThreadsFlags struct {
+	channel  string
+	threadID string
+	limit    int
+	before   string
+	after    string
+	kind     string
+	workID   string
+}
 
+func newNetworkThreadsCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "threads",
+		Short: "Inspect public network threads",
+	}
+	cmd.AddCommand(newNetworkThreadsListCommand(deps))
+	cmd.AddCommand(newNetworkThreadsShowCommand(deps))
+	cmd.AddCommand(newNetworkThreadsMessagesCommand(deps))
+	return cmd
+}
+
+func newNetworkThreadsListCommand(deps commandDeps) *cobra.Command {
+	var flags networkThreadsFlags
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List public threads in a channel",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			threads, err := client.NetworkThreads(cmd.Context(), NetworkThreadsQuery{
+				Channel: strings.TrimSpace(flags.channel),
+				Limit:   flags.limit,
+				After:   strings.TrimSpace(flags.after),
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutputWithJSONL(cmd, networkThreadsBundle(threads), threads)
+		},
+	}
+	cmd.Flags().StringVar(&flags.channel, "channel", "", "Target channel")
+	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Maximum number of threads to return")
+	cmd.Flags().StringVar(&flags.after, "after", "", "Cursor after which to list threads")
+	mustMarkFlagRequired(cmd, "channel")
+	return cmd
+}
+
+func newNetworkThreadsShowCommand(deps commandDeps) *cobra.Command {
+	var flags networkThreadsFlags
+	cmd := &cobra.Command{
+		Use:   "show",
+		Short: "Show one public thread",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			thread, err := client.NetworkThread(
+				cmd.Context(),
+				strings.TrimSpace(flags.channel),
+				strings.TrimSpace(flags.threadID),
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkThreadBundle(thread))
+		},
+	}
+	cmd.Flags().StringVar(&flags.channel, "channel", "", "Target channel")
+	cmd.Flags().StringVar(&flags.threadID, networkSurfaceThread, "", "Public thread id")
+	mustMarkFlagRequired(cmd, "channel")
+	mustMarkFlagRequired(cmd, networkSurfaceThread)
+	return cmd
+}
+
+func newNetworkThreadsMessagesCommand(deps commandDeps) *cobra.Command {
+	var flags networkThreadsFlags
+	cmd := &cobra.Command{
+		Use:   "messages",
+		Short: "List messages in one public thread",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			messages, err := client.NetworkThreadMessages(cmd.Context(), NetworkConversationMessagesQuery{
+				Channel:  strings.TrimSpace(flags.channel),
+				ThreadID: strings.TrimSpace(flags.threadID),
+				Limit:    flags.limit,
+				Before:   strings.TrimSpace(flags.before),
+				After:    strings.TrimSpace(flags.after),
+				Kind:     strings.TrimSpace(flags.kind),
+				WorkID:   strings.TrimSpace(flags.workID),
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutputWithJSONL(cmd, networkThreadMessagesBundle(messages), messages)
+		},
+	}
+	registerNetworkMessageReadFlags(
+		cmd,
+		&flags.channel,
+		networkSurfaceThread,
+		"Public thread id",
+		&flags.threadID,
+		&flags.limit,
+		&flags.before,
+		&flags.after,
+		&flags.kind,
+		&flags.workID,
+	)
+	cmd.Flags().Lookup(networkSurfaceThread).Usage = "Public thread id"
+	mustMarkFlagRequired(cmd, "channel")
+	mustMarkFlagRequired(cmd, networkSurfaceThread)
+	return cmd
+}
+
+type networkDirectsFlags struct {
+	channel  string
+	directID string
+	peerID   string
+	session  string
+	limit    int
+	before   string
+	after    string
+	kind     string
+	workID   string
+}
+
+func newNetworkDirectsCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "directs",
+		Short: "Inspect restricted direct rooms",
+	}
+	cmd.AddCommand(newNetworkDirectsListCommand(deps))
+	cmd.AddCommand(newNetworkDirectsResolveCommand(deps))
+	cmd.AddCommand(newNetworkDirectsShowCommand(deps))
+	cmd.AddCommand(newNetworkDirectsMessagesCommand(deps))
+	return cmd
+}
+
+func newNetworkDirectsListCommand(deps commandDeps) *cobra.Command {
+	var flags networkDirectsFlags
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List direct rooms in a channel",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			directs, err := client.NetworkDirects(cmd.Context(), NetworkDirectsQuery{
+				Channel: strings.TrimSpace(flags.channel),
+				PeerID:  strings.TrimSpace(flags.peerID),
+				Limit:   flags.limit,
+				After:   strings.TrimSpace(flags.after),
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutputWithJSONL(cmd, networkDirectsBundle(directs), directs)
+		},
+	}
+	cmd.Flags().StringVar(&flags.channel, "channel", "", "Target channel")
+	cmd.Flags().StringVar(&flags.peerID, "peer", "", "Peer id filter")
+	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Maximum number of direct rooms to return")
+	cmd.Flags().StringVar(&flags.after, "after", "", "Cursor after which to list direct rooms")
+	mustMarkFlagRequired(cmd, "channel")
+	return cmd
+}
+
+func newNetworkDirectsResolveCommand(deps commandDeps) *cobra.Command {
+	var flags networkDirectsFlags
+	cmd := &cobra.Command{
+		Use:   "resolve",
+		Short: "Create or return the deterministic direct room for two peers",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			direct, err := client.NetworkDirectResolve(
+				cmd.Context(),
+				strings.TrimSpace(flags.channel),
+				NetworkDirectResolveRequest{
+					SessionID: strings.TrimSpace(flags.session),
+					PeerID:    strings.TrimSpace(flags.peerID),
+				},
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkDirectBundle(direct))
+		},
+	}
+	cmd.Flags().StringVar(&flags.session, "session", "", "Local source session id")
+	cmd.Flags().StringVar(&flags.channel, "channel", "", "Target channel")
+	cmd.Flags().StringVar(&flags.peerID, "peer", "", "Remote peer id")
+	mustMarkFlagRequired(cmd, "session")
+	mustMarkFlagRequired(cmd, "channel")
+	mustMarkFlagRequired(cmd, "peer")
+	return cmd
+}
+
+func newNetworkDirectsShowCommand(deps commandDeps) *cobra.Command {
+	var flags networkDirectsFlags
+	cmd := &cobra.Command{
+		Use:   "show",
+		Short: "Show one direct room",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			direct, err := client.NetworkDirect(
+				cmd.Context(),
+				strings.TrimSpace(flags.channel),
+				strings.TrimSpace(flags.directID),
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkDirectBundle(direct))
+		},
+	}
+	cmd.Flags().StringVar(&flags.channel, "channel", "", "Target channel")
+	cmd.Flags().StringVar(&flags.directID, networkSurfaceDirect, "", "Direct room id")
+	mustMarkFlagRequired(cmd, "channel")
+	mustMarkFlagRequired(cmd, networkSurfaceDirect)
+	return cmd
+}
+
+func newNetworkDirectsMessagesCommand(deps commandDeps) *cobra.Command {
+	var flags networkDirectsFlags
+	cmd := &cobra.Command{
+		Use:   "messages",
+		Short: "List messages in one direct room",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			messages, err := client.NetworkDirectMessages(cmd.Context(), NetworkConversationMessagesQuery{
+				Channel:  strings.TrimSpace(flags.channel),
+				DirectID: strings.TrimSpace(flags.directID),
+				Limit:    flags.limit,
+				Before:   strings.TrimSpace(flags.before),
+				After:    strings.TrimSpace(flags.after),
+				Kind:     strings.TrimSpace(flags.kind),
+				WorkID:   strings.TrimSpace(flags.workID),
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutputWithJSONL(cmd, networkDirectMessagesBundle(messages), messages)
+		},
+	}
+	registerNetworkMessageReadFlags(
+		cmd,
+		&flags.channel,
+		networkSurfaceDirect,
+		"Direct room id",
+		&flags.directID,
+		&flags.limit,
+		&flags.before,
+		&flags.after,
+		&flags.kind,
+		&flags.workID,
+	)
+	mustMarkFlagRequired(cmd, "channel")
+	mustMarkFlagRequired(cmd, networkSurfaceDirect)
+	return cmd
+}
+
+func registerNetworkMessageReadFlags(
+	cmd *cobra.Command,
+	channel *string,
+	containerFlagName string,
+	containerUsage string,
+	containerID *string,
+	limit *int,
+	before *string,
+	after *string,
+	kind *string,
+	workID *string,
+) {
+	cmd.Flags().StringVar(channel, "channel", "", "Target channel")
+	cmd.Flags().StringVar(containerID, containerFlagName, "", containerUsage)
+	cmd.Flags().IntVar(limit, "limit", 0, "Maximum number of messages to return")
+	cmd.Flags().StringVar(before, "before", "", "Cursor before which to list messages")
+	cmd.Flags().StringVar(after, "after", "", "Cursor after which to list messages")
+	cmd.Flags().StringVar(kind, "kind", "", "Envelope kind filter")
+	cmd.Flags().StringVar(workID, "work", "", "Work id filter")
+}
+
+func newNetworkWorkCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "work",
+		Short: "Inspect lifecycle-bearing network work",
+	}
+	cmd.AddCommand(newNetworkWorkLookupCommand(deps, "lookup"))
+	cmd.AddCommand(newNetworkWorkLookupCommand(deps, "status"))
+	return cmd
+}
+
+func newNetworkWorkLookupCommand(deps commandDeps, use string) *cobra.Command {
+	var workID string
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: "Show one network work item",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			work, err := client.NetworkWork(cmd.Context(), strings.TrimSpace(workID))
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkWorkBundle(work))
+		},
+	}
+	cmd.Flags().StringVar(&workID, "work", "", "Network work id")
+	mustMarkFlagRequired(cmd, "work")
+	return cmd
+}
+
+type networkSendFlags struct {
+	sessionID    string
+	channel      string
+	surface      string
+	threadID     string
+	directID     string
+	kind         string
+	to           string
+	bodyRaw      string
+	workID       string
+	replyTo      string
+	traceID      string
+	causationID  string
+	expiresAtRaw string
+	id           string
+	extRaw       string
+}
+
+func newNetworkSendCommand(deps commandDeps) *cobra.Command {
+	var flags networkSendFlags
 	cmd := &cobra.Command{
 		Use:   "send",
 		Short: "Send one envelope through the daemon-owned network runtime",
@@ -114,35 +462,41 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			body, err := parseNetworkJSONValue("--body", bodyRaw)
+			body, err := parseNetworkJSONValue("--body", flags.bodyRaw)
 			if err != nil {
 				return err
 			}
-			ext, err := parseNetworkJSONObjectMap("--ext", extRaw)
+			ext, err := parseNetworkJSONObjectMap("--ext", flags.extRaw)
 			if err != nil {
 				return err
 			}
 			if err := validateNetworkSendNoRawClaimToken(body, ext); err != nil {
 				return err
 			}
-			expiresAt, err := parseNetworkExpiresAt(expiresAtRaw)
+			expiresAt, err := parseNetworkExpiresAt(flags.expiresAtRaw)
 			if err != nil {
+				return err
+			}
+			if err := validateNetworkSendFlags(flags); err != nil {
 				return err
 			}
 
 			message, err := client.NetworkSend(cmd.Context(), NetworkSendRequest{
-				SessionID:     strings.TrimSpace(sessionID),
-				Channel:       strings.TrimSpace(channel),
-				Kind:          strings.TrimSpace(kind),
-				To:            strings.TrimSpace(to),
-				Body:          body,
-				InteractionID: strings.TrimSpace(interactionID),
-				ReplyTo:       strings.TrimSpace(replyTo),
-				TraceID:       strings.TrimSpace(traceID),
-				CausationID:   strings.TrimSpace(causationID),
-				ExpiresAt:     expiresAt,
-				ID:            strings.TrimSpace(id),
-				Ext:           ext,
+				SessionID:   strings.TrimSpace(flags.sessionID),
+				Channel:     strings.TrimSpace(flags.channel),
+				Surface:     strings.TrimSpace(flags.surface),
+				ThreadID:    strings.TrimSpace(flags.threadID),
+				DirectID:    strings.TrimSpace(flags.directID),
+				Kind:        strings.TrimSpace(flags.kind),
+				To:          strings.TrimSpace(flags.to),
+				Body:        body,
+				WorkID:      strings.TrimSpace(flags.workID),
+				ReplyTo:     strings.TrimSpace(flags.replyTo),
+				TraceID:     strings.TrimSpace(flags.traceID),
+				CausationID: strings.TrimSpace(flags.causationID),
+				ExpiresAt:   expiresAt,
+				ID:          strings.TrimSpace(flags.id),
+				Ext:         ext,
 			})
 			if err != nil {
 				return err
@@ -151,23 +505,30 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&sessionID, "session", "", "Local source session id")
-	cmd.Flags().StringVar(&channel, "channel", "", "Target channel")
-	cmd.Flags().StringVar(&kind, "kind", "", "Envelope kind")
-	cmd.Flags().StringVar(&to, "to", "", "Directed target peer id")
-	cmd.Flags().StringVar(&bodyRaw, "body", "", "Raw JSON object for the envelope body")
-	cmd.Flags().StringVar(&interactionID, "interaction-id", "", "Optional interaction id")
-	cmd.Flags().StringVar(&replyTo, "reply-to", "", "Optional reply-to message id")
-	cmd.Flags().StringVar(&traceID, "trace-id", "", "Optional trace id")
-	cmd.Flags().StringVar(&causationID, "causation-id", "", "Optional causation id")
-	cmd.Flags().StringVar(&expiresAtRaw, "expires-at", "", "Optional expiry as unix seconds or RFC3339")
-	cmd.Flags().StringVar(&id, "id", "", "Optional explicit message id")
-	cmd.Flags().StringVar(&extRaw, "ext", "", "Optional JSON object of extension metadata")
+	registerNetworkSendFlags(cmd, &flags)
 	mustMarkFlagRequired(cmd, "session")
 	mustMarkFlagRequired(cmd, "channel")
 	mustMarkFlagRequired(cmd, "kind")
 	mustMarkFlagRequired(cmd, "body")
 	return cmd
+}
+
+func registerNetworkSendFlags(cmd *cobra.Command, flags *networkSendFlags) {
+	cmd.Flags().StringVar(&flags.sessionID, "session", "", "Local source session id")
+	cmd.Flags().StringVar(&flags.channel, "channel", "", "Target channel")
+	cmd.Flags().StringVar(&flags.surface, "surface", "", "Conversation surface: thread or direct")
+	cmd.Flags().StringVar(&flags.threadID, networkSurfaceThread, "", "Thread id for thread-surface messages")
+	cmd.Flags().StringVar(&flags.directID, networkSurfaceDirect, "", "Direct room id for direct-surface messages")
+	cmd.Flags().StringVar(&flags.kind, "kind", "", "Envelope kind")
+	cmd.Flags().StringVar(&flags.to, "to", "", "Directed target peer id")
+	cmd.Flags().StringVar(&flags.bodyRaw, "body", "", "Raw JSON object for the envelope body")
+	cmd.Flags().StringVar(&flags.workID, "work", "", "Optional work id")
+	cmd.Flags().StringVar(&flags.replyTo, "reply-to", "", "Optional reply-to message id")
+	cmd.Flags().StringVar(&flags.traceID, "trace-id", "", "Optional trace id")
+	cmd.Flags().StringVar(&flags.causationID, "causation-id", "", "Optional causation id")
+	cmd.Flags().StringVar(&flags.expiresAtRaw, "expires-at", "", "Optional expiry as unix seconds or RFC3339")
+	cmd.Flags().StringVar(&flags.id, "id", "", "Optional explicit message id")
+	cmd.Flags().StringVar(&flags.extRaw, "ext", "", "Optional JSON object of extension metadata")
 }
 
 func newNetworkInboxCommand(deps commandDeps) *cobra.Command {
@@ -322,6 +683,230 @@ func networkChannelsBundle(channels []NetworkChannelRecord) outputBundle {
 	)
 }
 
+func networkThreadsBundle(threads []NetworkThreadRecord) outputBundle {
+	return listBundle(
+		contract.NetworkThreadsResponse{Threads: threads},
+		threads,
+		"Network Threads",
+		[]string{"Thread", "Root", "Opened By", "Messages", "Participants", "Open Work", "Last Activity", "Preview"},
+		"network_threads",
+		[]string{
+			"channel",
+			"thread_id",
+			"root_message_id",
+			"opened_by_peer_id",
+			"message_count",
+			"participant_count",
+			"open_work_count",
+			"last_activity_at",
+			"last_message_preview",
+		},
+		networkThreadHumanRow,
+		networkThreadToonRow,
+	)
+}
+
+func networkThreadBundle(thread NetworkThreadRecord) outputBundle {
+	return outputBundle{
+		jsonValue: contract.NetworkThreadResponse{Thread: thread},
+		human: func() (string, error) {
+			return renderHumanSection("Network Thread", networkThreadKeyValues(thread)), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"network_thread",
+				[]string{
+					"channel",
+					"thread_id",
+					"root_message_id",
+					"title",
+					"opened_by_peer_id",
+					"opened_session_id",
+					"opened_at",
+					"last_activity_at",
+					"message_count",
+					"participant_count",
+					"open_work_count",
+					"last_message_preview",
+				},
+				[]string{
+					thread.Channel,
+					thread.ThreadID,
+					thread.RootMessageID,
+					thread.Title,
+					thread.OpenedByPeerID,
+					thread.OpenedSessionID,
+					formatTimePtr(thread.OpenedAt),
+					formatTimePtr(thread.LastActivityAt),
+					strconv.Itoa(thread.MessageCount),
+					strconv.Itoa(thread.ParticipantCount),
+					strconv.Itoa(thread.OpenWorkCount),
+					thread.LastMessagePreview,
+				},
+			), nil
+		},
+	}
+}
+
+func networkThreadMessagesBundle(messages []NetworkConversationMessageRecord) outputBundle {
+	return networkMessagesBundle(contract.NetworkThreadMessagesResponse{Messages: messages}, messages)
+}
+
+func networkDirectsBundle(directs []NetworkDirectRoomRecord) outputBundle {
+	return listBundle(
+		contract.NetworkDirectRoomsResponse{Directs: directs},
+		directs,
+		"Network Direct Rooms",
+		[]string{"Direct", "Peer A", "Peer B", "Messages", "Open Work", "Last Activity", "Preview"},
+		"network_directs",
+		[]string{
+			"channel",
+			"direct_id",
+			"peer_a",
+			"peer_b",
+			"message_count",
+			"open_work_count",
+			"last_activity_at",
+			"last_message_preview",
+		},
+		networkDirectHumanRow,
+		networkDirectToonRow,
+	)
+}
+
+func networkDirectBundle(direct NetworkDirectRoomRecord) outputBundle {
+	return outputBundle{
+		jsonValue: contract.NetworkDirectRoomResponse{Direct: direct},
+		human: func() (string, error) {
+			return renderHumanSection("Network Direct Room", networkDirectKeyValues(direct)), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"network_direct",
+				[]string{
+					"channel",
+					"direct_id",
+					"peer_a",
+					"peer_b",
+					"opened_at",
+					"last_activity_at",
+					"message_count",
+					"open_work_count",
+					"last_message_preview",
+				},
+				[]string{
+					direct.Channel,
+					direct.DirectID,
+					direct.PeerA,
+					direct.PeerB,
+					formatTimePtr(direct.OpenedAt),
+					formatTimePtr(direct.LastActivityAt),
+					strconv.Itoa(direct.MessageCount),
+					strconv.Itoa(direct.OpenWorkCount),
+					direct.LastMessagePreview,
+				},
+			), nil
+		},
+	}
+}
+
+func networkDirectMessagesBundle(messages []NetworkConversationMessageRecord) outputBundle {
+	return networkMessagesBundle(contract.NetworkDirectRoomMessagesResponse{Messages: messages}, messages)
+}
+
+func networkMessagesBundle(jsonValue any, messages []NetworkConversationMessageRecord) outputBundle {
+	return listBundle(
+		jsonValue,
+		messages,
+		"Network Messages",
+		[]string{
+			"Message",
+			"Surface",
+			"Thread",
+			"Direct",
+			"Kind",
+			"Direction",
+			"From",
+			"To",
+			"Work",
+			"Timestamp",
+			"Preview",
+		},
+		"network_messages",
+		[]string{
+			"message_id",
+			"channel",
+			"surface",
+			"thread_id",
+			"direct_id",
+			"kind",
+			"direction",
+			"peer_from",
+			"peer_to",
+			"work_id",
+			"timestamp",
+			"preview_text",
+		},
+		networkMessageHumanRow,
+		networkMessageToonRow,
+	)
+}
+
+func networkWorkBundle(work NetworkWorkRecord) outputBundle {
+	return outputBundle{
+		jsonValue: contract.NetworkWorkResponse{Work: work},
+		human: func() (string, error) {
+			return renderHumanSection("Network Work", []keyValue{
+				{Label: "Work ID", Value: stringOrDash(work.WorkID)},
+				{Label: "Channel", Value: stringOrDash(work.Channel)},
+				{Label: "Surface", Value: stringOrDash(work.Surface)},
+				{Label: "Thread ID", Value: stringOrDash(work.ThreadID)},
+				{Label: "Direct ID", Value: stringOrDash(work.DirectID)},
+				{Label: "Opened By", Value: stringOrDash(work.OpenedByPeerID)},
+				{Label: "Opened Session", Value: stringOrDash(work.OpenedSessionID)},
+				{Label: "Target Peer", Value: stringOrDash(work.TargetPeerID)},
+				{Label: "State", Value: stringOrDash(work.State)},
+				{Label: "Opened At", Value: stringOrDash(formatTimePtr(work.OpenedAt))},
+				{Label: "Last Activity", Value: stringOrDash(formatTimePtr(work.LastActivityAt))},
+				{Label: "Terminal At", Value: stringOrDash(formatTimePtr(work.TerminalAt))},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"network_work",
+				[]string{
+					"work_id",
+					"channel",
+					"surface",
+					"thread_id",
+					"direct_id",
+					"opened_by_peer_id",
+					"opened_session_id",
+					"target_peer_id",
+					"state",
+					"opened_at",
+					"last_activity_at",
+					"terminal_at",
+				},
+				[]string{
+					work.WorkID,
+					work.Channel,
+					work.Surface,
+					work.ThreadID,
+					work.DirectID,
+					work.OpenedByPeerID,
+					work.OpenedSessionID,
+					work.TargetPeerID,
+					work.State,
+					formatTimePtr(work.OpenedAt),
+					formatTimePtr(work.LastActivityAt),
+					formatTimePtr(work.TerminalAt),
+				},
+			), nil
+		},
+	}
+}
+
 func networkSendBundle(message NetworkSendRecord) outputBundle {
 	return outputBundle{
 		jsonValue: message,
@@ -330,9 +915,12 @@ func networkSendBundle(message NetworkSendRecord) outputBundle {
 				{Label: "ID", Value: stringOrDash(message.ID)},
 				{Label: "Session", Value: stringOrDash(message.SessionID)},
 				{Label: "Channel", Value: stringOrDash(message.Channel)},
+				{Label: "Surface", Value: stringOrDash(message.Surface)},
+				{Label: "Thread ID", Value: stringOrDash(message.ThreadID)},
+				{Label: "Direct ID", Value: stringOrDash(message.DirectID)},
 				{Label: "Kind", Value: stringOrDash(message.Kind)},
 				{Label: "To", Value: stringOrDash(message.To)},
-				{Label: "Interaction", Value: stringOrDash(message.InteractionID)},
+				{Label: "Work ID", Value: stringOrDash(message.WorkID)},
 				{Label: "Reply To", Value: stringOrDash(message.ReplyTo)},
 				{Label: "Trace ID", Value: stringOrDash(message.TraceID)},
 				{Label: "Causation ID", Value: stringOrDash(message.CausationID)},
@@ -345,9 +933,12 @@ func networkSendBundle(message NetworkSendRecord) outputBundle {
 				"id",
 				"session_id",
 				"channel",
+				"surface",
+				"thread_id",
+				"direct_id",
 				"kind",
 				"to",
-				"interaction_id",
+				"work_id",
 				"reply_to",
 				"trace_id",
 				"causation_id",
@@ -357,9 +948,12 @@ func networkSendBundle(message NetworkSendRecord) outputBundle {
 				message.ID,
 				message.SessionID,
 				message.Channel,
+				message.Surface,
+				message.ThreadID,
+				message.DirectID,
 				message.Kind,
 				message.To,
-				message.InteractionID,
+				message.WorkID,
 				message.ReplyTo,
 				message.TraceID,
 				message.CausationID,
@@ -421,6 +1015,140 @@ func networkInboxBundle(messages []NetworkEnvelopeRecord) outputBundle {
 	)
 }
 
+func writeCommandOutputWithJSONL[T any](cmd *cobra.Command, bundle outputBundle, items []T) error {
+	mode, err := resolveOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if mode == OutputJSONL {
+		return writeJSONLines(cmd, items)
+	}
+	return writeCommandOutput(cmd, bundle)
+}
+
+func networkThreadHumanRow(thread NetworkThreadRecord) []string {
+	return []string{
+		stringOrDash(thread.ThreadID),
+		stringOrDash(thread.RootMessageID),
+		stringOrDash(thread.OpenedByPeerID),
+		strconv.Itoa(thread.MessageCount),
+		strconv.Itoa(thread.ParticipantCount),
+		strconv.Itoa(thread.OpenWorkCount),
+		stringOrDash(formatTimePtr(thread.LastActivityAt)),
+		stringOrDash(thread.LastMessagePreview),
+	}
+}
+
+func networkThreadToonRow(thread NetworkThreadRecord) []string {
+	return []string{
+		thread.Channel,
+		thread.ThreadID,
+		thread.RootMessageID,
+		thread.OpenedByPeerID,
+		strconv.Itoa(thread.MessageCount),
+		strconv.Itoa(thread.ParticipantCount),
+		strconv.Itoa(thread.OpenWorkCount),
+		formatTimePtr(thread.LastActivityAt),
+		thread.LastMessagePreview,
+	}
+}
+
+func networkThreadKeyValues(thread NetworkThreadRecord) []keyValue {
+	return []keyValue{
+		{Label: "Channel", Value: stringOrDash(thread.Channel)},
+		{Label: "Thread ID", Value: stringOrDash(thread.ThreadID)},
+		{Label: "Root Message", Value: stringOrDash(thread.RootMessageID)},
+		{Label: "Title", Value: stringOrDash(thread.Title)},
+		{Label: "Opened By", Value: stringOrDash(thread.OpenedByPeerID)},
+		{Label: "Opened Session", Value: stringOrDash(thread.OpenedSessionID)},
+		{Label: "Opened At", Value: stringOrDash(formatTimePtr(thread.OpenedAt))},
+		{Label: "Last Activity", Value: stringOrDash(formatTimePtr(thread.LastActivityAt))},
+		{Label: "Messages", Value: strconv.Itoa(thread.MessageCount)},
+		{Label: "Participants", Value: strconv.Itoa(thread.ParticipantCount)},
+		{Label: "Open Work", Value: strconv.Itoa(thread.OpenWorkCount)},
+		{Label: "Preview", Value: stringOrDash(thread.LastMessagePreview)},
+	}
+}
+
+func networkDirectHumanRow(direct NetworkDirectRoomRecord) []string {
+	return []string{
+		stringOrDash(direct.DirectID),
+		stringOrDash(direct.PeerA),
+		stringOrDash(direct.PeerB),
+		strconv.Itoa(direct.MessageCount),
+		strconv.Itoa(direct.OpenWorkCount),
+		stringOrDash(formatTimePtr(direct.LastActivityAt)),
+		stringOrDash(direct.LastMessagePreview),
+	}
+}
+
+func networkDirectToonRow(direct NetworkDirectRoomRecord) []string {
+	return []string{
+		direct.Channel,
+		direct.DirectID,
+		direct.PeerA,
+		direct.PeerB,
+		strconv.Itoa(direct.MessageCount),
+		strconv.Itoa(direct.OpenWorkCount),
+		formatTimePtr(direct.LastActivityAt),
+		direct.LastMessagePreview,
+	}
+}
+
+func networkDirectKeyValues(direct NetworkDirectRoomRecord) []keyValue {
+	return []keyValue{
+		{Label: "Channel", Value: stringOrDash(direct.Channel)},
+		{Label: "Direct ID", Value: stringOrDash(direct.DirectID)},
+		{Label: "Peer A", Value: stringOrDash(direct.PeerA)},
+		{Label: "Peer B", Value: stringOrDash(direct.PeerB)},
+		{Label: "Opened At", Value: stringOrDash(formatTimePtr(direct.OpenedAt))},
+		{Label: "Last Activity", Value: stringOrDash(formatTimePtr(direct.LastActivityAt))},
+		{Label: "Messages", Value: strconv.Itoa(direct.MessageCount)},
+		{Label: "Open Work", Value: strconv.Itoa(direct.OpenWorkCount)},
+		{Label: "Preview", Value: stringOrDash(direct.LastMessagePreview)},
+	}
+}
+
+func networkMessageHumanRow(message NetworkConversationMessageRecord) []string {
+	return []string{
+		stringOrDash(message.MessageID),
+		stringOrDash(message.Surface),
+		stringOrDash(message.ThreadID),
+		stringOrDash(message.DirectID),
+		stringOrDash(message.Kind),
+		stringOrDash(message.Direction),
+		stringOrDash(message.PeerFrom),
+		stringOrDash(message.PeerTo),
+		stringOrDash(message.WorkID),
+		stringOrDash(formatTime(message.Timestamp)),
+		stringOrDash(networkMessagePreview(message)),
+	}
+}
+
+func networkMessageToonRow(message NetworkConversationMessageRecord) []string {
+	return []string{
+		message.MessageID,
+		message.Channel,
+		message.Surface,
+		message.ThreadID,
+		message.DirectID,
+		message.Kind,
+		message.Direction,
+		message.PeerFrom,
+		message.PeerTo,
+		message.WorkID,
+		formatTime(message.Timestamp),
+		networkMessagePreview(message),
+	}
+}
+
+func networkMessagePreview(message NetworkConversationMessageRecord) string {
+	if trimmed := strings.TrimSpace(message.PreviewText); trimmed != "" {
+		return trimmed
+	}
+	return strings.TrimSpace(message.Text)
+}
+
 func networkKindMetricRows(metrics []NetworkKindMetricRecord) [][]string {
 	rows := make([][]string, 0, len(metrics))
 	for _, metric := range metrics {
@@ -476,6 +1204,93 @@ func validateNetworkSendNoRawClaimToken(body json.RawMessage, ext map[string]jso
 		)
 	}
 	return nil
+}
+
+func validateNetworkSendFlags(flags networkSendFlags) error {
+	kind := strings.TrimSpace(flags.kind)
+	if kind == networkSurfaceDirect {
+		return errors.New("cli: --kind direct is not supported; use --surface direct with --kind say")
+	}
+
+	surface := strings.TrimSpace(flags.surface)
+	threadID := strings.TrimSpace(flags.threadID)
+	directID := strings.TrimSpace(flags.directID)
+	workID := strings.TrimSpace(flags.workID)
+	if err := validateNetworkSendConversationFlags(kind, surface, threadID, directID); err != nil {
+		return err
+	}
+	return validateNetworkSendKindScope(kind, surface, threadID, directID, workID)
+}
+
+func validateNetworkSendConversationFlags(kind string, surface string, threadID string, directID string) error {
+	if threadID != "" && directID != "" {
+		return errors.New("cli: --thread and --direct cannot be used together")
+	}
+	if surface == "" {
+		if threadID != "" || directID != "" {
+			return errors.New("cli: --surface is required when --thread or --direct is set")
+		}
+		if networkKindRequiresConversation(kind) {
+			return fmt.Errorf("cli: --surface is required for --kind %s", kind)
+		}
+	} else {
+		switch surface {
+		case networkSurfaceThread:
+			if threadID == "" {
+				return errors.New("cli: --thread is required when --surface thread is set")
+			}
+			if directID != "" {
+				return errors.New("cli: --direct cannot be used when --surface thread is set")
+			}
+		case networkSurfaceDirect:
+			if directID == "" {
+				return errors.New("cli: --direct is required when --surface direct is set")
+			}
+			if threadID != "" {
+				return errors.New("cli: --thread cannot be used when --surface direct is set")
+			}
+		default:
+			return errors.New("cli: --surface must be thread or direct")
+		}
+	}
+	return nil
+}
+
+func validateNetworkSendKindScope(kind string, surface string, threadID string, directID string, workID string) error {
+	if networkKindForbidsConversation(kind) && (surface != "" || threadID != "" || directID != "" || workID != "") {
+		return fmt.Errorf("cli: --kind %s cannot include --surface, --thread, --direct, or --work", kind)
+	}
+	if networkKindRequiresWork(kind) && workID == "" {
+		return fmt.Errorf("cli: --kind %s requires --work", kind)
+	}
+	return nil
+}
+
+func networkKindForbidsConversation(kind string) bool {
+	switch kind {
+	case networkKindGreet, networkKindWhois:
+		return true
+	default:
+		return false
+	}
+}
+
+func networkKindRequiresWork(kind string) bool {
+	switch kind {
+	case networkKindCapability, networkKindReceipt, networkKindTrace:
+		return true
+	default:
+		return false
+	}
+}
+
+func networkKindRequiresConversation(kind string) bool {
+	switch kind {
+	case networkKindSay, networkKindCapability, networkKindReceipt, networkKindTrace:
+		return true
+	default:
+		return false
+	}
 }
 
 func parseNetworkExpiresAt(raw string) (*int64, error) {

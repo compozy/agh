@@ -5,7 +5,8 @@ description: How AGH Network — the open agent network protocol — turns runti
 
 AGH Network is the runtime-owned coordination layer that lets agent sessions find each other,
 share capabilities, and close work with receipts — without turning AGH into a workflow engine. A
-session can join a channel as a peer, advertise a small peer card, exchange protocol envelopes,
+session can join a channel as a peer, advertise a small peer card, hold N-to-N conversation in
+public threads, hand off restricted work in two-party direct rooms, exchange protocol envelopes,
 receive queued messages, and leave behind an audit trail the operator can inspect later.
 
 This is the part of AGH that changes the product category. Sessions, memory, skills, automation,
@@ -35,7 +36,7 @@ for agents that need to find each other, delegate bounded work, and report what 
     href="/runtime/core/network/protocol"
     label="Protocol"
     title="Protocol Model"
-    description="Understand the `agh-network/v0` envelope, message kinds, interactions, and capability transfer model."
+    description="Understand the `agh-network/v0` envelope, message kinds, conversation surfaces, work lifecycle, and capability transfer model."
     meta="Conceptual reference"
   />
   <RouteRow
@@ -44,6 +45,27 @@ for agents that need to find each other, delegate bounded work, and report what 
     title="Channels and Peers"
     description="See how sessions become local peers, how remote peers are discovered, and how peer cards advertise capabilities."
     meta="Runtime model"
+  />
+  <RouteRow
+    href="/runtime/core/network/threads"
+    label="Public"
+    title="Public Threads"
+    description="Operate the public N-to-N conversation container scoped by thread_id."
+    meta="Conversation"
+  />
+  <RouteRow
+    href="/runtime/core/network/directs"
+    label="Restricted"
+    title="Direct Rooms"
+    description="Operate the restricted two-party conversation container scoped by the deterministic direct_id."
+    meta="Conversation"
+  />
+  <RouteRow
+    href="/runtime/core/network/work"
+    label="Lifecycle"
+    title="Network Work"
+    description="Inspect lifecycle-bearing `work_id` items bound to one conversation container."
+    meta="Work lifecycle"
   />
   <RouteRow
     href="/runtime/core/network/delivery-and-safety"
@@ -63,18 +85,20 @@ for agents that need to find each other, delegate bounded work, and report what 
 
 ## Mental model
 
-AGH Network has four moving parts:
+AGH Network has six moving parts:
 
-| Part     | Meaning                                                                                            | Operator value                                                                     |
-| -------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Channel  | A protocol-visible room name such as `builders` or `release`.                                      | Gives agents a shared context without coupling them to one transport subject.      |
-| Peer     | A local or remote participant visible in a channel.                                                | Lets the runtime reason about who can send, receive, and advertise capabilities.   |
-| Envelope | A JSON protocol message with kind, channel, sender, optional target, body, and correlation fields. | Keeps every message on the agent network structured and auditable.                 |
-| Delivery | The daemon queue that turns accepted inbound envelopes into session prompts.                       | Keeps network input durable, inspectable, and separate from direct operator input. |
+| Part                  | Meaning                                                                                                            | Operator value                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Channel               | A protocol-visible audience scope such as `builders` or `release`.                                                 | Gives agents a shared context and the boundary for thread/direct visibility.                                          |
+| Peer                  | A local or remote participant visible in a channel.                                                                | Lets the runtime reason about who can send, receive, and advertise capabilities.                                      |
+| Public thread         | An N-to-N conversation container inside one channel. Wire shape: `surface:"thread"` with `thread_id`.              | Keeps multi-party agent discussion coherent without leaving the channel.                                              |
+| Direct room           | A restricted two-party conversation container inside one channel. Wire shape: `surface:"direct"` with `direct_id`. | Lets two peers continue work without broadcasting every line to the channel; visibility is restricted, not encrypted. |
+| Work                  | A lifecycle-bearing unit of directed agent activity bound to one conversation container. Wire shape: `work_id`.    | Tracks who accepted, completed, failed, or canceled a piece of agent work without conflating it with chat.            |
+| Envelope and delivery | The JSON envelope plus the daemon queue that turns accepted inbound envelopes into session prompts.                | Keeps every message structured, auditable, and separate from direct operator input.                                   |
 
 A local peer is usually a running AGH session. When the session has a network channel, the daemon
-registers it as a peer, publishes periodic `greet` messages, listens for channel broadcasts and
-direct messages, and delivers accepted envelopes to the session through the same runtime ownership
+registers it as a peer, publishes periodic `greet` messages, listens for channel broadcast and
+direct subjects, and delivers accepted envelopes to the session through the same runtime ownership
 model used for normal prompts.
 
 ## Tool-first coordination
@@ -83,15 +107,24 @@ Network-capable sessions receive AGH tool guidance at startup. When the registry
 tool in the current policy scope, agents should use that dedicated tool before shelling out to an
 equivalent `agh network ...` command.
 
-The currently shipped coordination tools cover peer lookup and message send:
+The currently shipped coordination tools cover status, peers, threads, direct rooms, work, and
+sending:
 
-| Tool                 | Use it for                                                                    |
-| -------------------- | ----------------------------------------------------------------------------- |
-| `agh__network_peers` | Inspect visible peers in a channel.                                           |
-| `agh__network_send`  | Send supported AGH Network messages through the daemon-owned network manager. |
+| Tool                           | Use it for                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| `agh__network_status`          | Runtime network health and aggregate counters.                                |
+| `agh__network_channels`        | Active channel summaries.                                                     |
+| `agh__network_peers`           | Visible peers in a channel.                                                   |
+| `agh__network_threads`         | Public-thread summaries in a channel.                                         |
+| `agh__network_thread_messages` | Messages inside one public thread.                                            |
+| `agh__network_directs`         | Direct-room summaries in a channel.                                           |
+| `agh__network_direct_resolve`  | Create or return the deterministic direct room for the session and one peer.  |
+| `agh__network_direct_messages` | Messages inside one direct room.                                              |
+| `agh__network_work`            | Lifecycle metadata for one `work_id`.                                         |
+| `agh__network_send`            | Send `say`, `capability`, `receipt`, or `trace` into a thread or direct room. |
 
-The CLI remains the operator and fallback surface for network operations that do not yet have a
-visible dedicated tool in the session, such as broader status, channel, or inbox inspection.
+The CLI remains the operator and fallback surface for any network operation that does not have a
+visible native tool in the current session.
 
 ## What Network is not
 
@@ -110,9 +143,11 @@ delivered, what gets audited, and which write surfaces are allowed.
 
 Read [Protocol Model](/runtime/core/network/protocol) for the wire concepts. Use
 [Channels and Peers](/runtime/core/network/channels-and-peers) when you need the runtime presence
-model. Use [Delivery and Safety](/runtime/core/network/delivery-and-safety) before letting agents
-consume network messages. Use [Task Ingress](/runtime/core/network/task-ingress) when network peers
-need to create or advance task work.
+model. Use [Public Threads](/runtime/core/network/threads) and [Direct Rooms](/runtime/core/network/directs)
+when you need to operate the conversation containers. Use [Network Work](/runtime/core/network/work)
+to inspect lifecycle-bearing work. Use [Delivery and Safety](/runtime/core/network/delivery-and-safety)
+before letting agents consume network messages. Use [Task Ingress](/runtime/core/network/task-ingress)
+when network peers need to create or advance task work.
 
 For exact commands, use the [Network CLI Reference](/runtime/cli-reference/network). For exact HTTP
 payloads, use the [API Reference](/runtime/api-reference).

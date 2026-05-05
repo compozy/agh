@@ -178,10 +178,82 @@ describe("manual site CLI examples", () => {
           !normalized.includes("--session ") ||
           !normalized.includes("--channel ") ||
           !normalized.includes("--kind ") ||
-          !normalized.includes("--body ")
+          !normalized.includes("--body ") ||
+          !normalized.includes("--surface ") ||
+          !(normalized.includes("--thread ") || normalized.includes("--direct "))
         );
       })
       .map(({ path }) => path);
+
+    expect(violations).toEqual([]);
+  });
+
+  it("does not advertise removed network send flags", () => {
+    const removed = [
+      /--interaction-id\b/,
+      /--thread-id\b/,
+      /--direct-id\b/,
+      /--work-id\b/,
+      /--kind\s+direct\b/,
+      /--kind\s+request\b/,
+    ];
+    const violations = commandBlocks("agh network send").flatMap(({ path, block }) => {
+      const normalized = block.replaceAll("\\\n", " ");
+      return removed
+        .filter(pattern => pattern.test(normalized))
+        .map(pattern => `${path}: ${pattern.source}`);
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it("does not advertise removed wire vocabulary inside active docs code blocks", () => {
+    // Scan only fenced code blocks (executable / structural examples). Narrative may still mention
+    // a legacy term in a "we removed this" tombstone sentence — that is fine. Code blocks must
+    // contain only current vocabulary so copy-paste evidence stays truthful.
+    const networkScopedPaths: RegExp[] = [
+      /^runtime\/core\/network\//,
+      /^runtime\/use-cases\//,
+      /^protocol\//,
+    ];
+
+    const removedCodePatterns: RegExp[] = [
+      /\binteraction_id\b/,
+      /\bInteractionID\b/,
+      /"kind"\s*:\s*"direct"/,
+      /\bkind\s*:\s*"direct"/,
+      /\bKindDirect\b/,
+      /\bDirectBody\b/,
+      /--interaction-id\b/,
+      /--kind\s+direct\b/,
+    ];
+
+    const violations = listManualDocs(contentRoot)
+      .filter(doc => networkScopedPaths.some(prefix => prefix.test(doc.path)))
+      .flatMap(doc =>
+        extractCodeBlocks(doc).flatMap(block =>
+          removedCodePatterns
+            .filter(pattern => pattern.test(block.body))
+            .map(pattern => `${doc.path} (${block.language || "<unlabeled>"}): ${pattern.source}`)
+        )
+      );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("describes direct rooms as restricted visibility, not cryptographic privacy", () => {
+    // Flag any active doc that claims direct rooms are encrypted / cryptographically private. The
+    // techspec is explicit that direct rooms are restricted runtime visibility and not a
+    // cryptographic guarantee.
+    const violations = listManualDocs(contentRoot)
+      .filter(doc => /\bdirect[- ]?room/i.test(doc.content))
+      .filter(doc =>
+        new RegExp(
+          "direct[- ]?room(?:s)?[^.\\n]*(?:are|provide|offer|guarantee)[^.\\n]*(?:cryptograph|end[- ]to[- ]end)",
+          "i"
+        ).test(doc.content)
+      )
+      .map(doc => doc.path);
 
     expect(violations).toEqual([]);
   });

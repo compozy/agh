@@ -1146,15 +1146,117 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/network/channels/{channel}/messages": {
+  "/api/network/channels/{channel}/directs": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** List the read-only timeline for one network channel */
-    get: operations["listNetworkChannelMessages"];
+    /** List direct rooms in one network channel */
+    get: operations["listNetworkDirectRooms"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/network/channels/{channel}/directs/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create or return a deterministic direct room */
+    post: operations["resolveNetworkDirectRoom"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/network/channels/{channel}/directs/{direct_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one direct-room summary */
+    get: operations["getNetworkDirectRoom"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/network/channels/{channel}/directs/{direct_id}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List messages in one direct room */
+    get: operations["listNetworkDirectRoomMessages"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/network/channels/{channel}/threads": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List public threads in one network channel */
+    get: operations["listNetworkThreads"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/network/channels/{channel}/threads/{thread_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one public-thread summary */
+    get: operations["getNetworkThread"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/network/channels/{channel}/threads/{thread_id}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List messages in one public thread */
+    get: operations["listNetworkThreadMessages"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1214,23 +1316,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/network/peers/{peer_id}/messages": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List the directed room timeline for one network peer */
-    get: operations["listNetworkPeerMessages"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/network/send": {
     parameters: {
       query?: never;
@@ -1257,6 +1342,23 @@ export interface paths {
     };
     /** Get the network runtime status snapshot */
     get: operations["getNetworkStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/network/work/{work_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one network work item */
+    get: operations["getNetworkWork"];
     put?: never;
     post?: never;
     delete?: never;
@@ -13241,6 +13343,8 @@ export interface operations {
               network?: {
                 channels?: number;
                 configured_default_channel?: string;
+                /** Format: int64 */
+                conversation_messages?: number;
                 declared_channels?: {
                   activation_id?: string;
                   bundle_name?: string;
@@ -13252,6 +13356,8 @@ export interface operations {
                   workspace_id?: string;
                 }[];
                 delivery_workers?: number;
+                /** Format: int64 */
+                direct_resolves?: number;
                 effective_default_channel?: string;
                 effective_default_source?: string;
                 enabled: boolean;
@@ -13280,10 +13386,18 @@ export interface operations {
                 messages_rejected?: number;
                 /** Format: int64 */
                 messages_sent?: number;
+                /** Format: int64 */
+                open_direct_rooms?: number;
+                /** Format: int64 */
+                open_threads?: number;
+                /** Format: int64 */
+                open_work_items?: number;
                 queued_messages?: number;
                 queued_sessions?: number;
                 remote_peers?: number;
                 status: string;
+                /** Format: int64 */
+                work_transitions?: number;
                 /** Format: int64 */
                 workflow_tagged_events?: number;
               } | null;
@@ -13848,7 +13962,13 @@ export interface operations {
           | "spawn.created"
           | "spawn.parent_stopped"
           | "spawn.ttl_expired"
-          | "spawn.reaped";
+          | "spawn.reaped"
+          | "network.thread.opened"
+          | "network.direct_room.opened"
+          | "network.message.persisted"
+          | "network.work.opened"
+          | "network.work.transitioned"
+          | "network.work.closed";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -13886,21 +14006,26 @@ export interface operations {
                   task_id?: string;
                   workflow_id?: string;
                 } | null;
+                channel?: string;
                 compaction_reason?: string;
                 compaction_strategy?: string;
                 decision_class?: string;
+                direction?: string;
                 input_class?: string;
+                kind?: string;
                 message_delta_type?: string;
                 message_role?: string;
                 sandbox_backend?: string;
                 sandbox_id?: string;
                 sandbox_profile?: string;
                 session_type?: string;
+                surface?: string;
                 sync_direction?: string;
                 tool_id?: string;
                 tool_name?: string;
                 tool_read_only?: boolean | null;
                 turn_id?: string;
+                work_state?: string;
                 workspace_id?: string;
                 workspace_root?: string;
               };
@@ -14101,7 +14226,13 @@ export interface operations {
           | "spawn.created"
           | "spawn.parent_stopped"
           | "spawn.ttl_expired"
-          | "spawn.reaped";
+          | "spawn.reaped"
+          | "network.thread.opened"
+          | "network.direct_room.opened"
+          | "network.message.persisted"
+          | "network.work.opened"
+          | "network.work.transitioned"
+          | "network.work.closed";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */
@@ -15256,16 +15387,14 @@ export interface operations {
       };
     };
   };
-  listNetworkChannelMessages: {
+  listNetworkDirectRooms: {
     parameters: {
       query?: {
-        /** @description Return messages before the specified message id */
-        before?: string;
-        /** @description Return messages after the specified message id */
+        /** @description Filter direct rooms by peer id */
+        peer_id?: string;
+        /** @description Return direct rooms after the specified direct id */
         after?: string;
-        /** @description Include coalesced presence episodes in the timeline */
-        include_presence?: boolean;
-        /** @description Maximum number of timeline messages to return */
+        /** @description Maximum number of direct rooms to return */
         limit?: number;
       };
       header?: never;
@@ -15284,14 +15413,298 @@ export interface operations {
         };
         content: {
           "application/json": {
+            directs: {
+              channel: string;
+              direct_id: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              peer_a: string;
+              peer_b: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid direct-room request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  resolveNetworkDirectRoom: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Network channel */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          peer_id: string;
+          session_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            direct: {
+              channel: string;
+              direct_id: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              peer_a: string;
+              peer_b: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid direct-room resolve request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network direct-room peer not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Direct-room collision */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getNetworkDirectRoom: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Network channel */
+        channel: string;
+        /** @description Direct-room id */
+        direct_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            direct: {
+              channel: string;
+              direct_id: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              peer_a: string;
+              peer_b: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid direct room */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network direct room not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkDirectRoomMessages: {
+    parameters: {
+      query?: {
+        /** @description Return messages before the specified message id */
+        before?: string;
+        /** @description Return messages after the specified message id */
+        after?: string;
+        /** @description Filter messages by network kind */
+        kind?: string;
+        /** @description Filter messages by work id */
+        work_id?: string;
+        /** @description Maximum number of messages to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Network channel */
+        channel: string;
+        /** @description Direct-room id */
+        direct_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
             messages: {
               body: unknown;
               causation_id?: string;
               channel: string;
+              direct_id?: string;
               direction: string;
               display_name?: string;
               intent?: string;
-              interaction_id?: string;
               kind: string;
               local?: boolean;
               message_id: string;
@@ -15305,15 +15718,18 @@ export interface operations {
               preview_text?: string;
               reply_to?: string;
               session_id?: string;
+              surface?: string;
               text?: string;
+              thread_id?: string;
               /** Format: date-time */
               timestamp: string;
               trace_id?: string;
+              work_id?: string;
             }[];
           };
         };
       };
-      /** @description Invalid network channel */
+      /** @description Invalid direct-room messages request */
       400: {
         headers: {
           [name: string]: unknown;
@@ -15324,7 +15740,299 @@ export interface operations {
           };
         };
       };
-      /** @description Network channel not found */
+      /** @description Network direct room not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkThreads: {
+    parameters: {
+      query?: {
+        /** @description Return messages after the specified message id */
+        after?: string;
+        /** @description Maximum number of public threads to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Network channel */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            threads: {
+              channel: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              opened_by_peer_id?: string;
+              opened_session_id?: string;
+              participant_count: number;
+              root_message_id: string;
+              thread_id: string;
+              title?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid public-thread request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getNetworkThread: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Network channel */
+        channel: string;
+        /** @description Public thread id */
+        thread_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            thread: {
+              channel: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              message_count: number;
+              open_work_count: number;
+              /** Format: date-time */
+              opened_at?: string | null;
+              opened_by_peer_id?: string;
+              opened_session_id?: string;
+              participant_count: number;
+              root_message_id: string;
+              thread_id: string;
+              title?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid public thread */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network thread not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNetworkThreadMessages: {
+    parameters: {
+      query?: {
+        /** @description Return messages before the specified message id */
+        before?: string;
+        /** @description Return messages after the specified message id */
+        after?: string;
+        /** @description Filter messages by network kind */
+        kind?: string;
+        /** @description Filter messages by work id */
+        work_id?: string;
+        /** @description Maximum number of messages to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Network channel */
+        channel: string;
+        /** @description Public thread id */
+        thread_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            messages: {
+              body: unknown;
+              causation_id?: string;
+              channel: string;
+              direct_id?: string;
+              direction: string;
+              display_name?: string;
+              intent?: string;
+              kind: string;
+              local?: boolean;
+              message_id: string;
+              peer_from: string;
+              peer_to?: string;
+              presence_count?: number;
+              /** Format: date-time */
+              presence_last_seen_at?: string | null;
+              /** Format: date-time */
+              presence_started_at?: string | null;
+              preview_text?: string;
+              reply_to?: string;
+              session_id?: string;
+              surface?: string;
+              text?: string;
+              thread_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              trace_id?: string;
+              work_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid public-thread messages request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network thread not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -15388,6 +16096,7 @@ export interface operations {
               body: unknown;
               causation_id?: string | null;
               channel: string;
+              direct_id?: string | null;
               /** Format: int64 */
               expires_at?: number | null;
               ext?: {
@@ -15395,17 +16104,19 @@ export interface operations {
               };
               from: string;
               id: string;
-              interaction_id?: string | null;
               kind: string;
               proof?: {
                 [key: string]: unknown;
               };
               protocol: string;
               reply_to?: string | null;
+              surface?: string | null;
+              thread_id?: string | null;
               to?: string | null;
               trace_id?: string | null;
               /** Format: int64 */
               ts: number;
+              work_id?: string | null;
             }[];
           };
         };
@@ -15667,115 +16378,6 @@ export interface operations {
       };
     };
   };
-  listNetworkPeerMessages: {
-    parameters: {
-      query?: {
-        /** @description Return messages before the specified message id */
-        before?: string;
-        /** @description Return messages after the specified message id */
-        after?: string;
-        /** @description Include coalesced presence episodes in the timeline */
-        include_presence?: boolean;
-        /** @description Maximum number of timeline messages to return */
-        limit?: number;
-      };
-      header?: never;
-      path: {
-        /** @description Network peer id */
-        peer_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            messages: {
-              body: unknown;
-              causation_id?: string;
-              channel: string;
-              direction: string;
-              display_name?: string;
-              intent?: string;
-              interaction_id?: string;
-              kind: string;
-              local?: boolean;
-              message_id: string;
-              peer_from: string;
-              peer_to?: string;
-              presence_count?: number;
-              /** Format: date-time */
-              presence_last_seen_at?: string | null;
-              /** Format: date-time */
-              presence_started_at?: string | null;
-              preview_text?: string;
-              reply_to?: string;
-              session_id?: string;
-              text?: string;
-              /** Format: date-time */
-              timestamp: string;
-              trace_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid peer timeline request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network peer not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      /** @description Network runtime is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
   sendNetworkMessage: {
     parameters: {
       query?: never;
@@ -15790,18 +16392,21 @@ export interface operations {
           body: unknown;
           causation_id?: string;
           channel: string;
+          direct_id?: string;
           /** Format: int64 */
           expires_at?: number | null;
           ext?: {
             [key: string]: unknown;
           };
           id?: string;
-          interaction_id?: string;
           kind: string;
           reply_to?: string;
           session_id: string;
+          surface?: string;
+          thread_id?: string;
           to?: string;
           trace_id?: string;
+          work_id?: string;
         };
       };
     };
@@ -15816,18 +16421,21 @@ export interface operations {
             message: {
               causation_id?: string;
               channel: string;
+              direct_id?: string;
               /** Format: int64 */
               expires_at?: number | null;
               ext?: {
                 [key: string]: unknown;
               };
               id: string;
-              interaction_id?: string;
               kind: string;
               reply_to?: string;
               session_id: string;
+              surface?: string;
+              thread_id?: string;
               to?: string;
               trace_id?: string;
+              work_id?: string;
             };
           };
         };
@@ -15903,6 +16511,8 @@ export interface operations {
             network: {
               channels?: number;
               configured_default_channel?: string;
+              /** Format: int64 */
+              conversation_messages?: number;
               declared_channels?: {
                 activation_id?: string;
                 bundle_name?: string;
@@ -15914,6 +16524,8 @@ export interface operations {
                 workspace_id?: string;
               }[];
               delivery_workers?: number;
+              /** Format: int64 */
+              direct_resolves?: number;
               effective_default_channel?: string;
               effective_default_source?: string;
               enabled: boolean;
@@ -15942,10 +16554,18 @@ export interface operations {
               messages_rejected?: number;
               /** Format: int64 */
               messages_sent?: number;
+              /** Format: int64 */
+              open_direct_rooms?: number;
+              /** Format: int64 */
+              open_threads?: number;
+              /** Format: int64 */
+              open_work_items?: number;
               queued_messages?: number;
               queued_sessions?: number;
               remote_peers?: number;
               status: string;
+              /** Format: int64 */
+              work_transitions?: number;
               /** Format: int64 */
               workflow_tagged_events?: number;
             };
@@ -15954,6 +16574,97 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getNetworkWork: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Network work id */
+        work_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            work: {
+              channel: string;
+              direct_id?: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              /** Format: date-time */
+              opened_at?: string | null;
+              opened_by_peer_id?: string;
+              opened_session_id?: string;
+              state: string;
+              surface: string;
+              target_peer_id?: string;
+              /** Format: date-time */
+              terminal_at?: string | null;
+              thread_id?: string;
+              work_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid network work id */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network work not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -20521,7 +21232,13 @@ export interface operations {
                   | "spawn.created"
                   | "spawn.parent_stopped"
                   | "spawn.ttl_expired"
-                  | "spawn.reaped";
+                  | "spawn.reaped"
+                  | "network.thread.opened"
+                  | "network.direct_room.opened"
+                  | "network.message.persisted"
+                  | "network.work.opened"
+                  | "network.work.transitioned"
+                  | "network.work.closed";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -20540,21 +21257,26 @@ export interface operations {
                     task_id?: string;
                     workflow_id?: string;
                   } | null;
+                  channel?: string;
                   compaction_reason?: string;
                   compaction_strategy?: string;
                   decision_class?: string;
+                  direction?: string;
                   input_class?: string;
+                  kind?: string;
                   message_delta_type?: string;
                   message_role?: string;
                   sandbox_backend?: string;
                   sandbox_id?: string;
                   sandbox_profile?: string;
                   session_type?: string;
+                  surface?: string;
                   sync_direction?: string;
                   tool_id?: string;
                   tool_name?: string;
                   tool_read_only?: boolean | null;
                   turn_id?: string;
+                  work_state?: string;
                   workspace_id?: string;
                   workspace_root?: string;
                 };
@@ -20746,7 +21468,13 @@ export interface operations {
                   | "spawn.created"
                   | "spawn.parent_stopped"
                   | "spawn.ttl_expired"
-                  | "spawn.reaped";
+                  | "spawn.reaped"
+                  | "network.thread.opened"
+                  | "network.direct_room.opened"
+                  | "network.message.persisted"
+                  | "network.work.opened"
+                  | "network.work.transitioned"
+                  | "network.work.closed";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -20765,21 +21493,26 @@ export interface operations {
                     task_id?: string;
                     workflow_id?: string;
                   } | null;
+                  channel?: string;
                   compaction_reason?: string;
                   compaction_strategy?: string;
                   decision_class?: string;
+                  direction?: string;
                   input_class?: string;
+                  kind?: string;
                   message_delta_type?: string;
                   message_role?: string;
                   sandbox_backend?: string;
                   sandbox_id?: string;
                   sandbox_profile?: string;
                   session_type?: string;
+                  surface?: string;
                   sync_direction?: string;
                   tool_id?: string;
                   tool_name?: string;
                   tool_read_only?: boolean | null;
                   turn_id?: string;
+                  work_state?: string;
                   workspace_id?: string;
                   workspace_root?: string;
                 };
@@ -21096,7 +21829,13 @@ export interface operations {
               | "spawn.created"
               | "spawn.parent_stopped"
               | "spawn.ttl_expired"
-              | "spawn.reaped";
+              | "spawn.reaped"
+              | "network.thread.opened"
+              | "network.direct_room.opened"
+              | "network.message.persisted"
+              | "network.work.opened"
+              | "network.work.transitioned"
+              | "network.work.closed";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
             matcher: {
@@ -21115,21 +21854,26 @@ export interface operations {
                 task_id?: string;
                 workflow_id?: string;
               } | null;
+              channel?: string;
               compaction_reason?: string;
               compaction_strategy?: string;
               decision_class?: string;
+              direction?: string;
               input_class?: string;
+              kind?: string;
               message_delta_type?: string;
               message_role?: string;
               sandbox_backend?: string;
               sandbox_id?: string;
               sandbox_profile?: string;
               session_type?: string;
+              surface?: string;
               sync_direction?: string;
               tool_id?: string;
               tool_name?: string;
               tool_read_only?: boolean | null;
               turn_id?: string;
+              work_state?: string;
               workspace_id?: string;
               workspace_root?: string;
             };

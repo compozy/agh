@@ -29,6 +29,12 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDNetworkInbox.String(),
 			toolspkg.ToolIDNetworkPeers.String(),
 			toolspkg.ToolIDNetworkSend.String(),
+			toolspkg.ToolIDNetworkThreads.String(),
+			toolspkg.ToolIDNetworkThreadMessages.String(),
+			toolspkg.ToolIDNetworkDirects.String(),
+			toolspkg.ToolIDNetworkDirectResolve.String(),
+			toolspkg.ToolIDNetworkDirectMessages.String(),
+			toolspkg.ToolIDNetworkWork.String(),
 		},
 	},
 	{

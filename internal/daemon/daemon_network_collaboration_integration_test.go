@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -76,11 +77,25 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 	if opsPeerID == patchPeerID {
 		t.Fatalf("peer IDs = %q and %q, want distinct values", opsPeerID, patchPeerID)
 	}
+	buildersThreadID := "thread_builders_main"
+	patchWorkID := "work_patch_42"
+	patchDirectID := requireDirectResolveRace(
+		t,
+		ctx,
+		harness,
+		"builders",
+		opsSession.ID,
+		opsPeerID,
+		patchSession.ID,
+		patchPeerID,
+	)
 
 	mustSendNetworkCLI(t, ctx, harness, []string{
 		"--session", opsSession.ID,
 		"--channel", "builders",
 		"--kind", "say",
+		"--surface", "thread",
+		"--thread", buildersThreadID,
 		"--id", "msg_say_01",
 		"--trace-id", "trace_ops_patch_42",
 		"--body", `{"text":"Who can take the failing migration tests in internal/store/sessiondb?","intent":"request-help","artifacts":[]}`,
@@ -94,9 +109,11 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 	mustSendNetworkCLI(t, ctx, harness, []string{
 		"--session", patchSession.ID,
 		"--channel", "builders",
-		"--kind", "direct",
+		"--kind", "say",
+		"--surface", "direct",
+		"--direct", patchDirectID,
+		"--work", patchWorkID,
 		"--to", opsPeerID,
-		"--interaction-id", "int_patch_42",
 		"--reply-to", "msg_say_01",
 		"--trace-id", "trace_ops_patch_42",
 		"--causation-id", "msg_say_01",
@@ -112,7 +129,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		return validateNetworkAuditEntry(audit, networkAuditExpectation{
 			MessageID: "msg_direct_01",
 			Direction: "delivered",
-			Kind:      "direct",
+			Kind:      "say",
 		}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_direct_01"))
 	})
 
@@ -120,8 +137,10 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		"--session", opsSession.ID,
 		"--channel", "builders",
 		"--kind", "receipt",
+		"--surface", "direct",
+		"--direct", patchDirectID,
+		"--work", patchWorkID,
 		"--to", patchPeerID,
-		"--interaction-id", "int_patch_42",
 		"--reply-to", "msg_direct_01",
 		"--trace-id", "trace_ops_patch_42",
 		"--causation-id", "msg_direct_01",
@@ -145,8 +164,10 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		"--session", patchSession.ID,
 		"--channel", "builders",
 		"--kind", "trace",
+		"--surface", "direct",
+		"--direct", patchDirectID,
+		"--work", patchWorkID,
 		"--to", opsPeerID,
-		"--interaction-id", "int_patch_42",
 		"--reply-to", "msg_receipt_01",
 		"--trace-id", "trace_ops_patch_42",
 		"--causation-id", "msg_receipt_01",
@@ -166,26 +187,57 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_trace_02"))
 	})
 
+	mustSendNetworkCLI(t, ctx, harness, []string{
+		"--session", patchSession.ID,
+		"--channel", "builders",
+		"--kind", "say",
+		"--surface", "thread",
+		"--thread", buildersThreadID,
+		"--reply-to", "msg_trace_02",
+		"--trace-id", "trace_ops_patch_42",
+		"--causation-id", "msg_trace_02",
+		"--id", "msg_summary_01",
+		"--body", `{"text":"Summary: patch prepared and migration assertions now pass locally.","intent":"summarize-back","artifacts":[]}`,
+	})
+
+	waitForRuntimeCondition(t, "summary back to public thread", 10*time.Second, func() bool {
+		audit, err := harness.NetworkAuditSnapshot()
+		if err != nil {
+			return false
+		}
+		return validateNetworkAuditEntry(audit, networkAuditExpectation{
+			MessageID: "msg_summary_01",
+			Direction: "delivered",
+			Kind:      "say",
+			Surface:   "thread",
+			ThreadID:  buildersThreadID,
+		}) == nil &&
+			channelHasMessageID(ctx, harness, "builders", "msg_summary_01") &&
+			sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_summary_01"))
+	})
+
 	postTerminalDirectArgs := []string{
 		"network", "send",
 		"--session", patchSession.ID,
 		"--channel", "builders",
-		"--kind", "direct",
+		"--kind", "say",
+		"--surface", "direct",
+		"--direct", patchDirectID,
+		"--work", patchWorkID,
 		"--to", opsPeerID,
-		"--interaction-id", "int_patch_42",
 		"--reply-to", "msg_say_01",
 		"--trace-id", "trace_ops_patch_42",
 		"--causation-id", "msg_say_01",
-		"--id", "msg_direct_01",
+		"--id", "msg_direct_after_closed",
 		"--body", `{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
 		"-o", "json",
 	}
 	_, stderr, err := harness.CLI.Run(ctx, postTerminalDirectArgs...)
 	if err == nil {
-		t.Fatalf("CLI %v error = nil, want interaction-closed rejection", postTerminalDirectArgs)
+		t.Fatalf("CLI %v error = nil, want work-closed rejection", postTerminalDirectArgs)
 	}
-	if !strings.Contains(stderr, "interaction closed") || !strings.Contains(stderr, `interaction_id="int_patch_42"`) {
-		t.Fatalf("CLI %v stderr = %q, want interaction-closed details", postTerminalDirectArgs, stderr)
+	if !strings.Contains(stderr, "work closed") || !strings.Contains(stderr, patchWorkID) {
+		t.Fatalf("CLI %v stderr = %q, want work-closed details", postTerminalDirectArgs, stderr)
 	}
 
 	status := mustHTTPNetworkStatus(t, ctx, harness)
@@ -229,6 +281,34 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 
 	channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "builders")
 	requireChannelMessage(t, channelMessages, "msg_say_01", "Who can take the failing migration tests in internal/store/sessiondb?")
+	requireChannelMessage(t, channelMessages, "msg_summary_01", "Summary: patch prepared")
+	requireNoChannelMessage(t, channelMessages, "msg_direct_01")
+	requireNoChannelMessage(t, channelMessages, "msg_trace_02")
+
+	threads := mustHTTPNetworkThreads(t, ctx, harness, "builders")
+	requireThreadSummary(t, threads, buildersThreadID, "msg_say_01")
+	thread := mustHTTPNetworkThread(t, ctx, harness, "builders", buildersThreadID)
+	if thread.ThreadID != buildersThreadID || thread.MessageCount < 2 {
+		t.Fatalf("HTTP builders thread = %#v, want summary with >= 2 messages", thread)
+	}
+	threadMessages := mustHTTPNetworkThreadMessages(t, ctx, harness, "builders", buildersThreadID)
+	requireConversationMessage(t, threadMessages, "msg_say_01", "thread", buildersThreadID, "")
+	requireConversationMessage(t, threadMessages, "msg_summary_01", "thread", buildersThreadID, "")
+
+	directs := mustHTTPNetworkDirectRooms(t, ctx, harness, "builders")
+	requireDirectRoomSummary(t, directs, patchDirectID)
+	direct := mustHTTPNetworkDirectRoom(t, ctx, harness, "builders", patchDirectID)
+	if direct.DirectID != patchDirectID || direct.MessageCount < 3 {
+		t.Fatalf("HTTP builders direct = %#v, want direct room with >= 3 messages", direct)
+	}
+	directMessages := mustHTTPNetworkDirectRoomMessages(t, ctx, harness, "builders", patchDirectID)
+	requireConversationMessage(t, directMessages, "msg_direct_01", "direct", "", patchDirectID)
+	requireConversationMessage(t, directMessages, "msg_trace_02", "direct", "", patchDirectID)
+
+	work := mustHTTPNetworkWork(t, ctx, harness, patchWorkID)
+	if work.WorkID != patchWorkID || work.Surface != "direct" || work.DirectID != patchDirectID {
+		t.Fatalf("HTTP network work = %#v, want direct work %q in %q", work, patchWorkID, patchDirectID)
+	}
 
 	opsTranscript := mustSessionTranscript(t, ctx, harness, opsSession.ID)
 	patchTranscript := mustSessionTranscript(t, ctx, harness, patchSession.ID)
@@ -236,33 +316,58 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 
 	if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_01",
-		Kind:            "direct",
-		InteractionID:   "int_patch_42",
+		Kind:            "say",
+		Surface:         "direct",
+		DirectID:        patchDirectID,
+		WorkID:          patchWorkID,
 		ReplyTo:         "msg_say_01",
 		TraceID:         "trace_ops_patch_42",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_say_01",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(direct) error = %v", err)
 	}
 	if err := validateNetworkCorrelationSurfaces(patchTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_receipt_01",
 		Kind:            "receipt",
-		InteractionID:   "int_patch_42",
+		Surface:         "direct",
+		DirectID:        patchDirectID,
+		WorkID:          patchWorkID,
 		ReplyTo:         "msg_direct_01",
 		TraceID:         "trace_ops_patch_42",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_direct_01",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(receipt) error = %v", err)
 	}
 	if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_trace_02",
 		Kind:            "trace",
-		InteractionID:   "int_patch_42",
+		Surface:         "direct",
+		DirectID:        patchDirectID,
+		WorkID:          patchWorkID,
 		ReplyTo:         "msg_receipt_01",
 		TraceID:         "trace_ops_patch_42",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_receipt_01",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(trace) error = %v", err)
+	}
+	if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
+		MessageID:       "msg_summary_01",
+		Kind:            "say",
+		Surface:         "thread",
+		ThreadID:        buildersThreadID,
+		ReplyTo:         "msg_trace_02",
+		TraceID:         "trace_ops_patch_42",
+		CausationID:     "msg_trace_02",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
+	}); err != nil {
+		t.Fatalf("validateNetworkCorrelationSurfaces(summary) error = %v", err)
 	}
 	assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
 }
@@ -324,6 +429,17 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 	if releasePeerID == curatorPeerID {
 		t.Fatalf("peer IDs = %q and %q, want distinct values", releasePeerID, curatorPeerID)
 	}
+	capabilitiesThreadID := "thread_capabilities_main"
+	capabilityThreadWorkID := "work_capability_catalog_7"
+	capabilityDirectWorkID := "work_capability_apply_7"
+	capabilityDirectID := mustHTTPResolveNetworkDirectRoom(
+		t,
+		ctx,
+		harness,
+		"capabilities",
+		releaseSession.ID,
+		curatorPeerID,
+	)
 
 	capabilityBody := mustCapabilityBodyString(t, aghconfig.CapabilityDef{
 		ID:                "fix-go-migration-tests",
@@ -344,6 +460,8 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		"--session", releaseSession.ID,
 		"--channel", "capabilities",
 		"--kind", "say",
+		"--surface", "thread",
+		"--thread", capabilitiesThreadID,
 		"--id", "msg_capability_say_01",
 		"--trace-id", "trace_capability_apply_7",
 		"--body", `{"text":"Does anyone have a reusable migration test repair capability?","intent":"request-help","artifacts":[]}`,
@@ -384,6 +502,10 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		"--session", curatorSession.ID,
 		"--channel", "capabilities",
 		"--kind", "capability",
+		"--surface", "thread",
+		"--thread", capabilitiesThreadID,
+		"--work", capabilityThreadWorkID,
+		"--to", releasePeerID,
 		"--id", "msg_capability_01",
 		"--trace-id", "trace_capability_apply_7",
 		"--body", capabilityBody,
@@ -396,7 +518,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		}
 		return validateNetworkAuditEntry(audit, networkAuditExpectation{
 			MessageID: "msg_capability_01",
-			Direction: "sent",
+			Direction: "delivered",
 			Kind:      "capability",
 		}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_capability_01"))
 	})
@@ -404,9 +526,11 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 	mustSendNetworkCLI(t, ctx, harness, []string{
 		"--session", releaseSession.ID,
 		"--channel", "capabilities",
-		"--kind", "direct",
+		"--kind", "say",
+		"--surface", "direct",
+		"--direct", capabilityDirectID,
+		"--work", capabilityDirectWorkID,
 		"--to", curatorPeerID,
-		"--interaction-id", "int_capability_apply_7",
 		"--reply-to", "msg_capability_01",
 		"--trace-id", "trace_capability_apply_7",
 		"--causation-id", "msg_capability_01",
@@ -422,7 +546,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		return validateNetworkAuditEntry(audit, networkAuditExpectation{
 			MessageID: "msg_direct_20",
 			Direction: "delivered",
-			Kind:      "direct",
+			Kind:      "say",
 		}) == nil && sessionTranscriptHasNeedle(ctx, harness, curatorSession.ID, attributeNeedle("id", "msg_direct_20"))
 	})
 
@@ -430,8 +554,10 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		"--session", curatorSession.ID,
 		"--channel", "capabilities",
 		"--kind", "trace",
+		"--surface", "direct",
+		"--direct", capabilityDirectID,
+		"--work", capabilityDirectWorkID,
 		"--to", releasePeerID,
-		"--interaction-id", "int_capability_apply_7",
 		"--reply-to", "msg_direct_20",
 		"--trace-id", "trace_capability_apply_7",
 		"--causation-id", "msg_direct_20",
@@ -509,21 +635,29 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 	}
 	if err := validateNetworkCorrelationSurfaces(curatorTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_20",
-		Kind:            "direct",
-		InteractionID:   "int_capability_apply_7",
+		Kind:            "say",
+		Surface:         "direct",
+		DirectID:        capabilityDirectID,
+		WorkID:          capabilityDirectWorkID,
 		ReplyTo:         "msg_capability_01",
 		TraceID:         "trace_capability_apply_7",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_capability_01",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(capability direct) error = %v", err)
 	}
 	if err := validateNetworkCorrelationSurfaces(releaseTranscript.Messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_trace_21",
 		Kind:            "trace",
-		InteractionID:   "int_capability_apply_7",
+		Surface:         "direct",
+		DirectID:        capabilityDirectID,
+		WorkID:          capabilityDirectWorkID,
 		ReplyTo:         "msg_direct_20",
 		TraceID:         "trace_capability_apply_7",
-		AuditDirections: []string{"sent", "delivered"},
+		CausationID:     "msg_direct_20",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(capability trace) error = %v", err)
 	}
@@ -622,6 +756,84 @@ func requireChannelMessage(
 		return
 	}
 	t.Fatalf("channel messages = %#v, want message_id %q", messages, messageID)
+}
+
+func requireNoChannelMessage(
+	t testing.TB,
+	messages []aghcontract.NetworkChannelMessagePayload,
+	messageID string,
+) {
+	t.Helper()
+
+	target := strings.TrimSpace(messageID)
+	for _, message := range messages {
+		if strings.TrimSpace(message.MessageID) == target {
+			t.Fatalf("channel messages = %#v, want no message_id %q", messages, messageID)
+		}
+	}
+}
+
+func requireThreadSummary(
+	t testing.TB,
+	threads []aghcontract.NetworkThreadSummaryPayload,
+	threadID string,
+	rootMessageID string,
+) {
+	t.Helper()
+
+	for _, thread := range threads {
+		if strings.TrimSpace(thread.ThreadID) != strings.TrimSpace(threadID) {
+			continue
+		}
+		if strings.TrimSpace(thread.RootMessageID) != strings.TrimSpace(rootMessageID) {
+			t.Fatalf("thread summary = %#v, want root_message_id %q", thread, rootMessageID)
+		}
+		return
+	}
+	t.Fatalf("threads = %#v, want thread_id %q", threads, threadID)
+}
+
+func requireDirectRoomSummary(
+	t testing.TB,
+	directs []aghcontract.NetworkDirectRoomPayload,
+	directID string,
+) {
+	t.Helper()
+
+	for _, direct := range directs {
+		if strings.TrimSpace(direct.DirectID) == strings.TrimSpace(directID) {
+			return
+		}
+	}
+	t.Fatalf("direct rooms = %#v, want direct_id %q", directs, directID)
+}
+
+func requireConversationMessage(
+	t testing.TB,
+	messages []aghcontract.NetworkConversationMessagePayload,
+	messageID string,
+	surface string,
+	threadID string,
+	directID string,
+) {
+	t.Helper()
+
+	for _, message := range messages {
+		if strings.TrimSpace(message.MessageID) != strings.TrimSpace(messageID) {
+			continue
+		}
+		if strings.TrimSpace(message.Surface) != strings.TrimSpace(surface) {
+			t.Fatalf("message = %#v, want surface %q", message, surface)
+		}
+		if strings.TrimSpace(threadID) != "" && strings.TrimSpace(message.ThreadID) != strings.TrimSpace(threadID) {
+			t.Fatalf("message = %#v, want thread_id %q", message, threadID)
+		}
+		if strings.TrimSpace(directID) != "" && strings.TrimSpace(message.DirectID) != strings.TrimSpace(directID) {
+			t.Fatalf("message = %#v, want direct_id %q", message, directID)
+		}
+		return
+	}
+	t.Fatalf("conversation messages = %#v, want message_id %q", messages, messageID)
 }
 
 func mustSendNetworkCLI(
@@ -900,18 +1112,138 @@ func mustHTTPNetworkChannelMessages(
 ) []aghcontract.NetworkChannelMessagePayload {
 	t.Helper()
 
-	var response aghcontract.NetworkChannelMessagesResponse
+	var threadsResponse aghcontract.NetworkThreadsResponse
 	escapedChannel := url.PathEscape(channel)
-	if err := harness.HTTPJSON(
-		ctx,
-		http.MethodGet,
-		"/api/network/channels/"+escapedChannel+"/messages",
-		nil,
-		&response,
-	); err != nil {
-		t.Fatalf("HTTPJSON(/api/network/channels/%s/messages) error = %v", channel, err)
+	threadsPath := "/api/network/channels/" + escapedChannel + "/threads"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, threadsPath, nil, &threadsResponse); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", threadsPath, err)
+	}
+	messages := make([]aghcontract.NetworkChannelMessagePayload, 0)
+	for _, thread := range threadsResponse.Threads {
+		var response aghcontract.NetworkThreadMessagesResponse
+		messagesPath := "/api/network/channels/" + escapedChannel + "/threads/" + url.PathEscape(thread.ThreadID) + "/messages"
+		if err := harness.HTTPJSON(ctx, http.MethodGet, messagesPath, nil, &response); err != nil {
+			t.Fatalf("HTTPJSON(%s) error = %v", messagesPath, err)
+		}
+		messages = append(messages, response.Messages...)
+	}
+	return messages
+}
+
+func mustHTTPNetworkThreads(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+) []aghcontract.NetworkThreadSummaryPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkThreadsResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Threads
+}
+
+func mustHTTPNetworkThread(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	threadID string,
+) aghcontract.NetworkThreadSummaryPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkThreadResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads/" + url.PathEscape(threadID)
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Thread
+}
+
+func mustHTTPNetworkThreadMessages(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	threadID string,
+) []aghcontract.NetworkConversationMessagePayload {
+	t.Helper()
+
+	var response aghcontract.NetworkThreadMessagesResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads/" + url.PathEscape(threadID) + "/messages"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
 	}
 	return response.Messages
+}
+
+func mustHTTPNetworkDirectRooms(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+) []aghcontract.NetworkDirectRoomPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkDirectRoomsResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Directs
+}
+
+func mustHTTPNetworkDirectRoom(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	directID string,
+) aghcontract.NetworkDirectRoomPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkDirectRoomResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/" + url.PathEscape(directID)
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Direct
+}
+
+func mustHTTPNetworkDirectRoomMessages(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	directID string,
+) []aghcontract.NetworkConversationMessagePayload {
+	t.Helper()
+
+	var response aghcontract.NetworkDirectRoomMessagesResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/" + url.PathEscape(directID) + "/messages"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Messages
+}
+
+func mustHTTPNetworkWork(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	workID string,
+) aghcontract.NetworkWorkPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkWorkResponse
+	path := "/api/network/work/" + url.PathEscape(workID)
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Work
 }
 
 func channelHasMessageID(
@@ -920,24 +1252,122 @@ func channelHasMessageID(
 	channel string,
 	messageID string,
 ) bool {
-	var response aghcontract.NetworkChannelMessagesResponse
+	var threadsResponse aghcontract.NetworkThreadsResponse
 	escapedChannel := url.PathEscape(channel)
-	if err := harness.HTTPJSON(
-		ctx,
-		http.MethodGet,
-		"/api/network/channels/"+escapedChannel+"/messages",
-		nil,
-		&response,
-	); err != nil {
+	threadsPath := "/api/network/channels/" + escapedChannel + "/threads"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, threadsPath, nil, &threadsResponse); err != nil {
 		return false
 	}
 	target := strings.TrimSpace(messageID)
-	for _, message := range response.Messages {
-		if strings.TrimSpace(message.MessageID) == target {
-			return true
+	for _, thread := range threadsResponse.Threads {
+		var response aghcontract.NetworkThreadMessagesResponse
+		messagesPath := "/api/network/channels/" + escapedChannel + "/threads/" + url.PathEscape(thread.ThreadID) + "/messages"
+		if err := harness.HTTPJSON(ctx, http.MethodGet, messagesPath, nil, &response); err != nil {
+			return false
+		}
+		for _, message := range response.Messages {
+			if strings.TrimSpace(message.MessageID) == target {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+func requireDirectResolveRace(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	leftSessionID string,
+	leftPeerID string,
+	rightSessionID string,
+	rightPeerID string,
+) string {
+	t.Helper()
+
+	type resolveResult struct {
+		directID string
+		err      error
+	}
+	results := make(chan resolveResult, 2)
+	var wg sync.WaitGroup
+	for _, request := range []struct {
+		sessionID string
+		peerID    string
+	}{
+		{sessionID: leftSessionID, peerID: rightPeerID},
+		{sessionID: rightSessionID, peerID: leftPeerID},
+	} {
+		request := request
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			directID, err := httpResolveNetworkDirectRoomMaybe(ctx, harness, channel, request.sessionID, request.peerID)
+			results <- resolveResult{directID: directID, err: err}
+		}()
+	}
+	wg.Wait()
+	close(results)
+
+	var directID string
+	for result := range results {
+		if result.err != nil {
+			t.Fatalf("direct resolve race error = %v", result.err)
+		}
+		if strings.TrimSpace(result.directID) == "" {
+			t.Fatal("direct resolve race returned empty direct_id")
+		}
+		if directID == "" {
+			directID = result.directID
+			continue
+		}
+		if result.directID != directID {
+			t.Fatalf("direct resolve race returned %q and %q, want same direct_id", directID, result.directID)
+		}
+	}
+	return directID
+}
+
+func mustHTTPResolveNetworkDirectRoom(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	sessionID string,
+	peerID string,
+) string {
+	t.Helper()
+
+	directID, err := httpResolveNetworkDirectRoomMaybe(ctx, harness, channel, sessionID, peerID)
+	if err != nil {
+		t.Fatalf("resolve network direct room error = %v", err)
+	}
+	if directID == "" {
+		t.Fatal("resolve network direct room direct_id = empty")
+	}
+	return directID
+}
+
+func httpResolveNetworkDirectRoomMaybe(
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	sessionID string,
+	peerID string,
+) (string, error) {
+	var response aghcontract.NetworkDirectRoomResponse
+	escapedChannel := url.PathEscape(channel)
+	path := "/api/network/channels/" + escapedChannel + "/directs/resolve"
+	request := aghcontract.NetworkDirectResolveRequest{
+		SessionID: sessionID,
+		PeerID:    peerID,
+	}
+	if err := harness.HTTPJSON(ctx, http.MethodPost, path, request, &response); err != nil {
+		return "", err
+	}
+	directID := strings.TrimSpace(response.Direct.DirectID)
+	return directID, nil
 }
 
 func mustSessionTranscript(

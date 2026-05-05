@@ -18,6 +18,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
+	apispec "github.com/pedronauck/agh/internal/api/spec"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/network"
@@ -152,11 +153,16 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/network/inbox",
 		"GET /api/network/peers",
 		"GET /api/network/peers/:peer_id",
-		"GET /api/network/peers/:peer_id/messages",
 		"GET /api/network/channels",
 		"GET /api/network/channels/:channel",
-		"GET /api/network/channels/:channel/messages",
+		"GET /api/network/channels/:channel/directs",
+		"GET /api/network/channels/:channel/directs/:direct_id",
+		"GET /api/network/channels/:channel/directs/:direct_id/messages",
+		"GET /api/network/channels/:channel/threads",
+		"GET /api/network/channels/:channel/threads/:thread_id",
+		"GET /api/network/channels/:channel/threads/:thread_id/messages",
 		"GET /api/network/status",
+		"GET /api/network/work/:work_id",
 		"GET /api/observe/events",
 		"GET /api/observe/events/stream",
 		"GET /api/observe/health",
@@ -255,6 +261,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/memory/consolidate",
 		"POST /api/memory/reindex",
 		"POST /api/network/channels",
+		"POST /api/network/channels/:channel/directs/resolve",
 		"POST /api/network/send",
 		"POST /api/sessions",
 		"POST /api/sessions/:id/approve",
@@ -537,6 +544,57 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRegisterNetworkRoutesMatchDocumentedHTTPAndUDSSurface(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+
+	got := registeredNetworkRoutesFromEngine(engine.Routes())
+	for _, transport := range []apispec.Transport{apispec.TransportHTTP, apispec.TransportUDS} {
+		want := documentedNetworkRoutesForTransport(transport)
+		if !slices.Equal(got, want) {
+			t.Fatalf("network routes = %v, want documented %s routes %v", got, transport, want)
+		}
+	}
+}
+
+func registeredNetworkRoutesFromEngine(routes gin.RoutesInfo) []string {
+	filtered := make([]string, 0)
+	for _, route := range routes {
+		if strings.HasPrefix(route.Path, "/api/network") {
+			filtered = append(filtered, route.Method+" "+route.Path)
+		}
+	}
+	sort.Strings(filtered)
+	return filtered
+}
+
+func documentedNetworkRoutesForTransport(transport apispec.Transport) []string {
+	routes := make([]string, 0)
+	for _, operation := range apispec.Operations() {
+		if !slices.Contains(operation.Transports, transport) {
+			continue
+		}
+		if !strings.HasPrefix(operation.Path, "/api/network") {
+			continue
+		}
+		routes = append(routes, operation.Method+" "+normalizeNetworkSpecRoutePath(operation.Path))
+	}
+	sort.Strings(routes)
+	return routes
+}
+
+func normalizeNetworkSpecRoutePath(path string) string {
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") && len(part) > 2 {
+			parts[i] = ":" + part[1:len(part)-1]
+		}
+	}
+	return strings.Join(parts, "/")
 }
 
 func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {

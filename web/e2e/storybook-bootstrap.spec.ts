@@ -10,6 +10,7 @@ const storybookHost = "127.0.0.1";
 const storybookPort = 6106;
 const storybookBaseURL = `http://${storybookHost}:${storybookPort}`;
 const storyURL = `${storybookBaseURL}/iframe.html?id=components-designsystemshowcase--default&viewMode=story`;
+const storyModulePath = "/src/components/stories/design-system-showcase.stories.tsx";
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 test("registers the MSW worker and bypasses unknown requests in web Storybook", async ({
@@ -41,6 +42,7 @@ test("registers the MSW worker and bypasses unknown requests in web Storybook", 
 
   try {
     await waitForStorybook(storybookBaseURL, storybook);
+    await waitForStoryModule(storybookBaseURL, storybook);
 
     page.on("console", message => {
       browserConsole.push(message.text());
@@ -98,6 +100,33 @@ async function waitForStorybook(
   }
 
   throw new Error("Timed out waiting for Storybook to start.");
+}
+
+async function waitForStoryModule(
+  baseURL: string,
+  storybook: ChildProcessWithoutNullStreams
+): Promise<void> {
+  const deadline = Date.now() + 60_000;
+
+  while (Date.now() < deadline) {
+    if (storybook.exitCode !== null) {
+      throw new Error(`Storybook exited early with code ${storybook.exitCode}.`);
+    }
+
+    try {
+      const response = await fetch(`${baseURL}${storyModulePath}`);
+      const body = await response.text();
+      if (response.ok && body.includes("DesignSystemShowcase")) {
+        return;
+      }
+    } catch {
+      // Vite is still transforming the story module.
+    }
+
+    await delay(500);
+  }
+
+  throw new Error("Timed out waiting for the Storybook story module.");
 }
 
 async function stopStorybook(storybook: ChildProcessWithoutNullStreams): Promise<void> {

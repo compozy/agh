@@ -259,3 +259,103 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 		}
 	})
 }
+
+func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
+	t.Parallel()
+
+	t.Run("task pre claim criteria", func(t *testing.T) {
+		t.Parallel()
+
+		original := TaskRunPreClaimPayload{
+			Criteria: TaskRunClaimCriteria{
+				RequiredCapabilities: []string{"network"},
+			},
+		}
+		cloned := cloneAsyncPayload(original)
+		original.Criteria.RequiredCapabilities[0] = "mutated"
+
+		if cloned.Criteria.RequiredCapabilities[0] != "network" {
+			t.Fatalf(
+				"cloned required capability = %q, want %q",
+				cloned.Criteria.RequiredCapabilities[0],
+				"network",
+			)
+		}
+	})
+
+	t.Run("task value payloads", func(t *testing.T) {
+		t.Parallel()
+
+		enqueued := cloneAsyncPayload(TaskRunEnqueuedPayload{TaskRunContext: TaskRunContext{TaskID: "task-enqueued"}})
+		postClaim := cloneAsyncPayload(TaskRunPostClaimPayload{TaskRunContext: TaskRunContext{TaskID: "task-claim"}})
+		lease := cloneAsyncPayload(TaskRunLeasePayload{TaskRunContext: TaskRunContext{TaskID: "task-lease"}})
+
+		if enqueued.TaskID != "task-enqueued" {
+			t.Fatalf("enqueued task id = %q, want task-enqueued", enqueued.TaskID)
+		}
+		if postClaim.TaskID != "task-claim" {
+			t.Fatalf("post-claim task id = %q, want task-claim", postClaim.TaskID)
+		}
+		if lease.TaskID != "task-lease" {
+			t.Fatalf("lease task id = %q, want task-lease", lease.TaskID)
+		}
+	})
+
+	t.Run("spawn permissions", func(t *testing.T) {
+		t.Parallel()
+
+		original := SpawnPreCreatePayload{
+			ParentPermissions: &PermissionSet{
+				Tools:           []string{"tool.before"},
+				Skills:          []string{"skill.before"},
+				MCPServers:      []string{"mcp.before"},
+				WorkspacePaths:  []string{"/workspace/before"},
+				NetworkChannels: []string{"network.before"},
+				SandboxProfiles: []string{"sandbox.before"},
+			},
+			ChildPermissions: &PermissionSet{Tools: []string{"child.before"}},
+		}
+		cloned := cloneAsyncPayload(original)
+		original.ParentPermissions.Tools[0] = "tool.after"
+		original.ParentPermissions.Skills[0] = "skill.after"
+		original.ParentPermissions.MCPServers[0] = "mcp.after"
+		original.ParentPermissions.WorkspacePaths[0] = "/workspace/after"
+		original.ParentPermissions.NetworkChannels[0] = "network.after"
+		original.ParentPermissions.SandboxProfiles[0] = "sandbox.after"
+		original.ChildPermissions.Tools[0] = "child.after"
+
+		if cloned.ParentPermissions.Tools[0] != "tool.before" {
+			t.Fatalf("cloned parent tools = %#v, want preserved tools", cloned.ParentPermissions.Tools)
+		}
+		if cloned.ParentPermissions.Skills[0] != "skill.before" {
+			t.Fatalf("cloned parent skills = %#v, want preserved skills", cloned.ParentPermissions.Skills)
+		}
+		if cloned.ParentPermissions.MCPServers[0] != "mcp.before" {
+			t.Fatalf("cloned parent MCP servers = %#v, want preserved servers", cloned.ParentPermissions.MCPServers)
+		}
+		if cloned.ParentPermissions.WorkspacePaths[0] != "/workspace/before" {
+			t.Fatalf("cloned workspace paths = %#v, want preserved paths", cloned.ParentPermissions.WorkspacePaths)
+		}
+		if cloned.ParentPermissions.NetworkChannels[0] != "network.before" {
+			t.Fatalf("cloned network channels = %#v, want preserved channels", cloned.ParentPermissions.NetworkChannels)
+		}
+		if cloned.ParentPermissions.SandboxProfiles[0] != "sandbox.before" {
+			t.Fatalf("cloned sandbox profiles = %#v, want preserved profiles", cloned.ParentPermissions.SandboxProfiles)
+		}
+		if cloned.ChildPermissions.Tools[0] != "child.before" {
+			t.Fatalf("cloned child tools = %#v, want preserved tools", cloned.ChildPermissions.Tools)
+		}
+	})
+
+	t.Run("spawn lifecycle nil permissions", func(t *testing.T) {
+		t.Parallel()
+
+		cloned := cloneAsyncPayload(SpawnLifecyclePayload{})
+		if cloned.ParentPermissions != nil {
+			t.Fatalf("parent permissions = %#v, want nil", cloned.ParentPermissions)
+		}
+		if cloned.ChildPermissions != nil {
+			t.Fatalf("child permissions = %#v, want nil", cloned.ChildPermissions)
+		}
+	})
+}

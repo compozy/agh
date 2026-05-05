@@ -362,7 +362,10 @@ func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 	}
 	if seen.SessionID != "sess-agent" ||
 		seen.Channel != "builders" ||
-		seen.Kind != network.KindDirect ||
+		seen.Kind != network.KindSay ||
+		seen.Surface == nil ||
+		*seen.Surface != network.SurfaceDirect ||
+		seen.DirectID == nil ||
 		seen.To == nil ||
 		*seen.To != "reviewer.sess-peer" ||
 		seen.ReplyTo == nil ||

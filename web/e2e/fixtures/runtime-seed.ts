@@ -230,9 +230,13 @@ export interface BrowserNetworkOperatorFlowParticipant extends SeededSessionPayl
 
 export interface BrowserNetworkOperatorFlowResult {
   channel: string;
+  directId: string;
   initiator: BrowserNetworkOperatorFlowParticipant;
-  responder: BrowserNetworkOperatorFlowParticipant;
   messageIds: typeof browserNetworkOperatorFlowScenario.messageIds;
+  responder: BrowserNetworkOperatorFlowParticipant;
+  threadId: string;
+  traceId: string;
+  workId: string;
 }
 
 export interface BrowserRuntimeSeedResult {
@@ -275,7 +279,10 @@ interface NetworkPeerSeedPayload {
 }
 
 interface NetworkMessageSeedPayload {
+  direct_id?: string;
   message_id: string;
+  surface?: string;
+  thread_id?: string;
 }
 
 interface NetworkStatusSeedPayload {
@@ -312,14 +319,17 @@ export const browserNetworkOperatorFlowScenario = {
     say: "browser_msg_say_01",
     direct: "browser_msg_direct_01",
     trace: "browser_msg_trace_01",
+    summary: "browser_msg_summary_01",
   },
   texts: {
     say: "Who can take the failing migration tests in internal/store/sessiondb?",
     direct: "I can take the failing migration tests and send back a patch summary.",
     trace: "Patch prepared and local tests now pass.",
+    summary: "Summary: migration test patch prepared and local verification is passing.",
   },
-  interactionId: "browser_int_patch_42",
+  threadId: "thread_browser_patch_42",
   traceId: "browser_trace_ops_patch_42",
+  workId: "browser_work_patch_42",
 } as const;
 
 export const browserAutomationOperatorFlowScenario = {
@@ -555,10 +565,27 @@ export async function seedBrowserNetworkOperatorFlow(
     timeoutMs
   );
 
+  const directRoom = await runtime.requestJSON<{ direct: { direct_id: string } }>(
+    `/api/network/channels/${encodeURIComponent(channel)}/directs/resolve`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        session_id: channelState.responderSession.id,
+        peer_id: peerState.initiatorPeer.peer_id,
+      }),
+    }
+  );
+  const directId = directRoom.direct.direct_id.trim();
+  if (directId === "") {
+    throw new Error("network operator flow seed direct resolve returned an empty direct_id");
+  }
+
   await sendNetworkSeedMessage(runtime, {
     session_id: channelState.initiatorSession.id,
     channel,
     kind: "say",
+    surface: "thread",
+    thread_id: browserNetworkOperatorFlowScenario.threadId,
     id: browserNetworkOperatorFlowScenario.messageIds.say,
     trace_id: browserNetworkOperatorFlowScenario.traceId,
     body: {
@@ -571,9 +598,11 @@ export async function seedBrowserNetworkOperatorFlow(
   await sendNetworkSeedMessage(runtime, {
     session_id: channelState.responderSession.id,
     channel,
-    kind: "direct",
+    kind: "say",
+    surface: "direct",
+    direct_id: directId,
     to: peerState.initiatorPeer.peer_id,
-    interaction_id: browserNetworkOperatorFlowScenario.interactionId,
+    work_id: browserNetworkOperatorFlowScenario.workId,
     reply_to: browserNetworkOperatorFlowScenario.messageIds.say,
     trace_id: browserNetworkOperatorFlowScenario.traceId,
     causation_id: browserNetworkOperatorFlowScenario.messageIds.say,
@@ -589,8 +618,10 @@ export async function seedBrowserNetworkOperatorFlow(
     session_id: channelState.responderSession.id,
     channel,
     kind: "trace",
+    surface: "direct",
+    direct_id: directId,
     to: peerState.initiatorPeer.peer_id,
-    interaction_id: browserNetworkOperatorFlowScenario.interactionId,
+    work_id: browserNetworkOperatorFlowScenario.workId,
     reply_to: browserNetworkOperatorFlowScenario.messageIds.direct,
     trace_id: browserNetworkOperatorFlowScenario.traceId,
     causation_id: browserNetworkOperatorFlowScenario.messageIds.direct,
@@ -605,18 +636,56 @@ export async function seedBrowserNetworkOperatorFlow(
     },
   });
 
+  await sendNetworkSeedMessage(runtime, {
+    session_id: channelState.responderSession.id,
+    channel,
+    kind: "say",
+    surface: "thread",
+    thread_id: browserNetworkOperatorFlowScenario.threadId,
+    reply_to: browserNetworkOperatorFlowScenario.messageIds.trace,
+    trace_id: browserNetworkOperatorFlowScenario.traceId,
+    causation_id: browserNetworkOperatorFlowScenario.messageIds.trace,
+    id: browserNetworkOperatorFlowScenario.messageIds.summary,
+    body: {
+      text: browserNetworkOperatorFlowScenario.texts.summary,
+      intent: "summarize-back",
+      artifacts: [],
+    },
+  });
+
   await waitForSeedCondition(
     async () => {
       const payload = await runtime.requestJSON<{ messages: NetworkMessageSeedPayload[] }>(
-        `/api/network/channels/${encodeURIComponent(channel)}/messages`
+        `/api/network/channels/${encodeURIComponent(channel)}/threads/${encodeURIComponent(
+          browserNetworkOperatorFlowScenario.threadId
+        )}/messages`
       );
       const messageIds = new Set(payload.messages.map(message => message.message_id));
 
-      return messageIds.has(browserNetworkOperatorFlowScenario.messageIds.say)
+      return messageIds.has(browserNetworkOperatorFlowScenario.messageIds.say) &&
+        messageIds.has(browserNetworkOperatorFlowScenario.messageIds.summary)
         ? payload.messages
         : null;
     },
-    `network timeline for ${channel}`,
+    `network thread ${browserNetworkOperatorFlowScenario.threadId} for ${channel}`,
+    timeoutMs
+  );
+
+  await waitForSeedCondition(
+    async () => {
+      const payload = await runtime.requestJSON<{ messages: NetworkMessageSeedPayload[] }>(
+        `/api/network/channels/${encodeURIComponent(channel)}/directs/${encodeURIComponent(
+          directId
+        )}/messages`
+      );
+      const messageIds = new Set(payload.messages.map(message => message.message_id));
+
+      return messageIds.has(browserNetworkOperatorFlowScenario.messageIds.direct) &&
+        messageIds.has(browserNetworkOperatorFlowScenario.messageIds.trace)
+        ? payload.messages
+        : null;
+    },
+    `network direct ${directId} for ${channel}`,
     timeoutMs
   );
 
@@ -626,10 +695,10 @@ export async function seedBrowserNetworkOperatorFlow(
       const kindMetrics = new Map(
         (payload.network?.kind_metrics ?? []).map(metric => [metric.kind ?? "", metric])
       );
-      const direct = kindMetrics.get("direct");
+      const say = kindMetrics.get("say");
       const trace = kindMetrics.get("trace");
 
-      if ((direct?.sent ?? 0) < 1 || (direct?.delivered ?? 0) < 1) {
+      if ((say?.sent ?? 0) < 3 || (say?.delivered ?? 0) < 2) {
         return null;
       }
       if ((trace?.sent ?? 0) < 1 || (trace?.delivered ?? 0) < 1) {
@@ -644,6 +713,7 @@ export async function seedBrowserNetworkOperatorFlow(
 
   return {
     channel,
+    directId,
     initiator: {
       ...channelState.initiatorSession,
       peerId: peerState.initiatorPeer.peer_id,
@@ -653,6 +723,9 @@ export async function seedBrowserNetworkOperatorFlow(
       peerId: peerState.responderPeer.peer_id,
     },
     messageIds: browserNetworkOperatorFlowScenario.messageIds,
+    threadId: browserNetworkOperatorFlowScenario.threadId,
+    traceId: browserNetworkOperatorFlowScenario.traceId,
+    workId: browserNetworkOperatorFlowScenario.workId,
   };
 }
 

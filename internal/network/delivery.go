@@ -33,8 +33,7 @@ var (
 			"`working`, `needs_input`, `completed`, `failed`, or `canceled`.",
 		"If you send a protocol `capability`, the body must be nested as `{\"capability\":{...}}` and " +
 			"include `capability.id`, `capability.summary`, `capability.outcome`, and a canonical `capability.digest`.",
-		"Do not imitate protocol `receipt` or `trace` with `--kind direct` plus " +
-			"`intent:\"receipt\"` or `intent:\"trace\"`. Use the real protocol kinds `receipt` and `trace`.",
+		"Direct-room chat uses `--kind say --surface direct`.",
 	}
 )
 
@@ -44,6 +43,7 @@ const (
 	defaultDeliveryRetryBaseDelay = 250 * time.Millisecond
 	defaultDeliveryRetryMaxDelay  = 5 * time.Second
 	deliveryDropReasonQueueFull   = "queue_overflow"
+	networkMessageTrustUntrusted  = "untrusted"
 )
 
 type deliveryPrompter interface {
@@ -514,12 +514,22 @@ func promptNetworkMeta(envelope Envelope) acp.PromptNetworkMeta {
 		Kind:      string(envelope.Kind),
 		Channel:   envelope.Channel,
 		From:      envelope.From,
+		Trust:     networkMessageTrustUntrusted,
 	}
 	if envelope.To != nil {
 		meta.To = strings.TrimSpace(*envelope.To)
 	}
-	if envelope.InteractionID != nil {
-		meta.InteractionID = strings.TrimSpace(*envelope.InteractionID)
+	if envelope.Surface != nil {
+		meta.Surface = strings.TrimSpace(string(*envelope.Surface))
+	}
+	if envelope.ThreadID != nil {
+		meta.ThreadID = strings.TrimSpace(*envelope.ThreadID)
+	}
+	if envelope.DirectID != nil {
+		meta.DirectID = strings.TrimSpace(*envelope.DirectID)
+	}
+	if workID := lifecycleWorkID(envelope); workID != "" {
+		meta.WorkID = workID
 	}
 	if envelope.ReplyTo != nil {
 		meta.ReplyTo = strings.TrimSpace(*envelope.ReplyTo)
@@ -748,6 +758,36 @@ func (c *deliveryCoordinator) stats() deliveryCoordinatorStats {
 	return stats
 }
 
+func (c *deliveryCoordinator) queueDepthMetrics() []MetricSample {
+	if c == nil {
+		return nil
+	}
+
+	c.mu.Lock()
+	queues := make([]*inboundQueue, 0, len(c.queues))
+	for _, queue := range c.queues {
+		queues = append(queues, queue)
+	}
+	c.mu.Unlock()
+
+	depths := make(map[surfaceMetricKey]int64)
+	for _, queue := range queues {
+		for _, envelope := range queue.snapshot() {
+			key := surfaceMetricKey{
+				channel: strings.TrimSpace(envelope.Channel),
+				surface: surfaceLabel(envelope.Surface),
+			}
+			depths[key]++
+		}
+	}
+	samples := make([]MetricSample, 0, len(depths))
+	for key, depth := range depths {
+		samples = append(samples, surfaceMetricSample("network_delivery_queue_depth", key, depth))
+	}
+	sortMetricSamples(samples)
+	return samples
+}
+
 func (c *deliveryCoordinator) markInFlight(sessionID string, item queuedEnvelope) {
 	if c == nil {
 		return
@@ -879,11 +919,22 @@ func formatNetworkMessage(envelope Envelope) (string, error) {
 	writeXMLAttr(&builder, "from", envelope.From)
 	writeXMLAttr(&builder, "channel", envelope.Channel)
 	writeXMLAttr(&builder, "kind", string(envelope.Kind))
+	if envelope.Surface != nil {
+		writeXMLAttr(&builder, "surface", string(*envelope.Surface))
+	}
+	if envelope.ThreadID != nil {
+		writeXMLAttr(&builder, "thread-id", *envelope.ThreadID)
+	}
+	if envelope.DirectID != nil {
+		writeXMLAttr(&builder, "direct-id", *envelope.DirectID)
+	}
 	if envelope.To != nil {
 		writeXMLAttr(&builder, "to", *envelope.To)
 	}
-	if envelope.InteractionID != nil {
-		writeXMLAttr(&builder, "interaction", *envelope.InteractionID)
+	if envelope.WorkID != nil {
+		if workID := lifecycleWorkID(envelope); workID != "" {
+			writeXMLAttr(&builder, "work-id", workID)
+		}
 	}
 	if envelope.ReplyTo != nil {
 		writeXMLAttr(&builder, "reply-to", *envelope.ReplyTo)
@@ -897,7 +948,7 @@ func formatNetworkMessage(envelope Envelope) (string, error) {
 	if envelope.ExpiresAt != nil {
 		writeXMLAttr(&builder, "expires-at", strconv.FormatInt(*envelope.ExpiresAt, 10))
 	}
-	writeXMLAttr(&builder, "trust", "untrusted")
+	writeXMLAttr(&builder, "trust", networkMessageTrustUntrusted)
 	builder.WriteString(">\n")
 	if preview != "" {
 		builder.WriteString("  <network-preview encoding=\"xml-escaped\">")
@@ -920,27 +971,27 @@ func writeReplyGuidance(builder *strings.Builder, envelope Envelope) {
 
 	ctx := newReplyGuidanceContext(envelope)
 	builder.WriteString("\n\n")
-	writeGuidanceLine(builder, "Use `agh network send` to respond through the audited CLI path.")
+	writeGuidanceLine(
+		builder,
+		"Prefer `agh__network_send` when available; otherwise use `agh network send` to respond.",
+	)
 	writeGuidanceLine(builder, ctx.replyFlagsLine())
 	writeGuidanceLine(builder, ctx.causationLine())
 
 	if traceLine := ctx.traceLine(); traceLine != "" {
 		writeGuidanceLine(builder, traceLine)
 	}
-	if interactionLine := ctx.broadcastInteractionLine(); interactionLine != "" {
-		writeGuidanceLine(builder, interactionLine)
+	if workLine := ctx.workLine(); workLine != "" {
+		writeGuidanceLine(builder, workLine)
 	}
 	for _, line := range protocolGuidanceText {
 		writeGuidanceLine(builder, line)
 	}
-	if sayLine := ctx.sayLifecycleLine(); sayLine != "" {
-		writeGuidanceLine(builder, sayLine)
-	}
 
 	writeGuidanceLine(builder, "Examples:")
 	writeGuidanceLine(builder, "```bash")
-	ctx.writeDirectReplyExample(builder)
-	if ctx.reuseInteraction {
+	ctx.writeReplyExample(builder)
+	if ctx.reuseWork {
 		ctx.writeProtocolReceiptExample(builder)
 		ctx.writeProtocolTraceExample(builder)
 		ctx.writeProtocolCapabilityExample(builder)
@@ -950,19 +1001,18 @@ func writeReplyGuidance(builder *strings.Builder, envelope Envelope) {
 }
 
 type replyGuidanceContext struct {
-	envelope         Envelope
-	reuseInteraction bool
-	interactionID    string
-	traceID          string
+	envelope  Envelope
+	reuseWork bool
+	workID    string
+	traceID   string
 }
 
 func newReplyGuidanceContext(envelope Envelope) replyGuidanceContext {
+	workID := lifecycleWorkID(envelope)
 	ctx := replyGuidanceContext{
-		envelope:         envelope,
-		reuseInteraction: shouldReuseInboundInteraction(envelope) && envelope.InteractionID != nil,
-	}
-	if envelope.InteractionID != nil {
-		ctx.interactionID = *envelope.InteractionID
+		envelope:  envelope,
+		reuseWork: workID != "",
+		workID:    workID,
 	}
 	if envelope.TraceID != nil {
 		ctx.traceID = *envelope.TraceID
@@ -976,12 +1026,27 @@ func (c replyGuidanceContext) replyFlagsLine() string {
 	builder.WriteString(" `--channel \"")
 	builder.WriteString(c.envelope.Channel)
 	builder.WriteString("\"`,")
+	if c.envelope.Surface != nil {
+		builder.WriteString(" `--surface \"")
+		builder.WriteString(string(*c.envelope.Surface))
+		builder.WriteString("\"`,")
+	}
+	if c.envelope.ThreadID != nil {
+		builder.WriteString(" `--thread \"")
+		builder.WriteString(*c.envelope.ThreadID)
+		builder.WriteString("\"`,")
+	}
+	if c.envelope.DirectID != nil {
+		builder.WriteString(" `--direct \"")
+		builder.WriteString(*c.envelope.DirectID)
+		builder.WriteString("\"`,")
+	}
 	builder.WriteString(" `--to \"")
 	builder.WriteString(c.envelope.From)
 	builder.WriteString("\"`")
-	if c.reuseInteraction {
-		builder.WriteString(", `--interaction-id \"")
-		builder.WriteString(c.interactionID)
+	if c.reuseWork {
+		builder.WriteString(", `--work \"")
+		builder.WriteString(c.workID)
 		builder.WriteString("\"`")
 	}
 	builder.WriteString(", and `--reply-to \"")
@@ -1002,34 +1067,23 @@ func (c replyGuidanceContext) traceLine() string {
 	return "Preserve `--trace-id " + strconv.Quote(c.traceID) + "` on correlated follow-up messages."
 }
 
-func (c replyGuidanceContext) broadcastInteractionLine() string {
-	if c.envelope.Kind != KindSay || c.interactionID == "" {
+func (c replyGuidanceContext) workLine() string {
+	if c.workID == "" {
 		return ""
 	}
-	return "If you reply to this broadcast `say` with `--kind direct`, choose a NEW `--interaction-id` unique to your targeted conversation instead of reusing `" +
-		c.interactionID + "`."
+	return "Preserve `--work " + strconv.Quote(c.workID) + "` only while continuing the same lifecycle-bearing work."
 }
 
-func (c replyGuidanceContext) sayLifecycleLine() string {
-	if c.envelope.Kind != KindSay {
-		return ""
-	}
-	return "Do not send `receipt` or `trace` directly against this broadcast `say`. Open a new targeted `direct` interaction first if you need lifecycle messages."
-}
-
-func (c replyGuidanceContext) writeDirectReplyExample(builder *strings.Builder) {
-	writeGuidanceLine(builder, "# Direct reply")
+func (c replyGuidanceContext) writeReplyExample(builder *strings.Builder) {
+	writeGuidanceLine(builder, "# Reply")
 	writeGuidanceLine(builder, "agh network send \\")
 	writeGuidanceLine(builder, `  --session "$AGH_SESSION_ID" \`)
 	writeQuotedFlagLine(builder, "  --channel ", c.envelope.Channel)
-	writeGuidanceLine(builder, "  --kind direct \\")
+	c.writeSurfaceFlags(builder)
+	writeGuidanceLine(builder, "  --kind say \\")
 	writeQuotedFlagLine(builder, "  --to ", c.envelope.From)
-
-	switch {
-	case c.reuseInteraction:
-		writeQuotedFlagLine(builder, "  --interaction-id ", c.interactionID)
-	case c.envelope.Kind == KindSay:
-		writeQuotedFlagLine(builder, "  --interaction-id ", "int-my-peer-reply-"+c.envelope.ID)
+	if c.reuseWork {
+		writeQuotedFlagLine(builder, "  --work ", c.workID)
 	}
 
 	writeQuotedFlagLine(builder, "  --reply-to ", c.envelope.ID)
@@ -1045,9 +1099,10 @@ func (c replyGuidanceContext) writeProtocolReceiptExample(builder *strings.Build
 	writeGuidanceLine(builder, "agh network send \\")
 	writeGuidanceLine(builder, `  --session "$AGH_SESSION_ID" \`)
 	writeQuotedFlagLine(builder, "  --channel ", c.envelope.Channel)
+	c.writeSurfaceFlags(builder)
 	writeGuidanceLine(builder, "  --kind receipt \\")
 	writeQuotedFlagLine(builder, "  --to ", c.envelope.From)
-	writeQuotedFlagLine(builder, "  --interaction-id ", c.interactionID)
+	writeQuotedFlagLine(builder, "  --work ", c.workID)
 	writeQuotedFlagLine(builder, "  --reply-to ", c.envelope.ID)
 	writeQuotedFlagLine(builder, "  --causation-id ", c.envelope.ID)
 	c.writeTraceFlag(builder)
@@ -1064,9 +1119,10 @@ func (c replyGuidanceContext) writeProtocolTraceExample(builder *strings.Builder
 	writeGuidanceLine(builder, "agh network send \\")
 	writeGuidanceLine(builder, `  --session "$AGH_SESSION_ID" \`)
 	writeQuotedFlagLine(builder, "  --channel ", c.envelope.Channel)
+	c.writeSurfaceFlags(builder)
 	writeGuidanceLine(builder, "  --kind trace \\")
 	writeQuotedFlagLine(builder, "  --to ", c.envelope.From)
-	writeQuotedFlagLine(builder, "  --interaction-id ", c.interactionID)
+	writeQuotedFlagLine(builder, "  --work ", c.workID)
 	writeQuotedFlagLine(builder, "  --reply-to ", c.envelope.ID)
 	writeQuotedFlagLine(builder, "  --causation-id ", c.envelope.ID)
 	c.writeTraceFlag(builder)
@@ -1080,9 +1136,10 @@ func (c replyGuidanceContext) writeProtocolCapabilityExample(builder *strings.Bu
 	writeGuidanceLine(builder, "agh network send \\")
 	writeGuidanceLine(builder, `  --session "$AGH_SESSION_ID" \`)
 	writeQuotedFlagLine(builder, "  --channel ", c.envelope.Channel)
+	c.writeSurfaceFlags(builder)
 	writeGuidanceLine(builder, "  --kind capability \\")
 	writeQuotedFlagLine(builder, "  --to ", c.envelope.From)
-	writeQuotedFlagLine(builder, "  --interaction-id ", c.interactionID)
+	writeQuotedFlagLine(builder, "  --work ", c.workID)
 	writeQuotedFlagLine(builder, "  --reply-to ", c.envelope.ID)
 	writeQuotedFlagLine(builder, "  --causation-id ", c.envelope.ID)
 	c.writeTraceFlag(builder)
@@ -1095,6 +1152,18 @@ func (c replyGuidanceContext) writeTraceFlag(builder *strings.Builder) {
 		return
 	}
 	writeQuotedFlagLine(builder, "  --trace-id ", c.traceID)
+}
+
+func (c replyGuidanceContext) writeSurfaceFlags(builder *strings.Builder) {
+	if c.envelope.Surface != nil {
+		writeQuotedFlagLine(builder, "  --surface ", string(*c.envelope.Surface))
+	}
+	if c.envelope.ThreadID != nil {
+		writeQuotedFlagLine(builder, "  --thread ", *c.envelope.ThreadID)
+	}
+	if c.envelope.DirectID != nil {
+		writeQuotedFlagLine(builder, "  --direct ", *c.envelope.DirectID)
+	}
 }
 
 func writeGuidanceLine(builder *strings.Builder, line string) {
@@ -1112,17 +1181,24 @@ func writeExampleSectionSeparator(builder *strings.Builder) {
 	builder.WriteByte('\n')
 }
 
-func shouldReuseInboundInteraction(envelope Envelope) bool {
-	if envelope.InteractionID == nil {
+func shouldReuseInboundWork(envelope Envelope) bool {
+	if envelope.WorkID == nil {
 		return false
 	}
 
 	switch envelope.Kind {
-	case KindDirect, KindReceipt, KindTrace, KindCapability:
+	case KindSay, KindReceipt, KindTrace, KindCapability:
 		return true
 	default:
 		return false
 	}
+}
+
+func lifecycleWorkID(envelope Envelope) string {
+	if !shouldReuseInboundWork(envelope) {
+		return ""
+	}
+	return strings.TrimSpace(*envelope.WorkID)
 }
 
 func previewForBody(body Body) string {
@@ -1135,8 +1211,6 @@ func previewForBody(body Body) string {
 		}
 		return ""
 	case SayBody:
-		return strings.TrimSpace(value.Text)
-	case DirectBody:
 		return strings.TrimSpace(value.Text)
 	case CapabilityBody:
 		if summary := strings.TrimSpace(value.Capability.Summary); summary != "" {
@@ -1182,21 +1256,24 @@ func xmlEscape(value string) string {
 
 func cloneEnvelope(envelope Envelope) Envelope {
 	return Envelope{
-		Protocol:      envelope.Protocol,
-		ID:            envelope.ID,
-		Kind:          envelope.Kind,
-		Channel:       envelope.Channel,
-		From:          envelope.From,
-		To:            normalizeOptionalIdentifier(envelope.To),
-		InteractionID: normalizeOptionalIdentifier(envelope.InteractionID),
-		ReplyTo:       normalizeOptionalIdentifier(envelope.ReplyTo),
-		TraceID:       normalizeOptionalIdentifier(envelope.TraceID),
-		CausationID:   normalizeOptionalIdentifier(envelope.CausationID),
-		TS:            envelope.TS,
-		ExpiresAt:     cloneInt64Ptr(envelope.ExpiresAt),
-		Body:          cloneRawMessage(envelope.Body),
-		Proof:         cloneProof(envelope.Proof),
-		Ext:           cloneExtensionMap(envelope.Ext),
+		Protocol:    envelope.Protocol,
+		ID:          envelope.ID,
+		Kind:        envelope.Kind,
+		Channel:     envelope.Channel,
+		Surface:     cloneSurfacePtr(envelope.Surface),
+		ThreadID:    normalizeOptionalIdentifier(envelope.ThreadID),
+		DirectID:    normalizeOptionalIdentifier(envelope.DirectID),
+		From:        envelope.From,
+		To:          normalizeOptionalIdentifier(envelope.To),
+		WorkID:      normalizeOptionalIdentifier(envelope.WorkID),
+		ReplyTo:     normalizeOptionalIdentifier(envelope.ReplyTo),
+		TraceID:     normalizeOptionalIdentifier(envelope.TraceID),
+		CausationID: normalizeOptionalIdentifier(envelope.CausationID),
+		TS:          envelope.TS,
+		ExpiresAt:   cloneInt64Ptr(envelope.ExpiresAt),
+		Body:        cloneRawMessage(envelope.Body),
+		Proof:       cloneProof(envelope.Proof),
+		Ext:         cloneExtensionMap(envelope.Ext),
 	}
 }
 

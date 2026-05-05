@@ -162,9 +162,7 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 	if !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "runtime_progress"}) {
 		t.Fatalf("events = %#v, want runtime_progress before blocked peer stop", events)
 	}
-	if !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "error"}) {
-		t.Fatalf("events = %#v, want error event after blocked peer disconnect", events)
-	}
+	assertNoFatalBlockedCancelError(t, events)
 
 	if err := harness.CaptureSessionTranscript(ctx, session.ID); err != nil {
 		t.Fatalf("CaptureSessionTranscript() error = %v", err)
@@ -279,6 +277,20 @@ func assertFaultPromptProjection(
 	assertArtifactExists(t, harness, e2etest.ArtifactKindTranscript)
 	assertArtifactExists(t, harness, e2etest.ArtifactKindEvents)
 	assertArtifactExists(t, harness, e2etest.ArtifactKindSessionSandbox)
+}
+
+func assertNoFatalBlockedCancelError(t testing.TB, events []aghcontract.AgentEventPayload) {
+	t.Helper()
+
+	for _, event := range events {
+		if event.Type != "error" {
+			continue
+		}
+		if event.Failure == nil || event.Failure.Kind == store.FailureCanceled {
+			continue
+		}
+		t.Fatalf("events = %#v, want no fatal error after explicit blocked prompt cancellation", events)
+	}
 }
 
 func mustHTTPSession(

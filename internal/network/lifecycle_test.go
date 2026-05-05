@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestOpenInteraction(t *testing.T) {
+func TestOpenWork(t *testing.T) {
 	t.Parallel()
 
 	at := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
@@ -17,28 +17,28 @@ func TestOpenInteraction(t *testing.T) {
 		{
 			name: "direct opener",
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_direct_01",
-				Kind:          KindDirect,
-				Channel:       "builders",
-				From:          "coder.sess-abc",
-				To:            stringPtr("reviewer.sess-xyz"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
-				Body:          mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
+				Protocol: ProtocolV0,
+				ID:       "msg_direct_01",
+				Kind:     KindSay,
+				Channel:  "builders",
+				From:     "coder.sess-abc",
+				To:       stringPtr("reviewer.sess-xyz"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
 			},
 		},
 		{
 			name: "capability opener",
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_capability_01",
-				Kind:          KindCapability,
-				Channel:       "builders",
-				From:          "coder.sess-abc",
-				To:            stringPtr("reviewer.sess-xyz"),
-				InteractionID: stringPtr("int_capability_42"),
-				TS:            at.Unix(),
+				Protocol: ProtocolV0,
+				ID:       "msg_capability_01",
+				Kind:     KindCapability,
+				Channel:  "builders",
+				From:     "coder.sess-abc",
+				To:       stringPtr("reviewer.sess-xyz"),
+				WorkID:   stringPtr("work_capability_42"),
+				TS:       at.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:               "review-fix",
 					Summary:          "Review fix flow",
@@ -53,78 +53,81 @@ func TestOpenInteraction(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			interaction, err := OpenInteraction(tc.env, at)
+			work, err := OpenWork(withDirectSurface(tc.env), at)
 			if err != nil {
-				t.Fatalf("OpenInteraction() error = %v", err)
+				t.Fatalf("OpenWork() error = %v", err)
 			}
-			if interaction.State != StateSubmitted {
-				t.Fatalf("OpenInteraction().State = %q, want %q", interaction.State, StateSubmitted)
+			if work.State != WorkStateSubmitted {
+				t.Fatalf("OpenWork().State = %q, want %q", work.State, WorkStateSubmitted)
 			}
-			if interaction.Initiator != tc.env.From || interaction.Target != *tc.env.To {
+			if work.Initiator != tc.env.From || work.Target != *tc.env.To {
 				t.Fatalf(
-					"OpenInteraction() participants = (%q,%q), want (%q,%q)",
-					interaction.Initiator,
-					interaction.Target,
+					"OpenWork() participants = (%q,%q), want (%q,%q)",
+					work.Initiator,
+					work.Target,
 					tc.env.From,
 					*tc.env.To,
 				)
+			}
+			if got, want := work.Ref.ContainerKey(), testDirectRef().ContainerKey(); got != want {
+				t.Fatalf("OpenWork().Ref.ContainerKey() = %q, want %q", got, want)
 			}
 		})
 	}
 }
 
-func TestApplyInteractionEnvelope(t *testing.T) {
+func TestApplyWorkEnvelope(t *testing.T) {
 	t.Parallel()
 
 	at := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	interaction := Interaction{
-		ID:        "int_patch_42",
-		Channel:   "builders",
+	work := Work{
+		ID:        "work_patch_42",
+		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
-		State:     StateSubmitted,
+		State:     WorkStateSubmitted,
 		CreatedAt: at,
 		UpdatedAt: at,
 	}
 
 	cases := []struct {
 		name       string
-		current    *Interaction
+		current    *Work
 		env        Envelope
 		wantAction LifecycleAction
-		wantState  InteractionState
+		wantState  WorkState
 		wantReason *ReasonCode
 		wantErr    error
 	}{
 		{
-			name:    "open from nil interaction",
+			name:    "open from nil work",
 			current: nil,
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_direct_01",
-				Kind:          KindDirect,
-				Channel:       "builders",
-				From:          "coder.sess-abc",
-				To:            stringPtr("reviewer.sess-xyz"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
-				Body:          mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
+				Protocol: ProtocolV0,
+				ID:       "msg_direct_01",
+				Kind:     KindSay,
+				Channel:  "builders",
+				From:     "coder.sess-abc",
+				To:       stringPtr("reviewer.sess-xyz"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
 			},
 			wantAction: LifecycleActionOpened,
-			wantState:  StateSubmitted,
+			wantState:  WorkStateSubmitted,
 		},
 		{
-			name:    "open capability from nil interaction",
+			name:    "open capability from nil work",
 			current: nil,
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_capability_01",
-				Kind:          KindCapability,
-				Channel:       "builders",
-				From:          "coder.sess-abc",
-				To:            stringPtr("reviewer.sess-xyz"),
-				InteractionID: stringPtr("int_capability_42"),
-				TS:            at.Unix(),
+				Protocol: ProtocolV0,
+				ID:       "msg_capability_01",
+				Kind:     KindCapability,
+				Channel:  "builders",
+				From:     "coder.sess-abc",
+				To:       stringPtr("reviewer.sess-xyz"),
+				WorkID:   stringPtr("work_capability_42"),
+				TS:       at.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:               "review-fix",
 					Summary:          "Review fix flow",
@@ -135,77 +138,77 @@ func TestApplyInteractionEnvelope(t *testing.T) {
 				}),
 			},
 			wantAction: LifecycleActionOpened,
-			wantState:  StateSubmitted,
+			wantState:  WorkStateSubmitted,
 		},
 		{
 			name:    "trace working advances state",
-			current: &interaction,
+			current: &work,
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_trace_01",
-				Kind:          KindTrace,
-				Channel:       "builders",
-				From:          "reviewer.sess-xyz",
-				To:            stringPtr("coder.sess-abc"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
-				Body:          mustRawJSON(t, map[string]any{"state": "working"}),
+				Protocol: ProtocolV0,
+				ID:       "msg_trace_01",
+				Kind:     KindTrace,
+				Channel:  "builders",
+				From:     "reviewer.sess-xyz",
+				To:       stringPtr("coder.sess-abc"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 			},
 			wantAction: LifecycleActionAdvanced,
-			wantState:  StateWorking,
+			wantState:  WorkStateWorking,
 		},
 		{
 			name: "direct resumes work from needs_input",
-			current: &Interaction{
-				ID:        "int_patch_42",
-				Channel:   "builders",
+			current: &Work{
+				ID:        "work_patch_42",
+				Ref:       testDirectRef(),
 				Initiator: "coder.sess-abc",
 				Target:    "reviewer.sess-xyz",
-				State:     StateNeedsInput,
+				State:     WorkStateNeedsInput,
 				CreatedAt: at,
 				UpdatedAt: at,
 			},
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_direct_02",
-				Kind:          KindDirect,
-				Channel:       "builders",
-				From:          "coder.sess-abc",
-				To:            stringPtr("reviewer.sess-xyz"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
-				Body:          mustRawJSON(t, map[string]any{"text": "here is the missing detail"}),
+				Protocol: ProtocolV0,
+				ID:       "msg_direct_02",
+				Kind:     KindSay,
+				Channel:  "builders",
+				From:     "coder.sess-abc",
+				To:       stringPtr("reviewer.sess-xyz"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"text": "here is the missing detail"}),
 			},
 			wantAction: LifecycleActionAdvanced,
-			wantState:  StateWorking,
+			wantState:  WorkStateWorking,
 		},
 		{
 			name:    "direct without target is rejected",
-			current: &interaction,
+			current: &work,
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_direct_missing_to",
-				Kind:          KindDirect,
-				Channel:       "builders",
-				From:          "coder.sess-abc",
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
-				Body:          mustRawJSON(t, map[string]any{"text": "missing target"}),
+				Protocol: ProtocolV0,
+				ID:       "msg_direct_missing_to",
+				Kind:     KindSay,
+				Channel:  "builders",
+				From:     "coder.sess-abc",
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"text": "missing target"}),
 			},
 			wantErr: ErrMissingField,
 		},
 		{
 			name:    "capability outside participant pair is rejected",
-			current: &interaction,
+			current: &work,
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_capability_bad_target",
-				Kind:          KindCapability,
-				Channel:       "builders",
-				From:          "coder.sess-abc",
-				To:            stringPtr("outsider.sess-123"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
+				Protocol: ProtocolV0,
+				ID:       "msg_capability_bad_target",
+				Kind:     KindCapability,
+				Channel:  "builders",
+				From:     "coder.sess-abc",
+				To:       stringPtr("outsider.sess-123"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:               "review-fix",
 					Summary:          "Review fix flow",
@@ -215,20 +218,20 @@ func TestApplyInteractionEnvelope(t *testing.T) {
 					Requirements:     []string{"workspace-write"},
 				}),
 			},
-			wantErr: ErrInteractionActorNotAllowed,
+			wantErr: ErrWorkActorNotAllowed,
 		},
 		{
-			name:    "receipt rejected fails interaction",
-			current: &interaction,
+			name:    "receipt rejected fails work",
+			current: &work,
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_receipt_01",
-				Kind:          KindReceipt,
-				Channel:       "builders",
-				From:          "reviewer.sess-xyz",
-				To:            stringPtr("coder.sess-abc"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
+				Protocol: ProtocolV0,
+				ID:       "msg_receipt_01",
+				Kind:     KindReceipt,
+				Channel:  "builders",
+				From:     "reviewer.sess-xyz",
+				To:       stringPtr("coder.sess-abc"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"for_id":      "msg_direct_01",
 					"status":      "rejected",
@@ -236,88 +239,107 @@ func TestApplyInteractionEnvelope(t *testing.T) {
 				}),
 			},
 			wantAction: LifecycleActionAdvanced,
-			wantState:  StateFailed,
+			wantState:  WorkStateFailed,
 		},
 		{
-			name: "post terminal trace is ignored",
-			current: &Interaction{
-				ID:        "int_patch_42",
-				Channel:   "builders",
+			name: "post terminal trace is rejected",
+			current: &Work{
+				ID:        "work_patch_42",
+				Ref:       testDirectRef(),
 				Initiator: "coder.sess-abc",
 				Target:    "reviewer.sess-xyz",
-				State:     StateCompleted,
+				State:     WorkStateCompleted,
 				CreatedAt: at,
 				UpdatedAt: at,
 			},
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_trace_02",
-				Kind:          KindTrace,
-				Channel:       "builders",
-				From:          "reviewer.sess-xyz",
-				To:            stringPtr("coder.sess-abc"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
-				Body:          mustRawJSON(t, map[string]any{"state": "working"}),
+				Protocol: ProtocolV0,
+				ID:       "msg_trace_02",
+				Kind:     KindTrace,
+				Channel:  "builders",
+				From:     "reviewer.sess-xyz",
+				To:       stringPtr("coder.sess-abc"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 			},
-			wantAction: LifecycleActionIgnored,
-			wantState:  StateCompleted,
+			wantAction: LifecycleActionRejectWork,
+			wantState:  WorkStateCompleted,
+			wantReason: reasonCodePtr(ReasonCodeWorkClosed),
 		},
 		{
 			name: "post terminal direct is rejected",
-			current: &Interaction{
-				ID:        "int_patch_42",
-				Channel:   "builders",
+			current: &Work{
+				ID:        "work_patch_42",
+				Ref:       testDirectRef(),
 				Initiator: "coder.sess-abc",
 				Target:    "reviewer.sess-xyz",
-				State:     StateCompleted,
+				State:     WorkStateCompleted,
 				CreatedAt: at,
 				UpdatedAt: at,
 			},
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_direct_03",
-				Kind:          KindDirect,
-				Channel:       "builders",
-				From:          "coder.sess-abc",
-				To:            stringPtr("reviewer.sess-xyz"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
-				Body:          mustRawJSON(t, map[string]any{"text": "try again"}),
+				Protocol: ProtocolV0,
+				ID:       "msg_direct_03",
+				Kind:     KindSay,
+				Channel:  "builders",
+				From:     "coder.sess-abc",
+				To:       stringPtr("reviewer.sess-xyz"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"text": "try again"}),
 			},
-			wantAction: LifecycleActionRejectDirect,
-			wantState:  StateCompleted,
-			wantReason: reasonCodePtr(ReasonCodeInteractionClosed),
+			wantAction: LifecycleActionRejectWork,
+			wantState:  WorkStateCompleted,
+			wantReason: reasonCodePtr(ReasonCodeWorkClosed),
 		},
 		{
 			name:    "third party actor rejected",
-			current: &interaction,
+			current: &work,
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_trace_bad",
-				Kind:          KindTrace,
-				Channel:       "builders",
-				From:          "intruder.sess-123",
-				To:            stringPtr("coder.sess-abc"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
-				Body:          mustRawJSON(t, map[string]any{"state": "working"}),
+				Protocol: ProtocolV0,
+				ID:       "msg_trace_bad",
+				Kind:     KindTrace,
+				Channel:  "builders",
+				From:     "intruder.sess-123",
+				To:       stringPtr("coder.sess-abc"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 			},
-			wantErr: ErrInteractionActorNotAllowed,
+			wantErr: ErrWorkActorNotAllowed,
+		},
+		{
+			name:    "cross container continuation is rejected",
+			current: &work,
+			env: Envelope{
+				Protocol: ProtocolV0,
+				ID:       "msg_trace_wrong_container",
+				Kind:     KindTrace,
+				Channel:  "builders",
+				Surface:  surfacePtr(SurfaceThread),
+				ThreadID: stringPtr("thread_patch_42"),
+				From:     "reviewer.sess-xyz",
+				To:       stringPtr("coder.sess-abc"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"state": "working"}),
+			},
+			wantErr: ErrWorkContainerMismatch,
 		},
 		{
 			name:    "invalid submitted regression rejected",
-			current: &interaction,
+			current: &work,
 			env: Envelope{
-				Protocol:      ProtocolV0,
-				ID:            "msg_trace_bad_state",
-				Kind:          KindTrace,
-				Channel:       "builders",
-				From:          "reviewer.sess-xyz",
-				To:            stringPtr("coder.sess-abc"),
-				InteractionID: stringPtr("int_patch_42"),
-				TS:            at.Unix(),
-				Body:          mustRawJSON(t, map[string]any{"state": "submitted"}),
+				Protocol: ProtocolV0,
+				ID:       "msg_trace_bad_state",
+				Kind:     KindTrace,
+				Channel:  "builders",
+				From:     "reviewer.sess-xyz",
+				To:       stringPtr("coder.sess-abc"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"state": "submitted"}),
 			},
 			wantErr: ErrInvalidStateTransition,
 		},
@@ -327,25 +349,28 @@ func TestApplyInteractionEnvelope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := ApplyInteractionEnvelope(tc.current, tc.env, at.Add(time.Second))
+			got, err := ApplyWorkEnvelope(tc.current, withDirectSurface(tc.env), at.Add(time.Second))
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
-					t.Fatalf("ApplyInteractionEnvelope() error = %v, want %v", err, tc.wantErr)
+					t.Fatalf("ApplyWorkEnvelope() error = %v, want %v", err, tc.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("ApplyInteractionEnvelope() error = %v", err)
+				t.Fatalf("ApplyWorkEnvelope() error = %v", err)
 			}
 			if got.Action != tc.wantAction {
-				t.Fatalf("ApplyInteractionEnvelope().Action = %q, want %q", got.Action, tc.wantAction)
+				t.Fatalf("ApplyWorkEnvelope().Action = %q, want %q", got.Action, tc.wantAction)
 			}
-			if got.Interaction.State != tc.wantState {
-				t.Fatalf("ApplyInteractionEnvelope().State = %q, want %q", got.Interaction.State, tc.wantState)
+			if got.Work.State != tc.wantState {
+				t.Fatalf("ApplyWorkEnvelope().State = %q, want %q", got.Work.State, tc.wantState)
+			}
+			if IsTerminalState(got.Work.State) && got.Action == LifecycleActionAdvanced && got.Work.TerminalAt == nil {
+				t.Fatalf("ApplyWorkEnvelope().Work.TerminalAt = nil, want terminal timestamp")
 			}
 			if tc.wantReason != nil {
 				if got.ReasonCode == nil || *got.ReasonCode != *tc.wantReason {
-					t.Fatalf("ApplyInteractionEnvelope().ReasonCode = %v, want %v", got.ReasonCode, tc.wantReason)
+					t.Fatalf("ApplyWorkEnvelope().ReasonCode = %v, want %v", got.ReasonCode, tc.wantReason)
 				}
 			}
 		})
@@ -356,60 +381,66 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 	t.Parallel()
 
 	at := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	current := &Interaction{
-		ID:        "int_patch_42",
-		Channel:   "builders",
+	current := &Work{
+		ID:        "work_patch_42",
+		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
-		State:     StateSubmitted,
+		State:     WorkStateSubmitted,
 		CreatedAt: at,
 		UpdatedAt: at,
 	}
 
 	receiptCanceled := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_receipt_cancel",
-		Kind:          KindReceipt,
-		Channel:       "builders",
-		From:          "coder.sess-abc",
-		To:            stringPtr("reviewer.sess-xyz"),
-		InteractionID: stringPtr("int_patch_42"),
-		TS:            at.Unix(),
+		Protocol: ProtocolV0,
+		ID:       "msg_receipt_cancel",
+		Kind:     KindReceipt,
+		Channel:  "builders",
+		From:     "coder.sess-abc",
+		To:       stringPtr("reviewer.sess-xyz"),
+		WorkID:   stringPtr("work_patch_42"),
+		TS:       at.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"for_id": "msg_direct_01",
 			"status": "canceled",
 		}),
 	}
 
-	first, err := ApplyInteractionEnvelope(current, receiptCanceled, at.Add(time.Second))
+	first, err := ApplyWorkEnvelope(current, withDirectSurface(receiptCanceled), at.Add(time.Second))
 	if err != nil {
-		t.Fatalf("ApplyInteractionEnvelope(first) error = %v", err)
+		t.Fatalf("ApplyWorkEnvelope(first) error = %v", err)
 	}
-	if first.Interaction.State != StateCanceled {
-		t.Fatalf("first state = %q, want %q", first.Interaction.State, StateCanceled)
+	if first.Work.State != WorkStateCanceled {
+		t.Fatalf("first state = %q, want %q", first.Work.State, WorkStateCanceled)
+	}
+	if first.Work.TerminalAt == nil || !first.Work.TerminalAt.Equal(at.Add(time.Second)) {
+		t.Fatalf("first terminal_at = %v, want %v", first.Work.TerminalAt, at.Add(time.Second))
 	}
 
 	traceCanceled := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_trace_cancel",
-		Kind:          KindTrace,
-		Channel:       "builders",
-		From:          "reviewer.sess-xyz",
-		To:            stringPtr("coder.sess-abc"),
-		InteractionID: stringPtr("int_patch_42"),
-		TS:            at.Unix(),
-		Body:          mustRawJSON(t, map[string]any{"state": "canceled"}),
+		Protocol: ProtocolV0,
+		ID:       "msg_trace_cancel",
+		Kind:     KindTrace,
+		Channel:  "builders",
+		From:     "reviewer.sess-xyz",
+		To:       stringPtr("coder.sess-abc"),
+		WorkID:   stringPtr("work_patch_42"),
+		TS:       at.Unix(),
+		Body:     mustRawJSON(t, map[string]any{"state": "canceled"}),
 	}
 
-	second, err := ApplyInteractionEnvelope(&first.Interaction, traceCanceled, at.Add(2*time.Second))
+	second, err := ApplyWorkEnvelope(&first.Work, withDirectSurface(traceCanceled), at.Add(2*time.Second))
 	if err != nil {
-		t.Fatalf("ApplyInteractionEnvelope(second) error = %v", err)
+		t.Fatalf("ApplyWorkEnvelope(second) error = %v", err)
 	}
-	if second.Action != LifecycleActionIgnored {
-		t.Fatalf("second action = %q, want %q", second.Action, LifecycleActionIgnored)
+	if second.Action != LifecycleActionRejectWork {
+		t.Fatalf("second action = %q, want %q", second.Action, LifecycleActionRejectWork)
 	}
-	if second.Interaction.State != StateCanceled {
-		t.Fatalf("second state = %q, want %q", second.Interaction.State, StateCanceled)
+	if second.Work.State != WorkStateCanceled {
+		t.Fatalf("second state = %q, want %q", second.Work.State, WorkStateCanceled)
+	}
+	if second.ReasonCode == nil || *second.ReasonCode != ReasonCodeWorkClosed {
+		t.Fatalf("second reason = %v, want %q", second.ReasonCode, ReasonCodeWorkClosed)
 	}
 }
 
