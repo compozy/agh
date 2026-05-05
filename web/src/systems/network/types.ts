@@ -1,5 +1,18 @@
 import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
+export type NetworkSurface = "thread" | "direct";
+
+export type NetworkSignalTone = "accent" | "success" | "warning" | "danger" | "info" | "neutral";
+
+export type NetworkKindFilter =
+  | "all"
+  | "say"
+  | "receipt"
+  | "capability"
+  | "greet"
+  | "whois"
+  | "trace";
+
 export type NetworkStatusResponse = OperationResponse<"getNetworkStatus", 200>;
 export type NetworkStatus = NetworkStatusResponse["network"];
 
@@ -11,46 +24,44 @@ export type NetworkChannel = NetworkChannelDetailResponse["channel"];
 
 export type NetworkThreadsResponse = OperationResponse<"listNetworkThreads", 200>;
 export type NetworkThreadSummary = NetworkThreadsResponse["threads"][number];
+
+export type NetworkThreadDetailResponse = OperationResponse<"getNetworkThread", 200>;
+export type NetworkThreadDetail = NetworkThreadDetailResponse["thread"];
+
 export type NetworkThreadMessagesResponse = OperationResponse<"listNetworkThreadMessages", 200>;
+export type NetworkThreadMessage = NetworkThreadMessagesResponse["messages"][number];
+
 export type NetworkDirectRoomsResponse = OperationResponse<"listNetworkDirectRooms", 200>;
 export type NetworkDirectRoomSummary = NetworkDirectRoomsResponse["directs"][number];
+
+export type NetworkDirectRoomDetailResponse = OperationResponse<"getNetworkDirectRoom", 200>;
+export type NetworkDirectRoomDetail = NetworkDirectRoomDetailResponse["direct"];
+
 export type NetworkDirectRoomMessagesResponse = OperationResponse<
   "listNetworkDirectRoomMessages",
   200
 >;
+export type NetworkDirectRoomMessage = NetworkDirectRoomMessagesResponse["messages"][number];
 
-export type NetworkChannelMessagesResponse = NetworkThreadMessagesResponse;
-export type NetworkChannelMessage = NetworkChannelMessagesResponse["messages"][number];
-export interface NetworkConversationMessagesQuery {
-  after?: string | null | undefined;
-  before?: string | null | undefined;
-  include_presence?: boolean | null;
-  kind?: string | null | undefined;
-  limit?: number | null | undefined;
-  work_id?: string | null | undefined;
-}
-export type NetworkChannelMessagesQuery = NetworkConversationMessagesQuery;
-export type NetworkTimelineMessage = NetworkChannelMessage;
+export type NetworkResolveDirectRoomRequest = OperationRequestBody<"resolveNetworkDirectRoom">;
+export type NetworkResolveDirectRoomResponse = OperationResponse<"resolveNetworkDirectRoom", 200>;
+
+export type NetworkWorkResponse = OperationResponse<"getNetworkWork", 200>;
+export type NetworkWorkDetail = NetworkWorkResponse["work"];
+
+export type NetworkConversationMessage = NetworkThreadMessage | NetworkDirectRoomMessage;
 
 export type NetworkPeersResponse = OperationResponse<"listNetworkPeers", 200>;
 export type NetworkPeerSummary = NetworkPeersResponse["peers"][number];
 
 export type NetworkPeerDetailResponse = OperationResponse<"getNetworkPeer", 200>;
 export type NetworkPeerDetail = NetworkPeerDetailResponse["peer"];
-export type NetworkPeerMessagesResponse = NetworkDirectRoomMessagesResponse;
-export type NetworkPeerMessagesQuery = NetworkConversationMessagesQuery;
 
 export type NetworkPeerCard = NetworkPeerSummary["peer_card"];
 export type NetworkCapabilityBrief = NetworkPeerCard["capabilities"][number];
 
 export type NetworkCapabilityCatalog = NonNullable<NetworkPeerDetail["capability_catalog"]>;
 export type NetworkCapability = NetworkCapabilityCatalog["capabilities"][number];
-
-export interface NetworkPeerCapabilityView {
-  id: string;
-  summary: string;
-  detail: NetworkCapability | null;
-}
 
 export type CreateNetworkChannelRequest = OperationRequestBody<"createNetworkChannel">;
 export type CreateNetworkChannelResponse = OperationResponse<"createNetworkChannel", 201>;
@@ -63,81 +74,22 @@ export interface NetworkCreateChannelDraft {
   selectedAgentNames: string[];
 }
 
-export type NetworkRoomType = "channel" | "peer";
-export type NetworkDetailsTab = "about" | "members" | "wire";
-export type NetworkSignalTone = "accent" | "success" | "warning" | "danger" | "info" | "neutral";
-export type NetworkKindFilter =
-  | "all"
-  | "say"
-  | "direct"
-  | "receipt"
-  | "capability"
-  | "greet"
-  | "whois"
-  | "trace";
-
-export interface NetworkRoomListItem {
-  id: string;
-  isStarred: boolean;
-  key: string;
-  lastActivityAt: string | null;
-  meta: string;
-  preview: string;
-  roomType: NetworkRoomType;
-  subtitle: string;
-  title: string;
-  tone: NetworkSignalTone;
-  unreadCount: number;
+export interface NetworkConversationMessagesQuery {
+  after?: string | null | undefined;
+  before?: string | null | undefined;
+  kind?: string | null | undefined;
+  limit?: number | null | undefined;
+  work_id?: string | null | undefined;
 }
 
-export interface NetworkRoomMember {
-  id: string;
-  lastSeen: string | null;
-  local: boolean;
-  sessionId: string | null;
-  subtitle: string;
-  title: string;
-  tone: NetworkSignalTone;
-}
+export type NetworkRouteSurface = NetworkSurface | "activity";
 
-export interface NetworkRoomField {
-  label: string;
-  mono?: boolean;
-  tone?: NetworkSignalTone;
-  value: string;
-}
-
-export interface NetworkRoomKindMetric {
-  count: number;
-  kind: Exclude<NetworkKindFilter, "all">;
-}
-
-export interface NetworkActiveRoom {
-  aboutFields: NetworkRoomField[];
-  canCompose: boolean;
-  canStar: boolean;
-  capabilities: NetworkPeerCapabilityView[];
+export interface NetworkRecentEntry {
+  surface: NetworkSurface;
   channel: string;
-  composeHint: string | null;
-  composePlaceholder: string;
-  description: string;
-  id: string;
-  introBody: string;
-  introTitle: string;
-  isStarred: boolean;
-  key: string;
-  kindCounts: NetworkRoomKindMetric[];
-  lastActivityAt: string | null;
-  lastPresenceAt: string | null;
-  memberCount: number;
-  members: NetworkRoomMember[];
-  messageCount: number;
-  messages: NetworkTimelineMessage[];
-  presenceCount: number;
+  containerId: string;
   preview: string;
-  purpose: string | null;
-  roomType: NetworkRoomType;
-  subtitle: string;
-  title: string;
-  wireFields: NetworkRoomField[];
+  lastActivityAt: string | null;
+  hasUnread: boolean;
+  participantLabel: string;
 }

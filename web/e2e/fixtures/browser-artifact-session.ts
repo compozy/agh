@@ -180,10 +180,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
     const readText = (testId: string) =>
       document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)?.textContent?.trim() ||
       undefined;
-    const readHeading = (testId: string) =>
-      document
-        .querySelector<HTMLElement>(`[data-testid="${testId}"] h1, [data-testid="${testId}"] h2`)
-        ?.textContent?.trim() || undefined;
     const countByPrefix = (prefix: string) =>
       document.querySelectorAll(`[data-testid^="${prefix}"]`).length;
     const countAutomationRunCards = () =>
@@ -198,14 +194,35 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
             testId !== "automation-run-history-empty" &&
             !testId.startsWith("automation-run-session-link-")
         ).length;
-    const networkActiveTab = document.querySelector(
-      '[data-testid^="network-room-channel-"] button[aria-current="page"]'
-    )
-      ? "channels"
-      : document.querySelector('[data-testid^="network-room-peer-"] button[aria-current="page"]')
-        ? "peers"
-        : undefined;
-    const networkSelectedRoom = readHeading("network-room-header");
+    const networkActiveTab = document.querySelector('[data-testid="network-threads-tab"]')
+      ? ("threads" as const)
+      : document.querySelector('[data-testid="network-directs-tab"]')
+        ? ("directs" as const)
+        : document.querySelector('[data-testid="network-activity-tab"]')
+          ? ("activity" as const)
+          : undefined;
+    const networkSelectedChannel =
+      document
+        .querySelector<HTMLElement>(
+          '[data-testid="network-channel-link-"][aria-current="page"], [data-testid^="network-channel-link-"][aria-current="page"]'
+        )
+        ?.textContent?.trim()
+        ?.replace(/^#/, "") ||
+      document
+        .querySelector<HTMLElement>('[data-testid="network-channel-header"] h1')
+        ?.textContent?.trim()
+        .replace(/^#/, "") ||
+      undefined;
+    const networkSelectedThread =
+      document
+        .querySelector<HTMLElement>('[data-testid="network-thread-detail"]')
+        ?.getAttribute("aria-label")
+        ?.match(/^Thread (\S+)/)?.[1] ?? undefined;
+    const networkSelectedDirect =
+      document
+        .querySelector<HTMLElement>('[data-testid="network-direct-detail"]')
+        ?.getAttribute("aria-label")
+        ?.match(/^Direct room (\S+)/)?.[1] ?? undefined;
     const automationActiveTab = document.querySelector('[data-testid="jobs-shell"]')
       ? "jobs"
       : document.querySelector('[data-testid="triggers-shell"]')
@@ -272,13 +289,14 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         '[data-testid="message-bubble-user"], [data-testid="message-bubble-assistant"]'
       ).length,
       network_active_tab: networkActiveTab,
-      network_channel_count: countByPrefix("network-room-channel-"),
+      network_channel_count: countByPrefix("network-channel-row-"),
+      network_thread_count: countByPrefix("network-thread-row-"),
+      network_direct_count: countByPrefix("network-direct-row-"),
       network_message_count: countByPrefix("network-message-"),
-      network_peer_count: countByPrefix("network-room-peer-"),
-      network_selected_channel:
-        networkActiveTab === "channels" ? networkSelectedRoom?.replace(/^#/, "") : undefined,
-      network_selected_peer: networkActiveTab === "peers" ? networkSelectedRoom : undefined,
-      network_view_visible: document.querySelector('[data-testid="network-workspace"]') !== null,
+      network_selected_channel: networkSelectedChannel,
+      network_selected_thread: networkSelectedThread,
+      network_selected_direct: networkSelectedDirect,
+      network_view_visible: document.querySelector('[data-testid="network-shell"]') !== null,
       permission_prompt_visible:
         document.querySelector('[data-testid="permission-prompt"]') !== null,
       processing_indicator_visible:

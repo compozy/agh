@@ -2,8 +2,8 @@ import { QueryClient, type QueryFunctionContext } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  listNetworkChannelMessages: vi.fn().mockResolvedValue([]),
-  listNetworkPeerMessages: vi.fn().mockResolvedValue([]),
+  listNetworkThreadMessages: vi.fn().mockResolvedValue([]),
+  listNetworkDirectRoomMessages: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../adapters/network-api", async () => {
@@ -11,12 +11,13 @@ vi.mock("../adapters/network-api", async () => {
 
   return {
     ...actual,
-    listNetworkChannelMessages: mocks.listNetworkChannelMessages,
-    listNetworkPeerMessages: mocks.listNetworkPeerMessages,
+    listNetworkThreadMessages: mocks.listNetworkThreadMessages,
+    listNetworkDirectRoomMessages: mocks.listNetworkDirectRoomMessages,
   };
 });
 
-import { networkChannelMessagesOptions, networkPeerMessagesOptions } from "./query-options";
+import { networkDirectMessagesOptions, networkThreadMessagesOptions } from "./query-options";
+import { networkKeys } from "./query-keys";
 
 function makeQueryContext<TQueryKey extends readonly unknown[]>(queryKey: TQueryKey) {
   return {
@@ -37,113 +38,139 @@ function requireQueryFn<TQueryKey extends readonly unknown[]>(
   return queryFn;
 }
 
-describe("network query options", () => {
+describe("network query options — surface isolation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("normalizes channel timeline defaults for both the query key and fetch payload", async () => {
-    const withoutQuery = networkChannelMessagesOptions("storybook");
-    const emptyQuery = networkChannelMessagesOptions("storybook", {});
-    const undefinedLimit = networkChannelMessagesOptions("storybook", { limit: undefined });
-
-    expect(withoutQuery.queryKey).toEqual(emptyQuery.queryKey);
-    expect(emptyQuery.queryKey).toEqual(undefinedLimit.queryKey);
-    expect(withoutQuery.queryKey).toEqual([
+  it("threads tab queries are namespaced with channel + surface + thread id", async () => {
+    const options = networkThreadMessagesOptions("builders", "thread_one");
+    expect(options.queryKey).toEqual([
       "network",
-      "channels",
+      "channel",
+      "builders",
+      "thread",
       "messages",
-      "storybook",
+      "thread_one",
       "",
       "",
       "",
       "",
-      0,
       120,
     ]);
-
-    await requireQueryFn(withoutQuery.queryFn)(makeQueryContext(withoutQuery.queryKey));
-    await requireQueryFn(emptyQuery.queryFn)(makeQueryContext(emptyQuery.queryKey));
-    await requireQueryFn(undefinedLimit.queryFn)(makeQueryContext(undefinedLimit.queryKey));
-
-    expect(mocks.listNetworkChannelMessages).toHaveBeenNthCalledWith(
-      1,
-      "storybook",
-      { limit: 120 },
-      expect.any(AbortSignal)
-    );
-    expect(mocks.listNetworkChannelMessages).toHaveBeenNthCalledWith(
-      2,
-      "storybook",
-      { limit: 120 },
-      expect.any(AbortSignal)
-    );
-    expect(mocks.listNetworkChannelMessages).toHaveBeenNthCalledWith(
-      3,
-      "storybook",
+    await requireQueryFn(options.queryFn)(makeQueryContext(options.queryKey));
+    expect(mocks.listNetworkThreadMessages).toHaveBeenCalledWith(
+      "builders",
+      "thread_one",
       { limit: 120 },
       expect.any(AbortSignal)
     );
   });
 
-  it("normalizes peer timeline defaults without dropping explicit cursors", async () => {
-    const withCursor = networkPeerMessagesOptions("peer_storybook_remote", {
-      after: "cursor_123",
-      limit: undefined,
-    });
-    const normalized = networkPeerMessagesOptions("peer_storybook_remote", {
-      after: "cursor_123",
-    });
-
-    expect(withCursor.queryKey).toEqual(normalized.queryKey);
-    expect(withCursor.queryKey).toEqual([
+  it("directs tab queries are namespaced with channel + surface + direct id", async () => {
+    const options = networkDirectMessagesOptions("builders", "direct_one");
+    expect(options.queryKey).toEqual([
       "network",
-      "peers",
+      "channel",
+      "builders",
+      "direct",
       "messages",
-      "peer_storybook_remote",
-      "",
-      "cursor_123",
+      "direct_one",
       "",
       "",
-      0,
+      "",
+      "",
       120,
     ]);
-
-    await requireQueryFn(withCursor.queryFn)(makeQueryContext(withCursor.queryKey));
-
-    expect(mocks.listNetworkPeerMessages).toHaveBeenCalledWith(
-      "peer_storybook_remote",
-      { after: "cursor_123", limit: 120 },
+    await requireQueryFn(options.queryFn)(makeQueryContext(options.queryKey));
+    expect(mocks.listNetworkDirectRoomMessages).toHaveBeenCalledWith(
+      "builders",
+      "direct_one",
+      { limit: 120 },
       expect.any(AbortSignal)
     );
   });
 
-  it("keeps presence toggles isolated in both the query key and fetch payload", async () => {
-    const hiddenPresence = networkChannelMessagesOptions("storybook", { limit: 20 });
-    const shownPresence = networkChannelMessagesOptions("storybook", {
-      include_presence: true,
-      limit: 20,
-    });
+  it("a directs query never shares the same key as a threads query in the same channel", () => {
+    const threadsOpts = networkThreadMessagesOptions("builders", "shared_id");
+    const directsOpts = networkDirectMessagesOptions("builders", "shared_id");
+    expect(threadsOpts.queryKey).not.toEqual(directsOpts.queryKey);
 
-    expect(hiddenPresence.queryKey).not.toEqual(shownPresence.queryKey);
-    expect(shownPresence.queryKey).toEqual([
+    // Hierarchical key check using factories.
+    expect(networkKeys.threadsList("builders").slice(0, 5)).toEqual([
       "network",
-      "channels",
-      "messages",
-      "storybook",
-      "",
-      "",
-      "",
-      "",
-      1,
-      20,
+      "channel",
+      "builders",
+      "thread",
+      "list",
+    ]);
+    expect(networkKeys.directsList("builders").slice(0, 5)).toEqual([
+      "network",
+      "channel",
+      "builders",
+      "direct",
+      "list",
+    ]);
+  });
+
+  it("a directs query never matches threads query under TanStack predicate", () => {
+    const client = new QueryClient();
+    const threadOpts = networkThreadMessagesOptions("builders", "container_x");
+    const directOpts = networkDirectMessagesOptions("builders", "container_x");
+    client.setQueryData(threadOpts.queryKey, [
+      {
+        message_id: "thread-msg",
+        body: {},
+        channel: "builders",
+        direction: "sent",
+        kind: "say",
+        peer_from: "p",
+        timestamp: "",
+      },
+    ]);
+    client.setQueryData(directOpts.queryKey, [
+      {
+        message_id: "direct-msg",
+        body: {},
+        channel: "builders",
+        direction: "sent",
+        kind: "say",
+        peer_from: "p",
+        timestamp: "",
+      },
     ]);
 
-    await requireQueryFn(shownPresence.queryFn)(makeQueryContext(shownPresence.queryKey));
+    const threadCacheValue = client.getQueryData(threadOpts.queryKey) as Array<{
+      message_id: string;
+    }>;
+    const directCacheValue = client.getQueryData(directOpts.queryKey) as Array<{
+      message_id: string;
+    }>;
+    expect(threadCacheValue?.[0]?.message_id).toBe("thread-msg");
+    expect(directCacheValue?.[0]?.message_id).toBe("direct-msg");
 
-    expect(mocks.listNetworkChannelMessages).toHaveBeenCalledWith(
-      "storybook",
-      { include_presence: true, limit: 20 },
+    const threadEntry = client
+      .getQueryCache()
+      .findAll({ queryKey: networkKeys.threadsList("builders").slice(0, 4), exact: false });
+    const directEntry = client
+      .getQueryCache()
+      .findAll({ queryKey: networkKeys.directsList("builders").slice(0, 4), exact: false });
+
+    expect(threadEntry.flatMap(query => query.queryKey)).toContain("thread");
+    expect(threadEntry.flatMap(query => query.queryKey)).not.toContain("direct");
+    expect(directEntry.flatMap(query => query.queryKey)).toContain("direct");
+    expect(directEntry.flatMap(query => query.queryKey)).not.toContain("thread");
+  });
+
+  it("normalizes message limit defaults inside both surfaces", async () => {
+    const noLimit = networkThreadMessagesOptions("builders", "thread_one");
+    const explicit = networkThreadMessagesOptions("builders", "thread_one", { limit: 120 });
+    expect(noLimit.queryKey).toEqual(explicit.queryKey);
+    await requireQueryFn(noLimit.queryFn)(makeQueryContext(noLimit.queryKey));
+    expect(mocks.listNetworkThreadMessages).toHaveBeenLastCalledWith(
+      "builders",
+      "thread_one",
+      { limit: 120 },
       expect.any(AbortSignal)
     );
   });

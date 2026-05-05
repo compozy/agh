@@ -5,25 +5,26 @@ import { describe, expect, it } from "vitest";
 import { captureRouteState } from "./browser-artifact-session";
 
 describe("captureRouteState", () => {
-  it("captures network route context that explains a failed operator flow", async () => {
-    window.history.replaceState({}, "", "/network");
+  it("captures network shell context with the channel-pivot information architecture", async () => {
+    window.history.replaceState({}, "", "/network/builders/threads");
     document.title = "AGH";
     document.body.innerHTML = `
-      <div data-testid="network-workspace">
-        <div data-testid="network-room-channel-builders">
-          <button>builders</button>
-        </div>
-        <div data-testid="network-room-peer-peer_ops">
-          <button>mock-ops</button>
-        </div>
-        <div data-testid="network-room-peer-peer_patch">
-          <button aria-current="page">mock-patch-worker</button>
-        </div>
-        <section data-testid="network-room-header">
-          <h1>mock-patch-worker</h1>
-        </section>
-        <article data-testid="network-message-browser_msg_say_01"></article>
-        <article data-testid="network-message-browser_msg_direct_01"></article>
+      <div data-testid="network-shell">
+        <aside data-testid="network-channel-rail">
+          <div data-testid="network-channel-row-builders">
+            <a data-testid="network-channel-link-builders" aria-current="page">builders</a>
+          </div>
+          <div data-testid="network-channel-row-design">
+            <a data-testid="network-channel-link-design">design</a>
+          </div>
+        </aside>
+        <main data-testid="network-main-pane">
+          <header data-testid="network-channel-header"><h1>#builders</h1></header>
+          <section data-testid="network-threads-tab">
+            <article data-testid="network-thread-row-thread_one"></article>
+            <article data-testid="network-thread-row-thread_two"></article>
+          </section>
+        </main>
       </div>
     `;
 
@@ -32,17 +33,64 @@ describe("captureRouteState", () => {
     });
 
     expect(routeState).toMatchObject({
-      pathname: "/network",
+      pathname: "/network/builders/threads",
       title: "AGH",
       chat_view_visible: false,
       message_count: 0,
       network_view_visible: true,
-      network_active_tab: "peers",
-      network_channel_count: 1,
-      network_peer_count: 2,
-      network_message_count: 2,
-      network_selected_peer: "mock-patch-worker",
+      network_active_tab: "threads",
+      network_channel_count: 2,
+      network_thread_count: 2,
+      network_direct_count: 0,
+      network_message_count: 0,
+      network_selected_channel: "builders",
     });
+    expect(routeState).not.toHaveProperty("network_selected_peer");
+    expect(routeState.network_selected_thread).toBeUndefined();
+  });
+
+  it("captures the selected thread overlay container id without leaking direct fields", async () => {
+    window.history.replaceState({}, "", "/network/builders/threads/thread_launch_command");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <div data-testid="network-shell">
+        <main data-testid="network-main-pane">
+          <section data-testid="network-thread-detail" aria-label="Thread thread_launch_command in #builders"></section>
+        </main>
+      </div>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      network_view_visible: true,
+      network_selected_thread: "thread_launch_command",
+    });
+    expect(routeState.network_selected_direct).toBeUndefined();
+  });
+
+  it("captures the selected direct room container id without leaking thread fields", async () => {
+    window.history.replaceState({}, "", "/network/builders/directs/direct_abc123");
+    document.title = "AGH";
+    document.body.innerHTML = `
+      <div data-testid="network-shell">
+        <main data-testid="network-main-pane">
+          <section data-testid="network-direct-detail" aria-label="Direct room direct_abc123 in #builders"></section>
+        </main>
+      </div>
+    `;
+
+    const routeState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(routeState).toMatchObject({
+      network_view_visible: true,
+      network_selected_direct: "direct_abc123",
+    });
+    expect(routeState.network_selected_thread).toBeUndefined();
   });
 
   it("captures automation route context, selected item, and session-link state", async () => {

@@ -2,11 +2,18 @@ import type {
   CreateNetworkChannelResponse,
   NetworkCapabilityCatalog,
   NetworkChannel,
-  NetworkChannelMessage,
   NetworkChannelsResponse,
+  NetworkConversationMessage,
+  NetworkDirectRoomDetail,
+  NetworkDirectRoomMessage,
+  NetworkDirectRoomSummary,
   NetworkPeerDetail,
   NetworkPeerSummary,
   NetworkStatus,
+  NetworkThreadDetail,
+  NetworkThreadMessage,
+  NetworkThreadSummary,
+  NetworkWorkDetail,
 } from "../types";
 import {
   storyAgentNames,
@@ -205,7 +212,7 @@ function sayMessage(
   peerFrom: string,
   timestamp: string,
   text: string
-): NetworkChannelMessage {
+): NetworkConversationMessage {
   return {
     body: { text },
     channel: storyHeroNetworkChannel,
@@ -234,7 +241,7 @@ function directMessage(
     peerTo: string;
     sessionId?: string;
   }
-): NetworkChannelMessage {
+): NetworkConversationMessage {
   return {
     body: { text },
     channel: storyHeroNetworkChannel,
@@ -627,7 +634,7 @@ export const networkChannelFixture: NetworkChannel = {
   workspace_id: storyWorkspaceIds.hq,
 };
 
-export const networkChannelMessagesFixture: NetworkChannelMessage[] = [
+export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
   {
     body: {
       summary:
@@ -973,7 +980,7 @@ export const networkChannelMessagesFixture: NetworkChannelMessage[] = [
   ),
 ];
 
-export const networkPeerMessagesFixture: NetworkChannelMessage[] = [
+export const networkDirectRoomMessagesFixture: NetworkDirectRoomMessage[] = [
   directMessage(
     "msg_dm_001",
     "Launch room command brief",
@@ -1140,4 +1147,94 @@ export const networkRemotePeerFixture: NetworkPeerDetail = {
 
 export const createNetworkChannelFixture: CreateNetworkChannelResponse = {
   channel: networkChannelFixture,
+};
+
+export const networkThreadsFixture: NetworkThreadSummary[] = [
+  {
+    channel: storyHeroNetworkChannel,
+    last_activity_at: "2026-04-17T18:16:00Z",
+    last_message_preview:
+      "Open both corridors at 18:30 UTC. Keep the fallback banner armed for the first 15 minutes.",
+    message_count: 28,
+    open_work_count: 2,
+    opened_at: "2026-04-17T17:50:00Z",
+    opened_by_peer_id: primaryPeerCard.peer_id,
+    opened_session_id: storySessionIds.product,
+    participant_count: 6,
+    root_message_id: "msg_launch_001",
+    thread_id: "thread_launch_command",
+    title: "Launch command brief",
+  },
+  {
+    channel: storyHeroNetworkChannel,
+    last_activity_at: "2026-04-17T18:11:00Z",
+    last_message_preview:
+      "Copywriter owns it. The final approved line is already in Pricing Claims Guardrails.",
+    message_count: 4,
+    open_work_count: 0,
+    opened_at: "2026-04-17T18:10:00Z",
+    opened_by_peer_id: primaryPeerCard.peer_id,
+    opened_session_id: storySessionIds.product,
+    participant_count: 3,
+    root_message_id: "msg_launch_021",
+    thread_id: "thread_pricing_ownership",
+    title: "MX cashback wording",
+  },
+];
+
+export const networkThreadDetailFixture: NetworkThreadDetail = {
+  channel: storyHeroNetworkChannel,
+  last_activity_at: "2026-04-17T18:16:00Z",
+  last_message_preview:
+    "Open both corridors at 18:30 UTC. Keep the fallback banner armed for the first 15 minutes.",
+  message_count: 28,
+  open_work_count: 2,
+  opened_at: "2026-04-17T17:50:00Z",
+  opened_by_peer_id: primaryPeerCard.peer_id,
+  opened_session_id: storySessionIds.product,
+  participant_count: 6,
+  root_message_id: "msg_launch_001",
+  thread_id: "thread_launch_command",
+  title: "Launch command brief",
+};
+
+export const networkDirectRoomsFixture: NetworkDirectRoomSummary[] = [
+  {
+    channel: storyHeroNetworkChannel,
+    direct_id: "direct_story_launch_corridor",
+    last_activity_at: "2026-04-17T18:12:00Z",
+    last_message_preview:
+      "Replay finished. BR timeout copy is no longer blocked on partner evidence.",
+    message_count: 4,
+    open_work_count: 1,
+    opened_at: "2026-04-17T17:55:00Z",
+    peer_a: primaryPeerCard.peer_id,
+    peer_b: remotePeerCard.peer_id,
+  },
+];
+
+export const networkDirectRoomDetailFixture: NetworkDirectRoomDetail = {
+  channel: storyHeroNetworkChannel,
+  direct_id: "direct_story_launch_corridor",
+  last_activity_at: "2026-04-17T18:12:00Z",
+  last_message_preview:
+    "Replay finished. BR timeout copy is no longer blocked on partner evidence.",
+  message_count: 4,
+  open_work_count: 1,
+  opened_at: "2026-04-17T17:55:00Z",
+  peer_a: primaryPeerCard.peer_id,
+  peer_b: remotePeerCard.peer_id,
+};
+
+export const networkWorkFixture: NetworkWorkDetail = {
+  channel: storyHeroNetworkChannel,
+  direct_id: "direct_story_launch_corridor",
+  last_activity_at: "2026-04-17T18:12:00Z",
+  opened_at: "2026-04-17T17:55:00Z",
+  opened_by_peer_id: primaryPeerCard.peer_id,
+  opened_session_id: storySessionIds.product,
+  state: "working",
+  surface: "direct",
+  target_peer_id: remotePeerCard.peer_id,
+  work_id: "work_story_launch_corridor",
 };

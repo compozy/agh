@@ -86,12 +86,14 @@ export interface BrowserRouteState {
   resume_button_visible: boolean;
   message_count: number;
   network_view_visible: boolean;
-  network_active_tab?: "channels" | "peers";
+  network_active_tab?: "threads" | "directs" | "activity";
   network_channel_count: number;
-  network_peer_count: number;
+  network_thread_count: number;
+  network_direct_count: number;
   network_message_count: number;
   network_selected_channel?: string;
-  network_selected_peer?: string;
+  network_selected_thread?: string;
+  network_selected_direct?: string;
 }
 
 export function isLikelyViteDevHTML(html: string): boolean {

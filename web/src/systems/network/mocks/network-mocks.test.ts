@@ -7,22 +7,24 @@ import {
   storySessionIds,
 } from "@/storybook/fintech-scenario";
 import {
-  networkChannelMessagesFixture,
-  networkPeerMessagesFixture,
+  networkDirectRoomMessagesFixture,
+  networkDirectRoomsFixture,
   networkPeerFixture,
   networkRemotePeerFixture,
+  networkThreadMessagesFixture,
+  networkThreadsFixture,
 } from "./fixtures";
 import { handlers } from "./handlers";
 
 describe("network mock contracts", () => {
-  it("keeps message fixtures aligned with the server mapper contract", () => {
-    expect(networkChannelMessagesFixture[0]).toMatchObject({
+  it("keeps thread message fixtures aligned with the conversation contract", () => {
+    expect(networkThreadMessagesFixture[0]).toMatchObject({
       direction: "sent",
       display_name: "Northstar Launch Control",
       local: true,
       session_id: storySessionIds.product,
     });
-    expect(networkPeerMessagesFixture[0]).toMatchObject({
+    expect(networkDirectRoomMessagesFixture[0]).toMatchObject({
       direction: "sent",
       display_name: "Launch room command brief",
       local: true,
@@ -30,31 +32,69 @@ describe("network mock contracts", () => {
     });
 
     for (const message of [
-      networkChannelMessagesFixture[1],
-      networkChannelMessagesFixture[5],
-      networkPeerMessagesFixture[1],
+      networkThreadMessagesFixture[1],
+      networkThreadMessagesFixture[5],
+      networkDirectRoomMessagesFixture[1],
     ]) {
       expect(message).toBeDefined();
       expect(message?.session_id).toBeUndefined();
       expect(message?.direction).toBe("received");
     }
 
-    expect(networkChannelMessagesFixture.length).toBeGreaterThanOrEqual(20);
+    expect(networkThreadMessagesFixture.length).toBeGreaterThanOrEqual(20);
   });
 
-  it("returns an internally consistent remote-peer conversation without rewriting ids", async () => {
+  it("returns the thread list with surface-aligned summary rows", async () => {
     const response = await getResponse(
       handlers,
-      new Request(`http://localhost/api/network/peers/${storyPeerIds.remote}/messages`),
+      new Request(`http://localhost/api/network/channels/${storyHeroNetworkChannel}/threads`),
       { baseUrl: "http://localhost" }
     );
 
     expect(response).not.toBeUndefined();
     expect(response?.ok).toBe(true);
 
-    const payload = (await response?.json()) as { messages: typeof networkPeerMessagesFixture };
+    const payload = (await response?.json()) as { threads: typeof networkThreadsFixture };
+    expect(payload.threads.map(thread => thread.thread_id)).toEqual(
+      networkThreadsFixture.map(thread => thread.thread_id)
+    );
+  });
 
-    expect(payload.messages).toEqual(networkPeerMessagesFixture);
+  it("returns the direct room list with two-party membership", async () => {
+    const response = await getResponse(
+      handlers,
+      new Request(`http://localhost/api/network/channels/${storyHeroNetworkChannel}/directs`),
+      { baseUrl: "http://localhost" }
+    );
+
+    expect(response).not.toBeUndefined();
+    expect(response?.ok).toBe(true);
+
+    const payload = (await response?.json()) as { directs: typeof networkDirectRoomsFixture };
+    expect(payload.directs[0]?.peer_a < (payload.directs[0]?.peer_b ?? "")).toBe(true);
+  });
+
+  it("returns thread messages without leaking direct surface fields", async () => {
+    const thread = networkThreadsFixture[0];
+    expect(thread).toBeDefined();
+    if (!thread) {
+      return;
+    }
+    const response = await getResponse(
+      handlers,
+      new Request(
+        `http://localhost/api/network/channels/${storyHeroNetworkChannel}/threads/${thread.thread_id}/messages`
+      ),
+      { baseUrl: "http://localhost" }
+    );
+    expect(response?.ok).toBe(true);
+    const payload = (await response?.json()) as {
+      messages: { surface: string; thread_id: string; direct_id?: string }[];
+    };
+    for (const message of payload.messages) {
+      expect(message.surface).toBe("thread");
+      expect(message.thread_id).toBe(thread.thread_id);
+    }
   });
 
   it("keeps peer detail mocks aligned with the truthful local-vs-remote payload shape", async () => {
@@ -90,6 +130,25 @@ describe("network mock contracts", () => {
     expect(remotePayload.peer.peer_card.peer_id).toBe(storyPeerIds.remote);
   });
 
+  it("rejects legacy direct kind sends and returns the canonical error", async () => {
+    const response = await getResponse(
+      handlers,
+      new Request("http://localhost/api/network/send", {
+        body: JSON.stringify({
+          channel: storyHeroNetworkChannel,
+          kind: "direct",
+          session_id: storySessionIds.product,
+          to: storyPeerIds.remote,
+        }),
+        method: "POST",
+      }),
+      { baseUrl: "http://localhost" }
+    );
+    expect(response?.status).toBe(400);
+    const payload = (await response?.json()) as { error: string };
+    expect(payload.error).toContain("legacy direct kind is not accepted");
+  });
+
   it("handles network send requests without falling through to the real daemon", async () => {
     const response = await getResponse(
       handlers,
@@ -99,6 +158,8 @@ describe("network mock contracts", () => {
           channel: storyHeroNetworkChannel,
           kind: "say",
           session_id: storySessionIds.product,
+          surface: "thread",
+          thread_id: "thread_launch_command",
         }),
         method: "POST",
       }),
@@ -109,14 +170,14 @@ describe("network mock contracts", () => {
     expect(response?.ok).toBe(true);
 
     const payload = (await response?.json()) as {
-      message: { channel: string; id: string; kind: string; session_id: string };
+      message: { channel: string; id: string; kind: string; session_id: string; surface?: string };
     };
 
-    expect(payload.message).toEqual({
+    expect(payload.message).toMatchObject({
       channel: storyHeroNetworkChannel,
-      id: "msg_risk_ops_sent",
       kind: "say",
       session_id: storySessionIds.product,
+      surface: "thread",
     });
   });
 

@@ -1,27 +1,19 @@
 import { AlertTriangle, Loader2, Network as NetworkIcon } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { Empty } from "@agh/ui";
-import {
-  type NetworkRouteSearch,
-  useNetworkPage,
-  validateNetworkSearch,
-} from "@/hooks/routes/use-network-page";
-import {
-  NetworkCreateChannelDialog,
-  NetworkWorkspaceShell,
-  toggleDraftAgent,
-} from "@/systems/network";
+
+import { NetworkShell } from "@/systems/network/components/shell";
+import { useNetworkRouteShell } from "@/systems/network";
 
 export const Route = createFileRoute("/_app/network")({
-  validateSearch: validateNetworkSearch,
-  component: NetworkPage,
+  component: NetworkRouteShell,
 });
 
-function NetworkPage() {
-  const page = useNetworkPage(Route.useSearch() as NetworkRouteSearch);
+function NetworkRouteShell() {
+  const { page, activeChannel, activeTab, hasUnread } = useNetworkRouteShell();
 
-  if (page.isPageLoading) {
+  if (page.isStatusLoading) {
     return (
       <div
         aria-label="Loading network workspace"
@@ -37,7 +29,7 @@ function NetworkPage() {
     );
   }
 
-  if (page.pageError || !page.networkStatus) {
+  if (page.statusError || !page.status) {
     return (
       <div
         className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
@@ -45,7 +37,7 @@ function NetworkPage() {
       >
         <Empty
           className="max-w-xl"
-          description={page.pageError?.message ?? "Failed to load network status"}
+          description={page.statusError?.message ?? "Failed to load network status"}
           icon={AlertTriangle}
           title="Unable to load the network workspace"
         />
@@ -61,7 +53,7 @@ function NetworkPage() {
       >
         <Empty
           className="max-w-xl"
-          description="Enable the embedded network in AGH config to inspect rooms, peers, and multi-kind wire traffic."
+          description="Enable the embedded network in AGH config to inspect channels, threads, and direct rooms."
           icon={NetworkIcon}
           title="Network disabled"
         />
@@ -69,67 +61,61 @@ function NetworkPage() {
     );
   }
 
-  return (
-    <>
-      <NetworkWorkspaceShell
-        activeKind={page.activeKind}
-        activeRoom={page.activeRoom}
-        channelRooms={page.channelRooms}
-        composeDraft={page.composeDraft}
-        detailsTab={page.detailsTab}
-        directRooms={page.directRooms}
-        isComposePending={page.isComposePending}
-        isDetailsOpen={page.isDetailsOpen}
-        isRoomLoading={page.isRoomLoading}
-        isTimelineLoading={page.isTimelineLoading}
-        onComposeDraftChange={page.setComposeDraft}
-        onComposeSubmit={page.handleComposeSubmit}
-        onOpenCreateDialog={page.handleOpenCreateDialog}
-        onSelectDetailsTab={page.setDetailsTab}
-        onSelectKind={page.handleSetKind}
-        onSelectRoom={page.handleSelectRoom}
-        onSidebarQueryChange={page.setSidebarQuery}
-        onToggleDetails={page.handleToggleDetails}
-        onTogglePresence={page.handleTogglePresence}
-        onToggleStarChannel={page.handleToggleStarChannel}
-        roomError={page.roomError}
-        selectedRoomKey={page.selectedRoomKey}
-        showPresence={page.showPresence}
-        sidebarQuery={page.sidebarQuery}
-        starredChannelRooms={page.starredChannelRooms}
-        status={page.networkStatus}
-      />
+  if (page.channels.length === 0 && !page.isChannelsLoading) {
+    return (
+      <NetworkShell
+        activeChannel={null}
+        activeChannelDetail={null}
+        activeTab="threads"
+        directCount={null}
+        hasUnread={() => false}
+        isChannelsLoading={false}
+        isPinned={() => false}
+        isRecentsLoading={false}
+        onTogglePinned={page.togglePinned}
+        openWorkCount={0}
+        pinnedChannels={[]}
+        recents={[]}
+        rightRailMode="thread"
+        rightRailOpen={false}
+        threadCount={null}
+        unpinnedChannels={[]}
+      >
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          data-testid="network-no-channels-state"
+        >
+          <Empty
+            className="max-w-xl"
+            description="Create a channel from the CLI or extension SDK to start coordinating threads and direct rooms."
+            icon={NetworkIcon}
+            title="No channels yet."
+          />
+        </div>
+      </NetworkShell>
+    );
+  }
 
-      <NetworkCreateChannelDialog
-        agents={page.sortedAgents}
-        canSubmit={
-          Boolean(page.networkStatus?.enabled) &&
-          page.createDraft.channelName.trim() !== "" &&
-          page.createDraft.purpose.trim() !== "" &&
-          page.createDraft.selectedAgentNames.length > 0
-        }
-        draft={page.createDraft}
-        isSubmitting={page.isCreatePending}
-        onChannelNameChange={channelName =>
-          page.setCreateDraft(currentDraft => ({
-            ...currentDraft,
-            channelName,
-          }))
-        }
-        onOpenChange={page.setCreateDialogOpen}
-        onPurposeChange={purpose =>
-          page.setCreateDraft(currentDraft => ({
-            ...currentDraft,
-            purpose,
-          }))
-        }
-        onSubmit={page.handleCreateChannel}
-        onToggleAgent={agentName =>
-          page.setCreateDraft(currentDraft => toggleDraftAgent(currentDraft, agentName))
-        }
-        open={page.isCreateDialogOpen}
-        workspaceName={page.workspaceName}
-      />
-    </>
+  return (
+    <NetworkShell
+      activeChannel={activeChannel}
+      activeChannelDetail={null}
+      activeTab={activeTab}
+      directCount={null}
+      hasUnread={hasUnread}
+      isChannelsLoading={page.isChannelsLoading}
+      isPinned={page.isPinned}
+      isRecentsLoading={page.isRecentsLoading}
+      onTogglePinned={page.togglePinned}
+      openWorkCount={0}
+      pinnedChannels={page.pinnedChannels}
+      recents={page.recents}
+      rightRailMode="thread"
+      rightRailOpen={false}
+      threadCount={null}
+      unpinnedChannels={page.unpinnedChannels}
+    >
+      <Outlet />
+    </NetworkShell>
   );
 }

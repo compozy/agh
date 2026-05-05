@@ -1,291 +1,196 @@
 import { describe, expect, it } from "vitest";
 
-import type { NetworkCapabilityBrief, NetworkCapabilityCatalog } from "../types";
 import {
-  buildPeerCapabilityViews,
+  createNetworkChannelDraft,
   formatNetworkKindLabel,
-  getChannelRecencyAt,
+  formatNetworkRelativeTime,
+  getMessageAuthorInitial,
+  getMostRecentTimestamp,
+  getNetworkKindTone,
+  getNetworkStatusTone,
+  getPeerDisplayName,
   getPeerRecencyAt,
-  hasCapabilityDetail,
-  isHistoricalChannel,
-  isPresenceOnlyChannel,
-  sortNetworkChannels,
-  sortNetworkPeers,
-  summarizeChannelMeta,
-  summarizeChannelPreview,
-  summarizeChannelSubtitle,
+  isNetworkRunning,
+  toggleDraftAgent,
+  toNetworkKindFilter,
 } from "./network-formatters";
 
-describe("buildPeerCapabilityViews", () => {
-  it("Should merge brief entries with their catalog counterparts by id", () => {
-    const brief: NetworkCapabilityBrief[] = [
-      { id: "chat", summary: "Brief summary" },
-      { id: "tools", summary: "Runs tools" },
-    ];
-    const catalog: NetworkCapabilityCatalog = {
-      capabilities: [
-        {
-          id: "chat",
-          summary: "Rich summary",
-          outcome: "Peers align.",
-          requirements: ["introspection"],
-        },
-      ],
-    };
-
-    const views = buildPeerCapabilityViews(brief, catalog);
-
-    expect(views).toHaveLength(2);
-    expect(views[0]?.id).toBe("chat");
-    expect(views[0]?.summary).toBe("Brief summary");
-    expect(views[0]?.detail?.outcome).toBe("Peers align.");
-    expect(views[1]?.id).toBe("tools");
-    expect(views[1]?.detail).toBeNull();
-  });
-
-  it("Should surface catalog-only capabilities that lack a brief entry", () => {
-    const catalog: NetworkCapabilityCatalog = {
-      capabilities: [{ id: "orphan", summary: "Only rich.", outcome: "No brief entry." }],
-    };
-
-    const views = buildPeerCapabilityViews(undefined, catalog);
-
-    expect(views).toHaveLength(1);
-    expect(views[0]?.id).toBe("orphan");
-    expect(views[0]?.summary).toBe("Only rich.");
-    expect(views[0]?.detail?.outcome).toBe("No brief entry.");
-  });
-
-  it("Should return an empty list when neither brief nor catalog has entries", () => {
-    expect(buildPeerCapabilityViews(undefined, undefined)).toEqual([]);
-    expect(buildPeerCapabilityViews([], { capabilities: [] })).toEqual([]);
-  });
-});
-
-describe("hasCapabilityDetail", () => {
-  it("Should report false when no catalog detail is attached", () => {
-    expect(hasCapabilityDetail({ id: "chat", summary: "Brief only", detail: null })).toBe(false);
-  });
-
-  it("Should report true when any rich field carries content", () => {
-    expect(
-      hasCapabilityDetail({
-        id: "chat",
-        summary: "Brief",
-        detail: {
-          id: "chat",
-          summary: "Brief",
-          outcome: "Peers align.",
-        },
-      })
-    ).toBe(true);
-
-    expect(
-      hasCapabilityDetail({
-        id: "chat",
-        summary: "Brief",
-        detail: {
-          id: "chat",
-          summary: "Brief",
-          outcome: "",
-          requirements: ["introspection"],
-        },
-      })
-    ).toBe(true);
-  });
-
-  it("Should report false for an empty catalog detail stub", () => {
-    expect(
-      hasCapabilityDetail({
-        id: "chat",
-        summary: "Brief",
-        detail: { id: "chat", summary: "Brief", outcome: "" },
-      })
-    ).toBe(false);
-  });
-});
-
 describe("formatNetworkKindLabel", () => {
-  it.each(["capability", "say", "direct", "trace", "receipt", "greet", "whois"] as const)(
+  it.each(["capability", "say", "trace", "receipt", "greet", "whois"] as const)(
     "Should keep the %s timeline event aligned with the API kind name",
     kind => {
       expect(formatNetworkKindLabel(kind)).toBe(kind);
     }
   );
 
+  it("Should reject the legacy 'direct' kind", () => {
+    expect(toNetworkKindFilter("direct")).toBeNull();
+  });
+
   it("Should preserve unknown kind strings as-is", () => {
     expect(formatNetworkKindLabel("custom-signal")).toBe("custom-signal");
   });
-});
 
-describe("presence-aware channel summaries", () => {
-  it("Should mark presence-only rooms without pretending they have conversation", () => {
-    const channel = {
-      historical_participant_count: 2,
-      message_count: 0,
-      peer_count: 0,
-      presence_count: 24,
-      session_count: 0,
-    };
-
-    expect(isPresenceOnlyChannel(channel)).toBe(true);
-    expect(summarizeChannelPreview(channel)).toBe("Presence only");
-    expect(summarizeChannelSubtitle(channel)).toBe("2 participants · 24 presence");
-  });
-
-  it("Should label historical rooms once runtime peers are gone", () => {
-    const channel = {
-      historical_participant_count: 3,
-      message_count: 4,
-      peer_count: 0,
-      presence_count: 0,
-      session_count: 0,
-    };
-
-    expect(isHistoricalChannel(channel)).toBe(true);
-    expect(summarizeChannelSubtitle(channel)).toBe("3 participants · historical");
-  });
-
-  it("Should treat omitted message_count as zero for history-only direct rooms", () => {
-    const channel = {
-      historical_participant_count: 2,
-      peer_count: 0,
-      presence_count: 2,
-      session_count: 0,
-    };
-
-    expect(isPresenceOnlyChannel(channel)).toBe(true);
-    expect(summarizeChannelPreview(channel)).toBe("Presence only");
-    expect(summarizeChannelSubtitle(channel)).toBe("2 participants · 2 presence");
+  it("Should map known kinds to a chromatic tone, unknown to neutral", () => {
+    expect(getNetworkKindTone("capability")).toBe("info");
+    expect(getNetworkKindTone("trace")).toBe("info");
+    expect(getNetworkKindTone("custom-signal")).toBe("neutral");
   });
 });
 
-describe("sortNetworkChannels", () => {
-  it("Should sort presence-only rooms by last_presence_at when last_activity_at is missing", () => {
-    const sorted = sortNetworkChannels([
-      {
-        channel: "alpha-room",
-        created_at: "2026-04-28T04:12:31.630954Z",
-        historical_participant_count: 2,
-        last_presence_at: "2026-04-28T04:12:31.621681Z",
-        peer_count: 0,
-        presence_count: 2,
-        purpose: "Older presence-only room",
-        workspace_id: "ws_test",
-      },
-      {
-        channel: "zulu-room",
-        created_at: "2026-04-28T04:54:52.738585Z",
-        historical_participant_count: 2,
-        last_presence_at: "2026-04-28T04:54:52.730068Z",
-        peer_count: 0,
-        presence_count: 2,
-        purpose: "Newer presence-only room",
-        workspace_id: "ws_test",
-      },
-    ]);
-
-    expect(sorted.map(channel => channel.channel)).toEqual(["zulu-room", "alpha-room"]);
+describe("getMostRecentTimestamp", () => {
+  it("returns the fresher of the two values", () => {
+    expect(getMostRecentTimestamp("2026-04-13T10:00:00Z", "2026-04-13T11:00:00Z")).toBe(
+      "2026-04-13T11:00:00Z"
+    );
   });
 
-  it("Should sort reactivated rooms by fresher presence even when older activity exists", () => {
-    const sorted = sortNetworkChannels([
-      {
-        channel: "coord.core",
-        created_at: "2026-04-28T07:30:00Z",
-        historical_participant_count: 2,
-        last_activity_at: "2026-04-28T07:40:00Z",
-        last_presence_at: "2026-04-28T07:40:00Z",
-        message_count: 6,
-        peer_count: 2,
-        purpose: "Ongoing coordination room",
-        workspace_id: "ws_test",
-      },
-      {
-        channel: "launch-room",
-        created_at: "2026-04-28T07:00:00Z",
-        historical_participant_count: 7,
-        last_activity_at: "2026-04-28T07:20:00Z",
-        last_presence_at: "2026-04-28T07:50:00Z",
-        message_count: 4,
-        peer_count: 2,
-        purpose: "Reactivated historical room",
-        workspace_id: "ws_test",
-      },
-    ]);
-
-    expect(sorted.map(channel => channel.channel)).toEqual(["launch-room", "coord.core"]);
+  it("falls back when one side is missing", () => {
+    expect(getMostRecentTimestamp(null, "2026-04-13T10:00:00Z")).toBe("2026-04-13T10:00:00Z");
+    expect(getMostRecentTimestamp("2026-04-13T10:00:00Z", null)).toBe("2026-04-13T10:00:00Z");
+    expect(getMostRecentTimestamp(null, null)).toBeNull();
   });
 });
 
-describe("channel recency helpers", () => {
-  it("Should use fresher presence for effective channel recency when a historical room is reactivated", () => {
+describe("formatNetworkRelativeTime", () => {
+  it("falls back to a stable label for missing or invalid input", () => {
+    expect(formatNetworkRelativeTime(undefined)).toBe("Unavailable");
+    expect(formatNetworkRelativeTime("not-a-date")).toBe("Unavailable");
+  });
+
+  it("returns 'just now' for very recent timestamps", () => {
+    const now = new Date().toISOString();
+    expect(formatNetworkRelativeTime(now)).toBe("just now");
+  });
+});
+
+describe("createNetworkChannelDraft", () => {
+  it("creates an empty draft with no agents selected", () => {
+    expect(createNetworkChannelDraft()).toEqual({
+      channelName: "",
+      purpose: "",
+      selectedAgentNames: [],
+    });
+  });
+
+  it("toggles an agent into and out of the draft selection", () => {
+    const empty = createNetworkChannelDraft();
+    const added = toggleDraftAgent(empty, "alpha");
+    const removed = toggleDraftAgent(added, "alpha");
+
+    expect(added.selectedAgentNames).toEqual(["alpha"]);
+    expect(removed.selectedAgentNames).toEqual([]);
+  });
+});
+
+describe("getNetworkStatusTone", () => {
+  it.each([
+    ["running", "success"],
+    ["online", "success"],
+    ["starting", "warning"],
+    ["degraded", "warning"],
+    ["stopped", "danger"],
+    ["offline", "danger"],
+    ["unknown-state", "neutral"],
+    [null, "neutral"],
+  ] as const)("maps %s to %s tone", (status, tone) => {
+    expect(getNetworkStatusTone(status)).toBe(tone);
+  });
+});
+
+describe("isNetworkRunning", () => {
+  it("treats enabled+running as running", () => {
     expect(
-      getChannelRecencyAt({
-        last_activity_at: "2026-04-28T07:20:00Z",
-        last_presence_at: "2026-04-28T07:50:00Z",
+      isNetworkRunning({
+        channels: 1,
+        delivery_workers: 1,
+        enabled: true,
+        local_peers: 1,
+        messages_sent: 0,
+        queued_messages: 0,
+        remote_peers: 0,
+        status: "running",
       })
-    ).toBe("2026-04-28T07:50:00Z");
+    ).toBe(true);
   });
 
-  it("Should label fresher presence as presence metadata instead of stale activity", () => {
+  it("treats disabled or stopped network as not running", () => {
     expect(
-      summarizeChannelMeta({
-        last_activity_at: "2026-04-28T07:20:00Z",
-        last_presence_at: "2026-04-28T07:50:00Z",
-        message_count: 4,
-        presence_count: 8,
+      isNetworkRunning({
+        channels: 0,
+        delivery_workers: 0,
+        enabled: false,
+        local_peers: 0,
+        messages_sent: 0,
+        queued_messages: 0,
+        remote_peers: 0,
+        status: "running",
       })
-    ).toMatch(/^presence /);
+    ).toBe(false);
+    expect(
+      isNetworkRunning({
+        channels: 0,
+        delivery_workers: 0,
+        enabled: true,
+        local_peers: 0,
+        messages_sent: 0,
+        queued_messages: 0,
+        remote_peers: 0,
+        status: "stopped",
+      })
+    ).toBe(false);
   });
 });
 
-describe("peer recency helpers", () => {
-  it("Should fall back to joined_at when local peers do not expose last_seen", () => {
-    const peer = {
-      joined_at: "2026-04-28T06:59:29.95469Z",
-      last_seen: undefined,
-    };
-
-    expect(getPeerRecencyAt(peer)).toBe("2026-04-28T06:59:29.95469Z");
-  });
-
-  it("Should sort local peers by effective recency before display name", () => {
-    const sorted = sortNetworkPeers([
-      {
-        channel: "builders",
+describe("getPeerDisplayName + getPeerRecencyAt", () => {
+  it("falls through display_name → peer_card.display_name → peer_id", () => {
+    expect(
+      getPeerDisplayName({
         display_name: "Reviewer",
-        joined_at: "2026-04-28T06:59:26.991192Z",
-        local: true,
         peer_card: {
-          artifacts_supported: ["capability"],
+          artifacts_supported: [],
           capabilities: [],
-          display_name: "Reviewer",
+          display_name: "Reviewer (card)",
           peer_id: "peer-reviewer",
-          profiles_supported: ["agh-network/v0"],
+          profiles_supported: [],
           trust_modes_supported: [],
         },
         peer_id: "peer-reviewer",
-        session_id: "sess-reviewer",
-      },
-      {
-        channel: "builders",
-        display_name: "Coder",
-        joined_at: "2026-04-28T06:59:29.95469Z",
-        local: true,
-        peer_card: {
-          artifacts_supported: ["capability"],
-          capabilities: [],
-          display_name: "Coder",
-          peer_id: "peer-coder",
-          profiles_supported: ["agh-network/v0"],
-          trust_modes_supported: [],
-        },
-        peer_id: "peer-coder",
-        session_id: "sess-coder",
-      },
-    ]);
+      })
+    ).toBe("Reviewer");
+  });
 
-    expect(sorted.map(peer => peer.peer_id)).toEqual(["peer-coder", "peer-reviewer"]);
+  it("returns the freshest of last_seen and joined_at", () => {
+    expect(
+      getPeerRecencyAt({
+        joined_at: "2026-04-28T06:00:00Z",
+        last_seen: "2026-04-28T07:00:00Z",
+      })
+    ).toBe("2026-04-28T07:00:00Z");
+    expect(
+      getPeerRecencyAt({
+        joined_at: "2026-04-28T07:00:00Z",
+        last_seen: undefined,
+      })
+    ).toBe("2026-04-28T07:00:00Z");
+  });
+});
+
+describe("getMessageAuthorInitial", () => {
+  it("uses display_name first letter, capitalized", () => {
+    expect(
+      getMessageAuthorInitial({
+        display_name: "claude-opus",
+        peer_from: "peer-x",
+      })
+    ).toBe("C");
+  });
+
+  it("falls back to peer_from when display_name is missing", () => {
+    expect(getMessageAuthorInitial({ peer_from: "  reviewer" })).toBe("R");
+  });
+
+  it("returns a stable placeholder for empty author info", () => {
+    expect(getMessageAuthorInitial({ peer_from: "" })).toBe("?");
   });
 });

@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
-import { expect, userEvent, within } from "storybook/test";
 
-import { storyHeroNetworkChannel, storyPeerIds } from "@/storybook/fintech-scenario";
+import { storyHeroNetworkChannel } from "@/storybook/fintech-scenario";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -17,7 +16,7 @@ const storybookNetworkStatus = networkStatusFixture;
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
     "routes/app/network",
-    "Real-shell stories for the network workspace route, covering channels, direct rooms, the create-channel dialog, and MSW-backed empty/loading branches."
+    "Real-shell stories for the channel-pivot network route, covering the threads tab, the directs tab, the activity tab, and MSW-backed empty / loading / disabled branches."
   ),
 };
 
@@ -25,42 +24,34 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Default network route with the first channel selected from the MSW fixtures.
+ * Default network route on the threads tab for the hero channel.
  */
-export const Default: Story = {
+export const ThreadsTab: Story = {
   args: {},
-  parameters: appRouteParameters("/network"),
+  parameters: appRouteParameters(`/network/${storyHeroNetworkChannel}/threads`),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 /**
- * Direct-message room loaded through the real route search parameters.
+ * Direct rooms tab for the hero channel.
  */
-export const DirectRoom: Story = {
+export const DirectsTab: Story = {
   args: {},
-  parameters: appRouteParameters(`/network?peer=${storyPeerIds.remote}`),
+  parameters: appRouteParameters(`/network/${storyHeroNetworkChannel}/directs`),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 /**
- * Create-channel dialog opened from the network sidebar action.
+ * Activity tab for the hero channel — read-only cross-surface feed.
  */
-export const CreateDialog: Story = {
+export const ActivityTab: Story = {
   args: {},
-  parameters: appRouteParameters("/network"),
+  parameters: appRouteParameters(`/network/${storyHeroNetworkChannel}/activity`),
   render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("network-open-create-dialog"));
-    await expect(
-      within(canvasElement.ownerDocument.body).findByTestId("network-create-channel-dialog")
-    ).resolves.toBeDefined();
-  },
 };
 
 /**
- * Empty network branch when no channels or peers have materialized yet.
+ * Empty network branch when no channels have materialized yet.
  */
 export const EmptyChannels: Story = {
   args: {},

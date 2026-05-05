@@ -1,6 +1,5 @@
 // Types
 export type {
-  NetworkActiveRoom,
   CreateNetworkChannelRequest,
   CreateNetworkChannelResponse,
   NetworkCapability,
@@ -8,118 +7,121 @@ export type {
   NetworkCapabilityCatalog,
   NetworkChannel,
   NetworkChannelDetailResponse,
-  NetworkChannelMessage,
-  NetworkChannelMessagesQuery,
-  NetworkChannelMessagesResponse,
   NetworkChannelsResponse,
   NetworkChannelSummary,
+  NetworkConversationMessage,
+  NetworkConversationMessagesQuery,
   NetworkCreateChannelDraft,
-  NetworkDetailsTab,
+  NetworkDirectRoomDetail,
+  NetworkDirectRoomDetailResponse,
+  NetworkDirectRoomMessage,
+  NetworkDirectRoomMessagesResponse,
+  NetworkDirectRoomSummary,
+  NetworkDirectRoomsResponse,
   NetworkKindFilter,
-  NetworkPeerCapabilityView,
   NetworkPeerCard,
   NetworkPeerDetail,
   NetworkPeerDetailResponse,
-  NetworkPeerMessagesQuery,
-  NetworkPeerMessagesResponse,
-  NetworkPeersResponse,
   NetworkPeerSummary,
-  NetworkRoomField,
-  NetworkRoomKindMetric,
-  NetworkRoomListItem,
-  NetworkRoomMember,
-  NetworkRoomType,
+  NetworkPeersResponse,
+  NetworkRecentEntry,
+  NetworkResolveDirectRoomRequest,
+  NetworkResolveDirectRoomResponse,
+  NetworkRouteSurface,
   NetworkSendRequest,
   NetworkSendResponse,
   NetworkSignalTone,
   NetworkStatus,
   NetworkStatusResponse,
-  NetworkTimelineMessage,
+  NetworkSurface,
+  NetworkThreadDetail,
+  NetworkThreadDetailResponse,
+  NetworkThreadMessage,
+  NetworkThreadMessagesResponse,
+  NetworkThreadsResponse,
+  NetworkThreadSummary,
+  NetworkWorkDetail,
+  NetworkWorkResponse,
 } from "./types";
 
 // Adapters
 export {
   createNetworkChannel,
   getNetworkChannel,
+  getNetworkDirectRoom,
   getNetworkPeer,
   getNetworkStatus,
-  listNetworkChannelMessages,
+  getNetworkThread,
+  getNetworkWork,
   listNetworkChannels,
-  listNetworkPeerMessages,
+  listNetworkDirectRoomMessages,
+  listNetworkDirectRooms,
   listNetworkPeers,
+  listNetworkThreadMessages,
+  listNetworkThreads,
   NetworkApiError,
+  resolveNetworkDirectRoom,
   sendNetworkMessage,
 } from "./adapters/network-api";
+export type { NetworkDirectsListQuery, NetworkThreadsListQuery } from "./adapters/network-api";
 
 // Query infrastructure
 export { networkKeys } from "./lib/query-keys";
 export {
   networkChannelDetailOptions,
-  networkChannelMessagesOptions,
   networkChannelsOptions,
+  networkDirectDetailOptions,
+  networkDirectMessagesOptions,
+  networkDirectsOptions,
   networkPeerDetailOptions,
-  networkPeerMessagesOptions,
   networkPeersOptions,
   networkStatusOptions,
+  networkThreadDetailOptions,
+  networkThreadMessagesOptions,
+  networkThreadsOptions,
+  networkWorkOptions,
 } from "./lib/query-options";
 
 // Lib
 export {
   NETWORK_KIND_FILTERS,
-  buildPeerCapabilityViews,
   createNetworkChannelDraft,
-  filterNetworkMessagesByKind,
-  formatChannelMemberCount,
-  formatChannelPeerCount,
-  formatHistoricalParticipantCount,
   formatNetworkClockTime,
   formatNetworkDateTime,
   formatNetworkKindLabel,
   formatNetworkNumber,
   formatNetworkRelativeTime,
-  getChannelRecencyAt,
-  getChannelDetailDescription,
+  getMessageAuthorInitial,
   getMostRecentTimestamp,
   getNetworkKindTone,
-  getMessageAuthorInitial,
-  getNetworkMessagePrimaryText,
-  getNetworkMetricCards,
-  getNetworkRoomKey,
   getNetworkStatusTone,
-  getPeerDeliveredRate,
   getPeerDisplayName,
-  getPeerHeartbeatLabel,
-  getPeerPresenceTone,
   getPeerRecencyAt,
-  getPeerTypeLabel,
-  hasCapabilityDetail,
-  isHistoricalChannel,
-  isPresenceOnlyChannel,
-  matchesChannelSearch,
-  matchesPeerSearch,
+  isNetworkRunning,
   sortAgentsForNetwork,
-  sortNetworkChannels,
-  sortNetworkPeers,
-  summarizeChannelMeta,
-  summarizeChannelPreview,
-  summarizeChannelSubtitle,
   toNetworkKindFilter,
   toggleDraftAgent,
 } from "./lib/network-formatters";
+export {
+  NETWORK_IDENTITY_PALETTE,
+  getIdentityInitial,
+  pickIdentityPaletteColors,
+  pickIdentityPaletteIndex,
+} from "./lib/palette";
 
 // Hooks
-export {
-  useNetworkChannel,
-  useNetworkChannelMessages,
-  useNetworkChannels,
-  useNetworkPeer,
-  useNetworkPeerMessages,
-  useNetworkPeers,
-  useNetworkStatus,
-} from "./hooks/use-network";
+export { useNetworkChannels } from "./hooks/use-channels";
+export { useLastRead, buildLastReadStorageKey } from "./hooks/use-last-read";
+export type { NetworkLastReadKey, UseLastReadResult } from "./hooks/use-last-read";
+export { useNetworkPage } from "./hooks/use-network-page";
+export type { UseNetworkPageResult } from "./hooks/use-network-page";
+export { useNetworkRecents } from "./hooks/use-recents";
+export type { UseNetworkRecentsResult } from "./hooks/use-recents";
+export { useNetworkRouteShell } from "./hooks/use-network-route-shell";
+export type { NetworkRouteShellResult } from "./hooks/use-network-route-shell";
 export { useCreateNetworkChannel, useSendNetworkMessage } from "./hooks/use-network-actions";
 
 // Components
 export { KindChip } from "./components/kind-chip";
+export type { KindChipProps } from "./components/kind-chip";
 export { NetworkCreateChannelDialog } from "./components/network-create-channel-dialog";
-export { NetworkWorkspaceShell } from "./components/network-workspace-shell";
