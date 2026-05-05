@@ -30,6 +30,9 @@ describe("storybook story and fixture regressions", () => {
       import("@/systems/network/storybook").then(module => module.networkShellStories),
       import("@/systems/network/storybook").then(module => module.networkChannelRailStories),
       import("@/systems/network/storybook").then(module => module.networkChannelHeaderStories),
+      import("@/systems/network/storybook").then(module => module.networkTimelineStories),
+      import("@/systems/network/storybook").then(module => module.networkMessageRowStories),
+      import("@/systems/network/storybook").then(module => module.networkThreadOverlayStories),
       import("@/routes/_app/stories/-network.stories"),
       import("@/systems/automation/components/stories/automation-editor-dialog.stories"),
       import("@/systems/session/components/stories/copy-button.stories"),
@@ -41,7 +44,7 @@ describe("storybook story and fixture regressions", () => {
       agentStoryModules.then(module => module.agentStatsGridStories),
     ]);
 
-    expect(modules).toHaveLength(15);
+    expect(modules).toHaveLength(18);
 
     for (const module of modules) {
       expect(module.default).toBeDefined();

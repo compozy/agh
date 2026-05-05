@@ -3,15 +3,17 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { Empty } from "@agh/ui";
 
+import { ThreadOverlay, useNetworkRouteShell, useThreadViewMode } from "@/systems/network";
 import { NetworkShell } from "@/systems/network/components/shell";
-import { useNetworkRouteShell } from "@/systems/network";
 
 export const Route = createFileRoute("/_app/network")({
   component: NetworkRouteShell,
 });
 
 function NetworkRouteShell() {
-  const { page, activeChannel, activeTab, hasUnread } = useNetworkRouteShell();
+  const { page, activeChannel, activeTab, activeThreadId, hasUnread } = useNetworkRouteShell();
+  const viewMode = useThreadViewMode();
+  const showOverlayInRightRail = activeThreadId != null && viewMode === "overlay";
 
   if (page.isStatusLoading) {
     return (
@@ -110,8 +112,17 @@ function NetworkRouteShell() {
       openWorkCount={0}
       pinnedChannels={page.pinnedChannels}
       recents={page.recents}
+      rightRailContent={
+        showOverlayInRightRail && activeChannel ? (
+          <ThreadOverlay
+            channel={activeChannel.channel}
+            fullPage={false}
+            threadId={activeThreadId}
+          />
+        ) : null
+      }
       rightRailMode="thread"
-      rightRailOpen={false}
+      rightRailOpen={showOverlayInRightRail}
       threadCount={null}
       unpinnedChannels={page.unpinnedChannels}
     >

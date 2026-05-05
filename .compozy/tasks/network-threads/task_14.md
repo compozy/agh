@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Web Message Row, Timeline, Thread Overlay & Author Group Collapse
 type: frontend
 complexity: critical
@@ -44,13 +44,13 @@ The normative UI source is `_design.md`. Sections referenced below: §3.2 (right
 
 ## Subtasks
 
-- [ ] 14.1 Build `web/src/systems/network/components/timeline/` (`timeline.tsx`, `message-row.tsx`, `message-row-collapsed.tsx`, `message-row-system.tsx`, `date-pill.tsx`, `new-divider.tsx`, `hover-toolbar.tsx`).
-- [ ] 14.2 Implement author group collapsing (60s window) in `timeline.tsx` with break rules (author / kind / gap).
-- [ ] 14.3 Build `web/src/systems/network/components/thread-overlay/` (`thread-overlay.tsx`, `thread-overlay-header.tsx`, `thread-overlay-root.tsx`, `thread-overlay-replies.tsx`).
-- [ ] 14.4 Wire hybrid right-rail behavior: open on `$threadId` route, render channel timeline at reduced contrast, close on Esc/X/outside-click; full-page swap on `<1024px`.
-- [ ] 14.5 Implement direct room headerless layout for `network.$channel.directs.$directId.tsx`; reuse `Timeline` for messages.
-- [ ] 14.6 Implement `use-threads.ts` (list + detail), `use-directs.ts` (list + detail), `use-messages.ts` (shared paginated query for both surfaces).
-- [ ] 14.7 Add Storybook fixtures for every message-row variant, every collapse boundary, and the thread overlay states (closed / opening / open / closing).
+- [x] 14.1 Build `web/src/systems/network/components/timeline/` (`timeline.tsx`, `message-row.tsx`, `message-row-collapsed.tsx`, `message-row-system.tsx`, `date-pill.tsx`, `new-divider.tsx`, `hover-toolbar.tsx`).
+- [x] 14.2 Implement author group collapsing (60s window) in `lib/group-messages.ts` with break rules (author / kind / gap).
+- [x] 14.3 Build `web/src/systems/network/components/thread-overlay/` (`thread-overlay.tsx`, `thread-overlay-header.tsx`, `thread-overlay-root.tsx`, `thread-overlay-replies.tsx`).
+- [x] 14.4 Wire hybrid right-rail behavior: open on `$threadId` route, render channel timeline at reduced contrast, close on Esc/X/outside-click; full-page swap on `<1024px`.
+- [x] 14.5 Implement direct room headerless layout for `network.$channel.directs.$directId.tsx`; reuse `Timeline` for messages.
+- [x] 14.6 Implement `use-threads.ts` (list + detail), `use-directs.ts` (list + detail), `use-messages.ts` (shared paginated query for both surfaces).
+- [x] 14.7 Add Storybook fixtures for every message-row variant, every collapse boundary, and the thread overlay states (closed / opening / open / closing).
 
 ## Implementation Details
 

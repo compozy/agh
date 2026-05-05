@@ -25,6 +25,10 @@ export interface NetworkRouteShellResult {
   page: UseNetworkPageResult;
   activeChannel: NetworkChannelSummary | null;
   activeTab: ChannelTab;
+  /** Active thread route id when the URL targets `/threads/$threadId`. */
+  activeThreadId: string | null;
+  /** Active direct-room route id when the URL targets `/directs/$directId`. */
+  activeDirectId: string | null;
   hasUnread: (channelId: string) => boolean;
 }
 
@@ -33,7 +37,11 @@ export function useNetworkRouteShell(): NetworkRouteShellResult {
   const { lastReadAt } = useLastRead();
   const navigate = useNavigate();
   const childMatches = useChildMatches();
-  const childParams = useParams({ strict: false }) as { channel?: string };
+  const childParams = useParams({ strict: false }) as {
+    channel?: string;
+    threadId?: string;
+    directId?: string;
+  };
   const childPathname = childMatches.at(-1)?.pathname ?? "";
 
   useEffect(() => {
@@ -51,11 +59,15 @@ export function useNetworkRouteShell(): NetworkRouteShellResult {
     const activeChannel =
       page.channels.find(channel => channel.channel === childParams.channel) ?? null;
     const activeTab = detectActiveTab(childPathname);
+    const activeThreadId = childParams.threadId ?? null;
+    const activeDirectId = childParams.directId ?? null;
 
     return {
       page,
       activeChannel,
       activeTab,
+      activeThreadId,
+      activeDirectId,
       hasUnread: (channelId: string): boolean => {
         const summary = page.channels.find(channel => channel.channel === channelId);
         if (!summary?.last_activity_at) {
