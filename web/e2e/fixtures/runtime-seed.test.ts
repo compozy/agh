@@ -168,11 +168,52 @@ describe("browser runtime seed helpers", () => {
         };
       }
 
-      if (pathname === "/api/network/channels/browser-builders/messages") {
+      if (pathname === "/api/network/channels/browser-builders/directs/resolve") {
+        expect(JSON.parse(init?.body as string)).toEqual({
+          session_id: "sess_patch",
+          peer_id: "peer_ops",
+        });
+        return {
+          direct: {
+            direct_id: "direct_browser_patch",
+          },
+        };
+      }
+
+      if (
+        pathname ===
+        `/api/network/channels/browser-builders/threads/${browserNetworkOperatorFlowScenario.threadId}/messages`
+      ) {
         return {
           messages: [
             {
               message_id: browserNetworkOperatorFlowScenario.messageIds.say,
+              surface: "thread",
+              thread_id: browserNetworkOperatorFlowScenario.threadId,
+            },
+            {
+              message_id: browserNetworkOperatorFlowScenario.messageIds.summary,
+              surface: "thread",
+              thread_id: browserNetworkOperatorFlowScenario.threadId,
+            },
+          ],
+        };
+      }
+
+      if (
+        pathname === "/api/network/channels/browser-builders/directs/direct_browser_patch/messages"
+      ) {
+        return {
+          messages: [
+            {
+              message_id: browserNetworkOperatorFlowScenario.messageIds.direct,
+              surface: "direct",
+              direct_id: "direct_browser_patch",
+            },
+            {
+              message_id: browserNetworkOperatorFlowScenario.messageIds.trace,
+              surface: "direct",
+              direct_id: "direct_browser_patch",
             },
           ],
         };
@@ -183,9 +224,9 @@ describe("browser runtime seed helpers", () => {
           network: {
             kind_metrics: [
               {
-                kind: "direct",
-                sent: 1,
-                delivered: 1,
+                kind: "say",
+                sent: 3,
+                delivered: 2,
               },
               {
                 kind: "trace",
@@ -213,6 +254,7 @@ describe("browser runtime seed helpers", () => {
 
     expect(seeded).toEqual({
       channel: "browser-builders",
+      directId: "direct_browser_patch",
       initiator: {
         id: "sess_ops",
         agent_name: "mock-ops-coordinator",
@@ -228,6 +270,9 @@ describe("browser runtime seed helpers", () => {
         peerId: "peer_patch",
       },
       messageIds: browserNetworkOperatorFlowScenario.messageIds,
+      threadId: browserNetworkOperatorFlowScenario.threadId,
+      traceId: browserNetworkOperatorFlowScenario.traceId,
+      workId: browserNetworkOperatorFlowScenario.workId,
     });
 
     const sendBodies = requestJSON.mock.calls
@@ -239,12 +284,17 @@ describe("browser runtime seed helpers", () => {
         session_id: "sess_ops",
         channel: "browser-builders",
         kind: "say",
+        surface: "thread",
+        thread_id: browserNetworkOperatorFlowScenario.threadId,
         id: browserNetworkOperatorFlowScenario.messageIds.say,
       }),
       expect.objectContaining({
         session_id: "sess_patch",
         channel: "browser-builders",
-        kind: "direct",
+        kind: "say",
+        surface: "direct",
+        direct_id: "direct_browser_patch",
+        work_id: browserNetworkOperatorFlowScenario.workId,
         to: "peer_ops",
         id: browserNetworkOperatorFlowScenario.messageIds.direct,
       }),
@@ -252,8 +302,20 @@ describe("browser runtime seed helpers", () => {
         session_id: "sess_patch",
         channel: "browser-builders",
         kind: "trace",
+        surface: "direct",
+        direct_id: "direct_browser_patch",
+        work_id: browserNetworkOperatorFlowScenario.workId,
         to: "peer_ops",
         id: browserNetworkOperatorFlowScenario.messageIds.trace,
+      }),
+      expect.objectContaining({
+        session_id: "sess_patch",
+        channel: "browser-builders",
+        kind: "say",
+        surface: "thread",
+        thread_id: browserNetworkOperatorFlowScenario.threadId,
+        reply_to: browserNetworkOperatorFlowScenario.messageIds.trace,
+        id: browserNetworkOperatorFlowScenario.messageIds.summary,
       }),
     ]);
 

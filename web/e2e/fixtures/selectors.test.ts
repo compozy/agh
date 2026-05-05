@@ -58,25 +58,35 @@ describe("session lifecycle selectors", () => {
 describe("network operator selectors", () => {
   it("maps the network navigation, dialog, lists, and detail surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const locator = vi.fn((selector: string) => `css:${selector}` as unknown as Locator);
     const selectors = networkOperatorSelectors({
       getByTestId,
+      locator,
     });
 
     expect(selectors.navNetwork).toBe(`locator:${networkOperatorTestIds.navNetwork}`);
     expect(selectors.workspace).toBe(`locator:${networkOperatorTestIds.workspace}`);
-    expect(selectors.openCreateDialog).toBe(`locator:${networkOperatorTestIds.openCreateDialog}`);
+    expect(selectors.channelHeader).toBe(`locator:${networkOperatorTestIds.channelHeader}`);
+    expect(selectors.channelTabs).toBe(`locator:${networkOperatorTestIds.channelTabs}`);
+    expect(selectors.threadTab).toBe(`locator:${networkOperatorTestIds.threadTab}`);
+    expect(selectors.directTab).toBe(`locator:${networkOperatorTestIds.directTab}`);
+    expect(selectors.threadList).toBe(`locator:${networkOperatorTestIds.threadList}`);
+    expect(selectors.directList).toBe(`locator:${networkOperatorTestIds.directList}`);
+    expect(selectors.threadOverlay).toBe(`locator:${networkOperatorTestIds.threadOverlay}`);
+    expect(selectors.directRoom).toBe(`locator:${networkOperatorTestIds.directRoom}`);
+    expect(selectors.newDirectButton).toBe(`locator:${networkOperatorTestIds.newDirectButton}`);
+    expect(selectors.newDirectDialog).toBe(`locator:${networkOperatorTestIds.newDirectDialog}`);
     expect(selectors.channelNameInput).toBe(`locator:${networkOperatorTestIds.channelNameInput}`);
-    expect(selectors.roomHeader).toBe(`locator:${networkOperatorTestIds.roomHeader}`);
-    expect(selectors.roomIntro).toBe(`locator:${networkOperatorTestIds.roomIntro}`);
-    expect(selectors.detailsPanel).toBe(`locator:${networkOperatorTestIds.detailsPanel}`);
     expect(selectors.messageList).toBe(`locator:${networkOperatorTestIds.messageList}`);
     expect(selectors.agentOption("mock-ops-coordinator")).toBe(
       "locator:network-agent-option-mock-ops-coordinator"
     );
-    expect(selectors.channelItem("builders")).toBe("locator:network-room-channel-builders");
-    expect(selectors.peerItem("peer_ops")).toBe("locator:network-room-peer-peer_ops");
+    expect(selectors.channelItem("builders")).toBe("locator:network-channel-row-builders");
+    expect(selectors.threadItem("thread_main")).toBe("locator:network-thread-list-row-thread_main");
+    expect(selectors.directItem("direct_abc")).toBe("locator:network-direct-list-row-direct_abc");
+    expect(selectors.newDirectPeer("peer_ops")).toBe("locator:network-new-direct-peer-peer_ops");
     expect(selectors.channelMessage("browser_msg_say_01")).toBe(
-      "locator:network-message-browser_msg_say_01"
+      'css:[data-testid="network-message-row-full"][data-message-id="browser_msg_say_01"], [data-testid="network-message-row-collapsed"][data-message-id="browser_msg_say_01"], [data-testid="network-message-row-system"][data-message-id="browser_msg_say_01"]'
     );
   });
 });

@@ -1776,7 +1776,7 @@ func (h *HostAPIHandler) submitPrompt(
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
 	}
-	go drainAgentEvents(eventsCh)
+	drainAgentEvents(eventsCh)
 
 	events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{
 		AfterSequence: lastSequence,

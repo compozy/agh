@@ -39,15 +39,25 @@ export interface SessionLifecycleSelectors {
 export const networkOperatorTestIds = {
   appSidebar: sessionLifecycleTestIds.appSidebar,
   channelNameInput: "network-channel-name-input",
+  channelHeader: "network-channel-header",
+  channelIdentityMix: "network-channel-identity-mix",
+  channelTabs: "network-channel-tabs",
   createDialog: "network-create-channel-dialog",
   createSubmit: "network-create-channel-submit",
-  detailsPanel: "network-details-panel",
-  messageList: "network-message-list",
+  directList: "network-direct-list",
+  directRoom: "network-direct-room",
+  directsTab: "network-directs-tab",
+  directTab: "network-tab-directs",
+  messageList: "network-timeline",
   navNetwork: "nav-network",
+  newDirectButton: "network-directs-new-direct",
+  newDirectDialog: "network-new-direct-dialog",
   openCreateDialog: "network-open-create-dialog",
-  roomHeader: "network-room-header",
-  roomIntro: "network-room-intro",
-  workspace: "network-workspace",
+  threadList: "network-thread-list",
+  threadOverlay: "network-thread-overlay",
+  threadsTab: "network-threads-tab",
+  threadTab: "network-tab-threads",
+  workspace: "network-shell",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
@@ -111,15 +121,27 @@ export interface NetworkOperatorSelectors {
   channelItem(channelName: string): Locator;
   channelMessage(messageId: string): Locator;
   channelNameInput: Locator;
+  channelHeader: Locator;
+  channelIdentityMix: Locator;
+  channelTabs: Locator;
   createDialog: Locator;
   createSubmit: Locator;
-  detailsPanel: Locator;
+  directItem(directId: string): Locator;
+  directList: Locator;
+  directRoom: Locator;
+  directsTab: Locator;
+  directTab: Locator;
   messageList: Locator;
   navNetwork: Locator;
+  newDirectButton: Locator;
+  newDirectDialog: Locator;
+  newDirectPeer(peerId: string): Locator;
   openCreateDialog: Locator;
-  peerItem(peerId: string): Locator;
-  roomHeader: Locator;
-  roomIntro: Locator;
+  threadItem(threadId: string): Locator;
+  threadList: Locator;
+  threadOverlay: Locator;
+  threadsTab: Locator;
+  threadTab: Locator;
   workspace: Locator;
   workspaceOnboarding: Locator;
   workspaceUseGlobal: Locator;
@@ -504,23 +526,38 @@ export function sessionLifecycleSelectors(
 }
 
 export function networkOperatorSelectors(
-  page: Pick<Page, "getByTestId">
+  page: Pick<Page, "getByTestId" | "locator">
 ): NetworkOperatorSelectors {
   return {
     appSidebar: page.getByTestId(networkOperatorTestIds.appSidebar),
     agentOption: (agentName: string) => page.getByTestId(`network-agent-option-${agentName}`),
-    channelItem: (channelName: string) => page.getByTestId(`network-room-channel-${channelName}`),
-    channelMessage: (messageId: string) => page.getByTestId(`network-message-${messageId}`),
+    channelItem: (channelName: string) => page.getByTestId(`network-channel-row-${channelName}`),
+    channelMessage: (messageId: string) =>
+      page.locator(
+        `[data-testid="network-message-row-full"][data-message-id="${messageId}"], [data-testid="network-message-row-collapsed"][data-message-id="${messageId}"], [data-testid="network-message-row-system"][data-message-id="${messageId}"]`
+      ),
     channelNameInput: page.getByTestId(networkOperatorTestIds.channelNameInput),
+    channelHeader: page.getByTestId(networkOperatorTestIds.channelHeader),
+    channelIdentityMix: page.getByTestId(networkOperatorTestIds.channelIdentityMix),
+    channelTabs: page.getByTestId(networkOperatorTestIds.channelTabs),
     createDialog: page.getByTestId(networkOperatorTestIds.createDialog),
     createSubmit: page.getByTestId(networkOperatorTestIds.createSubmit),
-    detailsPanel: page.getByTestId(networkOperatorTestIds.detailsPanel),
+    directItem: (directId: string) => page.getByTestId(`network-direct-list-row-${directId}`),
+    directList: page.getByTestId(networkOperatorTestIds.directList),
+    directRoom: page.getByTestId(networkOperatorTestIds.directRoom),
+    directsTab: page.getByTestId(networkOperatorTestIds.directsTab),
+    directTab: page.getByTestId(networkOperatorTestIds.directTab),
     messageList: page.getByTestId(networkOperatorTestIds.messageList),
     navNetwork: page.getByTestId(networkOperatorTestIds.navNetwork),
+    newDirectButton: page.getByTestId(networkOperatorTestIds.newDirectButton),
+    newDirectDialog: page.getByTestId(networkOperatorTestIds.newDirectDialog),
+    newDirectPeer: (peerId: string) => page.getByTestId(`network-new-direct-peer-${peerId}`),
     openCreateDialog: page.getByTestId(networkOperatorTestIds.openCreateDialog),
-    peerItem: (peerId: string) => page.getByTestId(`network-room-peer-${peerId}`),
-    roomHeader: page.getByTestId(networkOperatorTestIds.roomHeader),
-    roomIntro: page.getByTestId(networkOperatorTestIds.roomIntro),
+    threadItem: (threadId: string) => page.getByTestId(`network-thread-list-row-${threadId}`),
+    threadList: page.getByTestId(networkOperatorTestIds.threadList),
+    threadOverlay: page.getByTestId(networkOperatorTestIds.threadOverlay),
+    threadsTab: page.getByTestId(networkOperatorTestIds.threadsTab),
+    threadTab: page.getByTestId(networkOperatorTestIds.threadTab),
     workspace: page.getByTestId(networkOperatorTestIds.workspace),
     workspaceOnboarding: page.getByTestId(networkOperatorTestIds.workspaceOnboarding),
     workspaceUseGlobal: page.getByTestId(networkOperatorTestIds.workspaceUseGlobal),

@@ -176,20 +176,30 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 			PromptMeta: acp.PromptMeta{
 				TurnSource: acp.PromptTurnSourceNetwork,
 				Network: &acp.PromptNetworkMeta{
-					MessageID: "msg-2",
-					Kind:      "say",
-					Surface:   "direct",
-					Trust:     "untrusted",
+					MessageID:   "msg-2",
+					Kind:        "say",
+					Surface:     "direct",
+					DirectID:    "direct_0123456789abcdef0123456789abcdef",
+					WorkID:      "work_patch_42",
+					ReplyTo:     "msg-root",
+					TraceID:     "trace_ops_patch_42",
+					CausationID: "msg-root",
+					Trust:       "untrusted",
 				},
 			},
 			TurnName: "beta-hello",
 			Match: TurnMatch{
 				TurnSource: acp.PromptTurnSourceNetwork,
 				Network: &TurnMatchNetwork{
-					MessageID: "msg-2",
-					Kind:      "say",
-					Surface:   "direct",
-					Trust:     "untrusted",
+					MessageID:   "msg-2",
+					Kind:        "say",
+					Surface:     "direct",
+					DirectID:    "direct_0123456789abcdef0123456789abcdef",
+					WorkID:      "work_patch_42",
+					ReplyTo:     "msg-root",
+					TraceID:     "trace_ops_patch_42",
+					CausationID: "msg-root",
+					Trust:       "untrusted",
 				},
 			},
 		},
@@ -340,6 +350,22 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		`{"self":{"session_id":"sess_123","agent_name":"alpha"}}`,
 		"</agh-situation-context>",
 		"",
+		"<current-available-skills>",
+		`  <skill name="agh-network">Coordinate over AGH network surfaces.</skill>`,
+		"</current-available-skills>",
+		"",
+		"The <current-available-skills> block above is the authoritative current skill state for this turn.",
+		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
+		"Use `agh__skill_view` to load full instructions for any skill.",
+		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
+		aghCurrentSkillsLastInstructionLine,
+		"",
+		"Relevant durable memory for this turn:",
+		"- Global [user]",
+		"  Snippet: remember the harness",
+		"Use recalled memory only when it remains consistent with the current repository and runtime state.",
+		"",
+		"User message:",
 		"hello alpha",
 	}, "\n")
 	turn, err := alpha.SelectTurn(
@@ -407,6 +433,109 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	}
 	if got, want := turn.Name, "observe-capability-request"; got != want {
 		t.Fatalf("capability curator turn.Name = %q, want %q", got, want)
+	}
+}
+
+func TestTurnMatchNetworkRequiresExactConversationMetadata(t *testing.T) {
+	t.Parallel()
+
+	directMatcher := TurnMatchNetwork{
+		MessageID:   "msg_direct_01",
+		Kind:        "say",
+		Channel:     "builders",
+		Surface:     "direct",
+		DirectID:    "direct_0123456789abcdef0123456789abcdef",
+		From:        "patch-worker.sess",
+		To:          "ops-coordinator.sess",
+		WorkID:      "work_patch_42",
+		ReplyTo:     "msg_say_01",
+		TraceID:     "trace_ops_patch_42",
+		CausationID: "msg_say_01",
+		Trust:       "untrusted",
+	}
+	directMeta := acp.PromptNetworkMeta{
+		MessageID:   "msg_direct_01",
+		Kind:        "say",
+		Channel:     "builders",
+		Surface:     "direct",
+		DirectID:    "direct_0123456789abcdef0123456789abcdef",
+		From:        "patch-worker.sess",
+		To:          "ops-coordinator.sess",
+		WorkID:      "work_patch_42",
+		ReplyTo:     "msg_say_01",
+		TraceID:     "trace_ops_patch_42",
+		CausationID: "msg_say_01",
+		Trust:       "untrusted",
+	}
+	if !directMatcher.matches(directMeta) {
+		t.Fatal("direct matcher did not match exact final conversation metadata")
+	}
+
+	directCases := []struct {
+		name string
+		edit func(*acp.PromptNetworkMeta)
+	}{
+		{name: "surface", edit: func(meta *acp.PromptNetworkMeta) { meta.Surface = "thread" }},
+		{name: "direct id", edit: func(meta *acp.PromptNetworkMeta) { meta.DirectID = "direct_wrong" }},
+		{name: "work id", edit: func(meta *acp.PromptNetworkMeta) { meta.WorkID = "work_wrong" }},
+		{name: "reply to", edit: func(meta *acp.PromptNetworkMeta) { meta.ReplyTo = "msg_wrong" }},
+		{name: "trace id", edit: func(meta *acp.PromptNetworkMeta) { meta.TraceID = "trace_wrong" }},
+		{name: "causation id", edit: func(meta *acp.PromptNetworkMeta) { meta.CausationID = "msg_wrong" }},
+		{name: "trust", edit: func(meta *acp.PromptNetworkMeta) { meta.Trust = "verified" }},
+	}
+	for _, tc := range directCases {
+		t.Run("direct rejects wrong "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			meta := directMeta
+			tc.edit(&meta)
+			if directMatcher.matches(meta) {
+				t.Fatalf("direct matcher matched wrong %s metadata: %#v", tc.name, meta)
+			}
+		})
+	}
+
+	threadMatcher := TurnMatchNetwork{
+		MessageID: "msg_say_01",
+		Kind:      "say",
+		Channel:   "builders",
+		Surface:   "thread",
+		ThreadID:  "thread_builders_main",
+		TraceID:   "trace_ops_patch_42",
+		Trust:     "untrusted",
+	}
+	threadMeta := acp.PromptNetworkMeta{
+		MessageID: "msg_say_01",
+		Kind:      "say",
+		Channel:   "builders",
+		Surface:   "thread",
+		ThreadID:  "thread_builders_main",
+		TraceID:   "trace_ops_patch_42",
+		Trust:     "untrusted",
+	}
+	if !threadMatcher.matches(threadMeta) {
+		t.Fatal("thread matcher did not match exact final conversation metadata")
+	}
+
+	threadCases := []struct {
+		name string
+		edit func(*acp.PromptNetworkMeta)
+	}{
+		{name: "surface", edit: func(meta *acp.PromptNetworkMeta) { meta.Surface = "direct" }},
+		{name: "thread id", edit: func(meta *acp.PromptNetworkMeta) { meta.ThreadID = "thread_wrong" }},
+		{name: "trace id", edit: func(meta *acp.PromptNetworkMeta) { meta.TraceID = "trace_wrong" }},
+		{name: "trust", edit: func(meta *acp.PromptNetworkMeta) { meta.Trust = "verified" }},
+	}
+	for _, tc := range threadCases {
+		t.Run("thread rejects wrong "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			meta := threadMeta
+			tc.edit(&meta)
+			if threadMatcher.matches(meta) {
+				t.Fatalf("thread matcher matched wrong %s metadata: %#v", tc.name, meta)
+			}
+		})
 	}
 }
 

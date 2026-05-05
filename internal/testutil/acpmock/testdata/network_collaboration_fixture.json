@@ -44,6 +44,7 @@
                             "work_id": "work_patch_42",
                             "reply_to": "msg_receipt_01",
                             "trace_id": "trace_ops_patch_42",
+                            "causation_id": "msg_receipt_01",
                             "trust": "untrusted"
                         }
                     },
@@ -51,6 +52,30 @@
                         {
                             "kind": "assistant",
                             "text": "Trace update recorded."
+                        }
+                    ]
+                },
+                {
+                    "name": "public-summary-back",
+                    "match": {
+                        "turn_source": "network",
+                        "occurrence": 3,
+                        "network": {
+                            "message_id": "msg_summary_01",
+                            "kind": "say",
+                            "channel": "builders",
+                            "surface": "thread",
+                            "thread_id": "thread_builders_main",
+                            "reply_to": "msg_trace_02",
+                            "trace_id": "trace_ops_patch_42",
+                            "causation_id": "msg_trace_02",
+                            "trust": "untrusted"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Public summary noted."
                         }
                     ]
                 }
@@ -73,6 +98,7 @@
                             "channel": "builders",
                             "surface": "thread",
                             "thread_id": "thread_builders_main",
+                            "trace_id": "trace_ops_patch_42",
                             "trust": "untrusted"
                         }
                     },
@@ -95,6 +121,8 @@
                             "surface": "direct",
                             "work_id": "work_patch_42",
                             "reply_to": "msg_direct_01",
+                            "trace_id": "trace_ops_patch_42",
+                            "causation_id": "msg_direct_01",
                             "trust": "untrusted"
                         }
                     },
@@ -182,6 +210,7 @@
                             "work_id": "work_capability_apply_7",
                             "reply_to": "msg_direct_20",
                             "trace_id": "trace_capability_apply_7",
+                            "causation_id": "msg_direct_20",
                             "trust": "untrusted"
                         }
                     },
@@ -234,6 +263,7 @@
                             "work_id": "work_capability_apply_7",
                             "reply_to": "msg_capability_01",
                             "trace_id": "trace_capability_apply_7",
+                            "causation_id": "msg_capability_01",
                             "trust": "untrusted"
                         }
                     },

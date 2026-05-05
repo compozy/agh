@@ -15,8 +15,13 @@ import (
 const FixtureVersion = 2
 
 const (
-	aghSituationContextOpen  = "<agh-situation-context>"
-	aghSituationContextClose = "</agh-situation-context>"
+	aghSituationContextOpen             = "<agh-situation-context>"
+	aghSituationContextClose            = "</agh-situation-context>"
+	aghCurrentSkillsOpen                = "<current-available-skills>"
+	aghCurrentSkillsClose               = "</current-available-skills>"
+	aghCurrentSkillsLastInstructionLine = "If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
+	aghDurableMemoryOpen                = "Relevant durable memory for this turn:"
+	aghDurableMemoryUserMessageMarker   = "\n\nUser message:\n"
 )
 
 type StepKind string
@@ -338,6 +343,20 @@ func (m TurnMatch) matches(input turnMatchInput, occurrence int) bool {
 }
 
 func canonicalUserText(prompt string) string {
+	current := strings.TrimSpace(prompt)
+	for {
+		next := stripLeadingSituationContext(current)
+		next = stripLeadingCurrentSkillsCatalog(next)
+		next = stripLeadingDurableMemory(next)
+		next = strings.TrimSpace(next)
+		if next == current {
+			return current
+		}
+		current = next
+	}
+}
+
+func stripLeadingSituationContext(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
 	if !strings.HasPrefix(trimmed, aghSituationContextOpen) {
 		return trimmed
@@ -348,6 +367,38 @@ func canonicalUserText(prompt string) string {
 		return trimmed
 	}
 
+	return strings.TrimSpace(after)
+}
+
+func stripLeadingCurrentSkillsCatalog(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if !strings.HasPrefix(trimmed, aghCurrentSkillsOpen) {
+		return trimmed
+	}
+
+	_, afterClose, ok := strings.Cut(trimmed, aghCurrentSkillsClose)
+	if !ok {
+		return trimmed
+	}
+
+	afterClose = strings.TrimSpace(afterClose)
+	_, afterInstructions, ok := strings.Cut(afterClose, aghCurrentSkillsLastInstructionLine)
+	if ok {
+		return strings.TrimSpace(afterInstructions)
+	}
+	return afterClose
+}
+
+func stripLeadingDurableMemory(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if !strings.HasPrefix(trimmed, aghDurableMemoryOpen) {
+		return trimmed
+	}
+
+	_, after, ok := strings.Cut(trimmed, aghDurableMemoryUserMessageMarker)
+	if !ok {
+		return trimmed
+	}
 	return strings.TrimSpace(after)
 }
 

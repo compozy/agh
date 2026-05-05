@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -78,7 +79,16 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 	}
 	buildersThreadID := "thread_builders_main"
 	patchWorkID := "work_patch_42"
-	patchDirectID := mustHTTPResolveNetworkDirectRoom(t, ctx, harness, "builders", patchSession.ID, opsPeerID)
+	patchDirectID := requireDirectResolveRace(
+		t,
+		ctx,
+		harness,
+		"builders",
+		opsSession.ID,
+		opsPeerID,
+		patchSession.ID,
+		patchPeerID,
+	)
 
 	mustSendNetworkCLI(t, ctx, harness, []string{
 		"--session", opsSession.ID,
@@ -177,6 +187,35 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_trace_02"))
 	})
 
+	mustSendNetworkCLI(t, ctx, harness, []string{
+		"--session", patchSession.ID,
+		"--channel", "builders",
+		"--kind", "say",
+		"--surface", "thread",
+		"--thread", buildersThreadID,
+		"--reply-to", "msg_trace_02",
+		"--trace-id", "trace_ops_patch_42",
+		"--causation-id", "msg_trace_02",
+		"--id", "msg_summary_01",
+		"--body", `{"text":"Summary: patch prepared and migration assertions now pass locally.","intent":"summarize-back","artifacts":[]}`,
+	})
+
+	waitForRuntimeCondition(t, "summary back to public thread", 10*time.Second, func() bool {
+		audit, err := harness.NetworkAuditSnapshot()
+		if err != nil {
+			return false
+		}
+		return validateNetworkAuditEntry(audit, networkAuditExpectation{
+			MessageID: "msg_summary_01",
+			Direction: "delivered",
+			Kind:      "say",
+			Surface:   "thread",
+			ThreadID:  buildersThreadID,
+		}) == nil &&
+			channelHasMessageID(ctx, harness, "builders", "msg_summary_01") &&
+			sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_summary_01"))
+	})
+
 	postTerminalDirectArgs := []string{
 		"network", "send",
 		"--session", patchSession.ID,
@@ -242,6 +281,34 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 
 	channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "builders")
 	requireChannelMessage(t, channelMessages, "msg_say_01", "Who can take the failing migration tests in internal/store/sessiondb?")
+	requireChannelMessage(t, channelMessages, "msg_summary_01", "Summary: patch prepared")
+	requireNoChannelMessage(t, channelMessages, "msg_direct_01")
+	requireNoChannelMessage(t, channelMessages, "msg_trace_02")
+
+	threads := mustHTTPNetworkThreads(t, ctx, harness, "builders")
+	requireThreadSummary(t, threads, buildersThreadID, "msg_say_01")
+	thread := mustHTTPNetworkThread(t, ctx, harness, "builders", buildersThreadID)
+	if thread.ThreadID != buildersThreadID || thread.MessageCount < 2 {
+		t.Fatalf("HTTP builders thread = %#v, want summary with >= 2 messages", thread)
+	}
+	threadMessages := mustHTTPNetworkThreadMessages(t, ctx, harness, "builders", buildersThreadID)
+	requireConversationMessage(t, threadMessages, "msg_say_01", "thread", buildersThreadID, "")
+	requireConversationMessage(t, threadMessages, "msg_summary_01", "thread", buildersThreadID, "")
+
+	directs := mustHTTPNetworkDirectRooms(t, ctx, harness, "builders")
+	requireDirectRoomSummary(t, directs, patchDirectID)
+	direct := mustHTTPNetworkDirectRoom(t, ctx, harness, "builders", patchDirectID)
+	if direct.DirectID != patchDirectID || direct.MessageCount < 3 {
+		t.Fatalf("HTTP builders direct = %#v, want direct room with >= 3 messages", direct)
+	}
+	directMessages := mustHTTPNetworkDirectRoomMessages(t, ctx, harness, "builders", patchDirectID)
+	requireConversationMessage(t, directMessages, "msg_direct_01", "direct", "", patchDirectID)
+	requireConversationMessage(t, directMessages, "msg_trace_02", "direct", "", patchDirectID)
+
+	work := mustHTTPNetworkWork(t, ctx, harness, patchWorkID)
+	if work.WorkID != patchWorkID || work.Surface != "direct" || work.DirectID != patchDirectID {
+		t.Fatalf("HTTP network work = %#v, want direct work %q in %q", work, patchWorkID, patchDirectID)
+	}
 
 	opsTranscript := mustSessionTranscript(t, ctx, harness, opsSession.ID)
 	patchTranscript := mustSessionTranscript(t, ctx, harness, patchSession.ID)
@@ -288,6 +355,19 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		AuditDirections: []string{"delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces(trace) error = %v", err)
+	}
+	if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
+		MessageID:       "msg_summary_01",
+		Kind:            "say",
+		Surface:         "thread",
+		ThreadID:        buildersThreadID,
+		ReplyTo:         "msg_trace_02",
+		TraceID:         "trace_ops_patch_42",
+		CausationID:     "msg_trace_02",
+		Trust:           "untrusted",
+		AuditDirections: []string{"delivered"},
+	}); err != nil {
+		t.Fatalf("validateNetworkCorrelationSurfaces(summary) error = %v", err)
 	}
 	assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
 }
@@ -678,6 +758,84 @@ func requireChannelMessage(
 	t.Fatalf("channel messages = %#v, want message_id %q", messages, messageID)
 }
 
+func requireNoChannelMessage(
+	t testing.TB,
+	messages []aghcontract.NetworkChannelMessagePayload,
+	messageID string,
+) {
+	t.Helper()
+
+	target := strings.TrimSpace(messageID)
+	for _, message := range messages {
+		if strings.TrimSpace(message.MessageID) == target {
+			t.Fatalf("channel messages = %#v, want no message_id %q", messages, messageID)
+		}
+	}
+}
+
+func requireThreadSummary(
+	t testing.TB,
+	threads []aghcontract.NetworkThreadSummaryPayload,
+	threadID string,
+	rootMessageID string,
+) {
+	t.Helper()
+
+	for _, thread := range threads {
+		if strings.TrimSpace(thread.ThreadID) != strings.TrimSpace(threadID) {
+			continue
+		}
+		if strings.TrimSpace(thread.RootMessageID) != strings.TrimSpace(rootMessageID) {
+			t.Fatalf("thread summary = %#v, want root_message_id %q", thread, rootMessageID)
+		}
+		return
+	}
+	t.Fatalf("threads = %#v, want thread_id %q", threads, threadID)
+}
+
+func requireDirectRoomSummary(
+	t testing.TB,
+	directs []aghcontract.NetworkDirectRoomPayload,
+	directID string,
+) {
+	t.Helper()
+
+	for _, direct := range directs {
+		if strings.TrimSpace(direct.DirectID) == strings.TrimSpace(directID) {
+			return
+		}
+	}
+	t.Fatalf("direct rooms = %#v, want direct_id %q", directs, directID)
+}
+
+func requireConversationMessage(
+	t testing.TB,
+	messages []aghcontract.NetworkConversationMessagePayload,
+	messageID string,
+	surface string,
+	threadID string,
+	directID string,
+) {
+	t.Helper()
+
+	for _, message := range messages {
+		if strings.TrimSpace(message.MessageID) != strings.TrimSpace(messageID) {
+			continue
+		}
+		if strings.TrimSpace(message.Surface) != strings.TrimSpace(surface) {
+			t.Fatalf("message = %#v, want surface %q", message, surface)
+		}
+		if strings.TrimSpace(threadID) != "" && strings.TrimSpace(message.ThreadID) != strings.TrimSpace(threadID) {
+			t.Fatalf("message = %#v, want thread_id %q", message, threadID)
+		}
+		if strings.TrimSpace(directID) != "" && strings.TrimSpace(message.DirectID) != strings.TrimSpace(directID) {
+			t.Fatalf("message = %#v, want direct_id %q", message, directID)
+		}
+		return
+	}
+	t.Fatalf("conversation messages = %#v, want message_id %q", messages, messageID)
+}
+
 func mustSendNetworkCLI(
 	t testing.TB,
 	ctx context.Context,
@@ -972,6 +1130,122 @@ func mustHTTPNetworkChannelMessages(
 	return messages
 }
 
+func mustHTTPNetworkThreads(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+) []aghcontract.NetworkThreadSummaryPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkThreadsResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Threads
+}
+
+func mustHTTPNetworkThread(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	threadID string,
+) aghcontract.NetworkThreadSummaryPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkThreadResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads/" + url.PathEscape(threadID)
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Thread
+}
+
+func mustHTTPNetworkThreadMessages(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	threadID string,
+) []aghcontract.NetworkConversationMessagePayload {
+	t.Helper()
+
+	var response aghcontract.NetworkThreadMessagesResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads/" + url.PathEscape(threadID) + "/messages"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Messages
+}
+
+func mustHTTPNetworkDirectRooms(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+) []aghcontract.NetworkDirectRoomPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkDirectRoomsResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Directs
+}
+
+func mustHTTPNetworkDirectRoom(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	directID string,
+) aghcontract.NetworkDirectRoomPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkDirectRoomResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/" + url.PathEscape(directID)
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Direct
+}
+
+func mustHTTPNetworkDirectRoomMessages(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	directID string,
+) []aghcontract.NetworkConversationMessagePayload {
+	t.Helper()
+
+	var response aghcontract.NetworkDirectRoomMessagesResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/" + url.PathEscape(directID) + "/messages"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Messages
+}
+
+func mustHTTPNetworkWork(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	workID string,
+) aghcontract.NetworkWorkPayload {
+	t.Helper()
+
+	var response aghcontract.NetworkWorkResponse
+	path := "/api/network/work/" + url.PathEscape(workID)
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+	}
+	return response.Work
+}
+
 func channelHasMessageID(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
@@ -1000,6 +1274,61 @@ func channelHasMessageID(
 	return false
 }
 
+func requireDirectResolveRace(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	leftSessionID string,
+	leftPeerID string,
+	rightSessionID string,
+	rightPeerID string,
+) string {
+	t.Helper()
+
+	type resolveResult struct {
+		directID string
+		err      error
+	}
+	results := make(chan resolveResult, 2)
+	var wg sync.WaitGroup
+	for _, request := range []struct {
+		sessionID string
+		peerID    string
+	}{
+		{sessionID: leftSessionID, peerID: rightPeerID},
+		{sessionID: rightSessionID, peerID: leftPeerID},
+	} {
+		request := request
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			directID, err := httpResolveNetworkDirectRoomMaybe(ctx, harness, channel, request.sessionID, request.peerID)
+			results <- resolveResult{directID: directID, err: err}
+		}()
+	}
+	wg.Wait()
+	close(results)
+
+	var directID string
+	for result := range results {
+		if result.err != nil {
+			t.Fatalf("direct resolve race error = %v", result.err)
+		}
+		if strings.TrimSpace(result.directID) == "" {
+			t.Fatal("direct resolve race returned empty direct_id")
+		}
+		if directID == "" {
+			directID = result.directID
+			continue
+		}
+		if result.directID != directID {
+			t.Fatalf("direct resolve race returned %q and %q, want same direct_id", directID, result.directID)
+		}
+	}
+	return directID
+}
+
 func mustHTTPResolveNetworkDirectRoom(
 	t testing.TB,
 	ctx context.Context,
@@ -1010,6 +1339,23 @@ func mustHTTPResolveNetworkDirectRoom(
 ) string {
 	t.Helper()
 
+	directID, err := httpResolveNetworkDirectRoomMaybe(ctx, harness, channel, sessionID, peerID)
+	if err != nil {
+		t.Fatalf("resolve network direct room error = %v", err)
+	}
+	if directID == "" {
+		t.Fatal("resolve network direct room direct_id = empty")
+	}
+	return directID
+}
+
+func httpResolveNetworkDirectRoomMaybe(
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	sessionID string,
+	peerID string,
+) (string, error) {
 	var response aghcontract.NetworkDirectRoomResponse
 	escapedChannel := url.PathEscape(channel)
 	path := "/api/network/channels/" + escapedChannel + "/directs/resolve"
@@ -1018,13 +1364,10 @@ func mustHTTPResolveNetworkDirectRoom(
 		PeerID:    peerID,
 	}
 	if err := harness.HTTPJSON(ctx, http.MethodPost, path, request, &response); err != nil {
-		t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+		return "", err
 	}
 	directID := strings.TrimSpace(response.Direct.DirectID)
-	if directID == "" {
-		t.Fatalf("HTTPJSON(%s) direct_id = empty", path)
-	}
-	return directID
+	return directID, nil
 }
 
 func mustSessionTranscript(

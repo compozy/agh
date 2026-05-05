@@ -182,6 +182,11 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       undefined;
     const countByPrefix = (prefix: string) =>
       document.querySelectorAll(`[data-testid^="${prefix}"]`).length;
+    const readPathContainerId = (pattern: RegExp) => {
+      const match = window.location.pathname.match(pattern);
+      const value = match?.[1];
+      return value ? decodeURIComponent(value) : undefined;
+    };
     const countAutomationRunCards = () =>
       [...document.querySelectorAll<HTMLElement>("[data-testid]")]
         .map(element => element.dataset.testid || "")
@@ -194,13 +199,18 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
             testId !== "automation-run-history-empty" &&
             !testId.startsWith("automation-run-session-link-")
         ).length;
-    const networkActiveTab = document.querySelector('[data-testid="network-threads-tab"]')
-      ? ("threads" as const)
-      : document.querySelector('[data-testid="network-directs-tab"]')
-        ? ("directs" as const)
-        : document.querySelector('[data-testid="network-activity-tab"]')
-          ? ("activity" as const)
-          : undefined;
+    const networkPathTab = window.location.pathname.match(
+      /\/network\/[^/]+\/(threads|directs|activity)(?:\/|$)/
+    )?.[1] as "threads" | "directs" | "activity" | undefined;
+    const networkActiveTab =
+      networkPathTab ??
+      (document.querySelector('[data-testid="network-threads-tab"]')
+        ? ("threads" as const)
+        : document.querySelector('[data-testid="network-directs-tab"]')
+          ? ("directs" as const)
+          : document.querySelector('[data-testid="network-activity-tab"]')
+            ? ("activity" as const)
+            : undefined);
     const networkSelectedChannel =
       document
         .querySelector<HTMLElement>(
@@ -213,16 +223,13 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         ?.textContent?.trim()
         .replace(/^#/, "") ||
       undefined;
-    const networkSelectedThread =
-      document
-        .querySelector<HTMLElement>('[data-testid="network-thread-detail"]')
-        ?.getAttribute("aria-label")
-        ?.match(/^Thread (\S+)/)?.[1] ?? undefined;
+    const networkSelectedThread = readPathContainerId(/\/network\/[^/]+\/threads\/([^/?#]+)/);
     const networkSelectedDirect =
       document
-        .querySelector<HTMLElement>('[data-testid="network-direct-detail"]')
+        .querySelector<HTMLElement>('[data-testid="network-direct-detail-slot"]')
         ?.getAttribute("aria-label")
-        ?.match(/^Direct room (\S+)/)?.[1] ?? undefined;
+        ?.match(/^Direct room (\S+)/)?.[1] ??
+      readPathContainerId(/\/network\/[^/]+\/directs\/([^/?#]+)/);
     const automationActiveTab = document.querySelector('[data-testid="jobs-shell"]')
       ? "jobs"
       : document.querySelector('[data-testid="triggers-shell"]')
@@ -290,8 +297,8 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       ).length,
       network_active_tab: networkActiveTab,
       network_channel_count: countByPrefix("network-channel-row-"),
-      network_thread_count: countByPrefix("network-thread-row-"),
-      network_direct_count: countByPrefix("network-direct-row-"),
+      network_thread_count: countByPrefix("network-thread-list-row-"),
+      network_direct_count: countByPrefix("network-direct-list-row-"),
       network_message_count: countByPrefix("network-message-"),
       network_selected_channel: networkSelectedChannel,
       network_selected_thread: networkSelectedThread,

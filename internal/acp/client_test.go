@@ -1084,6 +1084,39 @@ func TestProcessCrashDetected(t *testing.T) {
 	}
 }
 
+func TestPromptStopDoesNotEmitRuntimeError(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	proc := startHelperProcess(t, driver, "block_prompt_until_cancel", "", StartOpts{})
+
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+		TurnID:  "turn-stop",
+		Message: "block until stopped",
+	})
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+
+	select {
+	case event := <-eventsCh:
+		if got, want := event.Type, EventTypeAgentMessage; got != want {
+			t.Fatalf("first prompt event = %q, want %q", got, want)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for blocking prompt to start")
+	}
+
+	if err := driver.Stop(testutil.Context(t), proc); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	for _, event := range collectEvents(t, eventsCh) {
+		if event.Type == EventTypeError {
+			t.Fatalf("prompt events contain %q after explicit stop: %#v", EventTypeError, event)
+		}
+	}
+}
+
 func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {
 	t.Parallel()
 
@@ -1608,6 +1641,15 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 	switch a.scenario {
 	case "crash_on_prompt":
 		os.Exit(23)
+	case "block_prompt_until_cancel":
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText("blocking"),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+		<-ctx.Done()
+		return acpsdk.PromptResponse{}, ctx.Err()
 	case "echo_prompt":
 		text := ""
 		if len(params.Prompt) > 0 && params.Prompt[0].Text != nil {

@@ -21,8 +21,8 @@ describe("captureRouteState", () => {
         <main data-testid="network-main-pane">
           <header data-testid="network-channel-header"><h1>#builders</h1></header>
           <section data-testid="network-threads-tab">
-            <article data-testid="network-thread-row-thread_one"></article>
-            <article data-testid="network-thread-row-thread_two"></article>
+            <article data-testid="network-thread-list-row-thread_one"></article>
+            <article data-testid="network-thread-list-row-thread_two"></article>
           </section>
         </main>
       </div>
@@ -55,7 +55,10 @@ describe("captureRouteState", () => {
     document.body.innerHTML = `
       <div data-testid="network-shell">
         <main data-testid="network-main-pane">
-          <section data-testid="network-thread-detail" aria-label="Thread thread_launch_command in #builders"></section>
+          <section data-testid="network-threads-tab">
+            <article data-testid="network-thread-list-row-thread_launch_command"></article>
+          </section>
+          <aside data-testid="network-thread-overlay" aria-label="Thread"></aside>
         </main>
       </div>
     `;
@@ -66,6 +69,7 @@ describe("captureRouteState", () => {
 
     expect(routeState).toMatchObject({
       network_view_visible: true,
+      network_active_tab: "threads",
       network_selected_thread: "thread_launch_command",
     });
     expect(routeState.network_selected_direct).toBeUndefined();
@@ -77,7 +81,9 @@ describe("captureRouteState", () => {
     document.body.innerHTML = `
       <div data-testid="network-shell">
         <main data-testid="network-main-pane">
-          <section data-testid="network-direct-detail" aria-label="Direct room direct_abc123 in #builders"></section>
+          <section data-testid="network-direct-detail-slot" aria-label="Direct room direct_abc123 in #builders">
+            <article data-testid="network-direct-room" aria-label="Direct room with @peer"></article>
+          </section>
         </main>
       </div>
     `;
@@ -88,6 +94,7 @@ describe("captureRouteState", () => {
 
     expect(routeState).toMatchObject({
       network_view_visible: true,
+      network_active_tab: "directs",
       network_selected_direct: "direct_abc123",
     });
     expect(routeState.network_selected_thread).toBeUndefined();

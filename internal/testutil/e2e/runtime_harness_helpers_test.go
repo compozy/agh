@@ -20,6 +20,12 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+const (
+	harnessNetworkThreadID = "thread_builders_main"
+	harnessNetworkDirectID = "direct_0123456789abcdef0123456789abcdef"
+	harnessNetworkWorkID   = "work_patch_42"
+)
+
 func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	t.Parallel()
 
@@ -33,6 +39,9 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		Direction: "sent",
 		Kind:      "say",
 		Channel:   "builders",
+		Surface:   "thread",
+		ThreadID:  harnessNetworkThreadID,
+		WorkID:    harnessNetworkWorkID,
 		PeerFrom:  "coder.sess-1",
 		MessageID: "msg-1",
 		Size:      42,
@@ -195,14 +204,83 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if _, err := harness.NetworkChannelMessages(testContext(t), "builders"); err != nil {
 		t.Fatalf("NetworkChannelMessages() error = %v", err)
 	}
+	threads, err := harness.NetworkThreads(testContext(t), "builders")
+	if err != nil {
+		t.Fatalf("NetworkThreads() error = %v", err)
+	}
+	if got, want := threads[0].ThreadID, harnessNetworkThreadID; got != want {
+		t.Fatalf("NetworkThreads()[0].ThreadID = %q, want %q", got, want)
+	}
+	thread, err := harness.NetworkThread(testContext(t), "builders", harnessNetworkThreadID)
+	if err != nil {
+		t.Fatalf("NetworkThread() error = %v", err)
+	}
+	if got, want := thread.ThreadID, harnessNetworkThreadID; got != want {
+		t.Fatalf("NetworkThread().ThreadID = %q, want %q", got, want)
+	}
+	threadMessages, err := harness.NetworkThreadMessages(testContext(t), "builders", harnessNetworkThreadID)
+	if err != nil {
+		t.Fatalf("NetworkThreadMessages() error = %v", err)
+	}
+	if got, want := threadMessages[0].Surface, "thread"; got != want {
+		t.Fatalf("NetworkThreadMessages()[0].Surface = %q, want %q", got, want)
+	}
+	directs, err := harness.NetworkDirectRooms(testContext(t), "builders")
+	if err != nil {
+		t.Fatalf("NetworkDirectRooms() error = %v", err)
+	}
+	if got, want := directs[0].DirectID, harnessNetworkDirectID; got != want {
+		t.Fatalf("NetworkDirectRooms()[0].DirectID = %q, want %q", got, want)
+	}
+	resolvedDirect, err := harness.NetworkDirectResolve(
+		testContext(t),
+		"builders",
+		aghcontract.NetworkDirectResolveRequest{
+			SessionID: "sess-1",
+			PeerID:    "reviewer.sess-2",
+		},
+	)
+	if err != nil {
+		t.Fatalf("NetworkDirectResolve() error = %v", err)
+	}
+	if got, want := resolvedDirect.DirectID, harnessNetworkDirectID; got != want {
+		t.Fatalf("NetworkDirectResolve().DirectID = %q, want %q", got, want)
+	}
+	direct, err := harness.NetworkDirectRoom(testContext(t), "builders", harnessNetworkDirectID)
+	if err != nil {
+		t.Fatalf("NetworkDirectRoom() error = %v", err)
+	}
+	if got, want := direct.DirectID, harnessNetworkDirectID; got != want {
+		t.Fatalf("NetworkDirectRoom().DirectID = %q, want %q", got, want)
+	}
+	directMessages, err := harness.NetworkDirectRoomMessages(testContext(t), "builders", harnessNetworkDirectID)
+	if err != nil {
+		t.Fatalf("NetworkDirectRoomMessages() error = %v", err)
+	}
+	if got, want := directMessages[0].Surface, "direct"; got != want {
+		t.Fatalf("NetworkDirectRoomMessages()[0].Surface = %q, want %q", got, want)
+	}
+	work, err := harness.NetworkWork(testContext(t), harnessNetworkWorkID)
+	if err != nil {
+		t.Fatalf("NetworkWork() error = %v", err)
+	}
+	if got, want := work.WorkID, harnessNetworkWorkID; got != want {
+		t.Fatalf("NetworkWork().WorkID = %q, want %q", got, want)
+	}
 	if _, err := harness.NetworkInbox(testContext(t), "sess-1"); err != nil {
 		t.Fatalf("NetworkInbox() error = %v", err)
 	}
 	if _, err := harness.NetworkSend(testContext(t), aghcontract.NetworkSendRequest{
-		SessionID: "sess-1",
-		Channel:   "builders",
-		Kind:      "say",
-		Body:      json.RawMessage(`{"text":"hello"}`),
+		SessionID:   "sess-1",
+		Channel:     "builders",
+		Surface:     "thread",
+		ThreadID:    harnessNetworkThreadID,
+		Kind:        "say",
+		WorkID:      harnessNetworkWorkID,
+		ReplyTo:     "msg-1",
+		TraceID:     "trace_ops_patch_42",
+		CausationID: "msg-1",
+		Body:        json.RawMessage(`{"text":"hello"}`),
 	}); err != nil {
 		t.Fatalf("NetworkSend() error = %v", err)
 	}
@@ -398,7 +476,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	}
 
 	manifest := harness.Artifacts.Manifest()
-	if got, wantMin := len(manifest.Artifacts), 19; got < wantMin {
+	if got, wantMin := len(manifest.Artifacts), 22; got < wantMin {
 		t.Fatalf("len(manifest.Artifacts) = %d, want at least %d", got, wantMin)
 	}
 
@@ -419,6 +497,15 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if !strings.Contains(string(manifestBytes), "bridge_secret_bindings.json") {
 		t.Fatalf("manifest = %s, want bridge_secret_bindings.json entry", string(manifestBytes))
 	}
+	for _, want := range []string{
+		"network_threads.json",
+		"network_direct_rooms.json",
+		"network_work.json",
+	} {
+		if !strings.Contains(string(manifestBytes), want) {
+			t.Fatalf("manifest = %s, want %s entry", string(manifestBytes), want)
+		}
+	}
 
 	networkAuditPath, ok := harness.Artifacts.ArtifactPath(ArtifactKindNetworkAudit)
 	if !ok {
@@ -436,6 +523,47 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	}
 	if !strings.Contains(string(networkAuditBytes), "\"Direction\": \"sent\"") {
 		t.Fatalf("network audit artifact = %s, want decoded audit entry", string(networkAuditBytes))
+	}
+	if !strings.Contains(string(networkAuditBytes), "\"Surface\": \"thread\"") ||
+		!strings.Contains(string(networkAuditBytes), "\"ThreadID\": \""+harnessNetworkThreadID+"\"") ||
+		!strings.Contains(string(networkAuditBytes), "\"WorkID\": \""+harnessNetworkWorkID+"\"") {
+		t.Fatalf("network audit artifact = %s, want final conversation metadata", string(networkAuditBytes))
+	}
+
+	networkThreadsPath, ok := harness.Artifacts.ArtifactPath(ArtifactKindNetworkThreads)
+	if !ok {
+		t.Fatal("ArtifactPath(network_threads) = missing, want present")
+	}
+	networkThreadsBytes, err := os.ReadFile(networkThreadsPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", networkThreadsPath, err)
+	}
+	if !strings.Contains(string(networkThreadsBytes), `"thread_id": "`+harnessNetworkThreadID+`"`) {
+		t.Fatalf("network threads artifact = %s, want thread_id", string(networkThreadsBytes))
+	}
+
+	networkDirectRoomsPath, ok := harness.Artifacts.ArtifactPath(ArtifactKindNetworkDirectRooms)
+	if !ok {
+		t.Fatal("ArtifactPath(network_direct_rooms) = missing, want present")
+	}
+	networkDirectRoomsBytes, err := os.ReadFile(networkDirectRoomsPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", networkDirectRoomsPath, err)
+	}
+	if !strings.Contains(string(networkDirectRoomsBytes), `"direct_id": "`+harnessNetworkDirectID+`"`) {
+		t.Fatalf("network direct rooms artifact = %s, want direct_id", string(networkDirectRoomsBytes))
+	}
+
+	networkWorkPath, ok := harness.Artifacts.ArtifactPath(ArtifactKindNetworkWork)
+	if !ok {
+		t.Fatal("ArtifactPath(network_work) = missing, want present")
+	}
+	networkWorkBytes, err := os.ReadFile(networkWorkPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", networkWorkPath, err)
+	}
+	if !strings.Contains(string(networkWorkBytes), `"work_id": "`+harnessNetworkWorkID+`"`) {
+		t.Fatalf("network work artifact = %s, want work_id", string(networkWorkBytes))
 	}
 
 	automationRunsPath, ok := harness.Artifacts.ArtifactPath(ArtifactKindAutomationRuns)
@@ -862,19 +990,185 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				"data: [DONE]\n\n",
 		)
 	})
-	mux.HandleFunc("/api/network/channels/builders/messages", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.NetworkChannelMessagesResponse{
+	mux.HandleFunc("/api/network/channels/builders/threads", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, aghcontract.NetworkThreadsResponse{
+			Threads: []aghcontract.NetworkThreadSummaryPayload{{
+				Channel:            "builders",
+				ThreadID:           harnessNetworkThreadID,
+				RootMessageID:      "msg-1",
+				Title:              "Migration test repair",
+				OpenedByPeerID:     "coder.sess-1",
+				OpenedSessionID:    "sess-1",
+				OpenedAt:           &now,
+				LastActivityAt:     &now,
+				MessageCount:       1,
+				ParticipantCount:   1,
+				OpenWorkCount:      1,
+				LastMessagePreview: "hello",
+			}},
+		})
+	})
+	mux.HandleFunc("/api/network/channels/builders/threads/"+harnessNetworkThreadID, func(
+		w http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writeJSON(w, aghcontract.NetworkThreadResponse{
+			Thread: aghcontract.NetworkThreadSummaryPayload{
+				Channel:            "builders",
+				ThreadID:           harnessNetworkThreadID,
+				RootMessageID:      "msg-1",
+				Title:              "Migration test repair",
+				OpenedByPeerID:     "coder.sess-1",
+				OpenedSessionID:    "sess-1",
+				OpenedAt:           &now,
+				LastActivityAt:     &now,
+				MessageCount:       1,
+				ParticipantCount:   1,
+				OpenWorkCount:      1,
+				LastMessagePreview: "hello",
+			},
+		})
+	})
+	mux.HandleFunc("/api/network/channels/builders/threads/"+harnessNetworkThreadID+"/messages", func(
+		w http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writeJSON(w, aghcontract.NetworkThreadMessagesResponse{
 			Messages: []aghcontract.NetworkChannelMessagePayload{{
 				MessageID:   "msg-1",
 				Channel:     "builders",
+				Surface:     "thread",
+				ThreadID:    harnessNetworkThreadID,
 				Kind:        "say",
 				Direction:   "sent",
 				PeerFrom:    "peer-1",
+				WorkID:      harnessNetworkWorkID,
+				TraceID:     "trace_ops_patch_42",
 				Text:        "hello",
 				PreviewText: "hello",
 				Body:        json.RawMessage(`{"text":"hello"}`),
 				Timestamp:   now,
 			}},
+		})
+	})
+	mux.HandleFunc("/api/network/channels/builders/directs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, aghcontract.NetworkDirectRoomsResponse{
+			Directs: []aghcontract.NetworkDirectRoomPayload{{
+				Channel:            "builders",
+				DirectID:           harnessNetworkDirectID,
+				PeerA:              "coder.sess-1",
+				PeerB:              "reviewer.sess-2",
+				OpenedAt:           &now,
+				LastActivityAt:     &now,
+				MessageCount:       1,
+				OpenWorkCount:      1,
+				LastMessagePreview: "direct hello",
+			}},
+		})
+	})
+	mux.HandleFunc("/api/network/channels/builders/directs/resolve", func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var request aghcontract.NetworkDirectResolveRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			reportHarnessHandlerError(w, handlerErrs, http.StatusBadRequest, "decode direct resolve: %v", err)
+			return
+		}
+		if got, want := request.SessionID, "sess-1"; got != want {
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"direct resolve session_id = %q, want %q",
+				got,
+				want,
+			)
+			return
+		}
+		if got, want := request.PeerID, "reviewer.sess-2"; got != want {
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"direct resolve peer_id = %q, want %q",
+				got,
+				want,
+			)
+			return
+		}
+		writeJSON(w, aghcontract.NetworkDirectRoomResponse{
+			Direct: aghcontract.NetworkDirectRoomPayload{
+				Channel:        "builders",
+				DirectID:       harnessNetworkDirectID,
+				PeerA:          "coder.sess-1",
+				PeerB:          "reviewer.sess-2",
+				OpenedAt:       &now,
+				LastActivityAt: &now,
+			},
+		})
+	})
+	mux.HandleFunc("/api/network/channels/builders/directs/"+harnessNetworkDirectID, func(
+		w http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writeJSON(w, aghcontract.NetworkDirectRoomResponse{
+			Direct: aghcontract.NetworkDirectRoomPayload{
+				Channel:            "builders",
+				DirectID:           harnessNetworkDirectID,
+				PeerA:              "coder.sess-1",
+				PeerB:              "reviewer.sess-2",
+				OpenedAt:           &now,
+				LastActivityAt:     &now,
+				MessageCount:       1,
+				OpenWorkCount:      1,
+				LastMessagePreview: "direct hello",
+			},
+		})
+	})
+	mux.HandleFunc("/api/network/channels/builders/directs/"+harnessNetworkDirectID+"/messages", func(
+		w http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writeJSON(w, aghcontract.NetworkDirectRoomMessagesResponse{
+			Messages: []aghcontract.NetworkConversationMessagePayload{{
+				MessageID:   "msg-direct-1",
+				Channel:     "builders",
+				Surface:     "direct",
+				DirectID:    harnessNetworkDirectID,
+				Kind:        "say",
+				Direction:   "sent",
+				PeerFrom:    "coder.sess-1",
+				PeerTo:      "reviewer.sess-2",
+				WorkID:      harnessNetworkWorkID,
+				ReplyTo:     "msg-1",
+				TraceID:     "trace_ops_patch_42",
+				CausationID: "msg-1",
+				Text:        "direct hello",
+				PreviewText: "direct hello",
+				Body:        json.RawMessage(`{"text":"direct hello"}`),
+				Timestamp:   now,
+			}},
+		})
+	})
+	mux.HandleFunc("/api/network/work/"+harnessNetworkWorkID, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, aghcontract.NetworkWorkResponse{
+			Work: aghcontract.NetworkWorkPayload{
+				WorkID:          harnessNetworkWorkID,
+				Channel:         "builders",
+				Surface:         "thread",
+				ThreadID:        harnessNetworkThreadID,
+				OpenedByPeerID:  "coder.sess-1",
+				OpenedSessionID: "sess-1",
+				TargetPeerID:    "reviewer.sess-2",
+				State:           "running",
+				OpenedAt:        &now,
+				LastActivityAt:  &now,
+			},
 		})
 	})
 	mux.HandleFunc("/api/network/status", func(w http.ResponseWriter, _ *http.Request) {
@@ -996,9 +1290,15 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			Messages: []aghcontract.NetworkEnvelopePayload{{
 				Protocol: "agh-network/v0",
 				ID:       "msg-inbox-1",
-				Kind:     "direct",
+				Kind:     "say",
 				Channel:  "builders",
+				Surface:  stringPtr("direct"),
+				DirectID: stringPtr(harnessNetworkDirectID),
 				From:     "peer-1",
+				To:       stringPtr("coder.sess-1"),
+				WorkID:   stringPtr(harnessNetworkWorkID),
+				ReplyTo:  stringPtr("msg-1"),
+				TraceID:  stringPtr("trace_ops_patch_42"),
 				TS:       now.Unix(),
 				Body:     json.RawMessage(`{"text":"review this"}`),
 			}},
@@ -1009,12 +1309,51 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		var request aghcontract.NetworkSendRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			reportHarnessHandlerError(w, handlerErrs, http.StatusBadRequest, "decode network send: %v", err)
+			return
+		}
+		for _, check := range []struct {
+			label string
+			got   string
+			want  string
+		}{
+			{label: "session_id", got: request.SessionID, want: "sess-1"},
+			{label: "channel", got: request.Channel, want: "builders"},
+			{label: "surface", got: request.Surface, want: "thread"},
+			{label: "thread_id", got: request.ThreadID, want: harnessNetworkThreadID},
+			{label: "kind", got: request.Kind, want: "say"},
+			{label: "work_id", got: request.WorkID, want: harnessNetworkWorkID},
+			{label: "reply_to", got: request.ReplyTo, want: "msg-1"},
+			{label: "trace_id", got: request.TraceID, want: "trace_ops_patch_42"},
+			{label: "causation_id", got: request.CausationID, want: "msg-1"},
+		} {
+			if check.got != check.want {
+				reportHarnessHandlerError(
+					w,
+					handlerErrs,
+					http.StatusBadRequest,
+					"network send %s = %q, want %q",
+					check.label,
+					check.got,
+					check.want,
+				)
+				return
+			}
+		}
 		writeJSON(w, aghcontract.NetworkSendResponse{
 			Message: aghcontract.NetworkSendPayload{
-				ID:        "msg-send-1",
-				SessionID: "sess-1",
-				Channel:   "builders",
-				Kind:      "say",
+				ID:          "msg-send-1",
+				SessionID:   "sess-1",
+				Channel:     "builders",
+				Surface:     "thread",
+				ThreadID:    harnessNetworkThreadID,
+				Kind:        "say",
+				WorkID:      harnessNetworkWorkID,
+				ReplyTo:     "msg-1",
+				TraceID:     "trace_ops_patch_42",
+				CausationID: "msg-1",
 			},
 		})
 	})

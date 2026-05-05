@@ -10,6 +10,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
+	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	"github.com/pedronauck/agh/internal/testutil"
@@ -30,6 +31,7 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 	})
 
 	suffixAugmenter := HarnessAugmenter("suffix")
+	workspaceResolver := &harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace}
 	compositeResolver := &promptInputCompositeOverlayResolver{
 		base: daemonInstance.harnessResolver,
 		extra: map[TurnOrigin][]HarnessAugmenter{
@@ -46,7 +48,7 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 			defaultPromptInputAugmenterDescriptors(
 				memory.NewRecallAugmenter(daemonInstance.memoryStore),
 				newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
-					return daemonInstance.workspaceResolver
+					return workspaceResolver
 				}),
 				daemonInstance.situationContext.Augment,
 			),
@@ -81,6 +83,26 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 		_ = manager.Stop(testutil.Context(t), created.ID)
 	})
 
+	waitForCondition(t, "current skills catalog ready", func() bool {
+		info := created.Info()
+		if info == nil {
+			return false
+		}
+		resolved, err := workspaceResolver.Resolve(testutil.Context(t), info.WorkspaceID)
+		if err != nil {
+			return false
+		}
+		projectedSkills, err := daemonInstance.skillsRegistry.ForAgent(
+			testutil.Context(t),
+			&resolved,
+			info.AgentName,
+		)
+		if err != nil {
+			return false
+		}
+		return strings.Contains(skillspkg.BuildCurrentCatalog(projectedSkills), "<current-available-skills>")
+	})
+
 	userEvents, err := manager.Prompt(testutil.Context(t), created.ID, "workspace note")
 	if err != nil {
 		t.Fatalf("Prompt() error = %v", err)
@@ -100,12 +122,18 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 		created.ID,
 		"network note",
 		acp.PromptNetworkMeta{
-			MessageID: "msg-1",
-			Kind:      "say",
-			Channel:   "builders",
-			Surface:   "direct",
-			From:      "ops.peer",
-			Trust:     "untrusted",
+			MessageID:   "msg-1",
+			Kind:        "say",
+			Channel:     "builders",
+			Surface:     "direct",
+			DirectID:    "direct_0123456789abcdef0123456789abcdef",
+			From:        "ops.peer",
+			To:          "networked.peer",
+			WorkID:      "work_patch_42",
+			ReplyTo:     "msg-root",
+			TraceID:     "trace_ops_patch_42",
+			CausationID: "msg-root",
+			Trust:       "untrusted",
 		},
 	)
 	if err != nil {
@@ -132,6 +160,21 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 		}
 		if got.Channel != "builders" {
 			t.Fatalf("resolver network channel = %q, want %q", got.Channel, "builders")
+		}
+		if got.Surface != "direct" {
+			t.Fatalf("resolver network surface = %q, want direct", got.Surface)
+		}
+		if got.DirectID != "direct_0123456789abcdef0123456789abcdef" {
+			t.Fatalf("resolver network direct_id = %q, want final direct container", got.DirectID)
+		}
+		if got.WorkID != "work_patch_42" || got.ReplyTo != "msg-root" {
+			t.Fatalf("resolver network work/reply = %q/%q, want work_patch_42/msg-root", got.WorkID, got.ReplyTo)
+		}
+		if got.TraceID != "trace_ops_patch_42" || got.CausationID != "msg-root" {
+			t.Fatalf("resolver network trace/causation = %q/%q, want final correlation ids", got.TraceID, got.CausationID)
+		}
+		if got.Trust != "untrusted" {
+			t.Fatalf("resolver network trust = %q, want untrusted", got.Trust)
 		}
 	}
 

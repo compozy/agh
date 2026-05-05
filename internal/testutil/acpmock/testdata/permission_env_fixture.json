@@ -4,7 +4,7 @@
         {
             "name": "approver",
             "provider": "claude",
-            "permissions": "deny-all",
+            "permissions": "approve-reads",
             "prompt": "You are approver.",
             "turns": [
                 {

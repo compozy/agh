@@ -27,6 +27,12 @@ type networkAuditExpectation struct {
 	MessageID string
 	Direction string
 	Kind      string
+	Surface   string
+	ThreadID  string
+	DirectID  string
+	WorkID    string
+	PeerFrom  string
+	PeerTo    string
 	Reason    string
 }
 
@@ -79,6 +85,10 @@ func validateNetworkCorrelationSurfaces(
 			MessageID: expectation.MessageID,
 			Direction: direction,
 			Kind:      expectation.Kind,
+			Surface:   expectation.Surface,
+			ThreadID:  expectation.ThreadID,
+			DirectID:  expectation.DirectID,
+			WorkID:    expectation.WorkID,
 		}); err != nil {
 			return err
 		}
@@ -101,6 +111,24 @@ func validateNetworkAuditEntry(
 		if strings.TrimSpace(entry.Kind) != strings.TrimSpace(expectation.Kind) {
 			continue
 		}
+		if !optionalAuditFieldMatches(expectation.Surface, entry.Surface) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.ThreadID, entry.ThreadID) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.DirectID, entry.DirectID) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.WorkID, entry.WorkID) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.PeerFrom, entry.PeerFrom) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.PeerTo, entry.PeerTo) {
+			continue
+		}
 		if trimmedReason := strings.TrimSpace(expectation.Reason); trimmedReason != "" &&
 			strings.TrimSpace(entry.Reason) != trimmedReason {
 			continue
@@ -109,12 +137,24 @@ func validateNetworkAuditEntry(
 	}
 
 	return fmt.Errorf(
-		"audit missing message_id=%q direction=%q kind=%q reason=%q",
+		"audit missing message_id=%q direction=%q kind=%q surface=%q thread_id=%q direct_id=%q work_id=%q reason=%q",
 		expectation.MessageID,
 		expectation.Direction,
 		expectation.Kind,
+		expectation.Surface,
+		expectation.ThreadID,
+		expectation.DirectID,
+		expectation.WorkID,
 		expectation.Reason,
 	)
+}
+
+func optionalAuditFieldMatches(want string, got string) bool {
+	trimmedWant := strings.TrimSpace(want)
+	if trimmedWant == "" {
+		return true
+	}
+	return strings.TrimSpace(got) == trimmedWant
 }
 
 func attributeNeedle(name string, value string) string {
@@ -141,8 +181,22 @@ func TestValidateNetworkCorrelationSurfacesUsesTargetedAttributes(t *testing.T) 
 		},
 	}
 	audit := []store.NetworkAuditEntry{
-		{MessageID: "msg_direct_01", Direction: "sent", Kind: "say"},
-		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "say"},
+		{
+			MessageID: "msg_direct_01",
+			Direction: "sent",
+			Kind:      "say",
+			Surface:   "direct",
+			DirectID:  "direct_test_01",
+			WorkID:    "work_patch_42",
+		},
+		{
+			MessageID: "msg_direct_01",
+			Direction: "delivered",
+			Kind:      "say",
+			Surface:   "direct",
+			DirectID:  "direct_test_01",
+			WorkID:    "work_patch_42",
+		},
 	}
 
 	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
@@ -213,6 +267,9 @@ func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {
 			MessageID: "msg_direct_01",
 			Direction: "rejected",
 			Kind:      "say",
+			Surface:   "direct",
+			DirectID:  "direct_test_01",
+			WorkID:    "work_patch_42",
 			Reason:    "duplicate",
 		},
 	}
@@ -221,8 +278,37 @@ func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {
 		MessageID: "msg_direct_01",
 		Direction: "rejected",
 		Kind:      "say",
+		Surface:   "direct",
+		DirectID:  "direct_test_01",
+		WorkID:    "work_patch_42",
 		Reason:    "duplicate",
 	}); err != nil {
 		t.Fatalf("validateNetworkAuditEntry() error = %v", err)
+	}
+}
+
+func TestValidateNetworkAuditEntryRejectsWrongContainer(t *testing.T) {
+	t.Parallel()
+
+	entries := []store.NetworkAuditEntry{
+		{
+			MessageID: "msg_direct_01",
+			Direction: "delivered",
+			Kind:      "say",
+			Surface:   "direct",
+			DirectID:  "direct_wrong",
+			WorkID:    "work_patch_42",
+		},
+	}
+
+	if err := validateNetworkAuditEntry(entries, networkAuditExpectation{
+		MessageID: "msg_direct_01",
+		Direction: "delivered",
+		Kind:      "say",
+		Surface:   "direct",
+		DirectID:  "direct_test_01",
+		WorkID:    "work_patch_42",
+	}); err == nil {
+		t.Fatal("validateNetworkAuditEntry() error = nil, want direct_id mismatch")
 	}
 }

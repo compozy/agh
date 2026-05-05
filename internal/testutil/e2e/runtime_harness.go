@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -340,16 +341,26 @@ func (h *RuntimeHarness) stopWithContext(ctx context.Context) error {
 		return err
 	}
 
-	if _, _, err := h.CLI.Run(ctx, "daemon", "stop", "-o", "json"); err != nil {
-		if h.process != nil && h.process.Process != nil {
-			if signalErr := h.process.Process.Signal(os.Interrupt); signalErr != nil {
-				return fmt.Errorf("interrupt daemon process: %w", signalErr)
-			}
+	signaledProcess := false
+	if h.process != nil && h.process.Process != nil {
+		if signalErr := h.process.Process.Signal(
+			os.Interrupt,
+		); signalErr != nil &&
+			!errors.Is(signalErr, os.ErrProcessDone) {
+			return fmt.Errorf("interrupt daemon process: %w", signalErr)
+		}
+		signaledProcess = true
+	} else if h.CLI != nil {
+		if _, _, err := h.CLI.Run(ctx, "daemon", "stop", "-o", "json"); err != nil {
+			return fmt.Errorf("stop daemon via CLI: %w", err)
 		}
 	}
 
 	waitErr := h.waitForExit(ctx)
 	if waitErr == nil {
+		return nil
+	}
+	if signaledProcess && !errors.Is(waitErr, context.DeadlineExceeded) {
 		return nil
 	}
 
@@ -878,17 +889,137 @@ func (h *RuntimeHarness) NetworkChannel(
 	return response.Channel, nil
 }
 
-// NetworkChannelMessages fetches the read-only message timeline for one channel.
-func (h *RuntimeHarness) NetworkChannelMessages(
+// NetworkThreads fetches public-thread summaries for one channel.
+func (h *RuntimeHarness) NetworkThreads(
 	ctx context.Context,
 	channel string,
-) ([]aghcontract.NetworkChannelMessagePayload, error) {
-	var response aghcontract.NetworkChannelMessagesResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/messages"
+) ([]aghcontract.NetworkThreadSummaryPayload, error) {
+	var response aghcontract.NetworkThreadsResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads"
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Threads, nil
+}
+
+// NetworkThread fetches one public-thread summary.
+func (h *RuntimeHarness) NetworkThread(
+	ctx context.Context,
+	channel string,
+	threadID string,
+) (aghcontract.NetworkThreadSummaryPayload, error) {
+	var response aghcontract.NetworkThreadResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) +
+		"/threads/" + url.PathEscape(threadID)
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return aghcontract.NetworkThreadSummaryPayload{}, err
+	}
+	return response.Thread, nil
+}
+
+// NetworkThreadMessages fetches messages isolated to one public thread.
+func (h *RuntimeHarness) NetworkThreadMessages(
+	ctx context.Context,
+	channel string,
+	threadID string,
+) ([]aghcontract.NetworkConversationMessagePayload, error) {
+	var response aghcontract.NetworkThreadMessagesResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) +
+		"/threads/" + url.PathEscape(threadID) + "/messages"
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Messages, nil
+}
+
+// NetworkDirectRooms fetches direct-room summaries for one channel.
+func (h *RuntimeHarness) NetworkDirectRooms(
+	ctx context.Context,
+	channel string,
+) ([]aghcontract.NetworkDirectRoomPayload, error) {
+	var response aghcontract.NetworkDirectRoomsResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs"
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Directs, nil
+}
+
+// NetworkDirectRoom fetches one direct-room summary.
+func (h *RuntimeHarness) NetworkDirectRoom(
+	ctx context.Context,
+	channel string,
+	directID string,
+) (aghcontract.NetworkDirectRoomPayload, error) {
+	var response aghcontract.NetworkDirectRoomResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) +
+		"/directs/" + url.PathEscape(directID)
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return aghcontract.NetworkDirectRoomPayload{}, err
+	}
+	return response.Direct, nil
+}
+
+// NetworkDirectRoomMessages fetches messages isolated to one direct room.
+func (h *RuntimeHarness) NetworkDirectRoomMessages(
+	ctx context.Context,
+	channel string,
+	directID string,
+) ([]aghcontract.NetworkConversationMessagePayload, error) {
+	var response aghcontract.NetworkDirectRoomMessagesResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) +
+		"/directs/" + url.PathEscape(directID) + "/messages"
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Messages, nil
+}
+
+// NetworkDirectResolve resolves the deterministic direct room for a local session and peer.
+func (h *RuntimeHarness) NetworkDirectResolve(
+	ctx context.Context,
+	channel string,
+	request aghcontract.NetworkDirectResolveRequest,
+) (aghcontract.NetworkDirectRoomPayload, error) {
+	var response aghcontract.NetworkDirectRoomResponse
+	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/resolve"
+	if err := h.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
+		return aghcontract.NetworkDirectRoomPayload{}, err
+	}
+	return response.Direct, nil
+}
+
+// NetworkWork fetches one lifecycle-bearing work row.
+func (h *RuntimeHarness) NetworkWork(
+	ctx context.Context,
+	workID string,
+) (aghcontract.NetworkWorkPayload, error) {
+	var response aghcontract.NetworkWorkResponse
+	path := "/api/network/work/" + url.PathEscape(workID)
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return aghcontract.NetworkWorkPayload{}, err
+	}
+	return response.Work, nil
+}
+
+// NetworkChannelMessages fetches public-thread messages for one channel.
+func (h *RuntimeHarness) NetworkChannelMessages(
+	ctx context.Context,
+	channel string,
+) ([]aghcontract.NetworkChannelMessagePayload, error) {
+	threads, err := h.NetworkThreads(ctx, channel)
+	if err != nil {
+		return nil, err
+	}
+	messages := make([]aghcontract.NetworkChannelMessagePayload, 0)
+	for _, thread := range threads {
+		threadMessages, err := h.NetworkThreadMessages(ctx, channel, thread.ThreadID)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, threadMessages...)
+	}
+	return messages, nil
 }
 
 // NetworkInbox fetches the queued inbox projection for one local session.
@@ -1004,6 +1135,78 @@ func (h *RuntimeHarness) CaptureNetworkMessages(ctx context.Context, channel str
 	return h.Artifacts.CaptureJSON(ArtifactKindNetworkMessages, messages)
 }
 
+// CaptureNetworkThreads stores public-thread summaries for one channel.
+func (h *RuntimeHarness) CaptureNetworkThreads(ctx context.Context, channel string) error {
+	threads, err := h.NetworkThreads(ctx, channel)
+	if err != nil {
+		return err
+	}
+	return h.Artifacts.CaptureJSON(ArtifactKindNetworkThreads, threads)
+}
+
+// CaptureNetworkDirectRooms stores direct-room summaries for one channel.
+func (h *RuntimeHarness) CaptureNetworkDirectRooms(ctx context.Context, channel string) error {
+	directs, err := h.NetworkDirectRooms(ctx, channel)
+	if err != nil {
+		return err
+	}
+	return h.Artifacts.CaptureJSON(ArtifactKindNetworkDirectRooms, directs)
+}
+
+// CaptureNetworkWork stores unique work rows referenced by the channel's thread and direct messages.
+func (h *RuntimeHarness) CaptureNetworkWork(ctx context.Context, channel string) error {
+	workIDs, err := h.networkWorkIDs(ctx, channel)
+	if err != nil {
+		return err
+	}
+	work := make([]aghcontract.NetworkWorkPayload, 0, len(workIDs))
+	for _, workID := range workIDs {
+		item, err := h.NetworkWork(ctx, workID)
+		if err != nil {
+			return err
+		}
+		work = append(work, item)
+	}
+	return h.Artifacts.CaptureJSON(ArtifactKindNetworkWork, work)
+}
+
+func (h *RuntimeHarness) networkWorkIDs(ctx context.Context, channel string) ([]string, error) {
+	seen := make(map[string]struct{})
+	add := func(messages []aghcontract.NetworkConversationMessagePayload) {
+		for _, message := range messages {
+			workID := strings.TrimSpace(message.WorkID)
+			if workID != "" {
+				seen[workID] = struct{}{}
+			}
+		}
+	}
+
+	threadMessages, err := h.NetworkChannelMessages(ctx, channel)
+	if err != nil {
+		return nil, err
+	}
+	add(threadMessages)
+
+	directs, err := h.NetworkDirectRooms(ctx, channel)
+	if err != nil {
+		return nil, err
+	}
+	for _, direct := range directs {
+		messages, err := h.NetworkDirectRoomMessages(ctx, channel, direct.DirectID)
+		if err != nil {
+			return nil, err
+		}
+		add(messages)
+	}
+
+	workIDs := make([]string, 0, len(seen))
+	for workID := range seen {
+		workIDs = append(workIDs, workID)
+	}
+	sort.Strings(workIDs)
+	return workIDs, nil
+}
+
 // CaptureNetworkAudit stores the raw network audit sink when present.
 func (h *RuntimeHarness) CaptureNetworkAudit() error {
 	entries, err := h.NetworkAuditSnapshot()
@@ -1018,7 +1221,16 @@ func (h *RuntimeHarness) CaptureNetworkAudit() error {
 
 // CaptureNetworkArtifacts stores the stable message and audit snapshots for one scenario channel.
 func (h *RuntimeHarness) CaptureNetworkArtifacts(ctx context.Context, channel string) error {
+	if err := h.CaptureNetworkThreads(ctx, channel); err != nil {
+		return err
+	}
+	if err := h.CaptureNetworkDirectRooms(ctx, channel); err != nil {
+		return err
+	}
 	if err := h.CaptureNetworkMessages(ctx, channel); err != nil {
+		return err
+	}
+	if err := h.CaptureNetworkWork(ctx, channel); err != nil {
 		return err
 	}
 	return h.CaptureNetworkAudit()
