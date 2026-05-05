@@ -1229,7 +1229,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkSend,
 				Input: json.RawMessage(
-					`{"session_id":"sess-missing","channel":"default","kind":"say","body":{"text":"hello"}}`,
+					`{"session_id":"sess-missing","channel":"default","surface":"thread","thread_id":"thread_native_send","kind":"say","body":{"text":"hello"}}`,
 				),
 			},
 		)
@@ -1241,6 +1241,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if networkService.lastSend.SessionID != "sess-missing" {
 			t.Fatalf("SendRequest.SessionID = %q, want input session", networkService.lastSend.SessionID)
+		}
+		if networkService.lastSend.Surface == nil || *networkService.lastSend.Surface != network.SurfaceThread {
+			t.Fatalf("SendRequest.Surface = %v, want thread", networkService.lastSend.Surface)
 		}
 		if got, want := string(networkService.lastSend.Body), `{"text":"hello"}`; got != want {
 			t.Fatalf("SendRequest.Body = %s, want %s", got, want)

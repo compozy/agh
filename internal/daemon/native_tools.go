@@ -1061,18 +1061,21 @@ func (n *daemonNativeTools) networkSend(
 	}
 	sessionID := firstNonEmpty(input.SessionID, req.SessionID, scope.SessionID)
 	sendReq, err := core.NetworkSendRequestFromPayload(contract.NetworkSendRequest{
-		SessionID:     sessionID,
-		Channel:       strings.TrimSpace(input.Channel),
-		Kind:          strings.TrimSpace(input.Kind),
-		To:            strings.TrimSpace(input.To),
-		Body:          cloneJSON(input.Body),
-		InteractionID: strings.TrimSpace(input.InteractionID),
-		ReplyTo:       strings.TrimSpace(input.ReplyTo),
-		TraceID:       strings.TrimSpace(input.TraceID),
-		CausationID:   strings.TrimSpace(input.CausationID),
-		ExpiresAt:     input.ExpiresAt,
-		ID:            strings.TrimSpace(input.ID),
-		Ext:           map[string]json.RawMessage(cloneExtensionMap(input.Ext)),
+		SessionID:   sessionID,
+		Channel:     strings.TrimSpace(input.Channel),
+		Surface:     strings.TrimSpace(input.Surface),
+		ThreadID:    strings.TrimSpace(input.ThreadID),
+		DirectID:    strings.TrimSpace(input.DirectID),
+		Kind:        strings.TrimSpace(input.Kind),
+		To:          strings.TrimSpace(input.To),
+		Body:        cloneJSON(input.Body),
+		WorkID:      strings.TrimSpace(input.WorkID),
+		ReplyTo:     strings.TrimSpace(input.ReplyTo),
+		TraceID:     strings.TrimSpace(input.TraceID),
+		CausationID: strings.TrimSpace(input.CausationID),
+		ExpiresAt:   input.ExpiresAt,
+		ID:          strings.TrimSpace(input.ID),
+		Ext:         map[string]json.RawMessage(cloneExtensionMap(input.Ext)),
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkSendToolError(req.ToolID, err)
@@ -2238,18 +2241,21 @@ type networkInboxInput struct {
 }
 
 type networkSendInput struct {
-	SessionID     string               `json:"session_id,omitempty"`
-	Channel       string               `json:"channel"`
-	Kind          string               `json:"kind"`
-	To            string               `json:"to,omitempty"`
-	Body          json.RawMessage      `json:"body"`
-	InteractionID string               `json:"interaction_id,omitempty"`
-	ReplyTo       string               `json:"reply_to,omitempty"`
-	TraceID       string               `json:"trace_id,omitempty"`
-	CausationID   string               `json:"causation_id,omitempty"`
-	ExpiresAt     *int64               `json:"expires_at,omitempty"`
-	ID            string               `json:"id,omitempty"`
-	Ext           network.ExtensionMap `json:"ext,omitempty"`
+	SessionID   string               `json:"session_id,omitempty"`
+	Channel     string               `json:"channel"`
+	Surface     string               `json:"surface,omitempty"`
+	ThreadID    string               `json:"thread_id,omitempty"`
+	DirectID    string               `json:"direct_id,omitempty"`
+	Kind        string               `json:"kind"`
+	To          string               `json:"to,omitempty"`
+	Body        json.RawMessage      `json:"body"`
+	WorkID      string               `json:"work_id,omitempty"`
+	ReplyTo     string               `json:"reply_to,omitempty"`
+	TraceID     string               `json:"trace_id,omitempty"`
+	CausationID string               `json:"causation_id,omitempty"`
+	ExpiresAt   *int64               `json:"expires_at,omitempty"`
+	ID          string               `json:"id,omitempty"`
+	Ext         network.ExtensionMap `json:"ext,omitempty"`
 }
 
 type sessionListInput struct {

@@ -24,8 +24,10 @@ export const networkKeys = {
     query?: {
       after?: string | null;
       before?: string | null;
+      kind?: string | null;
       include_presence?: boolean | null;
       limit?: number | null;
+      work_id?: string | null;
     }
   ) =>
     [
@@ -33,6 +35,8 @@ export const networkKeys = {
       normalizeText(channel),
       normalizeText(query?.before),
       normalizeText(query?.after),
+      normalizeText(query?.kind),
+      normalizeText(query?.work_id),
       normalizeBool(query?.include_presence),
       normalizeLimit(query?.limit),
     ] as const,
@@ -46,8 +50,10 @@ export const networkKeys = {
     query?: {
       after?: string | null;
       before?: string | null;
+      kind?: string | null;
       include_presence?: boolean | null;
       limit?: number | null;
+      work_id?: string | null;
     }
   ) =>
     [
@@ -55,6 +61,8 @@ export const networkKeys = {
       normalizeText(peerId),
       normalizeText(query?.before),
       normalizeText(query?.after),
+      normalizeText(query?.kind),
+      normalizeText(query?.work_id),
       normalizeBool(query?.include_presence),
       normalizeLimit(query?.limit),
     ] as const,

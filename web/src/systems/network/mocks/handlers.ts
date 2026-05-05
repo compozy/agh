@@ -154,6 +154,13 @@ export const handlers: HttpHandler[] = [
     const channel = readRequiredString(body, "channel");
     const kind = readRequiredString(body, "kind");
 
+    if ((body != null && Object.hasOwn(body, "interaction_id")) || kind === "direct") {
+      return HttpResponse.json(
+        { error: "Use surface/direct_id/thread_id/work_id; legacy direct kind is not accepted." },
+        { status: 400 }
+      );
+    }
+
     if (!sessionId || !channel || !kind) {
       return HttpResponse.json(
         { error: "Session, channel, and kind are required." },
@@ -167,8 +174,11 @@ export const handlers: HttpHandler[] = [
         session_id: sessionId,
         channel,
         kind,
+        surface: readOptionalString(body, "surface"),
+        thread_id: readOptionalString(body, "thread_id"),
+        direct_id: readOptionalString(body, "direct_id"),
+        work_id: readOptionalString(body, "work_id"),
         to: readOptionalString(body, "to"),
-        interaction_id: readOptionalString(body, "interaction_id"),
         reply_to: readOptionalString(body, "reply_to"),
         trace_id: readOptionalString(body, "trace_id"),
         causation_id: readOptionalString(body, "causation_id"),

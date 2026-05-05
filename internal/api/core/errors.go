@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	"github.com/pedronauck/agh/internal/vault"
@@ -432,14 +434,22 @@ func StatusForNetworkError(err error) int {
 		return http.StatusOK
 	case errors.Is(err, ErrNetworkValidation):
 		return http.StatusBadRequest
-	case errors.Is(err, network.ErrLocalPeerNotFound), errors.Is(err, network.ErrTargetPeerNotFound):
+	case errors.Is(err, network.ErrLocalPeerNotFound),
+		errors.Is(err, network.ErrTargetPeerNotFound),
+		errors.Is(err, store.ErrNetworkConversationNotFound),
+		errors.Is(err, sql.ErrNoRows):
 		return http.StatusNotFound
+	case errors.Is(err, store.ErrNetworkDirectRoomCollision),
+		errors.Is(err, store.ErrNetworkWorkContainerMismatch),
+		errors.Is(err, store.ErrNetworkWorkClosed):
+		return http.StatusConflict
 	case errors.Is(err, network.ErrMissingField),
 		errors.Is(err, network.ErrInvalidField),
 		errors.Is(err, network.ErrInvalidKind),
 		errors.Is(err, network.ErrInvalidBody),
 		errors.Is(err, network.ErrExpired),
-		errors.Is(err, network.ErrReplayTooOld):
+		errors.Is(err, network.ErrReplayTooOld),
+		errors.Is(err, network.ErrLegacyFieldRejected):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError

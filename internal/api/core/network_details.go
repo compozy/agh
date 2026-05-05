@@ -1147,6 +1147,9 @@ func NetworkChannelMessagePayloadFromView(
 	return contract.NetworkChannelMessagePayload{
 		MessageID:          strings.TrimSpace(entry.MessageID),
 		Channel:            strings.TrimSpace(entry.Channel),
+		Surface:            strings.TrimSpace(entry.Surface),
+		ThreadID:           strings.TrimSpace(entry.ThreadID),
+		DirectID:           strings.TrimSpace(entry.DirectID),
 		Kind:               strings.TrimSpace(entry.Kind),
 		Direction:          strings.TrimSpace(entry.Direction),
 		PeerFrom:           strings.TrimSpace(entry.PeerFrom),
@@ -1154,7 +1157,7 @@ func NetworkChannelMessagePayloadFromView(
 		DisplayName:        displayName,
 		SessionID:          payloadSessionID,
 		Local:              local,
-		InteractionID:      strings.TrimSpace(entry.WorkID),
+		WorkID:             strings.TrimSpace(entry.WorkID),
 		ReplyTo:            strings.TrimSpace(entry.ReplyTo),
 		TraceID:            strings.TrimSpace(entry.TraceID),
 		CausationID:        strings.TrimSpace(entry.CausationID),

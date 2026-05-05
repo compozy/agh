@@ -12,7 +12,7 @@ import (
 type networkCorrelationExpectation struct {
 	MessageID       string
 	Kind            string
-	InteractionID   string
+	WorkID          string
 	ReplyTo         string
 	TraceID         string
 	AuditDirections []string
@@ -36,7 +36,7 @@ func validateNetworkCorrelationSurfaces(
 	}{
 		{label: "message id", needle: attributeNeedle("id", expectation.MessageID)},
 		{label: "kind", needle: attributeNeedle("kind", expectation.Kind)},
-		{label: "interaction", needle: attributeNeedle("interaction", expectation.InteractionID)},
+		{label: "work-id", needle: attributeNeedle("work-id", expectation.WorkID)},
 		{label: "reply-to", needle: attributeNeedle("reply-to", expectation.ReplyTo)},
 		{label: "trace-id", needle: attributeNeedle("trace-id", expectation.TraceID)},
 	}
@@ -124,21 +124,21 @@ func TestValidateNetworkCorrelationSurfacesUsesTargetedAttributes(t *testing.T) 
 			Parts: []transcript.UIMessagePart{
 				{
 					Type:  "text",
-					Text:  `<network-message id="msg_direct_01" kind="direct" interaction="int_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+					Text:  `<network-message id="msg_direct_01" kind="say" work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
 					State: "done",
 				},
 			},
 		},
 	}
 	audit := []store.NetworkAuditEntry{
-		{MessageID: "msg_direct_01", Direction: "sent", Kind: "direct"},
-		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "direct"},
+		{MessageID: "msg_direct_01", Direction: "sent", Kind: "say"},
+		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "say"},
 	}
 
 	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_01",
-		Kind:            "direct",
-		InteractionID:   "int_patch_42",
+		Kind:            "say",
+		WorkID:          "work_patch_42",
 		ReplyTo:         "msg_say_01",
 		TraceID:         "trace_ops_patch_42",
 		AuditDirections: []string{"sent", "delivered"},
@@ -155,7 +155,7 @@ func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *test
 			Role: transcript.UIRoleAssistant,
 			Parts: []transcript.UIMessagePart{{
 				Type:  "text",
-				Text:  `<network-message id="msg_direct_01" kind="direct"></network-message>`,
+				Text:  `<network-message id="msg_direct_01" kind="say"></network-message>`,
 				State: "done",
 			}},
 		},
@@ -164,21 +164,21 @@ func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *test
 			Parts: []transcript.UIMessagePart{
 				{
 					Type:  "text",
-					Text:  `<network-message interaction="int_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+					Text:  `<network-message work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
 					State: "done",
 				},
 			},
 		},
 	}
 	audit := []store.NetworkAuditEntry{
-		{MessageID: "msg_direct_01", Direction: "sent", Kind: "direct"},
-		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "direct"},
+		{MessageID: "msg_direct_01", Direction: "sent", Kind: "say"},
+		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "say"},
 	}
 
 	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_01",
-		Kind:            "direct",
-		InteractionID:   "int_patch_42",
+		Kind:            "say",
+		WorkID:          "work_patch_42",
 		ReplyTo:         "msg_say_01",
 		TraceID:         "trace_ops_patch_42",
 		AuditDirections: []string{"sent", "delivered"},
@@ -194,7 +194,7 @@ func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {
 		{
 			MessageID: "msg_direct_01",
 			Direction: "rejected",
-			Kind:      "direct",
+			Kind:      "say",
 			Reason:    "duplicate",
 		},
 	}
@@ -202,7 +202,7 @@ func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {
 	if err := validateNetworkAuditEntry(entries, networkAuditExpectation{
 		MessageID: "msg_direct_01",
 		Direction: "rejected",
-		Kind:      "direct",
+		Kind:      "say",
 		Reason:    "duplicate",
 	}); err != nil {
 		t.Fatalf("validateNetworkAuditEntry() error = %v", err)

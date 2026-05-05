@@ -100,6 +100,57 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 	})
 }
 
+func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "Should reject interaction id",
+			raw: `{
+				"session_id":"sess-a",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_launch_db",
+				"kind":"say",
+				"interaction_id":"legacy",
+				"body":{"text":"hello"}
+			}`,
+			want: "interaction_id",
+		},
+		{
+			name: "Should reject direct kind",
+			raw: `{
+				"session_id":"sess-a",
+				"channel":"builders",
+				"surface":"direct",
+				"direct_id":"direct_99401d24bee62651d189e5a561785466",
+				"kind":"direct",
+				"body":{"text":"hello"}
+			}`,
+			want: "kind direct",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var req contract.NetworkSendRequest
+			err := json.Unmarshal([]byte(tt.raw), &req)
+			if err == nil {
+				t.Fatalf("json.Unmarshal() error = nil, want rejection containing %q", tt.want)
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("json.Unmarshal() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestRuntimeActivityJSONPreservesZeroMetrics(t *testing.T) {
 	t.Run("Should preserve zero metrics in runtime activity payload", func(t *testing.T) {
 		t.Parallel()

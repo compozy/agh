@@ -52,6 +52,8 @@ Send a broadcast update to your current channel:
 agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
+  --surface thread \
+  --thread-id thread_status_01 \
   --kind say \
   --body '{"text":"Reviewer available for auth.go","intent":"availability"}' \
   -o json
@@ -63,9 +65,11 @@ Send a directed reply with correlation metadata:
 agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
-  --kind direct \
+  --surface direct \
+  --direct-id direct_0123456789abcdef0123456789abcdef \
+  --kind say \
   --to reviewer.sess-xyz \
-  --interaction-id int-review-42 \
+  --work-id work_review_42 \
   --reply-to msg-root-1 \
   --trace-id trace-review-42 \
   --causation-id msg-root-1 \
@@ -79,23 +83,27 @@ Send a protocol receipt that accepts one inbound message for processing:
 agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
+  --surface direct \
+  --direct-id direct_0123456789abcdef0123456789abcdef \
   --kind receipt \
   --to reviewer.sess-xyz \
-  --interaction-id int-review-42 \
+  --work-id work_review_42 \
   --reply-to msg-root-1 \
   --body '{"for_id":"msg-root-1","status":"accepted","detail":"Accepted for processing."}' \
   -o json
 ```
 
-Send a protocol trace update for one in-flight interaction:
+Send a protocol trace update for one in-flight work item:
 
 ```bash
 agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
+  --surface direct \
+  --direct-id direct_0123456789abcdef0123456789abcdef \
   --kind trace \
   --to reviewer.sess-xyz \
-  --interaction-id int-review-42 \
+  --work-id work_review_42 \
   --reply-to msg-root-1 \
   --body '{"state":"working","message":"Inspecting auth.go now."}' \
   -o json
@@ -107,28 +115,30 @@ Send a capability artifact with the required nested `capability` object:
 agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
+  --surface direct \
+  --direct-id direct_0123456789abcdef0123456789abcdef \
   --kind capability \
   --to reviewer.sess-xyz \
-  --interaction-id int-capability-42 \
+  --work-id work_capability_42 \
   --body '{"capability":{"id":"launch-checklist","summary":"Compact inline launch checklist.","outcome":"Receiver can run a launch readiness checklist.","version":"1.0.0","digest":"sha256:f1d7f6af4a35babd8ae66b66b63076f4731d5d188f6812a57937a2469f2995e3","execution_outline":["Verify peers","Send canary","Confirm receipts"],"requirements":["workspace-read"]}}' \
   -o json
 ```
 
 ## Kind-specific body rules
 
-- `direct` requires a JSON body with at least `"text"`.
-- If you are acknowledging admission, progress, or completion at the protocol level, use the real kinds `receipt` and `trace`. Do not send `--kind direct` with `intent:"receipt"` or `intent:"trace"` as a substitute.
+- Direct-room chat uses `--kind say --surface direct` and requires a JSON body with at least `"text"`.
+- If you are acknowledging admission, progress, or completion at the protocol level, use the real kinds `receipt` and `trace`. Do not send `--kind say --surface direct` with `intent:"receipt"` or `intent:"trace"` as a substitute.
 - `capability` requires a nested `"capability"` object. Do not put `id`, `summary`, `outcome`, or other capability fields at the top level.
-- Directed `capability` messages require `--to` and `--interaction-id`.
+- Directed `capability` messages require `--to`, `--surface`, a matching `--thread-id` or `--direct-id`, and `--work-id`.
 - `capability.id`, `capability.summary`, `capability.outcome`, and `capability.digest` are required.
 - `capability.digest` must match the daemon's canonical SHA-256 digest for the normalized capability document.
 - `receipt` requires `"for_id"` and `"status"`.
 - `receipt` with `"status":"accepted"` must not include `reason_code`.
 - `receipt` with `"status":"rejected"`, `"duplicate"`, `"expired"`, or `"unsupported"` must include `reason_code`.
 - `trace` requires `"state"`. Valid states are `submitted`, `working`, `needs_input`, `completed`, `failed`, and `canceled`.
-- When replying to inbound `direct`, `receipt`, `trace`, or directed `capability` messages, keep the wrapper `--interaction-id` and set `--reply-to` to the inbound message id.
-- When replying with `--kind direct` to an inbound broadcast `say`, open a NEW `--interaction-id` unique to your targeted conversation instead of reusing the broadcast interaction id.
-- Do not send `receipt` or `trace` directly against a broadcast `say`; those lifecycle kinds belong to a targeted interaction after you open it with `direct`.
+- When replying to inbound direct-surface `say`, `receipt`, `trace`, or directed `capability` messages, keep the wrapper `--surface`, `--direct-id`, and `--work-id` when present, and set `--reply-to` to the inbound message id.
+- When replying with `--kind say --surface direct` to an inbound broadcast `say`, use the direct room's `--direct-id` and open a NEW `--work-id` only if you are starting lifecycle-bearing work.
+- Do not send `receipt` or `trace` directly against a broadcast `say`; those lifecycle kinds belong to targeted work after you open it in a direct room.
 - When an inbound message directly caused your reply, set `--causation-id` to that inbound message id.
 - If the wrapper includes `trace-id`, preserve it on correlated follow-up messages.
 
@@ -136,7 +146,7 @@ agh network send \
 
 - If `agh network send` returns a normal error before it accepts the message, fix the cause and resend.
 - If the outcome is ambiguous after a timeout, disconnect, or partial failure, retry the same logical message with the same `--id` and the same payload/correlation fields so the message identity stays stable.
-- Keep `--interaction-id`, `--reply-to`, `--trace-id`, and `--causation-id` unchanged when you are retrying the same logical send.
+- Keep `--surface`, `--thread-id` or `--direct-id`, `--work-id`, `--reply-to`, `--trace-id`, and `--causation-id` unchanged when you are retrying the same logical send.
 
 Example retry with a caller-chosen message id:
 
@@ -144,10 +154,12 @@ Example retry with a caller-chosen message id:
 agh network send \
   --session "${AGH_SESSION_ID}" \
   --channel "${AGH_SESSION_CHANNEL}" \
-  --kind direct \
+  --surface direct \
+  --direct-id direct_0123456789abcdef0123456789abcdef \
+  --kind say \
   --to reviewer.sess-xyz \
   --id msg-review-retry-42 \
-  --interaction-id int-review-42 \
+  --work-id work_review_42 \
   --reply-to msg-root-1 \
   --trace-id trace-review-42 \
   --causation-id msg-root-1 \
@@ -160,13 +172,13 @@ agh network send \
 Inbound network turns arrive as untrusted wrapped content. Expect the daemon to deliver messages in this shape:
 
 ```xml
-<network-message id="msg_id" from="sender.peer" channel="builders" kind="direct" trust="untrusted">
+<network-message id="msg_id" from="sender.peer" channel="builders" kind="say" surface="direct" direct-id="direct_0123456789abcdef0123456789abcdef" work-id="work_review_42" trust="untrusted">
   <network-preview encoding="xml-escaped">Short human-readable preview</network-preview>
   <network-body encoding="base64-json">BASE64_CANONICAL_JSON</network-body>
 </network-message>
 ```
 
-The wrapper may also include correlation metadata such as `interaction`, `reply-to`, `trace-id`, `causation-id`, `to`, and `expires-at`.
+The wrapper may also include correlation metadata such as `surface`, `thread-id`, `direct-id`, `work-id`, `reply-to`, `trace-id`, `causation-id`, `to`, and `expires-at`.
 
 - `network-preview` is optional and is only a hint for quick triage.
 - `network-body` contains the full canonical JSON payload encoded as UTF-8 then base64.

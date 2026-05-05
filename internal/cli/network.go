@@ -89,22 +89,26 @@ func newNetworkChannelsCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func newNetworkSendCommand(deps commandDeps) *cobra.Command {
-	var (
-		sessionID     string
-		channel       string
-		kind          string
-		to            string
-		bodyRaw       string
-		interactionID string
-		replyTo       string
-		traceID       string
-		causationID   string
-		expiresAtRaw  string
-		id            string
-		extRaw        string
-	)
+type networkSendFlags struct {
+	sessionID    string
+	channel      string
+	surface      string
+	threadID     string
+	directID     string
+	kind         string
+	to           string
+	bodyRaw      string
+	workID       string
+	replyTo      string
+	traceID      string
+	causationID  string
+	expiresAtRaw string
+	id           string
+	extRaw       string
+}
 
+func newNetworkSendCommand(deps commandDeps) *cobra.Command {
+	var flags networkSendFlags
 	cmd := &cobra.Command{
 		Use:   "send",
 		Short: "Send one envelope through the daemon-owned network runtime",
@@ -114,35 +118,38 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			body, err := parseNetworkJSONValue("--body", bodyRaw)
+			body, err := parseNetworkJSONValue("--body", flags.bodyRaw)
 			if err != nil {
 				return err
 			}
-			ext, err := parseNetworkJSONObjectMap("--ext", extRaw)
+			ext, err := parseNetworkJSONObjectMap("--ext", flags.extRaw)
 			if err != nil {
 				return err
 			}
 			if err := validateNetworkSendNoRawClaimToken(body, ext); err != nil {
 				return err
 			}
-			expiresAt, err := parseNetworkExpiresAt(expiresAtRaw)
+			expiresAt, err := parseNetworkExpiresAt(flags.expiresAtRaw)
 			if err != nil {
 				return err
 			}
 
 			message, err := client.NetworkSend(cmd.Context(), NetworkSendRequest{
-				SessionID:     strings.TrimSpace(sessionID),
-				Channel:       strings.TrimSpace(channel),
-				Kind:          strings.TrimSpace(kind),
-				To:            strings.TrimSpace(to),
-				Body:          body,
-				InteractionID: strings.TrimSpace(interactionID),
-				ReplyTo:       strings.TrimSpace(replyTo),
-				TraceID:       strings.TrimSpace(traceID),
-				CausationID:   strings.TrimSpace(causationID),
-				ExpiresAt:     expiresAt,
-				ID:            strings.TrimSpace(id),
-				Ext:           ext,
+				SessionID:   strings.TrimSpace(flags.sessionID),
+				Channel:     strings.TrimSpace(flags.channel),
+				Surface:     strings.TrimSpace(flags.surface),
+				ThreadID:    strings.TrimSpace(flags.threadID),
+				DirectID:    strings.TrimSpace(flags.directID),
+				Kind:        strings.TrimSpace(flags.kind),
+				To:          strings.TrimSpace(flags.to),
+				Body:        body,
+				WorkID:      strings.TrimSpace(flags.workID),
+				ReplyTo:     strings.TrimSpace(flags.replyTo),
+				TraceID:     strings.TrimSpace(flags.traceID),
+				CausationID: strings.TrimSpace(flags.causationID),
+				ExpiresAt:   expiresAt,
+				ID:          strings.TrimSpace(flags.id),
+				Ext:         ext,
 			})
 			if err != nil {
 				return err
@@ -151,23 +158,30 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&sessionID, "session", "", "Local source session id")
-	cmd.Flags().StringVar(&channel, "channel", "", "Target channel")
-	cmd.Flags().StringVar(&kind, "kind", "", "Envelope kind")
-	cmd.Flags().StringVar(&to, "to", "", "Directed target peer id")
-	cmd.Flags().StringVar(&bodyRaw, "body", "", "Raw JSON object for the envelope body")
-	cmd.Flags().StringVar(&interactionID, "interaction-id", "", "Optional interaction id")
-	cmd.Flags().StringVar(&replyTo, "reply-to", "", "Optional reply-to message id")
-	cmd.Flags().StringVar(&traceID, "trace-id", "", "Optional trace id")
-	cmd.Flags().StringVar(&causationID, "causation-id", "", "Optional causation id")
-	cmd.Flags().StringVar(&expiresAtRaw, "expires-at", "", "Optional expiry as unix seconds or RFC3339")
-	cmd.Flags().StringVar(&id, "id", "", "Optional explicit message id")
-	cmd.Flags().StringVar(&extRaw, "ext", "", "Optional JSON object of extension metadata")
+	registerNetworkSendFlags(cmd, &flags)
 	mustMarkFlagRequired(cmd, "session")
 	mustMarkFlagRequired(cmd, "channel")
 	mustMarkFlagRequired(cmd, "kind")
 	mustMarkFlagRequired(cmd, "body")
 	return cmd
+}
+
+func registerNetworkSendFlags(cmd *cobra.Command, flags *networkSendFlags) {
+	cmd.Flags().StringVar(&flags.sessionID, "session", "", "Local source session id")
+	cmd.Flags().StringVar(&flags.channel, "channel", "", "Target channel")
+	cmd.Flags().StringVar(&flags.surface, "surface", "", "Conversation surface: thread or direct")
+	cmd.Flags().StringVar(&flags.threadID, "thread-id", "", "Thread id for thread-surface messages")
+	cmd.Flags().StringVar(&flags.directID, "direct-id", "", "Direct room id for direct-surface messages")
+	cmd.Flags().StringVar(&flags.kind, "kind", "", "Envelope kind")
+	cmd.Flags().StringVar(&flags.to, "to", "", "Directed target peer id")
+	cmd.Flags().StringVar(&flags.bodyRaw, "body", "", "Raw JSON object for the envelope body")
+	cmd.Flags().StringVar(&flags.workID, "work-id", "", "Optional work id")
+	cmd.Flags().StringVar(&flags.replyTo, "reply-to", "", "Optional reply-to message id")
+	cmd.Flags().StringVar(&flags.traceID, "trace-id", "", "Optional trace id")
+	cmd.Flags().StringVar(&flags.causationID, "causation-id", "", "Optional causation id")
+	cmd.Flags().StringVar(&flags.expiresAtRaw, "expires-at", "", "Optional expiry as unix seconds or RFC3339")
+	cmd.Flags().StringVar(&flags.id, "id", "", "Optional explicit message id")
+	cmd.Flags().StringVar(&flags.extRaw, "ext", "", "Optional JSON object of extension metadata")
 }
 
 func newNetworkInboxCommand(deps commandDeps) *cobra.Command {
@@ -330,9 +344,12 @@ func networkSendBundle(message NetworkSendRecord) outputBundle {
 				{Label: "ID", Value: stringOrDash(message.ID)},
 				{Label: "Session", Value: stringOrDash(message.SessionID)},
 				{Label: "Channel", Value: stringOrDash(message.Channel)},
+				{Label: "Surface", Value: stringOrDash(message.Surface)},
+				{Label: "Thread ID", Value: stringOrDash(message.ThreadID)},
+				{Label: "Direct ID", Value: stringOrDash(message.DirectID)},
 				{Label: "Kind", Value: stringOrDash(message.Kind)},
 				{Label: "To", Value: stringOrDash(message.To)},
-				{Label: "Interaction", Value: stringOrDash(message.InteractionID)},
+				{Label: "Work ID", Value: stringOrDash(message.WorkID)},
 				{Label: "Reply To", Value: stringOrDash(message.ReplyTo)},
 				{Label: "Trace ID", Value: stringOrDash(message.TraceID)},
 				{Label: "Causation ID", Value: stringOrDash(message.CausationID)},
@@ -345,9 +362,12 @@ func networkSendBundle(message NetworkSendRecord) outputBundle {
 				"id",
 				"session_id",
 				"channel",
+				"surface",
+				"thread_id",
+				"direct_id",
 				"kind",
 				"to",
-				"interaction_id",
+				"work_id",
 				"reply_to",
 				"trace_id",
 				"causation_id",
@@ -357,9 +377,12 @@ func networkSendBundle(message NetworkSendRecord) outputBundle {
 				message.ID,
 				message.SessionID,
 				message.Channel,
+				message.Surface,
+				message.ThreadID,
+				message.DirectID,
 				message.Kind,
 				message.To,
-				message.InteractionID,
+				message.WorkID,
 				message.ReplyTo,
 				message.TraceID,
 				message.CausationID,

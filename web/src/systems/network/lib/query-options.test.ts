@@ -56,6 +56,8 @@ describe("network query options", () => {
       "storybook",
       "",
       "",
+      "",
+      "",
       0,
       120,
     ]);
@@ -101,6 +103,8 @@ describe("network query options", () => {
       "peer_storybook_remote",
       "",
       "cursor_123",
+      "",
+      "",
       0,
       120,
     ]);
@@ -127,6 +131,8 @@ describe("network query options", () => {
       "channels",
       "messages",
       "storybook",
+      "",
+      "",
       "",
       "",
       1,

@@ -12,12 +12,14 @@ import type {
   NetworkChannelMessage,
   NetworkChannelMessagesQuery,
   NetworkChannelsResponse,
+  NetworkDirectRoomsResponse,
   NetworkPeerDetail,
   NetworkPeerMessagesQuery,
   NetworkPeerSummary,
   NetworkSendRequest,
   NetworkSendResponse,
   NetworkStatus,
+  NetworkThreadsResponse,
 } from "../types";
 
 export class NetworkApiError extends Error {
@@ -84,12 +86,18 @@ export async function listNetworkChannelMessages(
   query: NetworkChannelMessagesQuery = {},
   signal?: AbortSignal
 ): Promise<NetworkChannelMessage[]> {
+  const threads = await listNetworkThreads(channel, { limit: 1 }, signal);
+  const thread = threads.threads.at(0);
+  if (!thread) {
+    return [];
+  }
+
   const { data, error, response } = await apiClient.GET(
-    "/api/network/channels/{channel}/messages",
+    "/api/network/channels/{channel}/threads/{thread_id}/messages",
     {
       params: {
-        path: { channel },
-        query,
+        path: { channel, thread_id: thread.thread_id },
+        query: toConversationMessageQuery(query),
       },
       signal,
     }
@@ -107,6 +115,30 @@ export async function listNetworkChannelMessages(
   }
 
   return requireResponseData(data, response, `Failed to load messages for "${channel}"`).messages;
+}
+
+async function listNetworkThreads(
+  channel: string,
+  query: { after?: string; limit?: number } = {},
+  signal?: AbortSignal
+): Promise<NetworkThreadsResponse> {
+  const { data, error, response } = await apiClient.GET("/api/network/channels/{channel}/threads", {
+    params: { path: { channel }, query },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new NetworkApiError(`Channel not found: ${channel}`, 404);
+    }
+
+    throw new NetworkApiError(
+      defaultApiErrorMessage(`Failed to load threads for "${channel}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to load threads for "${channel}"`);
 }
 
 export async function listNetworkPeers(
@@ -158,13 +190,27 @@ export async function listNetworkPeerMessages(
   query: NetworkPeerMessagesQuery = {},
   signal?: AbortSignal
 ): Promise<NetworkChannelMessage[]> {
-  const { data, error, response } = await apiClient.GET("/api/network/peers/{peer_id}/messages", {
-    params: {
-      path: { peer_id: peerId },
-      query,
-    },
-    signal,
-  });
+  const peer = await getNetworkPeer(peerId, signal);
+  const channel = peer.channel;
+  if (!channel) {
+    return [];
+  }
+  const directs = await listNetworkDirectRooms(channel, { peer_id: peerId, limit: 1 }, signal);
+  const direct = directs.directs.at(0);
+  if (!direct) {
+    return [];
+  }
+
+  const { data, error, response } = await apiClient.GET(
+    "/api/network/channels/{channel}/directs/{direct_id}/messages",
+    {
+      params: {
+        path: { channel, direct_id: direct.direct_id },
+        query: toConversationMessageQuery(query),
+      },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
@@ -179,6 +225,56 @@ export async function listNetworkPeerMessages(
 
   return requireResponseData(data, response, `Failed to load direct history for "${peerId}"`)
     .messages;
+}
+
+async function listNetworkDirectRooms(
+  channel: string,
+  query: { after?: string; limit?: number; peer_id?: string } = {},
+  signal?: AbortSignal
+): Promise<NetworkDirectRoomsResponse> {
+  const { data, error, response } = await apiClient.GET("/api/network/channels/{channel}/directs", {
+    params: { path: { channel }, query },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new NetworkApiError(`Channel not found: ${channel}`, 404);
+    }
+
+    throw new NetworkApiError(
+      defaultApiErrorMessage(`Failed to load direct rooms for "${channel}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to load direct rooms for "${channel}"`);
+}
+
+function toConversationMessageQuery(query: NetworkChannelMessagesQuery) {
+  const supported: {
+    after?: string;
+    before?: string;
+    kind?: string;
+    limit?: number;
+    work_id?: string;
+  } = {};
+  if (query.after) {
+    supported.after = query.after;
+  }
+  if (query.before) {
+    supported.before = query.before;
+  }
+  if (query.kind) {
+    supported.kind = query.kind;
+  }
+  if (query.work_id) {
+    supported.work_id = query.work_id;
+  }
+  if (query.limit != null) {
+    supported.limit = query.limit;
+  }
+  return supported;
 }
 
 export async function createNetworkChannel(

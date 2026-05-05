@@ -97,7 +97,7 @@ func (h *BaseHandlers) AgentChannelRecv(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return
 	}
-	limit, err := parsePositiveIntQuery(c, "limit")
+	limit, err := parsePositiveIntQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return
@@ -857,7 +857,8 @@ func parseBoolQuery(c *gin.Context, key string) (bool, error) {
 	return parsed, nil
 }
 
-func parsePositiveIntQuery(c *gin.Context, key string) (int, error) {
+func parsePositiveIntQuery(c *gin.Context) (int, error) {
+	const key = "limit"
 	if c == nil {
 		return 0, nil
 	}

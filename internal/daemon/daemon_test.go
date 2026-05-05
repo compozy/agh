@@ -5516,6 +5516,64 @@ func (r *recordingRegistry) ListNetworkMessages(
 	return nil, nil
 }
 
+func (r *recordingRegistry) ResolveDirectRoom(
+	context.Context,
+	store.NetworkDirectRoomEntry,
+) (store.NetworkDirectRoomSummary, error) {
+	return store.NetworkDirectRoomSummary{}, nil
+}
+
+func (r *recordingRegistry) WriteConversationMessage(
+	context.Context,
+	store.NetworkConversationMessage,
+) (store.NetworkConversationWriteResult, error) {
+	return store.NetworkConversationWriteResult{}, nil
+}
+
+func (r *recordingRegistry) ListThreads(
+	context.Context,
+	string,
+	store.NetworkThreadQuery,
+) ([]store.NetworkThreadSummary, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) GetThread(
+	context.Context,
+	string,
+	string,
+) (store.NetworkThreadSummary, error) {
+	return store.NetworkThreadSummary{}, store.ErrNetworkConversationNotFound
+}
+
+func (r *recordingRegistry) ListDirectRooms(
+	context.Context,
+	string,
+	store.NetworkDirectRoomQuery,
+) ([]store.NetworkDirectRoomSummary, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) GetDirectRoom(
+	context.Context,
+	string,
+	string,
+) (store.NetworkDirectRoomSummary, error) {
+	return store.NetworkDirectRoomSummary{}, store.ErrNetworkConversationNotFound
+}
+
+func (r *recordingRegistry) ListConversationMessages(
+	context.Context,
+	store.NetworkConversationRef,
+	store.NetworkConversationMessageQuery,
+) ([]store.NetworkConversationMessage, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) GetWork(context.Context, string) (store.NetworkWorkEntry, error) {
+	return store.NetworkWorkEntry{}, store.ErrNetworkConversationNotFound
+}
+
 func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
 	return nil
 }

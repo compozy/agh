@@ -238,17 +238,20 @@ function directMessage(
   return {
     body: { text },
     channel: storyHeroNetworkChannel,
+    direct_id: "direct_story_launch_corridor",
     direction: options.direction,
     display_name: displayName,
-    kind: "direct",
+    kind: "say",
     local: options.local,
     message_id: messageId,
     peer_from: options.peerFrom,
     peer_to: options.peerTo,
     preview_text: text,
     session_id: options.sessionId,
+    surface: "direct",
     text,
     timestamp,
+    work_id: "work_story_launch_corridor",
   };
 }
 
@@ -424,8 +427,7 @@ export const networkChannelFixture: NetworkChannel = {
   created_at: "2026-04-17T14:00:00Z",
   created_by: storyAgentNames.product,
   kind_counts: [
-    { kind: "say", count: 12 },
-    { kind: "direct", count: 3 },
+    { kind: "say", count: 15 },
     { kind: "receipt", count: 3 },
     { kind: "capability", count: 1 },
     { kind: "whois", count: 2 },

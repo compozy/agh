@@ -603,6 +603,8 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		"network", "send",
 		"--session", sender.ID,
 		"--channel", "builders",
+		"--surface", "thread",
+		"--thread-id", "thread_cli_queued",
 		"--kind", "say",
 		"--body", `{"text":"queued hello"}`,
 		"--ext", `{"agh.workflow_id":"wf-1","agh.handoff_version":3}`,
@@ -670,7 +672,12 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 
 	sender := newSession("sender")
 	receiver := newSession("receiver")
+	senderPeerID := "coder." + sender.ID
 	receiverPeerID := "coder." + receiver.ID
+	directID, err := network.DirectRoomIdentity("builders", senderPeerID, receiverPeerID)
+	if err != nil {
+		t.Fatalf("DirectRoomIdentity() error = %v", err)
+	}
 
 	events, err := h.runner.blockSession(receiver.ID)
 	if err != nil {
@@ -690,9 +697,11 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 			"network", "send",
 			"--session", sender.ID,
 			"--channel", "builders",
-			"--kind", "direct",
+			"--surface", "direct",
+			"--direct-id", directID,
+			"--kind", "say",
 			"--to", receiverPeerID,
-			"--interaction-id", "int-review-1",
+			"--work-id", "work_review_1",
 			"--id", messageID,
 			"--body", fmt.Sprintf(`{"text":%q}`, text),
 			"-o", "json",

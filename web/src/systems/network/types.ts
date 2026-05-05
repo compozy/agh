@@ -1,4 +1,4 @@
-import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
+import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type NetworkStatusResponse = OperationResponse<"getNetworkStatus", 200>;
 export type NetworkStatus = NetworkStatusResponse["network"];
@@ -9,9 +9,27 @@ export type NetworkChannelSummary = NetworkChannelsResponse["channels"][number];
 export type NetworkChannelDetailResponse = OperationResponse<"getNetworkChannel", 200>;
 export type NetworkChannel = NetworkChannelDetailResponse["channel"];
 
-export type NetworkChannelMessagesResponse = OperationResponse<"listNetworkChannelMessages", 200>;
+export type NetworkThreadsResponse = OperationResponse<"listNetworkThreads", 200>;
+export type NetworkThreadSummary = NetworkThreadsResponse["threads"][number];
+export type NetworkThreadMessagesResponse = OperationResponse<"listNetworkThreadMessages", 200>;
+export type NetworkDirectRoomsResponse = OperationResponse<"listNetworkDirectRooms", 200>;
+export type NetworkDirectRoomSummary = NetworkDirectRoomsResponse["directs"][number];
+export type NetworkDirectRoomMessagesResponse = OperationResponse<
+  "listNetworkDirectRoomMessages",
+  200
+>;
+
+export type NetworkChannelMessagesResponse = NetworkThreadMessagesResponse;
 export type NetworkChannelMessage = NetworkChannelMessagesResponse["messages"][number];
-export type NetworkChannelMessagesQuery = OperationQuery<"listNetworkChannelMessages">;
+export interface NetworkConversationMessagesQuery {
+  after?: string | null | undefined;
+  before?: string | null | undefined;
+  include_presence?: boolean | null;
+  kind?: string | null | undefined;
+  limit?: number | null | undefined;
+  work_id?: string | null | undefined;
+}
+export type NetworkChannelMessagesQuery = NetworkConversationMessagesQuery;
 export type NetworkTimelineMessage = NetworkChannelMessage;
 
 export type NetworkPeersResponse = OperationResponse<"listNetworkPeers", 200>;
@@ -19,8 +37,8 @@ export type NetworkPeerSummary = NetworkPeersResponse["peers"][number];
 
 export type NetworkPeerDetailResponse = OperationResponse<"getNetworkPeer", 200>;
 export type NetworkPeerDetail = NetworkPeerDetailResponse["peer"];
-export type NetworkPeerMessagesResponse = OperationResponse<"listNetworkPeerMessages", 200>;
-export type NetworkPeerMessagesQuery = OperationQuery<"listNetworkPeerMessages">;
+export type NetworkPeerMessagesResponse = NetworkDirectRoomMessagesResponse;
+export type NetworkPeerMessagesQuery = NetworkConversationMessagesQuery;
 
 export type NetworkPeerCard = NetworkPeerSummary["peer_card"];
 export type NetworkCapabilityBrief = NetworkPeerCard["capabilities"][number];

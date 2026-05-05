@@ -96,6 +96,7 @@ type Registry interface {
 	observe.Registry
 	store.NetworkAuditStore
 	store.NetworkChannelStore
+	store.NetworkConversationStore
 	store.NetworkMessageStore
 	workspacepkg.Store
 }

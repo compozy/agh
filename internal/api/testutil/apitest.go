@@ -1012,6 +1012,29 @@ type StubNetworkService struct {
 }
 
 type StubNetworkStore struct {
+	ResolveDirectRoomFn        func(context.Context, store.NetworkDirectRoomEntry) (store.NetworkDirectRoomSummary, error)
+	WriteConversationMessageFn func(
+		context.Context,
+		store.NetworkConversationMessage,
+	) (store.NetworkConversationWriteResult, error)
+	ListThreadsFn func(
+		context.Context,
+		string,
+		store.NetworkThreadQuery,
+	) ([]store.NetworkThreadSummary, error)
+	GetThreadFn       func(context.Context, string, string) (store.NetworkThreadSummary, error)
+	ListDirectRoomsFn func(
+		context.Context,
+		string,
+		store.NetworkDirectRoomQuery,
+	) ([]store.NetworkDirectRoomSummary, error)
+	GetDirectRoomFn            func(context.Context, string, string) (store.NetworkDirectRoomSummary, error)
+	ListConversationMessagesFn func(
+		context.Context,
+		store.NetworkConversationRef,
+		store.NetworkConversationMessageQuery,
+	) ([]store.NetworkConversationMessage, error)
+	GetWorkFn              func(context.Context, string) (store.NetworkWorkEntry, error)
 	GetNetworkChannelFn    func(context.Context, string) (store.NetworkChannelEntry, error)
 	ListNetworkChannelsFn  func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
 	WriteNetworkChannelFn  func(context.Context, store.NetworkChannelEntry) error
@@ -1111,6 +1134,88 @@ func (s StubNetworkStore) DeleteNetworkChannel(ctx context.Context, channel stri
 		return s.DeleteNetworkChannelFn(ctx, channel)
 	}
 	return nil
+}
+
+func (s StubNetworkStore) ResolveDirectRoom(
+	ctx context.Context,
+	entry store.NetworkDirectRoomEntry,
+) (store.NetworkDirectRoomSummary, error) {
+	if s.ResolveDirectRoomFn != nil {
+		return s.ResolveDirectRoomFn(ctx, entry)
+	}
+	return store.NetworkDirectRoomSummary{}, nil
+}
+
+func (s StubNetworkStore) WriteConversationMessage(
+	ctx context.Context,
+	entry store.NetworkConversationMessage,
+) (store.NetworkConversationWriteResult, error) {
+	if s.WriteConversationMessageFn != nil {
+		return s.WriteConversationMessageFn(ctx, entry)
+	}
+	return store.NetworkConversationWriteResult{}, nil
+}
+
+func (s StubNetworkStore) ListThreads(
+	ctx context.Context,
+	channel string,
+	query store.NetworkThreadQuery,
+) ([]store.NetworkThreadSummary, error) {
+	if s.ListThreadsFn != nil {
+		return s.ListThreadsFn(ctx, channel, query)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) GetThread(
+	ctx context.Context,
+	channel string,
+	threadID string,
+) (store.NetworkThreadSummary, error) {
+	if s.GetThreadFn != nil {
+		return s.GetThreadFn(ctx, channel, threadID)
+	}
+	return store.NetworkThreadSummary{}, store.ErrNetworkConversationNotFound
+}
+
+func (s StubNetworkStore) ListDirectRooms(
+	ctx context.Context,
+	channel string,
+	query store.NetworkDirectRoomQuery,
+) ([]store.NetworkDirectRoomSummary, error) {
+	if s.ListDirectRoomsFn != nil {
+		return s.ListDirectRoomsFn(ctx, channel, query)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) GetDirectRoom(
+	ctx context.Context,
+	channel string,
+	directID string,
+) (store.NetworkDirectRoomSummary, error) {
+	if s.GetDirectRoomFn != nil {
+		return s.GetDirectRoomFn(ctx, channel, directID)
+	}
+	return store.NetworkDirectRoomSummary{}, store.ErrNetworkConversationNotFound
+}
+
+func (s StubNetworkStore) ListConversationMessages(
+	ctx context.Context,
+	ref store.NetworkConversationRef,
+	query store.NetworkConversationMessageQuery,
+) ([]store.NetworkConversationMessage, error) {
+	if s.ListConversationMessagesFn != nil {
+		return s.ListConversationMessagesFn(ctx, ref, query)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) GetWork(ctx context.Context, workID string) (store.NetworkWorkEntry, error) {
+	if s.GetWorkFn != nil {
+		return s.GetWorkFn(ctx, workID)
+	}
+	return store.NetworkWorkEntry{}, store.ErrNetworkConversationNotFound
 }
 
 func (s StubNetworkStore) ListNetworkMessages(
