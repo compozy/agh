@@ -166,7 +166,10 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 	}
 	if len(sent) != 2 ||
 		sent[1].SessionID != "sess-agent" ||
-		sent[1].Kind != network.KindDirect ||
+		sent[1].Kind != network.KindSay ||
+		sent[1].Surface == nil ||
+		*sent[1].Surface != network.SurfaceDirect ||
+		sent[1].DirectID == nil ||
 		sent[1].To == nil ||
 		*sent[1].To != "reviewer.sess-peer" ||
 		sent[1].ReplyTo == nil ||

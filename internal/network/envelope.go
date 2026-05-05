@@ -5,6 +5,7 @@ package network
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // ProtocolV0 is the RFC v0 wire protocol identifier.
@@ -17,7 +18,6 @@ const (
 	KindGreet      Kind = "greet"
 	KindWhois      Kind = "whois"
 	KindSay        Kind = "say"
-	KindDirect     Kind = "direct"
 	KindCapability Kind = "capability"
 	KindReceipt    Kind = "receipt"
 	KindTrace      Kind = "trace"
@@ -27,7 +27,6 @@ var validKinds = map[Kind]struct{}{
 	KindGreet:      {},
 	KindWhois:      {},
 	KindSay:        {},
-	KindDirect:     {},
 	KindCapability: {},
 	KindReceipt:    {},
 	KindTrace:      {},
@@ -37,6 +36,27 @@ var validKinds = map[Kind]struct{}{
 func (k Kind) Validate() error {
 	if _, ok := validKinds[k]; !ok {
 		return fmt.Errorf("%w: kind=%q", ErrInvalidKind, string(k))
+	}
+	return nil
+}
+
+// Surface identifies the conversation container class for one message.
+type Surface string
+
+const (
+	SurfaceThread Surface = "thread"
+	SurfaceDirect Surface = "direct"
+)
+
+var validSurfaces = map[Surface]struct{}{
+	SurfaceThread: {},
+	SurfaceDirect: {},
+}
+
+// Validate reports whether the surface is one of the documented values.
+func (s Surface) Validate() error {
+	if _, ok := validSurfaces[s]; !ok {
+		return fmt.Errorf("%w: surface=%q", ErrInvalidField, string(s))
 	}
 	return nil
 }
@@ -95,31 +115,39 @@ func (t WhoisType) Validate() error {
 type ReasonCode string
 
 const (
-	ReasonCodeMalformed          ReasonCode = "malformed"
-	ReasonCodeExpired            ReasonCode = "expired"
-	ReasonCodeDuplicate          ReasonCode = "duplicate"
-	ReasonCodeUnsupportedKind    ReasonCode = "unsupported_kind"
-	ReasonCodeUnsupportedProfile ReasonCode = "unsupported_profile"
-	ReasonCodeVerificationFailed ReasonCode = "verification_failed"
-	ReasonCodeNotTarget          ReasonCode = "not_target"
-	ReasonCodeNotFound           ReasonCode = "not_found"
-	ReasonCodeBusy               ReasonCode = "busy"
-	ReasonCodeInternal           ReasonCode = "internal"
-	ReasonCodeInteractionClosed  ReasonCode = "interaction_closed"
+	ReasonCodeMalformed             ReasonCode = "malformed"
+	ReasonCodeExpired               ReasonCode = "expired"
+	ReasonCodeDuplicate             ReasonCode = "duplicate"
+	ReasonCodeUnsupportedKind       ReasonCode = "unsupported_kind"
+	ReasonCodeUnsupportedProfile    ReasonCode = "unsupported_profile"
+	ReasonCodeVerificationFailed    ReasonCode = "verification_failed"
+	ReasonCodeNotTarget             ReasonCode = "not_target"
+	ReasonCodeNotFound              ReasonCode = "not_found"
+	ReasonCodeBusy                  ReasonCode = "busy"
+	ReasonCodeInternal              ReasonCode = "internal"
+	ReasonCodeInvalidSurface        ReasonCode = "invalid_surface"
+	ReasonCodeConversationNotFound  ReasonCode = "conversation_not_found"
+	ReasonCodeWorkClosed            ReasonCode = "work_closed"
+	ReasonCodeWorkContainerMismatch ReasonCode = "work_container_mismatch"
+	ReasonCodeLegacyFieldRejected   ReasonCode = "legacy_field_rejected"
 )
 
 var validReasonCodes = map[ReasonCode]struct{}{
-	ReasonCodeMalformed:          {},
-	ReasonCodeExpired:            {},
-	ReasonCodeDuplicate:          {},
-	ReasonCodeUnsupportedKind:    {},
-	ReasonCodeUnsupportedProfile: {},
-	ReasonCodeVerificationFailed: {},
-	ReasonCodeNotTarget:          {},
-	ReasonCodeNotFound:           {},
-	ReasonCodeBusy:               {},
-	ReasonCodeInternal:           {},
-	ReasonCodeInteractionClosed:  {},
+	ReasonCodeMalformed:             {},
+	ReasonCodeExpired:               {},
+	ReasonCodeDuplicate:             {},
+	ReasonCodeUnsupportedKind:       {},
+	ReasonCodeUnsupportedProfile:    {},
+	ReasonCodeVerificationFailed:    {},
+	ReasonCodeNotTarget:             {},
+	ReasonCodeNotFound:              {},
+	ReasonCodeBusy:                  {},
+	ReasonCodeInternal:              {},
+	ReasonCodeInvalidSurface:        {},
+	ReasonCodeConversationNotFound:  {},
+	ReasonCodeWorkClosed:            {},
+	ReasonCodeWorkContainerMismatch: {},
+	ReasonCodeLegacyFieldRejected:   {},
 }
 
 // Validate reports whether the reason code belongs to the v0 registry.
@@ -130,31 +158,31 @@ func (r ReasonCode) Validate() error {
 	return nil
 }
 
-// InteractionState identifies one RFC interaction lifecycle state.
-type InteractionState string
+// WorkState identifies one RFC work lifecycle state.
+type WorkState string
 
 const (
-	StateSubmitted  InteractionState = "submitted"
-	StateWorking    InteractionState = "working"
-	StateNeedsInput InteractionState = "needs_input"
-	StateCompleted  InteractionState = "completed"
-	StateFailed     InteractionState = "failed"
-	StateCanceled   InteractionState = "canceled"
+	WorkStateSubmitted  WorkState = "submitted"
+	WorkStateWorking    WorkState = "working"
+	WorkStateNeedsInput WorkState = "needs_input"
+	WorkStateCompleted  WorkState = "completed"
+	WorkStateFailed     WorkState = "failed"
+	WorkStateCanceled   WorkState = "canceled"
 )
 
-var validInteractionStates = map[InteractionState]struct{}{
-	StateSubmitted:  {},
-	StateWorking:    {},
-	StateNeedsInput: {},
-	StateCompleted:  {},
-	StateFailed:     {},
-	StateCanceled:   {},
+var validWorkStates = map[WorkState]struct{}{
+	WorkStateSubmitted:  {},
+	WorkStateWorking:    {},
+	WorkStateNeedsInput: {},
+	WorkStateCompleted:  {},
+	WorkStateFailed:     {},
+	WorkStateCanceled:   {},
 }
 
-// Validate reports whether the interaction state is documented by the RFC.
-func (s InteractionState) Validate() error {
-	if _, ok := validInteractionStates[s]; !ok {
-		return fmt.Errorf("%w: interaction state=%q", ErrInvalidField, string(s))
+// Validate reports whether the work state is documented by the RFC.
+func (s WorkState) Validate() error {
+	if _, ok := validWorkStates[s]; !ok {
+		return fmt.Errorf("%w: work state=%q", ErrInvalidField, string(s))
 	}
 	return nil
 }
@@ -167,21 +195,38 @@ type ExtensionMap map[string]json.RawMessage
 
 // Envelope is the shared AGH Network v0 wire envelope.
 type Envelope struct {
-	Protocol      string          `json:"protocol"`
-	ID            string          `json:"id"`
-	Kind          Kind            `json:"kind"`
-	Channel       string          `json:"channel"`
-	From          string          `json:"from"`
-	To            *string         `json:"to"`
-	InteractionID *string         `json:"interaction_id,omitempty"`
-	ReplyTo       *string         `json:"reply_to,omitempty"`
-	TraceID       *string         `json:"trace_id,omitempty"`
-	CausationID   *string         `json:"causation_id,omitempty"`
-	TS            int64           `json:"ts"`
-	ExpiresAt     *int64          `json:"expires_at,omitempty"`
-	Body          json.RawMessage `json:"body"`
-	Proof         *Proof          `json:"proof"`
-	Ext           ExtensionMap    `json:"ext,omitempty"`
+	Protocol    string          `json:"protocol"`
+	ID          string          `json:"id"`
+	Kind        Kind            `json:"kind"`
+	Channel     string          `json:"channel"`
+	Surface     *Surface        `json:"surface,omitempty"`
+	ThreadID    *string         `json:"thread_id,omitempty"`
+	DirectID    *string         `json:"direct_id,omitempty"`
+	From        string          `json:"from"`
+	To          *string         `json:"to,omitempty"`
+	WorkID      *string         `json:"work_id,omitempty"`
+	ReplyTo     *string         `json:"reply_to,omitempty"`
+	TraceID     *string         `json:"trace_id,omitempty"`
+	CausationID *string         `json:"causation_id,omitempty"`
+	TS          int64           `json:"ts"`
+	ExpiresAt   *int64          `json:"expires_at,omitempty"`
+	Body        json.RawMessage `json:"body"`
+	Proof       *Proof          `json:"proof"`
+	Ext         ExtensionMap    `json:"ext,omitempty"`
+}
+
+// UnmarshalJSON rejects obsolete hard-cut wire fields before decoding.
+func (e *Envelope) UnmarshalJSON(data []byte) error {
+	if err := rejectLegacyEnvelopeFields(data); err != nil {
+		return err
+	}
+	type envelopeAlias Envelope
+	var decoded envelopeAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*e = Envelope(decoded)
+	return nil
 }
 
 // IsDirected reports whether the envelope targets a specific peer.
@@ -199,6 +244,72 @@ func (e Envelope) DecodeBody() (Body, error) {
 	return DecodeBody(e.Kind, e.Body)
 }
 
+// ConversationRef identifies exactly one conversation container.
+type ConversationRef struct {
+	Channel  string
+	Surface  Surface
+	ThreadID string
+	DirectID string
+}
+
+// Validate reports whether the reference identifies exactly one container.
+func (r ConversationRef) Validate() error {
+	channel := strings.TrimSpace(r.Channel)
+	if channel == "" {
+		return fmt.Errorf("%w: channel is required", ErrMissingField)
+	}
+	if err := ValidateChannel(channel); err != nil {
+		return fmt.Errorf("validate conversation channel: %w", err)
+	}
+	surface := Surface(strings.TrimSpace(string(r.Surface)))
+	if err := surface.Validate(); err != nil {
+		return err
+	}
+	threadID := strings.TrimSpace(r.ThreadID)
+	directID := strings.TrimSpace(r.DirectID)
+	switch surface {
+	case SurfaceThread:
+		if err := ValidateConversationID(threadID, "thread_id"); err != nil {
+			return err
+		}
+		if directID != "" {
+			return fmt.Errorf("%w: direct_id must be absent for surface=%q", ErrInvalidField, surface)
+		}
+	case SurfaceDirect:
+		if err := ValidateConversationID(directID, "direct_id"); err != nil {
+			return err
+		}
+		if threadID != "" {
+			return fmt.Errorf("%w: thread_id must be absent for surface=%q", ErrInvalidField, surface)
+		}
+	}
+	return nil
+}
+
+// ContainerKey returns a stable channel/surface/container key.
+func (r ConversationRef) ContainerKey() string {
+	channel := strings.TrimSpace(r.Channel)
+	surface := Surface(strings.TrimSpace(string(r.Surface)))
+	switch surface {
+	case SurfaceThread:
+		return channel + "\x00" + string(surface) + "\x00" + strings.TrimSpace(r.ThreadID)
+	case SurfaceDirect:
+		return channel + "\x00" + string(surface) + "\x00" + strings.TrimSpace(r.DirectID)
+	default:
+		return channel + "\x00" + string(surface)
+	}
+}
+
+// IsThread reports whether the reference targets a public thread.
+func (r ConversationRef) IsThread() bool {
+	return Surface(strings.TrimSpace(string(r.Surface))) == SurfaceThread
+}
+
+// IsDirect reports whether the reference targets a direct room.
+func (r ConversationRef) IsDirect() bool {
+	return Surface(strings.TrimSpace(string(r.Surface))) == SurfaceDirect
+}
+
 // Body is the typed representation of one envelope body.
 type Body interface {
 	Kind() Kind
@@ -208,7 +319,6 @@ var (
 	_ Body = GreetBody{}
 	_ Body = WhoisBody{}
 	_ Body = SayBody{}
-	_ Body = DirectBody{}
 	_ Body = CapabilityBody{}
 	_ Body = ReceiptBody{}
 	_ Body = TraceBody{}
@@ -254,16 +364,6 @@ type SayBody struct {
 // Kind returns the wire kind for the body.
 func (SayBody) Kind() Kind { return KindSay }
 
-// DirectBody carries targeted interaction content.
-type DirectBody struct {
-	Text      string            `json:"text"`
-	Intent    string            `json:"intent,omitempty"`
-	Artifacts []json.RawMessage `json:"artifacts,omitempty"`
-}
-
-// Kind returns the wire kind for the body.
-func (DirectBody) Kind() Kind { return KindDirect }
-
 // CapabilityBody carries or advertises one transferable capability artifact.
 type CapabilityBody struct {
 	Capability CapabilityEnvelopePayload `json:"capability"`
@@ -298,9 +398,9 @@ type ReceiptBody struct {
 // Kind returns the wire kind for the body.
 func (ReceiptBody) Kind() Kind { return KindReceipt }
 
-// TraceBody reports progress or terminal outcome for an interaction.
+// TraceBody reports progress or terminal outcome for work.
 type TraceBody struct {
-	State        InteractionState  `json:"state"`
+	State        WorkState         `json:"state"`
 	Message      string            `json:"message,omitempty"`
 	Result       json.RawMessage   `json:"result,omitempty"`
 	ArtifactRefs []json.RawMessage `json:"artifact_refs,omitempty"`

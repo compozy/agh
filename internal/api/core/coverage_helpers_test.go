@@ -629,7 +629,7 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 				Direction:   network.AuditDirectionSent,
 				PeerFrom:    "peer-1",
 				PeerTo:      "peer-2",
-				Kind:        string(network.KindDirect),
+				Kind:        string(network.KindSay),
 				SessionID:   "sess-1",
 				PreviewText: "hello from preview",
 				Body:        json.RawMessage(`{"text":"hello from preview"}`),

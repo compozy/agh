@@ -81,28 +81,28 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 			registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
 	}, "peer discovery")
 
-	if _, err := routerA.Send(ctx, SendRequest{
-		SessionID:     "sess-a",
-		Channel:       "builders",
-		Kind:          KindDirect,
-		To:            stringPtr(peerB.PeerID),
-		InteractionID: stringPtr("int_direct_integration"),
-		Body:          mustRawJSON(t, DirectBody{Text: "please review"}),
-	}); err != nil {
+	if _, err := routerA.Send(ctx, withTestConversation(SendRequest{
+		SessionID: "sess-a",
+		Channel:   "builders",
+		Kind:      KindSay,
+		To:        stringPtr(peerB.PeerID),
+		WorkID:    stringPtr("int_direct_integration"),
+		Body:      mustRawJSON(t, SayBody{Text: "please review"}),
+	})); err != nil {
 		t.Fatalf("routerA.Send(direct) error = %v", err)
 	}
 
-	directResult := waitForDelivery(t, ctx, resultsB, "sess-b", KindDirect)
+	directResult := waitForDelivery(t, ctx, resultsB, "sess-b", KindSay)
 	if got, want := directResult.Deliveries[0].Envelope.From, peerA.PeerID; got != want {
 		t.Fatalf("direct From = %q, want %q", got, want)
 	}
 
-	if _, err := routerB.Send(ctx, SendRequest{
+	if _, err := routerB.Send(ctx, withTestConversation(SendRequest{
 		SessionID: "sess-b",
 		Channel:   "builders",
 		Kind:      KindSay,
 		Body:      mustRawJSON(t, SayBody{Text: "broadcast update"}),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("routerB.Send(say) error = %v", err)
 	}
 
@@ -183,7 +183,7 @@ func TestRoutersExchangeBroadcastCapabilityTransfers(t *testing.T) {
 				registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
 		}, "peer discovery")
 
-		if _, err := routerA.Send(ctx, SendRequest{
+		if _, err := routerA.Send(ctx, withTestConversation(SendRequest{
 			SessionID: "sess-a",
 			Channel:   "builders",
 			Kind:      KindCapability,
@@ -195,7 +195,7 @@ func TestRoutersExchangeBroadcastCapabilityTransfers(t *testing.T) {
 				ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
 				Requirements:     []string{"workspace-write"},
 			}),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("routerA.Send(capability broadcast) error = %v", err)
 		}
 
@@ -288,14 +288,14 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 				registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
 		}, "peer discovery")
 
-		const interactionID = "int_capability_lifecycle"
+		const workID = "int_capability_lifecycle"
 
-		if _, err := routerA.Send(ctx, SendRequest{
-			SessionID:     "sess-a",
-			Channel:       "builders",
-			Kind:          KindCapability,
-			To:            stringPtr(peerB.PeerID),
-			InteractionID: stringPtr(interactionID),
+		if _, err := routerA.Send(ctx, withTestConversation(SendRequest{
+			SessionID: "sess-a",
+			Channel:   "builders",
+			Kind:      KindCapability,
+			To:        stringPtr(peerB.PeerID),
+			WorkID:    stringPtr(workID),
 			Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 				ID:               "review-fix",
 				Summary:          "Review fix flow",
@@ -304,7 +304,7 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 				ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
 				Requirements:     []string{"workspace-write"},
 			}),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("routerA.Send(capability directed) error = %v", err)
 		}
 
@@ -314,18 +314,18 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 		}
 		capabilityEnvelope := capabilityResult.Deliveries[0].Envelope
 
-		if _, err := routerB.Send(ctx, SendRequest{
-			SessionID:     "sess-b",
-			Channel:       "builders",
-			Kind:          KindTrace,
-			To:            stringPtr(peerA.PeerID),
-			InteractionID: stringPtr(interactionID),
-			ReplyTo:       stringPtr(capabilityEnvelope.ID),
+		if _, err := routerB.Send(ctx, withTestConversation(SendRequest{
+			SessionID: "sess-b",
+			Channel:   "builders",
+			Kind:      KindTrace,
+			To:        stringPtr(peerA.PeerID),
+			WorkID:    stringPtr(workID),
+			ReplyTo:   stringPtr(capabilityEnvelope.ID),
 			Body: mustRawJSON(t, TraceBody{
-				State:   StateNeedsInput,
+				State:   WorkStateNeedsInput,
 				Message: "need more detail",
 			}),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("routerB.Send(trace needs_input) error = %v", err)
 		}
 
@@ -334,43 +334,43 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DecodeBody(trace needs_input) error = %v", err)
 		}
-		if got, want := traceNeedsInputBody.(TraceBody).State, StateNeedsInput; got != want {
+		if got, want := traceNeedsInputBody.(TraceBody).State, WorkStateNeedsInput; got != want {
 			t.Fatalf("trace needs_input state = %q, want %q", got, want)
 		}
 
-		if _, err := routerA.Send(ctx, SendRequest{
-			SessionID:     "sess-a",
-			Channel:       "builders",
-			Kind:          KindDirect,
-			To:            stringPtr(peerB.PeerID),
-			InteractionID: stringPtr(interactionID),
-			ReplyTo:       stringPtr(traceNeedsInput.Deliveries[0].Envelope.ID),
-			Body:          mustRawJSON(t, DirectBody{Text: "here is the missing detail", Intent: "reply"}),
-		}); err != nil {
+		if _, err := routerA.Send(ctx, withTestConversation(SendRequest{
+			SessionID: "sess-a",
+			Channel:   "builders",
+			Kind:      KindSay,
+			To:        stringPtr(peerB.PeerID),
+			WorkID:    stringPtr(workID),
+			ReplyTo:   stringPtr(traceNeedsInput.Deliveries[0].Envelope.ID),
+			Body:      mustRawJSON(t, SayBody{Text: "here is the missing detail", Intent: "reply"}),
+		})); err != nil {
 			t.Fatalf("routerA.Send(direct follow-up) error = %v", err)
 		}
 
-		directResult := waitForDelivery(t, ctx, resultsB, "sess-b", KindDirect)
+		directResult := waitForDelivery(t, ctx, resultsB, "sess-b", KindSay)
 		directBody, err := directResult.Deliveries[0].Envelope.DecodeBody()
 		if err != nil {
 			t.Fatalf("DecodeBody(direct follow-up) error = %v", err)
 		}
-		if got, want := directBody.(DirectBody).Text, "here is the missing detail"; got != want {
+		if got, want := directBody.(SayBody).Text, "here is the missing detail"; got != want {
 			t.Fatalf("direct follow-up text = %q, want %q", got, want)
 		}
 
-		if _, err := routerB.Send(ctx, SendRequest{
-			SessionID:     "sess-b",
-			Channel:       "builders",
-			Kind:          KindTrace,
-			To:            stringPtr(peerA.PeerID),
-			InteractionID: stringPtr(interactionID),
-			ReplyTo:       stringPtr(directResult.Deliveries[0].Envelope.ID),
+		if _, err := routerB.Send(ctx, withTestConversation(SendRequest{
+			SessionID: "sess-b",
+			Channel:   "builders",
+			Kind:      KindTrace,
+			To:        stringPtr(peerA.PeerID),
+			WorkID:    stringPtr(workID),
+			ReplyTo:   stringPtr(directResult.Deliveries[0].Envelope.ID),
 			Body: mustRawJSON(t, TraceBody{
-				State:   StateCompleted,
+				State:   WorkStateCompleted,
 				Message: "completed",
 			}),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("routerB.Send(trace completed) error = %v", err)
 		}
 
@@ -379,17 +379,17 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DecodeBody(trace completed) error = %v", err)
 		}
-		if got, want := traceCompletedBody.(TraceBody).State, StateCompleted; got != want {
+		if got, want := traceCompletedBody.(TraceBody).State, WorkStateCompleted; got != want {
 			t.Fatalf("trace completed state = %q, want %q", got, want)
 		}
 
-		if _, err := routerA.Send(ctx, SendRequest{
-			SessionID:     "sess-a",
-			Channel:       "builders",
-			Kind:          KindCapability,
-			To:            stringPtr(peerB.PeerID),
-			InteractionID: stringPtr(interactionID),
-			ReplyTo:       stringPtr(directResult.Deliveries[0].Envelope.ID),
+		if _, err := routerA.Send(ctx, withTestConversation(SendRequest{
+			SessionID: "sess-a",
+			Channel:   "builders",
+			Kind:      KindCapability,
+			To:        stringPtr(peerB.PeerID),
+			WorkID:    stringPtr(workID),
+			ReplyTo:   stringPtr(directResult.Deliveries[0].Envelope.ID),
 			Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 				ID:               "review-fix-follow-up",
 				Summary:          "Review follow-up flow",
@@ -398,8 +398,8 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 				ExecutionOutline: []string{"Inspect the issue", "Draft the fix"},
 				Requirements:     []string{"workspace-write"},
 			}),
-		}); !errors.Is(err, ErrInteractionClosed) {
-			t.Fatalf("routerA.Send(post-terminal capability) error = %v, want ErrInteractionClosed", err)
+		})); !errors.Is(err, ErrWorkClosed) {
+			t.Fatalf("routerA.Send(post-terminal capability) error = %v, want ErrWorkClosed", err)
 		}
 
 		select {

@@ -262,7 +262,7 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 		sendReq.To = ptrString(to)
 	}
 	if interactionID := strings.TrimSpace(req.InteractionID); interactionID != "" {
-		sendReq.InteractionID = ptrString(interactionID)
+		sendReq.WorkID = ptrString(interactionID)
 	}
 	if replyTo := strings.TrimSpace(req.ReplyTo); replyTo != "" {
 		sendReq.ReplyTo = ptrString(replyTo)
@@ -575,7 +575,7 @@ func NetworkEnvelopePayloadFromEnvelope(envelope network.Envelope) contract.Netw
 		Channel:       envelope.Channel,
 		From:          envelope.From,
 		To:            cloneStringPtr(envelope.To),
-		InteractionID: cloneStringPtr(envelope.InteractionID),
+		InteractionID: cloneStringPtr(envelope.WorkID),
 		ReplyTo:       cloneStringPtr(envelope.ReplyTo),
 		TraceID:       cloneStringPtr(envelope.TraceID),
 		CausationID:   cloneStringPtr(envelope.CausationID),

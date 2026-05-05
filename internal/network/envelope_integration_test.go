@@ -68,6 +68,8 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			  "id": "msg_say_01",
 			  "kind": "say",
 			  "channel": "builders",
+			  "surface": "thread",
+			  "thread_id": "thread_patch_42",
 			  "from": "coder.sess-abc",
 			  "to": null,
 			  "ts": 1775822400,
@@ -78,15 +80,17 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			}`),
 		},
 		{
-			name: "direct",
+			name: "direct room say",
 			raw: []byte(`{
 			  "protocol": "agh-network/v0",
 			  "id": "msg_direct_01",
-			  "kind": "direct",
+			  "kind": "say",
 			  "channel": "builders",
+			  "surface": "direct",
+			  "direct_id": "direct_0123456789abcdef0123456789abcdef",
 			  "from": "coder.sess-abc",
 			  "to": "reviewer.sess-xyz",
-			  "interaction_id": "int_patch_42",
+			  "work_id": "int_patch_42",
 			  "reply_to": "msg_say_01",
 			  "trace_id": "trace_ops_patch_42",
 			  "causation_id": "msg_say_01",
@@ -109,6 +113,8 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			  "id": "msg_capability_01",
 			  "kind": "capability",
 			  "channel": "builders",
+			  "surface": "thread",
+			  "thread_id": "thread_patch_42",
 			  "from": "curator.sess-123",
 			  "to": null,
 			  "ts": 1775822400,
@@ -133,9 +139,11 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			  "id": "msg_receipt_01",
 			  "kind": "receipt",
 			  "channel": "builders",
+			  "surface": "direct",
+			  "direct_id": "direct_0123456789abcdef0123456789abcdef",
 			  "from": "reviewer.sess-xyz",
 			  "to": "coder.sess-abc",
-			  "interaction_id": "int_patch_42",
+			  "work_id": "int_patch_42",
 			  "reply_to": "msg_direct_01",
 			  "ts": 1775822400,
 			  "body": {
@@ -152,9 +160,11 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			  "id": "msg_trace_01",
 			  "kind": "trace",
 			  "channel": "builders",
+			  "surface": "direct",
+			  "direct_id": "direct_0123456789abcdef0123456789abcdef",
 			  "from": "reviewer.sess-xyz",
 			  "to": "coder.sess-abc",
-			  "interaction_id": "int_patch_42",
+			  "work_id": "int_patch_42",
 			  "reply_to": "msg_receipt_01",
 			  "trace_id": "trace_ops_patch_42",
 			  "causation_id": "msg_receipt_01",
@@ -217,8 +227,17 @@ func envelopeSnapshot(env Envelope) map[string]any {
 	if env.To != nil {
 		snapshot["to"] = *env.To
 	}
-	if env.InteractionID != nil {
-		snapshot["interaction_id"] = *env.InteractionID
+	if env.Surface != nil {
+		snapshot["surface"] = *env.Surface
+	}
+	if env.ThreadID != nil {
+		snapshot["thread_id"] = *env.ThreadID
+	}
+	if env.DirectID != nil {
+		snapshot["direct_id"] = *env.DirectID
+	}
+	if env.WorkID != nil {
+		snapshot["work_id"] = *env.WorkID
 	}
 	if env.ReplyTo != nil {
 		snapshot["reply_to"] = *env.ReplyTo

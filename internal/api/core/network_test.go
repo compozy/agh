@@ -186,8 +186,10 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		envelope := network.Envelope{
 			Protocol:    network.ProtocolV0,
 			ID:          "msg-1",
-			Kind:        network.KindDirect,
+			Kind:        network.KindSay,
 			Channel:     "builders",
+			Surface:     networkSurfacePtr(network.SurfaceDirect),
+			DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
 			From:        "reviewer.sess-b",
 			ReplyTo:     &replyTo,
 			TraceID:     &traceID,
@@ -560,8 +562,10 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			return []network.Envelope{{
 				Protocol: network.ProtocolV0,
 				ID:       "msg-inbox",
-				Kind:     network.KindDirect,
+				Kind:     network.KindSay,
 				Channel:  "builders",
+				Surface:  networkSurfacePtr(network.SurfaceDirect),
+				DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
 				From:     "reviewer.sess-a",
 				ReplyTo:  &replyTo,
 				TraceID:  &traceID,
@@ -4087,6 +4091,14 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 }
 
 func timePtr(value time.Time) *time.Time {
+	return &value
+}
+
+func networkSurfacePtr(value network.Surface) *network.Surface {
+	return &value
+}
+
+func stringPtr(value string) *string {
 	return &value
 }
 

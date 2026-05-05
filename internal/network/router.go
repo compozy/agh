@@ -30,18 +30,21 @@ type RouterTransport interface {
 
 // SendRequest carries one caller-supplied outbound envelope request.
 type SendRequest struct {
-	SessionID     string
-	Channel       string
-	Kind          Kind
-	To            *string
-	Body          json.RawMessage
-	InteractionID *string
-	ReplyTo       *string
-	TraceID       *string
-	CausationID   *string
-	ExpiresAt     *int64
-	ID            *string
-	Ext           ExtensionMap
+	SessionID   string
+	Channel     string
+	Surface     *Surface
+	ThreadID    *string
+	DirectID    *string
+	Kind        Kind
+	To          *string
+	Body        json.RawMessage
+	WorkID      *string
+	ReplyTo     *string
+	TraceID     *string
+	CausationID *string
+	ExpiresAt   *int64
+	ID          *string
+	Ext         ExtensionMap
 }
 
 // SendResult summarizes one outbound publish.
@@ -115,9 +118,9 @@ type Router struct {
 	maxReplayAge time.Duration
 	now          func() time.Time
 
-	mu           sync.Mutex
-	seen         map[string]time.Time
-	interactions map[string]Interaction
+	mu    sync.Mutex
+	seen  map[string]time.Time
+	works map[string]Work
 }
 
 type receiveState struct {
@@ -148,7 +151,7 @@ func NewRouter(
 		maxReplayAge: maxReplayAge,
 		now:          func() time.Time { return time.Now().UTC() },
 		seen:         make(map[string]time.Time),
-		interactions: make(map[string]Interaction),
+		works:        make(map[string]Work),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -311,7 +314,7 @@ func (r *Router) Receive(ctx context.Context, payload []byte) (RouteResult, erro
 	if done {
 		return state.result, nil
 	}
-	return r.dispatchReceivedEnvelope(ctx, state)
+	return r.dispatchReceivedEnvelope(ctx, &state)
 }
 
 func (r *Router) handleReceiveParseError(
@@ -330,7 +333,7 @@ func (r *Router) handleReceiveParseError(
 		return result, nil
 	}
 	result.Envelope = partial
-	if partial.Kind != KindDirect {
+	if !shouldEmitWorkReceipt(*partial) {
 		return result, nil
 	}
 
@@ -376,7 +379,7 @@ func (r *Router) prepareReceiveState(
 	state.result.Duplicate = true
 	state.result.Rejected = true
 	state.result.ReasonCode = &reason
-	if envelope.Kind != KindDirect || !ok {
+	if !shouldEmitWorkReceipt(envelope) || !ok {
 		return state, true, nil
 	}
 
@@ -396,7 +399,7 @@ func (r *Router) prepareReceiveState(
 	return state, true, nil
 }
 
-func (r *Router) dispatchReceivedEnvelope(ctx context.Context, state receiveState) (RouteResult, error) {
+func (r *Router) dispatchReceivedEnvelope(ctx context.Context, state *receiveState) (RouteResult, error) {
 	switch state.envelope.Kind {
 	case KindGreet:
 		return r.handleReceivedGreet(state)
@@ -410,11 +413,10 @@ func (r *Router) dispatchReceivedEnvelope(ctx context.Context, state receiveStat
 			state.now,
 		)
 	case KindSay:
-		state.result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(state.envelope.Channel), state.envelope)
-		return state.result, nil
+		return r.handleReceivedSay(ctx, state)
 	case KindCapability:
 		return r.handleReceivedCapability(ctx, state)
-	case KindDirect, KindReceipt, KindTrace:
+	case KindReceipt, KindTrace:
 		return r.handleReceivedLifecycle(ctx, state)
 	default:
 		reason := ReasonCodeUnsupportedKind
@@ -424,7 +426,7 @@ func (r *Router) dispatchReceivedEnvelope(ctx context.Context, state receiveStat
 	}
 }
 
-func (r *Router) handleReceivedGreet(state receiveState) (RouteResult, error) {
+func (r *Router) handleReceivedGreet(state *receiveState) (RouteResult, error) {
 	body, err := decodeReceivedBody[GreetBody](state.envelope, "greet")
 	if err != nil {
 		return RouteResult{}, err
@@ -435,7 +437,30 @@ func (r *Router) handleReceivedGreet(state receiveState) (RouteResult, error) {
 	return state.result, nil
 }
 
-func (r *Router) handleReceivedCapability(ctx context.Context, state receiveState) (RouteResult, error) {
+func (r *Router) handleReceivedSay(ctx context.Context, state *receiveState) (RouteResult, error) {
+	result := state.result
+	deliver := true
+	if state.envelope.WorkID != nil {
+		var err error
+		result, deliver, err = r.applyReceiveLifecycle(ctx, state, true)
+		if err != nil {
+			return RouteResult{}, err
+		}
+	}
+	if !deliver {
+		return result, nil
+	}
+	if state.envelope.IsDirected() {
+		if delivery, ok := deliveryFromLocalPeer(state.directedTarget, state.envelope); ok {
+			result.Deliveries = []Delivery{delivery}
+		}
+		return result, nil
+	}
+	result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(state.envelope.Channel), state.envelope)
+	return result, nil
+}
+
+func (r *Router) handleReceivedCapability(ctx context.Context, state *receiveState) (RouteResult, error) {
 	result, deliver, err := r.applyReceiveLifecycle(ctx, state, false)
 	if err != nil {
 		return RouteResult{}, err
@@ -453,7 +478,7 @@ func (r *Router) handleReceivedCapability(ctx context.Context, state receiveStat
 	return result, nil
 }
 
-func (r *Router) handleReceivedLifecycle(ctx context.Context, state receiveState) (RouteResult, error) {
+func (r *Router) handleReceivedLifecycle(ctx context.Context, state *receiveState) (RouteResult, error) {
 	result, deliver, err := r.applyReceiveLifecycle(ctx, state, true)
 	if err != nil {
 		return RouteResult{}, err
@@ -468,11 +493,11 @@ func (r *Router) handleReceivedLifecycle(ctx context.Context, state receiveState
 
 func (r *Router) applyReceiveLifecycle(
 	ctx context.Context,
-	state receiveState,
+	state *receiveState,
 	emitRejectionReceipt bool,
 ) (RouteResult, bool, error) {
 	result := state.result
-	if state.envelope.InteractionID == nil {
+	if state.envelope.WorkID == nil {
 		return result, true, nil
 	}
 
@@ -483,8 +508,8 @@ func (r *Router) applyReceiveLifecycle(
 		case LifecycleActionIgnored:
 			result.Ignored = true
 			return result, false, nil
-		case LifecycleActionRejectDirect:
-			reason := ReasonCodeInteractionClosed
+		case LifecycleActionRejectWork:
+			reason := ReasonCodeWorkClosed
 			result.Rejected = true
 			result.ReasonCode = &reason
 			if !emitRejectionReceipt {
@@ -502,8 +527,8 @@ func (r *Router) applyReceiveLifecycle(
 		default:
 			return result, true, nil
 		}
-	case errors.Is(err, ErrInteractionActorNotAllowed),
-		errors.Is(err, ErrInteractionNotFound):
+	case errors.Is(err, ErrWorkActorNotAllowed),
+		errors.Is(err, ErrWorkNotFound):
 		result.Ignored = true
 		return result, false, nil
 	case errors.Is(err, ErrInvalidStateTransition):
@@ -528,7 +553,7 @@ func (r *Router) appendPublishedReceipt(
 	if !emit {
 		return result, false, nil
 	}
-	receipt, built, err := buildDirectReceipt(directedTarget, envelope, now, status, *result.ReasonCode, nil)
+	receipt, built, err := buildWorkReceipt(directedTarget, envelope, now, status, *result.ReasonCode, nil)
 	if err != nil {
 		return RouteResult{}, false, err
 	}
@@ -742,20 +767,23 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 		id = ptrString(store.NewID("msg"))
 	}
 	envelope := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            *id,
-		Kind:          Kind(strings.TrimSpace(string(req.Kind))),
-		Channel:       channel,
-		From:          local.PeerID,
-		To:            normalizeOptionalIdentifier(req.To),
-		InteractionID: normalizeOptionalIdentifier(req.InteractionID),
-		ReplyTo:       normalizeOptionalIdentifier(req.ReplyTo),
-		TraceID:       normalizeOptionalIdentifier(req.TraceID),
-		CausationID:   normalizeOptionalIdentifier(req.CausationID),
-		TS:            now.Unix(),
-		ExpiresAt:     cloneInt64Ptr(req.ExpiresAt),
-		Body:          cloneRawMessage(req.Body),
-		Ext:           cloneExtensionMap(req.Ext),
+		Protocol:    ProtocolV0,
+		ID:          *id,
+		Kind:        Kind(strings.TrimSpace(string(req.Kind))),
+		Channel:     channel,
+		Surface:     normalizeOptionalSurface(req.Surface),
+		ThreadID:    normalizeOptionalIdentifier(req.ThreadID),
+		DirectID:    normalizeOptionalIdentifier(req.DirectID),
+		From:        local.PeerID,
+		To:          normalizeOptionalIdentifier(req.To),
+		WorkID:      normalizeOptionalIdentifier(req.WorkID),
+		ReplyTo:     normalizeOptionalIdentifier(req.ReplyTo),
+		TraceID:     normalizeOptionalIdentifier(req.TraceID),
+		CausationID: normalizeOptionalIdentifier(req.CausationID),
+		TS:          now.Unix(),
+		ExpiresAt:   cloneInt64Ptr(req.ExpiresAt),
+		Body:        cloneRawMessage(req.Body),
+		Ext:         cloneExtensionMap(req.Ext),
 	}
 
 	if err := ValidateEnvelope(envelope, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge}); err != nil {
@@ -796,7 +824,7 @@ func (r *Router) markSeen(envelope Envelope, now time.Time) bool {
 }
 
 func (r *Router) applyLifecycle(envelope Envelope, now time.Time) (LifecycleResult, error) {
-	key := interactionKey(envelope.Channel, *envelope.InteractionID)
+	key := workKey(*envelope.WorkID)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -805,12 +833,12 @@ func (r *Router) applyLifecycle(envelope Envelope, now time.Time) (LifecycleResu
 	if err != nil {
 		return LifecycleResult{}, err
 	}
-	r.interactions[key] = result.Interaction
+	r.works[key] = result.Work
 	return result, nil
 }
 
 func (r *Router) evaluateLifecycle(envelope Envelope, now time.Time) (LifecycleResult, error) {
-	key := interactionKey(envelope.Channel, *envelope.InteractionID)
+	key := workKey(*envelope.WorkID)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -823,14 +851,14 @@ func (r *Router) evaluateLifecycleLocked(
 	envelope Envelope,
 	now time.Time,
 ) (LifecycleResult, error) {
-	current, ok := r.interactions[key]
-	var currentPtr *Interaction
+	current, ok := r.works[key]
+	var currentPtr *Work
 	if ok {
 		copied := current
 		currentPtr = &copied
 	}
 
-	return ApplyInteractionEnvelope(currentPtr, envelope, now)
+	return ApplyWorkEnvelope(currentPtr, envelope, now)
 }
 
 func (r *Router) validateSendLifecycle(envelope Envelope, now time.Time) error {
@@ -843,11 +871,11 @@ func (r *Router) validateSendLifecycle(envelope Envelope, now time.Time) error {
 		return err
 	}
 	switch result.Action {
-	case LifecycleActionIgnored, LifecycleActionRejectDirect:
+	case LifecycleActionIgnored, LifecycleActionRejectWork:
 		return fmt.Errorf(
-			"%w: interaction_id=%q kind=%q",
-			ErrInteractionClosed,
-			result.Interaction.ID,
+			"%w: work_id=%q kind=%q",
+			ErrWorkClosed,
+			result.Work.ID,
 			envelope.Kind,
 		)
 	default:
@@ -883,12 +911,12 @@ func (r *Router) shouldSyncSentLifecycle(envelope Envelope) bool {
 }
 
 func shouldTrackSentLifecycle(envelope Envelope) bool {
-	if envelope.InteractionID == nil {
+	if envelope.WorkID == nil {
 		return false
 	}
 
 	switch envelope.Kind {
-	case KindDirect, KindCapability, KindReceipt, KindTrace:
+	case KindSay, KindCapability, KindReceipt, KindTrace:
 		return true
 	default:
 		return false
@@ -945,8 +973,8 @@ func replayDeadline(envelope Envelope, now time.Time, maxReplayAge time.Duration
 	return deadline
 }
 
-func interactionKey(channel string, interactionID string) string {
-	return strings.TrimSpace(channel) + "\x00" + strings.TrimSpace(interactionID)
+func workKey(workID string) string {
+	return strings.TrimSpace(workID)
 }
 
 func deliveriesFromLocalPeers(peers []LocalPeer, envelope Envelope) []Delivery {
@@ -981,7 +1009,7 @@ func isEnvelopeSender(peer LocalPeer, envelope Envelope) bool {
 		strings.TrimSpace(peer.PeerID) == strings.TrimSpace(envelope.From)
 }
 
-func buildDirectReceipt(
+func buildWorkReceipt(
 	local LocalPeer,
 	envelope Envelope,
 	now time.Time,
@@ -989,7 +1017,7 @@ func buildDirectReceipt(
 	reason ReasonCode,
 	detail *string,
 ) (Envelope, bool, error) {
-	if envelope.Kind != KindDirect || envelope.InteractionID == nil {
+	if !shouldEmitWorkReceipt(envelope) {
 		return Envelope{}, false, nil
 	}
 
@@ -1004,18 +1032,33 @@ func buildDirectReceipt(
 		return Envelope{}, false, err
 	}
 	receipt := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            store.NewID("msg"),
-		Kind:          KindReceipt,
-		Channel:       envelope.Channel,
-		From:          local.PeerID,
-		To:            ptrString(envelope.From),
-		InteractionID: ptrString(*envelope.InteractionID),
-		ReplyTo:       ptrString(envelope.ID),
-		TS:            now.Unix(),
-		Body:          payload,
+		Protocol: ProtocolV0,
+		ID:       store.NewID("msg"),
+		Kind:     KindReceipt,
+		Channel:  envelope.Channel,
+		Surface:  cloneSurfacePtr(envelope.Surface),
+		ThreadID: normalizeOptionalIdentifier(envelope.ThreadID),
+		DirectID: normalizeOptionalIdentifier(envelope.DirectID),
+		From:     local.PeerID,
+		To:       ptrString(envelope.From),
+		WorkID:   ptrString(*envelope.WorkID),
+		ReplyTo:  ptrString(envelope.ID),
+		TS:       now.Unix(),
+		Body:     payload,
 	}
 	return receipt, true, nil
+}
+
+func shouldEmitWorkReceipt(envelope Envelope) bool {
+	if envelope.WorkID == nil {
+		return false
+	}
+	switch envelope.Kind {
+	case KindSay, KindCapability:
+		return true
+	default:
+		return false
+	}
 }
 
 func marshalEnvelopeBody(body Body) (json.RawMessage, error) {
@@ -1038,21 +1081,24 @@ func parseEnvelopeSummary(data []byte) *Envelope {
 	}
 
 	return &Envelope{
-		Protocol:      strings.TrimSpace(env.Protocol),
-		ID:            strings.TrimSpace(env.ID),
-		Kind:          Kind(strings.TrimSpace(string(env.Kind))),
-		Channel:       strings.TrimSpace(env.Channel),
-		From:          strings.TrimSpace(env.From),
-		To:            normalizeOptionalIdentifier(env.To),
-		InteractionID: normalizeOptionalIdentifier(env.InteractionID),
-		ReplyTo:       normalizeOptionalIdentifier(env.ReplyTo),
-		TraceID:       normalizeOptionalIdentifier(env.TraceID),
-		CausationID:   normalizeOptionalIdentifier(env.CausationID),
-		TS:            env.TS,
-		ExpiresAt:     cloneInt64Ptr(env.ExpiresAt),
-		Body:          cloneRawMessage(env.Body),
-		Proof:         cloneProof(env.Proof),
-		Ext:           cloneExtensionMap(env.Ext),
+		Protocol:    strings.TrimSpace(env.Protocol),
+		ID:          strings.TrimSpace(env.ID),
+		Kind:        Kind(strings.TrimSpace(string(env.Kind))),
+		Channel:     strings.TrimSpace(env.Channel),
+		Surface:     normalizeOptionalSurface(env.Surface),
+		ThreadID:    normalizeOptionalIdentifier(env.ThreadID),
+		DirectID:    normalizeOptionalIdentifier(env.DirectID),
+		From:        strings.TrimSpace(env.From),
+		To:          normalizeOptionalIdentifier(env.To),
+		WorkID:      normalizeOptionalIdentifier(env.WorkID),
+		ReplyTo:     normalizeOptionalIdentifier(env.ReplyTo),
+		TraceID:     normalizeOptionalIdentifier(env.TraceID),
+		CausationID: normalizeOptionalIdentifier(env.CausationID),
+		TS:          env.TS,
+		ExpiresAt:   cloneInt64Ptr(env.ExpiresAt),
+		Body:        cloneRawMessage(env.Body),
+		Proof:       cloneProof(env.Proof),
+		Ext:         cloneExtensionMap(env.Ext),
 	}
 }
 

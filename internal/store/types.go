@@ -614,22 +614,22 @@ func (q NetworkChannelQuery) Validate() error {
 
 // NetworkMessageEntry is one persisted network timeline envelope.
 type NetworkMessageEntry struct {
-	MessageID     string
-	SessionID     string
-	Channel       string
-	Direction     string
-	PeerFrom      string
-	PeerTo        string
-	Kind          string
-	InteractionID string
-	ReplyTo       string
-	TraceID       string
-	CausationID   string
-	Intent        string
-	Text          string
-	PreviewText   string
-	Body          json.RawMessage
-	Timestamp     time.Time
+	MessageID   string
+	SessionID   string
+	Channel     string
+	Direction   string
+	PeerFrom    string
+	PeerTo      string
+	Kind        string
+	WorkID      string
+	ReplyTo     string
+	TraceID     string
+	CausationID string
+	Intent      string
+	Text        string
+	PreviewText string
+	Body        json.RawMessage
+	Timestamp   time.Time
 }
 
 // Validate ensures the persisted network message is complete and internally consistent.

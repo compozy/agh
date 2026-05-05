@@ -350,26 +350,22 @@ func normalizeTimelineMessageEntry(
 		peerTo = strings.TrimSpace(*envelope.To)
 	}
 	entry := store.NetworkMessageEntry{
-		MessageID:     strings.TrimSpace(envelope.ID),
-		SessionID:     strings.TrimSpace(sessionID),
-		Channel:       strings.TrimSpace(envelope.Channel),
-		Direction:     strings.TrimSpace(direction),
-		PeerFrom:      strings.TrimSpace(envelope.From),
-		PeerTo:        peerTo,
-		Kind:          strings.TrimSpace(string(envelope.Kind)),
-		PreviewText:   previewForBody(body),
-		Body:          cloneRawMessage(envelope.Body),
-		Timestamp:     at.UTC(),
-		InteractionID: trimmedPointerValue(envelope.InteractionID),
-		ReplyTo:       trimmedPointerValue(envelope.ReplyTo),
-		TraceID:       trimmedPointerValue(envelope.TraceID),
-		CausationID:   trimmedPointerValue(envelope.CausationID),
+		MessageID:   strings.TrimSpace(envelope.ID),
+		SessionID:   strings.TrimSpace(sessionID),
+		Channel:     strings.TrimSpace(envelope.Channel),
+		Direction:   strings.TrimSpace(direction),
+		PeerFrom:    strings.TrimSpace(envelope.From),
+		PeerTo:      peerTo,
+		Kind:        strings.TrimSpace(string(envelope.Kind)),
+		PreviewText: previewForBody(body),
+		Body:        cloneRawMessage(envelope.Body),
+		Timestamp:   at.UTC(),
+		WorkID:      trimmedPointerValue(envelope.WorkID),
+		ReplyTo:     trimmedPointerValue(envelope.ReplyTo),
+		TraceID:     trimmedPointerValue(envelope.TraceID),
+		CausationID: trimmedPointerValue(envelope.CausationID),
 	}
-	switch value := body.(type) {
-	case SayBody:
-		entry.Intent = strings.TrimSpace(value.Intent)
-		entry.Text = value.Text
-	case DirectBody:
+	if value, ok := body.(SayBody); ok {
 		entry.Intent = strings.TrimSpace(value.Intent)
 		entry.Text = value.Text
 	}

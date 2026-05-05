@@ -9,7 +9,7 @@ import (
 func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 	t.Parallel()
 
-	validKinds := []Kind{KindGreet, KindWhois, KindSay, KindDirect, KindCapability, KindReceipt, KindTrace}
+	validKinds := []Kind{KindGreet, KindWhois, KindSay, KindSay, KindCapability, KindReceipt, KindTrace}
 	for _, kind := range validKinds {
 		t.Run("ShouldValidateKnownKind"+string(kind), func(t *testing.T) {
 			t.Parallel()
@@ -58,11 +58,11 @@ func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 		t.Fatalf("ReasonCode(mystery).Validate() error = %v, want ErrInvalidField", err)
 	}
 
-	if err := StateWorking.Validate(); err != nil {
-		t.Fatalf("StateWorking.Validate() error = %v", err)
+	if err := WorkStateWorking.Validate(); err != nil {
+		t.Fatalf("WorkStateWorking.Validate() error = %v", err)
 	}
-	if err := InteractionState("drifting").Validate(); !errors.Is(err, ErrInvalidField) {
-		t.Fatalf("InteractionState(drifting).Validate() error = %v, want ErrInvalidField", err)
+	if err := WorkState("drifting").Validate(); !errors.Is(err, ErrInvalidField) {
+		t.Fatalf("WorkState(drifting).Validate() error = %v, want ErrInvalidField", err)
 	}
 
 	if got := (GreetBody{}).Kind(); got != KindGreet {
@@ -74,8 +74,8 @@ func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 	if got := (SayBody{}).Kind(); got != KindSay {
 		t.Fatalf("SayBody.Kind() = %q, want %q", got, KindSay)
 	}
-	if got := (DirectBody{}).Kind(); got != KindDirect {
-		t.Fatalf("DirectBody.Kind() = %q, want %q", got, KindDirect)
+	if got := (SayBody{}).Kind(); got != KindSay {
+		t.Fatalf("SayBody.Kind() = %q, want %q", got, KindSay)
 	}
 	if got := (CapabilityBody{}).Kind(); got != KindCapability {
 		t.Fatalf("CapabilityBody.Kind() = %q, want %q", got, KindCapability)
@@ -102,15 +102,17 @@ func TestValidateEnvelopeAndDecodeBodyErrors(t *testing.T) {
 
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	valid := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_direct_01",
-		Kind:          KindDirect,
-		Channel:       "builders",
-		From:          "coder.sess-abc",
-		To:            stringPtr("reviewer.sess-xyz"),
-		InteractionID: stringPtr("int_patch_42"),
-		TS:            now.Unix(),
-		Body:          mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
+		Protocol: ProtocolV0,
+		ID:       "msg_direct_01",
+		Kind:     KindSay,
+		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceDirect),
+		DirectID: stringPtr(testDirectRef().DirectID),
+		From:     "coder.sess-abc",
+		To:       stringPtr("reviewer.sess-xyz"),
+		WorkID:   stringPtr("int_patch_42"),
+		TS:       now.Unix(),
+		Body:     mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
 	}
 
 	if err := ValidateEnvelope(valid, ValidateOptions{Now: now}); err != nil {
@@ -180,51 +182,51 @@ func TestAdditionalBodyValidationBranches(t *testing.T) {
 func TestInteractionValidationAndTraceMatrix(t *testing.T) {
 	t.Parallel()
 
-	valid := Interaction{
+	valid := Work{
 		ID:        "int_patch_42",
-		Channel:   "builders",
+		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
-		State:     StateWorking,
+		State:     WorkStateWorking,
 	}
 	if err := valid.Validate(); err != nil {
-		t.Fatalf("Interaction.Validate() error = %v", err)
+		t.Fatalf("Work.Validate() error = %v", err)
 	}
 
 	invalid := valid
 	invalid.Target = "BadPeer"
 	if err := invalid.Validate(); !errors.Is(err, ErrInvalidField) {
-		t.Fatalf("Interaction.Validate(invalid target) error = %v, want ErrInvalidField", err)
+		t.Fatalf("Work.Validate(invalid target) error = %v, want ErrInvalidField", err)
 	}
 
 	openErrEnv := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_trace_01",
-		Kind:          KindTrace,
-		Channel:       "builders",
-		From:          "reviewer.sess-xyz",
-		To:            stringPtr("coder.sess-abc"),
-		InteractionID: stringPtr("int_patch_42"),
-		TS:            time.Now().Unix(),
-		Body:          mustRawJSON(t, map[string]any{"state": "working"}),
+		Protocol: ProtocolV0,
+		ID:       "msg_trace_01",
+		Kind:     KindTrace,
+		Channel:  "builders",
+		From:     "reviewer.sess-xyz",
+		To:       stringPtr("coder.sess-abc"),
+		WorkID:   stringPtr("int_patch_42"),
+		TS:       time.Now().Unix(),
+		Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 	}
-	if _, err := OpenInteraction(openErrEnv, time.Time{}); !errors.Is(err, ErrInvalidField) {
-		t.Fatalf("OpenInteraction(non-opener) error = %v, want ErrInvalidField", err)
+	if _, err := OpenWork(withDirectSurface(openErrEnv), time.Time{}); !errors.Is(err, ErrInvalidField) {
+		t.Fatalf("OpenWork(non-opener) error = %v, want ErrInvalidField", err)
 	}
 
 	matrix := []struct {
 		name    string
-		current InteractionState
-		next    InteractionState
+		current WorkState
+		next    WorkState
 		want    bool
 	}{
-		{name: "ShouldAllowSubmittedToWorking", current: StateSubmitted, next: StateWorking, want: true},
-		{name: "ShouldRejectSubmittedToSubmitted", current: StateSubmitted, next: StateSubmitted, want: false},
-		{name: "ShouldAllowWorkingToCompleted", current: StateWorking, next: StateCompleted, want: true},
-		{name: "ShouldRejectWorkingToSubmitted", current: StateWorking, next: StateSubmitted, want: false},
-		{name: "ShouldAllowNeedsInputToWorking", current: StateNeedsInput, next: StateWorking, want: true},
-		{name: "ShouldAllowNeedsInputToCanceled", current: StateNeedsInput, next: StateCanceled, want: true},
-		{name: "ShouldRejectCompletedToWorking", current: StateCompleted, next: StateWorking, want: false},
+		{name: "ShouldAllowSubmittedToWorking", current: WorkStateSubmitted, next: WorkStateWorking, want: true},
+		{name: "ShouldRejectSubmittedToSubmitted", current: WorkStateSubmitted, next: WorkStateSubmitted, want: false},
+		{name: "ShouldAllowWorkingToCompleted", current: WorkStateWorking, next: WorkStateCompleted, want: true},
+		{name: "ShouldRejectWorkingToSubmitted", current: WorkStateWorking, next: WorkStateSubmitted, want: false},
+		{name: "ShouldAllowNeedsInputToWorking", current: WorkStateNeedsInput, next: WorkStateWorking, want: true},
+		{name: "ShouldAllowNeedsInputToCanceled", current: WorkStateNeedsInput, next: WorkStateCanceled, want: true},
+		{name: "ShouldRejectCompletedToWorking", current: WorkStateCompleted, next: WorkStateWorking, want: false},
 	}
 
 	for _, tc := range matrix {
@@ -269,6 +271,8 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		ID:       "msg_receipt_01",
 		Kind:     KindReceipt,
 		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceDirect),
+		DirectID: stringPtr(testDirectRef().DirectID),
 		From:     "reviewer.sess-xyz",
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
@@ -283,7 +287,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		err,
 		ErrMissingField,
 	) {
-		t.Fatalf("NormalizeEnvelope(receipt missing interaction_id) error = %v, want ErrMissingField", err)
+		t.Fatalf("NormalizeEnvelope(receipt missing work_id) error = %v, want ErrMissingField", err)
 	}
 
 	blankSay, err := DecodeBody(KindSay, mustRawJSON(t, map[string]any{"text": "   "}))
@@ -291,7 +295,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		t.Fatalf("DecodeBody(blank say) body = %#v, error = %v, want nil + ErrInvalidBody", blankSay, err)
 	}
 
-	blankDirect, err := DecodeBody(KindDirect, mustRawJSON(t, map[string]any{"text": "\n"}))
+	blankDirect, err := DecodeBody(KindSay, mustRawJSON(t, map[string]any{"text": "\n"}))
 	if !errors.Is(err, ErrInvalidBody) || blankDirect != nil {
 		t.Fatalf("DecodeBody(blank direct) body = %#v, error = %v, want nil + ErrInvalidBody", blankDirect, err)
 	}
@@ -304,49 +308,49 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 	}
 
 	traceEnv := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_trace_01",
-		Kind:          KindTrace,
-		Channel:       "builders",
-		From:          "reviewer.sess-xyz",
-		To:            stringPtr("coder.sess-abc"),
-		InteractionID: stringPtr("int_patch_42"),
-		TS:            now.Unix(),
-		Body:          mustRawJSON(t, map[string]any{"state": "working"}),
+		Protocol: ProtocolV0,
+		ID:       "msg_trace_01",
+		Kind:     KindTrace,
+		Channel:  "builders",
+		From:     "reviewer.sess-xyz",
+		To:       stringPtr("coder.sess-abc"),
+		WorkID:   stringPtr("int_patch_42"),
+		TS:       now.Unix(),
+		Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 	}
-	if _, err := ApplyInteractionEnvelope(nil, traceEnv, now); !errors.Is(err, ErrInteractionNotFound) {
-		t.Fatalf("ApplyInteractionEnvelope(nil trace) error = %v, want ErrInteractionNotFound", err)
+	if _, err := ApplyWorkEnvelope(nil, withDirectSurface(traceEnv), now); !errors.Is(err, ErrWorkNotFound) {
+		t.Fatalf("ApplyWorkEnvelope(nil trace) error = %v, want ErrWorkNotFound", err)
 	}
 
-	terminal := &Interaction{
+	terminal := &Work{
 		ID:        "int_patch_42",
-		Channel:   "builders",
+		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
-		State:     StateCanceled,
+		State:     WorkStateCanceled,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
 	receiptEnv := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_receipt_02",
-		Kind:          KindReceipt,
-		Channel:       "builders",
-		From:          "coder.sess-abc",
-		To:            stringPtr("reviewer.sess-xyz"),
-		InteractionID: stringPtr("int_patch_42"),
-		TS:            now.Unix(),
+		Protocol: ProtocolV0,
+		ID:       "msg_receipt_02",
+		Kind:     KindReceipt,
+		Channel:  "builders",
+		From:     "coder.sess-abc",
+		To:       stringPtr("reviewer.sess-xyz"),
+		WorkID:   stringPtr("int_patch_42"),
+		TS:       now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"for_id": "msg_direct_01",
 			"status": "canceled",
 		}),
 	}
-	got, err := ApplyInteractionEnvelope(terminal, receiptEnv, now.Add(time.Second))
+	got, err := ApplyWorkEnvelope(terminal, withDirectSurface(receiptEnv), now.Add(time.Second))
 	if err != nil {
-		t.Fatalf("ApplyInteractionEnvelope(terminal receipt) error = %v", err)
+		t.Fatalf("ApplyWorkEnvelope(terminal receipt) error = %v", err)
 	}
 	if got.Action != LifecycleActionIgnored {
-		t.Fatalf("ApplyInteractionEnvelope(terminal receipt).Action = %q, want %q", got.Action, LifecycleActionIgnored)
+		t.Fatalf("ApplyWorkEnvelope(terminal receipt).Action = %q, want %q", got.Action, LifecycleActionIgnored)
 	}
 }
 

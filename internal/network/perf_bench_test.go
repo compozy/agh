@@ -9,18 +9,18 @@ import (
 
 func BenchmarkFormatNetworkMessageDirect(b *testing.B) {
 	envelope := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg-bench-direct",
-		Kind:          KindDirect,
-		Channel:       "builders",
-		From:          "coder.sess-bench",
-		To:            stringPtr("reviewer.sess-bench"),
-		InteractionID: stringPtr("int-bench-direct"),
-		ReplyTo:       stringPtr("msg-root-bench"),
-		TraceID:       stringPtr("trace-bench-direct"),
-		CausationID:   stringPtr("msg-cause-bench"),
-		TS:            time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC).Unix(),
-		Body: benchmarkRawJSON(b, DirectBody{
+		Protocol:    ProtocolV0,
+		ID:          "msg-bench-direct",
+		Kind:        KindSay,
+		Channel:     "builders",
+		From:        "coder.sess-bench",
+		To:          stringPtr("reviewer.sess-bench"),
+		WorkID:      stringPtr("int-bench-direct"),
+		ReplyTo:     stringPtr("msg-root-bench"),
+		TraceID:     stringPtr("trace-bench-direct"),
+		CausationID: stringPtr("msg-cause-bench"),
+		TS:          time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC).Unix(),
+		Body: benchmarkRawJSON(b, SayBody{
 			Text:   "Review the attached network benchmark payload and summarize the reply strategy.",
 			Intent: "review_request",
 			Artifacts: []json.RawMessage{

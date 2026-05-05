@@ -203,12 +203,12 @@ func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 			t.Fatalf("Status(joined) = %#v, want 2 local peers and 1 channel", status)
 		}
 
-		id, err := manager.Send(ctx, SendRequest{
+		id, err := manager.Send(ctx, withTestConversation(SendRequest{
 			SessionID: "sess-a",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "hello builders"}),
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Send() error = %v", err)
 		}
@@ -424,12 +424,12 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 
 		ctx, manager, prompter := newBusyManagerHarness(t)
 		prompter.setPrompting("sess-busy", true)
-		if _, err := manager.Send(ctx, SendRequest{
+		if _, err := manager.Send(ctx, withTestConversation(SendRequest{
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "queued while busy"}),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("Send() error = %v", err)
 		}
 
@@ -542,12 +542,12 @@ func TestManagerWaitInboxWakesOnNewChannelMessage(t *testing.T) {
 		resultCh <- messages
 	}()
 
-	messageID, err := manager.Send(ctx, SendRequest{
+	messageID, err := manager.Send(ctx, withTestConversation(SendRequest{
 		SessionID: "sess-a",
 		Channel:   "builders",
 		Kind:      KindSay,
 		Body:      mustRawJSON(t, map[string]any{"text": "wake reviewer"}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
@@ -740,13 +740,13 @@ func TestManagerRejectsBogusWhoisFloodWithoutResourceGrowth(t *testing.T) {
 			t.Fatal("collected zero status latencies during flood")
 		}
 
-		cleanMessageID, err := manager.Send(ctx, SendRequest{
+		cleanMessageID, err := manager.Send(ctx, withTestConversation(SendRequest{
 			ID:        ptrString("msg-clean-during-flood"),
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "clean message during bogus flood"}),
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Send(clean during flood) error = %v", err)
 		}
@@ -802,6 +802,7 @@ func TestManagerRejectsBogusWhoisFloodWithoutResourceGrowth(t *testing.T) {
 func receiveTestEnvelope(t *testing.T, manager *Manager, req SendRequest) string {
 	t.Helper()
 
+	req = withTestConversation(req)
 	requestID := ""
 	if req.ID != nil {
 		requestID = *req.ID
@@ -936,20 +937,19 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 			return len(manager.router.seen) >= 2
 		}, "second greet routing")
 
-		_, err = manager.Send(ctx, SendRequest{
-			SessionID:     "sess-a",
-			Channel:       "builders",
-			Kind:          KindSay,
-			Body:          mustRawJSON(t, map[string]any{"text": "hello builders"}),
-			ReplyTo:       ptrString("msg-root"),
-			TraceID:       ptrString("trace-1"),
-			CausationID:   ptrString("cause-1"),
-			InteractionID: ptrString("int-1"),
+		_, err = manager.Send(ctx, withTestConversation(SendRequest{
+			SessionID:   "sess-a",
+			Channel:     "builders",
+			Kind:        KindSay,
+			Body:        mustRawJSON(t, map[string]any{"text": "hello builders"}),
+			ReplyTo:     ptrString("msg-root"),
+			TraceID:     ptrString("trace-1"),
+			CausationID: ptrString("cause-1"),
 			Ext: ExtensionMap{
 				"agh.workflow_id":     mustRawJSON(t, "wf-1"),
 				"agh.handoff_version": mustRawJSON(t, 3),
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Send() error = %v", err)
 		}
@@ -1030,15 +1030,15 @@ func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {
 		t.Fatalf("JoinChannel(sess-b) error = %v", err)
 	}
 
-	directID, err := manager.Send(ctx, SendRequest{
-		SessionID:     "sess-b",
-		Channel:       "builders",
-		Kind:          KindDirect,
-		To:            ptrString("reviewer.sess-a"),
-		Body:          mustRawJSON(t, DirectBody{Text: "I can take the migration fix."}),
-		InteractionID: ptrString("int-local-trace"),
-		TraceID:       ptrString("trace-local-trace"),
-	})
+	directID, err := manager.Send(ctx, withTestConversation(SendRequest{
+		SessionID: "sess-b",
+		Channel:   "builders",
+		Kind:      KindSay,
+		To:        ptrString("reviewer.sess-a"),
+		Body:      mustRawJSON(t, SayBody{Text: "I can take the migration fix."}),
+		WorkID:    ptrString("int-local-trace"),
+		TraceID:   ptrString("trace-local-trace"),
+	}))
 	if err != nil {
 		t.Fatalf("Send(direct) error = %v", err)
 	}
@@ -1048,27 +1048,27 @@ func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {
 	if got, want := directCall.sessionID, "sess-a"; got != want {
 		t.Fatalf("direct delivery session = %q, want %q", got, want)
 	}
-	if got, want := directCall.meta.Kind, string(KindDirect); got != want {
+	if got, want := directCall.meta.Kind, string(KindSay); got != want {
 		t.Fatalf("direct delivery kind = %q, want %q", got, want)
 	}
 	prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: fixedNow})
 	manager.deliveries.wait()
 
-	_, err = manager.Send(ctx, SendRequest{
+	_, err = manager.Send(ctx, withTestConversation(SendRequest{
 		SessionID: "sess-b",
 		Channel:   "builders",
 		Kind:      KindTrace,
 		To:        ptrString("reviewer.sess-a"),
 		Body: mustRawJSON(t, TraceBody{
-			State:   StateCompleted,
+			State:   WorkStateCompleted,
 			Message: "Patch prepared and tests pass.",
 			Result:  mustRawJSON(t, map[string]any{"summary": "migration fix applied"}),
 		}),
-		InteractionID: ptrString("int-local-trace"),
-		ReplyTo:       &directID,
-		TraceID:       ptrString("trace-local-trace"),
-		CausationID:   &directID,
-	})
+		WorkID:      ptrString("int-local-trace"),
+		ReplyTo:     &directID,
+		TraceID:     ptrString("trace-local-trace"),
+		CausationID: &directID,
+	}))
 	if err != nil {
 		t.Fatalf("Send(trace) error = %v", err)
 	}
@@ -1094,7 +1094,7 @@ func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {
 		metricsByKind[metric.Kind] = metric
 	}
 
-	if direct := metricsByKind[KindDirect]; direct.Sent != 1 || direct.Received != 1 || direct.Delivered != 1 {
+	if direct := metricsByKind[KindSay]; direct.Sent != 1 || direct.Received != 1 || direct.Delivered != 1 {
 		t.Fatalf("direct kind metrics = %#v, want sent=1 received=1 delivered=1", direct)
 	}
 	if trace := metricsByKind[KindTrace]; trace.Sent != 1 || trace.Received != 1 || trace.Delivered != 1 {
@@ -1130,12 +1130,12 @@ func TestManagerShutdownTracksInterruptedInFlightMessages(t *testing.T) {
 		t.Fatalf("JoinChannel(stop target) error = %v", err)
 	}
 
-	if _, err := manager.Send(ctx, SendRequest{
+	if _, err := manager.Send(ctx, withTestConversation(SendRequest{
 		SessionID: "sess-sender",
 		Channel:   "builders",
 		Kind:      KindSay,
 		Body:      mustRawJSON(t, map[string]any{"text": "hello before shutdown"}),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
 
@@ -1245,7 +1245,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		t.Fatalf("ListChannels() = %#v, want one channel with two peers", channels)
 	}
 
-	sayPayload, err := json.Marshal(Envelope{
+	sayPayload, err := json.Marshal(withThreadSurface(Envelope{
 		Protocol: ProtocolV0,
 		ID:       "msg-say-remote",
 		Kind:     KindSay,
@@ -1253,7 +1253,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		From:     remoteCard.PeerID,
 		TS:       fixedNow.Unix(),
 		Body:     mustRawJSON(t, map[string]any{"text": "remote delivery"}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("json.Marshal(say envelope) error = %v", err)
 	}

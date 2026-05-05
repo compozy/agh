@@ -684,15 +684,17 @@ func testAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_direct_01",
-		Kind:          KindDirect,
-		Channel:       "builders",
-		From:          "coder.sess-audit",
-		To:            stringPtr("reviewer.sess-xyz"),
-		InteractionID: stringPtr("int_patch_42"),
-		TS:            time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
-		Body:          mustRawJSON(t, map[string]any{"text": "Please inspect auth.go"}),
+		Protocol: ProtocolV0,
+		ID:       "msg_direct_01",
+		Kind:     KindSay,
+		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceDirect),
+		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		From:     "coder.sess-audit",
+		To:       stringPtr("reviewer.sess-xyz"),
+		WorkID:   stringPtr("int_patch_42"),
+		TS:       time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		Body:     mustRawJSON(t, map[string]any{"text": "Please inspect auth.go"}),
 	}
 }
 
@@ -700,15 +702,17 @@ func testReceivedDirectAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_direct_02",
-		Kind:          KindDirect,
-		Channel:       "builders",
-		From:          "reviewer.sess-xyz",
-		To:            stringPtr("coder.sess-audit"),
-		InteractionID: stringPtr("int_patch_43"),
-		TS:            time.Date(2026, 4, 10, 12, 1, 0, 0, time.UTC).Unix(),
-		Body:          mustRawJSON(t, map[string]any{"text": "Please confirm the auth fix landed"}),
+		Protocol: ProtocolV0,
+		ID:       "msg_direct_02",
+		Kind:     KindSay,
+		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceDirect),
+		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		From:     "reviewer.sess-xyz",
+		To:       stringPtr("coder.sess-audit"),
+		WorkID:   stringPtr("int_patch_43"),
+		TS:       time.Date(2026, 4, 10, 12, 1, 0, 0, time.UTC).Unix(),
+		Body:     mustRawJSON(t, map[string]any{"text": "Please confirm the auth fix landed"}),
 	}
 }
 
@@ -720,6 +724,8 @@ func testSayAuditEnvelope(t *testing.T) Envelope {
 		ID:       "msg_say_01",
 		Kind:     KindSay,
 		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceThread),
+		ThreadID: stringPtr("thread_patch_42"),
 		From:     "coder.sess-audit",
 		TS:       time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
 		Body:     mustRawJSON(t, SayBody{Text: "  hello builders  \n", Intent: "announce"}),
@@ -734,6 +740,8 @@ func testInvalidSayAuditEnvelope(t *testing.T) Envelope {
 		ID:       "msg_say_invalid_01",
 		Kind:     KindSay,
 		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceThread),
+		ThreadID: stringPtr("thread_patch_42"),
 		From:     "coder.sess-audit",
 		TS:       time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
 		Body:     mustRawJSON(t, []string{"not", "an", "object"}),
@@ -744,14 +752,16 @@ func testCapabilityAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg_capability_01",
-		Kind:          KindCapability,
-		Channel:       "builders",
-		From:          "coder.sess-audit",
-		To:            stringPtr("reviewer.sess-xyz"),
-		InteractionID: stringPtr("int_capability_42"),
-		TS:            time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC).Unix(),
+		Protocol: ProtocolV0,
+		ID:       "msg_capability_01",
+		Kind:     KindCapability,
+		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceDirect),
+		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		From:     "coder.sess-audit",
+		To:       stringPtr("reviewer.sess-xyz"),
+		WorkID:   stringPtr("int_capability_42"),
+		TS:       time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC).Unix(),
 		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 			ID:               "review-fix",
 			Summary:          "Review fix flow",

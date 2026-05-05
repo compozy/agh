@@ -7,75 +7,75 @@ import (
 )
 
 var (
-	// ErrInteractionNotFound reports that no current interaction matched the
+	// ErrWorkNotFound reports that no current work matched the
 	// lifecycle message being applied.
-	ErrInteractionNotFound = errors.New("network: interaction not found")
-	// ErrInteractionActorNotAllowed reports a lifecycle actor outside the
+	ErrWorkNotFound = errors.New("network: work not found")
+	// ErrWorkActorNotAllowed reports a lifecycle actor outside the
 	// initiator/target pair.
-	ErrInteractionActorNotAllowed = errors.New("network: interaction actor not allowed")
+	ErrWorkActorNotAllowed = errors.New("network: work actor not allowed")
 	// ErrInvalidStateTransition reports an impossible lifecycle transition.
-	ErrInvalidStateTransition = errors.New("network: invalid interaction state transition")
-	// ErrInteractionClosed reports a message for a terminal interaction that must
-	// be rejected instead of reopening the interaction.
-	ErrInteractionClosed = errors.New("network: interaction closed")
+	ErrInvalidStateTransition = errors.New("network: invalid work state transition")
+	// ErrWorkClosed reports a message for a terminal work that must
+	// be rejected instead of reopening the work.
+	ErrWorkClosed = errors.New("network: work closed")
 )
 
-// Interaction tracks one directed interaction inside one channel.
-type Interaction struct {
+// Work tracks one directed work inside one channel.
+type Work struct {
 	ID        string
-	Channel   string
+	Ref       ConversationRef
 	Initiator string
 	Target    string
-	State     InteractionState
+	State     WorkState
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-// Validate reports whether the interaction carries a usable identity and state.
-func (i Interaction) Validate() error {
+// Validate reports whether the work carries a usable identity and state.
+func (i Work) Validate() error {
 	if i.ID == "" {
-		return fmt.Errorf("%w: interaction id is required", ErrMissingField)
+		return fmt.Errorf("%w: work id is required", ErrMissingField)
 	}
-	if i.Channel == "" {
-		return fmt.Errorf("%w: interaction channel is required", ErrMissingField)
+	if err := ValidateWorkID(i.ID); err != nil {
+		return fmt.Errorf("validate work id: %w", err)
 	}
-	if err := ValidateChannel(i.Channel); err != nil {
-		return fmt.Errorf("validate interaction channel: %w", err)
+	if err := i.Ref.Validate(); err != nil {
+		return fmt.Errorf("validate work conversation: %w", err)
 	}
 	if i.Initiator == "" {
-		return fmt.Errorf("%w: interaction initiator is required", ErrMissingField)
+		return fmt.Errorf("%w: work initiator is required", ErrMissingField)
 	}
 	if err := ValidatePeerID(i.Initiator); err != nil {
-		return fmt.Errorf("%w: interaction initiator", err)
+		return fmt.Errorf("%w: work initiator", err)
 	}
 	if i.Target == "" {
-		return fmt.Errorf("%w: interaction target is required", ErrMissingField)
+		return fmt.Errorf("%w: work target is required", ErrMissingField)
 	}
 	if err := ValidatePeerID(i.Target); err != nil {
-		return fmt.Errorf("%w: interaction target", err)
+		return fmt.Errorf("%w: work target", err)
 	}
 	if err := i.State.Validate(); err != nil {
-		return fmt.Errorf("validate interaction state: %w", err)
+		return fmt.Errorf("validate work state: %w", err)
 	}
 	return nil
 }
 
 // IsTerminalState reports whether the state is terminal under the RFC.
-func IsTerminalState(state InteractionState) bool {
+func IsTerminalState(state WorkState) bool {
 	switch state {
-	case StateCompleted, StateFailed, StateCanceled:
+	case WorkStateCompleted, WorkStateFailed, WorkStateCanceled:
 		return true
 	default:
 		return false
 	}
 }
 
-// IsParticipant reports whether the peer owns the interaction lifecycle.
-func (i Interaction) IsParticipant(peerID string) bool {
+// IsParticipant reports whether the peer owns the work lifecycle.
+func (i Work) IsParticipant(peerID string) bool {
 	return peerID == i.Initiator || peerID == i.Target
 }
 
-func (i Interaction) counterparty(peerID string) (string, bool) {
+func (i Work) counterparty(peerID string) (string, bool) {
 	switch peerID {
 	case i.Initiator:
 		return i.Target, true
@@ -90,132 +90,139 @@ func (i Interaction) counterparty(peerID string) (string, bool) {
 type LifecycleAction string
 
 const (
-	LifecycleActionOpened       LifecycleAction = "opened"
-	LifecycleActionAdvanced     LifecycleAction = "advanced"
-	LifecycleActionUnchanged    LifecycleAction = "unchanged"
-	LifecycleActionIgnored      LifecycleAction = "ignored"
-	LifecycleActionRejectDirect LifecycleAction = "reject_direct"
+	LifecycleActionOpened     LifecycleAction = "opened"
+	LifecycleActionAdvanced   LifecycleAction = "advanced"
+	LifecycleActionUnchanged  LifecycleAction = "unchanged"
+	LifecycleActionIgnored    LifecycleAction = "ignored"
+	LifecycleActionRejectWork LifecycleAction = "reject_work"
 )
 
 // LifecycleResult is the reusable lifecycle decision surface for router code.
 type LifecycleResult struct {
-	Interaction Interaction
-	Action      LifecycleAction
-	ReasonCode  *ReasonCode
+	Work       Work
+	Action     LifecycleAction
+	ReasonCode *ReasonCode
 }
 
-// OpenInteraction opens a new interaction from the first directed message.
-func OpenInteraction(env Envelope, at time.Time) (Interaction, error) {
-	if env.Kind != KindDirect && env.Kind != KindCapability {
-		return Interaction{}, fmt.Errorf("%w: opening message kind=%q", ErrInvalidField, env.Kind)
+// OpenWork opens a new work from the first directed message.
+func OpenWork(env Envelope, at time.Time) (Work, error) {
+	if env.Kind != KindSay && env.Kind != KindCapability {
+		return Work{}, fmt.Errorf("%w: opening message kind=%q", ErrInvalidField, env.Kind)
 	}
 	if env.To == nil {
-		return Interaction{}, fmt.Errorf("%w: opening message to is required", ErrMissingField)
+		return Work{}, fmt.Errorf("%w: opening message to is required", ErrMissingField)
 	}
-	if env.InteractionID == nil {
-		return Interaction{}, fmt.Errorf("%w: opening message interaction_id is required", ErrMissingField)
+	if env.WorkID == nil {
+		return Work{}, fmt.Errorf("%w: opening message work_id is required", ErrMissingField)
+	}
+	ref, err := ConversationRefFromEnvelope(env)
+	if err != nil {
+		return Work{}, err
 	}
 
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
 
-	interaction := Interaction{
-		ID:        *env.InteractionID,
-		Channel:   env.Channel,
+	work := Work{
+		ID:        *env.WorkID,
+		Ref:       ref,
 		Initiator: env.From,
 		Target:    *env.To,
-		State:     StateSubmitted,
+		State:     WorkStateSubmitted,
 		CreatedAt: at,
 		UpdatedAt: at,
 	}
 
-	if err := interaction.Validate(); err != nil {
-		return Interaction{}, fmt.Errorf("validate opened interaction: %w", err)
+	if err := work.Validate(); err != nil {
+		return Work{}, fmt.Errorf("validate opened work: %w", err)
 	}
 
-	return interaction, nil
+	return work, nil
 }
 
-// ApplyInteractionEnvelope applies one validated lifecycle envelope to the
-// current interaction state and returns the router-facing decision.
-func ApplyInteractionEnvelope(current *Interaction, env Envelope, at time.Time) (LifecycleResult, error) {
-	at = normalizeInteractionTime(at)
+// ApplyWorkEnvelope applies one validated lifecycle envelope to the
+// current work state and returns the router-facing decision.
+func ApplyWorkEnvelope(current *Work, env Envelope, at time.Time) (LifecycleResult, error) {
+	at = normalizeWorkTime(at)
 
 	if current == nil {
-		return openInteractionResult(env, at)
+		return openWorkResult(env, at)
 	}
 
-	interaction, err := validateInteractionEnvelope(*current, env)
+	work, err := validateWorkEnvelope(*current, env)
 	if err != nil {
 		return LifecycleResult{}, err
 	}
-	if result, terminal := terminalInteractionResult(interaction, env); terminal {
+	if result, terminal := terminalWorkResult(work, env); terminal {
 		return result, nil
 	}
 
-	return applyActiveInteractionEnvelope(interaction, env, at)
+	return applyActiveWorkEnvelope(work, env, at)
 }
 
-func normalizeInteractionTime(at time.Time) time.Time {
+func normalizeWorkTime(at time.Time) time.Time {
 	if at.IsZero() {
 		return time.Now().UTC()
 	}
 	return at
 }
 
-func openInteractionResult(env Envelope, at time.Time) (LifecycleResult, error) {
-	opened, err := OpenInteraction(env, at)
+func openWorkResult(env Envelope, at time.Time) (LifecycleResult, error) {
+	opened, err := OpenWork(env, at)
 	if err != nil {
-		if env.Kind != KindDirect && env.Kind != KindCapability {
-			return LifecycleResult{}, fmt.Errorf("%w: kind=%q", ErrInteractionNotFound, env.Kind)
+		if env.Kind != KindSay && env.Kind != KindCapability {
+			return LifecycleResult{}, fmt.Errorf("%w: kind=%q", ErrWorkNotFound, env.Kind)
 		}
 		return LifecycleResult{}, err
 	}
 	return LifecycleResult{
-		Interaction: opened,
-		Action:      LifecycleActionOpened,
+		Work:   opened,
+		Action: LifecycleActionOpened,
 	}, nil
 }
 
-func validateInteractionEnvelope(current Interaction, env Envelope) (Interaction, error) {
+func validateWorkEnvelope(current Work, env Envelope) (Work, error) {
 	if err := current.Validate(); err != nil {
-		return Interaction{}, fmt.Errorf("validate current interaction: %w", err)
+		return Work{}, fmt.Errorf("validate current work: %w", err)
 	}
-	if err := validateInteractionIdentity(current, env); err != nil {
-		return Interaction{}, err
+	if err := validateWorkIdentity(current, env); err != nil {
+		return Work{}, err
 	}
 	if !current.IsParticipant(env.From) {
-		return Interaction{}, fmt.Errorf("%w: from=%q", ErrInteractionActorNotAllowed, env.From)
+		return Work{}, fmt.Errorf("%w: from=%q", ErrWorkActorNotAllowed, env.From)
 	}
-	if err := validateInteractionDirection(current, env); err != nil {
-		return Interaction{}, err
+	if err := validateWorkDirection(current, env); err != nil {
+		return Work{}, err
 	}
 	return current, nil
 }
 
-func validateInteractionIdentity(current Interaction, env Envelope) error {
-	if env.InteractionID == nil || *env.InteractionID != current.ID {
+func validateWorkIdentity(current Work, env Envelope) error {
+	if env.WorkID == nil || *env.WorkID != current.ID {
 		return fmt.Errorf(
-			"%w: interaction_id=%v current=%q",
+			"%w: work_id=%v current=%q",
 			ErrInvalidField,
-			env.InteractionID,
+			env.WorkID,
 			current.ID,
 		)
 	}
-	if env.Channel != current.Channel {
+	ref, err := ConversationRefFromEnvelope(env)
+	if err != nil {
+		return err
+	}
+	if ref.ContainerKey() != current.Ref.ContainerKey() {
 		return fmt.Errorf(
-			"%w: interaction channel=%q envelope channel=%q",
+			"%w: work_id=%q",
 			ErrInvalidField,
-			current.Channel,
-			env.Channel,
+			current.ID,
 		)
 	}
 	return nil
 }
 
-func validateInteractionDirection(current Interaction, env Envelope) error {
-	if env.Kind != KindDirect && env.Kind != KindCapability {
+func validateWorkDirection(current Work, env Envelope) error {
+	if env.Kind != KindSay && env.Kind != KindCapability {
 		return nil
 	}
 	if env.To == nil {
@@ -226,7 +233,7 @@ func validateInteractionDirection(current Interaction, env Envelope) error {
 	if !ok || *env.To != expectedTarget {
 		return fmt.Errorf(
 			"%w: from=%q to=%q expected_to=%q",
-			ErrInteractionActorNotAllowed,
+			ErrWorkActorNotAllowed,
 			env.From,
 			*env.To,
 			expectedTarget,
@@ -235,57 +242,57 @@ func validateInteractionDirection(current Interaction, env Envelope) error {
 	return nil
 }
 
-func terminalInteractionResult(interaction Interaction, env Envelope) (LifecycleResult, bool) {
-	if !IsTerminalState(interaction.State) {
+func terminalWorkResult(work Work, env Envelope) (LifecycleResult, bool) {
+	if !IsTerminalState(work.State) {
 		return LifecycleResult{}, false
 	}
 
 	switch env.Kind {
 	case KindTrace, KindReceipt:
 		return LifecycleResult{
-			Interaction: interaction,
-			Action:      LifecycleActionIgnored,
+			Work:   work,
+			Action: LifecycleActionIgnored,
 		}, true
-	case KindDirect, KindCapability:
-		reason := ReasonCodeInteractionClosed
+	case KindSay, KindCapability:
+		reason := ReasonCodeWorkClosed
 		return LifecycleResult{
-			Interaction: interaction,
-			Action:      LifecycleActionRejectDirect,
-			ReasonCode:  &reason,
+			Work:       work,
+			Action:     LifecycleActionRejectWork,
+			ReasonCode: &reason,
 		}, true
 	default:
 		return LifecycleResult{}, false
 	}
 }
 
-func applyActiveInteractionEnvelope(interaction Interaction, env Envelope, at time.Time) (LifecycleResult, error) {
+func applyActiveWorkEnvelope(work Work, env Envelope, at time.Time) (LifecycleResult, error) {
 	switch env.Kind {
-	case KindDirect, KindCapability:
-		return applyDirectOrCapability(interaction, at), nil
+	case KindSay, KindCapability:
+		return applySayOrCapability(work, at), nil
 	case KindReceipt:
 		receipt, err := decodeLifecycleBody[ReceiptBody](env, "receipt")
 		if err != nil {
 			return LifecycleResult{}, err
 		}
-		return applyReceipt(interaction, receipt, at)
+		return applyReceipt(work, receipt, at)
 	case KindTrace:
 		trace, err := decodeLifecycleBody[TraceBody](env, "trace")
 		if err != nil {
 			return LifecycleResult{}, err
 		}
-		return applyTrace(interaction, trace, at)
+		return applyTrace(work, trace, at)
 	default:
 		return LifecycleResult{}, fmt.Errorf("%w: lifecycle kind=%q", ErrInvalidField, env.Kind)
 	}
 }
 
-func applyDirectOrCapability(interaction Interaction, at time.Time) LifecycleResult {
-	if interaction.State == StateNeedsInput {
-		interaction.State = StateWorking
-		interaction.UpdatedAt = at
-		return LifecycleResult{Interaction: interaction, Action: LifecycleActionAdvanced}
+func applySayOrCapability(work Work, at time.Time) LifecycleResult {
+	if work.State == WorkStateNeedsInput {
+		work.State = WorkStateWorking
+		work.UpdatedAt = at
+		return LifecycleResult{Work: work, Action: LifecycleActionAdvanced}
 	}
-	return LifecycleResult{Interaction: interaction, Action: LifecycleActionUnchanged}
+	return LifecycleResult{Work: work, Action: LifecycleActionUnchanged}
 }
 
 func decodeLifecycleBody[T any](env Envelope, label string) (T, error) {
@@ -302,54 +309,56 @@ func decodeLifecycleBody[T any](env Envelope, label string) (T, error) {
 	return typed, nil
 }
 
-func applyReceipt(interaction Interaction, receipt ReceiptBody, at time.Time) (LifecycleResult, error) {
+func applyReceipt(work Work, receipt ReceiptBody, at time.Time) (LifecycleResult, error) {
 	switch receipt.Status {
 	case ReceiptStatusAccepted, ReceiptStatusDuplicate, ReceiptStatusExpired, ReceiptStatusUnsupported:
 		return LifecycleResult{
-			Interaction: interaction,
-			Action:      LifecycleActionUnchanged,
+			Work:   work,
+			Action: LifecycleActionUnchanged,
 		}, nil
 	case ReceiptStatusRejected:
-		interaction.State = StateFailed
+		work.State = WorkStateFailed
 	case ReceiptStatusCanceled:
-		interaction.State = StateCanceled
+		work.State = WorkStateCanceled
 	default:
 		return LifecycleResult{}, fmt.Errorf("%w: receipt status=%q", ErrInvalidStateTransition, receipt.Status)
 	}
 
-	interaction.UpdatedAt = at
+	work.UpdatedAt = at
 	return LifecycleResult{
-		Interaction: interaction,
-		Action:      LifecycleActionAdvanced,
+		Work:   work,
+		Action: LifecycleActionAdvanced,
 	}, nil
 }
 
-func applyTrace(interaction Interaction, trace TraceBody, at time.Time) (LifecycleResult, error) {
-	if !canApplyTrace(interaction.State, trace.State) {
-		return LifecycleResult{}, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, interaction.State, trace.State)
+func applyTrace(work Work, trace TraceBody, at time.Time) (LifecycleResult, error) {
+	if !canApplyTrace(work.State, trace.State) {
+		return LifecycleResult{}, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, work.State, trace.State)
 	}
 
-	updated := interaction
+	updated := work
 	updated.State = trace.State
 	updated.UpdatedAt = at
 
 	return LifecycleResult{
-		Interaction: updated,
-		Action:      LifecycleActionAdvanced,
+		Work:   updated,
+		Action: LifecycleActionAdvanced,
 	}, nil
 }
 
-func canApplyTrace(current InteractionState, next InteractionState) bool {
+func canApplyTrace(current WorkState, next WorkState) bool {
 	switch current {
-	case StateSubmitted:
-		return next == StateWorking || next == StateNeedsInput || next == StateCompleted || next == StateFailed ||
-			next == StateCanceled
-	case StateWorking:
-		return next == StateWorking || next == StateNeedsInput || next == StateCompleted || next == StateFailed ||
-			next == StateCanceled
-	case StateNeedsInput:
-		return next == StateWorking || next == StateNeedsInput || next == StateCompleted || next == StateFailed ||
-			next == StateCanceled
+	case WorkStateSubmitted, WorkStateWorking, WorkStateNeedsInput:
+		return canAdvanceOpenWork(next)
+	default:
+		return false
+	}
+}
+
+func canAdvanceOpenWork(next WorkState) bool {
+	switch next {
+	case WorkStateWorking, WorkStateNeedsInput, WorkStateCompleted, WorkStateFailed, WorkStateCanceled:
+		return true
 	default:
 		return false
 	}

@@ -74,17 +74,17 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 		t.Fatalf("WriteNetworkMessage(duplicate) error = %v", err)
 	}
 	if err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{
-		MessageID:     "msg_say_02",
-		Channel:       "builders",
-		Direction:     "received",
-		PeerFrom:      "reviewer.sess-remote",
-		PeerTo:        "coder.sess-audit",
-		Kind:          "direct",
-		InteractionID: "ix-1",
-		Text:          "review in progress",
-		PreviewText:   "review in progress",
-		Body:          []byte(`{"text":"review in progress"}`),
-		Timestamp:     recordedAt.Add(time.Minute),
+		MessageID:   "msg_say_02",
+		Channel:     "builders",
+		Direction:   "received",
+		PeerFrom:    "reviewer.sess-remote",
+		PeerTo:      "coder.sess-audit",
+		Kind:        "direct",
+		WorkID:      "ix-1",
+		Text:        "review in progress",
+		PreviewText: "review in progress",
+		Body:        []byte(`{"text":"review in progress"}`),
+		Timestamp:   recordedAt.Add(time.Minute),
 	}); err != nil {
 		t.Fatalf("WriteNetworkMessage(second) error = %v", err)
 	}
@@ -117,8 +117,8 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 	if got, want := entries[1].PeerTo, "coder.sess-audit"; got != want {
 		t.Fatalf("entries[1].PeerTo = %q, want %q", got, want)
 	}
-	if got, want := entries[1].InteractionID, "ix-1"; got != want {
-		t.Fatalf("entries[1].InteractionID = %q, want %q", got, want)
+	if got, want := entries[1].WorkID, "ix-1"; got != want {
+		t.Fatalf("entries[1].WorkID = %q, want %q", got, want)
 	}
 	if got, want := string(entries[1].Body), `{"text":"review in progress"}`; got != want {
 		t.Fatalf("entries[1].Body = %q, want %q", got, want)

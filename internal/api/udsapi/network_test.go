@@ -87,7 +87,7 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 			return []network.Envelope{{
 				Protocol: network.ProtocolV0,
 				ID:       "msg-inbox",
-				Kind:     network.KindDirect,
+				Kind:     network.KindSay,
 				Channel:  "builders",
 				From:     "reviewer.sess-a",
 				TS:       1775823000,

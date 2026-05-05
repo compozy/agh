@@ -993,8 +993,6 @@ func envelopePreview(envelope network.Envelope) string {
 	switch typed := body.(type) {
 	case network.SayBody:
 		preview = typed.Text
-	case network.DirectBody:
-		preview = typed.Text
 	case network.TraceBody:
 		preview = typed.Message
 	case network.CapabilityBody:

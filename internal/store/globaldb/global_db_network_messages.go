@@ -55,7 +55,7 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 		entry.PeerFrom,
 		store.NullableString(entry.PeerTo),
 		entry.Kind,
-		store.NullableString(entry.InteractionID),
+		store.NullableString(entry.WorkID),
 		store.NullableString(entry.ReplyTo),
 		store.NullableString(entry.TraceID),
 		store.NullableString(entry.CausationID),
@@ -286,7 +286,7 @@ func scanNetworkMessage(scanner rowScanner) (store.NetworkMessageEntry, error) {
 		entry.PeerTo = *value
 	}
 	if value := store.NullString(interactionID); value != nil {
-		entry.InteractionID = *value
+		entry.WorkID = *value
 	}
 	if value := store.NullString(replyTo); value != nil {
 		entry.ReplyTo = *value

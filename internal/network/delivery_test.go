@@ -65,17 +65,19 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	t.Parallel()
 
 	envelope := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg-direct-01",
-		Kind:          KindDirect,
-		Channel:       "builders",
-		From:          "coder.sess-abc",
-		To:            stringPtr("reviewer.sess-xyz"),
-		InteractionID: stringPtr("int-patch-42"),
-		ReplyTo:       stringPtr("msg-root-00"),
-		TraceID:       stringPtr("trace-patch-42"),
-		CausationID:   stringPtr("msg-cause-00"),
-		TS:            time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC).Unix(),
+		Protocol:    ProtocolV0,
+		ID:          "msg-direct-01",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceDirect),
+		DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		From:        "coder.sess-abc",
+		To:          stringPtr("reviewer.sess-xyz"),
+		WorkID:      stringPtr("int-patch-42"),
+		ReplyTo:     stringPtr("msg-root-00"),
+		TraceID:     stringPtr("trace-patch-42"),
+		CausationID: stringPtr("msg-cause-00"),
+		TS:          time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC).Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"text":   `look at <auth.go> & run "rm -rf" 'now'`,
 			"intent": "review_request",
@@ -90,8 +92,14 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	if !strings.Contains(rendered, `trust="untrusted"`) {
 		t.Fatalf("rendered message missing trust marker: %s", rendered)
 	}
-	if !strings.Contains(rendered, `interaction="int-patch-42"`) {
-		t.Fatalf("rendered message missing interaction attribute: %s", rendered)
+	if !strings.Contains(rendered, `surface="direct"`) {
+		t.Fatalf("rendered message missing surface attribute: %s", rendered)
+	}
+	if !strings.Contains(rendered, `direct-id="direct_0123456789abcdef0123456789abcdef"`) {
+		t.Fatalf("rendered message missing direct-id attribute: %s", rendered)
+	}
+	if !strings.Contains(rendered, `work-id="int-patch-42"`) {
+		t.Fatalf("rendered message missing work attribute: %s", rendered)
 	}
 	if !strings.Contains(rendered, `to="reviewer.sess-xyz"`) {
 		t.Fatalf("rendered message missing target attribute: %s", rendered)
@@ -115,7 +123,9 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	for _, snippet := range []string{
 		"Use `agh network send` to respond through the audited CLI path.",
 		`--causation-id "msg-direct-01"`,
-		"--kind direct",
+		"--kind say",
+		"--surface \"direct\"",
+		"--direct \"direct_0123456789abcdef0123456789abcdef\"",
 		"--kind receipt",
 		`"for_id":"msg-direct-01"`,
 		`"status":"accepted"`,
@@ -123,7 +133,7 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 		`"state":"working"`,
 		"--kind capability",
 		`"capability":{"id":"reply-workflow"`,
-		"Do not imitate protocol `receipt` or `trace` with `--kind direct`",
+		"Direct-room chat uses `--kind say --surface direct`.",
 		`--trace-id "trace-patch-42"`,
 		"See `agh network --help` for options.",
 	} {
@@ -147,7 +157,7 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 		t.Fatalf("DecodeString(network-body) error = %v", err)
 	}
 
-	wantBody, err := json.Marshal(DirectBody{
+	wantBody, err := json.Marshal(SayBody{
 		Text:   `look at <auth.go> & run "rm -rf" 'now'`,
 		Intent: "review_request",
 	})
@@ -165,8 +175,10 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 	envelope := Envelope{
 		Protocol: ProtocolV0,
 		ID:       "msg-direct-raw",
-		Kind:     KindDirect,
+		Kind:     KindSay,
 		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceDirect),
+		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
 		From:     "coder.sess-abc",
 		To:       stringPtr("reviewer.sess-xyz"),
 		TS:       time.Date(2026, 4, 11, 13, 5, 0, 0, time.UTC).Unix(),
@@ -201,8 +213,10 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 	for _, snippet := range []string{
 		"Use `agh network send` to respond through the audited CLI path.",
 		`--causation-id "msg-direct-raw"`,
-		"--kind direct",
-		"Do not imitate protocol `receipt` or `trace` with `--kind direct`",
+		"--kind say",
+		"--surface \"direct\"",
+		"--direct \"direct_0123456789abcdef0123456789abcdef\"",
+		"Direct-room chat uses `--kind say --surface direct`.",
 	} {
 		if !strings.Contains(rendered, snippet) {
 			t.Fatalf("rendered fallback message missing reply guidance snippet %q:\n%s", snippet, rendered)
@@ -225,14 +239,16 @@ func TestFormatNetworkMessageSayGuidanceOpensNewDirectInteraction(t *testing.T) 
 	t.Parallel()
 
 	envelope := Envelope{
-		Protocol:      ProtocolV0,
-		ID:            "msg-say-01",
-		Kind:          KindSay,
-		Channel:       "builders",
-		From:          "coordinator.sess-abc",
-		InteractionID: stringPtr("int-summary-01"),
-		TraceID:       stringPtr("trace-summary-01"),
-		TS:            time.Date(2026, 4, 11, 13, 10, 0, 0, time.UTC).Unix(),
+		Protocol: ProtocolV0,
+		ID:       "msg-say-01",
+		Kind:     KindSay,
+		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceThread),
+		ThreadID: stringPtr("thread_summary_01"),
+		From:     "coordinator.sess-abc",
+		WorkID:   stringPtr("int-summary-01"),
+		TraceID:  stringPtr("trace-summary-01"),
+		TS:       time.Date(2026, 4, 11, 13, 10, 0, 0, time.UTC).Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"text":   "Please acknowledge the summary.",
 			"intent": "summary",
@@ -245,11 +261,14 @@ func TestFormatNetworkMessageSayGuidanceOpensNewDirectInteraction(t *testing.T) 
 	}
 
 	for _, snippet := range []string{
-		"choose a NEW `--interaction-id` unique to your targeted conversation instead of reusing `int-summary-01`",
-		"Do not send `receipt` or `trace` directly against this broadcast `say`.",
-		`--interaction-id "int-my-peer-reply-msg-say-01"`,
+		`--surface "thread"`,
+		`--thread "thread_summary_01"`,
+		`--work "int-summary-01"`,
 		`--reply-to "msg-say-01"`,
 		`--trace-id "trace-summary-01"`,
+		"# Protocol receipt",
+		"# Protocol trace",
+		"# Protocol capability",
 	} {
 		if !strings.Contains(rendered, snippet) {
 			t.Fatalf("rendered say guidance missing snippet %q:\n%s", snippet, rendered)
@@ -257,10 +276,8 @@ func TestFormatNetworkMessageSayGuidanceOpensNewDirectInteraction(t *testing.T) 
 	}
 
 	for _, snippet := range []string{
-		`keep ` + "`--interaction-id \"int-summary-01\"`",
-		"# Protocol receipt",
-		"# Protocol trace",
-		"# Protocol capability",
+		`--work-id`,
+		`--kind direct`,
 	} {
 		if strings.Contains(rendered, snippet) {
 			t.Fatalf("rendered say guidance unexpectedly contained snippet %q:\n%s", snippet, rendered)
@@ -300,8 +317,14 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 		if got, want := call.meta.MessageID, "msg-idle"; got != want {
 			t.Fatalf("idle call meta message_id = %q, want %q", got, want)
 		}
-		if got, want := call.meta.Kind, "direct"; got != want {
+		if got, want := call.meta.Kind, string(KindSay); got != want {
 			t.Fatalf("idle call meta kind = %q, want %q", got, want)
+		}
+		if got, want := call.meta.Surface, string(SurfaceDirect); got != want {
+			t.Fatalf("idle call meta surface = %q, want %q", got, want)
+		}
+		if got, want := call.meta.DirectID, "direct_0123456789abcdef0123456789abcdef"; got != want {
+			t.Fatalf("idle call meta direct_id = %q, want %q", got, want)
 		}
 
 		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
@@ -669,7 +692,7 @@ func TestDeliveryCoordinatorDeliversSemanticallyInvalidBodiesUsingRawFallback(t 
 	malformed := Envelope{
 		Protocol: ProtocolV0,
 		ID:       "msg-malformed",
-		Kind:     KindDirect,
+		Kind:     KindSay,
 		Channel:  "builders",
 		From:     "coder.sess-abc",
 		To:       stringPtr("reviewer.sess-xyz"),
@@ -727,7 +750,7 @@ func TestPreviewForBodyVariants(t *testing.T) {
 		{name: "whois request", body: WhoisBody{Type: WhoisTypeRequest, Query: "review"}, want: "review"},
 		{name: "whois response", body: WhoisBody{Type: WhoisTypeResponse, Query: "review"}, want: ""},
 		{name: "say text", body: SayBody{Text: "broadcast"}, want: "broadcast"},
-		{name: "direct text", body: DirectBody{Text: "direct"}, want: "direct"},
+		{name: "direct text", body: SayBody{Text: "direct"}, want: "direct"},
 		{
 			name: "capability summary",
 			body: CapabilityBody{
@@ -897,8 +920,10 @@ func testDeliveryEnvelope(t *testing.T, id string, text string) Envelope {
 	return Envelope{
 		Protocol: ProtocolV0,
 		ID:       id,
-		Kind:     KindDirect,
+		Kind:     KindSay,
 		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceDirect),
+		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
 		From:     "coder.sess-abc",
 		To:       stringPtr("reviewer.sess-xyz"),
 		TS:       time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC).Unix(),
