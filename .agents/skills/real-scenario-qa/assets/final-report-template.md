@@ -13,6 +13,10 @@
 - Browser automation:
 - Browser fallback:
 - Live provider/LLM status:
+- Scenario contract:
+- Behavioral charter:
+- Journey log:
+- Provider attempt:
 
 ## Behavioral Scenario Charter
 
@@ -100,6 +104,16 @@ These checks prove readiness or regression coverage only. They do not satisfy be
 - Live agent/LLM:
 - Artifacts:
 - Persistence/health:
+
+## Audit Result
+
+- Command:
+- Exit code:
+- JSON report:
+- Markdown report:
+- Blockers:
+- Warnings:
+- Verdict: PASS | FAIL | BLOCKED
 
 ## Blocked Validations
 

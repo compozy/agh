@@ -59,3 +59,13 @@ By severity:
   - Low: <count>
 Details:
   - <BUG-ID>: <short-title> | Severity: <level> | Priority: <P0-P3> | Status: <Open or Fixed>
+
+AUDIT RESULT (when scenario-contract.json exists)
+-------------------------------------------------
+Command: `python3 .agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path <qa-output-path> --strict`
+Exit code: <0, 1, or 2>
+JSON report: <qa-output-path>/qa/qa-audit-report.json
+Markdown report: <qa-output-path>/qa/qa-audit-report.md
+Blockers: <count and summary, or "none">
+Warnings: <count and summary, or "none">
+Verdict: PASS, FAIL, or BLOCKED

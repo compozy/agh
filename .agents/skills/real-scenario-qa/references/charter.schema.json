@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGH Behavioral Scenario Charter",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "startup_situation",
+    "operator_intent",
+    "expected_business_outcome",
+    "agents",
+    "channels",
+    "task_tree",
+    "provider_plan",
+    "cross_surface_targets",
+    "disruption_probes",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "startup_situation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operator_intent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected_business_outcome": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "role", "responsibility"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "responsibility": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "purpose"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "task_tree": {
+      "type": "object",
+      "required": ["roots", "subtasks", "dependencies", "runs"]
+    },
+    "provider_plan": {
+      "type": "object",
+      "required": ["required", "providers", "reachability_probe"],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "providers": {
+          "type": "array"
+        },
+        "reachability_probe": {
+          "type": "string"
+        },
+        "fallback_boundary": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "cross_surface_targets": {
+      "type": "array"
+    },
+    "disruption_probes": {
+      "type": "array"
+    },
+    "artifacts": {
+      "type": "array"
+    }
+  }
+}

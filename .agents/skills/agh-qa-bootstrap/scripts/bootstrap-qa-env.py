@@ -262,6 +262,111 @@ def discover_project_contract(repo_root: Path) -> dict:
     return json.loads(proc.stdout)
 
 
+def scenario_profile(scenario_slug: str) -> str:
+    broad_markers = ("release", "broad", "full", "final", "launch", "scenario")
+    if any(marker in scenario_slug for marker in broad_markers):
+        return "broad"
+    return "broad"
+
+
+def build_scenario_contract(repo_root: Path, scenario_slug: str) -> dict:
+    profile = scenario_profile(scenario_slug)
+    broad_minimums = {
+        "agents": 8,
+        "differentiated_roles": 6,
+        "channels": 5,
+        "tasks": {
+            "roots": 2,
+            "subtasks": 4,
+            "dependencies": 2,
+            "runs": 6,
+        },
+        "provider_backed_sessions": 1,
+        "cross_surface_objects": 3,
+        "disruption_probes": 3,
+        "artifacts_used_later": 2,
+        "surfaces_required": ["cli", "api", "web", "runtime", "provider"],
+    }
+    return {
+        "schema_version": 1,
+        "release_grade": profile,
+        "scope_slug": scenario_slug,
+        "minimums": broad_minimums,
+        "profile_overrides": {
+            "feature": {
+                "agents": 4,
+                "differentiated_roles": 3,
+                "channels": 3,
+            },
+        },
+        "audit_command": str(repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "audit-qa-evidence.py"),
+        "enforcement": "block",
+    }
+
+
+def build_charter_skeleton(scenario_slug: str) -> dict:
+    return {
+        "schema_version": 1,
+        "startup_situation": f"UNFILLED: realistic startup situation for {scenario_slug}",
+        "operator_intent": "UNFILLED: what the operator needs to accomplish",
+        "expected_business_outcome": "UNFILLED: user-visible outcome required for success",
+        "agents": [],
+        "channels": [],
+        "task_tree": {
+            "roots": [],
+            "subtasks": [],
+            "dependencies": [],
+            "runs": [],
+        },
+        "provider_plan": {
+            "required": True,
+            "providers": [],
+            "reachability_probe": "UNFILLED: exact provider-backed command to run",
+            "fallback_boundary": None,
+        },
+        "cross_surface_targets": [],
+        "disruption_probes": [],
+        "artifacts": [],
+    }
+
+
+def build_provider_attempt_stub() -> dict:
+    return {
+        "schema_version": 1,
+        "providers_probed": [],
+        "live_proof_session_ids": [],
+        "observed_agent_decisions": [],
+        "boundary": None,
+    }
+
+
+def write_json_if_absent(path: Path, data: dict) -> None:
+    if path.exists():
+        return
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def seed_qa_evidence_contracts(repo_root: Path, qa_root: Path, scenario_slug: str) -> dict[str, Path]:
+    scenario_contract_path = qa_root / "scenario-contract.json"
+    charter_path = qa_root / "behavioral-scenario-charter.yaml"
+    journey_log_path = qa_root / "journey-log.jsonl"
+    provider_attempt_path = qa_root / "provider-attempt.json"
+    audit_command = repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "audit-qa-evidence.py"
+
+    write_json_if_absent(scenario_contract_path, build_scenario_contract(repo_root, scenario_slug))
+    write_json_if_absent(charter_path, build_charter_skeleton(scenario_slug))
+    if not journey_log_path.exists():
+        journey_log_path.write_text("", encoding="utf-8")
+    write_json_if_absent(provider_attempt_path, build_provider_attempt_stub())
+    return {
+        "SCENARIO_CONTRACT": scenario_contract_path,
+        "BEHAVIORAL_CHARTER": charter_path,
+        "JOURNEY_LOG": journey_log_path,
+        "PROVIDER_ATTEMPT": provider_attempt_path,
+        "AUDIT_COMMAND": audit_command,
+    }
+
+
 def write_env_file(env_path: Path, env_map: dict[str, str]) -> None:
     lines = [f"export {key}={shquote(value)}" for key, value in env_map.items()]
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -325,6 +430,7 @@ def main() -> int:
 
     manifest_path = qa_root / "bootstrap-manifest.json"
     env_path = qa_root / "bootstrap.env"
+    evidence_paths = seed_qa_evidence_contracts(repo_root, qa_root, workspace_info["SCENARIO_SLUG"])
 
     if reused_lab and existing_manifest is not None:
         existing_env = existing_manifest.get("env", {})
@@ -367,6 +473,11 @@ def main() -> int:
             "PROVIDER_CODEX_HOME": str(provider_codex_home),
             "BROWSER_MODE": "",
             "BROWSER_BLOCKER": "",
+            "SCENARIO_CONTRACT": str(evidence_paths["SCENARIO_CONTRACT"]),
+            "BEHAVIORAL_CHARTER": str(evidence_paths["BEHAVIORAL_CHARTER"]),
+            "JOURNEY_LOG": str(evidence_paths["JOURNEY_LOG"]),
+            "PROVIDER_ATTEMPT": str(evidence_paths["PROVIDER_ATTEMPT"]),
+            "AUDIT_COMMAND": str(evidence_paths["AUDIT_COMMAND"]),
         }
         write_runtime_config(agh_home, env_block["AGH_HTTP_PORT"], env_block["AGH_UDS_PATH"])
 
@@ -376,6 +487,11 @@ def main() -> int:
     env_block["PROVIDER_HOME"] = str(provider_home)
     env_block["PROVIDER_CODEX_HOME"] = str(provider_codex_home)
     env_block["AGH_WEB_API_PROXY_TARGET"] = f"http://127.0.0.1:{env_block['AGH_HTTP_PORT']}"
+    env_block["SCENARIO_CONTRACT"] = str(evidence_paths["SCENARIO_CONTRACT"])
+    env_block["BEHAVIORAL_CHARTER"] = str(evidence_paths["BEHAVIORAL_CHARTER"])
+    env_block["JOURNEY_LOG"] = str(evidence_paths["JOURNEY_LOG"])
+    env_block["PROVIDER_ATTEMPT"] = str(evidence_paths["PROVIDER_ATTEMPT"])
+    env_block["AUDIT_COMMAND"] = str(evidence_paths["AUDIT_COMMAND"])
 
     browser_mode, browser_blocker = detect_browser_mode(global_codex_home)
     env_block["BROWSER_MODE"] = browser_mode
@@ -404,6 +520,11 @@ def main() -> int:
             "qa_root": str(qa_root),
             "provider_home": str(provider_home),
             "provider_codex_home": str(provider_codex_home),
+            "scenario_contract": str(evidence_paths["SCENARIO_CONTRACT"]),
+            "behavioral_charter": str(evidence_paths["BEHAVIORAL_CHARTER"]),
+            "journey_log": str(evidence_paths["JOURNEY_LOG"]),
+            "provider_attempt": str(evidence_paths["PROVIDER_ATTEMPT"]),
+            "audit_command": str(evidence_paths["AUDIT_COMMAND"]),
         },
         "project_contract": project_contract,
     }
@@ -426,6 +547,11 @@ def main() -> int:
         "PROVIDER_CODEX_HOME": env_block["PROVIDER_CODEX_HOME"],
         "BROWSER_MODE": env_block["BROWSER_MODE"],
         "BROWSER_BLOCKER": env_block["BROWSER_BLOCKER"],
+        "SCENARIO_CONTRACT": env_block["SCENARIO_CONTRACT"],
+        "BEHAVIORAL_CHARTER": env_block["BEHAVIORAL_CHARTER"],
+        "JOURNEY_LOG": env_block["JOURNEY_LOG"],
+        "PROVIDER_ATTEMPT": env_block["PROVIDER_ATTEMPT"],
+        "AUDIT_COMMAND": env_block["AUDIT_COMMAND"],
         "REUSED_LAB": "true" if reused_lab else "false",
     }
     for key, value in outputs.items():
