@@ -1,7 +1,9 @@
 package builtin
 
 import (
+	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	toolspkg "github.com/pedronauck/agh/internal/tools"
@@ -34,6 +36,12 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDNetworkInbox,
 			toolspkg.ToolIDNetworkPeers,
 			toolspkg.ToolIDNetworkSend,
+			toolspkg.ToolIDNetworkThreads,
+			toolspkg.ToolIDNetworkThreadMessages,
+			toolspkg.ToolIDNetworkDirects,
+			toolspkg.ToolIDNetworkDirectResolve,
+			toolspkg.ToolIDNetworkDirectMessages,
+			toolspkg.ToolIDNetworkWork,
 			toolspkg.ToolIDSessionList,
 			toolspkg.ToolIDSessionStatus,
 			toolspkg.ToolIDSessionHistory,
@@ -164,6 +172,25 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkChannels], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkInbox], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkPeers], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkThreads], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkThreadMessages],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkDirects], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkDirectMessages],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkWork], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionStatus], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHistory], toolspkg.RiskRead, true, false, false)
@@ -201,6 +228,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRead], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkSend], toolspkg.RiskOpenWorld, false, false, true)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkDirectResolve],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskCreate], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(
 			t,
@@ -333,6 +368,59 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMCPAuthStatus], toolspkg.RiskRead, true, false, false)
 	})
 
+	t.Run("Should keep network schemas closed and hard-cut vocabulary out of descriptors", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		networkIDs := []toolspkg.ToolID{
+			toolspkg.ToolIDNetworkSend,
+			toolspkg.ToolIDNetworkThreads,
+			toolspkg.ToolIDNetworkThreadMessages,
+			toolspkg.ToolIDNetworkDirects,
+			toolspkg.ToolIDNetworkDirectResolve,
+			toolspkg.ToolIDNetworkDirectMessages,
+			toolspkg.ToolIDNetworkWork,
+		}
+		for _, id := range networkIDs {
+			descriptor := descriptors[id]
+			var schema map[string]json.RawMessage
+			if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+				t.Fatalf("%s input schema is invalid JSON: %v", id, err)
+			}
+			var additionalProperties bool
+			if err := json.Unmarshal(schema["additionalProperties"], &additionalProperties); err != nil {
+				t.Fatalf("%s additionalProperties = %s: %v", id, schema["additionalProperties"], err)
+			}
+			if additionalProperties {
+				t.Fatalf("%s additionalProperties = true, want false", id)
+			}
+			schemaText := string(descriptor.InputSchema)
+			if strings.Contains(schemaText, "interaction_id") {
+				t.Fatalf("%s schema includes deleted interaction_id field: %s", id, schemaText)
+			}
+			if strings.Contains(schemaText, `"kind":"direct"`) ||
+				strings.Contains(descriptor.Description, `kind:"direct"`) {
+				t.Fatalf("%s descriptor teaches legacy direct message kind", id)
+			}
+		}
+
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDNetworkSend,
+			toolspkg.ToolIDNetworkDirects,
+			toolspkg.ToolIDNetworkDirectResolve,
+			toolspkg.ToolIDNetworkDirectMessages,
+		} {
+			description := strings.ToLower(descriptors[id].Description)
+			if !strings.Contains(description, "runtime/audit access") ||
+				!strings.Contains(description, "not cryptographic privacy") {
+				t.Fatalf("%s description = %q, want explicit direct-room visibility boundary", id, description)
+			}
+			if strings.Contains(description, "encrypted") {
+				t.Fatalf("%s description = %q, must not imply encrypted direct rooms", id, description)
+			}
+		}
+	})
+
 	t.Run("Should return cloned descriptors", func(t *testing.T) {
 		t.Parallel()
 
@@ -409,10 +497,16 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if want := []toolspkg.ToolID{
 			toolspkg.ToolIDNetworkChannels,
+			toolspkg.ToolIDNetworkDirectMessages,
+			toolspkg.ToolIDNetworkDirectResolve,
+			toolspkg.ToolIDNetworkDirects,
 			toolspkg.ToolIDNetworkInbox,
 			toolspkg.ToolIDNetworkPeers,
 			toolspkg.ToolIDNetworkSend,
 			toolspkg.ToolIDNetworkStatus,
+			toolspkg.ToolIDNetworkThreadMessages,
+			toolspkg.ToolIDNetworkThreads,
+			toolspkg.ToolIDNetworkWork,
 		}; !slices.Equal(coordination, want) {
 			t.Fatalf("coordination expansion = %#v, want %#v", coordination, want)
 		}

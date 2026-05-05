@@ -87,6 +87,82 @@ func TestNativeProviderDispatch(t *testing.T) {
 		}
 	})
 
+	t.Run("Should enforce enum oneOf and not schema rules before native handler invocation", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		descriptor.InputSchema = json.RawMessage(`{
+			"type":"object",
+			"required":["surface"],
+			"properties":{
+				"surface":{"type":"string","enum":["thread","direct"]},
+				"thread_id":{"type":"string"},
+				"direct_id":{"type":"string"}
+			},
+			"oneOf":[
+				{
+					"required":["thread_id"],
+					"properties":{"surface":{"enum":["thread"]}},
+					"not":{"required":["direct_id"]}
+				},
+				{
+					"required":["direct_id"],
+					"properties":{"surface":{"enum":["direct"]}},
+					"not":{"required":["thread_id"]}
+				}
+			],
+			"additionalProperties":false
+		}`)
+		calls := 0
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				calls++
+				return ToolResult{Structured: json.RawMessage(`{"ok":true}`)}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewNativeProvider() error = %v", err)
+		}
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		invalidInputs := []json.RawMessage{
+			json.RawMessage(`{"surface":"thread"}`),
+			json.RawMessage(`{"surface":"direct","thread_id":"thread_1"}`),
+			json.RawMessage(`{"surface":"thread","thread_id":"thread_1","direct_id":"direct_1"}`),
+			json.RawMessage(`{"surface":"legacy","thread_id":"thread_1"}`),
+			json.RawMessage(`{"surface":"thread","thread_id":"thread_1","interaction_id":"old"}`),
+		}
+		for _, input := range invalidInputs {
+			_, err := registry.Call(t.Context(), Scope{}, CallRequest{ToolID: descriptor.ID, Input: input})
+			if !errors.Is(err, ErrToolInvalidInput) {
+				t.Fatalf("RuntimeRegistry.Call(%s) error = %v, want ErrToolInvalidInput", input, err)
+			}
+		}
+		if calls != 0 {
+			t.Fatalf("native handler calls after invalid inputs = %d, want 0", calls)
+		}
+
+		for _, input := range []json.RawMessage{
+			json.RawMessage(`{"surface":"thread","thread_id":"thread_1"}`),
+			json.RawMessage(`{"surface":"direct","direct_id":"direct_1"}`),
+		} {
+			if _, err := registry.Call(
+				t.Context(),
+				Scope{},
+				CallRequest{ToolID: descriptor.ID, Input: input},
+			); err != nil {
+				t.Fatalf("RuntimeRegistry.Call(%s) error = %v, want nil", input, err)
+			}
+		}
+		if calls != 2 {
+			t.Fatalf("native handler calls after valid inputs = %d, want 2", calls)
+		}
+	})
+
 	t.Run("Should surface unavailable dependencies before native handler invocation", func(t *testing.T) {
 		t.Parallel()
 
