@@ -1,9 +1,12 @@
 import { cn } from "@/lib/utils";
 
-import { useDirectRoom } from "../../hooks/use-direct-room";
 import type { NetworkPresenceState } from "../../hooks/use-network-presence";
+import { DetailComposer } from "../composer/detail-composer";
+import { DirectEmpty } from "../empty-states/direct-empty";
 import { Timeline } from "../timeline/timeline";
 import { MessageAvatar } from "../timeline/message-avatar";
+import { WorkBanner } from "../work/work-banner";
+import { useDirectRoomView } from "./use-direct-room-view";
 
 export interface DirectRoomProps {
   channel: string;
@@ -46,7 +49,8 @@ function PresenceDot({ state }: PresenceDotProps) {
 }
 
 export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
-  const room = useDirectRoom({ channel, directId, selfPeerId });
+  const view = useDirectRoomView({ channel, directId, selfPeerId });
+  const { room, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
   const otherPeerId = room.otherPeerId;
 
   return (
@@ -73,15 +77,29 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
         </div>
       </header>
 
+      <WorkBanner hasNeedsInput={openWork.hasNeedsInput} openCount={openWork.openCount} />
+
       <Timeline
         ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
         density="channel"
-        emptyState={
-          <p className="text-[13px] text-[color:var(--color-text-tertiary)]">Quiet so far.</p>
-        }
+        emptyState={<DirectEmpty />}
         isLoading={room.isMessagesLoading}
         lastReadAt={room.lastReadIso}
         messages={room.messages}
+        onDiscardOptimistic={handleDiscard}
+        onRetryOptimistic={handleRetry}
+      />
+
+      <DetailComposer
+        channel={channel}
+        directId={directId}
+        disabledReason={disabledReason ?? undefined}
+        displayName={session?.displayName}
+        peerFrom={session?.peerId ?? ""}
+        peerLabel={otherPeerId ? `@${otherPeerId}` : "@peer"}
+        peerTo={otherPeerId || undefined}
+        sessionId={session?.sessionId ?? ""}
+        surface="direct"
       />
     </section>
   );

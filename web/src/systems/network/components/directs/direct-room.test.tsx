@@ -47,6 +47,19 @@ vi.mock("../../hooks/use-messages", () => ({
   }),
 }));
 
+vi.mock("../../hooks/use-active-session", () => ({
+  useActiveNetworkSession: () => ({
+    session: {
+      channel: "ops",
+      peerId: "peer-self",
+      sessionId: "sess-self",
+      displayName: "Self",
+    },
+    disabledReason: null,
+    isLoading: false,
+  }),
+}));
+
 import { DirectRoom } from "./direct-room";
 
 describe("DirectRoom headerless layout", () => {

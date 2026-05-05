@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Web Composer, Work Surfacing, Empty/Error States & Realtime Polling
 type: frontend
 complexity: critical
@@ -45,15 +45,15 @@ The normative UI source is `_design.md`. Sections referenced below: §5.7 (compo
 
 ## Subtasks
 
-- [ ] 15.1 Build `web/src/systems/network/components/composer/` (`composer.tsx` shared base, `channel-thread-composer.tsx`, `detail-composer.tsx`, `composer-toolbar.tsx`, `composer-slash-popover.tsx`).
-- [ ] 15.2 Implement `use-network-actions.ts` mutations: `sendMessage`, `createThread` (with collision retry), `resolveDirectRoom`. All mutations are optimistic.
-- [ ] 15.3 Build `web/src/systems/network/components/work/` (`work-chip.tsx`, `work-banner.tsx`, `work-inspector.tsx`, `work-inspector-row.tsx`).
-- [ ] 15.4 Implement `use-work.ts` — open work query for the active container; refetches every 3s while inspector is open and any state is non-terminal.
-- [ ] 15.5 Build `web/src/systems/network/components/empty-states/` (`network-empty.tsx`, `threads-empty.tsx`, `directs-empty.tsx`, `thread-empty.tsx`, `direct-empty.tsx`) with copy verbatim from `_design.md` §7.2.
-- [ ] 15.6 Implement error states per `_design.md` §7.3 — inline retry for list failures, in-place danger-tint for failed sends with retry/discard, single Sonner for thread collision second-failure, full-page error for daemon-down.
-- [ ] 15.7 Wire polling intervals and `refetchOnWindowFocus` defaults per `_design.md` §9.1; add manual refresh affordance to channel header kebab.
-- [ ] 15.8 Wire hover toolbar handlers from task_14 (Reply opens overlay, Pin/Fork as Post-MVP-disabled with tooltip, kebab opens menu).
-- [ ] 15.9 Add direct resolve flow: `[New direct]` button on Directs tab → `Combobox` peer picker → resolve → navigate.
+- [x] 15.1 Build `web/src/systems/network/components/composer/` (`composer.tsx` shared base, `channel-thread-composer.tsx`, `detail-composer.tsx`, `composer-toolbar.tsx`, `composer-slash-popover.tsx`).
+- [x] 15.2 Implement `use-network-actions.ts` mutations: `sendMessage`, `createThread` (with collision retry), `resolveDirectRoom`. All mutations are optimistic.
+- [x] 15.3 Build `web/src/systems/network/components/work/` (`work-chip.tsx`, `work-banner.tsx`, `work-inspector.tsx`, `work-inspector-row.tsx`).
+- [x] 15.4 Implement `use-work.ts` — open work query for the active container; refetches every 3s while inspector is open and any state is non-terminal.
+- [x] 15.5 Build `web/src/systems/network/components/empty-states/` (`network-empty.tsx`, `threads-empty.tsx`, `directs-empty.tsx`, `thread-empty.tsx`, `direct-empty.tsx`) with copy verbatim from `_design.md` §7.2.
+- [x] 15.6 Implement error states per `_design.md` §7.3 — inline retry for list failures, in-place danger-tint for failed sends with retry/discard, single Sonner for thread collision second-failure, full-page error for daemon-down.
+- [x] 15.7 Wire polling intervals and `refetchOnWindowFocus` defaults per `_design.md` §9.1; add manual refresh affordance to channel header kebab.
+- [x] 15.8 Wire hover toolbar handlers from task_14 (Reply opens overlay, Pin/Fork as Post-MVP-disabled with tooltip, kebab opens menu).
+- [x] 15.9 Add direct resolve flow: `[New direct]` button on Directs tab → `Combobox` peer picker → resolve → navigate.
 
 ## Implementation Details
 

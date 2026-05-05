@@ -27,6 +27,12 @@ export interface TimelineProps {
   /** Stable id used by aria-label and data attributes. */
   ariaLabel?: string;
   toolbarHandlers?: (message: NetworkConversationMessage) => HoverToolbarHandlers | undefined;
+  /** Retry handler for failed optimistic sends per `_design.md` §7.3. */
+  onRetryOptimistic?: (message: NetworkConversationMessage) => void;
+  /** Discard handler for failed optimistic sends. */
+  onDiscardOptimistic?: (message: NetworkConversationMessage) => void;
+  /** Click handler for the inline work chip per `_design.md` §5.8.1. */
+  onWorkChipClick?: (message: NetworkConversationMessage) => void;
 }
 
 interface TimelineSkeletonProps {
@@ -66,6 +72,9 @@ export function Timeline({
   className,
   ariaLabel = "Timeline",
   toolbarHandlers,
+  onRetryOptimistic,
+  onDiscardOptimistic,
+  onWorkChipClick,
 }: TimelineProps) {
   const entries = useMemo(
     () => buildTimelineEntries({ messages, now, lastReadAt }),
@@ -136,10 +145,13 @@ export function Timeline({
             density={density}
             key={entry.id}
             message={entry.message}
+            onDiscard={onDiscardOptimistic}
             onFork={handlers?.onFork}
             onMore={handlers?.onMore}
             onPin={handlers?.onPin}
             onReply={handlers?.onReply}
+            onRetry={onRetryOptimistic}
+            onWorkChipClick={onWorkChipClick}
           />
         );
       })}

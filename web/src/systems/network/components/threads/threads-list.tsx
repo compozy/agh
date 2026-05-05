@@ -1,12 +1,13 @@
-import { Hash, MessageSquare } from "lucide-react";
+import { Hash } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Empty, Skeleton } from "@agh/ui";
+import { Skeleton } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkThreadSummary } from "../../types";
+import { ThreadsEmpty } from "../empty-states/threads-empty";
 
 export interface ThreadsListProps {
   channel: string;
@@ -15,6 +16,7 @@ export interface ThreadsListProps {
   isLoading: boolean;
   /** Reduced contrast applied when the right-rail thread overlay is open. */
   dim?: boolean;
+  onStartThread?: () => void;
 }
 
 interface ThreadsListRowProps {
@@ -92,6 +94,7 @@ export function ThreadsList({
   activeThreadId,
   isLoading,
   dim = false,
+  onStartThread,
 }: ThreadsListProps) {
   if (isLoading && threads.length === 0) {
     return <ThreadsListSkeleton />;
@@ -100,12 +103,7 @@ export function ThreadsList({
   if (threads.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <Empty
-          className="max-w-md"
-          description="Start the first one — agents and humans both join."
-          icon={MessageSquare}
-          title="No threads yet."
-        />
+        <ThreadsEmpty className="max-w-md" onStartThread={onStartThread} />
       </div>
     );
   }

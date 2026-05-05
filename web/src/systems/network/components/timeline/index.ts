@@ -6,7 +6,11 @@ export { MessageAvatar } from "./message-avatar";
 export type { MessageAvatarProps } from "./message-avatar";
 export { MessageBodyText, readMessageBody } from "./message-body";
 export { MessageRow } from "./message-row";
-export type { MessageRowDensity, MessageRowProps } from "./message-row";
+export type {
+  MessageRowDensity,
+  MessageRowOptimisticHandlers,
+  MessageRowProps,
+} from "./message-row";
 export { MessageRowCollapsed } from "./message-row-collapsed";
 export type { MessageRowCollapsedProps } from "./message-row-collapsed";
 export { MessageRowSystem } from "./message-row-system";

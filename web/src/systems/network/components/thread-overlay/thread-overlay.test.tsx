@@ -80,6 +80,19 @@ vi.mock("../../hooks/use-messages", () => ({
   }),
 }));
 
+vi.mock("../../hooks/use-active-session", () => ({
+  useActiveNetworkSession: () => ({
+    session: {
+      channel: "ops",
+      peerId: "peer-codex",
+      sessionId: "sess-1",
+      displayName: "Codex",
+    },
+    disabledReason: null,
+    isLoading: false,
+  }),
+}));
+
 import { ThreadOverlay } from "./thread-overlay";
 
 function renderOverlay({ fullPage = false }: { fullPage?: boolean } = {}) {

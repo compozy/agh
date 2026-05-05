@@ -1,9 +1,17 @@
-import { AlertTriangle, Loader2, Network as NetworkIcon } from "lucide-react";
+import { Loader2, Network as NetworkIcon } from "lucide-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { Empty } from "@agh/ui";
 
-import { ThreadOverlay, useNetworkRouteShell, useThreadViewMode } from "@/systems/network";
+import {
+  DaemonDown,
+  NetworkEmpty,
+  ThreadOverlay,
+  useNetworkRouteShell,
+  useOpenWork,
+  useThreadViewMode,
+  WorkInspector,
+} from "@/systems/network";
 import { NetworkShell } from "@/systems/network/components/shell";
 
 export const Route = createFileRoute("/_app/network")({
@@ -11,9 +19,24 @@ export const Route = createFileRoute("/_app/network")({
 });
 
 function NetworkRouteShell() {
-  const { page, activeChannel, activeTab, activeThreadId, hasUnread } = useNetworkRouteShell();
+  const { page, activeChannel, activeTab, activeThreadId, activeDirectId, hasUnread } =
+    useNetworkRouteShell();
   const viewMode = useThreadViewMode();
   const showOverlayInRightRail = activeThreadId != null && viewMode === "overlay";
+  const containerSurface = activeThreadId
+    ? ("thread" as const)
+    : activeDirectId
+      ? ("direct" as const)
+      : null;
+  const containerId = activeThreadId ?? activeDirectId ?? null;
+  const channelKey = activeChannel?.channel ?? null;
+  const openWork = useOpenWork({
+    channel: channelKey,
+    surface: containerSurface,
+    containerId,
+    enabled: Boolean(channelKey) && containerSurface != null,
+  });
+  const showInspectorInRightRail = !showOverlayInRightRail && openWork.openCount > 0;
 
   if (page.isStatusLoading) {
     return (
@@ -37,12 +60,7 @@ function NetworkRouteShell() {
         className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
         data-testid="network-error"
       >
-        <Empty
-          className="max-w-xl"
-          description={page.statusError?.message ?? "Failed to load network status"}
-          icon={AlertTriangle}
-          title="Unable to load the network workspace"
-        />
+        <DaemonDown />
       </div>
     );
   }
@@ -53,12 +71,7 @@ function NetworkRouteShell() {
         className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
         data-testid="network-disabled-state"
       >
-        <Empty
-          className="max-w-xl"
-          description="Enable the embedded network in AGH config to inspect channels, threads, and direct rooms."
-          icon={NetworkIcon}
-          title="Network disabled"
-        />
+        <NetworkEmpty />
       </div>
     );
   }
@@ -89,7 +102,7 @@ function NetworkRouteShell() {
         >
           <Empty
             className="max-w-xl"
-            description="Create a channel from the CLI or extension SDK to start coordinating threads and direct rooms."
+            description="Create one or accept an invite."
             icon={NetworkIcon}
             title="No channels yet."
           />
@@ -97,6 +110,13 @@ function NetworkRouteShell() {
       </NetworkShell>
     );
   }
+
+  const rightRailContent =
+    showOverlayInRightRail && activeChannel && activeThreadId ? (
+      <ThreadOverlay channel={activeChannel.channel} fullPage={false} threadId={activeThreadId} />
+    ) : showInspectorInRightRail ? (
+      <WorkInspector entries={openWork.entries} isLoading={openWork.isLoading} />
+    ) : null;
 
   return (
     <NetworkShell
@@ -109,20 +129,12 @@ function NetworkRouteShell() {
       isPinned={page.isPinned}
       isRecentsLoading={page.isRecentsLoading}
       onTogglePinned={page.togglePinned}
-      openWorkCount={0}
+      openWorkCount={openWork.openCount}
       pinnedChannels={page.pinnedChannels}
       recents={page.recents}
-      rightRailContent={
-        showOverlayInRightRail && activeChannel ? (
-          <ThreadOverlay
-            channel={activeChannel.channel}
-            fullPage={false}
-            threadId={activeThreadId}
-          />
-        ) : null
-      }
-      rightRailMode="thread"
-      rightRailOpen={showOverlayInRightRail}
+      rightRailContent={rightRailContent}
+      rightRailMode={showOverlayInRightRail ? "thread" : "work"}
+      rightRailOpen={showOverlayInRightRail || showInspectorInRightRail}
       threadCount={null}
       unpinnedChannels={page.unpinnedChannels}
     >

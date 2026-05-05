@@ -1,7 +1,16 @@
-import { MoreHorizontal } from "lucide-react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { MoreHorizontal, RefreshCw } from "lucide-react";
 
-import { Button } from "@agh/ui";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@agh/ui";
 
+import { networkKeys } from "../../lib/query-keys";
 import type { NetworkChannel, NetworkChannelSummary } from "../../types";
 import { ChannelTabs, type ChannelTab } from "./channel-tabs";
 
@@ -43,6 +52,13 @@ export function ChannelHeader({
   openWorkCount,
 }: ChannelHeaderProps) {
   const identityLabel = buildIdentityMixLabel(channel, detail);
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  const handleRefresh = () => {
+    void queryClient.invalidateQueries({ queryKey: networkKeys.channelScope(channel.channel) });
+    setOpen(false);
+  };
 
   return (
     <header className="flex flex-col" data-testid="network-channel-header">
@@ -65,15 +81,39 @@ export function ChannelHeader({
           </span>
         ) : null}
         <div className="ml-auto">
-          <Button
-            aria-label="Channel actions"
-            data-testid="network-channel-kebab"
-            size="icon-sm"
-            type="button"
-            variant="outline"
-          >
-            <MoreHorizontal aria-hidden="true" className="size-4" />
-          </Button>
+          <DropdownMenu onOpenChange={setOpen} open={open}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  aria-label="Channel actions"
+                  data-testid="network-channel-kebab"
+                  size="icon-sm"
+                  type="button"
+                  variant="outline"
+                />
+              }
+            >
+              <MoreHorizontal aria-hidden="true" className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                data-testid="network-channel-refresh"
+                onSelect={event => {
+                  event.preventDefault();
+                  handleRefresh();
+                }}
+              >
+                <RefreshCw aria-hidden="true" className="size-3.5" />
+                Refresh data
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled title="Post-MVP">
+                Rename channel
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled title="Post-MVP">
+                Archive channel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

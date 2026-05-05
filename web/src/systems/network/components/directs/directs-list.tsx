@@ -1,12 +1,12 @@
-import { MessageCircle } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Empty, Skeleton } from "@agh/ui";
+import { Skeleton } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkDirectRoomSummary } from "../../types";
+import { DirectsEmpty } from "../empty-states/directs-empty";
 import { MessageAvatar } from "../timeline/message-avatar";
 
 export interface DirectsListProps {
@@ -16,6 +16,7 @@ export interface DirectsListProps {
   isLoading: boolean;
   /** Local peer id used to identify which side of `peer_a/peer_b` is "the other peer". */
   selfPeerId?: string;
+  onNewDirect?: () => void;
 }
 
 function pickOtherPeerId(direct: NetworkDirectRoomSummary, selfPeerId?: string): string {
@@ -98,6 +99,7 @@ export function DirectsList({
   activeDirectId,
   isLoading,
   selfPeerId,
+  onNewDirect,
 }: DirectsListProps) {
   if (isLoading && directs.length === 0) {
     return <DirectsListSkeleton />;
@@ -106,12 +108,7 @@ export function DirectsList({
   if (directs.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <Empty
-          className="max-w-md"
-          description="Open one to talk privately with a peer in this channel."
-          icon={MessageCircle}
-          title="No direct rooms yet."
-        />
+        <DirectsEmpty className="max-w-md" onNewDirect={onNewDirect} />
       </div>
     );
   }

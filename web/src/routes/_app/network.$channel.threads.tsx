@@ -1,13 +1,13 @@
-import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { ThreadsList, useNetworkThreads, useThreadViewMode } from "@/systems/network";
+import {
+  ChannelThreadComposer,
+  ThreadsList,
+  useNetworkChannelThreadsRoute,
+} from "@/systems/network";
 
 interface ThreadsRouteSearch {
   view?: "full";
-}
-
-interface ThreadDetailParams {
-  threadId?: string;
 }
 
 export const Route = createFileRoute("/_app/network/$channel/threads")({
@@ -19,39 +19,45 @@ export const Route = createFileRoute("/_app/network/$channel/threads")({
 
 function NetworkChannelThreadsRoute() {
   const { channel } = Route.useParams();
-  const detailParams = useParams({ strict: false }) as ThreadDetailParams;
   const search = Route.useSearch();
-  const activeThreadId = detailParams.threadId ?? null;
-  const viewMode = useThreadViewMode();
-  const isFullPage = search.view === "full" || viewMode === "fullpage";
-  const showOverlay = activeThreadId != null;
-  const showList = !showOverlay || !isFullPage;
-
-  const threadsQuery = useNetworkThreads(channel);
+  const route = useNetworkChannelThreadsRoute({ channel, view: search.view });
+  const { activeThreadId, isFullPage, showOverlay, showList, threadsQuery, activeSession } = route;
 
   return (
     <section
       aria-label={`Threads in #${channel}`}
-      className="flex min-h-0 flex-1"
+      className="flex min-h-0 flex-1 flex-col"
       data-testid="network-threads-tab"
     >
-      {showList ? (
-        <ThreadsList
-          activeThreadId={activeThreadId}
-          channel={channel}
-          dim={showOverlay && !isFullPage}
-          isLoading={threadsQuery.isLoading}
-          threads={threadsQuery.threads}
-        />
-      ) : null}
+      <div className="flex min-h-0 flex-1">
+        {showList ? (
+          <ThreadsList
+            activeThreadId={activeThreadId}
+            channel={channel}
+            dim={showOverlay && !isFullPage}
+            isLoading={threadsQuery.isLoading}
+            threads={threadsQuery.threads}
+          />
+        ) : null}
 
-      {showOverlay && isFullPage ? (
-        <div
-          className="flex min-h-0 flex-1 flex-col bg-[color:var(--color-canvas-deep)]"
-          data-testid="network-thread-overlay-fullpage"
-        >
-          <Outlet />
-        </div>
+        {showOverlay && isFullPage ? (
+          <div
+            className="flex min-h-0 flex-1 flex-col bg-[color:var(--color-canvas-deep)]"
+            data-testid="network-thread-overlay-fullpage"
+          >
+            <Outlet />
+          </div>
+        ) : null}
+      </div>
+
+      {showList && !showOverlay ? (
+        <ChannelThreadComposer
+          channel={channel}
+          disabledReason={activeSession.disabledReason ?? undefined}
+          displayName={activeSession.session?.displayName}
+          peerFrom={activeSession.session?.peerId ?? ""}
+          sessionId={activeSession.session?.sessionId ?? ""}
+        />
       ) : null}
     </section>
   );

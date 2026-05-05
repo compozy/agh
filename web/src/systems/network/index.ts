@@ -91,6 +91,7 @@ export {
   formatNetworkKindLabel,
   formatNetworkNumber,
   formatNetworkRelativeTime,
+  formatNetworkWorkStateLabel,
   getMessageAuthorInitial,
   getMostRecentTimestamp,
   getNetworkKindTone,
@@ -98,10 +99,16 @@ export {
   getPeerDisplayName,
   getPeerRecencyAt,
   isNetworkRunning,
+  isNetworkWorkState,
+  isTerminalNetworkWorkState,
+  shouldRenderNetworkWorkChip,
   sortAgentsForNetwork,
   toNetworkKindFilter,
   toggleDraftAgent,
 } from "./lib/network-formatters";
+export type { NetworkWorkState } from "./lib/network-formatters";
+export { formatElapsedSeconds, useElapsedSeconds } from "./lib/use-elapsed";
+export type { UseElapsedOptions } from "./lib/use-elapsed";
 export {
   NETWORK_IDENTITY_PALETTE,
   getIdentityInitial,
@@ -145,7 +152,45 @@ export type {
 } from "./hooks/use-threads";
 export { THREAD_OVERLAY_BREAKPOINT_PX, useThreadViewMode } from "./hooks/use-thread-view-mode";
 export type { ThreadViewMode } from "./hooks/use-thread-view-mode";
-export { useCreateNetworkChannel, useSendNetworkMessage } from "./hooks/use-network-actions";
+export { useNetworkChannelThreadsRoute } from "./hooks/use-network-channel-threads-route";
+export type {
+  UseNetworkChannelThreadsRouteArgs,
+  UseNetworkChannelThreadsRouteResult,
+} from "./hooks/use-network-channel-threads-route";
+export {
+  isOptimisticMessage,
+  THREAD_COLLISION_TOAST,
+  useCreateNetworkChannel,
+  useCreateNetworkThread,
+  useResolveNetworkDirectRoom,
+  useSendNetworkMessage,
+} from "./hooks/use-network-actions";
+export type {
+  CreateNetworkThreadInput,
+  CreateNetworkThreadResult,
+  OptimisticConversationMessage,
+  ResolveNetworkDirectRoomInput,
+  SendNetworkMessageDirectInput,
+  SendNetworkMessageInput,
+  SendNetworkMessageResult,
+  SendNetworkMessageThreadInput,
+  UseCreateNetworkThreadResult,
+  UseResolveNetworkDirectRoomResult,
+  UseSendNetworkMessageResult,
+} from "./hooks/use-network-actions";
+export { useActiveNetworkSession } from "./hooks/use-active-session";
+export type {
+  ActiveNetworkSession,
+  UseActiveNetworkSessionResult,
+} from "./hooks/use-active-session";
+export { useNetworkWork, useOpenWork } from "./hooks/use-work";
+export type {
+  OpenWorkEntry,
+  UseNetworkWorkArgs,
+  UseNetworkWorkResult,
+  UseOpenWorkArgs,
+  UseOpenWorkResult,
+} from "./hooks/use-work";
 
 // Lib (timeline composition + formatters)
 export {
@@ -196,6 +241,7 @@ export type {
   MessageAvatarProps,
   MessageRowCollapsedProps,
   MessageRowDensity,
+  MessageRowOptimisticHandlers,
   MessageRowProps,
   MessageRowSystemProps,
   NewDividerProps,
@@ -219,7 +265,55 @@ export type {
 // Components — list views
 export { ThreadsList } from "./components/threads";
 export type { ThreadsListProps } from "./components/threads";
-export { DirectRoom, DirectsList } from "./components/directs";
-export type { DirectRoomProps, DirectsListProps } from "./components/directs";
+export { DirectRoom, DirectsList, NewDirectDialog } from "./components/directs";
+export type { DirectRoomProps, DirectsListProps, NewDirectDialogProps } from "./components/directs";
 export { ActivityFeed } from "./components/activity";
 export type { ActivityFeedProps } from "./components/activity";
+
+// Components — composer subtree
+export {
+  ChannelThreadComposer,
+  Composer,
+  ComposerSlashPopover,
+  ComposerToolbar,
+  DetailComposer,
+  getSlashCommandEntries,
+} from "./components/composer";
+export type {
+  ChannelThreadComposerProps,
+  ComposerProps,
+  ComposerSlashPopoverProps,
+  ComposerSubmitArgs,
+  ComposerToolbarProps,
+  DetailComposerDirectProps,
+  DetailComposerProps,
+  DetailComposerThreadProps,
+  SlashCommandEntry,
+} from "./components/composer";
+
+// Components — work surfacing subtree
+export { WorkBanner, WorkChip, WorkInspector, WorkInspectorRow } from "./components/work";
+export type {
+  WorkBannerProps,
+  WorkChipProps,
+  WorkInspectorProps,
+  WorkInspectorRowProps,
+} from "./components/work";
+
+// Components — empty / disabled / error states
+export {
+  DaemonDown,
+  DirectEmpty,
+  DirectsEmpty,
+  NetworkEmpty,
+  ThreadEmpty,
+  ThreadsEmpty,
+} from "./components/empty-states";
+export type {
+  DaemonDownProps,
+  DirectEmptyProps,
+  DirectsEmptyProps,
+  NetworkEmptyProps,
+  ThreadEmptyProps,
+  ThreadsEmptyProps,
+} from "./components/empty-states";

@@ -1,14 +1,26 @@
+import { Button } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 
 import type { NetworkConversationMessage } from "../../types";
 import { formatTimelineClock, formatTimelineIso } from "../../lib/format-timestamp";
+import { WorkChip } from "../work/work-chip";
 import { HoverToolbar, type HoverToolbarHandlers } from "./hover-toolbar";
 import { MessageAvatar } from "./message-avatar";
 import { MessageBodyText } from "./message-body";
 
 export type MessageRowDensity = "channel" | "overlay";
 
-export interface MessageRowProps extends HoverToolbarHandlers {
+export interface MessageRowOptimisticHandlers {
+  /** Retry handler invoked when the optimistic message is in the `failed` state. */
+  onRetry?: (message: NetworkConversationMessage) => void;
+  /** Discard handler invoked from the inline retry/discard cluster. */
+  onDiscard?: (message: NetworkConversationMessage) => void;
+  /** Click handler when the work chip is clicked (opens the Work Inspector). */
+  onWorkChipClick?: (message: NetworkConversationMessage) => void;
+}
+
+export interface MessageRowProps extends HoverToolbarHandlers, MessageRowOptimisticHandlers {
   message: NetworkConversationMessage;
   density?: MessageRowDensity;
   className?: string;
@@ -25,6 +37,23 @@ function authorSeed(message: NetworkConversationMessage): string {
   return message.peer_from ?? message.display_name ?? message.message_id;
 }
 
+function readOptimisticState(message: NetworkConversationMessage): "pending" | "failed" | null {
+  const candidate = (message as Partial<{ optimistic: "pending" | "failed" }>).optimistic;
+  if (candidate === "pending" || candidate === "failed") {
+    return candidate;
+  }
+  return null;
+}
+
+function readWorkState(message: NetworkConversationMessage): string | null {
+  const body = (message.body ?? null) as { state?: unknown } | null;
+  if (!body || typeof body.state !== "string") {
+    return null;
+  }
+  const trimmed = body.state.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 const DENSITY_AVATAR: Record<MessageRowDensity, 36 | 32> = {
   channel: 36,
   overlay: 32,
@@ -38,12 +67,18 @@ export function MessageRow({
   onPin,
   onFork,
   onMore,
+  onRetry,
+  onDiscard,
+  onWorkChipClick,
 }: MessageRowProps) {
   const role = pickRoleLabel(message);
   const clock = formatTimelineClock(message.timestamp);
   const iso = formatTimelineIso(message.timestamp);
   const displayName = message.display_name?.trim() || message.peer_from || "Unknown peer";
   const avatarSize = DENSITY_AVATAR[density];
+  const optimisticState = readOptimisticState(message);
+  const workState = readWorkState(message);
+  const workId = message.work_id ?? null;
 
   return (
     <article
@@ -51,11 +86,14 @@ export function MessageRow({
       className={cn(
         "group relative flex gap-3 px-5 py-1.5",
         density === "overlay" && "px-4",
+        optimisticState === "pending" && "opacity-70",
+        optimisticState === "failed" && "rounded-[4px] bg-[color:var(--color-danger-tint)]",
         className
       )}
       data-density={density}
-      data-testid="network-message-row-full"
       data-message-id={message.message_id}
+      data-optimistic={optimisticState ?? undefined}
+      data-testid="network-message-row-full"
       data-variant="full"
     >
       <MessageAvatar initialFrom={displayName} seed={authorSeed(message)} sizePx={avatarSize} />
@@ -79,9 +117,44 @@ export function MessageRow({
           >
             {clock}
           </time>
+          {workId && workState ? (
+            <WorkChip
+              ariaLabel={`Work ${workId} · ${workState}`}
+              onClick={onWorkChipClick ? () => onWorkChipClick(message) : undefined}
+              startedAt={message.timestamp}
+              state={workState}
+            />
+          ) : null}
         </div>
 
         <MessageBodyText message={message} />
+
+        {optimisticState === "failed" ? (
+          <div
+            className="flex items-center gap-2 pt-1 text-[12px] text-[color:var(--color-danger)]"
+            data-testid="network-message-failed-cluster"
+          >
+            <span>Couldn&apos;t send.</span>
+            <Button
+              data-testid="network-message-retry"
+              onClick={onRetry ? () => onRetry(message) : undefined}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Retry
+            </Button>
+            <Button
+              data-testid="network-message-discard"
+              onClick={onDiscard ? () => onDiscard(message) : undefined}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Discard
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <HoverToolbar

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { NetworkConversationMessage } from "../../types";
 import { Timeline } from "../timeline/timeline";
 
@@ -8,6 +10,11 @@ export interface ThreadOverlayRepliesProps {
   replyCount: number;
   lastReadAt?: string | null;
   now?: Date;
+  /** Override the default empty placeholder (used to render `ThreadEmpty`). */
+  emptyOverride?: ReactNode;
+  onRetryOptimistic?: (message: NetworkConversationMessage) => void;
+  onDiscardOptimistic?: (message: NetworkConversationMessage) => void;
+  onWorkChipClick?: (message: NetworkConversationMessage) => void;
 }
 
 export function ThreadOverlayReplies({
@@ -16,6 +23,10 @@ export function ThreadOverlayReplies({
   replyCount,
   lastReadAt,
   now,
+  emptyOverride,
+  onRetryOptimistic,
+  onDiscardOptimistic,
+  onWorkChipClick,
 }: ThreadOverlayRepliesProps) {
   const replyLabel = replyCount === 1 ? "1 reply" : `${replyCount} replies`;
 
@@ -35,14 +46,19 @@ export function ThreadOverlayReplies({
         ariaLabel="Thread replies"
         density="overlay"
         emptyState={
-          <p className="text-center text-[12px] text-[color:var(--color-text-tertiary)]">
-            Thread has no replies.
-          </p>
+          emptyOverride ?? (
+            <p className="text-center text-[12px] text-[color:var(--color-text-tertiary)]">
+              Thread has no replies.
+            </p>
+          )
         }
         isLoading={isLoading}
         lastReadAt={lastReadAt}
         messages={messages}
         now={now}
+        onDiscardOptimistic={onDiscardOptimistic}
+        onRetryOptimistic={onRetryOptimistic}
+        onWorkChipClick={onWorkChipClick}
       />
     </div>
   );

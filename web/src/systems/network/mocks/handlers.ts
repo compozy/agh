@@ -254,6 +254,7 @@ export const handlers: HttpHandler[] = [
     const sessionId = readRequiredString(body, "session_id");
     const channel = readRequiredString(body, "channel");
     const kind = readRequiredString(body, "kind");
+    const surface = readOptionalString(body, "surface");
 
     if ((body != null && Object.hasOwn(body, "interaction_id")) || kind === "direct") {
       return HttpResponse.json(
@@ -267,6 +268,13 @@ export const handlers: HttpHandler[] = [
         { error: "Session, channel, and kind are required." },
         { status: 400 }
       );
+    }
+
+    // Test/storybook hook for thread collision: the special channel
+    // `__collision__` rejects every thread creation so the UI can render the
+    // collision toast pathway per `_design.md` §5.7.1.
+    if (surface === "thread" && channel === "__collision__") {
+      return HttpResponse.json({ error: "Thread already exists." }, { status: 409 });
     }
 
     return HttpResponse.json({

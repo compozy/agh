@@ -231,3 +231,57 @@ export function getMessageAuthorInitial(
 export function sortAgentsForNetwork(agents: AgentPayload[]) {
   return [...agents].sort((left, right) => left.name.localeCompare(right.name));
 }
+
+export type NetworkWorkState =
+  | "submitted"
+  | "working"
+  | "needs_input"
+  | "completed"
+  | "failed"
+  | "canceled";
+
+const WORK_STATE_VALUES: ReadonlyArray<NetworkWorkState> = [
+  "submitted",
+  "working",
+  "needs_input",
+  "completed",
+  "failed",
+  "canceled",
+];
+
+const TERMINAL_WORK_STATES: ReadonlyArray<NetworkWorkState> = ["completed", "failed", "canceled"];
+
+const WORK_STATE_LABELS: Record<NetworkWorkState, string> = {
+  submitted: "submitted",
+  working: "working",
+  needs_input: "needs input",
+  completed: "completed",
+  failed: "failed",
+  canceled: "canceled",
+};
+
+export function isNetworkWorkState(value: string | null | undefined): value is NetworkWorkState {
+  return typeof value === "string" && (WORK_STATE_VALUES as ReadonlyArray<string>).includes(value);
+}
+
+export function isTerminalNetworkWorkState(value: string | null | undefined): boolean {
+  return isNetworkWorkState(value) && TERMINAL_WORK_STATES.includes(value);
+}
+
+/**
+ * `submitted` and `completed` are deliberately silent (`_design.md` §6.6).
+ * Returns `null` for those states so callers can suppress the chip entirely.
+ */
+export function shouldRenderNetworkWorkChip(value: string | null | undefined): boolean {
+  if (!isNetworkWorkState(value)) {
+    return false;
+  }
+  return value !== "submitted" && value !== "completed";
+}
+
+export function formatNetworkWorkStateLabel(value: string | null | undefined): string {
+  if (!isNetworkWorkState(value)) {
+    return value ?? "";
+  }
+  return WORK_STATE_LABELS[value];
+}
