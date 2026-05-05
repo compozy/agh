@@ -246,6 +246,8 @@ type extensionManagerDeps struct {
 	Sessions          SessionManager
 	Automation        func() extensionpkg.HostAPIAutomationManager
 	Tasks             taskpkg.Manager
+	Network           core.NetworkService
+	NetworkStore      store.NetworkConversationStore
 	MemoryStore       *memory.Store
 	Observer          Observer
 	SkillsRegistry    *skills.Registry
@@ -651,6 +653,8 @@ func buildHostAPIOptions(
 	opts := []extensionpkg.HostAPIOption{
 		extensionpkg.WithHostAPIAutomationGetter(deps.Automation),
 		extensionpkg.WithHostAPITaskManager(deps.Tasks),
+		extensionpkg.WithHostAPINetworkService(deps.Network),
+		extensionpkg.WithHostAPINetworkStore(deps.NetworkStore),
 		extensionpkg.WithHostAPICapabilityChecker(capChecker),
 		extensionpkg.WithHostAPIWorkspaceResolver(deps.WorkspaceResolver),
 		extensionpkg.WithHostAPIResourceStore(resourceStore),

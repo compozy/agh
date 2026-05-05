@@ -691,11 +691,22 @@ func bridgePromptNetworkMeta(envelope bridgepkg.InboundMessageEnvelope) acp.Prom
 		family = bridgepkg.InboundEventFamilyMessage
 	}
 
-	return acp.PromptNetworkMeta{
+	meta := acp.PromptNetworkMeta{
 		MessageID: envelope.PlatformMessageID,
 		Kind:      string(family),
 		From:      strings.TrimSpace(envelope.PeerID),
-	}.Normalize()
+	}
+	if ref, ok, err := envelope.NetworkConversationRef(); err == nil && ok {
+		meta.Channel = ref.Channel
+		meta.Surface = string(ref.Surface)
+		meta.ThreadID = ref.ThreadID
+		meta.DirectID = ref.DirectID
+		meta.WorkID = ref.WorkID
+		meta.ReplyTo = ref.ReplyTo
+		meta.TraceID = ref.TraceID
+		meta.CausationID = ref.CausationID
+	}
+	return meta.Normalize()
 }
 
 func (h *HostAPIHandler) registerPromptDelivery(
@@ -955,10 +966,26 @@ func renderInboundMessagePrompt(envelope bridgepkg.InboundMessageEnvelope) strin
 		lines = append(lines, "Peer ID: "+peerID)
 	}
 	if threadID := strings.TrimSpace(envelope.ThreadID); threadID != "" {
-		lines = append(lines, "Thread ID: "+threadID)
+		lines = append(lines, "Provider Thread ID: "+threadID)
 	}
 	if groupID := strings.TrimSpace(envelope.GroupID); groupID != "" {
 		lines = append(lines, "Group ID: "+groupID)
+	}
+	if ref, ok, err := envelope.NetworkConversationRef(); err == nil && ok {
+		lines = append(
+			lines,
+			"AGH Network Channel: "+ref.Channel,
+			"AGH Network Surface: "+string(ref.Surface),
+		)
+		switch ref.Surface {
+		case bridgepkg.NetworkConversationSurfaceThread:
+			lines = append(lines, "AGH Thread ID: "+ref.ThreadID)
+		case bridgepkg.NetworkConversationSurfaceDirect:
+			lines = append(lines, "AGH Direct ID: "+ref.DirectID)
+		}
+		if workID := strings.TrimSpace(ref.WorkID); workID != "" {
+			lines = append(lines, "AGH Work ID: "+workID)
+		}
 	}
 
 	if family == bridgepkg.InboundEventFamilyMessage {

@@ -84,6 +84,17 @@ const (
 	HostAPIMethodTasksRunsComplete           = extensionprotocol.HostAPIMethodTasksRunsComplete
 	HostAPIMethodTasksRunsFail               = extensionprotocol.HostAPIMethodTasksRunsFail
 	HostAPIMethodTasksRunsCancel             = extensionprotocol.HostAPIMethodTasksRunsCancel
+	HostAPIMethodNetworkStatus               = extensionprotocol.HostAPIMethodNetworkStatus
+	HostAPIMethodNetworkChannels             = extensionprotocol.HostAPIMethodNetworkChannels
+	HostAPIMethodNetworkPeers                = extensionprotocol.HostAPIMethodNetworkPeers
+	HostAPIMethodNetworkThreads              = extensionprotocol.HostAPIMethodNetworkThreads
+	HostAPIMethodNetworkThreadGet            = extensionprotocol.HostAPIMethodNetworkThreadGet
+	HostAPIMethodNetworkThreadMessages       = extensionprotocol.HostAPIMethodNetworkThreadMessages
+	HostAPIMethodNetworkDirects              = extensionprotocol.HostAPIMethodNetworkDirects
+	HostAPIMethodNetworkDirectResolve        = extensionprotocol.HostAPIMethodNetworkDirectResolve
+	HostAPIMethodNetworkDirectMessages       = extensionprotocol.HostAPIMethodNetworkDirectMessages
+	HostAPIMethodNetworkWorkGet              = extensionprotocol.HostAPIMethodNetworkWorkGet
+	HostAPIMethodNetworkSend                 = extensionprotocol.HostAPIMethodNetworkSend
 	HostAPIMethodResourcesList               = extensionprotocol.HostAPIMethodResourcesList
 	HostAPIMethodResourcesGet                = extensionprotocol.HostAPIMethodResourcesGet
 	HostAPIMethodResourcesSnapshot           = extensionprotocol.HostAPIMethodResourcesSnapshot
@@ -425,6 +436,68 @@ type TaskRunCancelParams struct {
 	ID string `json:"id"`
 	apicontract.CancelTaskRunRequest
 }
+
+// NetworkPeersParams filters visible peers by channel.
+type NetworkPeersParams struct {
+	Channel string `json:"channel,omitempty"`
+}
+
+// NetworkThreadsParams filters public-thread summaries by channel.
+type NetworkThreadsParams struct {
+	Channel string `json:"channel"`
+	Limit   int    `json:"limit,omitempty"`
+	After   string `json:"after,omitempty"`
+}
+
+// NetworkThreadTargetParams identifies one public thread.
+type NetworkThreadTargetParams struct {
+	Channel  string `json:"channel"`
+	ThreadID string `json:"thread_id"`
+}
+
+// NetworkThreadMessagesParams filters messages inside one public thread.
+type NetworkThreadMessagesParams struct {
+	Channel  string `json:"channel"`
+	ThreadID string `json:"thread_id"`
+	Before   string `json:"before,omitempty"`
+	After    string `json:"after,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	WorkID   string `json:"work_id,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
+}
+
+// NetworkDirectsParams filters direct-room summaries by channel.
+type NetworkDirectsParams struct {
+	Channel string `json:"channel"`
+	PeerID  string `json:"peer_id,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
+	After   string `json:"after,omitempty"`
+}
+
+// NetworkDirectResolveParams creates or returns a deterministic direct room.
+type NetworkDirectResolveParams struct {
+	Channel string `json:"channel"`
+	apicontract.NetworkDirectResolveRequest
+}
+
+// NetworkDirectMessagesParams filters messages inside one direct room.
+type NetworkDirectMessagesParams struct {
+	Channel  string `json:"channel"`
+	DirectID string `json:"direct_id"`
+	Before   string `json:"before,omitempty"`
+	After    string `json:"after,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	WorkID   string `json:"work_id,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
+}
+
+// NetworkWorkGetParams identifies one network work row.
+type NetworkWorkGetParams struct {
+	WorkID string `json:"work_id"`
+}
+
+// NetworkSendParams is the shared daemon network send request payload.
+type NetworkSendParams = apicontract.NetworkSendRequest
 
 // ResourcesListParams filters same-source resource visibility for one extension actor.
 type ResourcesListParams struct {
@@ -922,6 +995,70 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Method: HostAPIMethodTasksRunsCancel,
 		Params: NamedType{Name: "TaskRunCancelParams", Value: TaskRunCancelParams{}},
 		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+	},
+	{
+		Method:         HostAPIMethodNetworkStatus,
+		Params:         NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Result:         NamedType{Name: "NetworkStatusPayload", Value: apicontract.NetworkStatusPayload{}},
+		OptionalParams: true,
+	},
+	{
+		Method:         HostAPIMethodNetworkChannels,
+		Params:         NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Result:         NamedType{Name: "NetworkChannelPayload", Value: []apicontract.NetworkChannelPayload{}},
+		OptionalParams: true,
+	},
+	{
+		Method:         HostAPIMethodNetworkPeers,
+		Params:         NamedType{Name: "NetworkPeersParams", Value: NetworkPeersParams{}},
+		Result:         NamedType{Name: "NetworkPeerPayload", Value: []apicontract.NetworkPeerPayload{}},
+		OptionalParams: true,
+	},
+	{
+		Method: HostAPIMethodNetworkThreads,
+		Params: NamedType{Name: "NetworkThreadsParams", Value: NetworkThreadsParams{}},
+		Result: NamedType{Name: "NetworkThreadSummaryPayload", Value: []apicontract.NetworkThreadSummaryPayload{}},
+	},
+	{
+		Method: HostAPIMethodNetworkThreadGet,
+		Params: NamedType{Name: "NetworkThreadTargetParams", Value: NetworkThreadTargetParams{}},
+		Result: NamedType{Name: "NetworkThreadSummaryPayload", Value: apicontract.NetworkThreadSummaryPayload{}},
+	},
+	{
+		Method: HostAPIMethodNetworkThreadMessages,
+		Params: NamedType{Name: "NetworkThreadMessagesParams", Value: NetworkThreadMessagesParams{}},
+		Result: NamedType{
+			Name:  "NetworkConversationMessagePayload",
+			Value: []apicontract.NetworkConversationMessagePayload{},
+		},
+	},
+	{
+		Method: HostAPIMethodNetworkDirects,
+		Params: NamedType{Name: "NetworkDirectsParams", Value: NetworkDirectsParams{}},
+		Result: NamedType{Name: "NetworkDirectRoomPayload", Value: []apicontract.NetworkDirectRoomPayload{}},
+	},
+	{
+		Method: HostAPIMethodNetworkDirectResolve,
+		Params: NamedType{Name: "NetworkDirectResolveParams", Value: NetworkDirectResolveParams{}},
+		Result: NamedType{Name: "NetworkDirectRoomPayload", Value: apicontract.NetworkDirectRoomPayload{}},
+	},
+	{
+		Method: HostAPIMethodNetworkDirectMessages,
+		Params: NamedType{Name: "NetworkDirectMessagesParams", Value: NetworkDirectMessagesParams{}},
+		Result: NamedType{
+			Name:  "NetworkConversationMessagePayload",
+			Value: []apicontract.NetworkConversationMessagePayload{},
+		},
+	},
+	{
+		Method: HostAPIMethodNetworkWorkGet,
+		Params: NamedType{Name: "NetworkWorkGetParams", Value: NetworkWorkGetParams{}},
+		Result: NamedType{Name: "NetworkWorkPayload", Value: apicontract.NetworkWorkPayload{}},
+	},
+	{
+		Method: HostAPIMethodNetworkSend,
+		Params: NamedType{Name: "NetworkSendParams", Value: NetworkSendParams{}},
+		Result: NamedType{Name: "NetworkSendPayload", Value: apicontract.NetworkSendPayload{}},
 	},
 	{
 		Method:         HostAPIMethodResourcesList,

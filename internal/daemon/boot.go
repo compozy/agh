@@ -1480,6 +1480,8 @@ func (d *Daemon) extensionManagerDeps(
 			return state.automation
 		},
 		Tasks:             state.deps.Tasks,
+		Network:           state.deps.Network,
+		NetworkStore:      state.registry,
 		MemoryStore:       state.memoryStore,
 		Observer:          state.observer,
 		SkillsRegistry:    state.skillsRegistry,
