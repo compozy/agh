@@ -40,10 +40,11 @@ and resumes from wherever the filesystem now indicates.
 **Action**:
 1. Pick the head of `tasks.pending`. Confirm `task_NN.md` frontmatter `status: pending` (frontmatter wins; if it disagrees with state.yaml, trust frontmatter and reconcile state).
 2. Activate `cy-spec-preflight` in phase=task-body for the picked file.
-3. Activate `cy-workflow-memory` with the three paths (see `memory-protocol.md`).
-4. Activate `cy-execute-task` passing the picked `task_NN.md`.
-5. After `cy-execute-task` reports completion, run `cy-final-verify`.
-6. `.agents/skills/cy-codex-loop/scripts/update-state.py --task-completed task_NN` advances state.
+3. Read `references/frontend-docs-delegation.md`. If the task frontmatter `type:` is `frontend` or `docs`, the delegation lane is mandatory. If `type:` is missing, delegate only when the owned paths / acceptance scope are exclusively frontend/docs surfaces per that reference.
+4. Pass the shared/current memory paths from `memory-protocol.md` into the lane that will execute the work.
+5. If the delegation lane applies: write the temp prompt and run `compozy exec --ide claude --model opus --prompt-file /tmp/cy-codex-loop-<slug>-<task_NN>.md`. The delegated Claude run owns `cy-execute-task`, memory updates, validation, and `cy-final-verify`.
+6. Else: activate `cy-execute-task` passing the picked `task_NN.md`, then run `cy-final-verify`.
+7. `.agents/skills/cy-codex-loop/scripts/update-state.py --task-completed task_NN` advances state only after the execution lane reports PASS and the expected memory/status artifacts exist.
 
 **Exit**: One iteration covers exactly one task. The agent prints the iteration summary and stops. Next iteration re-evaluates.
 
@@ -55,11 +56,12 @@ and resumes from wherever the filesystem now indicates.
 1. Read `_techspec.md` deliverables / acceptance section in full.
 2. Compare against `progress.checklist[]`. Identify the smallest coherent slice (≤ ~4 hours of focused work) that moves a deliverable forward.
 3. Append the slice to `progress.checklist[]` with `status: in_progress` (via `.agents/skills/cy-codex-loop/scripts/update-state.py --add-progress "<text>"`).
-4. Re-read `state.yaml`, then activate `cy-workflow-memory` to load shared + current-task memory. The current memory file is `memory/free-iter-<NNN>.md`, where `<NNN>` equals the `iteration` value on the checklist item created in step 3.
-5. Implement the slice. Keep scope tight.
-6. Run `cy-final-verify`.
-7. `.agents/skills/cy-codex-loop/scripts/update-state.py --complete-progress "<text>"` flips the slice to `completed`.
-8. **Self-check before claiming deliverables_complete**: re-read `_techspec.md` acceptance section verbatim. If every criterion has at least one matching `progress.checklist[]` entry with `status=completed`, set `--deliverables-complete`. Otherwise leave false and let the next iteration continue.
+4. Re-read `state.yaml`, then resolve the shared + current-task memory paths from `memory-protocol.md`. The current memory file is `memory/free-iter-<NNN>.md`, where `<NNN>` equals the `iteration` value on the checklist item created in step 3.
+5. Read `references/frontend-docs-delegation.md`. If the slice is explicitly limited to frontend/docs surfaces per that reference, the delegation lane is mandatory.
+6. If the delegation lane applies: write the temp prompt and run `compozy exec --ide claude --model opus --prompt-file /tmp/cy-codex-loop-<slug>-free-iter-<NNN>.md`. The delegated Claude run owns implementation, memory updates, validation, and `cy-final-verify`.
+7. Else: implement the slice locally and run `cy-final-verify`.
+8. `.agents/skills/cy-codex-loop/scripts/update-state.py --complete-progress "<text>"` flips the slice to `completed` only after the execution lane reports PASS and the expected memory/status artifacts exist.
+9. **Self-check before claiming deliverables_complete**: re-read `_techspec.md` acceptance section verbatim. If every criterion has at least one matching `progress.checklist[]` entry with `status=completed`, set `--deliverables-complete`. Otherwise leave false and let the next iteration continue.
 
 **Exit**: Either one slice is now complete (more iterations to come) OR `deliverables_complete=true` (Phase C next).
 

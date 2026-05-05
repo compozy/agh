@@ -365,6 +365,8 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 				return (NetworkMessageEntry{
 					MessageID:   "msg-1",
 					Channel:     "builders",
+					Surface:     NetworkSurfaceThread,
+					ThreadID:    "thread_helpers",
 					Direction:   "sent",
 					PeerFrom:    "peer-a",
 					Kind:        "say",

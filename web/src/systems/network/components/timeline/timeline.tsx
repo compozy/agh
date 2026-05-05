@@ -1,0 +1,160 @@
+import { Fragment, useMemo } from "react";
+
+import { Skeleton } from "@agh/ui";
+
+import { cn } from "@/lib/utils";
+
+import { buildTimelineEntries } from "../../lib/group-messages";
+import type { NetworkConversationMessage } from "../../types";
+import { DatePill } from "./date-pill";
+import type { HoverToolbarHandlers } from "./hover-toolbar";
+import { MessageRow, type MessageRowDensity } from "./message-row";
+import { MessageRowCollapsed } from "./message-row-collapsed";
+import { MessageRowSystem } from "./message-row-system";
+import { NewDivider } from "./new-divider";
+
+export interface TimelineProps {
+  messages: ReadonlyArray<NetworkConversationMessage>;
+  isLoading?: boolean;
+  emptyState?: React.ReactNode;
+  errorState?: React.ReactNode;
+  density?: MessageRowDensity;
+  /** Reference moment for date pill labels. */
+  now?: Date;
+  /** Last-read timestamp used to position the "New" divider. */
+  lastReadAt?: string | null;
+  className?: string;
+  /** Stable id used by aria-label and data attributes. */
+  ariaLabel?: string;
+  toolbarHandlers?: (message: NetworkConversationMessage) => HoverToolbarHandlers | undefined;
+  /** Retry handler for failed optimistic sends per `_design.md` §7.3. */
+  onRetryOptimistic?: (message: NetworkConversationMessage) => void;
+  /** Discard handler for failed optimistic sends. */
+  onDiscardOptimistic?: (message: NetworkConversationMessage) => void;
+  /** Click handler for the inline work chip per `_design.md` §5.8.1. */
+  onWorkChipClick?: (message: NetworkConversationMessage) => void;
+}
+
+interface TimelineSkeletonProps {
+  density: MessageRowDensity;
+}
+
+function TimelineSkeleton({ density }: TimelineSkeletonProps) {
+  return (
+    <div
+      aria-label="Loading messages"
+      className="space-y-4 px-5 py-4"
+      data-testid="network-timeline-skeleton"
+      role="status"
+    >
+      {[0, 1, 2, 3, 4].map(index => (
+        <div key={index} className="flex gap-3">
+          <Skeleton className={cn("rounded-[4px]", density === "overlay" ? "size-8" : "size-9")} />
+          <div className="flex flex-1 flex-col gap-1.5">
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-3.5 w-full max-w-[28rem]" />
+            <Skeleton className="h-3.5 w-3/4 max-w-[22rem]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Timeline({
+  messages,
+  isLoading = false,
+  emptyState,
+  errorState,
+  density = "channel",
+  now,
+  lastReadAt,
+  className,
+  ariaLabel = "Timeline",
+  toolbarHandlers,
+  onRetryOptimistic,
+  onDiscardOptimistic,
+  onWorkChipClick,
+}: TimelineProps) {
+  const entries = useMemo(
+    () => buildTimelineEntries({ messages, now, lastReadAt }),
+    [messages, now, lastReadAt]
+  );
+
+  if (errorState) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-5 py-10" role="alert">
+        {errorState}
+      </div>
+    );
+  }
+
+  if (isLoading && messages.length === 0) {
+    return <TimelineSkeleton density={density} />;
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div
+        className="flex flex-1 items-center justify-center px-5 py-10"
+        data-testid="network-timeline-empty"
+      >
+        {emptyState}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      aria-label={ariaLabel}
+      className={cn("flex flex-1 flex-col gap-1 overflow-y-auto py-2", className)}
+      data-density={density}
+      data-testid="network-timeline"
+      role="log"
+    >
+      {entries.map(entry => {
+        if (entry.kind === "date-pill") {
+          return <DatePill key={entry.id} now={now} timestamp={entry.timestamp} />;
+        }
+        if (entry.kind === "new-divider") {
+          return <NewDivider key={entry.id} />;
+        }
+        const handlers = toolbarHandlers?.(entry.message);
+        if (entry.variant === "system") {
+          return (
+            <Fragment key={entry.id}>
+              <MessageRowSystem message={entry.message} />
+            </Fragment>
+          );
+        }
+        if (entry.variant === "collapsed") {
+          return (
+            <MessageRowCollapsed
+              density={density}
+              key={entry.id}
+              message={entry.message}
+              onFork={handlers?.onFork}
+              onMore={handlers?.onMore}
+              onPin={handlers?.onPin}
+              onReply={handlers?.onReply}
+            />
+          );
+        }
+        return (
+          <MessageRow
+            density={density}
+            key={entry.id}
+            message={entry.message}
+            onDiscard={onDiscardOptimistic}
+            onFork={handlers?.onFork}
+            onMore={handlers?.onMore}
+            onPin={handlers?.onPin}
+            onReply={handlers?.onReply}
+            onRetry={onRetryOptimistic}
+            onWorkChipClick={onWorkChipClick}
+          />
+        );
+      })}
+    </div>
+  );
+}

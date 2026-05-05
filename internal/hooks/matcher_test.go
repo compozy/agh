@@ -86,8 +86,10 @@ func TestHookMatcherMatchesMessageAndContext(t *testing.T) {
 	}
 
 	contextMatcher := HookMatcher{
-		CompactionReason:   "token_limit",
-		CompactionStrategy: "summary",
+		CompactionMatcher: &CompactionMatcher{
+			Reason:   "token_limit",
+			Strategy: "summary",
+		},
 	}
 	if !contextMatcher.MatchesContextCompact(ContextCompactPayload{
 		Reason:   "token_limit",
@@ -428,6 +430,36 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 	}
 }
 
+func TestHookMatcherMatchesNetwork(t *testing.T) {
+	t.Parallel()
+
+	matcher := HookMatcher{
+		NetworkMatcher: &NetworkMatcher{
+			Channel:   "builders",
+			Surface:   "thread",
+			Kind:      "trace",
+			Direction: "received",
+			WorkState: "completed",
+		},
+	}
+	payload := NetworkPayload{
+		Channel:   "builders",
+		Surface:   "thread",
+		Kind:      "trace",
+		Direction: "received",
+		WorkState: "completed",
+		MessageID: "msg_01",
+		WorkID:    "work_01",
+	}
+	if !matcher.MatchesNetwork(payload) {
+		t.Fatal("MatchesNetwork() = false, want true")
+	}
+	payload.WorkState = "working"
+	if matcher.MatchesNetwork(payload) {
+		t.Fatal("MatchesNetwork() = true, want false for work state mismatch")
+	}
+}
+
 func TestMatcherFieldAllowedForEvent(t *testing.T) {
 	t.Parallel()
 
@@ -459,6 +491,24 @@ func TestMatcherFieldAllowedForEvent(t *testing.T) {
 			name:  "Should deny workspace id for message delta hook",
 			event: HookMessageDelta,
 			field: "workspace_id",
+			want:  false,
+		},
+		{
+			name:  "Should allow channel for network hook",
+			event: HookNetworkMessagePersisted,
+			field: "channel",
+			want:  true,
+		},
+		{
+			name:  "Should allow work state for network hook",
+			event: HookNetworkWorkTransitioned,
+			field: "work_state",
+			want:  true,
+		},
+		{
+			name:  "Should deny message id for network hook",
+			event: HookNetworkMessagePersisted,
+			field: "message_id",
 			want:  false,
 		},
 		{name: "Should deny invalid event", event: HookEvent("bad.event"), field: "workspace_id", want: false},

@@ -38,6 +38,17 @@ export type HostAPIMethod =
   | "memory/forget"
   | "memory/recall"
   | "memory/store"
+  | "network/channels"
+  | "network/direct/messages"
+  | "network/direct/resolve"
+  | "network/directs"
+  | "network/peers"
+  | "network/send"
+  | "network/status"
+  | "network/thread/get"
+  | "network/thread/messages"
+  | "network/threads"
+  | "network/work/get"
   | "observe/events"
   | "observe/health"
   | "resources/get"
@@ -148,7 +159,13 @@ export type HookEvent =
   | "spawn.created"
   | "spawn.parent_stopped"
   | "spawn.ttl_expired"
-  | "spawn.reaped";
+  | "spawn.reaped"
+  | "network.thread.opened"
+  | "network.direct_room.opened"
+  | "network.message.persisted"
+  | "network.work.opened"
+  | "network.work.transitioned"
+  | "network.work.closed";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -970,6 +987,11 @@ export interface BridgesMessagesIngestResult {
   routing_key: RoutingKey;
 }
 
+export interface CompactionMatcher {
+  compaction_reason?: string;
+  compaction_strategy?: string;
+}
+
 export interface ContextBlock {
   kind?: string;
   text?: string;
@@ -1726,6 +1748,11 @@ export interface HookMatcher {
   decision_class?: string;
   message_role?: string;
   message_delta_type?: string;
+  channel?: string;
+  surface?: string;
+  kind?: string;
+  direction?: string;
+  work_state?: string;
   compaction_reason?: string;
   compaction_strategy?: string;
   autonomy?: AutonomyMatcher;
@@ -1804,6 +1831,19 @@ export interface InboundReaction {
   added: boolean;
 }
 
+export type NetworkConversationSurface = string;
+
+export interface NetworkConversationRef {
+  channel: string;
+  surface: NetworkConversationSurface;
+  thread_id?: string;
+  direct_id?: string;
+  work_id?: string;
+  reply_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+}
+
 export interface InboundMessageEnvelope {
   bridge_instance_id: string;
   scope: BridgeScope;
@@ -1820,6 +1860,7 @@ export interface InboundMessageEnvelope {
   command?: InboundCommand;
   action?: InboundAction;
   reaction?: InboundReaction;
+  conversation?: NetworkConversationRef;
   provider_metadata?: JSONValue;
   idempotency_key: string;
 }
@@ -2102,6 +2143,402 @@ export interface MessageStartPayload {
   delta_type?: string;
   text?: string;
   raw?: JSONValue;
+}
+
+export interface NetworkChannelPayload {
+  channel: string;
+  workspace_id?: string;
+  purpose?: string;
+  created_by?: string;
+  created_at?: ISODateTime;
+  peer_count: number;
+  local_peer_count?: number;
+  remote_peer_count?: number;
+  session_count?: number;
+  message_count?: number;
+  presence_count?: number;
+  historical_participant_count?: number;
+  last_activity_at?: ISODateTime;
+  last_presence_at?: ISODateTime;
+  last_message_preview?: string;
+}
+
+export interface NetworkConversationMessagePayload {
+  message_id: string;
+  channel: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  kind: string;
+  direction: string;
+  peer_from: string;
+  peer_to?: string;
+  display_name?: string;
+  session_id?: string;
+  local?: boolean;
+  work_id?: string;
+  reply_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+  intent?: string;
+  text?: string;
+  preview_text?: string;
+  presence_count?: number;
+  presence_started_at?: ISODateTime;
+  presence_last_seen_at?: ISODateTime;
+  body: JSONValue;
+  timestamp: ISODateTime;
+}
+
+export interface NetworkDirectMessagesParams {
+  channel: string;
+  direct_id: string;
+  before?: string;
+  after?: string;
+  kind?: string;
+  work_id?: string;
+  limit?: number;
+}
+
+export interface NetworkDirectResolveParams {
+  channel: string;
+  session_id: string;
+  peer_id: string;
+}
+
+export interface NetworkDirectRoomOpenedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  channel?: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  message_id?: string;
+  kind?: string;
+  direction?: string;
+  work_id?: string;
+  work_state?: string;
+  peer_from?: string;
+  peer_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+}
+
+export interface NetworkDirectRoomPayload {
+  channel: string;
+  direct_id: string;
+  peer_a: string;
+  peer_b: string;
+  opened_at?: ISODateTime;
+  last_activity_at?: ISODateTime;
+  message_count: number;
+  open_work_count: number;
+  last_message_preview?: string;
+}
+
+export interface NetworkDirectsParams {
+  channel: string;
+  peer_id?: string;
+  limit?: number;
+  after?: string;
+}
+
+export interface NetworkMatcher {
+  channel?: string;
+  surface?: string;
+  kind?: string;
+  direction?: string;
+  work_state?: string;
+}
+
+export interface NetworkMessagePersistedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  channel?: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  message_id?: string;
+  kind?: string;
+  direction?: string;
+  work_id?: string;
+  work_state?: string;
+  peer_from?: string;
+  peer_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+}
+
+export interface NetworkObservationPatch {
+  labels?: Record<string, string>;
+}
+
+export interface NetworkPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  channel?: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  message_id?: string;
+  kind?: string;
+  direction?: string;
+  work_id?: string;
+  work_state?: string;
+  peer_from?: string;
+  peer_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+}
+
+export interface NetworkCapabilityBriefPayload {
+  id: string;
+  summary: string;
+}
+
+export interface NetworkPeerCardPayload {
+  peer_id: string;
+  display_name?: string;
+  profiles_supported: string[];
+  capabilities: NetworkCapabilityBriefPayload[];
+  artifacts_supported: string[];
+  trust_modes_supported: string[];
+  ext?: Record<string, JSONValue>;
+}
+
+export interface NetworkPeerPayload {
+  session_id?: string;
+  peer_id: string;
+  display_name?: string;
+  channel: string;
+  local: boolean;
+  peer_card: NetworkPeerCardPayload;
+  joined_at?: ISODateTime;
+  last_seen?: ISODateTime;
+  expires_at?: ISODateTime;
+}
+
+export interface NetworkPeersParams {
+  channel?: string;
+}
+
+export interface NetworkSendParams {
+  session_id: string;
+  channel: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  kind: string;
+  to?: string;
+  body: JSONValue;
+  work_id?: string;
+  reply_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+  expires_at?: number;
+  id?: string;
+  ext?: Record<string, JSONValue>;
+}
+
+export interface NetworkSendPayload {
+  id: string;
+  session_id: string;
+  channel: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  kind: string;
+  to?: string;
+  work_id?: string;
+  reply_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+  expires_at?: number;
+  ext?: Record<string, JSONValue>;
+}
+
+export interface DeclaredNetworkChannelPayload {
+  activation_id?: string;
+  extension_name?: string;
+  bundle_name?: string;
+  profile_name?: string;
+  workspace_id?: string;
+  name: string;
+  description?: string;
+  primary?: boolean;
+}
+
+export interface NetworkKindMetricPayload {
+  kind: string;
+  sent?: number;
+  received?: number;
+  rejected?: number;
+  delivered?: number;
+}
+
+export interface NetworkStatusPayload {
+  enabled: boolean;
+  status: string;
+  configured_default_channel?: string;
+  effective_default_channel?: string;
+  effective_default_source?: string;
+  listener_host?: string;
+  listener_port?: number;
+  local_peers?: number;
+  remote_peers?: number;
+  channels?: number;
+  queued_messages?: number;
+  queued_sessions?: number;
+  delivery_workers?: number;
+  messages_sent?: number;
+  messages_received?: number;
+  messages_rejected?: number;
+  messages_delivered?: number;
+  workflow_tagged_events?: number;
+  handoff_tagged_events?: number;
+  open_threads?: number;
+  open_direct_rooms?: number;
+  open_work_items?: number;
+  conversation_messages?: number;
+  work_transitions?: number;
+  direct_resolves?: number;
+  last_disconnect?: string;
+  declared_channels?: DeclaredNetworkChannelPayload[];
+  kind_metrics?: NetworkKindMetricPayload[];
+}
+
+export interface NetworkThreadMessagesParams {
+  channel: string;
+  thread_id: string;
+  before?: string;
+  after?: string;
+  kind?: string;
+  work_id?: string;
+  limit?: number;
+}
+
+export interface NetworkThreadOpenedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  channel?: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  message_id?: string;
+  kind?: string;
+  direction?: string;
+  work_id?: string;
+  work_state?: string;
+  peer_from?: string;
+  peer_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+}
+
+export interface NetworkThreadSummaryPayload {
+  channel: string;
+  thread_id: string;
+  root_message_id: string;
+  title?: string;
+  opened_by_peer_id?: string;
+  opened_session_id?: string;
+  opened_at?: ISODateTime;
+  last_activity_at?: ISODateTime;
+  message_count: number;
+  participant_count: number;
+  open_work_count: number;
+  last_message_preview?: string;
+}
+
+export interface NetworkThreadTargetParams {
+  channel: string;
+  thread_id: string;
+}
+
+export interface NetworkThreadsParams {
+  channel: string;
+  limit?: number;
+  after?: string;
+}
+
+export interface NetworkWorkClosedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  channel?: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  message_id?: string;
+  kind?: string;
+  direction?: string;
+  work_id?: string;
+  work_state?: string;
+  peer_from?: string;
+  peer_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+}
+
+export interface NetworkWorkGetParams {
+  work_id: string;
+}
+
+export interface NetworkWorkOpenedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  channel?: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  message_id?: string;
+  kind?: string;
+  direction?: string;
+  work_id?: string;
+  work_state?: string;
+  peer_from?: string;
+  peer_to?: string;
+  trace_id?: string;
+  causation_id?: string;
+}
+
+export interface NetworkWorkPayload {
+  work_id: string;
+  channel: string;
+  surface: string;
+  thread_id?: string;
+  direct_id?: string;
+  opened_by_peer_id?: string;
+  opened_session_id?: string;
+  target_peer_id?: string;
+  state: string;
+  opened_at?: ISODateTime;
+  last_activity_at?: ISODateTime;
+  terminal_at?: ISODateTime;
+}
+
+export interface NetworkWorkTransitionedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  channel?: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  message_id?: string;
+  kind?: string;
+  direction?: string;
+  work_id?: string;
+  work_state?: string;
+  peer_from?: string;
+  peer_to?: string;
+  trace_id?: string;
+  causation_id?: string;
 }
 
 export interface ObserveEventsParams {
@@ -4506,6 +4943,12 @@ export interface HookPayloadByEvent {
   "spawn.parent_stopped": SpawnParentStoppedPayload;
   "spawn.ttl_expired": SpawnTTLExpiredPayload;
   "spawn.reaped": SpawnReapedPayload;
+  "network.thread.opened": NetworkThreadOpenedPayload;
+  "network.direct_room.opened": NetworkDirectRoomOpenedPayload;
+  "network.message.persisted": NetworkMessagePersistedPayload;
+  "network.work.opened": NetworkWorkOpenedPayload;
+  "network.work.transitioned": NetworkWorkTransitionedPayload;
+  "network.work.closed": NetworkWorkClosedPayload;
 }
 
 export interface HookPatchByEvent {
@@ -4572,6 +5015,12 @@ export interface HookPatchByEvent {
   "spawn.parent_stopped": SpawnObservationPatch;
   "spawn.ttl_expired": SpawnObservationPatch;
   "spawn.reaped": SpawnObservationPatch;
+  "network.thread.opened": NetworkObservationPatch;
+  "network.direct_room.opened": NetworkObservationPatch;
+  "network.message.persisted": NetworkObservationPatch;
+  "network.work.opened": NetworkObservationPatch;
+  "network.work.transitioned": NetworkObservationPatch;
+  "network.work.closed": NetworkObservationPatch;
 }
 
 export interface HostAPIMethodMap {
@@ -4834,6 +5283,50 @@ export interface HostAPIMethodMap {
   "tasks/runs/cancel": {
     params: TaskRunCancelParams;
     result: TaskRun;
+  };
+  "network/status": {
+    params: undefined;
+    result: NetworkStatusPayload;
+  };
+  "network/channels": {
+    params: undefined;
+    result: NetworkChannelPayload[];
+  };
+  "network/peers": {
+    params: NetworkPeersParams | undefined;
+    result: NetworkPeerPayload[];
+  };
+  "network/threads": {
+    params: NetworkThreadsParams;
+    result: NetworkThreadSummaryPayload[];
+  };
+  "network/thread/get": {
+    params: NetworkThreadTargetParams;
+    result: NetworkThreadSummaryPayload;
+  };
+  "network/thread/messages": {
+    params: NetworkThreadMessagesParams;
+    result: NetworkConversationMessagePayload[];
+  };
+  "network/directs": {
+    params: NetworkDirectsParams;
+    result: NetworkDirectRoomPayload[];
+  };
+  "network/direct/resolve": {
+    params: NetworkDirectResolveParams;
+    result: NetworkDirectRoomPayload;
+  };
+  "network/direct/messages": {
+    params: NetworkDirectMessagesParams;
+    result: NetworkConversationMessagePayload[];
+  };
+  "network/work/get": {
+    params: NetworkWorkGetParams;
+    result: NetworkWorkPayload;
+  };
+  "network/send": {
+    params: NetworkSendParams;
+    result: NetworkSendPayload;
   };
   "resources/list": {
     params: ResourcesListParams | undefined;

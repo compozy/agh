@@ -63,7 +63,9 @@ var networkTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDNetworkSend,
 		"network_send",
 		"Network Send",
-		"Send one AGH network message through the existing network manager.",
+		"Send one AGH network message into a public thread or restricted direct room. "+
+			"Direct-room visibility is restricted to the two room peers plus runtime/audit access, "+
+			"not cryptographic privacy.",
 		networkSendInputSchema,
 		toolspkg.RiskOpenWorld,
 		false,
@@ -72,6 +74,96 @@ var networkTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
 		[]string{"network", "send"},
 		[]string{"network message", "send to peer"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkThreads,
+		"network_threads",
+		"Network Threads",
+		"List public-thread summaries for one AGH network channel.",
+		networkThreadsInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{"network", "threads"},
+		[]string{"network threads", "public thread summaries"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkThreadMessages,
+		"network_thread_messages",
+		"Network Thread Messages",
+		"Read messages isolated to one public AGH network thread.",
+		networkThreadMessagesInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{"network", "threads", "messages"},
+		[]string{"thread messages", "public thread timeline"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkDirects,
+		"network_directs",
+		"Network Direct Rooms",
+		"List direct-room summaries for one AGH network channel. "+
+			"Direct-room visibility is restricted to the two room peers plus runtime/audit access, "+
+			"not cryptographic privacy.",
+		networkDirectsInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{"network", "directs"},
+		[]string{"direct rooms", "restricted network rooms"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkDirectResolve,
+		"network_direct_resolve",
+		"Network Direct Resolve",
+		"Create or return the deterministic direct room for the caller session and one peer. "+
+			"Direct-room visibility is restricted to the two room peers plus runtime/audit access, "+
+			"not cryptographic privacy.",
+		networkDirectResolveInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{"network", "directs", "resolve"},
+		[]string{"resolve direct room", "open restricted room"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkDirectMessages,
+		"network_direct_messages",
+		"Network Direct Messages",
+		"Read messages isolated to one restricted direct room. "+
+			"Direct-room visibility is restricted to the two room peers plus runtime/audit access, "+
+			"not cryptographic privacy.",
+		networkDirectMessagesInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{"network", "directs", "messages"},
+		[]string{"direct messages", "restricted room timeline"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkWork,
+		"network_work",
+		"Network Work",
+		"Read lifecycle metadata for one AGH network work_id.",
+		networkWorkInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{"network", "work"},
+		[]string{"network work", "work lifecycle"},
 	),
 }
 
@@ -101,16 +193,92 @@ const networkSendInputSchema = `{
 	"properties":{
 		"session_id":{"type":"string"},
 		"channel":{"type":"string"},
-		"kind":{"type":"string"},
+		"kind":{"type":"string","enum":["greet","whois","say","capability","receipt","trace"]},
+		"surface":{"type":"string","enum":["thread","direct"]},
+		"thread_id":{"type":"string"},
+		"direct_id":{"type":"string"},
+		"work_id":{"type":"string"},
 		"to":{"type":"string"},
 		"body":{"type":"object"},
-		"interaction_id":{"type":"string"},
 		"reply_to":{"type":"string"},
 		"trace_id":{"type":"string"},
 		"causation_id":{"type":"string"},
 		"expires_at":{"type":"integer"},
 		"id":{"type":"string"},
 		"ext":{"type":"object"}
+	},
+	"additionalProperties":false
+}`
+
+const networkThreadsInputSchema = `{
+	"type":"object",
+	"required":["channel"],
+	"properties":{
+		"channel":{"type":"string"},
+		"limit":{"type":"integer"},
+		"after":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const networkThreadMessagesInputSchema = `{
+	"type":"object",
+	"required":["channel","thread_id"],
+	"properties":{
+		"channel":{"type":"string"},
+		"thread_id":{"type":"string"},
+		"before":{"type":"string"},
+		"after":{"type":"string"},
+		"kind":{"type":"string","enum":["greet","whois","say","capability","receipt","trace"]},
+		"work_id":{"type":"string"},
+		"limit":{"type":"integer"}
+	},
+	"additionalProperties":false
+}`
+
+const networkDirectsInputSchema = `{
+	"type":"object",
+	"required":["channel"],
+	"properties":{
+		"channel":{"type":"string"},
+		"peer_id":{"type":"string"},
+		"limit":{"type":"integer"},
+		"after":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const networkDirectResolveInputSchema = `{
+	"type":"object",
+	"required":["channel","peer_id"],
+	"properties":{
+		"session_id":{"type":"string"},
+		"channel":{"type":"string"},
+		"peer_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const networkDirectMessagesInputSchema = `{
+	"type":"object",
+	"required":["channel","direct_id"],
+	"properties":{
+		"channel":{"type":"string"},
+		"direct_id":{"type":"string"},
+		"before":{"type":"string"},
+		"after":{"type":"string"},
+		"kind":{"type":"string","enum":["greet","whois","say","capability","receipt","trace"]},
+		"work_id":{"type":"string"},
+		"limit":{"type":"integer"}
+	},
+	"additionalProperties":false
+}`
+
+const networkWorkInputSchema = `{
+	"type":"object",
+	"required":["work_id"],
+	"properties":{
+		"work_id":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

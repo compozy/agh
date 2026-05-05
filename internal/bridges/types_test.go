@@ -382,6 +382,89 @@ func TestInboundMessageEnvelopeNormalizeClonesAttachments(t *testing.T) {
 	}
 }
 
+func TestInboundMessageEnvelopeNetworkConversationMapping(t *testing.T) {
+	t.Parallel()
+
+	base := InboundMessageEnvelope{
+		BridgeInstanceID:  "brg-1",
+		Scope:             ScopeWorkspace,
+		WorkspaceID:       "ws-1",
+		PeerID:            "provider-peer",
+		ThreadID:          "provider-thread",
+		PlatformMessageID: "msg-1",
+		ReceivedAt:        time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC),
+		Sender:            MessageSender{ID: "user-1", DisplayName: "Alice"},
+		Content:           MessageContent{Text: "hello"},
+		EventFamily:       InboundEventFamilyMessage,
+		IdempotencyKey:    "idem-1",
+	}
+
+	t.Run("ShouldNotInferAGHThreadFromProviderThreadID", func(t *testing.T) {
+		t.Parallel()
+
+		ref, ok, err := base.NetworkConversationRef()
+		if err != nil {
+			t.Fatalf("NetworkConversationRef() error = %v", err)
+		}
+		if ok {
+			t.Fatalf("NetworkConversationRef() ok = true with ref %#v, want false", ref)
+		}
+	})
+
+	t.Run("ShouldReturnExplicitThreadConversationRef", func(t *testing.T) {
+		t.Parallel()
+
+		envelope := base
+		envelope.Conversation = &NetworkConversationRef{
+			Channel:  " builders ",
+			Surface:  NetworkConversationSurfaceThread,
+			ThreadID: " thread_alpha01 ",
+			WorkID:   " work-alpha ",
+		}
+		ref, ok, err := envelope.NetworkConversationRef()
+		if err != nil {
+			t.Fatalf("NetworkConversationRef() error = %v", err)
+		}
+		if !ok {
+			t.Fatal("NetworkConversationRef() ok = false, want true")
+		}
+		if ref.Channel != "builders" || ref.Surface != NetworkConversationSurfaceThread ||
+			ref.ThreadID != "thread_alpha01" || ref.WorkID != "work-alpha" {
+			t.Fatalf("NetworkConversationRef() = %#v, want trimmed thread mapping", ref)
+		}
+		if ref.ThreadID == envelope.ThreadID {
+			t.Fatalf("AGH thread_id = provider thread_id %q, want separate explicit mapping", ref.ThreadID)
+		}
+	})
+
+	t.Run("ShouldValidateDirectConversationRefFromResolverOutput", func(t *testing.T) {
+		t.Parallel()
+
+		envelope := base
+		envelope.Conversation = &NetworkConversationRef{
+			Channel:  "builders",
+			Surface:  NetworkConversationSurfaceDirect,
+			DirectID: "direct_0123456789abcdef0123456789abcdef",
+			ThreadID: "thread_alpha01",
+		}
+		if err := envelope.Validate(); err == nil {
+			t.Fatal("Validate() error = nil, want direct/thread collision rejection")
+		}
+
+		envelope.Conversation.ThreadID = ""
+		if err := envelope.Validate(); err != nil {
+			t.Fatalf("Validate(valid direct conversation) error = %v", err)
+		}
+		ref, ok, err := envelope.NetworkConversationRef()
+		if err != nil {
+			t.Fatalf("NetworkConversationRef(valid direct) error = %v", err)
+		}
+		if !ok || ref.DirectID != "direct_0123456789abcdef0123456789abcdef" {
+			t.Fatalf("NetworkConversationRef(valid direct) = %#v ok=%v, want direct id", ref, ok)
+		}
+	})
+}
+
 func TestInboundMessageEnvelopeValidatesTypedInteractionFamilies(t *testing.T) {
 	t.Parallel()
 

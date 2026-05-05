@@ -545,12 +545,12 @@ func TestSelectionPreviewAndBoundingHelpers(t *testing.T) {
 		t.Fatalf("runActivityTime() = %s, want latest start", got)
 	}
 
-	direct := envelopeWithBody(t, network.KindDirect, network.DirectBody{Text: "direct message"})
+	direct := envelopeWithBody(t, network.KindSay, network.SayBody{Text: "direct message"})
 	if got, want := envelopePreview(direct), "direct message"; got != want {
 		t.Fatalf("envelopePreview(direct) = %q, want %q", got, want)
 	}
 	trace := envelopeWithBody(t, network.KindTrace, network.TraceBody{
-		State:   network.StateWorking,
+		State:   network.WorkStateWorking,
 		Message: "trace message",
 	})
 	if got, want := envelopePreview(trace), "trace message"; got != want {

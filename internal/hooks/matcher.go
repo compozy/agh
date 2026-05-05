@@ -111,6 +111,13 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"child_session_id":        {},
 		"spawn_role":              {},
 	},
+	HookEventFamilyNetwork: {
+		"channel":    {},
+		"surface":    {},
+		"kind":       {},
+		"direction":  {},
+		"work_state": {},
+	},
 }
 
 // ValidateMatcherForEvent ensures only the matcher fields defined for the event
@@ -246,6 +253,16 @@ func (m HookMatcher) MatchesMessage(payload MessagePayload) bool {
 		matchStringField(m.MessageDeltaType, payload.DeltaType)
 }
 
+// MatchesNetwork matches network-family observation hooks.
+func (m HookMatcher) MatchesNetwork(payload NetworkPayload) bool {
+	network := m.network()
+	return matchStringField(network.Channel, payload.Channel) &&
+		matchStringField(network.Surface, payload.Surface) &&
+		matchStringField(network.Kind, payload.Kind) &&
+		matchStringField(network.Direction, payload.Direction) &&
+		matchStringField(network.WorkState, payload.WorkState)
+}
+
 // MatchesToolPreCall matches tool pre-call hooks.
 func (m HookMatcher) MatchesToolPreCall(payload ToolPreCallPayload) bool {
 	return m.matchSessionContext(payload.SessionContext, false) &&
@@ -278,8 +295,9 @@ func (m HookMatcher) MatchesPermissionResolution(payload PermissionResolutionPay
 
 // MatchesContextCompact matches context-compaction hooks.
 func (m HookMatcher) MatchesContextCompact(payload ContextCompactPayload) bool {
-	return matchStringField(m.CompactionReason, payload.Reason) &&
-		matchStringField(m.CompactionStrategy, payload.Strategy)
+	compaction := m.compaction()
+	return matchStringField(compaction.Reason, payload.Reason) &&
+		matchStringField(compaction.Strategy, payload.Strategy)
 }
 
 // MatchesCoordinator matches coordinator-family hooks.
@@ -324,6 +342,22 @@ func (m HookMatcher) MatchesSpawn(payload SpawnContext) bool {
 }
 
 var emptyAutonomyMatcher = &AutonomyMatcher{}
+var emptyNetworkMatcher = &NetworkMatcher{}
+var emptyCompactionMatcher = &CompactionMatcher{}
+
+func (m HookMatcher) network() *NetworkMatcher {
+	if m.NetworkMatcher == nil {
+		return emptyNetworkMatcher
+	}
+	return m.NetworkMatcher
+}
+
+func (m HookMatcher) compaction() *CompactionMatcher {
+	if m.CompactionMatcher == nil {
+		return emptyCompactionMatcher
+	}
+	return m.CompactionMatcher
+}
 
 func (m HookMatcher) autonomy() *AutonomyMatcher {
 	if m.Autonomy == nil {
@@ -462,6 +496,10 @@ func matchMessage(matcher HookMatcher, payload MessagePayload) bool {
 	return matcher.MatchesMessage(payload)
 }
 
+func matchNetwork(matcher HookMatcher, payload NetworkPayload) bool {
+	return matcher.MatchesNetwork(payload)
+}
+
 func matchToolPreCall(matcher HookMatcher, payload ToolPreCallPayload) bool {
 	return matcher.MatchesToolPreCall(payload)
 }
@@ -565,32 +603,63 @@ func (m HookMatcher) matchPermission(toolName string, decisionClass string) bool
 
 func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 	normalized := HookMatcher{
-		AgentName:          strings.TrimSpace(matcher.AgentName),
-		AgentType:          strings.TrimSpace(matcher.AgentType),
-		WorkspaceID:        strings.TrimSpace(matcher.WorkspaceID),
-		WorkspaceRoot:      strings.TrimSpace(matcher.WorkspaceRoot),
-		SessionType:        strings.TrimSpace(matcher.SessionType),
-		SandboxID:          strings.TrimSpace(matcher.SandboxID),
-		SandboxBackend:     strings.TrimSpace(matcher.SandboxBackend),
-		SandboxProfile:     strings.TrimSpace(matcher.SandboxProfile),
-		SyncDirection:      strings.TrimSpace(matcher.SyncDirection),
-		InputClass:         strings.TrimSpace(matcher.InputClass),
-		ACPEventType:       strings.TrimSpace(matcher.ACPEventType),
-		TurnID:             strings.TrimSpace(matcher.TurnID),
-		ToolID:             strings.TrimSpace(matcher.ToolID),
-		ToolName:           strings.TrimSpace(matcher.ToolName),
-		DecisionClass:      strings.TrimSpace(matcher.DecisionClass),
-		MessageRole:        strings.TrimSpace(matcher.MessageRole),
-		MessageDeltaType:   strings.TrimSpace(matcher.MessageDeltaType),
-		CompactionReason:   strings.TrimSpace(matcher.CompactionReason),
-		CompactionStrategy: strings.TrimSpace(matcher.CompactionStrategy),
+		AgentName:        strings.TrimSpace(matcher.AgentName),
+		AgentType:        strings.TrimSpace(matcher.AgentType),
+		WorkspaceID:      strings.TrimSpace(matcher.WorkspaceID),
+		WorkspaceRoot:    strings.TrimSpace(matcher.WorkspaceRoot),
+		SessionType:      strings.TrimSpace(matcher.SessionType),
+		SandboxID:        strings.TrimSpace(matcher.SandboxID),
+		SandboxBackend:   strings.TrimSpace(matcher.SandboxBackend),
+		SandboxProfile:   strings.TrimSpace(matcher.SandboxProfile),
+		SyncDirection:    strings.TrimSpace(matcher.SyncDirection),
+		InputClass:       strings.TrimSpace(matcher.InputClass),
+		ACPEventType:     strings.TrimSpace(matcher.ACPEventType),
+		TurnID:           strings.TrimSpace(matcher.TurnID),
+		ToolID:           strings.TrimSpace(matcher.ToolID),
+		ToolName:         strings.TrimSpace(matcher.ToolName),
+		DecisionClass:    strings.TrimSpace(matcher.DecisionClass),
+		MessageRole:      strings.TrimSpace(matcher.MessageRole),
+		MessageDeltaType: strings.TrimSpace(matcher.MessageDeltaType),
 	}
+	normalized.NetworkMatcher = normalizeNetworkMatcher(matcher.NetworkMatcher)
+	normalized.CompactionMatcher = normalizeCompactionMatcher(matcher.CompactionMatcher)
 	normalized.Autonomy = normalizeAutonomyMatcher(matcher.Autonomy)
 	if matcher.ToolReadOnly != nil {
 		value := *matcher.ToolReadOnly
 		normalized.ToolReadOnly = &value
 	}
 	return normalized
+}
+
+func normalizeNetworkMatcher(matcher *NetworkMatcher) *NetworkMatcher {
+	if matcher == nil {
+		return nil
+	}
+	normalized := NetworkMatcher{
+		Channel:   strings.TrimSpace(matcher.Channel),
+		Surface:   strings.TrimSpace(matcher.Surface),
+		Kind:      strings.TrimSpace(matcher.Kind),
+		Direction: strings.TrimSpace(matcher.Direction),
+		WorkState: strings.TrimSpace(matcher.WorkState),
+	}
+	if normalized.empty() {
+		return nil
+	}
+	return &normalized
+}
+
+func normalizeCompactionMatcher(matcher *CompactionMatcher) *CompactionMatcher {
+	if matcher == nil {
+		return nil
+	}
+	normalized := CompactionMatcher{
+		Reason:   strings.TrimSpace(matcher.Reason),
+		Strategy: strings.TrimSpace(matcher.Strategy),
+	}
+	if normalized.empty() {
+		return nil
+	}
+	return &normalized
 }
 
 func normalizeAutonomyMatcher(matcher *AutonomyMatcher) *AutonomyMatcher {
@@ -613,6 +682,19 @@ func normalizeAutonomyMatcher(matcher *AutonomyMatcher) *AutonomyMatcher {
 		return nil
 	}
 	return &normalized
+}
+
+func (m *NetworkMatcher) empty() bool {
+	return m.Channel == "" &&
+		m.Surface == "" &&
+		m.Kind == "" &&
+		m.Direction == "" &&
+		m.WorkState == ""
+}
+
+func (m *CompactionMatcher) empty() bool {
+	return m.Reason == "" &&
+		m.Strategy == ""
 }
 
 func (m *AutonomyMatcher) empty() bool {
@@ -655,13 +737,42 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	appendIf("decision_class", matcher.DecisionClass != "")
 	appendIf("message_role", matcher.MessageRole != "")
 	appendIf("message_delta_type", matcher.MessageDeltaType != "")
-	appendIf("compaction_reason", matcher.CompactionReason != "")
-	appendIf("compaction_strategy", matcher.CompactionStrategy != "")
+	if matcher.NetworkMatcher != nil {
+		appendNetworkMatcherFieldNames(&fields, matcher.NetworkMatcher)
+	}
+	if matcher.CompactionMatcher != nil {
+		appendCompactionMatcherFieldNames(&fields, matcher.CompactionMatcher)
+	}
 	if matcher.Autonomy != nil {
 		appendAutonomyMatcherFieldNames(&fields, matcher.Autonomy)
 	}
 
 	return fields
+}
+
+func appendNetworkMatcherFieldNames(fields *[]string, matcher *NetworkMatcher) {
+	appendIf := func(name string, present bool) {
+		if present {
+			*fields = append(*fields, name)
+		}
+	}
+
+	appendIf("channel", matcher.Channel != "")
+	appendIf("surface", matcher.Surface != "")
+	appendIf("kind", matcher.Kind != "")
+	appendIf("direction", matcher.Direction != "")
+	appendIf("work_state", matcher.WorkState != "")
+}
+
+func appendCompactionMatcherFieldNames(fields *[]string, matcher *CompactionMatcher) {
+	appendIf := func(name string, present bool) {
+		if present {
+			*fields = append(*fields, name)
+		}
+	}
+
+	appendIf("compaction_reason", matcher.Reason != "")
+	appendIf("compaction_strategy", matcher.Strategy != "")
 }
 
 func appendAutonomyMatcherFieldNames(fields *[]string, matcher *AutonomyMatcher) {
@@ -705,15 +816,60 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		{field: "decision_class", pattern: matcher.DecisionClass},
 		{field: "message_role", pattern: matcher.MessageRole},
 		{field: "message_delta_type", pattern: matcher.MessageDeltaType},
-		{field: "compaction_reason", pattern: matcher.CompactionReason},
-		{field: "compaction_strategy", pattern: matcher.CompactionStrategy},
 	}
 	for _, item := range patterns {
 		if err := validateMatcherPattern(item.field, item.pattern); err != nil {
 			return err
 		}
 	}
+	if err := validateNetworkMatcherPatterns(matcher.NetworkMatcher); err != nil {
+		return err
+	}
+	if err := validateCompactionMatcherPatterns(matcher.CompactionMatcher); err != nil {
+		return err
+	}
 	return validateAutonomyMatcherPatterns(matcher.Autonomy)
+}
+
+func validateNetworkMatcherPatterns(matcher *NetworkMatcher) error {
+	if matcher == nil {
+		return nil
+	}
+	patterns := []struct {
+		field   string
+		pattern string
+	}{
+		{field: "channel", pattern: matcher.Channel},
+		{field: "surface", pattern: matcher.Surface},
+		{field: "kind", pattern: matcher.Kind},
+		{field: "direction", pattern: matcher.Direction},
+		{field: "work_state", pattern: matcher.WorkState},
+	}
+	for _, item := range patterns {
+		if err := validateMatcherPattern(item.field, item.pattern); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateCompactionMatcherPatterns(matcher *CompactionMatcher) error {
+	if matcher == nil {
+		return nil
+	}
+	patterns := []struct {
+		field   string
+		pattern string
+	}{
+		{field: "compaction_reason", pattern: matcher.Reason},
+		{field: "compaction_strategy", pattern: matcher.Strategy},
+	}
+	for _, item := range patterns {
+		if err := validateMatcherPattern(item.field, item.pattern); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateAutonomyMatcherPatterns(matcher *AutonomyMatcher) error {

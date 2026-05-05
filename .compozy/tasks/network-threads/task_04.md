@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: SQLite Conversation Schema and Store DTO Foundation
 type: backend
 complexity: critical
@@ -35,11 +35,11 @@ Add the durable schema foundation for public threads, direct rooms, work metadat
 
 ## Subtasks
 
-- [ ] 4.1 Add store DTOs and validation helpers for conversation references and summaries.
-- [ ] 4.2 Add numbered migration for conversation tables, revised timeline, audit fields, and indexes.
-- [ ] 4.3 Rebuild old flat `network_timeline_log` according to the TechSpec, preserving only non-conversation `greet` and `whois` rows where required.
-- [ ] 4.4 Add foreign key, uniqueness, and check constraints for direct rooms and work rows.
-- [ ] 4.5 Add fresh DB, migrated DB, and reopen-after-restart tests.
+- [x] 4.1 Add store DTOs and validation helpers for conversation references and summaries.
+- [x] 4.2 Add numbered migration for conversation tables, revised timeline, audit fields, and indexes.
+- [x] 4.3 Rebuild old flat `network_timeline_log` according to the TechSpec, preserving only non-conversation `greet` and `whois` rows where required.
+- [x] 4.4 Add foreign key, uniqueness, and check constraints for direct rooms and work rows.
+- [x] 4.5 Add fresh DB, migrated DB, and reopen-after-restart tests.
 
 ## Implementation Details
 
@@ -88,17 +88,17 @@ The migration must be transactional and must not rely on `EnsureSchema`-style re
 ## Tests
 
 - Unit tests:
-  - [ ] Store DTO validation rejects invalid surface/container combinations.
-  - [ ] Direct-room pair normalization enforces ordered peers.
-  - [ ] Work DTOs reject dangling or dual-container refs.
+  - [x] Store DTO validation rejects invalid surface/container combinations.
+  - [x] Direct-room pair normalization enforces ordered peers.
+  - [x] Work DTOs reject dangling or dual-container refs.
 - Migration tests:
-  - [ ] Fresh DB contains the final conversation tables and indexes.
-  - [ ] Reopen-after-restart preserves schema and records the selected next migration version.
-  - [ ] Old `interaction_id` column and old flat timeline indexes are absent after migration.
-  - [ ] Unique direct-room constraint exists.
-  - [ ] `network_work` rejects missing referenced containers.
-  - [ ] Referenced thread/direct containers cannot be deleted.
-  - [ ] `PRAGMA foreign_keys = 1` is asserted for cascade/restrict tests.
+  - [x] Fresh DB contains the final conversation tables and indexes.
+  - [x] Reopen-after-restart preserves schema and records the selected next migration version.
+  - [x] Old `interaction_id` column and old flat timeline indexes are absent after migration.
+  - [x] Unique direct-room constraint exists.
+  - [x] `network_work` rejects missing referenced containers.
+  - [x] Referenced thread/direct containers cannot be deleted.
+  - [x] `PRAGMA foreign_keys = 1` is asserted for cascade/restrict tests.
 - Test coverage target: >=80% for touched store/globaldb packages.
 - All tests must pass.
 

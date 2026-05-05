@@ -1,9 +1,0 @@
-{
-  "session_id": "sess-2983139beeb71de9",
-  "type": null,
-  "parent_session_id": "sess-594513b02f0fb2fd",
-  "soul_snapshot_id": "soul-b383095fb3822a8e",
-  "soul_digest": "sha256:3d3600ec41d4507c5cc876c846b971cd5fbeef3b71259dbaa93434e38fc5edf9",
-  "parent_soul_digest": "sha256:3d3600ec41d4507c5cc876c846b971cd5fbeef3b71259dbaa93434e38fc5edf9",
-  "state": "active"
-}

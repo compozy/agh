@@ -1,135 +1,205 @@
-import { AlertTriangle, Loader2, Network as NetworkIcon } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { type ReactNode } from "react";
+import { Loader2, Network as NetworkIcon } from "lucide-react";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { Empty } from "@agh/ui";
+import { Empty, PageHeader } from "@agh/ui";
+
 import {
-  type NetworkRouteSearch,
-  useNetworkPage,
-  validateNetworkSearch,
-} from "@/hooks/routes/use-network-page";
-import {
-  NetworkCreateChannelDialog,
-  NetworkWorkspaceShell,
-  toggleDraftAgent,
+  DaemonDown,
+  NetworkEmpty,
+  ThreadOverlay,
+  useNetworkInspectorView,
+  useNetworkRailView,
+  useNetworkRouteShell,
+  useOpenWork,
+  useThreadViewMode,
 } from "@/systems/network";
+import { NetworkInspector, NetworkShell } from "@/systems/network/components/shell";
 
 export const Route = createFileRoute("/_app/network")({
-  validateSearch: validateNetworkSearch,
-  component: NetworkPage,
+  component: NetworkRouteShell,
 });
 
-function NetworkPage() {
-  const page = useNetworkPage(Route.useSearch() as NetworkRouteSearch);
+function NetworkPageShell({ count, children }: { count: number | undefined; children: ReactNode }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="network-page-shell">
+      <PageHeader
+        count={count}
+        icon={() => <NetworkIcon className="size-3.5" data-testid="network-page-icon" />}
+        title={<span data-testid="network-page-title">Network</span>}
+      />
+      <div className="flex min-h-0 flex-1">{children}</div>
+    </div>
+  );
+}
 
-  if (page.isPageLoading) {
+function NetworkRouteShell() {
+  const { page, activeChannel, activeTab, activeThreadId, activeDirectId, hasUnread } =
+    useNetworkRouteShell();
+  const viewMode = useThreadViewMode();
+  const showOverlayInRightRail = activeThreadId != null && viewMode === "overlay";
+  const containerSurface = activeThreadId
+    ? ("thread" as const)
+    : activeDirectId
+      ? ("direct" as const)
+      : null;
+  const containerId = activeThreadId ?? activeDirectId ?? null;
+  const channelKey = activeChannel?.channel ?? null;
+  const openWork = useOpenWork({
+    channel: channelKey,
+    surface: containerSurface,
+    containerId,
+    enabled: Boolean(channelKey) && containerSurface != null,
+  });
+  const inspectorView = useNetworkInspectorView({
+    channel: channelKey,
+    enabled: Boolean(channelKey) && !showOverlayInRightRail,
+  });
+  const railView = useNetworkRailView({ channel: channelKey });
+  const {
+    inspector,
+    members: channelMembers,
+    threads: channelThreads,
+    directs: channelDirects,
+  } = inspectorView;
+  const showInspectorInRightRail = !showOverlayInRightRail && inspector.open;
+
+  if (page.isStatusLoading) {
     return (
-      <div
-        aria-label="Loading network workspace"
-        className="flex min-h-0 flex-1 items-center justify-center"
-        data-testid="network-loading"
-        role="status"
-      >
-        <Loader2
-          aria-hidden="true"
-          className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
-        />
-      </div>
+      <NetworkPageShell count={undefined}>
+        <div
+          aria-label="Loading network workspace"
+          className="flex min-h-0 flex-1 items-center justify-center"
+          data-testid="network-loading"
+          role="status"
+        >
+          <Loader2
+            aria-hidden="true"
+            className="size-5 animate-spin text-[color:var(--color-text-tertiary)]"
+          />
+        </div>
+      </NetworkPageShell>
     );
   }
 
-  if (page.pageError || !page.networkStatus) {
+  if (page.statusError || !page.status) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-        data-testid="network-error"
-      >
-        <Empty
-          className="max-w-xl"
-          description={page.pageError?.message ?? "Failed to load network status"}
-          icon={AlertTriangle}
-          title="Unable to load the network workspace"
-        />
-      </div>
+      <NetworkPageShell count={undefined}>
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          data-testid="network-error"
+        >
+          <DaemonDown />
+        </div>
+      </NetworkPageShell>
     );
   }
 
   if (page.isNetworkDisabled) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-        data-testid="network-disabled-state"
-      >
-        <Empty
-          className="max-w-xl"
-          description="Enable the embedded network in AGH config to inspect rooms, peers, and multi-kind wire traffic."
-          icon={NetworkIcon}
-          title="Network disabled"
-        />
-      </div>
+      <NetworkPageShell count={undefined}>
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          data-testid="network-disabled-state"
+        >
+          <NetworkEmpty />
+        </div>
+      </NetworkPageShell>
     );
   }
 
-  return (
-    <>
-      <NetworkWorkspaceShell
-        activeKind={page.activeKind}
-        activeRoom={page.activeRoom}
-        channelRooms={page.channelRooms}
-        composeDraft={page.composeDraft}
-        detailsTab={page.detailsTab}
-        directRooms={page.directRooms}
-        isComposePending={page.isComposePending}
-        isDetailsOpen={page.isDetailsOpen}
-        isRoomLoading={page.isRoomLoading}
-        isTimelineLoading={page.isTimelineLoading}
-        onComposeDraftChange={page.setComposeDraft}
-        onComposeSubmit={page.handleComposeSubmit}
-        onOpenCreateDialog={page.handleOpenCreateDialog}
-        onSelectDetailsTab={page.setDetailsTab}
-        onSelectKind={page.handleSetKind}
-        onSelectRoom={page.handleSelectRoom}
-        onSidebarQueryChange={page.setSidebarQuery}
-        onToggleDetails={page.handleToggleDetails}
-        onTogglePresence={page.handleTogglePresence}
-        onToggleStarChannel={page.handleToggleStarChannel}
-        roomError={page.roomError}
-        selectedRoomKey={page.selectedRoomKey}
-        showPresence={page.showPresence}
-        sidebarQuery={page.sidebarQuery}
-        starredChannelRooms={page.starredChannelRooms}
-        status={page.networkStatus}
-      />
+  if (page.channels.length === 0 && !page.isChannelsLoading) {
+    return (
+      <NetworkPageShell count={0}>
+        <NetworkShell
+          activeChannel={null}
+          activeChannelDetail={null}
+          activeDirectId={null}
+          activeTab="threads"
+          directCount={null}
+          directs={[]}
+          hasUnread={() => false}
+          inspectorOpen={false}
+          isChannelsLoading={false}
+          isDirectsLoading={false}
+          isPinned={() => false}
+          isRecentsLoading={false}
+          onInspectorToggle={() => undefined}
+          onTogglePinned={page.togglePinned}
+          openWorkCount={0}
+          pinnedChannels={[]}
+          recents={[]}
+          rightRailMode="thread"
+          rightRailOpen={false}
+          selfPeerId={null}
+          threadCount={null}
+          unpinnedChannels={[]}
+        >
+          <div
+            className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+            data-testid="network-no-channels-state"
+          >
+            <Empty
+              className="max-w-xl"
+              description="Create one or accept an invite."
+              icon={NetworkIcon}
+              title="No channels yet."
+            />
+          </div>
+        </NetworkShell>
+      </NetworkPageShell>
+    );
+  }
 
-      <NetworkCreateChannelDialog
-        agents={page.sortedAgents}
-        canSubmit={
-          Boolean(page.networkStatus?.enabled) &&
-          page.createDraft.channelName.trim() !== "" &&
-          page.createDraft.purpose.trim() !== "" &&
-          page.createDraft.selectedAgentNames.length > 0
-        }
-        draft={page.createDraft}
-        isSubmitting={page.isCreatePending}
-        onChannelNameChange={channelName =>
-          page.setCreateDraft(currentDraft => ({
-            ...currentDraft,
-            channelName,
-          }))
-        }
-        onOpenChange={page.setCreateDialogOpen}
-        onPurposeChange={purpose =>
-          page.setCreateDraft(currentDraft => ({
-            ...currentDraft,
-            purpose,
-          }))
-        }
-        onSubmit={page.handleCreateChannel}
-        onToggleAgent={agentName =>
-          page.setCreateDraft(currentDraft => toggleDraftAgent(currentDraft, agentName))
-        }
-        open={page.isCreateDialogOpen}
-        workspaceName={page.workspaceName}
+  const rightRailContent =
+    showOverlayInRightRail && activeChannel && activeThreadId ? (
+      <ThreadOverlay channel={activeChannel.channel} fullPage={false} threadId={activeThreadId} />
+    ) : showInspectorInRightRail && activeChannel ? (
+      <NetworkInspector
+        activeTab={inspector.tab}
+        channel={activeChannel.channel}
+        directs={channelDirects.directs}
+        isActivityLoading={channelThreads.isLoading || channelDirects.isLoading}
+        isMembersLoading={channelMembers.isLoading}
+        isWorkLoading={openWork.isLoading}
+        members={channelMembers.members}
+        onClose={inspector.close}
+        onTabChange={inspector.setTab}
+        threads={channelThreads.threads}
+        workCount={openWork.openCount}
+        workEntries={openWork.entries}
       />
-    </>
+    ) : null;
+
+  return (
+    <NetworkPageShell count={page.channels.length}>
+      <NetworkShell
+        activeChannel={activeChannel}
+        activeChannelDetail={null}
+        activeDirectId={activeDirectId}
+        activeTab={activeTab}
+        directCount={null}
+        directs={railView.directs.directs}
+        hasUnread={hasUnread}
+        inspectorOpen={inspector.open}
+        isChannelsLoading={page.isChannelsLoading}
+        isDirectsLoading={railView.directs.isLoading}
+        isPinned={page.isPinned}
+        isRecentsLoading={page.isRecentsLoading}
+        onInspectorToggle={inspector.toggle}
+        onTogglePinned={page.togglePinned}
+        openWorkCount={openWork.openCount}
+        pinnedChannels={page.pinnedChannels}
+        recents={page.recents}
+        rightRailContent={rightRailContent}
+        rightRailMode={showOverlayInRightRail ? "thread" : "inspector"}
+        rightRailOpen={showOverlayInRightRail || showInspectorInRightRail}
+        selfPeerId={railView.session.session?.peerId ?? null}
+        threadCount={null}
+        unpinnedChannels={page.unpinnedChannels}
+      >
+        <Outlet />
+      </NetworkShell>
+    </NetworkPageShell>
   );
 }

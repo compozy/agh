@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Network Hooks, Status Counters, and Observability
 type: backend
 complexity: critical
@@ -35,11 +35,11 @@ Add post-commit network observation surfaces after conversation writes are durab
 
 ## Subtasks
 
-- [ ] 7.1 Add network hook event catalog, payload types, matcher support, and introspection.
-- [ ] 7.2 Wire post-commit hook dispatch from committed conversation write results.
-- [ ] 7.3 Update daemon hook bridge and failure logging.
-- [ ] 7.4 Update status counters and metrics with approved labels.
-- [ ] 7.5 Add observability, redaction, and failure-isolation tests.
+- [x] 7.1 Add network hook event catalog, payload types, matcher support, and introspection.
+- [x] 7.2 Wire post-commit hook dispatch from committed conversation write results.
+- [x] 7.3 Update daemon hook bridge and failure logging.
+- [x] 7.4 Update status counters and metrics with approved labels.
+- [x] 7.5 Add observability, redaction, and failure-isolation tests.
 
 ## Implementation Details
 
@@ -90,17 +90,23 @@ Network hooks observe already-committed state. A crash after commit but before h
 ## Tests
 
 - Unit tests:
-  - [ ] Hook catalog and introspection include all network events.
-  - [ ] Hook matchers normalize and match network payload fields.
-  - [ ] Hook payloads include container/work/correlation fields and exclude raw tokens.
-  - [ ] Metric labels exclude `thread_id`, `direct_id`, `work_id`, `message_id`, `trace_id`, and `causation_id`.
+  - [x] Hook catalog and introspection include all network events.
+  - [x] Hook matchers normalize and match network payload fields.
+  - [x] Hook payloads include container/work/correlation fields and exclude raw tokens.
+  - [x] Metric labels exclude `thread_id`, `direct_id`, `work_id`, `message_id`, `trace_id`, and `causation_id`.
 - Integration tests:
-  - [ ] Hooks dispatch only after durable commit.
-  - [ ] Hook failure does not roll back persisted messages or work state.
-  - [ ] Duplicate notifications are dedupe-able by stable payload identifiers.
-  - [ ] Runtime status reports aggregate thread/direct/work counters.
+  - [x] Hooks dispatch only after durable commit.
+  - [x] Hook failure does not roll back persisted messages or work state.
+  - [x] Duplicate notifications are dedupe-able by stable payload identifiers.
+  - [x] Runtime status reports aggregate thread/direct/work counters.
 - Test coverage target: >=80% for touched packages.
 - All tests must pass.
+
+## Validation Evidence
+
+- 2026-05-05: `make verify` passed after implementation, self-review, matcher-surface corrections, and lint corrections (`0 issues`, `DONE 8177 tests`, `OK: all package boundaries respected`).
+- 2026-05-05: `go test ./internal/hooks -cover -count=1` passed with `82.2%` coverage after the final coverage hardening.
+- 2026-05-05: final post-amend `make verify` passed for commit `4fffcc1d` (`Found 0 warnings and 0 errors`, Go lint `0 issues`, `DONE 8242 tests`, `OK: all package boundaries respected`).
 
 ## Success Criteria
 

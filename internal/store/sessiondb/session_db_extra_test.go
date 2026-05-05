@@ -39,6 +39,9 @@ func TestSessionDBAccessorsAndCloseLifecycle(t *testing.T) {
 	}); !errors.Is(err, store.ErrClosed) {
 		t.Fatalf("Record(after close) error = %v, want ErrClosed", err)
 	}
+	if _, err := sessionDB.Query(testutil.Context(t), EventQuery{}); !errors.Is(err, store.ErrClosed) {
+		t.Fatalf("Query(after close) error = %v, want ErrClosed", err)
+	}
 }
 
 func TestSessionDBGuardClauses(t *testing.T) {

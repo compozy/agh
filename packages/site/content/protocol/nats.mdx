@@ -90,18 +90,25 @@ token. The subject token is transport metadata; the envelope remains authoritati
 
 ## Subject mapping
 
-| Envelope condition | NATS subject                                  | Notes                                                                      |
-| ------------------ | --------------------------------------------- | -------------------------------------------------------------------------- |
-| `to = null`        | `agh.network.v1.<channel>.broadcast`          | Used for `greet`, broadcast `whois`, `say`, and broadcast `capability`.    |
-| `to != null`       | `agh.network.v1.<channel>.peer.<route_token>` | Used for targeted `whois`, `direct`, `capability`, `receipt`, and `trace`. |
+The NATS binding uses two transport-level subjects per channel. Note that "direct subject" here
+means a NATS subject targeted at one peer; it is distinct from the AGH Network conversation surface
+`surface:"direct"` (a restricted two-party room). A `surface:"thread"` envelope addressed to one
+peer also publishes to a peer direct NATS subject.
+
+| Envelope condition | NATS subject                                  | Notes                                                                                                                |
+| ------------------ | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `to = null`        | `agh.network.v1.<channel>.broadcast`          | Used for `greet`, broadcast `whois`, public-thread `say`, and broadcast `capability`.                                |
+| `to != null`       | `agh.network.v1.<channel>.peer.<route_token>` | Used for targeted `whois`, targeted `say` (thread or direct surface), targeted `capability`, `receipt`, and `trace`. |
 
 Sending rules:
 
 - A sender MUST publish broadcast envelopes to the channel broadcast subject.
 - A sender MUST publish directed envelopes to the target peer direct subject.
 - A sender SHOULD broadcast `greet`.
-- A sender SHOULD use direct subjects for targeted `whois`, `direct`, `receipt`, and `trace`.
-- A sender MUST preserve the envelope `to` field when publishing to a direct subject.
+- A sender SHOULD use direct subjects for targeted `whois`, conversation-bearing kinds with `to`,
+  `receipt`, and `trace`.
+- A sender MUST preserve the envelope `to`, `surface`, and matching container ID when publishing to
+  a direct subject.
 
 ## Joining a channel
 
@@ -177,7 +184,8 @@ correlation remains authoritative.
 If NATS request-reply is used:
 
 - The envelope still MUST include `reply_to` when it is replying to another envelope.
-- Directed lifecycle messages still MUST include `interaction_id` when the message kind requires it.
+- Conversation-bearing messages still MUST include `surface` plus the matching `thread_id` or
+  `direct_id` and, when the message kind requires it, `work_id`.
 - `trace_id` and `causation_id` MUST remain inside the envelope when used.
 - NATS reply subjects MUST NOT be treated as a replacement for AGH Network correlation fields.
 

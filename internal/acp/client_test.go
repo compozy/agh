@@ -422,15 +422,18 @@ func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 		Meta: PromptMeta{
 			TurnSource: PromptTurnSourceNetwork,
 			Network: &PromptNetworkMeta{
-				MessageID:     "msg-meta-1",
-				Kind:          "direct",
-				Channel:       "builders",
-				From:          "ops.peer",
-				To:            "worker.peer",
-				InteractionID: "int-meta-1",
-				ReplyTo:       "msg-root-1",
-				TraceID:       "trace-meta-1",
-				CausationID:   "msg-root-1",
+				MessageID:   "msg-meta-1",
+				Kind:        "say",
+				Channel:     "builders",
+				Surface:     "direct",
+				DirectID:    "direct_meta_1",
+				From:        "ops.peer",
+				To:          "worker.peer",
+				WorkID:      "work-meta-1",
+				ReplyTo:     "msg-root-1",
+				TraceID:     "trace-meta-1",
+				CausationID: "msg-root-1",
+				Trust:       "untrusted",
 			},
 		},
 	})
@@ -455,6 +458,12 @@ func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 	}
 	if got, want := payload.Network.MessageID, "msg-meta-1"; got != want {
 		t.Fatalf("payload.Network.MessageID = %q, want %q", got, want)
+	}
+	if got, want := payload.Network.WorkID, "work-meta-1"; got != want {
+		t.Fatalf("payload.Network.WorkID = %q, want %q", got, want)
+	}
+	if got, want := payload.Network.Trust, "untrusted"; got != want {
+		t.Fatalf("payload.Network.Trust = %q, want %q", got, want)
 	}
 }
 
@@ -1075,6 +1084,39 @@ func TestProcessCrashDetected(t *testing.T) {
 	}
 }
 
+func TestPromptStopDoesNotEmitRuntimeError(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	proc := startHelperProcess(t, driver, "block_prompt_until_cancel", "", StartOpts{})
+
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+		TurnID:  "turn-stop",
+		Message: "block until stopped",
+	})
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+
+	select {
+	case event := <-eventsCh:
+		if got, want := event.Type, EventTypeAgentMessage; got != want {
+			t.Fatalf("first prompt event = %q, want %q", got, want)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for blocking prompt to start")
+	}
+
+	if err := driver.Stop(testutil.Context(t), proc); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	for _, event := range collectEvents(t, eventsCh) {
+		if event.Type == EventTypeError {
+			t.Fatalf("prompt events contain %q after explicit stop: %#v", EventTypeError, event)
+		}
+	}
+}
+
 func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {
 	t.Parallel()
 
@@ -1599,6 +1641,15 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 	switch a.scenario {
 	case "crash_on_prompt":
 		os.Exit(23)
+	case "block_prompt_until_cancel":
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText("blocking"),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+		<-ctx.Done()
+		return acpsdk.PromptResponse{}, ctx.Err()
 	case "echo_prompt":
 		text := ""
 		if len(params.Prompt) > 0 && params.Prompt[0].Text != nil {

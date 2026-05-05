@@ -249,7 +249,7 @@ type NetworkChannelResponse struct {
 
 // NetworkChannelMessagesResponse wraps the read-only channel timeline payload.
 type NetworkChannelMessagesResponse struct {
-	Messages []NetworkChannelMessagePayload `json:"messages"`
+	Messages []NetworkConversationMessagePayload `json:"messages"`
 }
 
 // NetworkPeerResponse wraps one selected peer detail payload.
@@ -259,12 +259,47 @@ type NetworkPeerResponse struct {
 
 // NetworkPeerMessagesResponse wraps the peer-room timeline payload.
 type NetworkPeerMessagesResponse struct {
-	Messages []NetworkChannelMessagePayload `json:"messages"`
+	Messages []NetworkConversationMessagePayload `json:"messages"`
 }
 
 // NetworkSendResponse wraps the outbound send result payload.
 type NetworkSendResponse struct {
 	Message NetworkSendPayload `json:"message"`
+}
+
+// NetworkThreadsResponse wraps public-thread summaries.
+type NetworkThreadsResponse struct {
+	Threads []NetworkThreadSummaryPayload `json:"threads"`
+}
+
+// NetworkThreadResponse wraps one public-thread summary.
+type NetworkThreadResponse struct {
+	Thread NetworkThreadSummaryPayload `json:"thread"`
+}
+
+// NetworkThreadMessagesResponse wraps one public-thread message timeline.
+type NetworkThreadMessagesResponse struct {
+	Messages []NetworkConversationMessagePayload `json:"messages"`
+}
+
+// NetworkDirectRoomsResponse wraps direct-room summaries.
+type NetworkDirectRoomsResponse struct {
+	Directs []NetworkDirectRoomPayload `json:"directs"`
+}
+
+// NetworkDirectRoomResponse wraps one direct-room summary.
+type NetworkDirectRoomResponse struct {
+	Direct NetworkDirectRoomPayload `json:"direct"`
+}
+
+// NetworkDirectRoomMessagesResponse wraps one direct-room message timeline.
+type NetworkDirectRoomMessagesResponse struct {
+	Messages []NetworkConversationMessagePayload `json:"messages"`
+}
+
+// NetworkWorkResponse wraps one network work lookup.
+type NetworkWorkResponse struct {
+	Work NetworkWorkPayload `json:"work"`
 }
 
 // NetworkInboxResponse wraps the queued inbox payload.

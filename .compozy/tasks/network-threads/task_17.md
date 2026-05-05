@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: E2E Harness and Fixture Alignment
 type: infra
 complexity: high
@@ -42,12 +42,12 @@ Align runtime and browser verification fixtures with the final conversation mode
 
 ## Subtasks
 
-- [ ] 17.1 Update acpmock fixtures and matchers for wrapper and prompt metadata.
-- [ ] 17.2 Update daemon network collaboration and E2E assertions.
-- [ ] 17.3 Update runtime harness helpers and seed data.
-- [ ] 17.4 Update web E2E selectors, browser artifact session, artifact schema, and runtime seed; assert the acceptance signals enumerated in `_design.md` §13 (visual, interaction, data integrity, accessibility).
-- [ ] 17.5 Add targeted harness tests that prove old peer-room artifact fields are gone.
-- [ ] 17.6 Run targeted daemon/web E2E slices and record commands for the generated QA workflow.
+- [x] 17.1 Update acpmock fixtures and matchers for wrapper and prompt metadata.
+- [x] 17.2 Update daemon network collaboration and E2E assertions.
+- [x] 17.3 Update runtime harness helpers and seed data.
+- [x] 17.4 Update web E2E selectors, browser artifact session, artifact schema, and runtime seed; assert the acceptance signals enumerated in `_design.md` §13 (visual, interaction, data integrity, accessibility).
+- [x] 17.5 Add targeted harness tests that prove old peer-room artifact fields are gone.
+- [x] 17.6 Run targeted daemon/web E2E slices and record commands for the generated QA workflow.
 
 ## Implementation Details
 
@@ -100,17 +100,17 @@ This is the bridge between implementation tasks and the automated QA workflow. I
 ## Tests
 
 - Unit tests:
-  - [ ] Acpmock wrappers assert exact thread/direct/work metadata.
-  - [ ] Browser artifact schema exposes `network_selected_thread` and `network_selected_direct`.
-  - [ ] Old `network_selected_peer` active artifact fields are absent.
-  - [ ] Redaction tests cover wrapper, metadata, native tool responses, logs, audit rows, and browser artifacts where applicable.
+  - [x] Acpmock wrappers assert exact thread/direct/work metadata.
+  - [x] Browser artifact schema exposes `network_selected_thread` and `network_selected_direct`.
+  - [x] Old `network_selected_peer` active artifact fields are absent.
+  - [x] Redaction tests cover wrapper, metadata, native tool responses, logs, audit rows, and browser artifacts where applicable.
 - Integration tests:
-  - [ ] Daemon collaboration E2E covers public launch-thread coordination.
-  - [ ] Daemon collaboration E2E covers restricted reviewer handoff via direct room.
-  - [ ] E2E covers summarize-back-to-thread.
-  - [ ] E2E covers direct-room resolve race with two agents.
-  - [ ] Web E2E covers thread list/detail and direct list/detail.
-  - [ ] Targeted `make test-e2e-runtime` and `make test-e2e-web` network slices pass where available.
+  - [x] Daemon collaboration E2E covers public launch-thread coordination.
+  - [x] Daemon collaboration E2E covers restricted reviewer handoff via direct room.
+  - [x] E2E covers summarize-back-to-thread.
+  - [x] E2E covers direct-room resolve race with two agents.
+  - [x] Web E2E covers thread list/detail and direct list/detail.
+  - [x] Targeted `make test-e2e-runtime` and `make test-e2e-web` network slices pass where available.
 - Test coverage target: fixture and harness coverage for every changed E2E path.
 - All tests must pass.
 

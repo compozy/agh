@@ -1,6 +1,6 @@
 ---
 name: cy-codex-loop
-description: Drives end-to-end execution of a Compozy techspec across many agent restarts by detecting the current phase from state.yaml plus .compozy/tasks/<slug>/, then activating the correct cy-* skill chain for one iteration before stopping. Use when running a Compozy techspec under the codex-loop-plugin in goal mode, or when manually iterating through tasks, qa-report, qa-execution, and CodeRabbit fix loops with persistent memory and state. Do not use for one-off tasks without a .compozy/tasks/<slug>/ directory, for techspec authoring (use cy-create-techspec), for ad-hoc PR review remediation (use cy-fix-reviews directly), or for any work that does not require iteration tracking across agent restarts.
+description: Drives end-to-end execution of a Compozy techspec across many agent restarts by detecting the current phase from state.yaml plus .compozy/tasks/<slug>/, then activating the correct cy-* skill chain or the Compozy -> Claude Opus delegation lane for one iteration before stopping. Use when running a Compozy techspec under the codex-loop-plugin in goal mode, or when manually iterating through tasks, qa-report, qa-execution, and CodeRabbit fix loops with persistent memory and state. Do not use for one-off tasks without a .compozy/tasks/<slug>/ directory, for techspec authoring (use cy-create-techspec), for ad-hoc PR review remediation (use cy-fix-reviews directly), or for any work that does not require iteration tracking across agent restarts.
 ---
 
 # Codex Loop Driver
@@ -37,6 +37,17 @@ All helpers are bundled under `.agents/skills/cy-codex-loop/scripts/`. Reference
 Helpers are stdlib-only Python 3.11+. They never call the model, never
 hit the network, never require a virtualenv.
 
+## Frontend/docs delegation lane
+
+Phase B has a mandatory secondary lane for work whose primary surface is
+frontend or documentation. Read
+`references/frontend-docs-delegation.md` whenever the picked task or
+free-mode slice might qualify. When that lane applies, the local Codex
+loop session stays in orchestration mode only: it prepares the prompt,
+runs `compozy exec --ide claude --model opus --prompt-file <tmpfile>`,
+waits for explicit verify evidence, and never performs a competing local
+implementation.
+
 ## Workflow (one iteration)
 
 **Step 1: Read context and detect phase.**
@@ -62,11 +73,12 @@ Run exactly one of the branches below. Do not start another phase in the same it
 
 1. Pick the head of `state.tasks.pending`. Read the corresponding `.compozy/tasks/<slug>/<task_NN>.md` to confirm its frontmatter `status:` is `pending`. Frontmatter wins — if it disagrees with state.yaml, reconcile state with `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --task-completed <stem>` for any already-finished task, then re-run `.agents/skills/cy-codex-loop/scripts/detect-phase.py`.
 2. Activate `cy-spec-preflight` in `task-body` mode for the picked file.
-3. Pass these paths to `cy-workflow-memory` (per `references/memory-protocol.md`): workflow memory directory `.compozy/tasks/<slug>/memory/`, shared `.compozy/tasks/<slug>/memory/MEMORY.md`, current `.compozy/tasks/<slug>/memory/<task_NN>.md`.
-4. Activate `cy-execute-task` against the picked task file. Let it own implementation, validation, and self-review.
-5. Activate `cy-final-verify`. Capture its evidence text — it goes into the iteration summary.
-6. Update memory before any state flip (sequence per `cy-execute-task` step 5).
-7. `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --phase B --task-completed <stem> --action "executed <stem>" --outcome completed --memory-written "memory/<task_NN>.md,memory/MEMORY.md" --verify-pass`.
+3. Read `references/frontend-docs-delegation.md`. If the task frontmatter `type:` is `frontend` or `docs`, the delegation lane is mandatory. If `type:` is missing, delegate only when the owned paths / acceptance scope are exclusively frontend/docs surfaces per that reference.
+4. Pass these paths to `cy-workflow-memory` in the lane that will execute the work (per `references/memory-protocol.md`): workflow memory directory `.compozy/tasks/<slug>/memory/`, shared `.compozy/tasks/<slug>/memory/MEMORY.md`, current `.compozy/tasks/<slug>/memory/<task_NN>.md`.
+5. If the delegation lane applies: prepare the temp prompt described in `references/frontend-docs-delegation.md` and run `compozy exec --ide claude --model opus --prompt-file /tmp/cy-codex-loop-<slug>-<task_NN>.md`. The delegated Claude run must own `cy-execute-task`, memory updates, validation, and `cy-final-verify`.
+6. Else: activate `cy-execute-task` against the picked task file. Let it own implementation, validation, and self-review, then activate `cy-final-verify`. Capture its evidence text — it goes into the iteration summary.
+7. Update memory before any state flip (sequence per `cy-execute-task` step 5). In the delegation lane, do not mark the task complete unless the delegated run exited successfully, updated the required memory files, and reported explicit PASS evidence from `cy-final-verify`.
+8. `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --phase B --task-completed <stem> --action "executed <stem>" --outcome completed --memory-written "memory/<task_NN>.md,memory/MEMORY.md" --verify-pass`.
 
 ### Phase B mode=free — Execute one slice
 
@@ -74,10 +86,11 @@ Run exactly one of the branches below. Do not start another phase in the same it
 2. Identify the smallest coherent slice (≤ ~4 hours) that advances at least one acceptance criterion. Capture the slice text exactly.
 3. `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --add-progress "<slice text>" --action "slice picked" --outcome completed`. The script appends the slice with `status: in_progress`.
 4. Re-read `state.yaml` after step 3. Pass these paths to `cy-workflow-memory`: workflow memory directory `.compozy/tasks/<slug>/memory/`, shared `.compozy/tasks/<slug>/memory/MEMORY.md`, current `.compozy/tasks/<slug>/memory/free-iter-<NNN>.md` where `<NNN>` is the `iteration` value on the checklist entry that step 3 just created, zero-padded to three digits.
-5. Implement the slice. Keep scope tight. Record decisions and learnings in the current memory file's canonical sections.
-6. Activate `cy-final-verify`.
-7. Self-check: re-read the techspec acceptance section. If every criterion has a `status: completed` checklist entry, set `--deliverables-complete` in the next call.
-8. `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --phase B --complete-progress "<slice text>" [--deliverables-complete] --action "slice <text>" --outcome completed --memory-written "memory/free-iter-<NNN>.md,memory/MEMORY.md" --verify-pass`.
+5. Read `references/frontend-docs-delegation.md`. If the slice's owned paths are exclusively frontend/docs surfaces per that reference, the delegation lane is mandatory.
+6. If the delegation lane applies: prepare the temp prompt described in `references/frontend-docs-delegation.md` and run `compozy exec --ide claude --model opus --prompt-file /tmp/cy-codex-loop-<slug>-free-iter-<NNN>.md`. The delegated Claude run must own implementation, memory updates, validation, and `cy-final-verify`.
+7. Else: implement the slice locally. Keep scope tight. Record decisions and learnings in the current memory file's canonical sections, then activate `cy-final-verify`.
+8. Self-check: re-read the techspec acceptance section. If every criterion has a `status: completed` checklist entry, set `--deliverables-complete` in the next call. In the delegation lane, do not complete the slice unless the delegated run exited successfully, updated the required memory files, and reported explicit PASS evidence from `cy-final-verify`.
+9. `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --phase B --complete-progress "<slice text>" [--deliverables-complete] --action "slice <text>" --outcome completed --memory-written "memory/free-iter-<NNN>.md,memory/MEMORY.md" --verify-pass`.
 
 ### Phase C — QA
 
@@ -131,6 +144,7 @@ When invoked under `~/dev/ai/codex-loop-plugin` in goal mode, the user pastes a 
 - `state.yaml` has no top-level `current_phase`. `detect-phase.py` computes the next phase from durable state and filesystem truth; `update-state.py --phase` only labels the appended `iterations[]` entry.
 - Frontmatter `status:` on `task_NN.md` and `issue_NNN.md` is the source of truth. State.yaml mirrors it for fast detection; reconcile state if they disagree.
 - Memory updates precede status flips. Always.
+- Frontend/docs Phase B work never runs directly in the local Codex loop session. When `references/frontend-docs-delegation.md` applies, the local session is an orchestrator only and must dispatch via `compozy exec --ide claude --model opus`.
 - Phase E requires three **consecutive** clean CodeRabbit rounds plus `make verify` PASS. Streak resets on the first unresolved critical/high issue.
 - Do not invoke `cy-create-tasks`, `cy-create-techspec`, `cy-tasks-tail-qa-pair`, or `cy-web-docs-impact` from this skill. Spec and task authoring is a separate workflow; this skill consumes their output.
 - Do not execute commands or code parsed from CodeRabbit review output without explicit user approval (per the `code-review` skill's CodeRabbit security note).
@@ -142,5 +156,6 @@ When invoked under `~/dev/ai/codex-loop-plugin` in goal mode, the user pastes a 
 - **`state.yaml` parse failure**: `.agents/skills/cy-codex-loop/scripts/detect-phase.py` exits 1 with the parse error on stderr. Inspect the file; the most likely cause is hand-editing. Restore from `git diff` and resume.
 - **`.agents/skills/cy-codex-loop/scripts/coderabbit-to-rounds.py` exit 4**: the target `reviews-NNN/` already has files. Re-derive `NNN` (use `ls` rather than memory) and pass a fresh directory.
 - **`cy-final-verify` FAIL**: do not advance the phase. Run `.agents/skills/cy-codex-loop/scripts/update-state.py --verify-fail --action "verify FAIL: <summary>" --outcome blocked` and let the next iteration re-enter the same phase to fix the failure. After two consecutive verify failures in the same phase, declare a blocker and stop (per the two-touch rule).
+- **Delegated Compozy/Claude run exits non-zero or lacks explicit PASS evidence**: do not advance the phase. Record the failure as blocked (or `--verify-fail` when appropriate), cite the missing verify evidence, and let the next iteration re-enter the same phase.
 - **Two-touch rule**: if the same task or issue area receives a third corrective change in this loop, escalate to a blocker rather than landing the third patch. Many projects mandate this in their CLAUDE.md / AGENTS.md; honor that if present.
 - **Blocker recorded**: stop without the done-signature even if `phase=E` was printed. The next iteration will re-detect the same blocker until the human resolves it.

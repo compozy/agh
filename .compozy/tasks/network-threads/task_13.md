@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Web Network Shell, Routes, Channel-Pivot IA & Query Isolation
 type: frontend
 complexity: critical
@@ -42,12 +42,12 @@ The normative UI source is `_design.md` in this directory. Sections referenced b
 
 ## Subtasks
 
-- [ ] 13.1 Update web generated-contract consumers, network types, API adapters, query keys, and query options for thread/direct/work read paths.
-- [ ] 13.2 Register the six route files (`network.tsx`, `network.$channel.threads.tsx`, `network.$channel.threads.$threadId.tsx`, `network.$channel.directs.tsx`, `network.$channel.directs.$directId.tsx`, `network.$channel.activity.tsx`) and regenerate the route tree.
-- [ ] 13.3 Build `web/src/systems/network/components/shell/` (`network-shell.tsx`, `channel-rail.tsx`, `channel-rail-recents.tsx`, `channel-rail-row.tsx`, `channel-header.tsx`, `channel-tabs.tsx`, `right-rail.tsx` skeleton).
-- [ ] 13.4 Implement `use-network-page.ts` orchestration hook (replaces existing flat one), `use-channels.ts`, `use-recents.ts`, and `use-last-read.ts` (localStorage tracking).
-- [ ] 13.5 Wire browser artifact capture for `network_selected_thread` / `network_selected_direct`; remove `network_selected_peer` capture.
-- [ ] 13.6 Update settings network impact only for real aggregate metrics, with tests proving unsupported controls are absent (per `_design.md` §10 row A8).
+- [x] 13.1 Update web generated-contract consumers, network types, API adapters, query keys, and query options for thread/direct/work read paths.
+- [x] 13.2 Register the six route files (`network.tsx`, `network.$channel.threads.tsx`, `network.$channel.threads.$threadId.tsx`, `network.$channel.directs.tsx`, `network.$channel.directs.$directId.tsx`, `network.$channel.activity.tsx`) and regenerate the route tree.
+- [x] 13.3 Build `web/src/systems/network/components/shell/` (`network-shell.tsx`, `channel-rail.tsx`, `channel-rail-recents.tsx`, `channel-rail-row.tsx`, `channel-header.tsx`, `channel-tabs.tsx`, `right-rail.tsx` skeleton).
+- [x] 13.4 Implement `use-network-page.ts` orchestration hook (replaces existing flat one), `use-channels.ts`, `use-recents.ts`, and `use-last-read.ts` (localStorage tracking).
+- [x] 13.5 Wire browser artifact capture for `network_selected_thread` / `network_selected_direct`; remove `network_selected_peer` capture.
+- [x] 13.6 Update settings network impact only for real aggregate metrics, with tests proving unsupported controls are absent (per `_design.md` §10 row A8).
 
 ## Implementation Details
 
@@ -108,18 +108,18 @@ The right-rail container is registered as a slot in this task; thread overlay co
 ## Tests
 
 - Unit tests:
-  - [ ] All six routes register and resolve to correct components.
-  - [ ] Query keys include `channel`, `surface`, and container ID.
-  - [ ] Threads-tab queries do not satisfy directs-tab queries (cache isolation proof).
-  - [ ] Recents merges thread + direct summaries across channels and caps at 5.
-  - [ ] Last-read tracking persists per `[channel, surface, containerId]` and resets on visit.
-  - [ ] Channel rail renders pinned channels first, alphabetical thereafter.
-  - [ ] Tab change is a real route navigation, not internal state (URL changes).
-  - [ ] Settings route does not render unsupported thread retention, unread sync, notification, or config controls.
+  - [x] All six routes register and resolve to correct components.
+  - [x] Query keys include `channel`, `surface`, and container ID.
+  - [x] Threads-tab queries do not satisfy directs-tab queries (cache isolation proof).
+  - [x] Recents merges thread + direct summaries across channels and caps at 5.
+  - [x] Last-read tracking persists per `[channel, surface, containerId]` and resets on visit.
+  - [x] Channel rail renders pinned channels first, alphabetical thereafter.
+  - [x] Tab change is a real route navigation, not internal state (URL changes).
+  - [x] Settings route does not render unsupported thread retention, unread sync, notification, or config controls.
 - Integration tests:
-  - [ ] Route tree generates cleanly with the project's route generator.
-  - [ ] Storybook scenarios cover empty / loading / populated / disabled states for the shell, channel rail, and channel header.
-  - [ ] MSW fixtures cover `/api/network/channels` and the thread/direct summary endpoints used by Recents.
+  - [x] Route tree generates cleanly with the project's route generator.
+  - [x] Storybook scenarios cover empty / loading / populated / disabled states for the shell, channel rail, and channel header.
+  - [x] MSW fixtures cover `/api/network/channels` and the thread/direct summary endpoints used by Recents.
 - Test coverage target: >=80% for touched web network shell modules.
 - All tests must pass.
 

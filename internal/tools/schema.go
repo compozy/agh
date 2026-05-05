@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 )
 
@@ -74,9 +75,28 @@ func validateSchemaNode(path string, schema map[string]json.RawMessage, value an
 	if len(types) > 0 && !jsonValueMatchesAnyType(value, types) {
 		return fmt.Errorf("%s: expected %v, got %s", path, types, jsonValueType(value))
 	}
+	if err := validateSchemaEnum(path, schema["enum"], value); err != nil {
+		return err
+	}
+	if err := validateSchemaAllOf(path, schema["allOf"], value); err != nil {
+		return err
+	}
+	if err := validateSchemaAnyOf(path, schema["anyOf"], value); err != nil {
+		return err
+	}
+	if err := validateSchemaOneOf(path, schema["oneOf"], value); err != nil {
+		return err
+	}
+	if err := validateSchemaNot(path, schema["not"], value); err != nil {
+		return err
+	}
 	if !slices.Contains(types, schemaTypeObject) && jsonValueType(value) != schemaTypeObject {
 		return nil
 	}
+	return validateSchemaObjectNode(path, schema, value)
+}
+
+func validateSchemaObjectNode(path string, schema map[string]json.RawMessage, value any) error {
 	objectValue, ok := value.(map[string]any)
 	if !ok {
 		return nil
@@ -115,6 +135,85 @@ func validateSchemaNode(path string, schema map[string]json.RawMessage, value an
 	return nil
 }
 
+func validateSchemaEnum(path string, raw json.RawMessage, value any) error {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil
+	}
+	var allowed []any
+	if err := json.Unmarshal(raw, &allowed); err != nil {
+		return fmt.Errorf("%s.enum: %w", path, err)
+	}
+	for _, candidate := range allowed {
+		if reflect.DeepEqual(candidate, value) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s: value is not allowed", path)
+}
+
+func validateSchemaAllOf(path string, raw json.RawMessage, value any) error {
+	nodes, err := schemaNodeArray(raw)
+	if err != nil {
+		return fmt.Errorf("%s.allOf: %w", path, err)
+	}
+	for idx, node := range nodes {
+		if err := validateSchemaNode(fmt.Sprintf("%s.allOf[%d]", path, idx), node, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSchemaAnyOf(path string, raw json.RawMessage, value any) error {
+	nodes, err := schemaNodeArray(raw)
+	if err != nil {
+		return fmt.Errorf("%s.anyOf: %w", path, err)
+	}
+	if len(nodes) == 0 {
+		return nil
+	}
+	for idx, node := range nodes {
+		if err := validateSchemaNode(fmt.Sprintf("%s.anyOf[%d]", path, idx), node, value); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s: value must match at least one anyOf schema", path)
+}
+
+func validateSchemaOneOf(path string, raw json.RawMessage, value any) error {
+	nodes, err := schemaNodeArray(raw)
+	if err != nil {
+		return fmt.Errorf("%s.oneOf: %w", path, err)
+	}
+	if len(nodes) == 0 {
+		return nil
+	}
+	matches := 0
+	for idx, node := range nodes {
+		if err := validateSchemaNode(fmt.Sprintf("%s.oneOf[%d]", path, idx), node, value); err == nil {
+			matches++
+		}
+	}
+	if matches != 1 {
+		return fmt.Errorf("%s: value matched %d oneOf schemas, want exactly one", path, matches)
+	}
+	return nil
+}
+
+func validateSchemaNot(path string, raw json.RawMessage, value any) error {
+	node, ok, err := schemaNode(raw)
+	if err != nil {
+		return fmt.Errorf("%s.not: %w", path, err)
+	}
+	if !ok {
+		return nil
+	}
+	if err := validateSchemaNode(path+".not", node, value); err == nil {
+		return fmt.Errorf("%s: value matched forbidden schema", path)
+	}
+	return nil
+}
+
 func schemaTypes(raw json.RawMessage) ([]string, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return nil, nil
@@ -146,6 +245,28 @@ func schemaProperties(raw json.RawMessage) (map[string]map[string]json.RawMessag
 		return nil, nil
 	}
 	var values map[string]map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return nil, err
+	}
+	return values, nil
+}
+
+func schemaNode(raw json.RawMessage) (map[string]json.RawMessage, bool, error) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil, false, nil
+	}
+	var value map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, false, err
+	}
+	return value, true, nil
+}
+
+func schemaNodeArray(raw json.RawMessage) ([]map[string]json.RawMessage, error) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil, nil
+	}
+	var values []map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &values); err != nil {
 		return nil, err
 	}

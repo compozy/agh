@@ -39,14 +39,20 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
    - `PROVIDER_CODEX_HOME`
    - `BROWSER_MODE`
    - `BROWSER_BLOCKER`
+   - `SCENARIO_CONTRACT`
+   - `BEHAVIORAL_CHARTER`
+   - `JOURNEY_LOG`
+   - `PROVIDER_ATTEMPT`
+   - `AUDIT_COMMAND`
    - `REUSED_LAB`
 
 **Step 2: Verify the Bootstrap Contract**
 
 1. Read `references/bootstrap-contract.md`.
-2. Open `<QA_OUTPUT_PATH>/qa/bootstrap-manifest.json` and treat it as the canonical handoff between bootstrap, `real-scenario-qa`, `qa-execution`, browser setup, and timed-loop continuations.
+2. Open `<QA_OUTPUT_PATH>/qa/bootstrap-manifest.json` and treat it as the canonical handoff between bootstrap, `real-scenario-qa`, `qa-execution`, browser setup, audit execution, and timed-loop continuations.
 3. Open `<QA_OUTPUT_PATH>/qa/bootstrap.env` only when shell export lines are needed.
 4. Treat `REUSED_LAB=true` as valid only when the manifest came from the same active QA session or loop continuation. Do not reuse older labs across separate QA passes just because they target the same feature or scenario slug.
+5. Confirm the helper created `<QA_OUTPUT_PATH>/qa/scenario-contract.json`, `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml`, `<QA_OUTPUT_PATH>/qa/journey-log.jsonl`, and `<QA_OUTPUT_PATH>/qa/provider-attempt.json`. These files are evidence scaffolding only; they do not validate behavior until downstream QA fills them and the auditor passes.
 
 **Step 3: Launch Downstream QA with the Manifest**
 
@@ -59,6 +65,8 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 4. When starting `make web-dev` or any Web surface that proxies to the daemon, export:
    `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET"`
 5. Keep `agh config set` and any other config mutation against the same isolated home strictly sequential. Do not parallelize writes against the same config file.
+6. Downstream QA must run the validation auditor from `AUDIT_COMMAND` before claiming behavior-first completion. The auditor writes `qa-audit-report.json` and `qa-audit-report.md`:
+   `python3 .agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
 
 **Step 4: Report Reuse State**
 

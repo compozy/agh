@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Native Agent Tools and Hosted Tool Schemas
 type: backend
 complexity: high
@@ -33,11 +33,11 @@ Update AGH native tools so agents can operate on public threads, direct rooms, a
 
 ## Subtasks
 
-- [ ] 10.1 Update native tool IDs and descriptor registration.
-- [ ] 10.2 Update `agh__network_send` schema and handler.
-- [ ] 10.3 Add thread/direct/work tool schemas and daemon dispatch.
-- [ ] 10.4 Align hosted/MCP tool descriptors with native schemas.
-- [ ] 10.5 Add schema, dispatch, parity, and redaction tests.
+- [x] 10.1 Update native tool IDs and descriptor registration.
+- [x] 10.2 Update `agh__network_send` schema and handler.
+- [x] 10.3 Add thread/direct/work tool schemas and daemon dispatch.
+- [x] 10.4 Align hosted/MCP tool descriptors with native schemas.
+- [x] 10.5 Add schema, dispatch, parity, and redaction tests.
 
 ## Implementation Details
 
@@ -86,17 +86,23 @@ Tool descriptions must make direct-room visibility explicit: restricted to the t
 ## Tests
 
 - Unit tests:
-  - [ ] Tool schemas reject `interaction_id`.
-  - [ ] Tool schemas reject missing matching container fields.
-  - [ ] Tool schemas reject raw `claim_token` inputs.
-  - [ ] Tool descriptions do not teach `kind:"direct"` or cryptographic privacy.
+  - [x] Tool schemas reject `interaction_id`.
+  - [x] Tool schemas reject missing matching container fields.
+  - [x] Tool schemas reject raw `claim_token` inputs.
+  - [x] Tool descriptions do not teach `kind:"direct"` or cryptographic privacy.
 - Integration tests:
-  - [ ] `agh__network_direct_resolve` creates or returns the same direct room idempotently.
-  - [ ] `agh__network_send` matches HTTP validation for thread and direct surfaces.
-  - [ ] Work lookup returns the same state as HTTP/UDS.
-  - [ ] Hosted/MCP descriptor output matches native schemas.
+  - [x] `agh__network_direct_resolve` creates or returns the same direct room idempotently.
+  - [x] `agh__network_send` matches HTTP validation for thread and direct surfaces.
+  - [x] Work lookup returns the same state as HTTP/UDS.
+  - [x] Hosted/MCP descriptor output matches native schemas.
 - Test coverage target: >=80% for touched tool/daemon packages.
 - All tests must pass.
+
+### Verification Evidence
+
+- `go test ./internal/tools ./internal/tools/builtin ./internal/daemon` passed.
+- `go test -cover ./internal/tools ./internal/tools/builtin ./internal/daemon` passed with `internal/tools` 81.0%, `internal/tools/builtin` 93.5%, and broad `internal/daemon` 72.8%; task_10 daemon functions are each >=80% by `go tool cover -func`.
+- `make verify` passed after the final code/test change: frontend format/lint/typecheck/test/build passed, Go lint reported `0 issues`, Go tests reported `DONE 8315 tests`, and package boundaries were respected.
 
 ## Success Criteria
 

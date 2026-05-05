@@ -14,19 +14,22 @@ agh network send [flags]
 ### Options
 
 ```
-      --body string             Raw JSON object for the envelope body
-      --causation-id string     Optional causation id
-      --channel string          Target channel
-      --expires-at string       Optional expiry as unix seconds or RFC3339
-      --ext string              Optional JSON object of extension metadata
-  -h, --help                    help for send
-      --id string               Optional explicit message id
-      --interaction-id string   Optional interaction id
-      --kind string             Envelope kind
-      --reply-to string         Optional reply-to message id
-      --session string          Local source session id
-      --to string               Directed target peer id
-      --trace-id string         Optional trace id
+      --body string           Raw JSON object for the envelope body
+      --causation-id string   Optional causation id
+      --channel string        Target channel
+      --direct string         Direct room id for direct-surface messages
+      --expires-at string     Optional expiry as unix seconds or RFC3339
+      --ext string            Optional JSON object of extension metadata
+  -h, --help                  help for send
+      --id string             Optional explicit message id
+      --kind string           Envelope kind
+      --reply-to string       Optional reply-to message id
+      --session string        Local source session id
+      --surface string        Conversation surface: thread or direct
+      --thread string         Thread id for thread-surface messages
+      --to string             Directed target peer id
+      --trace-id string       Optional trace id
+      --work string           Optional work id
 ```
 
 ### Options inherited from parent commands

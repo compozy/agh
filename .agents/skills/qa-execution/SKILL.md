@@ -18,7 +18,7 @@ Execute QA as a real operator using the product. Smoke checks, unit tests, integ
 
 1. Read root instructions, repository docs, and CI/build files before running commands.
 2. Resolve the QA artifact directory. If the user provided a `qa-output-path` argument, use that path. Otherwise, use repository conventions. If neither exists, fall back to `/tmp/codex-qa-<slug>`. Create the `qa/` subdirectory under the resolved path if it does not exist. Store all issues, screenshots, and verification reports under `<qa-output-path>/qa/`.
-3. Check for `<qa-output-path>/qa/bootstrap-manifest.json`. When it exists, read it first and reuse its isolated runtime paths, provider env, Web proxy target, browser policy, and any embedded `project_contract`.
+3. Check for `<qa-output-path>/qa/bootstrap-manifest.json`. When it exists, read it first and reuse its isolated runtime paths, provider env, Web proxy target, browser policy, scenario contract, behavioral charter, journey log, provider attempt file, audit command, and any embedded `project_contract`.
 4. If the manifest is absent or does not include a usable `project_contract`, execute the repo-root helper:
    `python3 .agents/skills/qa-execution/scripts/discover-project-contract.py --root .`
 5. Prefer repository-defined umbrella commands such as `make verify`, `just verify`, or CI entrypoints over language-default commands.
@@ -29,14 +29,15 @@ Execute QA as a real operator using the product. Smoke checks, unit tests, integ
 **Step 2: Define the QA Scope**
 
 1. Check whether `<qa-output-path>/qa/test-cases/` and `<qa-output-path>/qa/test-plans/` contain artifacts from a prior `qa-report` run. If they exist, read the test plans and test case IDs to seed the execution matrix and prioritize P0/P1 test cases.
-2. Build a short execution matrix covering baseline verification, 2-4 high-risk operator/agent journeys, changed workflows, and unchanged business-critical workflows.
-3. For each high-risk journey, define actor intent, expected business outcome, required AGH surfaces, expected agent behavior, expected artifacts, cross-surface state assertions, and one realistic disruption probe.
-4. Read `references/checklist.md` and ensure every required behavioral and technical category has a planned validation.
-5. Prefer public entry points such as CLI commands, HTTP endpoints, browser flows, worker jobs, provider-backed agent sessions, and documented setup commands over internal test helpers.
-6. When a Web UI surface exists, read `references/web-ui-qa.md` and select 3-5 critical user flows to exercise through the browser. Prioritize flows that cover the changed surface, business-critical paths, and the same persisted objects used by CLI/API/runtime flows.
-7. If the bootstrap manifest defines `BROWSER_MODE=browser-use`, keep browser-use as the default path. Use `agent-browser` only after the browser-use setup procedure fails.
-8. Create the smallest realistic scenario fixture or disposable project needed to exercise the workflow when the repository does not already include one, but do not use fake provider or mock agent replies as final proof.
-9. Treat mocks as a local unit-test boundary only. Do not use mocks or stubs as final proof that a user or agent flow works.
+2. If `<qa-output-path>/qa/scenario-contract.json` exists, read it before building the matrix. Treat its minimums as blocking evidence requirements, not guidance.
+3. Build a short execution matrix covering baseline verification, 2-4 high-risk operator/agent journeys, changed workflows, and unchanged business-critical workflows. For release-grade AGH scenarios, the matrix must include enough journeys to satisfy the scenario contract's agent, channel, task, provider, cross-surface, artifact, and disruption minimums.
+4. For each high-risk journey, define actor intent, expected business outcome, required AGH surfaces, expected agent behavior, expected artifacts, cross-surface state assertions, and one realistic disruption probe.
+5. Read `references/checklist.md` and ensure every required behavioral and technical category has a planned validation.
+6. Prefer public entry points such as CLI commands, HTTP endpoints, browser flows, worker jobs, provider-backed agent sessions, and documented setup commands over internal test helpers.
+7. When a Web UI surface exists, read `references/web-ui-qa.md` and select 3-5 critical user flows to exercise through the browser. Prioritize flows that cover the changed surface, business-critical paths, and the same persisted objects used by CLI/API/runtime flows.
+8. If the bootstrap manifest defines `BROWSER_MODE=browser-use`, keep browser-use as the default path. Use `agent-browser` only after the browser-use setup procedure fails.
+9. Create the smallest realistic scenario fixture or disposable project needed to exercise the workflow when the repository does not already include one, but do not use fake provider or mock agent replies as final proof.
+10. Treat mocks as a local unit-test boundary only. Do not use mocks or stubs as final proof that a user or agent flow works.
 
 **Step 3: Establish the Baseline**
 
@@ -53,9 +54,9 @@ Execute QA as a real operator using the product. Smoke checks, unit tests, integ
 **Step 4: Execute CLI and API Flows**
 
 1. Drive CLI and API workflows through the same interfaces a real operator or user would use.
-2. Capture the exact command, input, operator intent, and observable result for each scenario.
+2. Capture the exact command, input, operator intent, and observable result for each scenario. Append each meaningful action to `<qa-output-path>/qa/journey-log.jsonl`; use `.agents/skills/real-scenario-qa/scripts/record-scenario-action.py` when practical.
 3. Validate changed features inside the real operator/agent journey first, then validate at least one regression-critical flow outside the changed surface.
-4. Exercise live integrations and provider-backed agent sessions when credentials and local prerequisites exist. When they do not, validate every reachable local boundary and record the blocked live step explicitly.
+4. Exercise live integrations and provider-backed agent sessions when credentials and local prerequisites exist. Record the attempt in `<qa-output-path>/qa/provider-attempt.json`. When they do not, validate every reachable local boundary and record the blocked live step explicitly; this may support a `BLOCKED` verdict but not a live-provider `PASS`.
 5. Verify agent behavior through AGH state: messages, task claims, channel participation, generated artifacts, persisted events, and any operator-visible state.
 6. Keep config writes against the same isolated home strictly sequential. Never parallelize `agh config set` or other config mutations against one `PROVIDER_CODEX_HOME`.
 7. Re-run the scenario from a clean state when the first attempt leaves the environment ambiguous.
@@ -92,10 +93,14 @@ Skip this step if the project has no Web UI surface.
 3. Re-run the most important CLI and API scenarios after the full gate passes.
 4. When Web UI flows were tested, re-run the critical browser flows and capture final screenshot evidence.
 5. Summarize the evidence using `assets/verification-report-template.md` and write the report to `<qa-output-path>/qa/verification-report.md`. The report must include these mandatory fields: Claim, Command, Executed timestamp, Exit code, Output summary, Warnings, Errors, Verdict (PASS or FAIL). When behavior-first QA was executed, append Behavioral Evidence with: operator journey, live agent/LLM evidence or blocked provider boundary, artifacts produced and used, disruption probes, cross-surface state checks, and smoke checks separated as readiness-only evidence. When Web UI flows were tested, append a Browser Evidence section with: Browser tool used, Dev server URL, Flows tested count, per-flow entry (name, entry URL, final URL, verdict, screenshot path), Viewports tested, Authentication method, and Blocked flows.
-6. Report blocked scenarios, missing credentials, or environment gaps with the exact command or prerequisite that stopped execution.
-7. Append the machine-readable QA bootstrap block from `.agents/skills/agh-qa-bootstrap/references/bootstrap-contract.md` when a healthy reusable lab remains after the run.
-8. Do not claim completion without fresh verification evidence from the current state of the repository.
-9. Do not claim behavior-first QA completion when the final evidence is only smoke, unit/integration, CRUD, mock, fake provider, or page-render evidence.
+6. Run the configured auditor when `<qa-output-path>/qa/scenario-contract.json` exists:
+   `python3 .agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "<qa-output-path>" --strict`
+7. Add an `Audit Result` section to `<qa-output-path>/qa/verification-report.md` with the command, exit code, `qa-audit-report.json`, blockers, warnings, and final verdict.
+8. Treat auditor exit code `2` as blocking. Do not claim behavior-first QA completion when the auditor reports missing release-grade minimums.
+9. Report blocked scenarios, missing credentials, or environment gaps with the exact command or prerequisite that stopped execution.
+10. Append the machine-readable QA bootstrap block from `.agents/skills/agh-qa-bootstrap/references/bootstrap-contract.md` when a healthy reusable lab remains after the run.
+11. Do not claim completion without fresh verification evidence from the current state of the repository.
+12. Do not claim behavior-first QA completion when the final evidence is only smoke, unit/integration, CRUD, mock, fake provider, or page-render evidence.
 
 ## Error Handling
 

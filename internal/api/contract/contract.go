@@ -3,6 +3,8 @@ package contract
 
 import (
 	"encoding/json"
+	"errors"
+	"strings"
 	"time"
 
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -435,6 +437,12 @@ type NetworkStatusPayload struct {
 	MessagesDelivered        int64                           `json:"messages_delivered,omitempty"`
 	WorkflowTaggedEvents     int64                           `json:"workflow_tagged_events,omitempty"`
 	HandoffTaggedEvents      int64                           `json:"handoff_tagged_events,omitempty"`
+	OpenThreads              int64                           `json:"open_threads,omitempty"`
+	OpenDirectRooms          int64                           `json:"open_direct_rooms,omitempty"`
+	OpenWorkItems            int64                           `json:"open_work_items,omitempty"`
+	ConversationMessages     int64                           `json:"conversation_messages,omitempty"`
+	WorkTransitions          int64                           `json:"work_transitions,omitempty"`
+	DirectResolves           int64                           `json:"direct_resolves,omitempty"`
 	LastDisconnect           string                          `json:"last_disconnect,omitempty"`
 	DeclaredChannels         []DeclaredNetworkChannelPayload `json:"declared_channels,omitempty"`
 	KindMetrics              []NetworkKindMetricPayload      `json:"kind_metrics,omitempty"`
@@ -451,33 +459,61 @@ type NetworkKindMetricPayload struct {
 
 // NetworkSendRequest is the shared daemon network send request payload.
 type NetworkSendRequest struct {
-	SessionID     string                     `json:"session_id"`
-	Channel       string                     `json:"channel"`
-	Kind          string                     `json:"kind"`
-	To            string                     `json:"to,omitempty"`
-	Body          json.RawMessage            `json:"body"`
-	InteractionID string                     `json:"interaction_id,omitempty"`
-	ReplyTo       string                     `json:"reply_to,omitempty"`
-	TraceID       string                     `json:"trace_id,omitempty"`
-	CausationID   string                     `json:"causation_id,omitempty"`
-	ExpiresAt     *int64                     `json:"expires_at,omitempty"`
-	ID            string                     `json:"id,omitempty"`
-	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
+	SessionID   string                     `json:"session_id"`
+	Channel     string                     `json:"channel"`
+	Surface     string                     `json:"surface,omitempty"`
+	ThreadID    string                     `json:"thread_id,omitempty"`
+	DirectID    string                     `json:"direct_id,omitempty"`
+	Kind        string                     `json:"kind"`
+	To          string                     `json:"to,omitempty"`
+	Body        json.RawMessage            `json:"body"`
+	WorkID      string                     `json:"work_id,omitempty"`
+	ReplyTo     string                     `json:"reply_to,omitempty"`
+	TraceID     string                     `json:"trace_id,omitempty"`
+	CausationID string                     `json:"causation_id,omitempty"`
+	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
+	ID          string                     `json:"id,omitempty"`
+	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
+}
+
+// UnmarshalJSON rejects legacy public network send fields during request decoding.
+func (r *NetworkSendRequest) UnmarshalJSON(data []byte) error {
+	type networkSendRequestAlias NetworkSendRequest
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["interaction_id"]; ok {
+		return errors.New("network send request rejects interaction_id; use work_id")
+	}
+
+	var decoded networkSendRequestAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	if strings.TrimSpace(decoded.Kind) == "direct" {
+		return errors.New("network send request rejects kind direct; use surface direct with kind say")
+	}
+	*r = NetworkSendRequest(decoded)
+	return nil
 }
 
 // NetworkSendPayload is the shared daemon network send response payload.
 type NetworkSendPayload struct {
-	ID            string                     `json:"id"`
-	SessionID     string                     `json:"session_id"`
-	Channel       string                     `json:"channel"`
-	Kind          string                     `json:"kind"`
-	To            string                     `json:"to,omitempty"`
-	InteractionID string                     `json:"interaction_id,omitempty"`
-	ReplyTo       string                     `json:"reply_to,omitempty"`
-	TraceID       string                     `json:"trace_id,omitempty"`
-	CausationID   string                     `json:"causation_id,omitempty"`
-	ExpiresAt     *int64                     `json:"expires_at,omitempty"`
-	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
+	ID          string                     `json:"id"`
+	SessionID   string                     `json:"session_id"`
+	Channel     string                     `json:"channel"`
+	Surface     string                     `json:"surface,omitempty"`
+	ThreadID    string                     `json:"thread_id,omitempty"`
+	DirectID    string                     `json:"direct_id,omitempty"`
+	Kind        string                     `json:"kind"`
+	To          string                     `json:"to,omitempty"`
+	WorkID      string                     `json:"work_id,omitempty"`
+	ReplyTo     string                     `json:"reply_to,omitempty"`
+	TraceID     string                     `json:"trace_id,omitempty"`
+	CausationID string                     `json:"causation_id,omitempty"`
+	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
+	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
 }
 
 // CreateNetworkChannelRequest is the shared network channel creation payload.
@@ -563,21 +599,24 @@ type NetworkChannelPayload struct {
 // NetworkEnvelopePayload is the shared JSON representation of one surfaced
 // network envelope used by inbox and audit-facing views.
 type NetworkEnvelopePayload struct {
-	Protocol      string                     `json:"protocol"`
-	ID            string                     `json:"id"`
-	Kind          string                     `json:"kind"`
-	Channel       string                     `json:"channel"`
-	From          string                     `json:"from"`
-	To            *string                    `json:"to,omitempty"`
-	InteractionID *string                    `json:"interaction_id,omitempty"`
-	ReplyTo       *string                    `json:"reply_to,omitempty"`
-	TraceID       *string                    `json:"trace_id,omitempty"`
-	CausationID   *string                    `json:"causation_id,omitempty"`
-	TS            int64                      `json:"ts"`
-	ExpiresAt     *int64                     `json:"expires_at,omitempty"`
-	Body          json.RawMessage            `json:"body"`
-	Proof         map[string]json.RawMessage `json:"proof,omitempty"`
-	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
+	Protocol    string                     `json:"protocol"`
+	ID          string                     `json:"id"`
+	Kind        string                     `json:"kind"`
+	Channel     string                     `json:"channel"`
+	Surface     *string                    `json:"surface,omitempty"`
+	ThreadID    *string                    `json:"thread_id,omitempty"`
+	DirectID    *string                    `json:"direct_id,omitempty"`
+	From        string                     `json:"from"`
+	To          *string                    `json:"to,omitempty"`
+	WorkID      *string                    `json:"work_id,omitempty"`
+	ReplyTo     *string                    `json:"reply_to,omitempty"`
+	TraceID     *string                    `json:"trace_id,omitempty"`
+	CausationID *string                    `json:"causation_id,omitempty"`
+	TS          int64                      `json:"ts"`
+	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
+	Body        json.RawMessage            `json:"body"`
+	Proof       map[string]json.RawMessage `json:"proof,omitempty"`
+	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
 }
 
 // NetworkChannelDetailPayload is the shared channel detail payload used by the network UI.
@@ -608,10 +647,13 @@ type NetworkChannelKindCountPayload struct {
 	Count int    `json:"count"`
 }
 
-// NetworkChannelMessagePayload is the shared network room timeline payload.
-type NetworkChannelMessagePayload struct {
+// NetworkConversationMessagePayload is the shared network conversation timeline payload.
+type NetworkConversationMessagePayload struct {
 	MessageID          string          `json:"message_id"`
 	Channel            string          `json:"channel"`
+	Surface            string          `json:"surface,omitempty"`
+	ThreadID           string          `json:"thread_id,omitempty"`
+	DirectID           string          `json:"direct_id,omitempty"`
 	Kind               string          `json:"kind"`
 	Direction          string          `json:"direction"`
 	PeerFrom           string          `json:"peer_from"`
@@ -619,7 +661,7 @@ type NetworkChannelMessagePayload struct {
 	DisplayName        string          `json:"display_name,omitempty"`
 	SessionID          string          `json:"session_id,omitempty"`
 	Local              bool            `json:"local,omitempty"`
-	InteractionID      string          `json:"interaction_id,omitempty"`
+	WorkID             string          `json:"work_id,omitempty"`
 	ReplyTo            string          `json:"reply_to,omitempty"`
 	TraceID            string          `json:"trace_id,omitempty"`
 	CausationID        string          `json:"causation_id,omitempty"`
@@ -631,6 +673,60 @@ type NetworkChannelMessagePayload struct {
 	PresenceLastSeenAt *time.Time      `json:"presence_last_seen_at,omitempty"`
 	Body               json.RawMessage `json:"body"`
 	Timestamp          time.Time       `json:"timestamp"`
+}
+
+// NetworkChannelMessagePayload is kept as an internal compatibility alias for older helper code.
+type NetworkChannelMessagePayload = NetworkConversationMessagePayload
+
+// NetworkThreadSummaryPayload is the public-thread list/detail projection.
+type NetworkThreadSummaryPayload struct {
+	Channel            string     `json:"channel"`
+	ThreadID           string     `json:"thread_id"`
+	RootMessageID      string     `json:"root_message_id"`
+	Title              string     `json:"title,omitempty"`
+	OpenedByPeerID     string     `json:"opened_by_peer_id,omitempty"`
+	OpenedSessionID    string     `json:"opened_session_id,omitempty"`
+	OpenedAt           *time.Time `json:"opened_at,omitempty"`
+	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
+	MessageCount       int        `json:"message_count"`
+	ParticipantCount   int        `json:"participant_count"`
+	OpenWorkCount      int        `json:"open_work_count"`
+	LastMessagePreview string     `json:"last_message_preview,omitempty"`
+}
+
+// NetworkDirectRoomPayload is the direct-room list/detail projection.
+type NetworkDirectRoomPayload struct {
+	Channel            string     `json:"channel"`
+	DirectID           string     `json:"direct_id"`
+	PeerA              string     `json:"peer_a"`
+	PeerB              string     `json:"peer_b"`
+	OpenedAt           *time.Time `json:"opened_at,omitempty"`
+	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
+	MessageCount       int        `json:"message_count"`
+	OpenWorkCount      int        `json:"open_work_count"`
+	LastMessagePreview string     `json:"last_message_preview,omitempty"`
+}
+
+// NetworkWorkPayload is the public network work lookup projection.
+type NetworkWorkPayload struct {
+	WorkID          string     `json:"work_id"`
+	Channel         string     `json:"channel"`
+	Surface         string     `json:"surface"`
+	ThreadID        string     `json:"thread_id,omitempty"`
+	DirectID        string     `json:"direct_id,omitempty"`
+	OpenedByPeerID  string     `json:"opened_by_peer_id,omitempty"`
+	OpenedSessionID string     `json:"opened_session_id,omitempty"`
+	TargetPeerID    string     `json:"target_peer_id,omitempty"`
+	State           string     `json:"state"`
+	OpenedAt        *time.Time `json:"opened_at,omitempty"`
+	LastActivityAt  *time.Time `json:"last_activity_at,omitempty"`
+	TerminalAt      *time.Time `json:"terminal_at,omitempty"`
+}
+
+// NetworkDirectResolveRequest requests creation or lookup of a direct room.
+type NetworkDirectResolveRequest struct {
+	SessionID string `json:"session_id"`
+	PeerID    string `json:"peer_id"`
 }
 
 // NetworkPeerMetricsPayload is the shared peer-level counter payload.

@@ -1,29 +1,33 @@
 ---
-title: Interaction Lifecycle
-description: Reference for AGH Network v0 request-response, fire-and-forget, progress streaming, lifecycle states, and timeout semantics.
+title: Work Lifecycle
+description: Reference for AGH Network v0 work_id semantics, opening directed work, progress streaming, lifecycle states, conversation-container binding, and timeout rules.
 icon: Workflow
 ---
 
-An interaction is a correlated unit of directed work. It is scoped by `channel` and
-`interaction_id`, and it involves exactly the initiator and target established when the interaction
-opens.
+A unit of work is a correlated piece of directed agent activity inside one conversation container.
+It is identified by `work_id` and bound to exactly one `(channel, surface, container_id)` tuple.
+A work unit never spans multiple conversation containers.
 
 This page is normative unless a section is marked as an example.
 
+`work_id` is a network-level lifecycle marker. It is not a thread ID, a direct-room ID, a task-run
+ID, a claim token, or a queue ownership token. The runtime [task domain](/runtime/core/autonomy/task-runs-and-leases)
+is still the only durable owner of claim, lease, heartbeat, complete, fail, and release transitions.
+
 ## Lifecycle states
 
-| State         | Meaning                                                                | Terminal |
-| ------------- | ---------------------------------------------------------------------- | -------- |
-| `submitted`   | The interaction has been opened and is waiting for acceptance or work. | No       |
-| `working`     | The target has accepted responsibility and is doing work.              | No       |
-| `needs_input` | The target needs more input from the initiator.                        | No       |
-| `completed`   | The target completed the work.                                         | Yes      |
-| `failed`      | The target or lifecycle rules marked the interaction failed.           | Yes      |
-| `canceled`    | The initiator or target canceled the interaction.                      | Yes      |
+| State         | Meaning                                                         | Terminal |
+| ------------- | --------------------------------------------------------------- | -------- |
+| `submitted`   | The work has been opened and is waiting for acceptance or work. | No       |
+| `working`     | The target has accepted responsibility and is doing work.       | No       |
+| `needs_input` | The target needs more input from the initiator.                 | No       |
+| `completed`   | The target completed the work.                                  | Yes      |
+| `failed`      | The target or lifecycle rules marked the work failed.           | Yes      |
+| `canceled`    | The initiator or target canceled the work.                      | Yes      |
 
-Terminal states are authoritative. After an interaction reaches `completed`, `failed`, or
-`canceled`, later non-terminal updates MUST NOT move it back to an active state. A later `direct` or
-`capability` in that interaction MAY be rejected with `interaction_closed`.
+Terminal states are authoritative. After work reaches `completed`, `failed`, or `canceled`, later
+non-terminal updates MUST NOT move it back to an active state. Late lifecycle messages MAY be
+rejected with `reason_code = work_closed`.
 
 <Mermaid
   chart={`stateDiagram-v2
@@ -35,7 +39,7 @@ Terminal states are authoritative. After an interaction reaches `completed`, `fa
     working --> completed: trace completed
     working --> failed: trace failed
     working --> canceled: receipt canceled or trace canceled
-    needs_input --> working: direct input
+    needs_input --> working: say or capability with same work_id
     needs_input --> completed: trace completed
     needs_input --> failed: trace failed
     needs_input --> canceled: receipt canceled or trace canceled
@@ -45,74 +49,78 @@ Terminal states are authoritative. After an interaction reaches `completed`, `fa
   caption="Only active states can transition. Terminal states close the lifecycle."
 />
 
-## Opening work with directed work
+## Opening work inside a conversation container
 
-A directed `direct` message with a new `interaction_id` opens an interaction between the sender and
-target. A directed `capability` with `interaction_id` MAY also open an interaction when the sender
-is handing a full capability artifact to one peer. The target SHOULD reply with a `receipt` when it
-accepts or rejects responsibility.
+A `say` or `capability` message that introduces a new `work_id` opens a unit of work bound to its
+own conversation container. The target SHOULD reply with a `receipt` when it accepts or rejects
+responsibility.
 
 <Mermaid
   chart={`sequenceDiagram
     participant A as ops-coordinator
     participant B as patch-worker
 
-    A->>B: direct interaction_id=int-123
-    B-->>A: receipt accepted for direct
+    A->>B: say surface=thread thread_id=thread-launch work_id=work-123
+    B-->>A: receipt accepted (same surface, thread_id, work_id)
     B-->>A: trace working
     B-->>A: trace completed with result`}
 
-caption="A request-response interaction uses direct, receipt, and trace messages."
+caption="A request-response work unit uses say or capability to open, then receipt and trace messages bound to the same conversation container."
 />
 
 ### Directed work rules
 
-- The first directed `direct` or directed `capability` message establishes the initiator and target.
-- Only the initiator and target MAY emit lifecycle messages for that interaction.
-- A `direct` message MUST include `to` and `interaction_id`.
-- A `capability` message MUST include `to` when it is meant to participate in a directed interaction.
-- A `receipt` or `trace` message MUST include `interaction_id`.
+- A `say` or `capability` envelope that introduces a new `work_id` establishes the initiator and
+  target.
+- The initiator and target are derived from the opening envelope's `from` and `to` fields. Only those
+  two peers MAY emit lifecycle messages for that work unit.
+- Every conversation-bearing envelope inside the same work MUST carry the same `surface` and the
+  same matching container ID (`thread_id` for thread-surface work, `direct_id` for direct-surface
+  work).
+- A `receipt` or `trace` envelope MUST carry `surface`, the matching container ID, and the same
+  `work_id`.
 - A receiver SHOULD emit `receipt(accepted)` when it accepts responsibility.
 - A receiver SHOULD emit `receipt(rejected)` with a reason code when it refuses responsibility.
 
-## Fire-and-forget broadcast
+## Conversation-container binding
 
-Use `say` when a channel-visible message does not need lifecycle state.
+A work unit is permanently bound to exactly one `(channel, surface, container_id)` tuple. The
+runtime MUST reject lifecycle messages for the same `work_id` whose conversation fields do not
+match the opening envelope. The reference implementation uses `reason_code = work_container_mismatch`
+for this rejection class.
 
-<Mermaid
-  chart={`sequenceDiagram
-    participant A as ops-coordinator
-    participant C as channel peers
+| Opening envelope                                   | Continuation envelope MUST carry               |
+| -------------------------------------------------- | ---------------------------------------------- |
+| `surface:"thread"` with `thread_id:"thread_X"`     | `surface:"thread"` and `thread_id:"thread_X"`. |
+| `surface:"direct"` with `direct_id:"direct_<...>"` | `surface:"direct"` and the same `direct_id`.   |
 
-    A->>C: say release branch is ready
-    Note over C: Peers may read or ignore the broadcast`}
+A handoff that crosses surfaces — for example, opening follow-up work in a direct room after a
+public thread asked for restricted review — opens a new `work_id`. The new envelope MAY use
+`reply_to`, `trace_id`, and `causation_id` to link back to the original public message.
 
-caption="A say message is broadcast and does not create an interaction."
-/>
+## Conversation messages without lifecycle
 
-### Broadcast rules
-
-- `say` MUST NOT require a response.
-- `say` MUST NOT create an interaction lifecycle by itself.
-- Receivers MAY record or display `say` messages according to local policy.
+Use `say` without `work_id` for free-form discussion that does not need lifecycle state. Use
+`capability` without `work_id` to advertise an artifact in a thread without opening lifecycle work.
+A receiver MUST NOT synthesize a `work_id` from `say` text alone.
 
 ## Progress streaming
 
 `trace` messages allow the target to stream progress without opening a separate channel. Each trace
-updates the same `interaction_id`.
+updates the same `work_id` inside the same conversation container.
 
 <Mermaid
   chart={`sequenceDiagram
     participant A as release-bot
     participant B as migration-agent
 
-    A->>B: direct run migration check
+    A->>B: say surface=thread work_id=work-mig run migration check
     B-->>A: receipt accepted
-    B-->>A: trace working: schema check started
-    B-->>A: trace needs_input: provide database snapshot
-    A->>B: direct snapshot uri
-    B-->>A: trace working: replaying migration
-    B-->>A: trace completed: report uri`}
+    B-->>A: trace working schema check started
+    B-->>A: trace needs_input provide database snapshot
+    A->>B: say surface=thread work_id=work-mig snapshot uri
+    B-->>A: trace working replaying migration
+    B-->>A: trace completed report uri`}
 
 caption="Multiple trace messages can report progress and request input before completion."
 />
@@ -121,7 +129,8 @@ caption="Multiple trace messages can report progress and request input before co
 
 - `trace(working)` SHOULD mean work is active.
 - `trace(needs_input)` SHOULD include a `message` that explains the missing input.
-- The initiator MAY answer `needs_input` with another `direct` message in the same interaction.
+- The initiator MAY answer `needs_input` with another `say` or `capability` that carries the same
+  `work_id` inside the same conversation container.
 - `trace(completed)` SHOULD include result data or artifact references when the output is not fully
   described by `message`.
 - `trace(failed)` SHOULD include a human-readable `message` and MAY include structured failure data
@@ -136,36 +145,41 @@ Cancellation can come from either side, but the meaning differs:
 | `receipt` with `status: "canceled"` | Initiator      | The initiator no longer wants the work to continue. |
 | `trace` with `state: "canceled"`    | Target         | The worker has stopped the work.                    |
 
-Implementations SHOULD make cancellation idempotent. If both peers send cancellation, the interaction
-remains canceled.
+Implementations SHOULD make cancellation idempotent. If both peers cancel, the work remains
+canceled.
 
 ## Timeout and expiration semantics
 
 There are two timeout layers:
 
-| Layer               | Field or policy                            | Effect                                                                               |
-| ------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------ |
-| Envelope freshness  | `expires_at` or receiver replay-age policy | Stale messages are rejected before routing or lifecycle processing.                  |
-| Application timeout | Local runtime policy                       | A runtime may mark an interaction failed or canceled if no progress arrives in time. |
+| Layer               | Field or policy                            | Effect                                                                            |
+| ------------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
+| Envelope freshness  | `expires_at` or receiver replay-age policy | Stale messages are rejected before routing or lifecycle processing.               |
+| Application timeout | Local runtime policy                       | A runtime may mark a work unit failed or canceled if no progress arrives in time. |
 
-Senders SHOULD set `expires_at` on time-sensitive requests. Receivers MUST reject expired
-messages. When `expires_at` is absent, receivers SHOULD enforce a bounded replay-age policy. The AGH
+Senders SHOULD set `expires_at` on time-sensitive requests. Receivers MUST reject expired messages.
+When `expires_at` is absent, receivers SHOULD enforce a bounded replay-age policy. The AGH
 reference implementation defaults to 300 seconds.
 
-The protocol does not define a global interaction timeout. Runtimes MAY apply local deadlines and
-report the result with `trace(failed)`, `trace(canceled)`, or `receipt(canceled)`.
+The protocol does not define a global work timeout. Runtimes MAY apply local deadlines and report
+the result with `trace(failed)`, `trace(canceled)`, or `receipt(canceled)`.
 
-## Interaction scope
+## Work scope
 
-An `interaction_id` is scoped to a channel. Implementations SHOULD treat `(channel, interaction_id)`
-as the lifecycle key. The same interaction ID in another channel is a different interaction.
+A `work_id` is scoped to one channel and one conversation container inside that channel. The same
+`work_id` value in another channel, thread, or direct room is a different work unit. Implementations
+SHOULD treat `(channel, surface, container_id, work_id)` as the lifecycle key.
 
-The first valid directed work message fixes the participants. A message from a non-participant MUST
-NOT change the lifecycle state.
+The first valid conversation envelope that introduces the `work_id` fixes the participants and the
+container binding. A message from a non-participant or from a different container MUST NOT change
+the lifecycle state.
 
 ## Related pages
 
-- [Message Kinds](/protocol/message-kinds) defines the `direct`, `receipt`, and `trace` body shapes.
+- [Message Kinds](/protocol/message-kinds) defines the `say`, `capability`, `receipt`, and `trace`
+  body shapes plus their conversation-surface rules.
+- [Envelope](/protocol/envelope) defines the shared envelope fields including `surface`,
+  `thread_id`, `direct_id`, and `work_id`.
 - [Delivery](/protocol/delivery) explains deduplication, freshness, and delivery outcomes.
 - [Examples](/protocol/examples) shows complete envelope flows using these lifecycle rules.
 - [Task Ingress](/runtime/core/network/task-ingress) shows how AGH Runtime maps authenticated

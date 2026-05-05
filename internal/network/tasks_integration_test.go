@@ -4,6 +4,7 @@ package network
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -53,9 +54,15 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 		PeerID:    peerID,
 		Channel:   "ops",
 		RequestID: "req-enqueue-1",
+		Surface:   SurfaceThread,
+		ThreadID:  "thread_task_ingress",
+		WorkID:    "work_task_ingress",
+		TraceID:   "trace-task-ingress",
 	}, taskpkg.EnqueueRun{
 		TaskID:         created.ID,
 		IdempotencyKey: "idem-peer-enqueue-1",
+		NetworkChannel: "ops",
+		Metadata:       json.RawMessage(`{"client":"kept"}`),
 	})
 	if err != nil {
 		t.Fatalf("EnqueueRunFromPeer() error = %v", err)
@@ -84,6 +91,34 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	}
 	if got, want := storedRun.IdempotencyKey, "idem-peer-enqueue-1"; got != want {
 		t.Fatalf("storedRun.IdempotencyKey = %q, want %q", got, want)
+	}
+	var metadata map[string]string
+	if err := json.Unmarshal(storedRun.Metadata, &metadata); err != nil {
+		t.Fatalf("json.Unmarshal(storedRun.Metadata) error = %v", err)
+	}
+	for key, want := range map[string]string{
+		"client":             "kept",
+		"network_work_id":    "work_task_ingress",
+		"network_message_id": "req-enqueue-1",
+		"network_channel":    "ops",
+		"network_surface":    string(SurfaceThread),
+		"network_thread_id":  "thread_task_ingress",
+		"network_trace_id":   "trace-task-ingress",
+	} {
+		if got := metadata[key]; got != want {
+			t.Fatalf("storedRun.Metadata[%q] = %q, want %q in %s", key, got, want, storedRun.Metadata)
+		}
+	}
+	claimActor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "network task ingress test")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	claimed, err := taskManager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, claimActor)
+	if err != nil {
+		t.Fatalf("ClaimRun() error = %v", err)
+	}
+	if got, want := claimed.Status, taskpkg.TaskRunStatusClaimed; got != want {
+		t.Fatalf("claimed.Status = %q, want %q", got, want)
 	}
 
 	createAudit := findNetworkAuditByMessageID(t, db, "req-create-1")
@@ -133,6 +168,9 @@ func TestNetworkTaskIngressMismatchRecordsAuditWithoutMutation(t *testing.T) {
 		PeerID:    peerID,
 		Channel:   "ops",
 		RequestID: "req-enqueue-mismatch",
+		Surface:   SurfaceThread,
+		ThreadID:  "thread_task_mismatch",
+		WorkID:    "work_task_mismatch",
 	}, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "idem-mismatch",
@@ -201,6 +239,9 @@ func TestNetworkTaskIngressDuplicateEnqueueUsesCanonicalRun(t *testing.T) {
 		PeerID:    peerID,
 		Channel:   "ops",
 		RequestID: "req-enqueue-dup-1",
+		Surface:   SurfaceThread,
+		ThreadID:  "thread_task_dup",
+		WorkID:    "work_task_dup",
 	}, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "idem-dup-1",
@@ -212,6 +253,9 @@ func TestNetworkTaskIngressDuplicateEnqueueUsesCanonicalRun(t *testing.T) {
 		PeerID:    peerID,
 		Channel:   "ops",
 		RequestID: "req-enqueue-dup-2",
+		Surface:   SurfaceThread,
+		ThreadID:  "thread_task_dup",
+		WorkID:    "work_task_dup",
 	}, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "idem-dup-1",

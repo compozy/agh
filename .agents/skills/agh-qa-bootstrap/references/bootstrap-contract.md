@@ -8,6 +8,10 @@ The bootstrap helper writes two canonical artifacts under:
 
 - `bootstrap-manifest.json`
 - `bootstrap.env`
+- `scenario-contract.json`
+- `behavioral-scenario-charter.yaml`
+- `journey-log.jsonl`
+- `provider-attempt.json`
 
 ## Required manifest fields
 
@@ -36,7 +40,12 @@ The bootstrap helper writes two canonical artifacts under:
     "PROVIDER_HOME": "/abs/path/to/lab/.provider-home",
     "PROVIDER_CODEX_HOME": "/abs/path/to/lab/.provider-home/.codex",
     "BROWSER_MODE": "browser-use",
-    "BROWSER_BLOCKER": ""
+    "BROWSER_BLOCKER": "",
+    "SCENARIO_CONTRACT": "/abs/path/to/lab/qa-artifacts/qa/scenario-contract.json",
+    "BEHAVIORAL_CHARTER": "/abs/path/to/lab/qa-artifacts/qa/behavioral-scenario-charter.yaml",
+    "JOURNEY_LOG": "/abs/path/to/lab/qa-artifacts/qa/journey-log.jsonl",
+    "PROVIDER_ATTEMPT": "/abs/path/to/lab/qa-artifacts/qa/provider-attempt.json",
+    "AUDIT_COMMAND": "/abs/path/to/repo/.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py"
   },
   "browser": {
     "mode": "browser-use",
@@ -45,6 +54,14 @@ The bootstrap helper writes two canonical artifacts under:
   "project_contract": {}
 }
 ```
+
+## QA evidence contract files
+
+- `scenario-contract.json` defines the release-grade minimums that downstream QA must satisfy before a `PASS` claim.
+- `behavioral-scenario-charter.yaml` is JSON-compatible YAML. It must name the startup situation, operator intent, business outcome, agents, channels, task tree, provider plan, cross-surface targets, disruption probes, and artifacts.
+- `journey-log.jsonl` is append-only structured evidence. Each meaningful CLI/API/Web/runtime/provider action must add one row.
+- `provider-attempt.json` records live provider-backed proof or the exact blocked boundary. A blocked provider boundary supports a `BLOCKED` result, not a live-provider `PASS`.
+- The auditor writes `qa-audit-report.json` and `qa-audit-report.md`; exit code `2` is a blocking QA failure.
 
 ## Reuse policy
 
@@ -59,6 +76,7 @@ The bootstrap helper writes two canonical artifacts under:
 - `native_cli` providers with `home_policy=operator`: preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior
 - Web dev server for isolated daemon QA: `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET" make web-dev`
 - Config mutations such as `agh config set` must run sequentially when they target the same isolated home.
+- Before claiming behavior-first QA completion, run `python3 "$AUDIT_COMMAND" --qa-output-path "$QA_OUTPUT_PATH" --strict` and include its result in the verification report.
 
 ## Machine-readable continuation block
 

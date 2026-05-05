@@ -28,6 +28,7 @@ For release-grade AGH QA, use this template before lower-level functional or int
 - AGH surfaces used:
 - Real provider/LLM expectation:
 - Blocked live-provider boundary, if any:
+- Scenario contract minimums covered:
 
 ---
 
@@ -83,12 +84,26 @@ For release-grade AGH QA, use this template before lower-level functional or int
 
 ---
 
+### Audit Coverage
+
+- C4 actor/role coverage:
+- C5 channel coverage:
+- C6 task tree coverage:
+- C8 cross-surface truth:
+- C9 live provider evidence:
+- C10 artifact reuse:
+- C11 disruption probes:
+- C14 final verification:
+
+---
+
 ### Pass Criteria
 
 - The operator goal is achieved or a product bug is filed.
 - Agent behavior matches role, channel, task, and workspace constraints.
 - Produced artifacts are coherent and used later in the scenario.
 - Cross-surface state agrees for at least one persisted object or artifact.
+- The strict QA auditor has no blockers for the contract minimums this case contributes to.
 - Smoke checks are listed only as readiness evidence.
 
 ---

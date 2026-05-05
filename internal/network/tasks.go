@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -60,9 +61,16 @@ type TaskService interface {
 // TaskIngressContext captures the trusted peer identity and delivery metadata
 // that network ingress derives from the live runtime rather than the payload.
 type TaskIngressContext struct {
-	PeerID    string
-	Channel   string
-	RequestID string
+	PeerID      string
+	Channel     string
+	RequestID   string
+	Surface     Surface
+	ThreadID    string
+	DirectID    string
+	WorkID      string
+	ReplyTo     string
+	TraceID     string
+	CausationID string
 }
 
 // Validate reports whether the ingress context contains the mandatory peer and
@@ -83,7 +91,53 @@ func (c TaskIngressContext) Validate() error {
 	if strings.TrimSpace(c.RequestID) == "" {
 		return fmt.Errorf("%w: request id is required", ErrMissingField)
 	}
+	if err := c.validateConversationMetadata(); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (c TaskIngressContext) validateConversationMetadata() error {
+	surface := Surface(strings.TrimSpace(string(c.Surface)))
+	if surface != "" {
+		if err := surface.Validate(); err != nil {
+			return err
+		}
+		ref := ConversationRef{
+			Channel:  strings.TrimSpace(c.Channel),
+			Surface:  surface,
+			ThreadID: strings.TrimSpace(c.ThreadID),
+			DirectID: strings.TrimSpace(c.DirectID),
+		}
+		if err := ValidateConversationRef(ref); err != nil {
+			return err
+		}
+	} else if strings.TrimSpace(c.ThreadID) != "" || strings.TrimSpace(c.DirectID) != "" {
+		return fmt.Errorf("%w: surface is required for conversation metadata", ErrMissingField)
+	}
+	if workID := strings.TrimSpace(c.WorkID); workID != "" {
+		if err := ValidateWorkID(workID); err != nil {
+			return err
+		}
+	}
+	for field, value := range map[string]string{
+		"reply_to":     c.ReplyTo,
+		"trace_id":     c.TraceID,
+		"causation_id": c.CausationID,
+	} {
+		if err := validateOptionalIdentifierField(taskIngressOptionalStringPtr(value), field); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func taskIngressOptionalStringPtr(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 // WithManagerTaskService injects the daemon-owned task manager used for
@@ -249,6 +303,12 @@ func (m *Manager) EnqueueRunFromPeer(
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionEnqueue, err, map[string]any{
 			"task_id":         view.Task.ID,
 			"network_channel": strings.TrimSpace(spec.NetworkChannel),
+		})
+	}
+	spec, err = withNetworkRunMetadata(spec, peerCtx.ingress)
+	if err != nil {
+		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionEnqueue, err, map[string]any{
+			"task_id": view.Task.ID,
 		})
 	}
 
@@ -428,6 +488,75 @@ func patchAllowsStaleChannelRepair(ingressChannel string, patch taskpkg.Patch) b
 
 func networkTaskOriginRef(ingress TaskIngressContext) string {
 	return fmt.Sprintf("peer:%s/channel:%s", strings.TrimSpace(ingress.PeerID), strings.TrimSpace(ingress.Channel))
+}
+
+func withNetworkRunMetadata(spec taskpkg.EnqueueRun, ingress TaskIngressContext) (taskpkg.EnqueueRun, error) {
+	values, err := networkRunMetadataValues(ingress)
+	if err != nil {
+		return taskpkg.EnqueueRun{}, err
+	}
+	metadata, err := mergeTrustedNetworkMetadata(spec.Metadata, values)
+	if err != nil {
+		return taskpkg.EnqueueRun{}, err
+	}
+	spec.Metadata = metadata
+	return spec, nil
+}
+
+func networkRunMetadataValues(ingress TaskIngressContext) (map[string]string, error) {
+	workID := strings.TrimSpace(ingress.WorkID)
+	if workID == "" {
+		return nil, fmt.Errorf("%w: network work_id is required", ErrMissingField)
+	}
+	values := map[string]string{
+		"network_work_id":      workID,
+		"network_message_id":   strings.TrimSpace(ingress.RequestID),
+		"network_channel":      strings.TrimSpace(ingress.Channel),
+		"network_surface":      strings.TrimSpace(string(ingress.Surface)),
+		"network_reply_to":     strings.TrimSpace(ingress.ReplyTo),
+		"network_trace_id":     strings.TrimSpace(ingress.TraceID),
+		"network_causation_id": strings.TrimSpace(ingress.CausationID),
+	}
+	switch ingress.Surface {
+	case SurfaceThread:
+		values["network_thread_id"] = strings.TrimSpace(ingress.ThreadID)
+	case SurfaceDirect:
+		values["network_direct_id"] = strings.TrimSpace(ingress.DirectID)
+	}
+	return values, nil
+}
+
+func mergeTrustedNetworkMetadata(raw json.RawMessage, values map[string]string) (json.RawMessage, error) {
+	metadata := make(map[string]any)
+	if len(raw) > 0 && strings.TrimSpace(string(raw)) != "" {
+		if err := json.Unmarshal(raw, &metadata); err != nil {
+			return nil, fmt.Errorf("%w: task run metadata must be a JSON object: %w", ErrInvalidField, err)
+		}
+		if metadata == nil {
+			metadata = make(map[string]any)
+		}
+	}
+	for key, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if existing, ok := metadata[key]; ok {
+			existingValue, ok := existing.(string)
+			if !ok || strings.TrimSpace(existingValue) != value {
+				return nil, fmt.Errorf("%w: %s is server-derived network metadata", ErrInvalidField, key)
+			}
+		}
+		metadata[key] = value
+	}
+	if len(metadata) == 0 {
+		return nil, nil
+	}
+	payload, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, fmt.Errorf("network: marshal task run metadata: %w", err)
+	}
+	return payload, nil
 }
 
 func taskIngressReason(err error) string {

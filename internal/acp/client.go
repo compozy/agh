@@ -847,6 +847,9 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	close(cancellationDone)
 
 	if err != nil {
+		if proc.stopWasRequested() {
+			return
+		}
 		failure, _ := FailureFromError(err, store.FailurePrompt)
 		event := AgentEvent{
 			Type:      EventTypeError,

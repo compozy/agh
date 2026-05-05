@@ -1,19 +1,12 @@
 import type { AgentPayload } from "@/systems/agent";
 
 import type {
-  NetworkCapabilityBrief,
-  NetworkCapabilityCatalog,
-  NetworkChannel,
-  NetworkChannelSummary,
+  NetworkConversationMessage,
   NetworkCreateChannelDraft,
   NetworkKindFilter,
-  NetworkPeerCapabilityView,
-  NetworkPeerDetail,
   NetworkPeerSummary,
   NetworkSignalTone,
-  NetworkTimelineMessage,
   NetworkStatus,
-  NetworkRoomType,
 } from "../types";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
@@ -22,9 +15,8 @@ const timeFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 });
 
-const NETWORK_SUPPORTED_KINDS: Exclude<NetworkKindFilter, "all">[] = [
+const NETWORK_SUPPORTED_KINDS: ReadonlyArray<Exclude<NetworkKindFilter, "all">> = [
   "say",
-  "direct",
   "receipt",
   "capability",
   "greet",
@@ -32,9 +24,8 @@ const NETWORK_SUPPORTED_KINDS: Exclude<NetworkKindFilter, "all">[] = [
   "trace",
 ];
 
-export const NETWORK_KIND_FILTERS: Exclude<NetworkKindFilter, "all">[] = [
+export const NETWORK_KIND_FILTERS: ReadonlyArray<Exclude<NetworkKindFilter, "all">> = [
   "say",
-  "direct",
   "receipt",
   "capability",
   "whois",
@@ -43,7 +34,6 @@ export const NETWORK_KIND_FILTERS: Exclude<NetworkKindFilter, "all">[] = [
 
 const NETWORK_KIND_LABELS: Record<Exclude<NetworkKindFilter, "all">, string> = {
   capability: "capability",
-  direct: "direct",
   greet: "greet",
   receipt: "receipt",
   say: "say",
@@ -53,7 +43,6 @@ const NETWORK_KIND_LABELS: Record<Exclude<NetworkKindFilter, "all">, string> = {
 
 const NETWORK_KIND_TONES: Record<Exclude<NetworkKindFilter, "all">, NetworkSignalTone> = {
   capability: "info",
-  direct: "accent",
   greet: "success",
   receipt: "warning",
   say: "neutral",
@@ -61,17 +50,10 @@ const NETWORK_KIND_TONES: Record<Exclude<NetworkKindFilter, "all">, NetworkSigna
   whois: "warning",
 };
 
-interface NetworkMetricCard {
-  detail?: string;
-  label: string;
-  value: string;
-}
-
 function parseTimestampOrZero(value?: string | null): number {
   if (!value) {
     return 0;
   }
-
   const parsed = new Date(value).getTime();
   return Number.isNaN(parsed) ? 0 : parsed;
 }
@@ -116,35 +98,6 @@ export function toggleDraftAgent(
 
 export function formatNetworkNumber(value?: number | null): string {
   return numberFormatter.format(value ?? 0);
-}
-
-export function formatChannelPeerCount(value?: number | null): string {
-  const count = value ?? 0;
-  return `${formatNetworkNumber(count)} ${count === 1 ? "peer" : "peers"}`;
-}
-
-export function formatChannelMemberCount(
-  channel?: Pick<NetworkChannel, "peer_count" | "session_count"> | null
-): string {
-  const count = channel?.peer_count ?? channel?.session_count ?? 0;
-  return `${formatNetworkNumber(count)} ${count === 1 ? "member" : "members"}`;
-}
-
-export function formatHistoricalParticipantCount(value?: number | null): string {
-  const count = value ?? 0;
-  return `${formatNetworkNumber(count)} ${count === 1 ? "participant" : "participants"}`;
-}
-
-export function isPresenceOnlyChannel(
-  channel?: Pick<NetworkChannelSummary, "message_count" | "presence_count"> | null
-): boolean {
-  return (channel?.message_count ?? 0) === 0 && (channel?.presence_count ?? 0) > 0;
-}
-
-export function isHistoricalChannel(
-  channel?: Pick<NetworkChannelSummary, "peer_count" | "historical_participant_count"> | null
-): boolean {
-  return (channel?.peer_count ?? 0) === 0 && (channel?.historical_participant_count ?? 0) > 0;
 }
 
 export function formatNetworkClockTime(value?: string | null): string {
@@ -227,29 +180,6 @@ export function getPeerRecencyAt(
   return getMostRecentTimestamp(peer?.last_seen, peer?.joined_at);
 }
 
-export function getPeerTypeLabel(peer: Pick<NetworkPeerSummary, "local">): string {
-  return peer.local ? "LOCAL" : "REMOTE";
-}
-
-export function getPeerPresenceTone(
-  peer: Pick<NetworkPeerSummary, "last_seen" | "local">
-): NetworkSignalTone {
-  if (peer.local) {
-    return "accent";
-  }
-
-  if (!peer.last_seen) {
-    return "neutral";
-  }
-
-  const parsed = new Date(peer.last_seen);
-  if (Number.isNaN(parsed.getTime())) {
-    return "neutral";
-  }
-
-  return Date.now() - parsed.getTime() <= 60_000 ? "success" : "neutral";
-}
-
 export function getNetworkStatusTone(status?: string | null): NetworkSignalTone {
   switch (status?.trim()) {
     case "online":
@@ -266,112 +196,11 @@ export function getNetworkStatusTone(status?: string | null): NetworkSignalTone 
   }
 }
 
-export function getNetworkMetricCards(
-  status: NetworkStatus | undefined,
-  channelCount: number
-): NetworkMetricCard[] {
-  const localPeers = status?.local_peers ?? 0;
-  const remotePeers = status?.remote_peers ?? 0;
-
-  return [
-    {
-      detail: `${formatNetworkNumber(localPeers)} local / ${formatNetworkNumber(remotePeers)} remote`,
-      label: "Total Peers",
-      value: formatNetworkNumber(localPeers + remotePeers),
-    },
-    {
-      detail:
-        status?.channels != null
-          ? `${formatNetworkNumber(status.channels)} active in runtime`
-          : undefined,
-      label: "Total Channels",
-      value: formatNetworkNumber(channelCount),
-    },
-    {
-      detail:
-        status?.messages_sent != null
-          ? `${formatNetworkNumber(status.messages_sent)} sent total`
-          : undefined,
-      label: "Queued Msgs",
-      value: formatNetworkNumber(status?.queued_messages ?? 0),
-    },
-    {
-      detail:
-        status?.status && status.status !== "" ? status.status.replaceAll("_", " ") : undefined,
-      label: "Workers",
-      value: formatNetworkNumber(status?.delivery_workers ?? 0),
-    },
-  ];
-}
-
-export function getNetworkRoomKey(roomType: NetworkRoomType, id: string): string {
-  return `${roomType}:${id.trim()}`;
-}
-
-export function sortNetworkChannels(channels: NetworkChannelSummary[]) {
-  return [...channels].sort((left, right) => {
-    const leftActivity = parseTimestampOrZero(getChannelRecencyAt(left));
-    const rightActivity = parseTimestampOrZero(getChannelRecencyAt(right));
-
-    if (leftActivity !== rightActivity) {
-      return rightActivity - leftActivity;
-    }
-
-    if ((left.message_count ?? 0) !== (right.message_count ?? 0)) {
-      return (right.message_count ?? 0) - (left.message_count ?? 0);
-    }
-
-    return left.channel.localeCompare(right.channel);
-  });
-}
-
-export function getChannelRecencyAt(
-  channel: Pick<NetworkChannelSummary, "last_activity_at" | "last_presence_at">
-): string | null {
-  return getMostRecentTimestamp(channel.last_activity_at, channel.last_presence_at);
-}
-
-export function matchesChannelSearch(channel: NetworkChannelSummary, query: string) {
-  if (!query) {
-    return true;
+export function isNetworkRunning(status?: NetworkStatus | null): boolean {
+  if (!status) {
+    return false;
   }
-
-  const normalized = query.toLowerCase();
-  return (
-    channel.channel.toLowerCase().includes(normalized) ||
-    channel.purpose?.toLowerCase().includes(normalized) === true ||
-    channel.last_message_preview?.toLowerCase().includes(normalized) === true
-  );
-}
-
-export function sortNetworkPeers(peers: NetworkPeerSummary[]) {
-  return [...peers].sort((left, right) => {
-    if (left.local !== right.local) {
-      return left.local ? -1 : 1;
-    }
-
-    const leftSeen = parseTimestampOrZero(getPeerRecencyAt(left));
-    const rightSeen = parseTimestampOrZero(getPeerRecencyAt(right));
-
-    if (leftSeen !== rightSeen) {
-      return rightSeen - leftSeen;
-    }
-
-    return getPeerDisplayName(left).localeCompare(getPeerDisplayName(right));
-  });
-}
-
-export function matchesPeerSearch(peer: NetworkPeerSummary, query: string) {
-  if (!query) {
-    return true;
-  }
-
-  const normalized = query.toLowerCase();
-  return (
-    getPeerDisplayName(peer).toLowerCase().includes(normalized) ||
-    peer.peer_id.toLowerCase().includes(normalized) ||
-    peer.channel.toLowerCase().includes(normalized)
-  );
+  return status.enabled === true && (status.status === "running" || status.status === "online");
 }
 
 export function formatNetworkKindLabel(kind: string): string {
@@ -385,177 +214,74 @@ export function getNetworkKindTone(kind: string): NetworkSignalTone {
 }
 
 export function toNetworkKindFilter(kind: string): Exclude<NetworkKindFilter, "all"> | null {
-  if (NETWORK_SUPPORTED_KINDS.includes(kind as Exclude<NetworkKindFilter, "all">)) {
+  if ((NETWORK_SUPPORTED_KINDS as ReadonlyArray<string>).includes(kind)) {
     return kind as Exclude<NetworkKindFilter, "all">;
   }
 
   return null;
 }
 
-export function filterNetworkMessagesByKind(
-  messages: NetworkTimelineMessage[],
-  kind: NetworkKindFilter
-): NetworkTimelineMessage[] {
-  if (kind === "all") {
-    return messages;
-  }
-
-  return messages.filter(message => message.kind === kind);
-}
-
-export function getNetworkMessagePrimaryText(message: NetworkTimelineMessage): string {
-  const preview = message.preview_text?.trim();
-  if (preview) {
-    return preview;
-  }
-
-  const text = message.text?.trim();
-  if (text) {
-    return text;
-  }
-
-  return `(${formatNetworkKindLabel(message.kind)})`;
-}
-
-export function summarizeChannelPreview(
-  channel: Pick<
-    NetworkChannelSummary,
-    "last_message_preview" | "purpose" | "message_count" | "presence_count"
-  >
-): string {
-  if (channel.last_message_preview?.trim()) {
-    return channel.last_message_preview.trim();
-  }
-  if (isPresenceOnlyChannel(channel)) {
-    return "Presence only";
-  }
-  return channel.purpose?.trim() || "No conversation yet";
-}
-
-export function summarizeChannelMeta(
-  channel: Pick<
-    NetworkChannelSummary,
-    "last_activity_at" | "last_presence_at" | "message_count" | "presence_count"
-  >
-): string {
-  const effectiveRecencyAt = getChannelRecencyAt(channel);
-  if (effectiveRecencyAt) {
-    return effectiveRecencyAt === channel.last_presence_at
-      ? `presence ${formatNetworkRelativeTime(effectiveRecencyAt)}`
-      : formatNetworkRelativeTime(effectiveRecencyAt);
-  }
-  return (channel.message_count ?? 0) > 0 || (channel.presence_count ?? 0) > 0
-    ? "materialized"
-    : "idle";
-}
-
-export function summarizeChannelSubtitle(
-  channel: Pick<
-    NetworkChannelSummary,
-    | "peer_count"
-    | "session_count"
-    | "message_count"
-    | "presence_count"
-    | "historical_participant_count"
-  >
-): string {
-  if (isPresenceOnlyChannel(channel)) {
-    const participantLabel =
-      (channel.peer_count ?? 0) > 0
-        ? formatChannelMemberCount(channel)
-        : formatHistoricalParticipantCount(channel.historical_participant_count);
-    return `${participantLabel} · ${formatNetworkNumber(channel.presence_count ?? 0)} presence`;
-  }
-  if (isHistoricalChannel(channel)) {
-    return `${formatHistoricalParticipantCount(channel.historical_participant_count)} · historical`;
-  }
-  return `${formatChannelMemberCount(channel)} · ${channel.message_count ?? 0} msgs`;
-}
-
 export function getMessageAuthorInitial(
-  message: Pick<NetworkTimelineMessage, "display_name" | "peer_from">
+  message: Pick<NetworkConversationMessage, "display_name" | "peer_from">
 ): string {
-  const author = (message.display_name ?? message.peer_from).trim();
+  const author = (message.display_name ?? message.peer_from ?? "").trim();
   return author.charAt(0).toUpperCase() || "?";
-}
-
-export function getChannelDetailDescription(channel: NetworkChannel): string {
-  if ((channel.sessions?.length ?? 0) > 0) {
-    const sessionCount = channel.sessions?.length ?? 0;
-    return `Materialized by ${formatNetworkNumber(sessionCount)} ${
-      sessionCount === 1 ? "agent session" : "agent sessions"
-    }.`;
-  }
-
-  return "Read-only coordination timeline for peers visible in this channel.";
-}
-
-export function getPeerHeartbeatLabel(peer: Pick<NetworkPeerDetail, "last_seen">): string {
-  if (!peer.last_seen) {
-    return "Last heartbeat unavailable";
-  }
-
-  const relative = formatNetworkRelativeTime(peer.last_seen);
-  return relative === "Unavailable" ? "Last heartbeat unavailable" : `Last heartbeat: ${relative}`;
-}
-
-export function getPeerDeliveredRate(peer: Pick<NetworkPeerDetail, "metrics">): string {
-  const delivered = peer.metrics.delivered ?? 0;
-  const received = peer.metrics.received ?? 0;
-
-  if (received <= 0) {
-    return "No traffic yet";
-  }
-
-  return `${Math.round((delivered / received) * 100)}% rate`;
 }
 
 export function sortAgentsForNetwork(agents: AgentPayload[]) {
   return [...agents].sort((left, right) => left.name.localeCompare(right.name));
 }
 
-export function buildPeerCapabilityViews(
-  brief: readonly NetworkCapabilityBrief[] | undefined,
-  catalog: NetworkCapabilityCatalog | null | undefined
-): NetworkPeerCapabilityView[] {
-  const briefList = brief ?? [];
-  const catalogList = catalog?.capabilities ?? [];
+export type NetworkWorkState =
+  | "submitted"
+  | "working"
+  | "needs_input"
+  | "completed"
+  | "failed"
+  | "canceled";
 
-  const byId = new Map<string, NetworkPeerCapabilityView>();
-  for (const entry of briefList) {
-    byId.set(entry.id, { id: entry.id, summary: entry.summary, detail: null });
-  }
+const WORK_STATE_VALUES: ReadonlyArray<NetworkWorkState> = [
+  "submitted",
+  "working",
+  "needs_input",
+  "completed",
+  "failed",
+  "canceled",
+];
 
-  for (const detail of catalogList) {
-    const existing = byId.get(detail.id);
-    if (existing) {
-      existing.detail = detail;
-      if (!existing.summary) {
-        existing.summary = detail.summary;
-      }
-      continue;
-    }
+const TERMINAL_WORK_STATES: ReadonlyArray<NetworkWorkState> = ["completed", "failed", "canceled"];
 
-    byId.set(detail.id, { id: detail.id, summary: detail.summary, detail });
-  }
+const WORK_STATE_LABELS: Record<NetworkWorkState, string> = {
+  submitted: "submitted",
+  working: "working",
+  needs_input: "needs input",
+  completed: "completed",
+  failed: "failed",
+  canceled: "canceled",
+};
 
-  return [...byId.values()].sort((left, right) => left.id.localeCompare(right.id));
+export function isNetworkWorkState(value: string | null | undefined): value is NetworkWorkState {
+  return typeof value === "string" && (WORK_STATE_VALUES as ReadonlyArray<string>).includes(value);
 }
 
-export function hasCapabilityDetail(view: NetworkPeerCapabilityView): boolean {
-  const detail = view.detail;
-  if (!detail) {
+export function isTerminalNetworkWorkState(value: string | null | undefined): boolean {
+  return isNetworkWorkState(value) && TERMINAL_WORK_STATES.includes(value);
+}
+
+/**
+ * `submitted` and `completed` are deliberately silent (`_design.md` §6.6).
+ * Returns `null` for those states so callers can suppress the chip entirely.
+ */
+export function shouldRenderNetworkWorkChip(value: string | null | undefined): boolean {
+  if (!isNetworkWorkState(value)) {
     return false;
   }
+  return value !== "submitted" && value !== "completed";
+}
 
-  return Boolean(
-    detail.outcome ||
-    detail.version ||
-    (detail.requirements?.length ?? 0) > 0 ||
-    (detail.context_needed?.length ?? 0) > 0 ||
-    (detail.artifacts_expected?.length ?? 0) > 0 ||
-    (detail.execution_outline?.length ?? 0) > 0 ||
-    (detail.constraints?.length ?? 0) > 0 ||
-    (detail.examples?.length ?? 0) > 0
-  );
+export function formatNetworkWorkStateLabel(value: string | null | undefined): string {
+  if (!isNetworkWorkState(value)) {
+    return value ?? "";
+  }
+  return WORK_STATE_LABELS[value];
 }

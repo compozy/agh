@@ -13,183 +13,659 @@ import (
 func TestNetworkCommandsAndFormatting(t *testing.T) {
 	t.Parallel()
 
-	expiresAt := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC).Unix()
-	var seenPeersQuery NetworkPeersQuery
-	var seenSendRequest NetworkSendRequest
+	t.Run("Should format status peers channels send and inbox", func(t *testing.T) {
+		t.Parallel()
 
-	client := &stubClient{
-		networkStatusFn: func(context.Context) (NetworkStatusRecord, error) {
-			return NetworkStatusRecord{
-				Enabled:              true,
-				Status:               "running",
-				ListenerHost:         "127.0.0.1",
-				ListenerPort:         4222,
-				LocalPeers:           1,
-				RemotePeers:          2,
-				Channels:             1,
-				QueuedMessages:       3,
-				QueuedSessions:       1,
-				DeliveryWorkers:      1,
-				MessagesSent:         4,
-				MessagesReceived:     5,
-				MessagesRejected:     1,
-				MessagesDelivered:    3,
-				WorkflowTaggedEvents: 2,
-				HandoffTaggedEvents:  1,
-				LastDisconnect:       "transport lost",
-				KindMetrics: []NetworkKindMetricRecord{{
-					Kind:      "say",
-					Sent:      4,
-					Received:  5,
-					Rejected:  1,
-					Delivered: 3,
-				}},
-			}, nil
-		},
-		networkPeersFn: func(_ context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error) {
-			seenPeersQuery = query
-			displayName := "Reviewer"
-			sessionID := "sess-a"
-			lastSeen := fixedTestNow
-			expires := fixedTestNow.Add(time.Minute)
-			return []NetworkPeerRecord{{
-				PeerID:    "reviewer.sess-a",
-				SessionID: &sessionID,
-				Channel:   "builders",
-				Local:     true,
-				PeerCard: NetworkPeerCardRecord{
-					PeerID:            "reviewer.sess-a",
-					DisplayName:       &displayName,
-					ProfilesSupported: []string{"v0"},
-					Capabilities: []contract.NetworkCapabilityBriefPayload{{
-						ID:      "send",
-						Summary: "Send direct messages",
+		expiresAt := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC).Unix()
+		surfaceDirect := "direct"
+		directID := "direct_99401d24bee62651d189e5a561785466"
+		workID := "work_1"
+		var seenPeersQuery NetworkPeersQuery
+		var seenSendRequest NetworkSendRequest
+
+		client := &stubClient{
+			networkStatusFn: func(context.Context) (NetworkStatusRecord, error) {
+				return NetworkStatusRecord{
+					Enabled:              true,
+					Status:               "running",
+					ListenerHost:         "127.0.0.1",
+					ListenerPort:         4222,
+					LocalPeers:           1,
+					RemotePeers:          2,
+					Channels:             1,
+					QueuedMessages:       3,
+					QueuedSessions:       1,
+					DeliveryWorkers:      1,
+					MessagesSent:         4,
+					MessagesReceived:     5,
+					MessagesRejected:     1,
+					MessagesDelivered:    3,
+					WorkflowTaggedEvents: 2,
+					HandoffTaggedEvents:  1,
+					LastDisconnect:       "transport lost",
+					KindMetrics: []NetworkKindMetricRecord{{
+						Kind:      "say",
+						Sent:      4,
+						Received:  5,
+						Rejected:  1,
+						Delivered: 3,
 					}},
-					ArtifactsSupported:  []string{"text"},
-					TrustModesSupported: []string{"untrusted"},
-				},
-				LastSeen:  &lastSeen,
-				ExpiresAt: &expires,
-			}}, nil
-		},
-		networkChannelsFn: func(context.Context) ([]NetworkChannelRecord, error) {
-			return []NetworkChannelRecord{{Channel: "builders", PeerCount: 2}}, nil
-		},
-		networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
-			seenSendRequest = request
-			return NetworkSendRecord{
-				ID:            "msg-1",
-				SessionID:     request.SessionID,
-				Channel:       request.Channel,
-				Kind:          request.Kind,
-				TraceID:       request.TraceID,
-				CausationID:   request.CausationID,
-				InteractionID: request.InteractionID,
-				ReplyTo:       request.ReplyTo,
-				ExpiresAt:     request.ExpiresAt,
-				Ext:           request.Ext,
-			}, nil
-		},
-		networkInboxFn: func(_ context.Context, _ string) ([]NetworkEnvelopeRecord, error) {
-			replyTo := "msg-root"
-			traceID := "trace-1"
-			causationID := "cause-1"
-			return []NetworkEnvelopeRecord{{
-				Protocol:    "agh-network/v0",
-				ID:          "msg-inbox",
-				Kind:        "direct",
-				Channel:     "builders",
-				From:        "reviewer.sess-a",
-				ReplyTo:     &replyTo,
-				TraceID:     &traceID,
-				CausationID: &causationID,
-				TS:          fixedTestNow.Unix(),
-				Body:        mustJSON(t, map[string]any{"text": "review this", "intent": "review"}),
-				Ext: map[string]json.RawMessage{
-					"agh.workflow_id":     mustJSON(t, "wf-1"),
-					"agh.handoff_version": mustJSON(t, 3),
-				},
-			}}, nil
-		},
-	}
-	deps := newTestDeps(t, client)
+				}, nil
+			},
+			networkPeersFn: func(_ context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error) {
+				seenPeersQuery = query
+				displayName := "Reviewer"
+				sessionID := "sess-a"
+				lastSeen := fixedTestNow
+				expires := fixedTestNow.Add(time.Minute)
+				return []NetworkPeerRecord{{
+					PeerID:    "reviewer.sess-a",
+					SessionID: &sessionID,
+					Channel:   "builders",
+					Local:     true,
+					PeerCard: NetworkPeerCardRecord{
+						PeerID:            "reviewer.sess-a",
+						DisplayName:       &displayName,
+						ProfilesSupported: []string{"v0"},
+						Capabilities: []contract.NetworkCapabilityBriefPayload{{
+							ID:      "send",
+							Summary: "Send direct messages",
+						}},
+						ArtifactsSupported:  []string{"text"},
+						TrustModesSupported: []string{"untrusted"},
+					},
+					LastSeen:  &lastSeen,
+					ExpiresAt: &expires,
+				}}, nil
+			},
+			networkChannelsFn: func(context.Context) ([]NetworkChannelRecord, error) {
+				return []NetworkChannelRecord{{Channel: "builders", PeerCount: 2}}, nil
+			},
+			networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
+				seenSendRequest = request
+				return NetworkSendRecord{
+					ID:          "msg-1",
+					SessionID:   request.SessionID,
+					Channel:     request.Channel,
+					Surface:     request.Surface,
+					ThreadID:    request.ThreadID,
+					DirectID:    request.DirectID,
+					Kind:        request.Kind,
+					WorkID:      request.WorkID,
+					TraceID:     request.TraceID,
+					CausationID: request.CausationID,
+					ReplyTo:     request.ReplyTo,
+					ExpiresAt:   request.ExpiresAt,
+					Ext:         request.Ext,
+				}, nil
+			},
+			networkInboxFn: func(_ context.Context, _ string) ([]NetworkEnvelopeRecord, error) {
+				replyTo := "msg-root"
+				traceID := "trace-1"
+				causationID := "cause-1"
+				return []NetworkEnvelopeRecord{{
+					Protocol:    "agh-network/v0",
+					ID:          "msg-inbox",
+					Kind:        "say",
+					Channel:     "builders",
+					Surface:     &surfaceDirect,
+					DirectID:    &directID,
+					From:        "reviewer.sess-a",
+					WorkID:      &workID,
+					ReplyTo:     &replyTo,
+					TraceID:     &traceID,
+					CausationID: &causationID,
+					TS:          fixedTestNow.Unix(),
+					Body:        mustJSON(t, map[string]any{"text": "review this", "intent": "review"}),
+					Ext: map[string]json.RawMessage{
+						"agh.workflow_id":     mustJSON(t, "wf-1"),
+						"agh.handoff_version": mustJSON(t, 3),
+					},
+				}}, nil
+			},
+		}
+		deps := newTestDeps(t, client)
 
-	statusOut, _, err := executeRootCommand(t, deps, "network", "status", "-o", "human")
-	if err != nil {
-		t.Fatalf("network status error = %v", err)
+		statusOut, _, err := executeRootCommand(t, deps, "network", "status", "-o", "human")
+		if err != nil {
+			t.Fatalf("network status error = %v", err)
+		}
+		if !strings.Contains(statusOut, "Network") || !strings.Contains(statusOut, "Queued Messages") ||
+			!strings.Contains(statusOut, "Kind Metrics") {
+			t.Fatalf("network status output = %q, want summary and metrics", statusOut)
+		}
+
+		peersOut, _, err := executeRootCommand(t, deps, "network", "peers", "builders", "-o", "json")
+		if err != nil {
+			t.Fatalf("network peers error = %v", err)
+		}
+		if seenPeersQuery.Channel != "builders" {
+			t.Fatalf("seenPeersQuery.Channel = %q, want builders", seenPeersQuery.Channel)
+		}
+		var peers []NetworkPeerRecord
+		if err := json.Unmarshal([]byte(peersOut), &peers); err != nil {
+			t.Fatalf("json.Unmarshal(network peers) error = %v", err)
+		}
+		if len(peers) != 1 || peers[0].PeerID != "reviewer.sess-a" {
+			t.Fatalf("peers = %#v, want one reviewer peer", peers)
+		}
+
+		channelsOut, _, err := executeRootCommand(t, deps, "network", "channels", "-o", "toon")
+		if err != nil {
+			t.Fatalf("network channels error = %v", err)
+		}
+		if !strings.Contains(channelsOut, "network_channels[1]{channel,peer_count}:") {
+			t.Fatalf("network channels toon = %q, want TOON list", channelsOut)
+		}
+
+		sendOut, _, err := executeRootCommand(t, deps,
+			"network", "send",
+			"--session", "sess-a",
+			"--channel", "builders",
+			"--surface", "thread",
+			"--thread", "thread_1",
+			"--kind", "say",
+			"--body", `{"text":"hello"}`,
+			"--work", "work_1",
+			"--reply-to", "msg-root",
+			"--trace-id", "trace-1",
+			"--causation-id", "cause-1",
+			"--expires-at", "2026-04-11T18:00:00Z",
+			"--ext", `{"agh.workflow_id":"wf-1","agh.handoff_version":3}`,
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("network send error = %v", err)
+		}
+		if string(seenSendRequest.Body) != `{"text":"hello"}` {
+			t.Fatalf("seenSendRequest.Body = %s, want body JSON", string(seenSendRequest.Body))
+		}
+		if seenSendRequest.ExpiresAt == nil || *seenSendRequest.ExpiresAt != expiresAt {
+			t.Fatalf("seenSendRequest.ExpiresAt = %#v, want %d", seenSendRequest.ExpiresAt, expiresAt)
+		}
+		if string(seenSendRequest.Ext["agh.workflow_id"]) != `"wf-1"` ||
+			string(seenSendRequest.Ext["agh.handoff_version"]) != `3` {
+			t.Fatalf("seenSendRequest.Ext = %#v, want workflow metadata", seenSendRequest.Ext)
+		}
+		if seenSendRequest.Surface != "thread" || seenSendRequest.ThreadID != "thread_1" ||
+			seenSendRequest.WorkID != "work_1" {
+			t.Fatalf("seenSendRequest = %#v, want thread surface payload", seenSendRequest)
+		}
+		var sent NetworkSendRecord
+		if err := json.Unmarshal([]byte(sendOut), &sent); err != nil {
+			t.Fatalf("json.Unmarshal(network send) error = %v", err)
+		}
+		if sent.ID != "msg-1" || sent.TraceID != "trace-1" {
+			t.Fatalf("sent = %#v, want sent payload", sent)
+		}
+
+		sendOut, _, err = executeRootCommand(t, deps,
+			"network", "send",
+			"--session", "sess-a",
+			"--channel", "builders",
+			"--surface", "direct",
+			"--direct", directID,
+			"--kind", "say",
+			"--to", "reviewer.sess-a",
+			"--body", `{"text":"direct hello"}`,
+			"--work", "work_2",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("network send direct error = %v", err)
+		}
+		if seenSendRequest.Surface != "direct" || seenSendRequest.DirectID != directID ||
+			seenSendRequest.WorkID != "work_2" || seenSendRequest.To != "reviewer.sess-a" {
+			t.Fatalf("seenSendRequest = %#v, want direct surface payload", seenSendRequest)
+		}
+		if err := json.Unmarshal([]byte(sendOut), &sent); err != nil {
+			t.Fatalf("json.Unmarshal(network send direct) error = %v", err)
+		}
+		if sent.ID != "msg-1" || sent.Surface != "direct" || sent.DirectID != directID {
+			t.Fatalf("sent = %#v, want direct sent payload", sent)
+		}
+
+		inboxOut, _, err := executeRootCommand(t, deps, "network", "inbox", "--session", "sess-a", "-o", "human")
+		if err != nil {
+			t.Fatalf("network inbox error = %v", err)
+		}
+		if !strings.Contains(inboxOut, "Channel") || !strings.Contains(inboxOut, "builders") ||
+			!strings.Contains(inboxOut, "wf-1") ||
+			!strings.Contains(inboxOut, "3") {
+			t.Fatalf("network inbox output = %q, want channel and workflow/handoff metadata", inboxOut)
+		}
+	})
+}
+
+func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
+	t.Parallel()
+
+	directID := "direct_99401d24bee62651d189e5a561785466"
+	thread := NetworkThreadRecord{
+		Channel:            "builders",
+		ThreadID:           "thread_launch",
+		RootMessageID:      "msg-root",
+		Title:              "Launch review",
+		OpenedByPeerID:     "coder.sess-a",
+		OpenedSessionID:    "sess-a",
+		OpenedAt:           &fixedTestNow,
+		LastActivityAt:     &fixedTestNow,
+		MessageCount:       2,
+		ParticipantCount:   2,
+		OpenWorkCount:      1,
+		LastMessagePreview: "ready for review",
 	}
-	if !strings.Contains(statusOut, "Network") || !strings.Contains(statusOut, "Queued Messages") ||
-		!strings.Contains(statusOut, "Kind Metrics") {
-		t.Fatalf("network status output = %q, want summary and metrics", statusOut)
+	direct := NetworkDirectRoomRecord{
+		Channel:            "builders",
+		DirectID:           directID,
+		PeerA:              "coder.sess-a",
+		PeerB:              "reviewer.sess-b",
+		OpenedAt:           &fixedTestNow,
+		LastActivityAt:     &fixedTestNow,
+		MessageCount:       1,
+		OpenWorkCount:      1,
+		LastMessagePreview: "please review",
+	}
+	threadMessage := NetworkConversationMessageRecord{
+		MessageID:   "msg-thread-1",
+		Channel:     "builders",
+		Surface:     "thread",
+		ThreadID:    "thread_launch",
+		Kind:        "say",
+		Direction:   "outbound",
+		PeerFrom:    "coder.sess-a",
+		WorkID:      "work_1",
+		PreviewText: "ready for review",
+		Body:        mustJSON(t, map[string]any{"text": "ready for review"}),
+		Timestamp:   fixedTestNow,
+	}
+	directMessage := NetworkConversationMessageRecord{
+		MessageID:   "msg-direct-1",
+		Channel:     "builders",
+		Surface:     "direct",
+		DirectID:    directID,
+		Kind:        "say",
+		Direction:   "outbound",
+		PeerFrom:    "coder.sess-a",
+		PeerTo:      "reviewer.sess-b",
+		WorkID:      "work_1",
+		PreviewText: "please review",
+		Body:        mustJSON(t, map[string]any{"text": "please review"}),
+		Timestamp:   fixedTestNow,
+	}
+	work := NetworkWorkRecord{
+		WorkID:          "work_1",
+		Channel:         "builders",
+		Surface:         "direct",
+		DirectID:        directID,
+		OpenedByPeerID:  "coder.sess-a",
+		OpenedSessionID: "sess-a",
+		TargetPeerID:    "reviewer.sess-b",
+		State:           "open",
+		OpenedAt:        &fixedTestNow,
+		LastActivityAt:  &fixedTestNow,
 	}
 
-	peersOut, _, err := executeRootCommand(t, deps, "network", "peers", "builders", "-o", "json")
-	if err != nil {
-		t.Fatalf("network peers error = %v", err)
-	}
-	if seenPeersQuery.Channel != "builders" {
-		t.Fatalf("seenPeersQuery.Channel = %q, want builders", seenPeersQuery.Channel)
-	}
-	var peers []NetworkPeerRecord
-	if err := json.Unmarshal([]byte(peersOut), &peers); err != nil {
-		t.Fatalf("json.Unmarshal(network peers) error = %v", err)
-	}
-	if len(peers) != 1 || peers[0].PeerID != "reviewer.sess-a" {
-		t.Fatalf("peers = %#v, want one reviewer peer", peers)
-	}
+	t.Run("Should list threads as JSON response wrapper", func(t *testing.T) {
+		t.Parallel()
 
-	channelsOut, _, err := executeRootCommand(t, deps, "network", "channels", "-o", "toon")
-	if err != nil {
-		t.Fatalf("network channels error = %v", err)
-	}
-	if !strings.Contains(channelsOut, "network_channels[1]{channel,peer_count}:") {
-		t.Fatalf("network channels toon = %q, want TOON list", channelsOut)
-	}
+		var seenQuery NetworkThreadsQuery
+		deps := newTestDeps(t, &stubClient{
+			networkThreadsFn: func(_ context.Context, query NetworkThreadsQuery) ([]NetworkThreadRecord, error) {
+				seenQuery = query
+				return []NetworkThreadRecord{thread}, nil
+			},
+		})
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"threads",
+			"list",
+			"--channel",
+			"builders",
+			"--limit",
+			"2",
+			"--after",
+			"thread_0",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("network threads list error = %v", err)
+		}
+		if seenQuery.Channel != "builders" || seenQuery.Limit != 2 || seenQuery.After != "thread_0" {
+			t.Fatalf("seenQuery = %#v, want channel/limit/after", seenQuery)
+		}
+		var response contract.NetworkThreadsResponse
+		if err := json.Unmarshal([]byte(out), &response); err != nil {
+			t.Fatalf("json.Unmarshal(network threads list) error = %v", err)
+		}
+		if len(response.Threads) != 1 || response.Threads[0].ThreadID != "thread_launch" {
+			t.Fatalf("response = %#v, want one thread", response)
+		}
+	})
 
-	sendOut, _, err := executeRootCommand(t, deps,
-		"network", "send",
-		"--session", "sess-a",
-		"--channel", "builders",
-		"--kind", "say",
-		"--body", `{"text":"hello"}`,
-		"--interaction-id", "int-1",
-		"--reply-to", "msg-root",
-		"--trace-id", "trace-1",
-		"--causation-id", "cause-1",
-		"--expires-at", "2026-04-11T18:00:00Z",
-		"--ext", `{"agh.workflow_id":"wf-1","agh.handoff_version":3}`,
-		"-o", "json",
-	)
-	if err != nil {
-		t.Fatalf("network send error = %v", err)
-	}
-	if string(seenSendRequest.Body) != `{"text":"hello"}` {
-		t.Fatalf("seenSendRequest.Body = %s, want body JSON", string(seenSendRequest.Body))
-	}
-	if seenSendRequest.ExpiresAt == nil || *seenSendRequest.ExpiresAt != expiresAt {
-		t.Fatalf("seenSendRequest.ExpiresAt = %#v, want %d", seenSendRequest.ExpiresAt, expiresAt)
-	}
-	if string(seenSendRequest.Ext["agh.workflow_id"]) != `"wf-1"` ||
-		string(seenSendRequest.Ext["agh.handoff_version"]) != `3` {
-		t.Fatalf("seenSendRequest.Ext = %#v, want workflow metadata", seenSendRequest.Ext)
-	}
-	var sent NetworkSendRecord
-	if err := json.Unmarshal([]byte(sendOut), &sent); err != nil {
-		t.Fatalf("json.Unmarshal(network send) error = %v", err)
-	}
-	if sent.ID != "msg-1" || sent.TraceID != "trace-1" {
-		t.Fatalf("sent = %#v, want sent payload", sent)
-	}
+	t.Run("Should show a thread as TOON", func(t *testing.T) {
+		t.Parallel()
 
-	inboxOut, _, err := executeRootCommand(t, deps, "network", "inbox", "--session", "sess-a", "-o", "human")
-	if err != nil {
-		t.Fatalf("network inbox error = %v", err)
-	}
-	if !strings.Contains(inboxOut, "Channel") || !strings.Contains(inboxOut, "builders") ||
-		!strings.Contains(inboxOut, "wf-1") ||
-		!strings.Contains(inboxOut, "3") {
-		t.Fatalf("network inbox output = %q, want channel and workflow/handoff metadata", inboxOut)
-	}
+		deps := newTestDeps(t, &stubClient{
+			networkThreadFn: func(_ context.Context, channel string, threadID string) (NetworkThreadRecord, error) {
+				if channel != "builders" || threadID != "thread_launch" {
+					t.Fatalf("NetworkThread(%q, %q), want builders/thread_launch", channel, threadID)
+				}
+				return thread, nil
+			},
+		})
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"threads",
+			"show",
+			"--channel",
+			"builders",
+			"--thread",
+			"thread_launch",
+			"-o",
+			"toon",
+		)
+		if err != nil {
+			t.Fatalf("network threads show error = %v", err)
+		}
+		if !strings.Contains(out, "network_thread{") || !strings.Contains(out, "thread_launch") {
+			t.Fatalf("network threads show toon = %q, want thread object", out)
+		}
+	})
+
+	t.Run("Should stream thread messages as JSONL", func(t *testing.T) {
+		t.Parallel()
+
+		var seenQuery NetworkConversationMessagesQuery
+		deps := newTestDeps(t, &stubClient{
+			networkThreadMessagesFn: func(
+				_ context.Context,
+				query NetworkConversationMessagesQuery,
+			) ([]NetworkConversationMessageRecord, error) {
+				seenQuery = query
+				return []NetworkConversationMessageRecord{threadMessage}, nil
+			},
+		})
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"threads",
+			"messages",
+			"--channel",
+			"builders",
+			"--thread",
+			"thread_launch",
+			"--limit",
+			"2",
+			"--before",
+			"msg-3",
+			"--after",
+			"msg-1",
+			"--kind",
+			"say",
+			"--work",
+			"work_1",
+			"-o",
+			"jsonl",
+		)
+		if err != nil {
+			t.Fatalf("network threads messages error = %v", err)
+		}
+		if seenQuery.Channel != "builders" || seenQuery.ThreadID != "thread_launch" ||
+			seenQuery.Limit != 2 || seenQuery.Before != "msg-3" ||
+			seenQuery.After != "msg-1" || seenQuery.Kind != "say" || seenQuery.WorkID != "work_1" {
+			t.Fatalf("seenQuery = %#v, want thread message filters", seenQuery)
+		}
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		if len(lines) != 1 {
+			t.Fatalf("network threads messages jsonl lines = %d, want 1; output=%q", len(lines), out)
+		}
+		var decoded NetworkConversationMessageRecord
+		if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(thread message line) error = %v", err)
+		}
+		if decoded.MessageID != "msg-thread-1" || decoded.Surface != "thread" {
+			t.Fatalf("decoded = %#v, want thread message", decoded)
+		}
+	})
+
+	t.Run("Should list directs as JSON response wrapper", func(t *testing.T) {
+		t.Parallel()
+
+		var seenQuery NetworkDirectsQuery
+		deps := newTestDeps(t, &stubClient{
+			networkDirectsFn: func(_ context.Context, query NetworkDirectsQuery) ([]NetworkDirectRoomRecord, error) {
+				seenQuery = query
+				return []NetworkDirectRoomRecord{direct}, nil
+			},
+		})
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"directs",
+			"list",
+			"--channel",
+			"builders",
+			"--peer",
+			"reviewer.sess-b",
+			"--limit",
+			"2",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("network directs list error = %v", err)
+		}
+		if seenQuery.Channel != "builders" || seenQuery.PeerID != "reviewer.sess-b" || seenQuery.Limit != 2 {
+			t.Fatalf("seenQuery = %#v, want channel/peer/limit", seenQuery)
+		}
+		var response contract.NetworkDirectRoomsResponse
+		if err := json.Unmarshal([]byte(out), &response); err != nil {
+			t.Fatalf("json.Unmarshal(network directs list) error = %v", err)
+		}
+		if len(response.Directs) != 1 || response.Directs[0].DirectID != directID {
+			t.Fatalf("response = %#v, want one direct room", response)
+		}
+	})
+
+	t.Run("Should resolve a direct room", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			networkDirectResolveFn: func(
+				_ context.Context,
+				channel string,
+				request NetworkDirectResolveRequest,
+			) (NetworkDirectRoomRecord, error) {
+				if channel != "builders" || request.SessionID != "sess-a" || request.PeerID != "reviewer.sess-b" {
+					t.Fatalf(
+						"NetworkDirectResolve(%q, %#v), want builders/sess-a/reviewer.sess-b",
+						channel,
+						request,
+					)
+				}
+				return direct, nil
+			},
+		})
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"directs",
+			"resolve",
+			"--session",
+			"sess-a",
+			"--channel",
+			"builders",
+			"--peer",
+			"reviewer.sess-b",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("network directs resolve error = %v", err)
+		}
+		var response contract.NetworkDirectRoomResponse
+		if err := json.Unmarshal([]byte(out), &response); err != nil {
+			t.Fatalf("json.Unmarshal(network directs resolve) error = %v", err)
+		}
+		if response.Direct.DirectID != directID {
+			t.Fatalf("response = %#v, want resolved direct room", response)
+		}
+	})
+
+	t.Run("Should show a direct room as TOON", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			networkDirectFn: func(_ context.Context, channel string, gotDirectID string) (NetworkDirectRoomRecord, error) {
+				if channel != "builders" || gotDirectID != directID {
+					t.Fatalf("NetworkDirect(%q, %q), want builders/%s", channel, gotDirectID, directID)
+				}
+				return direct, nil
+			},
+		})
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"directs",
+			"show",
+			"--channel",
+			"builders",
+			"--direct",
+			directID,
+			"-o",
+			"toon",
+		)
+		if err != nil {
+			t.Fatalf("network directs show error = %v", err)
+		}
+		if !strings.Contains(out, "network_direct{") || !strings.Contains(out, directID) {
+			t.Fatalf("network directs show toon = %q, want direct object", out)
+		}
+	})
+
+	t.Run("Should stream direct messages as JSONL", func(t *testing.T) {
+		t.Parallel()
+
+		var seenQuery NetworkConversationMessagesQuery
+		deps := newTestDeps(t, &stubClient{
+			networkDirectMessagesFn: func(
+				_ context.Context,
+				query NetworkConversationMessagesQuery,
+			) ([]NetworkConversationMessageRecord, error) {
+				seenQuery = query
+				return []NetworkConversationMessageRecord{directMessage}, nil
+			},
+		})
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"directs",
+			"messages",
+			"--channel",
+			"builders",
+			"--direct",
+			directID,
+			"--limit",
+			"2",
+			"--work",
+			"work_1",
+			"-o",
+			"jsonl",
+		)
+		if err != nil {
+			t.Fatalf("network directs messages error = %v", err)
+		}
+		if seenQuery.Channel != "builders" || seenQuery.DirectID != directID ||
+			seenQuery.Limit != 2 || seenQuery.WorkID != "work_1" {
+			t.Fatalf("seenQuery = %#v, want direct message filters", seenQuery)
+		}
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		if len(lines) != 1 {
+			t.Fatalf("network directs messages jsonl lines = %d, want 1; output=%q", len(lines), out)
+		}
+		var decoded NetworkConversationMessageRecord
+		if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(direct message line) error = %v", err)
+		}
+		if decoded.MessageID != "msg-direct-1" || decoded.Surface != "direct" {
+			t.Fatalf("decoded = %#v, want direct message", decoded)
+		}
+	})
+
+	t.Run("Should show work lookup as JSON response wrapper", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			networkWorkFn: func(_ context.Context, workID string) (NetworkWorkRecord, error) {
+				if workID != "work_1" {
+					t.Fatalf("NetworkWork(%q), want work_1", workID)
+				}
+				return work, nil
+			},
+		})
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"work",
+			"lookup",
+			"--work",
+			"work_1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("network work lookup error = %v", err)
+		}
+		var response contract.NetworkWorkResponse
+		if err := json.Unmarshal([]byte(out), &response); err != nil {
+			t.Fatalf("json.Unmarshal(network work lookup) error = %v", err)
+		}
+		if response.Work.WorkID != "work_1" || response.Work.DirectID != directID {
+			t.Fatalf("response = %#v, want work", response)
+		}
+	})
+
+	t.Run("Should show work status as TOON", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			networkWorkFn: func(_ context.Context, workID string) (NetworkWorkRecord, error) {
+				if workID != "work_1" {
+					t.Fatalf("NetworkWork(%q), want work_1", workID)
+				}
+				return work, nil
+			},
+		})
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"work",
+			"status",
+			"--work",
+			"work_1",
+			"-o",
+			"toon",
+		)
+		if err != nil {
+			t.Fatalf("network work status error = %v", err)
+		}
+		if !strings.Contains(out, "network_work{") || !strings.Contains(out, "work_1") {
+			t.Fatalf("network work status toon = %q, want work object", out)
+		}
+	})
 }
 
 func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
@@ -257,6 +733,58 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 				"--ext", `{"agh":{"claim_token":"agh_claim_cli"}}`,
 			},
 			wantErr: "network_raw_token_rejected",
+		},
+		{
+			name: "ShouldRejectLegacyInteractionIDFlag",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--channel", "builders",
+				"--surface", "thread",
+				"--thread", "thread_1",
+				"--kind", "say",
+				"--body", `{"text":"ok"}`,
+				"--interaction-id", "work_1",
+			},
+			wantErr: "unknown flag: --interaction-id",
+		},
+		{
+			name: "ShouldRejectDirectKind",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--channel", "builders",
+				"--surface", "direct",
+				"--direct", "direct_99401d24bee62651d189e5a561785466",
+				"--kind", "direct",
+				"--body", `{"text":"ok"}`,
+			},
+			wantErr: "--kind direct is not supported",
+		},
+		{
+			name: "ShouldRejectConversationKindWithoutSurface",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--channel", "builders",
+				"--kind", "say",
+				"--body", `{"text":"ok"}`,
+			},
+			wantErr: "--surface is required for --kind say",
+		},
+		{
+			name: "ShouldRejectLegacyWorkIDFlag",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--channel", "builders",
+				"--surface", "thread",
+				"--thread", "thread_1",
+				"--kind", "say",
+				"--body", `{"text":"ok"}`,
+				"--work-id", "work_1",
+			},
+			wantErr: "unknown flag: --work-id",
 		},
 	}
 

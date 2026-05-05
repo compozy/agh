@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Work Lifecycle and Direct-Room Identity Primitives
 type: backend
 complexity: critical
@@ -33,11 +33,11 @@ Create the runtime primitives that make direct rooms deterministic and keep work
 
 ## Subtasks
 
-- [ ] 3.1 Rename interaction lifecycle types/functions/reason codes to work lifecycle names.
-- [ ] 3.2 Add a conversation reference type suitable for work binding.
-- [ ] 3.3 Implement pure direct-room ID derivation and pair normalization.
-- [ ] 3.4 Enforce lifecycle state transitions, terminal behavior, and cross-container rejection.
-- [ ] 3.5 Add unit tests for ID derivation, same-peer rejection, collision signaling, lifecycle transitions, and duplicate replay.
+- [x] 3.1 Rename interaction lifecycle types/functions/reason codes to work lifecycle names.
+- [x] 3.2 Add a conversation reference type suitable for work binding.
+- [x] 3.3 Implement pure direct-room ID derivation and pair normalization.
+- [x] 3.4 Enforce lifecycle state transitions, terminal behavior, and cross-container rejection.
+- [x] 3.5 Add unit tests for ID derivation, same-peer rejection, collision signaling, lifecycle transitions, and duplicate replay.
 
 ## Implementation Details
 
@@ -83,15 +83,15 @@ The direct-room helper should be deterministic and side-effect free. Durable uni
 ## Tests
 
 - Unit tests:
-  - [ ] Direct ID derivation is peer-order independent.
-  - [ ] Direct ID derivation is channel-scoped.
-  - [ ] Same-peer direct room requests fail closed.
-  - [ ] Work creation binds a work ID to exactly one conversation reference.
-  - [ ] Cross-container work continuation is rejected.
-  - [ ] Exact duplicate `message_id` replay returns duplicate before lifecycle handling.
-  - [ ] New post-terminal work messages are rejected.
+  - [x] Direct ID derivation is peer-order independent.
+  - [x] Direct ID derivation is channel-scoped.
+  - [x] Same-peer direct room requests fail closed.
+  - [x] Work creation binds a work ID to exactly one conversation reference.
+  - [x] Cross-container work continuation is rejected.
+  - [x] Exact duplicate `message_id` replay returns duplicate before lifecycle handling.
+  - [x] New post-terminal work messages are rejected.
 - Integration tests:
-  - [ ] Runtime lifecycle tests compile with no remaining interaction type aliases.
+  - [x] Runtime lifecycle tests compile with no remaining interaction type aliases.
 - Test coverage target: >=80% for touched package.
 - All tests must pass.
 

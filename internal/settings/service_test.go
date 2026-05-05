@@ -1374,7 +1374,7 @@ func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
 	readOnly := true
 	decl := hookspkg.HookDecl{
 		Name:         "capture",
-		Event:        hookspkg.HookToolPreCall,
+		Event:        hookspkg.HookNetworkMessagePersisted,
 		Mode:         hookspkg.HookModeAsync,
 		ExecutorKind: hookspkg.HookExecutorSubprocess,
 		Command:      "/bin/capture",
@@ -1385,11 +1385,24 @@ func TestCollectionHelperMapsIncludeNestedFields(t *testing.T) {
 			ToolReadOnly:     &readOnly,
 			MessageRole:      "assistant",
 			MessageDeltaType: "text",
+			NetworkMatcher: &hookspkg.NetworkMatcher{
+				Channel:   "builders",
+				Surface:   "thread",
+				Kind:      "trace",
+				Direction: "received",
+				WorkState: "completed",
+			},
 		},
 	}
 	matcher := hookMatcherMap(decl)
 	if got, want := matcher["tool_id"], "agh__read"; got != want {
 		t.Fatalf("hookMatcherMap()[tool_id] = %#v, want %q", got, want)
+	}
+	if got, want := matcher["channel"], "builders"; got != want {
+		t.Fatalf("hookMatcherMap()[channel] = %#v, want %q", got, want)
+	}
+	if got, want := matcher["work_state"], "completed"; got != want {
+		t.Fatalf("hookMatcherMap()[work_state] = %#v, want %q", got, want)
 	}
 	executor := hookExecutorMap(decl)
 	if got, want := executor["kind"], string(hookspkg.HookExecutorSubprocess); got != want {

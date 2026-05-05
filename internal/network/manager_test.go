@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	sessionpkg "github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 func nilTestContext() context.Context {
@@ -203,12 +204,12 @@ func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 			t.Fatalf("Status(joined) = %#v, want 2 local peers and 1 channel", status)
 		}
 
-		id, err := manager.Send(ctx, SendRequest{
+		id, err := manager.Send(ctx, withTestConversation(SendRequest{
 			SessionID: "sess-a",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "hello builders"}),
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Send() error = %v", err)
 		}
@@ -257,6 +258,150 @@ func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 		if status.LocalPeers != 0 || status.Channels != 0 {
 			t.Fatalf("Status(left) = %#v, want zero local peers and channels", status)
 		}
+	})
+}
+
+func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should write outbound conversation before publishing", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(time.Minute, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal("sess-a", "builders", mustPeerCard(t, "coder.sess-a"), now); err != nil {
+			t.Fatalf("RegisterLocal() error = %v", err)
+		}
+		transport := &spyRouterTransport{}
+		router, err := NewRouter(
+			registry,
+			transport,
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+		conversations := &recordingConversationStore{
+			publishCount: transport.Count,
+		}
+		manager := &Manager{
+			logger:        discardManagerLogger(),
+			now:           func() time.Time { return now },
+			router:        router,
+			conversations: conversations,
+			stats:         newRuntimeStats(),
+		}
+
+		messageID, err := manager.Send(context.Background(), withTestConversation(SendRequest{
+			ID:        ptrString("msg-store-send"),
+			SessionID: "sess-a",
+			Channel:   "builders",
+			Kind:      KindSay,
+			Body:      mustRawJSON(t, SayBody{Text: "commit before publish"}),
+		}))
+		if err != nil {
+			t.Fatalf("Send() error = %v", err)
+		}
+		if got, want := messageID, "msg-store-send"; got != want {
+			t.Fatalf("Send() messageID = %q, want %q", got, want)
+		}
+		if got, want := conversations.publishCountAtWrite, 0; got != want {
+			t.Fatalf("publish count at conversation write = %d, want %d", got, want)
+		}
+		if got, want := transport.Count(), 1; got != want {
+			t.Fatalf("transport publish count = %d, want %d", got, want)
+		}
+		entry := conversations.entry(0)
+		if got, want := entry.MessageID, "msg-store-send"; got != want {
+			t.Fatalf("conversation MessageID = %q, want %q", got, want)
+		}
+		if got, want := entry.Direction, AuditDirectionSent; got != want {
+			t.Fatalf("conversation Direction = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should write inbound conversation before prompt delivery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		now := time.Date(2026, 5, 5, 12, 5, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(time.Minute, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal("sess-b", "builders", mustPeerCard(t, "reviewer.sess-b"), now); err != nil {
+			t.Fatalf("RegisterLocal() error = %v", err)
+		}
+		prompter := newFakeDeliveryPrompter()
+		conversations := &recordingConversationStore{
+			promptCount: prompter.callCount,
+		}
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+		deliveries, err := newDeliveryCoordinator(
+			ctx,
+			4,
+			prompter,
+			withDeliveryLogger(discardManagerLogger()),
+			withDeliveryClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("newDeliveryCoordinator() error = %v", err)
+		}
+		manager := &Manager{
+			logger:        discardManagerLogger(),
+			now:           func() time.Time { return now },
+			lifecycleCtx:  ctx,
+			peers:         registry,
+			router:        router,
+			conversations: conversations,
+			deliveries:    deliveries,
+			stats:         newRuntimeStats(),
+		}
+
+		payload, err := json.Marshal(withThreadSurface(Envelope{
+			Protocol: ProtocolV0,
+			ID:       "msg-store-receive",
+			Kind:     KindSay,
+			Channel:  "builders",
+			From:     "coder.sess-remote",
+			TS:       now.Unix(),
+			Body:     mustRawJSON(t, SayBody{Text: "commit before prompt"}),
+		}))
+		if err != nil {
+			t.Fatalf("json.Marshal(inbound) error = %v", err)
+		}
+
+		manager.handleInboundMessage(payload)
+		prompter.waitForCalls(t, 1)
+		if got, want := conversations.promptCountAtWrite, 0; got != want {
+			t.Fatalf("prompt count at conversation write = %d, want %d", got, want)
+		}
+		entry := conversations.entry(0)
+		if got, want := entry.MessageID, "msg-store-receive"; got != want {
+			t.Fatalf("conversation MessageID = %q, want %q", got, want)
+		}
+		if got, want := entry.Direction, AuditDirectionReceived; got != want {
+			t.Fatalf("conversation Direction = %q, want %q", got, want)
+		}
+		call := prompter.call(0)
+		if got, want := call.meta.ThreadID, testThreadRef().ThreadID; got != want {
+			t.Fatalf("prompt meta ThreadID = %q, want %q", got, want)
+		}
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: now})
+		deliveries.wait()
 	})
 }
 
@@ -424,12 +569,12 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 
 		ctx, manager, prompter := newBusyManagerHarness(t)
 		prompter.setPrompting("sess-busy", true)
-		if _, err := manager.Send(ctx, SendRequest{
+		if _, err := manager.Send(ctx, withTestConversation(SendRequest{
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "queued while busy"}),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("Send() error = %v", err)
 		}
 
@@ -542,12 +687,12 @@ func TestManagerWaitInboxWakesOnNewChannelMessage(t *testing.T) {
 		resultCh <- messages
 	}()
 
-	messageID, err := manager.Send(ctx, SendRequest{
+	messageID, err := manager.Send(ctx, withTestConversation(SendRequest{
 		SessionID: "sess-a",
 		Channel:   "builders",
 		Kind:      KindSay,
 		Body:      mustRawJSON(t, map[string]any{"text": "wake reviewer"}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
@@ -740,13 +885,13 @@ func TestManagerRejectsBogusWhoisFloodWithoutResourceGrowth(t *testing.T) {
 			t.Fatal("collected zero status latencies during flood")
 		}
 
-		cleanMessageID, err := manager.Send(ctx, SendRequest{
+		cleanMessageID, err := manager.Send(ctx, withTestConversation(SendRequest{
 			ID:        ptrString("msg-clean-during-flood"),
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
 			Body:      mustRawJSON(t, map[string]any{"text": "clean message during bogus flood"}),
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Send(clean during flood) error = %v", err)
 		}
@@ -802,6 +947,7 @@ func TestManagerRejectsBogusWhoisFloodWithoutResourceGrowth(t *testing.T) {
 func receiveTestEnvelope(t *testing.T, manager *Manager, req SendRequest) string {
 	t.Helper()
 
+	req = withTestConversation(req)
 	requestID := ""
 	if req.ID != nil {
 		requestID = *req.ID
@@ -936,20 +1082,19 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 			return len(manager.router.seen) >= 2
 		}, "second greet routing")
 
-		_, err = manager.Send(ctx, SendRequest{
-			SessionID:     "sess-a",
-			Channel:       "builders",
-			Kind:          KindSay,
-			Body:          mustRawJSON(t, map[string]any{"text": "hello builders"}),
-			ReplyTo:       ptrString("msg-root"),
-			TraceID:       ptrString("trace-1"),
-			CausationID:   ptrString("cause-1"),
-			InteractionID: ptrString("int-1"),
+		_, err = manager.Send(ctx, withTestConversation(SendRequest{
+			SessionID:   "sess-a",
+			Channel:     "builders",
+			Kind:        KindSay,
+			Body:        mustRawJSON(t, map[string]any{"text": "hello builders"}),
+			ReplyTo:     ptrString("msg-root"),
+			TraceID:     ptrString("trace-1"),
+			CausationID: ptrString("cause-1"),
 			Ext: ExtensionMap{
 				"agh.workflow_id":     mustRawJSON(t, "wf-1"),
 				"agh.handoff_version": mustRawJSON(t, 3),
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Send() error = %v", err)
 		}
@@ -1030,15 +1175,15 @@ func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {
 		t.Fatalf("JoinChannel(sess-b) error = %v", err)
 	}
 
-	directID, err := manager.Send(ctx, SendRequest{
-		SessionID:     "sess-b",
-		Channel:       "builders",
-		Kind:          KindDirect,
-		To:            ptrString("reviewer.sess-a"),
-		Body:          mustRawJSON(t, DirectBody{Text: "I can take the migration fix."}),
-		InteractionID: ptrString("int-local-trace"),
-		TraceID:       ptrString("trace-local-trace"),
-	})
+	directID, err := manager.Send(ctx, withTestConversation(SendRequest{
+		SessionID: "sess-b",
+		Channel:   "builders",
+		Kind:      KindSay,
+		To:        ptrString("reviewer.sess-a"),
+		Body:      mustRawJSON(t, SayBody{Text: "I can take the migration fix."}),
+		WorkID:    ptrString("work_local-trace"),
+		TraceID:   ptrString("trace-local-trace"),
+	}))
 	if err != nil {
 		t.Fatalf("Send(direct) error = %v", err)
 	}
@@ -1048,27 +1193,27 @@ func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {
 	if got, want := directCall.sessionID, "sess-a"; got != want {
 		t.Fatalf("direct delivery session = %q, want %q", got, want)
 	}
-	if got, want := directCall.meta.Kind, string(KindDirect); got != want {
+	if got, want := directCall.meta.Kind, string(KindSay); got != want {
 		t.Fatalf("direct delivery kind = %q, want %q", got, want)
 	}
 	prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: fixedNow})
 	manager.deliveries.wait()
 
-	_, err = manager.Send(ctx, SendRequest{
+	_, err = manager.Send(ctx, withTestConversation(SendRequest{
 		SessionID: "sess-b",
 		Channel:   "builders",
 		Kind:      KindTrace,
 		To:        ptrString("reviewer.sess-a"),
 		Body: mustRawJSON(t, TraceBody{
-			State:   StateCompleted,
+			State:   WorkStateCompleted,
 			Message: "Patch prepared and tests pass.",
 			Result:  mustRawJSON(t, map[string]any{"summary": "migration fix applied"}),
 		}),
-		InteractionID: ptrString("int-local-trace"),
-		ReplyTo:       &directID,
-		TraceID:       ptrString("trace-local-trace"),
-		CausationID:   &directID,
-	})
+		WorkID:      ptrString("work_local-trace"),
+		ReplyTo:     &directID,
+		TraceID:     ptrString("trace-local-trace"),
+		CausationID: &directID,
+	}))
 	if err != nil {
 		t.Fatalf("Send(trace) error = %v", err)
 	}
@@ -1094,7 +1239,7 @@ func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {
 		metricsByKind[metric.Kind] = metric
 	}
 
-	if direct := metricsByKind[KindDirect]; direct.Sent != 1 || direct.Received != 1 || direct.Delivered != 1 {
+	if direct := metricsByKind[KindSay]; direct.Sent != 1 || direct.Received != 1 || direct.Delivered != 1 {
 		t.Fatalf("direct kind metrics = %#v, want sent=1 received=1 delivered=1", direct)
 	}
 	if trace := metricsByKind[KindTrace]; trace.Sent != 1 || trace.Received != 1 || trace.Delivered != 1 {
@@ -1130,12 +1275,12 @@ func TestManagerShutdownTracksInterruptedInFlightMessages(t *testing.T) {
 		t.Fatalf("JoinChannel(stop target) error = %v", err)
 	}
 
-	if _, err := manager.Send(ctx, SendRequest{
+	if _, err := manager.Send(ctx, withTestConversation(SendRequest{
 		SessionID: "sess-sender",
 		Channel:   "builders",
 		Kind:      KindSay,
 		Body:      mustRawJSON(t, map[string]any{"text": "hello before shutdown"}),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
 
@@ -1245,7 +1390,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		t.Fatalf("ListChannels() = %#v, want one channel with two peers", channels)
 	}
 
-	sayPayload, err := json.Marshal(Envelope{
+	sayPayload, err := json.Marshal(withThreadSurface(Envelope{
 		Protocol: ProtocolV0,
 		ID:       "msg-say-remote",
 		Kind:     KindSay,
@@ -1253,7 +1398,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		From:     remoteCard.PeerID,
 		TS:       fixedNow.Unix(),
 		Body:     mustRawJSON(t, map[string]any{"text": "remote delivery"}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("json.Marshal(say envelope) error = %v", err)
 	}
@@ -1525,7 +1670,7 @@ func TestManagerRecordInboundAuditCapturesRejectedAndGeneratedEntries(t *testing
 			Channel: "builders",
 			From:    "reviewer.sess-local",
 		}},
-	})
+	}, nil)
 
 	if len(auditor.rejected) != 1 {
 		t.Fatalf("rejected audit count = %d, want 1", len(auditor.rejected))
@@ -1549,6 +1694,52 @@ func testManagerConfig() aghconfig.NetworkConfig {
 
 func discardManagerLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+type recordingConversationStore struct {
+	store.NetworkConversationStore
+
+	mu                  sync.Mutex
+	entries             []store.NetworkConversationMessage
+	publishCount        func() int
+	promptCount         func() int
+	publishCountAtWrite int
+	promptCountAtWrite  int
+	result              store.NetworkConversationWriteResult
+	err                 error
+}
+
+func (s *recordingConversationStore) WriteConversationMessage(
+	_ context.Context,
+	entry store.NetworkConversationMessage,
+) (store.NetworkConversationWriteResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.publishCount != nil {
+		s.publishCountAtWrite = s.publishCount()
+	}
+	if s.promptCount != nil {
+		s.promptCountAtWrite = s.promptCount()
+	}
+	s.entries = append(s.entries, entry)
+	if s.err != nil {
+		return store.NetworkConversationWriteResult{}, s.err
+	}
+	result := s.result
+	if strings.TrimSpace(result.MessageID) == "" {
+		result.MessageID = entry.MessageID
+	}
+	return result, nil
+}
+
+func (s *recordingConversationStore) entry(index int) store.NetworkConversationMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.entries) {
+		return store.NetworkConversationMessage{}
+	}
+	return s.entries[index]
 }
 
 type recordingAuditWriter struct {

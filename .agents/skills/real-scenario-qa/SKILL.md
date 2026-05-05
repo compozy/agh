@@ -37,11 +37,17 @@ Smoke checks, CRUD-only checks, page-render checks, unit tests, integration test
    - `PROVIDER_CODEX_HOME`
    - `BROWSER_MODE`
    - `BROWSER_BLOCKER`
+   - `SCENARIO_CONTRACT`
+   - `BEHAVIORAL_CHARTER`
+   - `JOURNEY_LOG`
+   - `PROVIDER_ATTEMPT`
+   - `AUDIT_COMMAND`
    - `REUSED_LAB`
 5. Open `<QA_OUTPUT_PATH>/qa/bootstrap-manifest.json` and treat it as the canonical handoff for every downstream command in this scenario.
 6. For a brand-new QA invocation, prefer a fresh lab even if an older lab exists for the same feature. Reuse is only for the same active QA session or loop continuation when `--reuse-manifest` was passed intentionally.
 7. Store all QA artifacts under `<QA_OUTPUT_PATH>/qa/`.
 8. If the repository has a stricter artifact convention, keep the generated workspace but mirror the final report into the repository convention.
+9. Treat `<QA_OUTPUT_PATH>/qa/scenario-contract.json`, `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml`, `<QA_OUTPUT_PATH>/qa/journey-log.jsonl`, and `<QA_OUTPUT_PATH>/qa/provider-attempt.json` as mandatory evidence inputs. The bootstrap helper creates skeletons; downstream QA must fill them with real evidence.
 
 **Step 2: Activate Companion QA and Debugging Skills**
 
@@ -69,16 +75,17 @@ Smoke checks, CRUD-only checks, page-render checks, unit tests, integration test
 5. Record baseline command, timestamp, exit code, and output summary in `<QA_OUTPUT_PATH>/qa/verification-report.md`.
 6. If baseline fails, root-cause and fix only when the failure is relevant or blocks realistic scenario execution. Otherwise document it as a pre-existing blocker with evidence.
 
-**Step 4: Write the Behavioral Scenario Charter**
+**Step 4: Write the Behavioral Scenario Charter and Contract**
 
-1. Before creating scenario data, write `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.md`.
-2. Define the real-world startup situation being simulated, the operator intent, and the business outcome that must be true when the scenario succeeds.
-3. Define the human/operator journey in concrete terms: what the operator is trying to accomplish, which AGH surfaces they use, what they need to understand, and which persisted objects prove progress.
-4. Define the agent cast and responsibilities. Include at least four differentiated agents for broad release validation, and include the changed-feature agent roles for feature-focused validation.
-5. Define the expected agent behavior: decisions to make, artifacts to create or revise, messages to exchange, task/channel constraints to respect, and handoffs to complete.
-6. Define the live LLM/provider plan. Execute at least one provider-backed agent session unless credentials or local prerequisites are unavailable. If unavailable, record the exact boundary and validate every reachable runtime surface instead.
-7. Define realistic disruption probes that matter to a user, such as wrong agent ownership, missed handoff, incoherent artifact, stale operator view, failed automation side effect, interrupted session, restart recovery, or confusing history.
-8. Mark smoke checks separately as readiness checks. Do not count them as behavioral evidence.
+1. Before creating scenario data, fill `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml` in JSON-compatible YAML using `references/charter.schema.json`. Do not replace it with freeform Markdown.
+2. Read `<QA_OUTPUT_PATH>/qa/scenario-contract.json` and treat the `minimums` block as the release gate. Broad/release scenarios require at least 8 agents, 6 differentiated roles, 5 channels, 2 root tasks, 4 subtasks, 2 dependencies, 6 runs, 1 provider-backed session, 3 cross-surface objects, 3 disruption probes, and 2 artifacts used later unless the contract explicitly declares a smaller `feature` profile.
+3. Define the real-world startup situation being simulated, the operator intent, and the business outcome that must be true when the scenario succeeds.
+4. Define the human/operator journey in concrete terms: what the operator is trying to accomplish, which AGH surfaces they use, what they need to understand, and which persisted objects prove progress.
+5. Define the agent cast and responsibilities in the charter's `agents` array. Broad/release validation must meet the contract minimum and include differentiated responsibilities; a two-agent or mock-only scenario is a blocking failure.
+6. Define the expected agent behavior: decisions to make, artifacts to create or revise, messages to exchange, task/channel constraints to respect, and handoffs to complete.
+7. Define the live LLM/provider plan in `provider_plan`. Execute at least one provider-backed agent session unless credentials or local prerequisites are unavailable. If unavailable, record the exact boundary in `<QA_OUTPUT_PATH>/qa/provider-attempt.json`; this makes live-provider readiness `BLOCKED`, not `PASS`.
+8. Define realistic disruption probes that matter to a user, such as wrong agent ownership, missed handoff, incoherent artifact, stale operator view, failed automation side effect, interrupted session, restart recovery, or confusing history.
+9. Mark smoke checks separately as readiness checks. Do not count them as behavioral evidence.
 
 **Step 5: Build a Realistic Startup Scenario**
 
@@ -95,17 +102,19 @@ Smoke checks, CRUD-only checks, page-render checks, unit tests, integration test
 1. Drive all setup and operations through public CLI, HTTP/API, Web UI, or documented daemon interfaces.
 2. Exercise the changed feature inside the behavioral charter first, then exercise adjacent integrations that consume, display, or depend on the same state.
 3. Execute at least one complete operator journey from setup through outcome. A journey must include actor intent, command/browser/API actions, agent work, persisted state, and final operator-facing understanding.
-4. Execute at least one complete CLI workflow for each selected scenario track, using real commands and persisted state.
-5. Execute at least one matching Web workflow through `browser-use:browser` for each operator-facing selected scenario track, using the same or directly related persisted state created by the CLI/runtime flow. If browser-use is unavailable, execute the same Web workflow through `agent-browser`.
-6. Compare CLI/API/runtime state against Web rendering for at least one core workflow. The same task, automation run, channel, message, knowledge entry, hook result, extension state, or generated artifact must be visible and correct across surfaces when the product exposes it.
-7. For live agent scenarios, prompt provider-backed agents to perform real work, then verify their messages, decisions, artifacts, and task/channel behavior through AGH state. Do not accept token echo, canned text, or fake provider output as final proof.
-8. For network scenarios, require multiple agents to join channels, exchange messages, reply, hand off work, coordinate around tasks, and avoid cross-channel or wrong-agent ownership leaks.
-9. For task scenarios, create root tasks, subtasks, dependencies, runs, claims, starts, completions, failures, retries, and task-linked sessions that support the charter outcome.
-10. For automation scenarios, validate manual runs, scheduled cron/every jobs, webhook triggers, run history, retry/fire-limit behavior, and resulting artifacts as part of a user-visible workflow.
-11. For knowledge scenarios, write, search, list, open, and use knowledge entries from real workspace state in a later agent or operator decision.
-12. For Web scenarios, validate whether the operator can understand and act on real state: default states, navigation, detail pages, filters/toggles, real data rendering, error states, stale or historical data, and generated artifacts in the browser, not only through API responses.
-13. Execute the realistic disruption probes from the charter and record whether the product behavior remains correct or fails with actionable evidence.
-14. Read `references/evidence-checklist.md` before marking a scenario complete.
+4. Append a structured row to `<QA_OUTPUT_PATH>/qa/journey-log.jsonl` for every meaningful CLI/API/Web/runtime/provider action. Use the mutating recorder helper when practical:
+   `python3 .agents/skills/real-scenario-qa/scripts/record-scenario-action.py --log "$JOURNEY_LOG" --surface cli --actor operator --action "<action>" --target "<target>" --ids '["<id>"]' --evidence-path "<path>"`
+5. Execute at least one complete CLI workflow for each selected scenario track, using real commands and persisted state.
+6. Execute at least one matching Web workflow through `browser-use:browser` for each operator-facing selected scenario track, using the same or directly related persisted state created by the CLI/runtime flow. If browser-use is unavailable, execute the same Web workflow through `agent-browser`.
+7. Compare CLI/API/runtime state against Web rendering for the contract's required cross-surface object count. The same tasks, automation runs, channels, messages, knowledge entries, hook results, extension states, or generated artifacts must be visible and correct across surfaces when the product exposes them.
+8. For live agent scenarios, prompt provider-backed agents to perform real work, then verify their messages, decisions, artifacts, and task/channel behavior through AGH state. Write the provider probe result to `<QA_OUTPUT_PATH>/qa/provider-attempt.json`. Do not accept token echo, canned text, mock/acpmock sessions, or fake provider output as final proof.
+9. For network scenarios, require the contract's agent/channel minimums: multiple agents join channels, exchange messages, reply, hand off work, coordinate around tasks, and avoid cross-channel or wrong-agent ownership leaks.
+10. For task scenarios, create root tasks, subtasks, dependencies, runs, claims, starts, completions, failures, retries, and task-linked sessions that support the charter outcome.
+11. For automation scenarios, validate manual runs, scheduled cron/every jobs, webhook triggers, run history, retry/fire-limit behavior, and resulting artifacts as part of a user-visible workflow.
+12. For knowledge scenarios, write, search, list, open, and use knowledge entries from real workspace state in a later agent or operator decision.
+13. For Web scenarios, validate whether the operator can understand and act on real state: default states, navigation, detail pages, filters/toggles, real data rendering, error states, stale or historical data, and generated artifacts in the browser, not only through API responses.
+14. Execute the realistic disruption probes from the charter and record both trigger and observed/result rows in `journey-log.jsonl`.
+15. Read `references/evidence-checklist.md` before marking a scenario complete.
 
 **Step 7: Diagnose, File, Fix, and Re-Verify Issues**
 
@@ -125,8 +134,11 @@ Smoke checks, CRUD-only checks, page-render checks, unit tests, integration test
 5. Write the final report using `assets/final-report-template.md`.
 6. Include pass/fail status for every selected scenario track from `references/scenario-matrix.md`.
 7. Include all blocked validations with exact environment or tool failure details, including browser-use setup failures and any `agent-browser` fallback usage or failure.
-8. Append the machine-readable QA bootstrap block from `.agents/skills/agh-qa-bootstrap/references/bootstrap-contract.md` so timed-loop continuations can reuse the healthy lab.
-9. Do not claim release readiness unless the full gate, the CLI evidence, the browser-based Web evidence, and the behavioral journey evidence are fresh for the current state.
+8. Run the validation auditor in strict mode and record its output. The auditor writes `qa-audit-report.json` and `qa-audit-report.md`:
+   `python3 .agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
+9. Treat auditor exit code `2` as a blocking QA failure even if `make verify` passed. Do not convert missing live provider behavior or missing contract minimums into a passing release-readiness claim.
+10. Append the machine-readable QA bootstrap block from `.agents/skills/agh-qa-bootstrap/references/bootstrap-contract.md` so timed-loop continuations can reuse the healthy lab.
+11. Do not claim release readiness unless the full gate, the auditor, the CLI evidence, the browser-based Web evidence, and the behavioral journey evidence are fresh for the current state.
 
 ## Error Handling
 

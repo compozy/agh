@@ -1,0 +1,77 @@
+Now let me verify the actual current state of the direct-room.tsx (since the prompt says "removes unclear AGH wording from the missing-thread UI error copy" — but I need to check if direct-room was also updated).
+
+Confirmed: the `AGH` wording is still in `direct-room.tsx:86` even though the same exact issue was fixed in `thread-overlay.tsx`. Let me verify the rest of the implementation.
+
+Let me examine the SessionDB locking pattern more carefully.
+
+I have enough context to write the review. Let me also verify one item — whether `Empty` from `@agh/ui` actually forwards `data-testid`:
+
+```json
+{
+  "blockers": [
+    {
+      "id": "B-001",
+      "file": "web/src/systems/network/components/direct-room.tsx",
+      "line": 86,
+      "issue": "The missing-direct error copy still says `AGH could not load ${directId}. Chose an existing direct room from #${channel}.` while the structurally identical missing-thread copy at thread-overlay.tsx:34 was just reworked to drop the `AGH` prefix in the round-001 remediation. The diff therefore ships two contradictory phrasings for the same UX state on adjacent surfaces.",
+      "rationale": "Round-001 issue 001 explicitly classified the `AGH …` wording as a COPY.md violation (`avoid wording that makes users decode implementation details`) and called for the description to use the failed resource as the subject. The triage applies verbatim to direct-room.tsx — same component pattern, same `ConversationError`, same operator action. Shipping with the fix applied to only one of two identical occurrences violates the COPY.md authority restated in `web/CLAUDE.md` (`UI labels must match runtime/domain terminology … do not imply a metric, control, state, or repair path exists unless the runtime exposes it`) and the root `CLAUDE.md` rule that hard cuts must update every callsite in the same change. The follow-up that supposedly removed the `AGH` wording is incomplete.",
+      "suggested_fix": "In `direct-room.tsx:86`, replace the description with `Could not load direct room ${directId}. Choose an existing direct room from #${channel}.` (mirroring the thread-overlay fix), update the coresponding direct-room test expectation if it asserts on the description text, and rerun `make verify`."
+    }
+  ],
+  "risks": [
+    {
+      "id": "R-001",
+      "file": "internal/store/sessiondb/session_db.go",
+      "line": 350,
+      "issue": "`Query` and `QueryHookRuns` now hold `acceptMu.RLock()` for the full duration of the SQL `QueryContext` + row scan via `defer s.acceptMu.RUnlock()`. `Close()` takes the matching write lock at line 445 to serialize shutdown, so a slow or stuck query (e.g. cancellable but not yet cancelled, or a large unbounded `Query{}` with no `Limit`) can delay `Close` until either the query returns or `drainCtx` expires. Previously these read paths were lock-free, so this is a real change in shutdown latency semantics that is not documented or covered by a regression test.",
+      "suggested_fix": "Either narrow the critical section to the `state.Load()` check and capture a stable `*sql.DB` snapshot under the read lock before running SQL, or add a comment + test asserting that `Close()` does not block longer than `drainTimeout` while a `Query` is in flight. If the long-hold is intentional (mirroring `enqueueWrite`), document the invariant in a short comment so future maintainers do not 'optimize' it away."
+    },
+    {
+      "id": "R-002",
+      "file": "internal/session/query.go",
+      "line": 167,
+      "issue": "The new control flow does an outer `waitForSessionFinalization`, and if it returns `(false, nil)` and the session is still active with a nil recorder, calls `waitForSessionFinalization` a second time and surfaces a 'recorder is not available' error if it still returns false. There is no comment explaining the race this defends against (concurrent `setRecorder(nil)` vs `finalizing[id]` insertion) and no test exercises the second-wait branch — the new `Should wait for finalization before returning active recorder` test only covers the first wait + cancellation path. Without coverage or coment, the next refactor is likely to simplify this back into a regression.",
+      "suggested_fix": "Add a short comment above the second `waitForSessionFinalization` call describing the race (recorder cleared but `finalizing` entry not yet visible / already removed) and add a focused subtest that drives the second-wait branch (e.g. nil recorder + transient finalizing entry that closes mid-call), so the structural complexity is justified by a behavior assertion."
+    },
+    {
+      "id": "R-003",
+      "file": "web/src/systems/network/hooks/use-direct-room.ts",
+      "line": 46,
+      "issue": "`useNetworkMessages({ enabled: Boolean(detail.direct) })` correctly suppresses the messages fetch until detail resolves, but during the initial loading window (`detail.direct === null`, `detail.isLoading === true`) the hook's returned `isMessagesLoading` is whatever the disabled-query reports (typically `false` for an idle disabled query). The `isResolvingDetail` UI branch in `direct-room.tsx:91` masks this today, but the hook's contract still claims `isMessagesLoading` reflects message-fetch state, which is no longer true while detail resolves.",
+      "suggested_fix": "Either rename `isMessagesLoading` semantics in the hook docstring/return type to `isMessagesFetching once enabled`, or compute `isMessagesLoading: messagesQuery.isLoading || (detail.isLoading && !detail.error)` so consumers other than `DirectRoom` get a coherent loading signal. Same review applies to `use-thread-overlay.ts:48`."
+    }
+  ],
+  "nits": [
+    {
+      "id": "N-001",
+      "file": "internal/session/query_test.go",
+      "line": 477,
+      "issue": "The subtest name `Should wait for finalization before returning active recorder` overstates what the assertion proves — the test only asserts that `context.Canceled` propagates through the wait; it does not separately verify ordering against the active-recorder fast path.",
+      "suggested_fix": "Rename to `Should propagate context cancellation through pending finalization` (or similar) so the name matches the assertion."
+    },
+    {
+      "id": "N-002",
+      "file": "internal/session/query_test.go",
+      "line": 486,
+      "issue": "`_ = h.manager.Stop(testutil.Context(t), session.ID)` discards a Stop error with no written justification, which the agh-test-conventions rule flags.",
+      "suggested_fix": "Either assert the Stop error explicitly (`if err := h.manager.Stop(...); err != nil && !errors.Is(err, ...) { t.Fatalf(...) }`) or add a one-line `// cleanup-only: Stop is best-effort here, primary assertions live above` comment so the discard is intentional."
+    },
+    {
+      "id": "N-003",
+      "file": "internal/store/sessiondb/session_db_extra_test.go",
+      "line": 42,
+      "issue": "The new post-close `Query` assertion is appended to `TestSessionDBAccessorsAndCloseLifecycle` rather than wrapped in its own `t.Run(\"Should …\")` subtest, breaking the agh-test-conventions Should-naming rule for new behaviors.",
+      "suggested_fix": "Move the new check into `t.Run(\"Should reject Query after Close with ErrClosed\", func(t *testing.T) { … })` so it matches convention and is independently runnable."
+    },
+    {
+      "id": "N-004",
+      "file": "web/src/systems/network/components/empty-states/conversation-error.tsx",
+      "line": 16,
+      "issue": "The default `testId` is `network-conversation-error`, but every call site passes its own `testId`; the default is dead.",
+      "suggested_fix": "Either drop the default and require `testId`, or remove the default if no caller relies on it; trims unused surface."
+    }
+  ],
+  "verdict": "FIX_BEFORE_SHIP",
+  "summary": "The Go race fix (waitForSessionFinalization-first ordering plus RLock-gated `Query`/`QueryHookRuns`) and the Web missing-conversation rework are technically sound, tested, and consistent with the BUG-001/BUG-002 reports. However the round-001 'remove `AGH`' fix was applied to thread-overlay.tsx only — direct-room.tsx still ships the same unclear copy, so the explicit triage decision is half-implemented and must be made uniform before this lands."
+}
+```

@@ -38,10 +38,17 @@ var (
 	// ErrVerificationFailed reports a syntactically valid envelope whose
 	// integrity checks failed.
 	ErrVerificationFailed = errors.New("network: verification failed")
+	// ErrLegacyFieldRejected reports an obsolete hard-cut wire field.
+	ErrLegacyFieldRejected = errors.New("network: legacy field rejected")
+	// ErrDirectRoomCollision reports that a direct_id is bound to a different
+	// channel peer pair than its deterministic identity permits.
+	ErrDirectRoomCollision = errors.New("network: direct room collision")
 )
 
 var (
-	peerIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	peerIDPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	threadIDPattern = regexp.MustCompile(`^thread_[a-z0-9][a-z0-9_-]{2,95}$`)
+	directIDPattern = regexp.MustCompile(`^direct_[a-f0-9]{32}$`)
 )
 
 // DefaultMaxReplayAge is the RFC-recommended maximum receiver replay age when
@@ -56,6 +63,9 @@ type ValidateOptions struct {
 
 // ParseEnvelope decodes, validates, and normalizes one raw envelope.
 func ParseEnvelope(data []byte, opts ValidateOptions) (Envelope, error) {
+	if err := rejectLegacyEnvelopeFields(data); err != nil {
+		return Envelope{}, err
+	}
 	var env Envelope
 	if err := json.Unmarshal(data, &env); err != nil {
 		return Envelope{}, fmt.Errorf("%w: decode envelope: %w", ErrInvalidEnvelope, err)
@@ -98,12 +108,224 @@ func ValidateChannel(channel string) error {
 	return nil
 }
 
+// ValidateSurface reports whether the surface matches the RFC conversation values.
+func ValidateSurface(surface Surface) error {
+	return Surface(strings.TrimSpace(string(surface))).Validate()
+}
+
 // ValidatePeerID reports whether the peer identifier matches the RFC grammar.
 func ValidatePeerID(peerID string) error {
 	if !peerIDPattern.MatchString(peerID) {
 		return fmt.Errorf("%w: peer_id=%q", ErrInvalidField, peerID)
 	}
 	return nil
+}
+
+// ValidateConversationID reports whether a container identifier matches its field grammar.
+func ValidateConversationID(id string, field string) error {
+	trimmed := strings.TrimSpace(id)
+	if trimmed == "" {
+		return fmt.Errorf("%w: %s is required", ErrMissingField, field)
+	}
+	switch field {
+	case "thread_id":
+		if !threadIDPattern.MatchString(trimmed) {
+			return fmt.Errorf("%w: thread_id=%q", ErrInvalidField, id)
+		}
+	case "direct_id":
+		if !directIDPattern.MatchString(trimmed) {
+			return fmt.Errorf("%w: direct_id=%q", ErrInvalidField, id)
+		}
+	default:
+		if strings.ContainsAny(trimmed, `/\`) || containsControlCharacter(trimmed) || len(trimmed) > 128 {
+			return fmt.Errorf("%w: %s=%q", ErrInvalidField, field, id)
+		}
+	}
+	return nil
+}
+
+// ValidateWorkID reports whether a work id can safely cross the network boundary.
+func ValidateWorkID(id string) error {
+	return ValidateConversationID(id, "work_id")
+}
+
+// ValidateWorkState reports whether the state is a known work lifecycle state.
+func ValidateWorkState(state WorkState) error {
+	return WorkState(strings.TrimSpace(string(state))).Validate()
+}
+
+// ValidateWorkTransition reports whether a trace may advance work from one state to another.
+func ValidateWorkTransition(from WorkState, to WorkState) error {
+	current := WorkState(strings.TrimSpace(string(from)))
+	next := WorkState(strings.TrimSpace(string(to)))
+	if err := ValidateWorkState(current); err != nil {
+		return err
+	}
+	if err := ValidateWorkState(next); err != nil {
+		return err
+	}
+	if !canApplyTrace(current, next) {
+		return fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, current, next)
+	}
+	return nil
+}
+
+// NormalizeDirectRoomPeers validates, rejects same-peer rooms, and returns
+// peers in their stable direct-room storage order.
+func NormalizeDirectRoomPeers(localPeer string, remotePeer string) (string, string, error) {
+	peerA := strings.TrimSpace(localPeer)
+	peerB := strings.TrimSpace(remotePeer)
+	if err := ValidatePeerID(peerA); err != nil {
+		return "", "", err
+	}
+	if err := ValidatePeerID(peerB); err != nil {
+		return "", "", err
+	}
+	if peerA == peerB {
+		return "", "", fmt.Errorf("%w: direct room peers must differ", ErrInvalidField)
+	}
+	if peerB < peerA {
+		peerA, peerB = peerB, peerA
+	}
+	return peerA, peerB, nil
+}
+
+// ValidateDirectRoomPeers reports whether two peer IDs form a valid two-party direct room.
+func ValidateDirectRoomPeers(peerA string, peerB string) error {
+	_, _, err := NormalizeDirectRoomPeers(peerA, peerB)
+	return err
+}
+
+// DirectRoomIdentity derives the stable two-party direct room identity scoped to one channel.
+func DirectRoomIdentity(channel string, localPeer string, remotePeer string) (string, string, string, error) {
+	trimmedChannel := strings.TrimSpace(channel)
+	if err := ValidateChannel(trimmedChannel); err != nil {
+		return "", "", "", err
+	}
+	peerA, peerB, err := NormalizeDirectRoomPeers(localPeer, remotePeer)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	sum := sha256.Sum256([]byte("agh-network/direct-room/v1\x00" + trimmedChannel + "\x00" + peerA + "\x00" + peerB))
+	return "direct_" + hex.EncodeToString(sum[:])[:32], peerA, peerB, nil
+}
+
+// ValidateDirectRoomBinding proves that an existing direct room row matches
+// the deterministic identity for its channel-scoped peer pair.
+func ValidateDirectRoomBinding(channel string, directID string, peerA string, peerB string) error {
+	trimmedDirectID := strings.TrimSpace(directID)
+	if err := ValidateConversationID(trimmedDirectID, "direct_id"); err != nil {
+		return err
+	}
+	expectedID, _, _, err := DirectRoomIdentity(channel, peerA, peerB)
+	if err != nil {
+		return err
+	}
+	if trimmedDirectID != expectedID {
+		return fmt.Errorf(
+			"%w: direct_id=%q expected=%q",
+			ErrDirectRoomCollision,
+			trimmedDirectID,
+			expectedID,
+		)
+	}
+	return nil
+}
+
+// ValidateConversationRef reports whether a conversation reference identifies exactly one container.
+func ValidateConversationRef(ref ConversationRef) error {
+	return ref.Validate()
+}
+
+// ValidateEnvelopeConversation enforces kind-specific container and work fields.
+func ValidateEnvelopeConversation(env Envelope) error {
+	if env.WorkID != nil {
+		if err := ValidateWorkID(*env.WorkID); err != nil {
+			return err
+		}
+	}
+	if isDiscoveryKind(env.Kind) {
+		return validateDiscoveryEnvelopeOmitsConversation(env)
+	}
+	if !isConversationKind(env.Kind) {
+		return nil
+	}
+	if _, err := ConversationRefFromEnvelope(env); err != nil {
+		return err
+	}
+	switch env.Kind {
+	case KindCapability:
+		if env.WorkID == nil {
+			return fmt.Errorf("%w: capability work_id is required", ErrMissingField)
+		}
+	case KindReceipt:
+		if env.WorkID == nil {
+			return fmt.Errorf("%w: receipt work_id is required", ErrMissingField)
+		}
+	case KindTrace:
+		if env.WorkID == nil {
+			return fmt.Errorf("%w: trace work_id is required", ErrMissingField)
+		}
+	}
+	return nil
+}
+
+// ConversationRefFromEnvelope returns the validated container reference for a conversation envelope.
+func ConversationRefFromEnvelope(env Envelope) (ConversationRef, error) {
+	if env.Surface == nil {
+		if env.ThreadID != nil {
+			return ConversationRef{}, fmt.Errorf("%w: thread_id requires surface", ErrInvalidField)
+		}
+		if env.DirectID != nil {
+			return ConversationRef{}, fmt.Errorf("%w: direct_id requires surface", ErrInvalidField)
+		}
+		return ConversationRef{}, fmt.Errorf("%w: surface is required", ErrMissingField)
+	}
+
+	ref := ConversationRef{
+		Channel: env.Channel,
+		Surface: *env.Surface,
+	}
+	if env.ThreadID != nil {
+		ref.ThreadID = *env.ThreadID
+	}
+	if env.DirectID != nil {
+		ref.DirectID = *env.DirectID
+	}
+	if err := ref.Validate(); err != nil {
+		return ConversationRef{}, err
+	}
+	return ref, nil
+}
+
+func validateDiscoveryEnvelopeOmitsConversation(env Envelope) error {
+	if env.Surface != nil {
+		return fmt.Errorf("%w: %s must not include surface", ErrInvalidField, env.Kind)
+	}
+	if env.ThreadID != nil {
+		return fmt.Errorf("%w: %s must not include thread_id", ErrInvalidField, env.Kind)
+	}
+	if env.DirectID != nil {
+		return fmt.Errorf("%w: %s must not include direct_id", ErrInvalidField, env.Kind)
+	}
+	if env.WorkID != nil {
+		return fmt.Errorf("%w: %s must not include work_id", ErrInvalidField, env.Kind)
+	}
+	return nil
+}
+
+func isDiscoveryKind(kind Kind) bool {
+	return kind == KindGreet || kind == KindWhois
+}
+
+func isConversationKind(kind Kind) bool {
+	switch kind {
+	case KindSay, KindCapability, KindReceipt, KindTrace:
+		return true
+	default:
+		return false
+	}
 }
 
 // RouteToken derives the deterministic NATS route token for one peer.
@@ -134,21 +356,24 @@ type bodyDecoder func(json.RawMessage) (Body, error)
 
 func normalizeEnvelopeCopy(env Envelope) Envelope {
 	return Envelope{
-		Protocol:      strings.TrimSpace(env.Protocol),
-		ID:            strings.TrimSpace(env.ID),
-		Kind:          Kind(strings.TrimSpace(string(env.Kind))),
-		Channel:       strings.TrimSpace(env.Channel),
-		From:          strings.TrimSpace(env.From),
-		TS:            env.TS,
-		Body:          cloneRawMessage(env.Body),
-		Proof:         cloneProof(env.Proof),
-		Ext:           cloneExtensionMap(env.Ext),
-		InteractionID: normalizeOptionalIdentifier(env.InteractionID),
-		ReplyTo:       normalizeOptionalIdentifier(env.ReplyTo),
-		TraceID:       normalizeOptionalIdentifier(env.TraceID),
-		CausationID:   normalizeOptionalIdentifier(env.CausationID),
-		To:            normalizeOptionalIdentifier(env.To),
-		ExpiresAt:     cloneInt64Ptr(env.ExpiresAt),
+		Protocol:    strings.TrimSpace(env.Protocol),
+		ID:          strings.TrimSpace(env.ID),
+		Kind:        Kind(strings.TrimSpace(string(env.Kind))),
+		Channel:     strings.TrimSpace(env.Channel),
+		Surface:     normalizeOptionalSurface(env.Surface),
+		ThreadID:    normalizeOptionalIdentifier(env.ThreadID),
+		DirectID:    normalizeOptionalIdentifier(env.DirectID),
+		From:        strings.TrimSpace(env.From),
+		TS:          env.TS,
+		Body:        cloneRawMessage(env.Body),
+		Proof:       cloneProof(env.Proof),
+		Ext:         cloneExtensionMap(env.Ext),
+		WorkID:      normalizeOptionalIdentifier(env.WorkID),
+		ReplyTo:     normalizeOptionalIdentifier(env.ReplyTo),
+		TraceID:     normalizeOptionalIdentifier(env.TraceID),
+		CausationID: normalizeOptionalIdentifier(env.CausationID),
+		To:          normalizeOptionalIdentifier(env.To),
+		ExpiresAt:   cloneInt64Ptr(env.ExpiresAt),
 	}
 }
 
@@ -187,9 +412,6 @@ func validateEnvelopeParticipants(env Envelope) error {
 }
 
 func validateEnvelopeReferences(env Envelope) error {
-	if err := validateOptionalIdentifierField(env.InteractionID, "interaction_id"); err != nil {
-		return err
-	}
 	if err := validateOptionalIdentifierField(env.ReplyTo, "reply_to"); err != nil {
 		return err
 	}
@@ -202,7 +424,7 @@ func validateEnvelopeReferences(env Envelope) error {
 	if env.TS <= 0 {
 		return fmt.Errorf("%w: ts is required", ErrMissingField)
 	}
-	return nil
+	return ValidateEnvelopeConversation(env)
 }
 
 func validateOptionalIdentifierField(value *string, field string) error {
@@ -241,10 +463,6 @@ func bodyDecoderForKind(kind Kind) (bodyDecoder, error) {
 	case KindSay:
 		return func(raw json.RawMessage) (Body, error) {
 			return decodeNormalizedBody(raw, "say", normalizeAndValidateSayBody)
-		}, nil
-	case KindDirect:
-		return func(raw json.RawMessage) (Body, error) {
-			return decodeNormalizedBody(raw, "direct", normalizeAndValidateDirectBody)
 		}, nil
 	case KindCapability:
 		return decodeCapabilityEnvelopeBody, nil
@@ -315,20 +533,13 @@ func validateKindEnvelopeRules(env Envelope) error {
 				return err
 			}
 		}
-	case DirectBody:
-		if env.To == nil {
-			return fmt.Errorf("%w: direct to is required", ErrMissingField)
-		}
-		if env.InteractionID == nil {
-			return fmt.Errorf("%w: direct interaction_id is required", ErrMissingField)
-		}
 	case ReceiptBody:
-		if env.InteractionID == nil {
-			return fmt.Errorf("%w: receipt interaction_id is required", ErrMissingField)
+		if env.WorkID == nil {
+			return fmt.Errorf("%w: receipt work_id is required", ErrMissingField)
 		}
 	case TraceBody:
-		if env.InteractionID == nil {
-			return fmt.Errorf("%w: trace interaction_id is required", ErrMissingField)
+		if env.WorkID == nil {
+			return fmt.Errorf("%w: trace work_id is required", ErrMissingField)
 		}
 	}
 
@@ -479,6 +690,17 @@ func envelopeKeyCarriesRawSecret(key string) bool {
 	}
 }
 
+func rejectLegacyEnvelopeFields(data []byte) error {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(data, &object); err != nil {
+		return nil
+	}
+	if _, ok := object["interaction_id"]; ok {
+		return fmt.Errorf("%w: interaction_id", ErrLegacyFieldRejected)
+	}
+	return nil
+}
+
 func normalizeAndValidateGreetBody(body *GreetBody) error {
 	if err := normalizeAndValidatePeerCard(&body.PeerCard); err != nil {
 		return err
@@ -540,14 +762,6 @@ func normalizeAndValidateWhoisBody(body *WhoisBody) error {
 func normalizeAndValidateSayBody(body *SayBody) error {
 	if strings.TrimSpace(body.Text) == "" {
 		return fmt.Errorf("%w: say text is required", ErrInvalidBody)
-	}
-	body.Intent = strings.TrimSpace(body.Intent)
-	return nil
-}
-
-func normalizeAndValidateDirectBody(body *DirectBody) error {
-	if strings.TrimSpace(body.Text) == "" {
-		return fmt.Errorf("%w: direct text is required", ErrInvalidBody)
 	}
 	body.Intent = strings.TrimSpace(body.Intent)
 	return nil
@@ -642,7 +856,7 @@ func normalizeAndValidateReceiptBody(body *ReceiptBody) error {
 }
 
 func normalizeAndValidateTraceBody(body *TraceBody) error {
-	body.State = InteractionState(strings.TrimSpace(string(body.State)))
+	body.State = WorkState(strings.TrimSpace(string(body.State)))
 	if err := body.State.Validate(); err != nil {
 		return err
 	}
@@ -747,6 +961,25 @@ func cloneInt64Ptr(value *int64) *int64 {
 	return &cloned
 }
 
+func cloneSurfacePtr(value *Surface) *Surface {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func normalizeOptionalSurface(value *Surface) *Surface {
+	if value == nil {
+		return nil
+	}
+	normalized := Surface(strings.TrimSpace(string(*value)))
+	if normalized == "" {
+		return nil
+	}
+	return &normalized
+}
+
 func normalizeOptionalIdentifier(value *string) *string {
 	if value == nil {
 		return nil
@@ -757,6 +990,12 @@ func normalizeOptionalIdentifier(value *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+func containsControlCharacter(value string) bool {
+	return strings.ContainsFunc(value, func(r rune) bool {
+		return r < 0x20 || r == 0x7f
+	})
 }
 
 func normalizeOptionalText(value *string) *string {

@@ -1,1 +1,0 @@
-error: session: create agent for "sess-646c5e8506d7a35e": acp: start agent "broken" subprocess "agh-hermes-missing-agent-binary --acp" in "/Users/pedronauck/dev/compozy/agh": acp: start subprocess "agh-hermes-missing-agent-binary --acp": subprocess: resolve executable "agh-hermes-missing-agent-binary": exec: "agh-hermes-missing-agent-binary": executable file not found in $PATH

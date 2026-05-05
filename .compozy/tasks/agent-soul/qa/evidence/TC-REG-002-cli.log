@@ -1,7 +1,0 @@
-{
-  "soul_digest": "sha256:3d3600ec41d4507c5cc876c846b971cd5fbeef3b71259dbaa93434e38fc5edf9",
-  "soul_revision": "srev-72a301b39cfe4904",
-  "heartbeat_digest": "sha256:ccdc6088d9b356933f77393a74afe7de3254315ed7105e4ac63518fd673d44bb",
-  "heartbeat_revision": "hrev-ae17b1bf918d7096",
-  "heartbeat_min_interval": "45m0s"
-}

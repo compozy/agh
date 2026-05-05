@@ -1,7 +1,0 @@
-{
-  "command": "uninstall",
-  "status": "uninstalled",
-  "managed": false,
-  "home_dir": "/tmp/agh-hermes-setup.LRM8b9",
-  "message": "AGH runtime launch artifacts were removed; persistent data was preserved."
-}

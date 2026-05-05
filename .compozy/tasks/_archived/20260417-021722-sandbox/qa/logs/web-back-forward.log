@@ -1,7 +1,0 @@
-BACK_FORWARD_START
-http://localhost:2124/network
-✓ Done
-BACK_URL=http://localhost:2124/network
-http://localhost:2124/automation
-✓ Done
-FORWARD_URL=http://localhost:2124/automation

@@ -8,11 +8,18 @@ import { SectionHeader } from "./primitives/section-header";
 
 const NETWORK_CODE = `agh network status
 agh network peers builders
+agh network directs resolve \\
+  --session <session-id> \\
+  --channel builders \\
+  --peer reviewer.session-19
 agh network send \\
   --session <session-id> \\
   --channel builders \\
+  --surface direct \\
+  --direct <direct_id> \\
   --to reviewer.session-19 \\
-  --kind direct \\
+  --kind say \\
+  --work work_review_pr_482 \\
   --body '{"text":"Review PR #482","intent":"request"}'
 agh network inbox --session <session-id>`;
 
@@ -33,15 +40,20 @@ export function NetworkSection() {
         }
         description={
           <>
-            Seven message kinds over NATS:{" "}
+            Six message kinds over NATS:{" "}
             <code className="font-mono text-(--color-accent)">greet</code>,{" "}
             <code className="font-mono text-(--color-accent)">whois</code>,{" "}
             <code className="font-mono text-(--color-accent)">say</code>,{" "}
-            <code className="font-mono text-(--color-accent)">direct</code>,{" "}
             <code className="font-mono text-(--color-accent)">capability</code>,{" "}
             <code className="font-mono text-(--color-accent)">receipt</code>,{" "}
-            <code className="font-mono text-(--color-accent)">trace</code>. Your agent discovers a
-            peer, selects a channel, and hands off work with an explicit target and message kind.
+            <code className="font-mono text-(--color-accent)">trace</code>. Conversation lives in
+            two surfaces — public{" "}
+            <code className="font-mono text-(--color-accent)">surface:&quot;thread&quot;</code> and
+            restricted{" "}
+            <code className="font-mono text-(--color-accent)">surface:&quot;direct&quot;</code>.
+            Your agent discovers a peer, opens or joins the right container, and tracks
+            lifecycle-bearing work with an explicit{" "}
+            <code className="font-mono text-(--color-accent)">work_id</code>.
           </>
         }
       />
@@ -57,7 +69,7 @@ export function NetworkSection() {
           description={
             <>
               <code className="font-mono text-(--color-text-primary)">
-                agh network status | peers | channels | send | inbox
+                agh network status | peers | channels | threads | directs | work | send | inbox
               </code>{" "}
               are implemented runtime commands, not narrative-only examples.
             </>

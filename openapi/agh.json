@@ -23891,6 +23891,10 @@
                                                         "configured_default_channel": {
                                                             "type": "string"
                                                         },
+                                                        "conversation_messages": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
                                                         "declared_channels": {
                                                             "items": {
                                                                 "properties": {
@@ -23925,6 +23929,10 @@
                                                             "type": "array"
                                                         },
                                                         "delivery_workers": {
+                                                            "type": "integer"
+                                                        },
+                                                        "direct_resolves": {
+                                                            "format": "int64",
                                                             "type": "integer"
                                                         },
                                                         "effective_default_channel": {
@@ -23996,6 +24004,18 @@
                                                             "format": "int64",
                                                             "type": "integer"
                                                         },
+                                                        "open_direct_rooms": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "open_threads": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
+                                                        "open_work_items": {
+                                                            "format": "int64",
+                                                            "type": "integer"
+                                                        },
                                                         "queued_messages": {
                                                             "type": "integer"
                                                         },
@@ -24007,6 +24027,10 @@
                                                         },
                                                         "status": {
                                                             "type": "string"
+                                                        },
+                                                        "work_transitions": {
+                                                            "format": "int64",
+                                                            "type": "integer"
                                                         },
                                                         "workflow_tagged_events": {
                                                             "format": "int64",
@@ -25109,7 +25133,13 @@
                                 "spawn.created",
                                 "spawn.parent_stopped",
                                 "spawn.ttl_expired",
-                                "spawn.reaped"
+                                "spawn.reaped",
+                                "network.thread.opened",
+                                "network.direct_room.opened",
+                                "network.message.persisted",
+                                "network.work.opened",
+                                "network.work.transitioned",
+                                "network.work.closed"
                             ],
                             "type": "string"
                         }
@@ -25195,6 +25225,9 @@
                                                                 },
                                                                 "type": "object"
                                                             },
+                                                            "channel": {
+                                                                "type": "string"
+                                                            },
                                                             "compaction_reason": {
                                                                 "type": "string"
                                                             },
@@ -25204,7 +25237,13 @@
                                                             "decision_class": {
                                                                 "type": "string"
                                                             },
+                                                            "direction": {
+                                                                "type": "string"
+                                                            },
                                                             "input_class": {
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
                                                                 "type": "string"
                                                             },
                                                             "message_delta_type": {
@@ -25225,6 +25264,9 @@
                                                             "session_type": {
                                                                 "type": "string"
                                                             },
+                                                            "surface": {
+                                                                "type": "string"
+                                                            },
                                                             "sync_direction": {
                                                                 "type": "string"
                                                             },
@@ -25239,6 +25281,9 @@
                                                                 "type": "boolean"
                                                             },
                                                             "turn_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "work_state": {
                                                                 "type": "string"
                                                             },
                                                             "workspace_id": {
@@ -25559,7 +25604,13 @@
                                 "spawn.created",
                                 "spawn.parent_stopped",
                                 "spawn.ttl_expired",
-                                "spawn.reaped"
+                                "spawn.reaped",
+                                "network.thread.opened",
+                                "network.direct_room.opened",
+                                "network.message.persisted",
+                                "network.work.opened",
+                                "network.work.transitioned",
+                                "network.work.closed"
                             ],
                             "type": "string"
                         }
@@ -28024,14 +28075,515 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/network/channels/{channel}/messages": {
+        "/api/network/channels/{channel}/directs": {
             "get": {
-                "operationId": "listNetworkChannelMessages",
+                "operationId": "listNetworkDirectRooms",
                 "parameters": [
                     {
                         "description": "Network channel",
                         "in": "path",
                         "name": "channel",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter direct rooms by peer id",
+                        "in": "query",
+                        "name": "peer_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Return direct rooms after the specified direct id",
+                        "in": "query",
+                        "name": "after",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of direct rooms to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "directs": {
+                                            "items": {
+                                                "properties": {
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "direct_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "last_activity_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "last_message_preview": {
+                                                        "type": "string"
+                                                    },
+                                                    "message_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "open_work_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "opened_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "peer_a": {
+                                                        "type": "string"
+                                                    },
+                                                    "peer_b": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "channel",
+                                                    "direct_id",
+                                                    "message_count",
+                                                    "open_work_count",
+                                                    "peer_a",
+                                                    "peer_b"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["directs"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid direct-room request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List direct rooms in one network channel",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/channels/{channel}/directs/resolve": {
+            "post": {
+                "operationId": "resolveNetworkDirectRoom",
+                "parameters": [
+                    {
+                        "description": "Network channel",
+                        "in": "path",
+                        "name": "channel",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "peer_id": {
+                                        "type": "string"
+                                    },
+                                    "session_id": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["peer_id", "session_id"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "direct": {
+                                            "properties": {
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "direct_id": {
+                                                    "type": "string"
+                                                },
+                                                "last_activity_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "last_message_preview": {
+                                                    "type": "string"
+                                                },
+                                                "message_count": {
+                                                    "type": "integer"
+                                                },
+                                                "open_work_count": {
+                                                    "type": "integer"
+                                                },
+                                                "opened_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "peer_a": {
+                                                    "type": "string"
+                                                },
+                                                "peer_b": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "channel",
+                                                "direct_id",
+                                                "message_count",
+                                                "open_work_count",
+                                                "peer_a",
+                                                "peer_b"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["direct"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid direct-room resolve request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network direct-room peer not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Direct-room collision"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Create or return a deterministic direct room",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/channels/{channel}/directs/{direct_id}": {
+            "get": {
+                "operationId": "getNetworkDirectRoom",
+                "parameters": [
+                    {
+                        "description": "Network channel",
+                        "in": "path",
+                        "name": "channel",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Direct-room id",
+                        "in": "path",
+                        "name": "direct_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "direct": {
+                                            "properties": {
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "direct_id": {
+                                                    "type": "string"
+                                                },
+                                                "last_activity_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "last_message_preview": {
+                                                    "type": "string"
+                                                },
+                                                "message_count": {
+                                                    "type": "integer"
+                                                },
+                                                "open_work_count": {
+                                                    "type": "integer"
+                                                },
+                                                "opened_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "peer_a": {
+                                                    "type": "string"
+                                                },
+                                                "peer_b": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "channel",
+                                                "direct_id",
+                                                "message_count",
+                                                "open_work_count",
+                                                "peer_a",
+                                                "peer_b"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["direct"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid direct room"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network direct room not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get one direct-room summary",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/channels/{channel}/directs/{direct_id}/messages": {
+            "get": {
+                "operationId": "listNetworkDirectRoomMessages",
+                "parameters": [
+                    {
+                        "description": "Network channel",
+                        "in": "path",
+                        "name": "channel",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Direct-room id",
+                        "in": "path",
+                        "name": "direct_id",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -28054,15 +28606,23 @@
                         }
                     },
                     {
-                        "description": "Include coalesced presence episodes in the timeline",
+                        "description": "Filter messages by network kind",
                         "in": "query",
-                        "name": "include_presence",
+                        "name": "kind",
                         "schema": {
-                            "type": "boolean"
+                            "type": "string"
                         }
                     },
                     {
-                        "description": "Maximum number of timeline messages to return",
+                        "description": "Filter messages by work id",
+                        "in": "query",
+                        "name": "work_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of messages to return",
                         "in": "query",
                         "name": "limit",
                         "schema": {
@@ -28087,6 +28647,9 @@
                                                     "channel": {
                                                         "type": "string"
                                                     },
+                                                    "direct_id": {
+                                                        "type": "string"
+                                                    },
                                                     "direction": {
                                                         "type": "string"
                                                     },
@@ -28094,9 +28657,6 @@
                                                         "type": "string"
                                                     },
                                                     "intent": {
-                                                        "type": "string"
-                                                    },
-                                                    "interaction_id": {
                                                         "type": "string"
                                                     },
                                                     "kind": {
@@ -28136,7 +28696,13 @@
                                                     "session_id": {
                                                         "type": "string"
                                                     },
+                                                    "surface": {
+                                                        "type": "string"
+                                                    },
                                                     "text": {
+                                                        "type": "string"
+                                                    },
+                                                    "thread_id": {
                                                         "type": "string"
                                                     },
                                                     "timestamp": {
@@ -28144,6 +28710,9 @@
                                                         "type": "string"
                                                     },
                                                     "trace_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "work_id": {
                                                         "type": "string"
                                                     }
                                                 },
@@ -28182,7 +28751,7 @@
                                 }
                             }
                         },
-                        "description": "Invalid network channel"
+                        "description": "Invalid direct-room messages request"
                     },
                     "404": {
                         "content": {
@@ -28198,7 +28767,7 @@
                                 }
                             }
                         },
-                        "description": "Network channel not found"
+                        "description": "Network direct room not found"
                     },
                     "500": {
                         "content": {
@@ -28236,7 +28805,571 @@
                         "description": ""
                     }
                 },
-                "summary": "List the read-only timeline for one network channel",
+                "summary": "List messages in one direct room",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/channels/{channel}/threads": {
+            "get": {
+                "operationId": "listNetworkThreads",
+                "parameters": [
+                    {
+                        "description": "Network channel",
+                        "in": "path",
+                        "name": "channel",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Return messages after the specified message id",
+                        "in": "query",
+                        "name": "after",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of public threads to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "threads": {
+                                            "items": {
+                                                "properties": {
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "last_activity_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "last_message_preview": {
+                                                        "type": "string"
+                                                    },
+                                                    "message_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "open_work_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "opened_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "opened_by_peer_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "opened_session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "participant_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "root_message_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "thread_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "title": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "channel",
+                                                    "message_count",
+                                                    "open_work_count",
+                                                    "participant_count",
+                                                    "root_message_id",
+                                                    "thread_id"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["threads"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid public-thread request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List public threads in one network channel",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/channels/{channel}/threads/{thread_id}": {
+            "get": {
+                "operationId": "getNetworkThread",
+                "parameters": [
+                    {
+                        "description": "Network channel",
+                        "in": "path",
+                        "name": "channel",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Public thread id",
+                        "in": "path",
+                        "name": "thread_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "thread": {
+                                            "properties": {
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "last_activity_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "last_message_preview": {
+                                                    "type": "string"
+                                                },
+                                                "message_count": {
+                                                    "type": "integer"
+                                                },
+                                                "open_work_count": {
+                                                    "type": "integer"
+                                                },
+                                                "opened_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "opened_by_peer_id": {
+                                                    "type": "string"
+                                                },
+                                                "opened_session_id": {
+                                                    "type": "string"
+                                                },
+                                                "participant_count": {
+                                                    "type": "integer"
+                                                },
+                                                "root_message_id": {
+                                                    "type": "string"
+                                                },
+                                                "thread_id": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "channel",
+                                                "message_count",
+                                                "open_work_count",
+                                                "participant_count",
+                                                "root_message_id",
+                                                "thread_id"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["thread"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid public thread"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network thread not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get one public-thread summary",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/channels/{channel}/threads/{thread_id}/messages": {
+            "get": {
+                "operationId": "listNetworkThreadMessages",
+                "parameters": [
+                    {
+                        "description": "Network channel",
+                        "in": "path",
+                        "name": "channel",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Public thread id",
+                        "in": "path",
+                        "name": "thread_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Return messages before the specified message id",
+                        "in": "query",
+                        "name": "before",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Return messages after the specified message id",
+                        "in": "query",
+                        "name": "after",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter messages by network kind",
+                        "in": "query",
+                        "name": "kind",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter messages by work id",
+                        "in": "query",
+                        "name": "work_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of messages to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "messages": {
+                                            "items": {
+                                                "properties": {
+                                                    "body": {},
+                                                    "causation_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "direct_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "direction": {
+                                                        "type": "string"
+                                                    },
+                                                    "display_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "intent": {
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
+                                                    "local": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "message_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "peer_from": {
+                                                        "type": "string"
+                                                    },
+                                                    "peer_to": {
+                                                        "type": "string"
+                                                    },
+                                                    "presence_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "presence_last_seen_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "presence_started_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "preview_text": {
+                                                        "type": "string"
+                                                    },
+                                                    "reply_to": {
+                                                        "type": "string"
+                                                    },
+                                                    "session_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "surface": {
+                                                        "type": "string"
+                                                    },
+                                                    "text": {
+                                                        "type": "string"
+                                                    },
+                                                    "thread_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "timestamp": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
+                                                    "trace_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "work_id": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "body",
+                                                    "channel",
+                                                    "direction",
+                                                    "kind",
+                                                    "message_id",
+                                                    "peer_from",
+                                                    "timestamp"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        }
+                                    },
+                                    "required": ["messages"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid public-thread messages request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network thread not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "List messages in one public thread",
                 "tags": ["network"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -28272,6 +29405,10 @@
                                                     "channel": {
                                                         "type": "string"
                                                     },
+                                                    "direct_id": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
                                                     "expires_at": {
                                                         "format": "int64",
                                                         "nullable": true,
@@ -28285,10 +29422,6 @@
                                                         "type": "string"
                                                     },
                                                     "id": {
-                                                        "type": "string"
-                                                    },
-                                                    "interaction_id": {
-                                                        "nullable": true,
                                                         "type": "string"
                                                     },
                                                     "kind": {
@@ -28305,6 +29438,14 @@
                                                         "nullable": true,
                                                         "type": "string"
                                                     },
+                                                    "surface": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "thread_id": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
                                                     "to": {
                                                         "nullable": true,
                                                         "type": "string"
@@ -28316,6 +29457,10 @@
                                                     "ts": {
                                                         "format": "int64",
                                                         "type": "integer"
+                                                    },
+                                                    "work_id": {
+                                                        "nullable": true,
+                                                        "type": "string"
                                                     }
                                                 },
                                                 "required": [
@@ -28867,223 +30012,6 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/network/peers/{peer_id}/messages": {
-            "get": {
-                "operationId": "listNetworkPeerMessages",
-                "parameters": [
-                    {
-                        "description": "Network peer id",
-                        "in": "path",
-                        "name": "peer_id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Return messages before the specified message id",
-                        "in": "query",
-                        "name": "before",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Return messages after the specified message id",
-                        "in": "query",
-                        "name": "after",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Include coalesced presence episodes in the timeline",
-                        "in": "query",
-                        "name": "include_presence",
-                        "schema": {
-                            "type": "boolean"
-                        }
-                    },
-                    {
-                        "description": "Maximum number of timeline messages to return",
-                        "in": "query",
-                        "name": "limit",
-                        "schema": {
-                            "format": "int32",
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "messages": {
-                                            "items": {
-                                                "properties": {
-                                                    "body": {},
-                                                    "causation_id": {
-                                                        "type": "string"
-                                                    },
-                                                    "channel": {
-                                                        "type": "string"
-                                                    },
-                                                    "direction": {
-                                                        "type": "string"
-                                                    },
-                                                    "display_name": {
-                                                        "type": "string"
-                                                    },
-                                                    "intent": {
-                                                        "type": "string"
-                                                    },
-                                                    "interaction_id": {
-                                                        "type": "string"
-                                                    },
-                                                    "kind": {
-                                                        "type": "string"
-                                                    },
-                                                    "local": {
-                                                        "type": "boolean"
-                                                    },
-                                                    "message_id": {
-                                                        "type": "string"
-                                                    },
-                                                    "peer_from": {
-                                                        "type": "string"
-                                                    },
-                                                    "peer_to": {
-                                                        "type": "string"
-                                                    },
-                                                    "presence_count": {
-                                                        "type": "integer"
-                                                    },
-                                                    "presence_last_seen_at": {
-                                                        "format": "date-time",
-                                                        "nullable": true,
-                                                        "type": "string"
-                                                    },
-                                                    "presence_started_at": {
-                                                        "format": "date-time",
-                                                        "nullable": true,
-                                                        "type": "string"
-                                                    },
-                                                    "preview_text": {
-                                                        "type": "string"
-                                                    },
-                                                    "reply_to": {
-                                                        "type": "string"
-                                                    },
-                                                    "session_id": {
-                                                        "type": "string"
-                                                    },
-                                                    "text": {
-                                                        "type": "string"
-                                                    },
-                                                    "timestamp": {
-                                                        "format": "date-time",
-                                                        "type": "string"
-                                                    },
-                                                    "trace_id": {
-                                                        "type": "string"
-                                                    }
-                                                },
-                                                "required": [
-                                                    "body",
-                                                    "channel",
-                                                    "direction",
-                                                    "kind",
-                                                    "message_id",
-                                                    "peer_from",
-                                                    "timestamp"
-                                                ],
-                                                "type": "object"
-                                            },
-                                            "type": "array"
-                                        }
-                                    },
-                                    "required": ["messages"],
-                                    "type": "object"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    },
-                    "400": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "error": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": ["error"],
-                                    "type": "object"
-                                }
-                            }
-                        },
-                        "description": "Invalid peer timeline request"
-                    },
-                    "404": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "error": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": ["error"],
-                                    "type": "object"
-                                }
-                            }
-                        },
-                        "description": "Network peer not found"
-                    },
-                    "500": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "error": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": ["error"],
-                                    "type": "object"
-                                }
-                            }
-                        },
-                        "description": "Internal server error"
-                    },
-                    "503": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "error": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": ["error"],
-                                    "type": "object"
-                                }
-                            }
-                        },
-                        "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
-                    }
-                },
-                "summary": "List the directed room timeline for one network peer",
-                "tags": ["network"],
-                "x-agh-transports": ["http", "uds"]
-            }
-        },
         "/api/network/send": {
             "post": {
                 "operationId": "sendNetworkMessage",
@@ -29099,6 +30027,9 @@
                                     "channel": {
                                         "type": "string"
                                     },
+                                    "direct_id": {
+                                        "type": "string"
+                                    },
                                     "expires_at": {
                                         "format": "int64",
                                         "nullable": true,
@@ -29111,9 +30042,6 @@
                                     "id": {
                                         "type": "string"
                                     },
-                                    "interaction_id": {
-                                        "type": "string"
-                                    },
                                     "kind": {
                                         "type": "string"
                                     },
@@ -29123,10 +30051,19 @@
                                     "session_id": {
                                         "type": "string"
                                     },
+                                    "surface": {
+                                        "type": "string"
+                                    },
+                                    "thread_id": {
+                                        "type": "string"
+                                    },
                                     "to": {
                                         "type": "string"
                                     },
                                     "trace_id": {
+                                        "type": "string"
+                                    },
+                                    "work_id": {
                                         "type": "string"
                                     }
                                 },
@@ -29152,6 +30089,9 @@
                                                 "channel": {
                                                     "type": "string"
                                                 },
+                                                "direct_id": {
+                                                    "type": "string"
+                                                },
                                                 "expires_at": {
                                                     "format": "int64",
                                                     "nullable": true,
@@ -29164,9 +30104,6 @@
                                                 "id": {
                                                     "type": "string"
                                                 },
-                                                "interaction_id": {
-                                                    "type": "string"
-                                                },
                                                 "kind": {
                                                     "type": "string"
                                                 },
@@ -29176,10 +30113,19 @@
                                                 "session_id": {
                                                     "type": "string"
                                                 },
+                                                "surface": {
+                                                    "type": "string"
+                                                },
+                                                "thread_id": {
+                                                    "type": "string"
+                                                },
                                                 "to": {
                                                     "type": "string"
                                                 },
                                                 "trace_id": {
+                                                    "type": "string"
+                                                },
+                                                "work_id": {
                                                     "type": "string"
                                                 }
                                             },
@@ -29284,6 +30230,10 @@
                                                 "configured_default_channel": {
                                                     "type": "string"
                                                 },
+                                                "conversation_messages": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
                                                 "declared_channels": {
                                                     "items": {
                                                         "properties": {
@@ -29318,6 +30268,10 @@
                                                     "type": "array"
                                                 },
                                                 "delivery_workers": {
+                                                    "type": "integer"
+                                                },
+                                                "direct_resolves": {
+                                                    "format": "int64",
                                                     "type": "integer"
                                                 },
                                                 "effective_default_channel": {
@@ -29389,6 +30343,18 @@
                                                     "format": "int64",
                                                     "type": "integer"
                                                 },
+                                                "open_direct_rooms": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "open_threads": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "open_work_items": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
                                                 "queued_messages": {
                                                     "type": "integer"
                                                 },
@@ -29400,6 +30366,10 @@
                                                 },
                                                 "status": {
                                                     "type": "string"
+                                                },
+                                                "work_transitions": {
+                                                    "format": "int64",
+                                                    "type": "integer"
                                                 },
                                                 "workflow_tagged_events": {
                                                     "format": "int64",
@@ -29438,6 +30408,155 @@
                     }
                 },
                 "summary": "Get the network runtime status snapshot",
+                "tags": ["network"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/network/work/{work_id}": {
+            "get": {
+                "operationId": "getNetworkWork",
+                "parameters": [
+                    {
+                        "description": "Network work id",
+                        "in": "path",
+                        "name": "work_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "work": {
+                                            "properties": {
+                                                "channel": {
+                                                    "type": "string"
+                                                },
+                                                "direct_id": {
+                                                    "type": "string"
+                                                },
+                                                "last_activity_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "opened_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "opened_by_peer_id": {
+                                                    "type": "string"
+                                                },
+                                                "opened_session_id": {
+                                                    "type": "string"
+                                                },
+                                                "state": {
+                                                    "type": "string"
+                                                },
+                                                "surface": {
+                                                    "type": "string"
+                                                },
+                                                "target_peer_id": {
+                                                    "type": "string"
+                                                },
+                                                "terminal_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "thread_id": {
+                                                    "type": "string"
+                                                },
+                                                "work_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["channel", "state", "surface", "work_id"],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["work"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid network work id"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network work not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Network runtime is not configured"
+                    },
+                    "default": {
+                        "description": ""
+                    }
+                },
+                "summary": "Get one network work item",
                 "tags": ["network"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -39129,7 +40248,13 @@
                                                                     "spawn.created",
                                                                     "spawn.parent_stopped",
                                                                     "spawn.ttl_expired",
-                                                                    "spawn.reaped"
+                                                                    "spawn.reaped",
+                                                                    "network.thread.opened",
+                                                                    "network.direct_room.opened",
+                                                                    "network.message.persisted",
+                                                                    "network.work.opened",
+                                                                    "network.work.transitioned",
+                                                                    "network.work.closed"
                                                                 ],
                                                                 "type": "string"
                                                             },
@@ -39188,6 +40313,9 @@
                                                                         },
                                                                         "type": "object"
                                                                     },
+                                                                    "channel": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "compaction_reason": {
                                                                         "type": "string"
                                                                     },
@@ -39197,7 +40325,13 @@
                                                                     "decision_class": {
                                                                         "type": "string"
                                                                     },
+                                                                    "direction": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "input_class": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "kind": {
                                                                         "type": "string"
                                                                     },
                                                                     "message_delta_type": {
@@ -39218,6 +40352,9 @@
                                                                     "session_type": {
                                                                         "type": "string"
                                                                     },
+                                                                    "surface": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "sync_direction": {
                                                                         "type": "string"
                                                                     },
@@ -39232,6 +40369,9 @@
                                                                         "type": "boolean"
                                                                     },
                                                                     "turn_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "work_state": {
                                                                         "type": "string"
                                                                     },
                                                                     "workspace_id": {
@@ -39595,7 +40735,13 @@
                                                                     "spawn.created",
                                                                     "spawn.parent_stopped",
                                                                     "spawn.ttl_expired",
-                                                                    "spawn.reaped"
+                                                                    "spawn.reaped",
+                                                                    "network.thread.opened",
+                                                                    "network.direct_room.opened",
+                                                                    "network.message.persisted",
+                                                                    "network.work.opened",
+                                                                    "network.work.transitioned",
+                                                                    "network.work.closed"
                                                                 ],
                                                                 "type": "string"
                                                             },
@@ -39654,6 +40800,9 @@
                                                                         },
                                                                         "type": "object"
                                                                     },
+                                                                    "channel": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "compaction_reason": {
                                                                         "type": "string"
                                                                     },
@@ -39663,7 +40812,13 @@
                                                                     "decision_class": {
                                                                         "type": "string"
                                                                     },
+                                                                    "direction": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "input_class": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "kind": {
                                                                         "type": "string"
                                                                     },
                                                                     "message_delta_type": {
@@ -39684,6 +40839,9 @@
                                                                     "session_type": {
                                                                         "type": "string"
                                                                     },
+                                                                    "surface": {
+                                                                        "type": "string"
+                                                                    },
                                                                     "sync_direction": {
                                                                         "type": "string"
                                                                     },
@@ -39698,6 +40856,9 @@
                                                                         "type": "boolean"
                                                                     },
                                                                     "turn_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "work_state": {
                                                                         "type": "string"
                                                                     },
                                                                     "workspace_id": {
@@ -40429,7 +41590,13 @@
                                                     "spawn.created",
                                                     "spawn.parent_stopped",
                                                     "spawn.ttl_expired",
-                                                    "spawn.reaped"
+                                                    "spawn.reaped",
+                                                    "network.thread.opened",
+                                                    "network.direct_room.opened",
+                                                    "network.message.persisted",
+                                                    "network.work.opened",
+                                                    "network.work.transitioned",
+                                                    "network.work.closed"
                                                 ],
                                                 "type": "string"
                                             },
@@ -40484,6 +41651,9 @@
                                                         },
                                                         "type": "object"
                                                     },
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
                                                     "compaction_reason": {
                                                         "type": "string"
                                                     },
@@ -40493,7 +41663,13 @@
                                                     "decision_class": {
                                                         "type": "string"
                                                     },
+                                                    "direction": {
+                                                        "type": "string"
+                                                    },
                                                     "input_class": {
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
                                                         "type": "string"
                                                     },
                                                     "message_delta_type": {
@@ -40514,6 +41690,9 @@
                                                     "session_type": {
                                                         "type": "string"
                                                     },
+                                                    "surface": {
+                                                        "type": "string"
+                                                    },
                                                     "sync_direction": {
                                                         "type": "string"
                                                     },
@@ -40528,6 +41707,9 @@
                                                         "type": "boolean"
                                                     },
                                                     "turn_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "work_state": {
                                                         "type": "string"
                                                     },
                                                     "workspace_id": {

@@ -15,6 +15,23 @@ type networkMessageCursor struct {
 	Timestamp string
 }
 
+type networkMessageNullableFields struct {
+	sessionID    sql.NullString
+	surface      sql.NullString
+	threadID     sql.NullString
+	directID     sql.NullString
+	peerTo       sql.NullString
+	workID       sql.NullString
+	replyTo      sql.NullString
+	traceID      sql.NullString
+	causationID  sql.NullString
+	intent       sql.NullString
+	text         sql.NullString
+	previewText  string
+	bodyRaw      string
+	timestampRaw string
+}
+
 // WriteNetworkMessage stores one persisted network timeline envelope, ignoring duplicate message ids.
 func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkMessageEntry) error {
 	if err := g.checkReady(ctx, "write network message"); err != nil {
@@ -33,11 +50,14 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 			message_id,
 			session_id,
 			channel,
+			surface,
+			thread_id,
+			direct_id,
 			direction,
 			peer_from,
 			peer_to,
 			kind,
-			interaction_id,
+			work_id,
 			reply_to,
 			trace_id,
 			causation_id,
@@ -46,16 +66,19 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 			preview_text,
 			body_json,
 			timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(message_id) DO NOTHING`,
 		entry.MessageID,
 		store.NullableString(entry.SessionID),
 		entry.Channel,
+		store.NullableString(entry.Surface),
+		store.NullableString(entry.ThreadID),
+		store.NullableString(entry.DirectID),
 		entry.Direction,
 		entry.PeerFrom,
 		store.NullableString(entry.PeerTo),
 		entry.Kind,
-		store.NullableString(entry.InteractionID),
+		store.NullableString(entry.WorkID),
 		store.NullableString(entry.ReplyTo),
 		store.NullableString(entry.TraceID),
 		store.NullableString(entry.CausationID),
@@ -122,11 +145,14 @@ func (g *GlobalDB) buildNetworkMessageListQuery(
 		message_id,
 		session_id,
 		channel,
+		surface,
+		thread_id,
+		direct_id,
 		direction,
 		peer_from,
 		peer_to,
 		kind,
-		interaction_id,
+		work_id,
 		reply_to,
 		trace_id,
 		causation_id,
@@ -245,71 +271,77 @@ func (g *GlobalDB) lookupNetworkMessageCursor(
 
 func scanNetworkMessage(scanner rowScanner) (store.NetworkMessageEntry, error) {
 	var (
-		entry         store.NetworkMessageEntry
-		sessionID     sql.NullString
-		peerTo        sql.NullString
-		interactionID sql.NullString
-		replyTo       sql.NullString
-		traceID       sql.NullString
-		causationID   sql.NullString
-		intent        sql.NullString
-		text          sql.NullString
-		previewText   string
-		bodyRaw       string
-		timestampRaw  string
+		entry    store.NetworkMessageEntry
+		nullable networkMessageNullableFields
 	)
 	if err := scanner.Scan(
 		&entry.MessageID,
-		&sessionID,
+		&nullable.sessionID,
 		&entry.Channel,
+		&nullable.surface,
+		&nullable.threadID,
+		&nullable.directID,
 		&entry.Direction,
 		&entry.PeerFrom,
-		&peerTo,
+		&nullable.peerTo,
 		&entry.Kind,
-		&interactionID,
-		&replyTo,
-		&traceID,
-		&causationID,
-		&intent,
-		&text,
-		&previewText,
-		&bodyRaw,
-		&timestampRaw,
+		&nullable.workID,
+		&nullable.replyTo,
+		&nullable.traceID,
+		&nullable.causationID,
+		&nullable.intent,
+		&nullable.text,
+		&nullable.previewText,
+		&nullable.bodyRaw,
+		&nullable.timestampRaw,
 	); err != nil {
 		return store.NetworkMessageEntry{}, fmt.Errorf("store: scan network message: %w", err)
 	}
 
-	if value := store.NullString(sessionID); value != nil {
-		entry.SessionID = *value
-	}
-	if value := store.NullString(peerTo); value != nil {
-		entry.PeerTo = *value
-	}
-	if value := store.NullString(interactionID); value != nil {
-		entry.InteractionID = *value
-	}
-	if value := store.NullString(replyTo); value != nil {
-		entry.ReplyTo = *value
-	}
-	if value := store.NullString(traceID); value != nil {
-		entry.TraceID = *value
-	}
-	if value := store.NullString(causationID); value != nil {
-		entry.CausationID = *value
-	}
-	if value := store.NullString(intent); value != nil {
-		entry.Intent = *value
-	}
-	if value := store.NullString(text); value != nil {
-		entry.Text = *value
-	}
-	entry.PreviewText = strings.TrimSpace(previewText)
-	entry.Body = []byte(bodyRaw)
+	applyNetworkMessageNullableFields(&entry, nullable)
 
-	timestamp, err := store.ParseTimestamp(timestampRaw)
+	timestamp, err := store.ParseTimestamp(nullable.timestampRaw)
 	if err != nil {
 		return store.NetworkMessageEntry{}, fmt.Errorf("store: parse network message timestamp: %w", err)
 	}
 	entry.Timestamp = timestamp
 	return entry, nil
+}
+
+func applyNetworkMessageNullableFields(entry *store.NetworkMessageEntry, nullable networkMessageNullableFields) {
+	if value := store.NullString(nullable.sessionID); value != nil {
+		entry.SessionID = *value
+	}
+	if value := store.NullString(nullable.surface); value != nil {
+		entry.Surface = *value
+	}
+	if value := store.NullString(nullable.threadID); value != nil {
+		entry.ThreadID = *value
+	}
+	if value := store.NullString(nullable.directID); value != nil {
+		entry.DirectID = *value
+	}
+	if value := store.NullString(nullable.peerTo); value != nil {
+		entry.PeerTo = *value
+	}
+	if value := store.NullString(nullable.workID); value != nil {
+		entry.WorkID = *value
+	}
+	if value := store.NullString(nullable.replyTo); value != nil {
+		entry.ReplyTo = *value
+	}
+	if value := store.NullString(nullable.traceID); value != nil {
+		entry.TraceID = *value
+	}
+	if value := store.NullString(nullable.causationID); value != nil {
+		entry.CausationID = *value
+	}
+	if value := store.NullString(nullable.intent); value != nil {
+		entry.Intent = *value
+	}
+	if value := store.NullString(nullable.text); value != nil {
+		entry.Text = *value
+	}
+	entry.PreviewText = strings.TrimSpace(nullable.previewText)
+	entry.Body = []byte(nullable.bodyRaw)
 }

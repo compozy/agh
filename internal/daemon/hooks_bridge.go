@@ -13,6 +13,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -218,6 +219,30 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.SessionHealthUpdateAfterPayload,
 	) (hookspkg.SessionHealthUpdateAfterPayload, error)
+	DispatchNetworkThreadOpened(
+		context.Context,
+		hookspkg.NetworkThreadOpenedPayload,
+	) (hookspkg.NetworkThreadOpenedPayload, error)
+	DispatchNetworkDirectRoomOpened(
+		context.Context,
+		hookspkg.NetworkDirectRoomOpenedPayload,
+	) (hookspkg.NetworkDirectRoomOpenedPayload, error)
+	DispatchNetworkMessagePersisted(
+		context.Context,
+		hookspkg.NetworkMessagePersistedPayload,
+	) (hookspkg.NetworkMessagePersistedPayload, error)
+	DispatchNetworkWorkOpened(
+		context.Context,
+		hookspkg.NetworkWorkOpenedPayload,
+	) (hookspkg.NetworkWorkOpenedPayload, error)
+	DispatchNetworkWorkTransitioned(
+		context.Context,
+		hookspkg.NetworkWorkTransitionedPayload,
+	) (hookspkg.NetworkWorkTransitionedPayload, error)
+	DispatchNetworkWorkClosed(
+		context.Context,
+		hookspkg.NetworkWorkClosedPayload,
+	) (hookspkg.NetworkWorkClosedPayload, error)
 }
 
 type sessionLifecycleObserver interface {
@@ -344,6 +369,7 @@ var _ session.CompactionHooks = (*hooksNotifier)(nil)
 var _ session.SpawnHooks = (*hooksNotifier)(nil)
 var _ session.AuthoredContextHooks = (*hooksNotifier)(nil)
 var _ taskpkg.RunHookDispatcher = (*hooksNotifier)(nil)
+var _ network.HookDispatcher = (*hooksNotifier)(nil)
 var _ session.AgentEventNotifier = (*hooksNotifier)(nil)
 var _ session.SandboxLifecycleNotifier = (*hooksNotifier)(nil)
 
@@ -1127,6 +1153,66 @@ func (n *hooksNotifier) DispatchSessionHealthUpdateAfter(
 		payload,
 		hookRuntime.DispatchSessionHealthUpdateAfter,
 	)
+}
+
+func (n *hooksNotifier) DispatchNetworkThreadOpened(
+	ctx context.Context,
+	payload hookspkg.NetworkThreadOpenedPayload,
+) (hookspkg.NetworkThreadOpenedPayload, error) {
+	return dispatchRuntime(ctx, n, hookspkg.HookNetworkThreadOpened, payload, hookRuntime.DispatchNetworkThreadOpened)
+}
+
+func (n *hooksNotifier) DispatchNetworkDirectRoomOpened(
+	ctx context.Context,
+	payload hookspkg.NetworkDirectRoomOpenedPayload,
+) (hookspkg.NetworkDirectRoomOpenedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookNetworkDirectRoomOpened,
+		payload,
+		hookRuntime.DispatchNetworkDirectRoomOpened,
+	)
+}
+
+func (n *hooksNotifier) DispatchNetworkMessagePersisted(
+	ctx context.Context,
+	payload hookspkg.NetworkMessagePersistedPayload,
+) (hookspkg.NetworkMessagePersistedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookNetworkMessagePersisted,
+		payload,
+		hookRuntime.DispatchNetworkMessagePersisted,
+	)
+}
+
+func (n *hooksNotifier) DispatchNetworkWorkOpened(
+	ctx context.Context,
+	payload hookspkg.NetworkWorkOpenedPayload,
+) (hookspkg.NetworkWorkOpenedPayload, error) {
+	return dispatchRuntime(ctx, n, hookspkg.HookNetworkWorkOpened, payload, hookRuntime.DispatchNetworkWorkOpened)
+}
+
+func (n *hooksNotifier) DispatchNetworkWorkTransitioned(
+	ctx context.Context,
+	payload hookspkg.NetworkWorkTransitionedPayload,
+) (hookspkg.NetworkWorkTransitionedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookNetworkWorkTransitioned,
+		payload,
+		hookRuntime.DispatchNetworkWorkTransitioned,
+	)
+}
+
+func (n *hooksNotifier) DispatchNetworkWorkClosed(
+	ctx context.Context,
+	payload hookspkg.NetworkWorkClosedPayload,
+) (hookspkg.NetworkWorkClosedPayload, error) {
+	return dispatchRuntime(ctx, n, hookspkg.HookNetworkWorkClosed, payload, hookRuntime.DispatchNetworkWorkClosed)
 }
 
 func (n *hooksNotifier) OnAgentEvent(ctx context.Context, sessionID string, event any) {

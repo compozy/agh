@@ -12,9 +12,14 @@ import (
 type networkCorrelationExpectation struct {
 	MessageID       string
 	Kind            string
-	InteractionID   string
+	Surface         string
+	ThreadID        string
+	DirectID        string
+	WorkID          string
 	ReplyTo         string
 	TraceID         string
+	CausationID     string
+	Trust           string
 	AuditDirections []string
 }
 
@@ -22,6 +27,12 @@ type networkAuditExpectation struct {
 	MessageID string
 	Direction string
 	Kind      string
+	Surface   string
+	ThreadID  string
+	DirectID  string
+	WorkID    string
+	PeerFrom  string
+	PeerTo    string
 	Reason    string
 }
 
@@ -36,9 +47,14 @@ func validateNetworkCorrelationSurfaces(
 	}{
 		{label: "message id", needle: attributeNeedle("id", expectation.MessageID)},
 		{label: "kind", needle: attributeNeedle("kind", expectation.Kind)},
-		{label: "interaction", needle: attributeNeedle("interaction", expectation.InteractionID)},
+		{label: "surface", needle: attributeNeedle("surface", expectation.Surface)},
+		{label: "thread-id", needle: attributeNeedle("thread-id", expectation.ThreadID)},
+		{label: "direct-id", needle: attributeNeedle("direct-id", expectation.DirectID)},
+		{label: "work-id", needle: attributeNeedle("work-id", expectation.WorkID)},
 		{label: "reply-to", needle: attributeNeedle("reply-to", expectation.ReplyTo)},
 		{label: "trace-id", needle: attributeNeedle("trace-id", expectation.TraceID)},
+		{label: "causation-id", needle: attributeNeedle("causation-id", expectation.CausationID)},
+		{label: "trust", needle: attributeNeedle("trust", expectation.Trust)},
 	}
 
 	matched := false
@@ -69,6 +85,10 @@ func validateNetworkCorrelationSurfaces(
 			MessageID: expectation.MessageID,
 			Direction: direction,
 			Kind:      expectation.Kind,
+			Surface:   expectation.Surface,
+			ThreadID:  expectation.ThreadID,
+			DirectID:  expectation.DirectID,
+			WorkID:    expectation.WorkID,
 		}); err != nil {
 			return err
 		}
@@ -91,6 +111,24 @@ func validateNetworkAuditEntry(
 		if strings.TrimSpace(entry.Kind) != strings.TrimSpace(expectation.Kind) {
 			continue
 		}
+		if !optionalAuditFieldMatches(expectation.Surface, entry.Surface) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.ThreadID, entry.ThreadID) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.DirectID, entry.DirectID) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.WorkID, entry.WorkID) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.PeerFrom, entry.PeerFrom) {
+			continue
+		}
+		if !optionalAuditFieldMatches(expectation.PeerTo, entry.PeerTo) {
+			continue
+		}
 		if trimmedReason := strings.TrimSpace(expectation.Reason); trimmedReason != "" &&
 			strings.TrimSpace(entry.Reason) != trimmedReason {
 			continue
@@ -99,12 +137,24 @@ func validateNetworkAuditEntry(
 	}
 
 	return fmt.Errorf(
-		"audit missing message_id=%q direction=%q kind=%q reason=%q",
+		"audit missing message_id=%q direction=%q kind=%q surface=%q thread_id=%q direct_id=%q work_id=%q reason=%q",
 		expectation.MessageID,
 		expectation.Direction,
 		expectation.Kind,
+		expectation.Surface,
+		expectation.ThreadID,
+		expectation.DirectID,
+		expectation.WorkID,
 		expectation.Reason,
 	)
+}
+
+func optionalAuditFieldMatches(want string, got string) bool {
+	trimmedWant := strings.TrimSpace(want)
+	if trimmedWant == "" {
+		return true
+	}
+	return strings.TrimSpace(got) == trimmedWant
 }
 
 func attributeNeedle(name string, value string) string {
@@ -124,23 +174,41 @@ func TestValidateNetworkCorrelationSurfacesUsesTargetedAttributes(t *testing.T) 
 			Parts: []transcript.UIMessagePart{
 				{
 					Type:  "text",
-					Text:  `<network-message id="msg_direct_01" kind="direct" interaction="int_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+					Text:  `<network-message id="msg_direct_01" kind="say" surface="direct" direct-id="direct_test_01" work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42" causation-id="msg_say_01" trust="untrusted"></network-message>`,
 					State: "done",
 				},
 			},
 		},
 	}
 	audit := []store.NetworkAuditEntry{
-		{MessageID: "msg_direct_01", Direction: "sent", Kind: "direct"},
-		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "direct"},
+		{
+			MessageID: "msg_direct_01",
+			Direction: "sent",
+			Kind:      "say",
+			Surface:   "direct",
+			DirectID:  "direct_test_01",
+			WorkID:    "work_patch_42",
+		},
+		{
+			MessageID: "msg_direct_01",
+			Direction: "delivered",
+			Kind:      "say",
+			Surface:   "direct",
+			DirectID:  "direct_test_01",
+			WorkID:    "work_patch_42",
+		},
 	}
 
 	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_01",
-		Kind:            "direct",
-		InteractionID:   "int_patch_42",
+		Kind:            "say",
+		Surface:         "direct",
+		DirectID:        "direct_test_01",
+		WorkID:          "work_patch_42",
 		ReplyTo:         "msg_say_01",
 		TraceID:         "trace_ops_patch_42",
+		CausationID:     "msg_say_01",
+		Trust:           "untrusted",
 		AuditDirections: []string{"sent", "delivered"},
 	}); err != nil {
 		t.Fatalf("validateNetworkCorrelationSurfaces() error = %v", err)
@@ -155,7 +223,7 @@ func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *test
 			Role: transcript.UIRoleAssistant,
 			Parts: []transcript.UIMessagePart{{
 				Type:  "text",
-				Text:  `<network-message id="msg_direct_01" kind="direct"></network-message>`,
+				Text:  `<network-message id="msg_direct_01" kind="say"></network-message>`,
 				State: "done",
 			}},
 		},
@@ -164,23 +232,27 @@ func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *test
 			Parts: []transcript.UIMessagePart{
 				{
 					Type:  "text",
-					Text:  `<network-message interaction="int_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
+					Text:  `<network-message work-id="work_patch_42" reply-to="msg_say_01" trace-id="trace_ops_patch_42"></network-message>`,
 					State: "done",
 				},
 			},
 		},
 	}
 	audit := []store.NetworkAuditEntry{
-		{MessageID: "msg_direct_01", Direction: "sent", Kind: "direct"},
-		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "direct"},
+		{MessageID: "msg_direct_01", Direction: "sent", Kind: "say"},
+		{MessageID: "msg_direct_01", Direction: "delivered", Kind: "say"},
 	}
 
 	if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
 		MessageID:       "msg_direct_01",
-		Kind:            "direct",
-		InteractionID:   "int_patch_42",
+		Kind:            "say",
+		Surface:         "direct",
+		DirectID:        "direct_test_01",
+		WorkID:          "work_patch_42",
 		ReplyTo:         "msg_say_01",
 		TraceID:         "trace_ops_patch_42",
+		CausationID:     "msg_say_01",
+		Trust:           "untrusted",
 		AuditDirections: []string{"sent", "delivered"},
 	}); err == nil {
 		t.Fatal("validateNetworkCorrelationSurfaces() error = nil, want split-message correlation failure")
@@ -194,7 +266,10 @@ func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {
 		{
 			MessageID: "msg_direct_01",
 			Direction: "rejected",
-			Kind:      "direct",
+			Kind:      "say",
+			Surface:   "direct",
+			DirectID:  "direct_test_01",
+			WorkID:    "work_patch_42",
 			Reason:    "duplicate",
 		},
 	}
@@ -202,9 +277,38 @@ func TestValidateNetworkAuditEntryMatchesDuplicateRejection(t *testing.T) {
 	if err := validateNetworkAuditEntry(entries, networkAuditExpectation{
 		MessageID: "msg_direct_01",
 		Direction: "rejected",
-		Kind:      "direct",
+		Kind:      "say",
+		Surface:   "direct",
+		DirectID:  "direct_test_01",
+		WorkID:    "work_patch_42",
 		Reason:    "duplicate",
 	}); err != nil {
 		t.Fatalf("validateNetworkAuditEntry() error = %v", err)
+	}
+}
+
+func TestValidateNetworkAuditEntryRejectsWrongContainer(t *testing.T) {
+	t.Parallel()
+
+	entries := []store.NetworkAuditEntry{
+		{
+			MessageID: "msg_direct_01",
+			Direction: "delivered",
+			Kind:      "say",
+			Surface:   "direct",
+			DirectID:  "direct_wrong",
+			WorkID:    "work_patch_42",
+		},
+	}
+
+	if err := validateNetworkAuditEntry(entries, networkAuditExpectation{
+		MessageID: "msg_direct_01",
+		Direction: "delivered",
+		Kind:      "say",
+		Surface:   "direct",
+		DirectID:  "direct_test_01",
+		WorkID:    "work_patch_42",
+	}); err == nil {
+		t.Fatal("validateNetworkAuditEntry() error = nil, want direct_id mismatch")
 	}
 }

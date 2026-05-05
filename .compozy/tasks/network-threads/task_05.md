@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Conversation Persistence, Queries, Summaries, and Audit Writes
 type: backend
 complexity: critical
@@ -34,11 +34,11 @@ Implement the store repository that writes conversation messages and derived sum
 
 ## Subtasks
 
-- [ ] 5.1 Add conversation repository methods for thread/direct list, show, messages, direct resolve, and work lookup.
-- [ ] 5.2 Implement same-transaction message writes for timeline, participant rows, summaries, work rows, and audit rows.
-- [ ] 5.3 Add direct-room resolve logic with deterministic ID, ordered peers, concurrency safety, and collision failure.
-- [ ] 5.4 Add query isolation so public thread queries never return direct-room messages and direct-room queries never return public thread messages.
-- [ ] 5.5 Add rollback/idempotency/redaction tests.
+- [x] 5.1 Add conversation repository methods for thread/direct list, show, messages, direct resolve, and work lookup.
+- [x] 5.2 Implement same-transaction message writes for timeline, participant rows, summaries, work rows, and audit rows.
+- [x] 5.3 Add direct-room resolve logic with deterministic ID, ordered peers, concurrency safety, and collision failure.
+- [x] 5.4 Add query isolation so public thread queries never return direct-room messages and direct-room queries never return public thread messages.
+- [x] 5.5 Add rollback/idempotency/redaction tests.
 
 ## Implementation Details
 
@@ -87,17 +87,17 @@ The store must own durable truth for conversation state. Runtime code should not
 ## Tests
 
 - Unit tests:
-  - [ ] Thread message write opens the thread on first valid non-duplicate message.
-  - [ ] Direct-room message write updates only the matching direct room.
-  - [ ] Participant and message counts derive from committed message rows.
-  - [ ] Duplicate `message_id` replay does not increment summaries or mutate work twice.
-  - [ ] Raw claim tokens are rejected or redacted before persistence.
+  - [x] Thread message write opens the thread on first valid non-duplicate message.
+  - [x] Direct-room message write updates only the matching direct room.
+  - [x] Participant and message counts derive from committed message rows.
+  - [x] Duplicate `message_id` replay does not increment summaries or mutate work twice.
+  - [x] Raw claim tokens are rejected or redacted before persistence.
 - Integration tests:
-  - [ ] Concurrent direct resolve returns exactly one durable room for the same pair.
-  - [ ] Direct ID collision with a different pair fails closed.
-  - [ ] Transaction rollback leaves no summary or audit side effect when message insert fails.
-  - [ ] Thread queries exclude direct-room messages and direct queries exclude thread messages.
-  - [ ] Work lookup returns the bound conversation container and state.
+  - [x] Concurrent direct resolve returns exactly one durable room for the same pair.
+  - [x] Direct ID collision with a different pair fails closed.
+  - [x] Transaction rollback leaves no summary or audit side effect when message insert fails.
+  - [x] Thread queries exclude direct-room messages and direct queries exclude thread messages.
+  - [x] Work lookup returns the bound conversation container and state.
 - Test coverage target: >=80% for touched store/globaldb packages.
 - All tests must pass.
 

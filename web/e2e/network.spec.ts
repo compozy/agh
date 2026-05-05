@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -43,7 +44,7 @@ test.use({
   },
 });
 
-test("operator can create a network channel, inspect peers, observe timeline state, and reload without losing visibility", async ({
+test("operator verifies thread and direct network surfaces with final conversation artifacts", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -52,22 +53,7 @@ test("operator can create a network channel, inspect peers, observe timeline sta
 
   await expect(ui.workspaceOnboarding).toBeVisible();
   await ui.workspaceUseGlobal.click();
-
   await expect(ui.appSidebar).toBeVisible();
-  await expect(ui.navNetwork).toBeVisible();
-  await ui.navNetwork.click();
-
-  await expect(ui.workspace).toBeVisible();
-  await expect(appPage.getByText("No channels matched the current search.")).toBeVisible();
-  await expect(appPage.getByText("No peers matched the current search.")).toBeVisible();
-  await expect(ui.openCreateDialog).toBeVisible();
-
-  await ui.openCreateDialog.click();
-  await expect(ui.createDialog).toBeVisible();
-  await expect(ui.channelNameInput).toBeVisible();
-  await expect(ui.agentOption(initiatorAgentName)).toBeVisible();
-  await appPage.keyboard.press("Escape");
-  await expect(ui.createDialog).toBeHidden();
 
   if (!runtime.paths?.homeDir) {
     throw new Error("network e2e channel creation requires launch-mode runtime paths");
@@ -89,53 +75,106 @@ test("operator can create a network channel, inspect peers, observe timeline sta
     responderAgentName,
   });
 
+  await expect(ui.navNetwork).toBeVisible();
+  await ui.navNetwork.click();
+  await expect(ui.workspace).toBeVisible();
   await expect(ui.channelItem(channelName)).toBeVisible({ timeout: 15_000 });
-  await ui
-    .channelItem(channelName)
-    .getByRole("button", { name: new RegExp(channelName) })
-    .click();
-  await expect(ui.roomHeader).toContainText(`#${channelName}`);
-  await expect(ui.detailsPanel).toContainText("Coordinate browser e2e work");
+  await ui.channelItem(channelName).getByTestId(`network-channel-link-${channelName}`).click();
 
-  await expect(ui.peerItem(operatorFlow.initiator.peerId)).toBeVisible();
-  await expect(ui.peerItem(operatorFlow.responder.peerId)).toBeVisible();
+  await expect(ui.channelHeader).toContainText(`#${channelName}`);
+  await expect(ui.channelIdentityMix).toContainText("local");
+  await expect(ui.threadTab).toHaveAttribute("aria-selected", "true");
+  await expect(ui.threadsTab).toHaveAttribute("aria-label", `Threads in #${channelName}`);
+  await expect(ui.threadList).toHaveAttribute("aria-label", `Threads in #${channelName}`);
+  await expect(ui.threadItem(operatorFlow.threadId)).toBeVisible();
+  await expect(ui.threadItem(operatorFlow.threadId)).toContainText(
+    browserNetworkOperatorFlowScenario.texts.say
+  );
 
+  await ui.threadItem(operatorFlow.threadId).click();
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toContain(`/network/${channelName}/threads/${operatorFlow.threadId}`);
+  await expect(ui.threadOverlay).toBeVisible();
+  await expect(ui.threadList).toHaveAttribute("data-dim", "true");
   await expect(ui.channelMessage(operatorFlow.messageIds.say)).toContainText(
     browserNetworkOperatorFlowScenario.texts.say
   );
+  await expect(ui.channelMessage(operatorFlow.messageIds.summary)).toContainText(
+    browserNetworkOperatorFlowScenario.texts.summary
+  );
   await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toHaveCount(0);
-  await expect(ui.channelMessage(operatorFlow.messageIds.trace)).toHaveCount(0);
+  await browserArtifacts.captureScreenshot("network-thread-detail", appPage);
 
-  await ui
-    .peerItem(operatorFlow.responder.peerId)
-    .getByRole("button", { name: new RegExp(responderAgentName) })
-    .click();
-  await expect(ui.roomHeader).toContainText(responderAgentName);
-  await expect(ui.roomIntro).toContainText("Direct thread");
-  await expect(ui.detailsPanel).toContainText(channelName);
+  await ui.directTab.click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/network/${channelName}/directs`);
+  await expect(ui.directTab).toHaveAttribute("aria-selected", "true");
+  await expect(ui.directsTab).toHaveAttribute("aria-label", `Direct rooms in #${channelName}`);
+  await expect(ui.directList).toHaveAttribute("aria-label", `Direct rooms in #${channelName}`);
+  await expect(ui.directItem(operatorFlow.directId)).toBeVisible();
+  await expect(ui.directItem(operatorFlow.directId)).toContainText(
+    browserNetworkOperatorFlowScenario.texts.trace
+  );
+
+  await ui.directItem(operatorFlow.directId).click();
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(`/network/${channelName}/directs/${operatorFlow.directId}`);
+  await expect(ui.directRoom).toBeVisible();
+  await expect(ui.directRoom).toHaveAttribute("aria-label", /Direct room with @/);
   await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toContainText(
     browserNetworkOperatorFlowScenario.texts.direct
   );
   await expect(ui.channelMessage(operatorFlow.messageIds.trace)).toContainText(
     browserNetworkOperatorFlowScenario.texts.trace
   );
+  await expect(ui.channelMessage(operatorFlow.messageIds.say)).toHaveCount(0);
 
-  await ui
-    .channelItem(channelName)
-    .getByRole("button", { name: new RegExp(channelName) })
-    .click();
-  await expect(ui.roomHeader).toContainText(`#${channelName}`);
+  await ui.directTab.click();
+  await expect(ui.newDirectButton).toBeEnabled();
+  await ui.newDirectButton.click();
+  await expect(ui.newDirectDialog).toBeVisible();
+  const resolvePeerId = (await ui
+    .newDirectPeer(operatorFlow.responder.peerId)
+    .isVisible()
+    .catch(() => false))
+    ? operatorFlow.responder.peerId
+    : operatorFlow.initiator.peerId;
+  await ui.newDirectPeer(resolvePeerId).click();
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(`/network/${channelName}/directs/${operatorFlow.directId}`);
 
-  const networkPath = new URL(appPage.url()).pathname;
-  await appPage.reload({ waitUntil: "domcontentloaded" });
-
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe(networkPath);
-  await expect(ui.channelItem(channelName)).toBeVisible();
-  await expect(ui.channelMessage(operatorFlow.messageIds.say)).toContainText(
-    browserNetworkOperatorFlowScenario.texts.say
+  await ui.threadTab.click();
+  await ui.threadItem(operatorFlow.threadId).click();
+  await expect(ui.channelMessage(operatorFlow.messageIds.summary)).toContainText(
+    browserNetworkOperatorFlowScenario.texts.summary
   );
-  await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toHaveCount(0);
-  await expect(ui.channelMessage(operatorFlow.messageIds.trace)).toHaveCount(0);
 
-  await browserArtifacts.captureScreenshot("network-operator-reloaded", appPage);
+  await ui.directTab.click();
+  await ui.directItem(operatorFlow.directId).click();
+  await browserArtifacts.captureScreenshot("network-direct-detail", appPage);
+  await browserArtifacts.persist(appPage);
+
+  const routeStateBytes = await readFile(
+    runtime.artifactCollector.artifactPath("browser_route_state"),
+    "utf8"
+  );
+  const routeState = JSON.parse(routeStateBytes) as Record<string, unknown>;
+  expect(routeState).toMatchObject({
+    network_active_tab: "directs",
+    network_selected_channel: channelName,
+    network_selected_direct: operatorFlow.directId,
+  });
+  expect(routeState).not.toHaveProperty("network_selected_peer");
+  expect(routeState).not.toHaveProperty("interaction_id");
+
+  const browserArtifactText = [
+    routeStateBytes,
+    await readFile(runtime.artifactCollector.artifactPath("browser_console"), "utf8"),
+    await readFile(runtime.artifactCollector.artifactPath("browser_network"), "utf8"),
+  ].join("\n");
+  expect(browserArtifactText).not.toContain("network_selected_peer");
+  expect(browserArtifactText).not.toContain("interaction_id");
+  expect(browserArtifactText).not.toContain("agh_claim_");
 });

@@ -28,6 +28,7 @@ const (
 	agentActionChannelReply = "agent.ch.reply"
 
 	agentCoordinationExtKey = "coordination"
+	agentChannelThreadID    = "thread_agent_channel"
 )
 
 // AgentContext returns the bounded situation payload for the validated caller session.
@@ -96,7 +97,7 @@ func (h *BaseHandlers) AgentChannelRecv(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return
 	}
-	limit, err := parsePositiveIntQuery(c, "limit")
+	limit, err := parsePositiveIntQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return
@@ -156,6 +157,8 @@ func (h *BaseHandlers) AgentChannelSend(c *gin.Context) {
 	sendReq := network.SendRequest{
 		SessionID: strings.TrimSpace(caller.Session.ID),
 		Channel:   channel,
+		Surface:   networkSurfacePtr(network.SurfaceThread),
+		ThreadID:  ptrString(agentChannelThreadID),
 		Kind:      network.KindSay,
 		Body:      cloneRawMessage(req.Body),
 		Ext:       ext,
@@ -228,7 +231,11 @@ func (h *BaseHandlers) AgentChannelReply(c *gin.Context) {
 		return
 	}
 	targetPeer := strings.TrimSpace(source.From)
-	sendReq := agentChannelReplySendRequest(caller, source, req, ext)
+	sendReq, err := agentChannelReplySendRequest(caller, source, req, ext)
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
 	if idempotencyKey := strings.TrimSpace(req.IdempotencyKey); idempotencyKey != "" {
 		sendReq.ID = ptrString(idempotencyKey)
 	}
@@ -278,23 +285,43 @@ func agentChannelReplySendRequest(
 	source network.Envelope,
 	req decodedAgentChannelReplyRequest,
 	ext map[string]json.RawMessage,
-) network.SendRequest {
+) (network.SendRequest, error) {
+	callerPeerID := agentCallerPeerID(caller)
+	directID, _, _, err := network.DirectRoomIdentity(source.Channel, callerPeerID, source.From)
+	if err != nil {
+		return network.SendRequest{}, err
+	}
 	sendReq := network.SendRequest{
 		SessionID: strings.TrimSpace(caller.Session.ID),
 		Channel:   strings.TrimSpace(source.Channel),
-		Kind:      network.KindDirect,
+		Surface:   networkSurfacePtr(network.SurfaceDirect),
+		DirectID:  ptrString(directID),
+		Kind:      network.KindSay,
 		To:        ptrString(strings.TrimSpace(source.From)),
 		ReplyTo:   ptrString(req.ReplyToMessageID),
 		Body:      cloneRawMessage(req.Body),
 		Ext:       ext,
 	}
-	if source.InteractionID != nil && strings.TrimSpace(*source.InteractionID) != "" {
-		sendReq.InteractionID = ptrString(*source.InteractionID)
+	if source.WorkID != nil && strings.TrimSpace(*source.WorkID) != "" {
+		sendReq.WorkID = ptrString(*source.WorkID)
 	}
 	if source.TraceID != nil && strings.TrimSpace(*source.TraceID) != "" {
 		sendReq.TraceID = ptrString(*source.TraceID)
 	}
-	return sendReq
+	return sendReq, nil
+}
+
+func networkSurfacePtr(value network.Surface) *network.Surface {
+	return &value
+}
+
+func agentCallerPeerID(caller agentidentity.Caller) string {
+	agentName := strings.ToLower(strings.TrimSpace(caller.Session.AgentName))
+	sessionID := strings.TrimSpace(caller.Session.ID)
+	if agentName == "" {
+		return sessionID
+	}
+	return agentName + "." + sessionID
 }
 
 type sourceCoordinationMetadata struct {
@@ -767,17 +794,17 @@ func coordinationMetadataFromEnvelope(
 
 func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) network.Envelope {
 	envelope := network.Envelope{
-		Protocol:      network.ProtocolV0,
-		ID:            strings.TrimSpace(entry.MessageID),
-		Kind:          network.Kind(strings.TrimSpace(entry.Kind)),
-		Channel:       strings.TrimSpace(entry.Channel),
-		From:          strings.TrimSpace(entry.PeerFrom),
-		InteractionID: optionalStringPtr(entry.InteractionID),
-		ReplyTo:       optionalStringPtr(entry.ReplyTo),
-		TraceID:       optionalStringPtr(entry.TraceID),
-		CausationID:   optionalStringPtr(entry.CausationID),
-		TS:            entry.Timestamp.Unix(),
-		Body:          cloneRawMessage(entry.Body),
+		Protocol:    network.ProtocolV0,
+		ID:          strings.TrimSpace(entry.MessageID),
+		Kind:        network.Kind(strings.TrimSpace(entry.Kind)),
+		Channel:     strings.TrimSpace(entry.Channel),
+		From:        strings.TrimSpace(entry.PeerFrom),
+		WorkID:      optionalStringPtr(entry.WorkID),
+		ReplyTo:     optionalStringPtr(entry.ReplyTo),
+		TraceID:     optionalStringPtr(entry.TraceID),
+		CausationID: optionalStringPtr(entry.CausationID),
+		TS:          entry.Timestamp.Unix(),
+		Body:        cloneRawMessage(entry.Body),
 	}
 	if to := strings.TrimSpace(entry.PeerTo); to != "" {
 		envelope.To = &to
@@ -830,7 +857,8 @@ func parseBoolQuery(c *gin.Context, key string) (bool, error) {
 	return parsed, nil
 }
 
-func parsePositiveIntQuery(c *gin.Context, key string) (int, error) {
+func parsePositiveIntQuery(c *gin.Context) (int, error) {
+	const key = "limit"
 	if c == nil {
 		return 0, nil
 	}

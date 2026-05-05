@@ -1,6 +1,6 @@
 # Scenario Matrix
 
-Select rows based on `scope-or-context`. Always include one behavior-first operator journey, one live agent/LLM track when reachable, one cross-surface truth check, and one realistic disruption probe. Smoke checks are readiness gates only and do not count as scenario completion.
+Select rows based on `scope-or-context`. Always include one behavior-first operator journey, one live agent/LLM track when reachable, one cross-surface truth check, and one realistic disruption probe. Smoke checks are readiness gates only and do not count as scenario completion. When `<QA_OUTPUT_PATH>/qa/scenario-contract.json` exists, its minimums are the release gate; missing minimums mean `FAIL` or `BLOCKED`, never `PASS`.
 
 | Track | Use When | Required Surfaces | Evidence |
 |---|---|---|---|
@@ -21,15 +21,16 @@ For broad release validation, include:
 
 1. Startup workspace bootstrap.
 2. A Behavioral Scenario Charter with operator intent, expected outcome, agent roles, live provider plan, and realistic disruption probes.
-3. At least six agents across distinct company functions, with at least one provider-backed live agent workflow when reachable.
-4. At least four channels representing company areas.
+3. At least eight agents across distinct company functions, with at least one provider-backed live agent workflow when reachable.
+4. At least five channels representing company areas.
 5. At least one automation job and one trigger that produce user-visible side effects.
 6. At least one task tree with dependencies and multiple runs tied to the operator journey.
 7. At least one knowledge entry that is written, searched, opened, and used by an agent or operator later in the scenario.
 8. At least one coherent artifact produced by an agent and used in a later step, not just created.
 9. At least one Web UI pass through `browser-use:browser` when the app has a Web surface, with `agent-browser` allowed only when browser-use is unavailable after setup.
-10. At least one realistic disruption probe, such as wrong agent assignment, blocked dependency, failed run, invalid trigger, missed handoff, interrupted session, retry, stale channel, historical data view, or confusing operator state.
-11. At least one CLI/Web/API parity check that proves the same persisted object or artifact is correct across exposed surfaces.
+10. At least three realistic disruption probes, such as wrong agent assignment, blocked dependency, failed run, invalid trigger, missed handoff, interrupted session, retry, stale channel, historical data view, or confusing operator state.
+11. At least three CLI/Web/API/runtime parity checks that prove the same persisted objects or artifacts are correct across exposed surfaces.
+12. A strict audit run using `.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict` with no blockers.
 
 The following do not satisfy broad release validation by themselves:
 

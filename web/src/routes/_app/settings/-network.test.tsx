@@ -200,4 +200,27 @@ describe("NetworkSettingsPage", () => {
     render(<NetworkSettingsPage />);
     expect(screen.getByTestId("settings-page-network-restart-banner")).toBeInTheDocument();
   });
+
+  it("does not render unsupported network conversation controls (post-MVP per techspec)", () => {
+    render(<NetworkSettingsPage />);
+    // Thread retention, unread sync, and notification controls are explicitly post-MVP per
+    // _techspec.md:25 and _design.md §10 row A8. Settings must surface only existing aggregate
+    // metrics and listener/delivery primitives, never new conversation lifecycle controls.
+    expect(screen.queryByLabelText(/thread retention/i)).toBeNull();
+    expect(screen.queryByLabelText(/retention policy/i)).toBeNull();
+    expect(screen.queryByLabelText(/unread sync/i)).toBeNull();
+    expect(screen.queryByLabelText(/notification preferences/i)).toBeNull();
+    expect(screen.queryByLabelText(/mute channel/i)).toBeNull();
+    expect(screen.queryByLabelText(/transcript export/i)).toBeNull();
+    expect(screen.queryByLabelText(/direct room (retention|policy)/i)).toBeNull();
+  });
+
+  it("does not register settings testids for unsupported lifecycle features", () => {
+    render(<NetworkSettingsPage />);
+    expect(screen.queryByTestId("settings-page-network-thread-retention")).toBeNull();
+    expect(screen.queryByTestId("settings-page-network-unread-sync")).toBeNull();
+    expect(screen.queryByTestId("settings-page-network-notification-prefs")).toBeNull();
+    expect(screen.queryByTestId("settings-page-network-mute-rules")).toBeNull();
+    expect(screen.queryByTestId("settings-page-network-transcript-export")).toBeNull();
+  });
 });

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Runtime Routing, Delivery Wrappers, and Task Ingress
 type: backend
 complexity: critical
@@ -35,11 +35,11 @@ Wire the store-backed conversation model into the runtime manager, router, deliv
 
 ## Subtasks
 
-- [ ] 6.1 Replace runtime message persistence calls with the conversation repository.
-- [ ] 6.2 Update router dispatch for thread and direct surfaces.
-- [ ] 6.3 Update delivery wrappers and structured prompt metadata.
-- [ ] 6.4 Update network task ingress to attach `network_work_id` metadata only.
-- [ ] 6.5 Add integration tests for thread delivery, direct delivery, handoff, summarize-back linkage, and task metadata.
+- [x] 6.1 Replace runtime message persistence calls with the conversation repository.
+- [x] 6.2 Update router dispatch for thread and direct surfaces.
+- [x] 6.3 Update delivery wrappers and structured prompt metadata.
+- [x] 6.4 Update network task ingress to attach `network_work_id` metadata only.
+- [x] 6.5 Add integration tests for thread delivery, direct delivery, handoff, summarize-back linkage, and task metadata.
 
 ## Implementation Details
 
@@ -89,16 +89,16 @@ The store write must commit before prompt delivery and before later hook dispatc
 ## Tests
 
 - Unit tests:
-  - [ ] Router dispatches `surface:"thread"` by thread container.
-  - [ ] Router dispatches `surface:"direct"` by direct-room membership.
-  - [ ] Delivery wrapper includes exact container/work/correlation metadata.
-  - [ ] Prompt metadata contains no legacy interaction fields.
+  - [x] Router dispatches `surface:"thread"` by thread container.
+  - [x] Router dispatches `surface:"direct"` by direct-room membership.
+  - [x] Delivery wrapper includes exact container/work/correlation metadata.
+  - [x] Prompt metadata contains no legacy interaction fields.
 - Integration tests:
-  - [ ] Public thread creation and message delivery persist and deliver expected wrappers.
-  - [ ] Direct-room resolve plus direct message delivery persists and delivers expected wrappers.
-  - [ ] Public-to-direct handoff creates a new work ID and links by reply/trace/causation.
-  - [ ] Summarize-back posts a public `say` without leaking restricted direct-room messages.
-  - [ ] Network-created task runs carry `metadata_json.network_work_id` and remain claimable only through task-run machinery.
+  - [x] Public thread creation and message delivery persist and deliver expected wrappers.
+  - [x] Direct-room resolve plus direct message delivery persists and delivers expected wrappers.
+  - [x] Public-to-direct handoff creates a new work ID and links by reply/trace/causation.
+  - [x] Summarize-back posts a public `say` without leaking restricted direct-room messages.
+  - [x] Network-created task runs carry `metadata_json.network_work_id` and remain claimable only through task-run machinery.
 - Test coverage target: >=80% for touched runtime packages.
 - All tests must pass.
 

@@ -5,10 +5,15 @@ Use this checklist before claiming a realistic scenario is complete.
 ## Behavioral Anti-Smoke Gates
 
 - A Behavioral Scenario Charter exists and names the operator intent, startup situation, expected business outcome, agent roles, live provider plan, and realistic disruption probes.
+- `<QA_OUTPUT_PATH>/qa/scenario-contract.json` exists and its minimums are treated as blockers, not suggestions.
+- `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml` is filled with JSON-compatible YAML, not freeform Markdown.
+- `<QA_OUTPUT_PATH>/qa/journey-log.jsonl` contains structured rows for meaningful CLI/API/Web/runtime/provider actions.
+- `<QA_OUTPUT_PATH>/qa/provider-attempt.json` records live provider proof or a concrete blocked boundary.
 - At least one complete operator journey was executed from setup through outcome, not only isolated commands or endpoint checks.
 - Smoke checks, `make verify`, unit/integration tests, CRUD-only checks, and page-render checks are reported as readiness or regression evidence only, not as final behavioral proof.
 - The scenario includes at least one realistic disruption that a user would care about, such as wrong agent ownership, missed handoff, incoherent artifact, stale operator view, failed automation side effect, interrupted session, restart recovery, or confusing history.
 - The final claim explains why the tested behavior matters to an operator or agent, not only which technical path executed.
+- The strict auditor passed. If it reported blockers, the QA result is `FAIL` or `BLOCKED`, not `PASS`.
 
 ## Baseline and Environment
 
@@ -31,11 +36,12 @@ Use this checklist before claiming a realistic scenario is complete.
 - Knowledge entries are written to the real workspace or configured memory store.
 - Hooks and extensions produce real observable side effects when in scope.
 - Generated artifacts are coherent, inspected, connected to their producing task/session/channel, and used by a later scenario step.
+- The journey log proves the scenario-contract minimums for agents, channels, tasks, runs, artifact reuse, and cross-surface object overlap.
 
 ## Live Agent and LLM Behavior
 
 - At least one provider-backed agent session was executed when credentials and local prerequisites were available.
-- If provider-backed agents were unavailable, the exact credential/tool/runtime boundary is documented and no mock/stub/fake reply is used as final proof.
+- If provider-backed agents were unavailable, the exact credential/tool/runtime boundary is documented in `provider-attempt.json` and no mock/stub/fake reply is used as final proof. A blocked provider boundary cannot be reported as live-provider `PASS`.
 - Agent outputs include meaningful decisions, revisions, handoffs, or artifacts instead of token echoes or canned text.
 - Agent messages, task claims, channel participation, and generated artifacts match the intended role and workspace/channel constraints.
 - Any wrong-agent, wrong-channel, hallucinated artifact, or incoherent workflow behavior is filed as a product issue, not dismissed as test noise.
@@ -68,3 +74,4 @@ Use this checklist before claiming a realistic scenario is complete.
 - Operator-facing history is understandable and not dominated by protocol noise.
 - Browser-use limitations, `agent-browser` fallback usage or failure, missing credentials, and external blockers are named explicitly.
 - Release readiness is not claimed unless the behavioral journey, live agent/provider evidence when reachable, CLI evidence, and Web browser evidence pass through browser-use or the approved `agent-browser` fallback, or the Web surface is proven out-of-scope.
+- Release readiness is not claimed unless `qa-audit-report.json` reports no blockers.

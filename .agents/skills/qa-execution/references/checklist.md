@@ -28,12 +28,18 @@ Mark every item as complete before claiming the QA pass is done.
 
 - [ ] 2-4 high-risk operator/agent journeys were identified before low-level checks
 - [ ] Each journey names operator intent, expected business outcome, AGH surfaces, expected agent behavior, expected artifacts, and realistic disruption probes
+- [ ] The scenario contract was read when present, and the execution matrix satisfies its minimum agents, channels, task tree, provider, artifact, disruption, and cross-surface requirements
+- [ ] The behavioral charter is filled as structured JSON-compatible YAML
+- [ ] The journey log has one row for every meaningful CLI/API/Web/runtime/provider action
+- [ ] The provider attempt file records live proof or an exact blocked boundary
 - [ ] At least one provider-backed agent session was exercised when credentials and local prerequisites were available
 - [ ] Blocked live provider/LLM validation names the exact credential, provider, or tool boundary
 - [ ] Agent behavior was verified through AGH state, not only through terminal text
 - [ ] Produced artifacts were inspected, coherent, connected to their producing session/task/channel, and used later in the scenario
 - [ ] At least one realistic disruption probe was executed and recorded
 - [ ] Smoke, CRUD, page-render, unit, integration, mock, and fake-provider checks were not counted as final behavioral proof
+- [ ] The strict QA auditor was run and produced `qa-audit-report.json`
+- [ ] Auditor blockers resulted in `FAIL` or `BLOCKED`, not `PASS`
 
 ## Web UI Validation
 
@@ -65,4 +71,5 @@ Skip this section if the project has no Web UI surface.
 - [ ] The most important CLI and API flows were rerun after the final gate
 - [ ] The most important Web UI flows were rerun after the final gate (when applicable)
 - [ ] A verification report was produced from fresh evidence
+- [ ] The verification report includes an Audit Result section with command, exit code, JSON report path, blockers, warnings, and verdict
 - [ ] Blocked scenarios or missing prerequisites were disclosed explicitly

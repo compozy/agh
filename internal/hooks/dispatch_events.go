@@ -133,6 +133,15 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 		return correlationFromSpawnContext(typed.SpawnContext)
 	case SpawnLifecyclePayload:
 		return correlationFromSpawnContext(typed.SpawnContext)
+	case NetworkPayload:
+		actorID := strings.TrimSpace(typed.PeerFrom)
+		if actorID == "" {
+			actorID = strings.TrimSpace(typed.SessionID)
+		}
+		return DispatchCorrelation{
+			ActorKind: "network_peer",
+			ActorID:   actorID,
+		}
 	default:
 		sessionCtx := SessionContextFromPayload(payload)
 		sessionID := strings.TrimSpace(sessionCtx.SessionID)

@@ -7,6 +7,11 @@ min_compozy_version = "0.1.10"
 [subprocess]
 command = "/Users/pedronauck/Dev/compozy/looper/bin/cy-qa-workflow"
 
+[subprocess.env]
+COMPOZY_QA_EVIDENCE_ROOT_TEMPLATE = ".compozy/tasks/{workflow}"
+COMPOZY_QA_SCENARIO_CONTRACT_RELATIVE = "qa/scenario-contract.json"
+COMPOZY_QA_AUDIT_COMMAND = "python3 .agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path .compozy/tasks/{workflow} --strict"
+
 [security]
 capabilities = ["plan.mutate", "agent.mutate", "tasks.read", "tasks.create"]
 

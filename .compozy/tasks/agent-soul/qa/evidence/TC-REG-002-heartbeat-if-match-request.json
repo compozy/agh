@@ -1,5 +1,0 @@
-{
-  "workspace_id": "agent-soul",
-  "agent_name": "ops",
-  "body": "---\nversion: \"1\"\nenabled: true\nsummary: \"Inspect launch state before advisory wake.\"\npreferences:\n  min_interval: \"30m\"\ncontext:\n  include:\n    - self\n    - session_health\n---\n\nCheck session health, current launch blockers, and whether a human operator needs a concise reentry note.\n"
-}

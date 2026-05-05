@@ -1,4 +1,0 @@
-Original task: validate Agent Soul QA completion.
-Additional goal: make sure everything from the new feature is working in real scenarios with edge cases.
-Latest assistant message before this continuation: see .compozy/tasks/agent-soul/qa/evidence/codex-loop-completion-verdict.json and .compozy/tasks/agent-soul/qa/verification-report.md.
-Return ONLY the codex-loop JSON object.

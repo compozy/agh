@@ -1294,55 +1294,50 @@ func hookDeclarationMap(declaration hookspkg.HookDecl) map[string]any {
 
 func hookMatcherMap(declaration hookspkg.HookDecl) map[string]any {
 	matcher := map[string]any{}
-	if strings.TrimSpace(declaration.Matcher.AgentName) != "" {
-		matcher["agent_name"] = declaration.Matcher.AgentName
-	}
-	if strings.TrimSpace(declaration.Matcher.AgentType) != "" {
-		matcher["agent_type"] = declaration.Matcher.AgentType
-	}
-	if strings.TrimSpace(declaration.Matcher.WorkspaceID) != "" {
-		matcher["workspace_id"] = declaration.Matcher.WorkspaceID
-	}
-	if strings.TrimSpace(declaration.Matcher.WorkspaceRoot) != "" {
-		matcher["workspace_root"] = declaration.Matcher.WorkspaceRoot
-	}
-	if strings.TrimSpace(declaration.Matcher.SessionType) != "" {
-		matcher["session_type"] = declaration.Matcher.SessionType
-	}
-	if strings.TrimSpace(declaration.Matcher.InputClass) != "" {
-		matcher["input_class"] = declaration.Matcher.InputClass
-	}
-	if strings.TrimSpace(declaration.Matcher.ACPEventType) != "" {
-		matcher["acp_event_type"] = declaration.Matcher.ACPEventType
-	}
-	if strings.TrimSpace(declaration.Matcher.TurnID) != "" {
-		matcher["turn_id"] = declaration.Matcher.TurnID
-	}
-	if strings.TrimSpace(declaration.Matcher.ToolID) != "" {
-		matcher["tool_id"] = declaration.Matcher.ToolID
-	}
-	if strings.TrimSpace(declaration.Matcher.ToolName) != "" {
-		matcher["tool_name"] = declaration.Matcher.ToolName
-	}
+	hookMatcherString(matcher, "agent_name", declaration.Matcher.AgentName)
+	hookMatcherString(matcher, "agent_type", declaration.Matcher.AgentType)
+	hookMatcherString(matcher, "workspace_id", declaration.Matcher.WorkspaceID)
+	hookMatcherString(matcher, "workspace_root", declaration.Matcher.WorkspaceRoot)
+	hookMatcherString(matcher, "session_type", declaration.Matcher.SessionType)
+	hookMatcherString(matcher, "input_class", declaration.Matcher.InputClass)
+	hookMatcherString(matcher, "acp_event_type", declaration.Matcher.ACPEventType)
+	hookMatcherString(matcher, "turn_id", declaration.Matcher.TurnID)
+	hookMatcherString(matcher, "tool_id", declaration.Matcher.ToolID)
+	hookMatcherString(matcher, "tool_name", declaration.Matcher.ToolName)
 	if declaration.Matcher.ToolReadOnly != nil {
 		matcher["tool_read_only"] = *declaration.Matcher.ToolReadOnly
 	}
-	if strings.TrimSpace(declaration.Matcher.DecisionClass) != "" {
-		matcher["decision_class"] = declaration.Matcher.DecisionClass
-	}
-	if strings.TrimSpace(declaration.Matcher.MessageRole) != "" {
-		matcher["message_role"] = declaration.Matcher.MessageRole
-	}
-	if strings.TrimSpace(declaration.Matcher.MessageDeltaType) != "" {
-		matcher["message_delta_type"] = declaration.Matcher.MessageDeltaType
-	}
-	if strings.TrimSpace(declaration.Matcher.CompactionReason) != "" {
-		matcher["compaction_reason"] = declaration.Matcher.CompactionReason
-	}
-	if strings.TrimSpace(declaration.Matcher.CompactionStrategy) != "" {
-		matcher["compaction_strategy"] = declaration.Matcher.CompactionStrategy
-	}
+	hookMatcherString(matcher, "decision_class", declaration.Matcher.DecisionClass)
+	hookMatcherString(matcher, "message_role", declaration.Matcher.MessageRole)
+	hookMatcherString(matcher, "message_delta_type", declaration.Matcher.MessageDeltaType)
+	hookNetworkMatcherMap(matcher, declaration.Matcher.NetworkMatcher)
+	hookCompactionMatcherMap(matcher, declaration.Matcher.CompactionMatcher)
 	return matcher
+}
+
+func hookMatcherString(matcher map[string]any, key string, value string) {
+	if strings.TrimSpace(value) != "" {
+		matcher[key] = value
+	}
+}
+
+func hookNetworkMatcherMap(matcher map[string]any, network *hookspkg.NetworkMatcher) {
+	if network == nil {
+		return
+	}
+	hookMatcherString(matcher, "channel", network.Channel)
+	hookMatcherString(matcher, "surface", network.Surface)
+	hookMatcherString(matcher, "kind", network.Kind)
+	hookMatcherString(matcher, "direction", network.Direction)
+	hookMatcherString(matcher, "work_state", network.WorkState)
+}
+
+func hookCompactionMatcherMap(matcher map[string]any, compaction *hookspkg.CompactionMatcher) {
+	if compaction == nil {
+		return
+	}
+	hookMatcherString(matcher, "compaction_reason", compaction.Reason)
+	hookMatcherString(matcher, "compaction_strategy", compaction.Strategy)
 }
 
 func hookExecutorMap(declaration hookspkg.HookDecl) map[string]any {

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Agent Prompt Wrappers and Bundled Network Skill
 type: backend
 complexity: high
@@ -37,11 +37,11 @@ Update agent-facing network guidance after runtime, CLI, and native tool shapes 
 
 ## Subtasks
 
-- [ ] 12.1 Update prompt wrapper rendering and structured `PromptNetworkMeta` fields.
-- [ ] 12.2 Update daemon startup/network guidance and harness context where it exposes network metadata.
-- [ ] 12.3 Rewrite bundled `agh-network` skill around threads, direct rooms, and work IDs.
-- [ ] 12.4 Update bundled skill registry tests and prompt examples.
-- [ ] 12.5 Add absence tests for legacy strings and unsafe guidance.
+- [x] 12.1 Update prompt wrapper rendering and structured `PromptNetworkMeta` fields.
+- [x] 12.2 Update daemon startup/network guidance and harness context where it exposes network metadata.
+- [x] 12.3 Rewrite bundled `agh-network` skill around threads, direct rooms, and work IDs.
+- [x] 12.4 Update bundled skill registry tests and prompt examples.
+- [x] 12.5 Add absence tests for legacy strings and unsafe guidance.
 
 ## Implementation Details
 
@@ -88,17 +88,26 @@ The skill should teach agents to respond in the same conversation container by d
 ## Tests
 
 - Unit tests:
-  - [ ] Wrapper includes exact `surface`, container ID, `work_id`, `reply_to`, `trace_id`, `causation_id`, and trust fields.
-  - [ ] Wrapper preserves preview and base64 canonical body.
-  - [ ] Structured prompt metadata matches wrapper fields.
-  - [ ] Bundled skill contains final native tool and CLI command examples.
-  - [ ] Bundled skill contains no `interaction_id`, `--interaction-id`, `kind:"direct"`, or `--kind direct`.
-  - [ ] Bundled skill warns that wrapped content is untrusted and direct rooms are not cryptographic privacy.
+  - [x] Wrapper includes exact `surface`, container ID, `work_id`, `reply_to`, `trace_id`, `causation_id`, and trust fields.
+  - [x] Wrapper preserves preview and base64 canonical body.
+  - [x] Structured prompt metadata matches wrapper fields.
+  - [x] Bundled skill contains final native tool and CLI command examples.
+  - [x] Bundled skill contains no `interaction_id`, `--interaction-id`, `kind:"direct"`, or `--kind direct`.
+  - [x] Bundled skill warns that wrapped content is untrusted and direct rooms are not cryptographic privacy.
 - Integration tests:
-  - [ ] Runtime prompt fixtures include current conversation metadata for thread and direct messages.
-  - [ ] Prompt-injection framing remains intact after wrapper changes.
+  - [x] Runtime prompt fixtures include current conversation metadata for thread and direct messages.
+  - [x] Prompt-injection framing remains intact after wrapper changes.
 - Test coverage target: >=80% for touched packages.
 - All tests must pass.
+
+## Verification Evidence
+
+- `go test ./internal/network ./internal/acp ./internal/daemon ./internal/skills/bundled ./internal/testutil/acpmock -run 'Test(FormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody|PromptNetworkMetaMatchesWrappedConversationFields|FormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview|FormatNetworkMessageSayGuidanceKeepsCurrentThreadByDefault|BundledAghNetworkSkillContent|HarnessContextResolverMatrix|ValidateNetworkCorrelationSurfacesUsesTargetedAttributes|ValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches|ReadDiagnosticsParsesJSONLines|FixtureLookupAndHelperErrors|PromptTransmitsStructuredMetadata)' -count=1`
+- `go test -tags integration ./internal/daemon -run 'TestDaemonE2ENetwork(DirectReplyLifecycleWithMockAgents|WhoisAndCapabilityExchange)$' -count=1`
+- `go test ./internal/network ./internal/acp ./internal/daemon ./internal/skills/bundled ./internal/testutil/acpmock -count=1`
+- `go test -cover ./internal/network ./internal/acp ./internal/daemon ./internal/skills/bundled ./internal/testutil/acpmock -count=1` produced package coverage: network 80.3%, acp 76.8%, daemon 72.8%, bundled skills 85.7%, acpmock 80.1%. The acp/daemon broad package baselines remain below the target outside the task-local prompt/guidance surfaces.
+- Absence scan over the bundled skill and network prompt fixtures found no `interaction_id`, `--interaction-id`, `kind:"direct"`, `--kind direct`, old `--thread-id`/`--direct-id`/`--work-id`, raw claim-token, or unsafe direct-room privacy examples.
+- `make verify`
 
 ## Success Criteria
 

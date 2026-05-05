@@ -3,6 +3,7 @@ package hooks
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -445,6 +446,25 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		LastPresenceAt:      time.Date(2026, time.April, 9, 12, 0, 0, 0, time.UTC),
 		IneligibilityReason: "",
 	})
+	assertJSONRoundTrip(t, "NetworkMessagePersistedPayload", NetworkMessagePersistedPayload{
+		PayloadBase: samplePayloadBase(HookNetworkMessagePersisted),
+		SessionID:   "sess-coder",
+		Channel:     "builders",
+		Surface:     "thread",
+		ThreadID:    "thread_alpha",
+		MessageID:   "msg_01",
+		Kind:        "trace",
+		Direction:   "received",
+		WorkID:      "work_01",
+		WorkState:   "completed",
+		PeerFrom:    "coder.sess-abc",
+		PeerTo:      "reviewer.sess-xyz",
+		TraceID:     "trace_01",
+		CausationID: "msg_parent",
+	})
+	assertJSONRoundTrip(t, "NetworkObservationPatch", NetworkObservationPatch{
+		Labels: map[string]string{"consumer": "observer"},
+	})
 	assertJSONRoundTrip(t, "AuthoredContextObservationPatch", AuthoredContextObservationPatch{})
 
 	assertJSONRoundTrip(t, "TurnStartPayload", TurnStartPayload{
@@ -647,6 +667,36 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	assertJSONRoundTrip(t, "ContextPostCompactPatch", ContextPostCompactPatch{
 		Strategy: &strategy,
 	})
+}
+
+func TestNetworkPayloadExcludesRawMessageMaterial(t *testing.T) {
+	t.Parallel()
+
+	payload := NetworkMessagePersistedPayload{
+		PayloadBase: PayloadBase{
+			Event:     HookNetworkMessagePersisted,
+			Timestamp: time.Date(2026, time.May, 5, 12, 0, 0, 0, time.UTC),
+		},
+		Channel:     "builders",
+		Surface:     "direct",
+		DirectID:    "direct_99401d24bee62651d189e5a561785466",
+		MessageID:   "msg_01",
+		Kind:        "say",
+		Direction:   "sent",
+		WorkID:      "work_01",
+		TraceID:     "trace_01",
+		CausationID: "msg_parent",
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(NetworkMessagePersistedPayload) error = %v", err)
+	}
+	text := string(encoded)
+	for _, forbidden := range []string{"body", "text", "preview_text", "agh_claim_"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("encoded network payload contains %q: %s", forbidden, text)
+		}
+	}
 }
 
 func assertJSONRoundTrip[T any](t *testing.T, name string, sample T) {

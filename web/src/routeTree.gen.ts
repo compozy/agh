@@ -37,7 +37,12 @@ import { Route as AppSettingsAutomationRouteImport } from './routes/_app/setting
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
 import { Route as AppTasksIdEditRouteImport } from './routes/_app/tasks.$id.edit'
+import { Route as AppNetworkChannelThreadsRouteImport } from './routes/_app/network.$channel.threads'
+import { Route as AppNetworkChannelDirectsRouteImport } from './routes/_app/network.$channel.directs'
+import { Route as AppNetworkChannelActivityRouteImport } from './routes/_app/network.$channel.activity'
 import { Route as AppTasksIdRunsRunIdRouteImport } from './routes/_app/tasks.$id.runs.$runId'
+import { Route as AppNetworkChannelThreadsThreadIdRouteImport } from './routes/_app/network.$channel.threads.$threadId'
+import { Route as AppNetworkChannelDirectsDirectIdRouteImport } from './routes/_app/network.$channel.directs.$directId'
 import { Route as AppAgentsNameSessionsIdRouteImport } from './routes/_app/agents.$name.sessions.$id'
 
 const DesignSystemRoute = DesignSystemRouteImport.update({
@@ -181,11 +186,41 @@ const AppTasksIdEditRoute = AppTasksIdEditRouteImport.update({
   path: '/edit',
   getParentRoute: () => AppTasksIdRoute,
 } as any)
+const AppNetworkChannelThreadsRoute =
+  AppNetworkChannelThreadsRouteImport.update({
+    id: '/$channel/threads',
+    path: '/$channel/threads',
+    getParentRoute: () => AppNetworkRoute,
+  } as any)
+const AppNetworkChannelDirectsRoute =
+  AppNetworkChannelDirectsRouteImport.update({
+    id: '/$channel/directs',
+    path: '/$channel/directs',
+    getParentRoute: () => AppNetworkRoute,
+  } as any)
+const AppNetworkChannelActivityRoute =
+  AppNetworkChannelActivityRouteImport.update({
+    id: '/$channel/activity',
+    path: '/$channel/activity',
+    getParentRoute: () => AppNetworkRoute,
+  } as any)
 const AppTasksIdRunsRunIdRoute = AppTasksIdRunsRunIdRouteImport.update({
   id: '/runs/$runId',
   path: '/runs/$runId',
   getParentRoute: () => AppTasksIdRoute,
 } as any)
+const AppNetworkChannelThreadsThreadIdRoute =
+  AppNetworkChannelThreadsThreadIdRouteImport.update({
+    id: '/$threadId',
+    path: '/$threadId',
+    getParentRoute: () => AppNetworkChannelThreadsRoute,
+  } as any)
+const AppNetworkChannelDirectsDirectIdRoute =
+  AppNetworkChannelDirectsDirectIdRouteImport.update({
+    id: '/$directId',
+    path: '/$directId',
+    getParentRoute: () => AppNetworkChannelDirectsRoute,
+  } as any)
 const AppAgentsNameSessionsIdRoute = AppAgentsNameSessionsIdRouteImport.update({
   id: '/sessions/$id',
   path: '/sessions/$id',
@@ -198,7 +233,7 @@ export interface FileRoutesByFullPath {
   '/bridges': typeof AppBridgesRoute
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
-  '/network': typeof AppNetworkRoute
+  '/network': typeof AppNetworkRouteWithChildren
   '/sandbox': typeof AppSandboxRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/skills': typeof AppSkillsRoute
@@ -219,8 +254,13 @@ export interface FileRoutesByFullPath {
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings/': typeof AppSettingsIndexRoute
+  '/network/$channel/activity': typeof AppNetworkChannelActivityRoute
+  '/network/$channel/directs': typeof AppNetworkChannelDirectsRouteWithChildren
+  '/network/$channel/threads': typeof AppNetworkChannelThreadsRouteWithChildren
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
+  '/network/$channel/directs/$directId': typeof AppNetworkChannelDirectsDirectIdRoute
+  '/network/$channel/threads/$threadId': typeof AppNetworkChannelThreadsThreadIdRoute
   '/tasks/$id/runs/$runId': typeof AppTasksIdRunsRunIdRoute
 }
 export interface FileRoutesByTo {
@@ -228,7 +268,7 @@ export interface FileRoutesByTo {
   '/bridges': typeof AppBridgesRoute
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
-  '/network': typeof AppNetworkRoute
+  '/network': typeof AppNetworkRouteWithChildren
   '/sandbox': typeof AppSandboxRoute
   '/skills': typeof AppSkillsRoute
   '/tasks': typeof AppTasksRouteWithChildren
@@ -249,8 +289,13 @@ export interface FileRoutesByTo {
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings': typeof AppSettingsIndexRoute
+  '/network/$channel/activity': typeof AppNetworkChannelActivityRoute
+  '/network/$channel/directs': typeof AppNetworkChannelDirectsRouteWithChildren
+  '/network/$channel/threads': typeof AppNetworkChannelThreadsRouteWithChildren
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
+  '/network/$channel/directs/$directId': typeof AppNetworkChannelDirectsDirectIdRoute
+  '/network/$channel/threads/$threadId': typeof AppNetworkChannelThreadsThreadIdRoute
   '/tasks/$id/runs/$runId': typeof AppTasksIdRunsRunIdRoute
 }
 export interface FileRoutesById {
@@ -260,7 +305,7 @@ export interface FileRoutesById {
   '/_app/bridges': typeof AppBridgesRoute
   '/_app/jobs': typeof AppJobsRoute
   '/_app/knowledge': typeof AppKnowledgeRoute
-  '/_app/network': typeof AppNetworkRoute
+  '/_app/network': typeof AppNetworkRouteWithChildren
   '/_app/sandbox': typeof AppSandboxRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/skills': typeof AppSkillsRoute
@@ -282,8 +327,13 @@ export interface FileRoutesById {
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/tasks/new': typeof AppTasksNewRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
+  '/_app/network/$channel/activity': typeof AppNetworkChannelActivityRoute
+  '/_app/network/$channel/directs': typeof AppNetworkChannelDirectsRouteWithChildren
+  '/_app/network/$channel/threads': typeof AppNetworkChannelThreadsRouteWithChildren
   '/_app/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/_app/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
+  '/_app/network/$channel/directs/$directId': typeof AppNetworkChannelDirectsDirectIdRoute
+  '/_app/network/$channel/threads/$threadId': typeof AppNetworkChannelThreadsThreadIdRoute
   '/_app/tasks/$id/runs/$runId': typeof AppTasksIdRunsRunIdRoute
 }
 export interface FileRouteTypes {
@@ -315,8 +365,13 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings/'
+    | '/network/$channel/activity'
+    | '/network/$channel/directs'
+    | '/network/$channel/threads'
     | '/tasks/$id/edit'
     | '/agents/$name/sessions/$id'
+    | '/network/$channel/directs/$directId'
+    | '/network/$channel/threads/$threadId'
     | '/tasks/$id/runs/$runId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -345,8 +400,13 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings'
+    | '/network/$channel/activity'
+    | '/network/$channel/directs'
+    | '/network/$channel/threads'
     | '/tasks/$id/edit'
     | '/agents/$name/sessions/$id'
+    | '/network/$channel/directs/$directId'
+    | '/network/$channel/threads/$threadId'
     | '/tasks/$id/runs/$runId'
   id:
     | '__root__'
@@ -377,8 +437,13 @@ export interface FileRouteTypes {
     | '/_app/tasks/$id'
     | '/_app/tasks/new'
     | '/_app/settings/'
+    | '/_app/network/$channel/activity'
+    | '/_app/network/$channel/directs'
+    | '/_app/network/$channel/threads'
     | '/_app/tasks/$id/edit'
     | '/_app/agents/$name/sessions/$id'
+    | '/_app/network/$channel/directs/$directId'
+    | '/_app/network/$channel/threads/$threadId'
     | '/_app/tasks/$id/runs/$runId'
   fileRoutesById: FileRoutesById
 }
@@ -585,12 +650,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksIdEditRouteImport
       parentRoute: typeof AppTasksIdRoute
     }
+    '/_app/network/$channel/threads': {
+      id: '/_app/network/$channel/threads'
+      path: '/$channel/threads'
+      fullPath: '/network/$channel/threads'
+      preLoaderRoute: typeof AppNetworkChannelThreadsRouteImport
+      parentRoute: typeof AppNetworkRoute
+    }
+    '/_app/network/$channel/directs': {
+      id: '/_app/network/$channel/directs'
+      path: '/$channel/directs'
+      fullPath: '/network/$channel/directs'
+      preLoaderRoute: typeof AppNetworkChannelDirectsRouteImport
+      parentRoute: typeof AppNetworkRoute
+    }
+    '/_app/network/$channel/activity': {
+      id: '/_app/network/$channel/activity'
+      path: '/$channel/activity'
+      fullPath: '/network/$channel/activity'
+      preLoaderRoute: typeof AppNetworkChannelActivityRouteImport
+      parentRoute: typeof AppNetworkRoute
+    }
     '/_app/tasks/$id/runs/$runId': {
       id: '/_app/tasks/$id/runs/$runId'
       path: '/runs/$runId'
       fullPath: '/tasks/$id/runs/$runId'
       preLoaderRoute: typeof AppTasksIdRunsRunIdRouteImport
       parentRoute: typeof AppTasksIdRoute
+    }
+    '/_app/network/$channel/threads/$threadId': {
+      id: '/_app/network/$channel/threads/$threadId'
+      path: '/$threadId'
+      fullPath: '/network/$channel/threads/$threadId'
+      preLoaderRoute: typeof AppNetworkChannelThreadsThreadIdRouteImport
+      parentRoute: typeof AppNetworkChannelThreadsRoute
+    }
+    '/_app/network/$channel/directs/$directId': {
+      id: '/_app/network/$channel/directs/$directId'
+      path: '/$directId'
+      fullPath: '/network/$channel/directs/$directId'
+      preLoaderRoute: typeof AppNetworkChannelDirectsDirectIdRouteImport
+      parentRoute: typeof AppNetworkChannelDirectsRoute
     }
     '/_app/agents/$name/sessions/$id': {
       id: '/_app/agents/$name/sessions/$id'
@@ -601,6 +701,52 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AppNetworkChannelDirectsRouteChildren {
+  AppNetworkChannelDirectsDirectIdRoute: typeof AppNetworkChannelDirectsDirectIdRoute
+}
+
+const AppNetworkChannelDirectsRouteChildren: AppNetworkChannelDirectsRouteChildren =
+  {
+    AppNetworkChannelDirectsDirectIdRoute:
+      AppNetworkChannelDirectsDirectIdRoute,
+  }
+
+const AppNetworkChannelDirectsRouteWithChildren =
+  AppNetworkChannelDirectsRoute._addFileChildren(
+    AppNetworkChannelDirectsRouteChildren,
+  )
+
+interface AppNetworkChannelThreadsRouteChildren {
+  AppNetworkChannelThreadsThreadIdRoute: typeof AppNetworkChannelThreadsThreadIdRoute
+}
+
+const AppNetworkChannelThreadsRouteChildren: AppNetworkChannelThreadsRouteChildren =
+  {
+    AppNetworkChannelThreadsThreadIdRoute:
+      AppNetworkChannelThreadsThreadIdRoute,
+  }
+
+const AppNetworkChannelThreadsRouteWithChildren =
+  AppNetworkChannelThreadsRoute._addFileChildren(
+    AppNetworkChannelThreadsRouteChildren,
+  )
+
+interface AppNetworkRouteChildren {
+  AppNetworkChannelActivityRoute: typeof AppNetworkChannelActivityRoute
+  AppNetworkChannelDirectsRoute: typeof AppNetworkChannelDirectsRouteWithChildren
+  AppNetworkChannelThreadsRoute: typeof AppNetworkChannelThreadsRouteWithChildren
+}
+
+const AppNetworkRouteChildren: AppNetworkRouteChildren = {
+  AppNetworkChannelActivityRoute: AppNetworkChannelActivityRoute,
+  AppNetworkChannelDirectsRoute: AppNetworkChannelDirectsRouteWithChildren,
+  AppNetworkChannelThreadsRoute: AppNetworkChannelThreadsRouteWithChildren,
+}
+
+const AppNetworkRouteWithChildren = AppNetworkRoute._addFileChildren(
+  AppNetworkRouteChildren,
+)
 
 interface AppSettingsRouteChildren {
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
@@ -678,7 +824,7 @@ interface AppRouteChildren {
   AppBridgesRoute: typeof AppBridgesRoute
   AppJobsRoute: typeof AppJobsRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
-  AppNetworkRoute: typeof AppNetworkRoute
+  AppNetworkRoute: typeof AppNetworkRouteWithChildren
   AppSandboxRoute: typeof AppSandboxRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppSkillsRoute: typeof AppSkillsRoute
@@ -693,7 +839,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBridgesRoute: AppBridgesRoute,
   AppJobsRoute: AppJobsRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
-  AppNetworkRoute: AppNetworkRoute,
+  AppNetworkRoute: AppNetworkRouteWithChildren,
   AppSandboxRoute: AppSandboxRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppSkillsRoute: AppSkillsRoute,

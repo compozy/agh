@@ -51,6 +51,23 @@ import type {
   MemoryStoreParams,
   MemoryRecallParams,
   MemoryForgetParams,
+  NetworkChannelPayload,
+  NetworkConversationMessagePayload,
+  NetworkDirectMessagesParams,
+  NetworkDirectResolveParams,
+  NetworkDirectRoomPayload,
+  NetworkDirectsParams,
+  NetworkPeerPayload,
+  NetworkPeersParams,
+  NetworkSendParams,
+  NetworkSendPayload,
+  NetworkStatusPayload,
+  NetworkThreadMessagesParams,
+  NetworkThreadSummaryPayload,
+  NetworkThreadTargetParams,
+  NetworkThreadsParams,
+  NetworkWorkGetParams,
+  NetworkWorkPayload,
   SessionsCreateParams,
   SessionsListParams,
   SessionsPromptParams,
@@ -138,6 +155,30 @@ export class HostAPI {
     reportState: (params: BridgesInstancesReportStateParams) => Promise<BridgeInstance>;
   };
 
+  public readonly network: {
+    status: () => Promise<NetworkStatusPayload>;
+    channels: () => Promise<NetworkChannelPayload[]>;
+    peers: (params?: NetworkPeersParams) => Promise<NetworkPeerPayload[]>;
+    threads: (params: NetworkThreadsParams) => Promise<NetworkThreadSummaryPayload[]>;
+    thread: {
+      get: (params: NetworkThreadTargetParams) => Promise<NetworkThreadSummaryPayload>;
+      messages: (
+        params: NetworkThreadMessagesParams
+      ) => Promise<NetworkConversationMessagePayload[]>;
+    };
+    directs: (params: NetworkDirectsParams) => Promise<NetworkDirectRoomPayload[]>;
+    direct: {
+      resolve: (params: NetworkDirectResolveParams) => Promise<NetworkDirectRoomPayload>;
+      messages: (
+        params: NetworkDirectMessagesParams
+      ) => Promise<NetworkConversationMessagePayload[]>;
+    };
+    work: {
+      get: (params: NetworkWorkGetParams) => Promise<NetworkWorkPayload>;
+    };
+    send: (params: NetworkSendParams) => Promise<NetworkSendPayload>;
+  };
+
   public readonly resources: {
     list: (params?: ResourcesListParams) => Promise<ResourceRecord[]>;
     get: (params: ResourceGetParams) => Promise<ResourceRecord>;
@@ -202,6 +243,26 @@ export class HostAPI {
       ingest: async params => await this.request("bridges/messages/ingest", params),
       get: async params => await this.request("bridges/instances/get", params),
       reportState: async params => await this.request("bridges/instances/report_state", params),
+    };
+
+    this.network = {
+      status: async () => await this.request("network/status", undefined),
+      channels: async () => await this.request("network/channels", undefined),
+      peers: async params => await this.request("network/peers", params),
+      threads: async params => await this.request("network/threads", params),
+      thread: {
+        get: async params => await this.request("network/thread/get", params),
+        messages: async params => await this.request("network/thread/messages", params),
+      },
+      directs: async params => await this.request("network/directs", params),
+      direct: {
+        resolve: async params => await this.request("network/direct/resolve", params),
+        messages: async params => await this.request("network/direct/messages", params),
+      },
+      work: {
+        get: async params => await this.request("network/work/get", params),
+      },
+      send: async params => await this.request("network/send", params),
     };
 
     this.resources = {

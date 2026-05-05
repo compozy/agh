@@ -21,6 +21,7 @@ const (
 	HookEventFamilyCoordinator HookEventFamily = "coordinator"
 	HookEventFamilyTaskRun     HookEventFamily = "task.run"
 	HookEventFamilySpawn       HookEventFamily = "spawn"
+	HookEventFamilyNetwork     HookEventFamily = "network"
 )
 
 // Validate ensures the event family is part of the supported taxonomy.
@@ -40,7 +41,8 @@ func (f HookEventFamily) Validate() error {
 		HookEventFamilyContext,
 		HookEventFamilyCoordinator,
 		HookEventFamilyTaskRun,
-		HookEventFamilySpawn:
+		HookEventFamilySpawn,
+		HookEventFamilyNetwork:
 		return nil
 	default:
 		return fmt.Errorf("hooks: invalid hook event family %q", f)
@@ -128,6 +130,13 @@ const (
 	HookSpawnParentStopped HookEvent = "spawn.parent_stopped"
 	HookSpawnTTLExpired    HookEvent = "spawn.ttl_expired"
 	HookSpawnReaped        HookEvent = "spawn.reaped"
+
+	HookNetworkThreadOpened     HookEvent = "network.thread.opened"
+	HookNetworkDirectRoomOpened HookEvent = "network.direct_room.opened"
+	HookNetworkMessagePersisted HookEvent = "network.message.persisted"
+	HookNetworkWorkOpened       HookEvent = "network.work.opened"
+	HookNetworkWorkTransitioned HookEvent = "network.work.transitioned"
+	HookNetworkWorkClosed       HookEvent = "network.work.closed"
 )
 
 type hookEventSpec struct {
@@ -319,6 +328,30 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
 	},
+	HookNetworkThreadOpened: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: false,
+	},
+	HookNetworkDirectRoomOpened: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: false,
+	},
+	HookNetworkMessagePersisted: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: false,
+	},
+	HookNetworkWorkOpened: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: false,
+	},
+	HookNetworkWorkTransitioned: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: false,
+	},
+	HookNetworkWorkClosed: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: false,
+	},
 }
 
 var allHookEvents = []HookEvent{
@@ -385,6 +418,12 @@ var allHookEvents = []HookEvent{
 	HookSpawnParentStopped,
 	HookSpawnTTLExpired,
 	HookSpawnReaped,
+	HookNetworkThreadOpened,
+	HookNetworkDirectRoomOpened,
+	HookNetworkMessagePersisted,
+	HookNetworkWorkOpened,
+	HookNetworkWorkTransitioned,
+	HookNetworkWorkClosed,
 }
 
 var _ = func() bool {

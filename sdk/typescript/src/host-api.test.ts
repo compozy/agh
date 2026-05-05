@@ -271,6 +271,163 @@ describe("HostAPI", () => {
     ).resolves.toHaveLength(1);
   });
 
+  it("network helpers route through conversation host api methods", async () => {
+    const pair = createMockTransportPair();
+    const host = new HostAPI(pair.extension, { isReady: () => true });
+
+    pair.host.handle("network/status", async params => {
+      expect(params).toBeUndefined();
+      return { enabled: true, status: "running", channels: 1 };
+    });
+    pair.host.handle("network/channels", async params => {
+      expect(params).toBeUndefined();
+      return [{ channel: "builders", peer_count: 2 }];
+    });
+    pair.host.handle("network/peers", async params => {
+      expect(params).toEqual({ channel: "builders" });
+      return [
+        {
+          peer_id: "peer.remote",
+          display_name: "Remote",
+          channel: "builders",
+          local: false,
+          peer_card: {
+            peer_id: "peer.remote",
+            profiles_supported: [],
+            capabilities: [],
+            artifacts_supported: [],
+            trust_modes_supported: [],
+          },
+        },
+      ];
+    });
+    pair.host.handle("network/threads", async params => {
+      expect(params).toEqual({ channel: "builders", limit: 10 });
+      return [{ channel: "builders", thread_id: "thread_alpha01", root_message_id: "msg-root" }];
+    });
+    pair.host.handle("network/thread/get", async params => {
+      expect(params).toEqual({ channel: "builders", thread_id: "thread_alpha01" });
+      return { channel: "builders", thread_id: "thread_alpha01", root_message_id: "msg-root" };
+    });
+    pair.host.handle("network/thread/messages", async params => {
+      expect(params).toEqual({ channel: "builders", thread_id: "thread_alpha01", limit: 5 });
+      return [
+        {
+          message_id: "msg-root",
+          channel: "builders",
+          surface: "thread",
+          thread_id: "thread_alpha01",
+          kind: "say",
+          direction: "sent",
+          peer_from: "agent.local",
+          body: { text: "hello" },
+          timestamp: "2026-04-10T12:00:00.000Z",
+        },
+      ];
+    });
+    pair.host.handle("network/directs", async params => {
+      expect(params).toEqual({ channel: "builders", peer_id: "peer.remote" });
+      return [
+        {
+          channel: "builders",
+          direct_id: "direct_0123456789abcdef0123456789abcdef",
+          peer_a: "agent.local",
+          peer_b: "peer.remote",
+        },
+      ];
+    });
+    pair.host.handle("network/direct/resolve", async params => {
+      expect(params).toEqual({
+        channel: "builders",
+        session_id: "sess-local",
+        peer_id: "peer.remote",
+      });
+      return {
+        channel: "builders",
+        direct_id: "direct_0123456789abcdef0123456789abcdef",
+        peer_a: "agent.local",
+        peer_b: "peer.remote",
+      };
+    });
+    pair.host.handle("network/direct/messages", async params => {
+      expect(params).toEqual({
+        channel: "builders",
+        direct_id: "direct_0123456789abcdef0123456789abcdef",
+        limit: 5,
+      });
+      return [];
+    });
+    pair.host.handle("network/work/get", async params => {
+      expect(params).toEqual({ work_id: "work-alpha" });
+      return {
+        work_id: "work-alpha",
+        channel: "builders",
+        surface: "thread",
+        thread_id: "thread_alpha01",
+        state: "submitted",
+      };
+    });
+    pair.host.handle("network/send", async params => {
+      expect(params).toEqual({
+        session_id: "sess-local",
+        channel: "builders",
+        surface: "thread",
+        thread_id: "thread_alpha01",
+        kind: "say",
+        body: { text: "hello" },
+      });
+      return {
+        id: "msg-out",
+        session_id: "sess-local",
+        channel: "builders",
+        surface: "thread",
+        thread_id: "thread_alpha01",
+        kind: "say",
+      };
+    });
+
+    await expect(host.network.status()).resolves.toMatchObject({ status: "running" });
+    await expect(host.network.channels()).resolves.toHaveLength(1);
+    await expect(host.network.peers({ channel: "builders" })).resolves.toHaveLength(1);
+    await expect(host.network.threads({ channel: "builders", limit: 10 })).resolves.toHaveLength(1);
+    await expect(
+      host.network.thread.get({ channel: "builders", thread_id: "thread_alpha01" })
+    ).resolves.toMatchObject({ thread_id: "thread_alpha01" });
+    await expect(
+      host.network.thread.messages({ channel: "builders", thread_id: "thread_alpha01", limit: 5 })
+    ).resolves.toHaveLength(1);
+    await expect(
+      host.network.directs({ channel: "builders", peer_id: "peer.remote" })
+    ).resolves.toHaveLength(1);
+    await expect(
+      host.network.direct.resolve({
+        channel: "builders",
+        session_id: "sess-local",
+        peer_id: "peer.remote",
+      })
+    ).resolves.toMatchObject({ direct_id: "direct_0123456789abcdef0123456789abcdef" });
+    await expect(
+      host.network.direct.messages({
+        channel: "builders",
+        direct_id: "direct_0123456789abcdef0123456789abcdef",
+        limit: 5,
+      })
+    ).resolves.toEqual([]);
+    await expect(host.network.work.get({ work_id: "work-alpha" })).resolves.toMatchObject({
+      work_id: "work-alpha",
+    });
+    await expect(
+      host.network.send({
+        session_id: "sess-local",
+        channel: "builders",
+        surface: "thread",
+        thread_id: "thread_alpha01",
+        kind: "say",
+        body: { text: "hello" },
+      })
+    ).resolves.toMatchObject({ id: "msg-out" });
+  });
+
   it("supports the remaining host api methods", async () => {
     const pair = createMockTransportPair();
     const host = new HostAPI(pair.extension, { isReady: () => true });

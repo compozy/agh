@@ -1508,7 +1508,8 @@ func (m *Manager) loadHookResources(ext *managedExtension) ([]hookspkg.HookDecl,
 	}
 
 	decls := make([]hookspkg.HookDecl, 0, len(ext.manifest.Resources.Hooks))
-	for idx, cfg := range ext.manifest.Resources.Hooks {
+	for idx := range ext.manifest.Resources.Hooks {
+		cfg := &ext.manifest.Resources.Hooks[idx]
 		decl, err := m.hookConfigToDecl(ext, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("extension hook %d (%q): %w", idx, strings.TrimSpace(cfg.Name), err)
@@ -1525,7 +1526,10 @@ func (m *Manager) loadBundleResources(ctx context.Context, ext *managedExtension
 	return LoadBundleSpecs(ctx, ext.rootDir, ext.manifest)
 }
 
-func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg HookConfig) (hookspkg.HookDecl, error) {
+func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg *HookConfig) (hookspkg.HookDecl, error) {
+	if cfg == nil {
+		return hookspkg.HookDecl{}, errors.New("hook config is required")
+	}
 	executor, err := resolveHookConfigExecutorFields(cfg)
 	if err != nil {
 		return hookspkg.HookDecl{}, err
@@ -1584,7 +1588,10 @@ type hookConfigExecutorFields struct {
 	kind      hookspkg.HookExecutorKind
 }
 
-func resolveHookConfigExecutorFields(cfg HookConfig) (hookConfigExecutorFields, error) {
+func resolveHookConfigExecutorFields(cfg *HookConfig) (hookConfigExecutorFields, error) {
+	if cfg == nil {
+		return hookConfigExecutorFields{}, errors.New("hook config is required")
+	}
 	fields := hookConfigExecutorFields{
 		command:   strings.TrimSpace(cfg.Command),
 		args:      slices.Clone(cfg.Args),
@@ -1612,21 +1619,30 @@ func resolveHookConfigExecutorFields(cfg HookConfig) (hookConfigExecutorFields, 
 
 func hookConfigMatcher(cfg HookMatcherConfig) hookspkg.HookMatcher {
 	matcher := hookspkg.HookMatcher{
-		AgentName:          strings.TrimSpace(cfg.AgentName),
-		AgentType:          strings.TrimSpace(cfg.AgentType),
-		WorkspaceID:        strings.TrimSpace(cfg.WorkspaceID),
-		WorkspaceRoot:      strings.TrimSpace(cfg.WorkspaceRoot),
-		SessionType:        strings.TrimSpace(cfg.SessionType),
-		InputClass:         strings.TrimSpace(cfg.InputClass),
-		ACPEventType:       strings.TrimSpace(cfg.ACPEventType),
-		TurnID:             strings.TrimSpace(cfg.TurnID),
-		ToolID:             strings.TrimSpace(cfg.ToolID),
-		ToolName:           strings.TrimSpace(cfg.ToolName),
-		DecisionClass:      strings.TrimSpace(cfg.DecisionClass),
-		MessageRole:        strings.TrimSpace(cfg.MessageRole),
-		MessageDeltaType:   strings.TrimSpace(cfg.MessageDeltaType),
-		CompactionReason:   strings.TrimSpace(cfg.CompactionReason),
-		CompactionStrategy: strings.TrimSpace(cfg.CompactionStrategy),
+		AgentName:        strings.TrimSpace(cfg.AgentName),
+		AgentType:        strings.TrimSpace(cfg.AgentType),
+		WorkspaceID:      strings.TrimSpace(cfg.WorkspaceID),
+		WorkspaceRoot:    strings.TrimSpace(cfg.WorkspaceRoot),
+		SessionType:      strings.TrimSpace(cfg.SessionType),
+		InputClass:       strings.TrimSpace(cfg.InputClass),
+		ACPEventType:     strings.TrimSpace(cfg.ACPEventType),
+		TurnID:           strings.TrimSpace(cfg.TurnID),
+		ToolID:           strings.TrimSpace(cfg.ToolID),
+		ToolName:         strings.TrimSpace(cfg.ToolName),
+		DecisionClass:    strings.TrimSpace(cfg.DecisionClass),
+		MessageRole:      strings.TrimSpace(cfg.MessageRole),
+		MessageDeltaType: strings.TrimSpace(cfg.MessageDeltaType),
+	}
+	matcher.NetworkMatcher = &hookspkg.NetworkMatcher{
+		Channel:   strings.TrimSpace(cfg.Channel),
+		Surface:   strings.TrimSpace(cfg.Surface),
+		Kind:      strings.TrimSpace(cfg.Kind),
+		Direction: strings.TrimSpace(cfg.Direction),
+		WorkState: strings.TrimSpace(cfg.WorkState),
+	}
+	matcher.CompactionMatcher = &hookspkg.CompactionMatcher{
+		Reason:   strings.TrimSpace(cfg.CompactionReason),
+		Strategy: strings.TrimSpace(cfg.CompactionStrategy),
 	}
 	if cfg.ToolReadOnly != nil {
 		value := *cfg.ToolReadOnly
