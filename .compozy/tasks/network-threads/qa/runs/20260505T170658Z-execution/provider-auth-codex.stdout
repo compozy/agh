@@ -1,9 +1,0 @@
-{
-  "provider": "codex",
-  "display_name": "Codex",
-  "auth_mode": "native_cli",
-  "env_policy": "filtered",
-  "home_policy": "operator",
-  "state": "native_cli",
-  "message": "Provider owns authentication through its native CLI login state."
-}

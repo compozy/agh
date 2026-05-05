@@ -1,4 +1,0 @@
-=== RUN   TestResolveInstanceConfigAndHelperNormalization
---- PASS: TestResolveInstanceConfigAndHelperNormalization (0.00s)
-PASS
-ok  	github.com/pedronauck/agh/extensions/bridges/telegram	1.031s

@@ -1,2 +1,0 @@
-usage: check-test-conventions.py [-h] file
-check-test-conventions.py: error: unrecognized arguments: internal/api/spec/spec_test.go

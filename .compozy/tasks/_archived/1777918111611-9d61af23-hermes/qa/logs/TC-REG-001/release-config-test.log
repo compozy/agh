@@ -1,6 +1,0 @@
-=== RUN   TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets
-=== PAUSE TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets
-=== CONT  TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets
---- PASS: TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets (0.00s)
-PASS
-ok  	github.com/pedronauck/agh/internal/config	0.011s

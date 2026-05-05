@@ -1,9 +1,0 @@
-{
-  "id": "msg_say_qa2",
-  "session_id": "sess-f225672703443d05",
-  "channel": "builders",
-  "surface": "thread",
-  "thread_id": "thread_builders_qa2",
-  "kind": "say",
-  "trace_id": "trace_ops_patch_qa2"
-}

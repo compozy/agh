@@ -1,9 +1,0 @@
-[0m[2m[35m$[0m [2m[1mvite --port 3000 --host "127.0.0.1" --port "3001"[0m
-(node:26052) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-(Use `node --trace-warnings ...` to show where the warning was created)
-2:19:15 AM [vite] (client) Re-optimizing dependencies because lockfile has changed
-
-  VITE v8.0.8  ready in 337 ms
-
-  ➜  Local:   http://127.0.0.1:3001/
-  ➜  press h + enter to show help

@@ -1,7 +1,0 @@
-{
-    "network": {
-        "configured_default_channel": "default",
-        "effective_default_channel": "default",
-        "effective_default_source": "config"
-    }
-}

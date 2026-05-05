@@ -1,4 +1,0 @@
-{"type":"review_context","reviewType":"uncommitted","currentBranch":"network-threads","baseBranch":"main","workingDirectory":"/Users/pedronauck/Dev/compozy/agh2/.compozy/tasks/network-threads/qa"}
-{"type":"status","phase":"connecting","status":"connecting_to_review_service"}
-{"type":"status","phase":"setup","status":"setting_up"}
-{"type":"error","errorType":"review","message":"Review failed: Too many files!\n\nThis PR contains 157 files, which is 7 over the limit of 150.","recoverable":false,"details":{}}

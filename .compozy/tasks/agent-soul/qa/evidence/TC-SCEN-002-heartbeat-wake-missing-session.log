@@ -1,3 +1,0 @@
-error: heartbeat: read session health for "sess-missing": session: session not found: sess-missing
-
-exit_code=1

@@ -1,1 +1,0 @@
-error: validate config write for "workspace-config": agents.heartbeat.default_interval must be positive: 0s

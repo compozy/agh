@@ -1,7 +1,0 @@
-{
-  "path": "defaults.agent",
-  "value": "general",
-  "scope": "global",
-  "target": "/tmp/agh-hermes-setup.LRM8b9/config.toml",
-  "redacted": false
-}
