@@ -38,7 +38,7 @@ func TestRouterSendEnforcesPresencePreflight(t *testing.T) {
 		Channel:   "builders",
 		Kind:      KindSay,
 		To:        stringPtr("reviewer.sess-missing"),
-		WorkID:    stringPtr("int_missing"),
+		WorkID:    stringPtr("work_missing"),
 		Body:      mustRawJSON(t, SayBody{Text: "please review"}),
 	})
 	if _, err := router.Send(context.Background(), req); !errors.Is(err, ErrTargetPeerNotFound) {
@@ -66,7 +66,7 @@ func TestRouterSendEnforcesPresencePreflight(t *testing.T) {
 		t.Fatalf("NewRouter(expired) error = %v", err)
 	}
 	req.To = stringPtr(expiringPeer.PeerID)
-	req.WorkID = stringPtr("int_expired")
+	req.WorkID = stringPtr("work_expired")
 	if _, err := expiredRouter.Send(context.Background(), req); !errors.Is(err, ErrTargetPeerNotFound) {
 		t.Fatalf("Send(expired target) error = %v, want ErrTargetPeerNotFound", err)
 	}
@@ -116,7 +116,7 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 		Channel:   "builders",
 		Kind:      KindSay,
 		To:        stringPtr(target.PeerID),
-		WorkID:    stringPtr("int_route"),
+		WorkID:    stringPtr("work_route"),
 		Body:      mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
 	if err != nil {
@@ -216,7 +216,7 @@ func TestRouterDoesNotDeliverLocalEchoesToSender(t *testing.T) {
 			Channel:   "marketing",
 			Kind:      KindSay,
 			To:        stringPtr(sender.PeerID),
-			WorkID:    stringPtr("int-self"),
+			WorkID:    stringPtr("work_self"),
 			Body:      mustRawJSON(t, SayBody{Text: "self-directed loop"}),
 		})); err != nil {
 			t.Fatalf("Send(direct self echo) error = %v", err)
@@ -316,7 +316,7 @@ func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {
 		Channel:  "builders",
 		From:     "coder.sess-a",
 		To:       stringPtr(target.PeerID),
-		WorkID:   stringPtr("int_dup"),
+		WorkID:   stringPtr("work_dup"),
 		TS:       now.Unix(),
 		Body:     mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
@@ -338,7 +338,7 @@ func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {
 		Channel:  "builders",
 		From:     "coder.sess-a",
 		To:       stringPtr(target.PeerID),
-		WorkID:   stringPtr("int_dup"),
+		WorkID:   stringPtr("work_dup"),
 		ReplyTo:  stringPtr("msg_direct_dup"),
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, ReceiptBody{
@@ -1067,7 +1067,7 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 		Channel:  "builders",
 		From:     "coder.sess-a",
 		To:       stringPtr("reviewer.sess-other"),
-		WorkID:   stringPtr("int_not_target"),
+		WorkID:   stringPtr("work_not_target"),
 		TS:       now.Unix(),
 		Body:     mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
@@ -1138,7 +1138,7 @@ func TestRouterReceiveRejectsCapabilityDigestMismatchBeforeDelivery(t *testing.T
 		Channel:  "builders",
 		From:     "coder.sess-a",
 		To:       stringPtr(local.PeerID),
-		WorkID:   stringPtr("int_capability_bad_digest"),
+		WorkID:   stringPtr("work_capability_bad_digest"),
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, CapabilityBody{
 			Capability: CapabilityEnvelopePayload{
@@ -1201,7 +1201,7 @@ func TestRouterReceiveExpiredDirectGeneratesExpiredReceipt(t *testing.T) {
 		Channel:   "builders",
 		From:      "coder.sess-a",
 		To:        stringPtr(local.PeerID),
-		WorkID:    stringPtr("int_expired"),
+		WorkID:    stringPtr("work_expired"),
 		TS:        now.Add(-2 * time.Second).Unix(),
 		ExpiresAt: &expiredAt,
 		Body:      mustRawJSON(t, SayBody{Text: "too late"}),
@@ -1381,7 +1381,7 @@ func TestRouterConstructionAndHelperErrors(t *testing.T) {
 	}
 }
 
-func TestInteractionValidationErrors(t *testing.T) {
+func TestWorkValidationErrors(t *testing.T) {
 	t.Parallel()
 
 	if err := (Work{}).Validate(); err == nil {
@@ -1393,7 +1393,7 @@ func TestInteractionValidationErrors(t *testing.T) {
 	}
 }
 
-func TestRouterDirectedCapabilityOpensInteractionForReceiptAndTrace(t *testing.T) {
+func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 10, 13, 37, 0, 0, time.UTC)
@@ -1427,7 +1427,7 @@ func TestRouterDirectedCapabilityOpensInteractionForReceiptAndTrace(t *testing.T
 		Channel:  "builders",
 		From:     alpha.PeerID,
 		To:       stringPtr(delta.PeerID),
-		WorkID:   stringPtr("int_capability_open"),
+		WorkID:   stringPtr("work_capability_open"),
 		TS:       now.Unix(),
 		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 			ID:               "review-fix",
@@ -1460,7 +1460,7 @@ func TestRouterDirectedCapabilityOpensInteractionForReceiptAndTrace(t *testing.T
 		Channel:  "builders",
 		From:     delta.PeerID,
 		To:       stringPtr(alpha.PeerID),
-		WorkID:   stringPtr("int_capability_open"),
+		WorkID:   stringPtr("work_capability_open"),
 		ReplyTo:  stringPtr("msg_capability_open"),
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, ReceiptBody{
@@ -1493,7 +1493,7 @@ func TestRouterDirectedCapabilityOpensInteractionForReceiptAndTrace(t *testing.T
 		Channel:  "builders",
 		From:     delta.PeerID,
 		To:       stringPtr(alpha.PeerID),
-		WorkID:   stringPtr("int_capability_open"),
+		WorkID:   stringPtr("work_capability_open"),
 		ReplyTo:  stringPtr("msg_capability_open"),
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
@@ -1554,7 +1554,7 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 		Channel:   "builders",
 		Kind:      KindCapability,
 		To:        stringPtr(remote.PeerID),
-		WorkID:    stringPtr("int_capability_send"),
+		WorkID:    stringPtr("work_capability_send"),
 		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 			ID:               "review-fix",
 			Summary:          "Review fix flow",
@@ -1575,7 +1575,7 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 		Channel:  "builders",
 		From:     remote.PeerID,
 		To:       stringPtr(sender.PeerID),
-		WorkID:   stringPtr("int_capability_send"),
+		WorkID:   stringPtr("work_capability_send"),
 		ReplyTo:  stringPtr(sent.ID),
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
@@ -1608,7 +1608,7 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 		Channel:  "builders",
 		From:     remote.PeerID,
 		To:       stringPtr(sender.PeerID),
-		WorkID:   stringPtr("int_capability_send"),
+		WorkID:   stringPtr("work_capability_send"),
 		ReplyTo:  stringPtr(sent.ID),
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
@@ -1633,7 +1633,7 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 		Channel:   "builders",
 		Kind:      KindCapability,
 		To:        stringPtr(remote.PeerID),
-		WorkID:    stringPtr("int_capability_send"),
+		WorkID:    stringPtr("work_capability_send"),
 		ReplyTo:   stringPtr(sent.ID),
 		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 			ID:               "review-fix-follow-up",
@@ -1677,7 +1677,7 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 		Channel:  "builders",
 		From:     "coder.sess-a",
 		To:       stringPtr(local.PeerID),
-		WorkID:   stringPtr("int_invalid_trace"),
+		WorkID:   stringPtr("work_invalid_trace"),
 		TS:       now.Unix(),
 		Body:     mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
@@ -1695,7 +1695,7 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 		Channel:  "builders",
 		From:     "coder.sess-a",
 		To:       stringPtr(local.PeerID),
-		WorkID:   stringPtr("int_invalid_trace"),
+		WorkID:   stringPtr("work_invalid_trace"),
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State: WorkStateSubmitted,
@@ -1714,6 +1714,79 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 	}
 	if got, want := len(result.Deliveries), 0; got != want {
 		t.Fatalf("len(invalid lifecycle deliveries) = %d, want %d", got, want)
+	}
+}
+
+func TestRouterReceiveRejectsCrossContainerWorkContinuation(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 10, 13, 36, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+	local := mustPeerCard(t, "reviewer.sess-b")
+	if _, err := registry.RegisterLocal("sess-b", "builders", local, now); err != nil {
+		t.Fatalf("RegisterLocal(local) error = %v", err)
+	}
+	router, err := NewRouter(
+		registry,
+		&spyRouterTransport{},
+		DefaultMaxReplayAge,
+		WithRouterClock(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("NewRouter() error = %v", err)
+	}
+
+	directPayload, err := json.Marshal(withDirectSurface(Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg_direct_cross_container",
+		Kind:     KindSay,
+		Channel:  "builders",
+		From:     "coder.sess-a",
+		To:       stringPtr(local.PeerID),
+		WorkID:   stringPtr("work_cross_container"),
+		TS:       now.Unix(),
+		Body:     mustRawJSON(t, SayBody{Text: "please review"}),
+	}))
+	if err != nil {
+		t.Fatalf("json.Marshal(direct) error = %v", err)
+	}
+	if _, err := router.Receive(context.Background(), directPayload); err != nil {
+		t.Fatalf("Receive(direct) error = %v", err)
+	}
+
+	threadTrace := Envelope{
+		Protocol: ProtocolV0,
+		ID:       "msg_trace_cross_container",
+		Kind:     KindTrace,
+		Channel:  "builders",
+		Surface:  surfacePtr(SurfaceThread),
+		ThreadID: stringPtr("thread_patch_42"),
+		From:     "coder.sess-a",
+		To:       stringPtr(local.PeerID),
+		WorkID:   stringPtr("work_cross_container"),
+		TS:       now.Unix(),
+		Body:     mustRawJSON(t, TraceBody{State: WorkStateWorking}),
+	}
+	tracePayload, err := json.Marshal(threadTrace)
+	if err != nil {
+		t.Fatalf("json.Marshal(trace) error = %v", err)
+	}
+
+	result, err := router.Receive(context.Background(), tracePayload)
+	if err != nil {
+		t.Fatalf("Receive(cross-container trace) error = %v", err)
+	}
+	if !result.Rejected || result.ReasonCode == nil || *result.ReasonCode != ReasonCodeWorkContainerMismatch {
+		t.Fatalf("cross-container lifecycle result = %#v, want reason %q", result, ReasonCodeWorkContainerMismatch)
+	}
+	if got, want := len(result.Deliveries), 0; got != want {
+		t.Fatalf("len(cross-container deliveries) = %d, want %d", got, want)
+	}
+	if got, want := len(result.Generated), 0; got != want {
+		t.Fatalf("len(cross-container generated) = %d, want %d", got, want)
 	}
 }
 

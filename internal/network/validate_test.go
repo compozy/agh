@@ -19,7 +19,7 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 	opts := ValidateOptions{Now: now, MaxReplayAge: DefaultMaxReplayAge}
 
 	target := "reviewer.sess-xyz"
-	workID := "int_patch_42"
+	workID := "work_patch_42"
 	replyTo := "msg_direct_00"
 	traceID := "trace_patch_42"
 
@@ -234,7 +234,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
 		From:     "coder.sess-abc",
 		To:       stringPtr("reviewer.sess-xyz"),
-		WorkID:   stringPtr("int_patch_42"),
+		WorkID:   stringPtr("work_patch_42"),
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"text": "please review auth.go",
@@ -583,7 +583,7 @@ func TestValidateEnvelopeConversationContainerInvariants(t *testing.T) {
 				env.ThreadID = nil
 				env.DirectID = stringPtr("direct_0123456789abcdef0123456789abcdef")
 				env.To = stringPtr("reviewer.sess-xyz")
-				env.WorkID = stringPtr("int_patch_42")
+				env.WorkID = stringPtr("work_patch_42")
 				return env
 			},
 		},
@@ -733,7 +733,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 			name: "Should reject greet with work_id",
 			kind: KindGreet,
 			mutate: func(env Envelope) Envelope {
-				env.WorkID = stringPtr("int_patch_42")
+				env.WorkID = stringPtr("work_patch_42")
 				return env
 			},
 			wantMatch: "work_id",
@@ -781,7 +781,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 				Type: WhoisTypeRequest,
 			}),
 			mutate: func(env Envelope) Envelope {
-				env.WorkID = stringPtr("int_patch_42")
+				env.WorkID = stringPtr("work_patch_42")
 				return env
 			},
 			wantMatch: "work_id",
@@ -830,7 +830,7 @@ func TestParseEnvelopeRejectsLegacyConversationFields(t *testing.T) {
 			  "direct_id": "direct_0123456789abcdef0123456789abcdef",
 			  "from": "coder.sess-abc",
 			  "to": "reviewer.sess-xyz",
-			  "interaction_id": "int_patch_42",
+			  "interaction_id": "work_patch_42",
 			  "ts": 1775822400,
 			  "body": {"text": "legacy"}
 			}`),
@@ -847,7 +847,7 @@ func TestParseEnvelopeRejectsLegacyConversationFields(t *testing.T) {
 			  "direct_id": "direct_0123456789abcdef0123456789abcdef",
 			  "from": "coder.sess-abc",
 			  "to": "reviewer.sess-xyz",
-			  "work_id": "int_patch_42",
+			  "work_id": "work_patch_42",
 			  "ts": 1775822400,
 			  "body": {"text": "legacy"}
 			}`),
@@ -1002,7 +1002,7 @@ func TestRFC004SignedContentConversationFieldsAffectCanonicalBytes(t *testing.T)
 		{
 			name: "work_id",
 			mutate: func(env Envelope) Envelope {
-				env.WorkID = stringPtr("int_signed_a")
+				env.WorkID = stringPtr("work_signed_a")
 				return env
 			},
 		},
@@ -1094,6 +1094,9 @@ func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity(reverse) error = %v", err)
 	}
+	if got, want := forwardID, "direct_99401d24bee62651d189e5a561785466"; got != want {
+		t.Fatalf("DirectRoomIdentity() = %q, want known vector %q", got, want)
+	}
 	if forwardID != reverseID || peerA != reverseA || peerB != reverseB {
 		t.Fatalf(
 			"DirectRoomIdentity reverse mismatch = (%q,%q,%q), want (%q,%q,%q)",
@@ -1108,6 +1111,13 @@ func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
 	if err := ValidateConversationID(forwardID, "direct_id"); err != nil {
 		t.Fatalf("ValidateConversationID(%q, direct_id) error = %v", forwardID, err)
 	}
+	otherChannelID, _, _, err := DirectRoomIdentity("reviews", "coder.sess-abc", "reviewer.sess-xyz")
+	if err != nil {
+		t.Fatalf("DirectRoomIdentity(other channel) error = %v", err)
+	}
+	if otherChannelID == forwardID {
+		t.Fatalf("DirectRoomIdentity() returned same id across channels: %q", forwardID)
+	}
 	if _, _, _, err := DirectRoomIdentity(
 		"builders",
 		"coder.sess-abc",
@@ -1117,6 +1127,25 @@ func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
 		ErrInvalidField,
 	) {
 		t.Fatalf("DirectRoomIdentity(same peer) error = %v, want ErrInvalidField", err)
+	}
+	if err := ValidateDirectRoomPeers("coder.sess-abc", "reviewer.sess-xyz"); err != nil {
+		t.Fatalf("ValidateDirectRoomPeers() error = %v", err)
+	}
+	if err := ValidateDirectRoomBinding(
+		"builders",
+		forwardID,
+		"reviewer.sess-xyz",
+		"coder.sess-abc",
+	); err != nil {
+		t.Fatalf("ValidateDirectRoomBinding(reversed peers) error = %v", err)
+	}
+	if err := ValidateDirectRoomBinding(
+		"builders",
+		forwardID,
+		"coder.sess-abc",
+		"another.sess-123",
+	); !errors.Is(err, ErrDirectRoomCollision) {
+		t.Fatalf("ValidateDirectRoomBinding(collision) error = %v, want ErrDirectRoomCollision", err)
 	}
 }
 
@@ -1136,7 +1165,7 @@ func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 		  "direct_id": "direct_0123456789abcdef0123456789abcdef",
 		  "from": "coder.sess-abc",
 		  "to": "reviewer.sess-xyz",
-		  "work_id": "int_patch_42",
+		  "work_id": "work_patch_42",
 	  "ts": 1775822400,
 	  "body": {"text": "review this"},
 	  "proof": {"profile": "agh-network.trust.ed25519-jcs/v1"},

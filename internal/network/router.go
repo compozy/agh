@@ -510,9 +510,12 @@ func (r *Router) applyReceiveLifecycle(
 			return result, false, nil
 		case LifecycleActionRejectWork:
 			reason := ReasonCodeWorkClosed
+			if lifecycleResult.ReasonCode != nil {
+				reason = *lifecycleResult.ReasonCode
+			}
 			result.Rejected = true
 			result.ReasonCode = &reason
-			if !emitRejectionReceipt {
+			if !emitRejectionReceipt || !shouldEmitWorkReceipt(state.envelope) {
 				return result, false, nil
 			}
 			return r.appendPublishedReceipt(
@@ -527,6 +530,22 @@ func (r *Router) applyReceiveLifecycle(
 		default:
 			return result, true, nil
 		}
+	case errors.Is(err, ErrWorkContainerMismatch):
+		reason := ReasonCodeWorkContainerMismatch
+		result.Rejected = true
+		result.ReasonCode = &reason
+		if !emitRejectionReceipt || !shouldEmitWorkReceipt(state.envelope) {
+			return result, false, nil
+		}
+		return r.appendPublishedReceipt(
+			ctx,
+			result,
+			state.directedTarget,
+			state.envelope,
+			state.now,
+			ReceiptStatusRejected,
+			true,
+		)
 	case errors.Is(err, ErrWorkActorNotAllowed),
 		errors.Is(err, ErrWorkNotFound):
 		result.Ignored = true

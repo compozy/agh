@@ -73,7 +73,7 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 		DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
 		From:        "coder.sess-abc",
 		To:          stringPtr("reviewer.sess-xyz"),
-		WorkID:      stringPtr("int-patch-42"),
+		WorkID:      stringPtr("work_patch-42"),
 		ReplyTo:     stringPtr("msg-root-00"),
 		TraceID:     stringPtr("trace-patch-42"),
 		CausationID: stringPtr("msg-cause-00"),
@@ -98,7 +98,7 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 	if !strings.Contains(rendered, `direct-id="direct_0123456789abcdef0123456789abcdef"`) {
 		t.Fatalf("rendered message missing direct-id attribute: %s", rendered)
 	}
-	if !strings.Contains(rendered, `work-id="int-patch-42"`) {
+	if !strings.Contains(rendered, `work-id="work_patch-42"`) {
 		t.Fatalf("rendered message missing work attribute: %s", rendered)
 	}
 	if !strings.Contains(rendered, `to="reviewer.sess-xyz"`) {
@@ -235,7 +235,7 @@ func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.
 	}
 }
 
-func TestFormatNetworkMessageSayGuidanceOpensNewDirectInteraction(t *testing.T) {
+func TestFormatNetworkMessageSayGuidanceOpensNewDirectWork(t *testing.T) {
 	t.Parallel()
 
 	envelope := Envelope{
@@ -246,7 +246,7 @@ func TestFormatNetworkMessageSayGuidanceOpensNewDirectInteraction(t *testing.T) 
 		Surface:  surfacePtr(SurfaceThread),
 		ThreadID: stringPtr("thread_summary_01"),
 		From:     "coordinator.sess-abc",
-		WorkID:   stringPtr("int-summary-01"),
+		WorkID:   stringPtr("work_summary_01"),
 		TraceID:  stringPtr("trace-summary-01"),
 		TS:       time.Date(2026, 4, 11, 13, 10, 0, 0, time.UTC).Unix(),
 		Body: mustRawJSON(t, map[string]any{
@@ -263,7 +263,7 @@ func TestFormatNetworkMessageSayGuidanceOpensNewDirectInteraction(t *testing.T) 
 	for _, snippet := range []string{
 		`--surface "thread"`,
 		`--thread "thread_summary_01"`,
-		`--work "int-summary-01"`,
+		`--work "work_summary_01"`,
 		`--reply-to "msg-say-01"`,
 		`--trace-id "trace-summary-01"`,
 		"# Protocol receipt",

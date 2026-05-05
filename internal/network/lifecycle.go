@@ -15,6 +15,9 @@ var (
 	ErrWorkActorNotAllowed = errors.New("network: work actor not allowed")
 	// ErrInvalidStateTransition reports an impossible lifecycle transition.
 	ErrInvalidStateTransition = errors.New("network: invalid work state transition")
+	// ErrWorkContainerMismatch reports that a work_id was continued from a
+	// different conversation container than the one that opened it.
+	ErrWorkContainerMismatch = errors.New("network: work container mismatch")
 	// ErrWorkClosed reports a message for a terminal work that must
 	// be rejected instead of reopening the work.
 	ErrWorkClosed = errors.New("network: work closed")
@@ -22,13 +25,14 @@ var (
 
 // Work tracks one directed work inside one channel.
 type Work struct {
-	ID        string
-	Ref       ConversationRef
-	Initiator string
-	Target    string
-	State     WorkState
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID         string
+	Ref        ConversationRef
+	Initiator  string
+	Target     string
+	State      WorkState
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	TerminalAt *time.Time
 }
 
 // Validate reports whether the work carries a usable identity and state.
@@ -56,6 +60,9 @@ func (i Work) Validate() error {
 	}
 	if err := i.State.Validate(); err != nil {
 		return fmt.Errorf("validate work state: %w", err)
+	}
+	if i.TerminalAt != nil && !IsTerminalState(i.State) {
+		return fmt.Errorf("%w: terminal_at requires terminal work state", ErrInvalidField)
 	}
 	return nil
 }
@@ -154,7 +161,7 @@ func ApplyWorkEnvelope(current *Work, env Envelope, at time.Time) (LifecycleResu
 	if err != nil {
 		return LifecycleResult{}, err
 	}
-	if result, terminal := terminalWorkResult(work, env); terminal {
+	if result, terminal := terminalWorkResult(work); terminal {
 		return result, nil
 	}
 
@@ -214,7 +221,7 @@ func validateWorkIdentity(current Work, env Envelope) error {
 	if ref.ContainerKey() != current.Ref.ContainerKey() {
 		return fmt.Errorf(
 			"%w: work_id=%q",
-			ErrInvalidField,
+			ErrWorkContainerMismatch,
 			current.ID,
 		)
 	}
@@ -242,27 +249,17 @@ func validateWorkDirection(current Work, env Envelope) error {
 	return nil
 }
 
-func terminalWorkResult(work Work, env Envelope) (LifecycleResult, bool) {
+func terminalWorkResult(work Work) (LifecycleResult, bool) {
 	if !IsTerminalState(work.State) {
 		return LifecycleResult{}, false
 	}
 
-	switch env.Kind {
-	case KindTrace, KindReceipt:
-		return LifecycleResult{
-			Work:   work,
-			Action: LifecycleActionIgnored,
-		}, true
-	case KindSay, KindCapability:
-		reason := ReasonCodeWorkClosed
-		return LifecycleResult{
-			Work:       work,
-			Action:     LifecycleActionRejectWork,
-			ReasonCode: &reason,
-		}, true
-	default:
-		return LifecycleResult{}, false
-	}
+	reason := ReasonCodeWorkClosed
+	return LifecycleResult{
+		Work:       work,
+		Action:     LifecycleActionRejectWork,
+		ReasonCode: &reason,
+	}, true
 }
 
 func applyActiveWorkEnvelope(work Work, env Envelope, at time.Time) (LifecycleResult, error) {
@@ -317,14 +314,13 @@ func applyReceipt(work Work, receipt ReceiptBody, at time.Time) (LifecycleResult
 			Action: LifecycleActionUnchanged,
 		}, nil
 	case ReceiptStatusRejected:
-		work.State = WorkStateFailed
+		work = transitionWorkState(work, WorkStateFailed, at)
 	case ReceiptStatusCanceled:
-		work.State = WorkStateCanceled
+		work = transitionWorkState(work, WorkStateCanceled, at)
 	default:
 		return LifecycleResult{}, fmt.Errorf("%w: receipt status=%q", ErrInvalidStateTransition, receipt.Status)
 	}
 
-	work.UpdatedAt = at
 	return LifecycleResult{
 		Work:   work,
 		Action: LifecycleActionAdvanced,
@@ -337,13 +333,22 @@ func applyTrace(work Work, trace TraceBody, at time.Time) (LifecycleResult, erro
 	}
 
 	updated := work
-	updated.State = trace.State
-	updated.UpdatedAt = at
+	updated = transitionWorkState(updated, trace.State, at)
 
 	return LifecycleResult{
 		Work:   updated,
 		Action: LifecycleActionAdvanced,
 	}, nil
+}
+
+func transitionWorkState(work Work, next WorkState, at time.Time) Work {
+	work.State = next
+	work.UpdatedAt = at
+	if IsTerminalState(next) {
+		terminalAt := at
+		work.TerminalAt = &terminalAt
+	}
+	return work
 }
 
 func canApplyTrace(current WorkState, next WorkState) bool {

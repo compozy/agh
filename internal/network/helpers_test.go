@@ -110,7 +110,7 @@ func TestValidateEnvelopeAndDecodeBodyErrors(t *testing.T) {
 		DirectID: stringPtr(testDirectRef().DirectID),
 		From:     "coder.sess-abc",
 		To:       stringPtr("reviewer.sess-xyz"),
-		WorkID:   stringPtr("int_patch_42"),
+		WorkID:   stringPtr("work_patch_42"),
 		TS:       now.Unix(),
 		Body:     mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
 	}
@@ -179,11 +179,11 @@ func TestAdditionalBodyValidationBranches(t *testing.T) {
 	}
 }
 
-func TestInteractionValidationAndTraceMatrix(t *testing.T) {
+func TestWorkValidationAndTraceMatrix(t *testing.T) {
 	t.Parallel()
 
 	valid := Work{
-		ID:        "int_patch_42",
+		ID:        "work_patch_42",
 		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
@@ -206,7 +206,7 @@ func TestInteractionValidationAndTraceMatrix(t *testing.T) {
 		Channel:  "builders",
 		From:     "reviewer.sess-xyz",
 		To:       stringPtr("coder.sess-abc"),
-		WorkID:   stringPtr("int_patch_42"),
+		WorkID:   stringPtr("work_patch_42"),
 		TS:       time.Now().Unix(),
 		Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 	}
@@ -235,6 +235,18 @@ func TestInteractionValidationAndTraceMatrix(t *testing.T) {
 
 			if got := canApplyTrace(tc.current, tc.next); got != tc.want {
 				t.Fatalf("canApplyTrace(%q, %q) = %v, want %v", tc.current, tc.next, got, tc.want)
+			}
+			err := ValidateWorkTransition(tc.current, tc.next)
+			if tc.want && err != nil {
+				t.Fatalf("ValidateWorkTransition(%q, %q) error = %v", tc.current, tc.next, err)
+			}
+			if !tc.want && !errors.Is(err, ErrInvalidStateTransition) {
+				t.Fatalf(
+					"ValidateWorkTransition(%q, %q) error = %v, want ErrInvalidStateTransition",
+					tc.current,
+					tc.next,
+					err,
+				)
 			}
 		})
 	}
@@ -266,7 +278,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		t.Fatalf("NormalizeEnvelope(greet mismatch) error = %v, want ErrInvalidBody", err)
 	}
 
-	receiptMissingInteraction := Envelope{
+	receiptMissingWork := Envelope{
 		Protocol: ProtocolV0,
 		ID:       "msg_receipt_01",
 		Kind:     KindReceipt,
@@ -281,7 +293,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		}),
 	}
 	if _, err := NormalizeEnvelope(
-		receiptMissingInteraction,
+		receiptMissingWork,
 		ValidateOptions{Now: now},
 	); !errors.Is(
 		err,
@@ -314,7 +326,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Channel:  "builders",
 		From:     "reviewer.sess-xyz",
 		To:       stringPtr("coder.sess-abc"),
-		WorkID:   stringPtr("int_patch_42"),
+		WorkID:   stringPtr("work_patch_42"),
 		TS:       now.Unix(),
 		Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 	}
@@ -323,7 +335,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 	}
 
 	terminal := &Work{
-		ID:        "int_patch_42",
+		ID:        "work_patch_42",
 		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
@@ -338,7 +350,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Channel:  "builders",
 		From:     "coder.sess-abc",
 		To:       stringPtr("reviewer.sess-xyz"),
-		WorkID:   stringPtr("int_patch_42"),
+		WorkID:   stringPtr("work_patch_42"),
 		TS:       now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"for_id": "msg_direct_01",
@@ -349,8 +361,11 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyWorkEnvelope(terminal receipt) error = %v", err)
 	}
-	if got.Action != LifecycleActionIgnored {
-		t.Fatalf("ApplyWorkEnvelope(terminal receipt).Action = %q, want %q", got.Action, LifecycleActionIgnored)
+	if got.Action != LifecycleActionRejectWork {
+		t.Fatalf("ApplyWorkEnvelope(terminal receipt).Action = %q, want %q", got.Action, LifecycleActionRejectWork)
+	}
+	if got.ReasonCode == nil || *got.ReasonCode != ReasonCodeWorkClosed {
+		t.Fatalf("ApplyWorkEnvelope(terminal receipt).ReasonCode = %v, want %q", got.ReasonCode, ReasonCodeWorkClosed)
 	}
 }
 

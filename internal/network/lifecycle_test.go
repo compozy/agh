@@ -23,7 +23,7 @@ func TestOpenWork(t *testing.T) {
 				Channel:  "builders",
 				From:     "coder.sess-abc",
 				To:       stringPtr("reviewer.sess-xyz"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body:     mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
 			},
@@ -37,7 +37,7 @@ func TestOpenWork(t *testing.T) {
 				Channel:  "builders",
 				From:     "coder.sess-abc",
 				To:       stringPtr("reviewer.sess-xyz"),
-				WorkID:   stringPtr("int_capability_42"),
+				WorkID:   stringPtr("work_capability_42"),
 				TS:       at.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:               "review-fix",
@@ -69,6 +69,9 @@ func TestOpenWork(t *testing.T) {
 					*tc.env.To,
 				)
 			}
+			if got, want := work.Ref.ContainerKey(), testDirectRef().ContainerKey(); got != want {
+				t.Fatalf("OpenWork().Ref.ContainerKey() = %q, want %q", got, want)
+			}
 		})
 	}
 }
@@ -78,7 +81,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 
 	at := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	work := Work{
-		ID:        "int_patch_42",
+		ID:        "work_patch_42",
 		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
@@ -106,7 +109,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "coder.sess-abc",
 				To:       stringPtr("reviewer.sess-xyz"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body:     mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
 			},
@@ -123,7 +126,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "coder.sess-abc",
 				To:       stringPtr("reviewer.sess-xyz"),
-				WorkID:   stringPtr("int_capability_42"),
+				WorkID:   stringPtr("work_capability_42"),
 				TS:       at.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:               "review-fix",
@@ -147,7 +150,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "reviewer.sess-xyz",
 				To:       stringPtr("coder.sess-abc"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 			},
@@ -157,7 +160,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 		{
 			name: "direct resumes work from needs_input",
 			current: &Work{
-				ID:        "int_patch_42",
+				ID:        "work_patch_42",
 				Ref:       testDirectRef(),
 				Initiator: "coder.sess-abc",
 				Target:    "reviewer.sess-xyz",
@@ -172,7 +175,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "coder.sess-abc",
 				To:       stringPtr("reviewer.sess-xyz"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body:     mustRawJSON(t, map[string]any{"text": "here is the missing detail"}),
 			},
@@ -188,7 +191,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Kind:     KindSay,
 				Channel:  "builders",
 				From:     "coder.sess-abc",
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body:     mustRawJSON(t, map[string]any{"text": "missing target"}),
 			},
@@ -204,7 +207,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "coder.sess-abc",
 				To:       stringPtr("outsider.sess-123"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:               "review-fix",
@@ -227,7 +230,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "reviewer.sess-xyz",
 				To:       stringPtr("coder.sess-abc"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"for_id":      "msg_direct_01",
@@ -239,9 +242,9 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			wantState:  WorkStateFailed,
 		},
 		{
-			name: "post terminal trace is ignored",
+			name: "post terminal trace is rejected",
 			current: &Work{
-				ID:        "int_patch_42",
+				ID:        "work_patch_42",
 				Ref:       testDirectRef(),
 				Initiator: "coder.sess-abc",
 				Target:    "reviewer.sess-xyz",
@@ -256,17 +259,18 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "reviewer.sess-xyz",
 				To:       stringPtr("coder.sess-abc"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 			},
-			wantAction: LifecycleActionIgnored,
+			wantAction: LifecycleActionRejectWork,
 			wantState:  WorkStateCompleted,
+			wantReason: reasonCodePtr(ReasonCodeWorkClosed),
 		},
 		{
 			name: "post terminal direct is rejected",
 			current: &Work{
-				ID:        "int_patch_42",
+				ID:        "work_patch_42",
 				Ref:       testDirectRef(),
 				Initiator: "coder.sess-abc",
 				Target:    "reviewer.sess-xyz",
@@ -281,7 +285,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "coder.sess-abc",
 				To:       stringPtr("reviewer.sess-xyz"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body:     mustRawJSON(t, map[string]any{"text": "try again"}),
 			},
@@ -299,11 +303,29 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "intruder.sess-123",
 				To:       stringPtr("coder.sess-abc"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body:     mustRawJSON(t, map[string]any{"state": "working"}),
 			},
 			wantErr: ErrWorkActorNotAllowed,
+		},
+		{
+			name:    "cross container continuation is rejected",
+			current: &work,
+			env: Envelope{
+				Protocol: ProtocolV0,
+				ID:       "msg_trace_wrong_container",
+				Kind:     KindTrace,
+				Channel:  "builders",
+				Surface:  surfacePtr(SurfaceThread),
+				ThreadID: stringPtr("thread_patch_42"),
+				From:     "reviewer.sess-xyz",
+				To:       stringPtr("coder.sess-abc"),
+				WorkID:   stringPtr("work_patch_42"),
+				TS:       at.Unix(),
+				Body:     mustRawJSON(t, map[string]any{"state": "working"}),
+			},
+			wantErr: ErrWorkContainerMismatch,
 		},
 		{
 			name:    "invalid submitted regression rejected",
@@ -315,7 +337,7 @@ func TestApplyWorkEnvelope(t *testing.T) {
 				Channel:  "builders",
 				From:     "reviewer.sess-xyz",
 				To:       stringPtr("coder.sess-abc"),
-				WorkID:   stringPtr("int_patch_42"),
+				WorkID:   stringPtr("work_patch_42"),
 				TS:       at.Unix(),
 				Body:     mustRawJSON(t, map[string]any{"state": "submitted"}),
 			},
@@ -343,6 +365,9 @@ func TestApplyWorkEnvelope(t *testing.T) {
 			if got.Work.State != tc.wantState {
 				t.Fatalf("ApplyWorkEnvelope().State = %q, want %q", got.Work.State, tc.wantState)
 			}
+			if IsTerminalState(got.Work.State) && got.Action == LifecycleActionAdvanced && got.Work.TerminalAt == nil {
+				t.Fatalf("ApplyWorkEnvelope().Work.TerminalAt = nil, want terminal timestamp")
+			}
 			if tc.wantReason != nil {
 				if got.ReasonCode == nil || *got.ReasonCode != *tc.wantReason {
 					t.Fatalf("ApplyWorkEnvelope().ReasonCode = %v, want %v", got.ReasonCode, tc.wantReason)
@@ -357,7 +382,7 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 
 	at := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	current := &Work{
-		ID:        "int_patch_42",
+		ID:        "work_patch_42",
 		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
@@ -373,7 +398,7 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 		Channel:  "builders",
 		From:     "coder.sess-abc",
 		To:       stringPtr("reviewer.sess-xyz"),
-		WorkID:   stringPtr("int_patch_42"),
+		WorkID:   stringPtr("work_patch_42"),
 		TS:       at.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"for_id": "msg_direct_01",
@@ -388,6 +413,9 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 	if first.Work.State != WorkStateCanceled {
 		t.Fatalf("first state = %q, want %q", first.Work.State, WorkStateCanceled)
 	}
+	if first.Work.TerminalAt == nil || !first.Work.TerminalAt.Equal(at.Add(time.Second)) {
+		t.Fatalf("first terminal_at = %v, want %v", first.Work.TerminalAt, at.Add(time.Second))
+	}
 
 	traceCanceled := Envelope{
 		Protocol: ProtocolV0,
@@ -396,7 +424,7 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 		Channel:  "builders",
 		From:     "reviewer.sess-xyz",
 		To:       stringPtr("coder.sess-abc"),
-		WorkID:   stringPtr("int_patch_42"),
+		WorkID:   stringPtr("work_patch_42"),
 		TS:       at.Unix(),
 		Body:     mustRawJSON(t, map[string]any{"state": "canceled"}),
 	}
@@ -405,11 +433,14 @@ func TestCancellationRaceHonorsFirstTerminalMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyWorkEnvelope(second) error = %v", err)
 	}
-	if second.Action != LifecycleActionIgnored {
-		t.Fatalf("second action = %q, want %q", second.Action, LifecycleActionIgnored)
+	if second.Action != LifecycleActionRejectWork {
+		t.Fatalf("second action = %q, want %q", second.Action, LifecycleActionRejectWork)
 	}
 	if second.Work.State != WorkStateCanceled {
 		t.Fatalf("second state = %q, want %q", second.Work.State, WorkStateCanceled)
+	}
+	if second.ReasonCode == nil || *second.ReasonCode != ReasonCodeWorkClosed {
+		t.Fatalf("second reason = %v, want %q", second.ReasonCode, ReasonCodeWorkClosed)
 	}
 }
 

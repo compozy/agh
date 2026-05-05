@@ -15,7 +15,7 @@ func BenchmarkFormatNetworkMessageDirect(b *testing.B) {
 		Channel:     "builders",
 		From:        "coder.sess-bench",
 		To:          stringPtr("reviewer.sess-bench"),
-		WorkID:      stringPtr("int-bench-direct"),
+		WorkID:      stringPtr("work_bench-direct"),
 		ReplyTo:     stringPtr("msg-root-bench"),
 		TraceID:     stringPtr("trace-bench-direct"),
 		CausationID: stringPtr("msg-cause-bench"),

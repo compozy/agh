@@ -1036,7 +1036,7 @@ func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {
 		Kind:      KindSay,
 		To:        ptrString("reviewer.sess-a"),
 		Body:      mustRawJSON(t, SayBody{Text: "I can take the migration fix."}),
-		WorkID:    ptrString("int-local-trace"),
+		WorkID:    ptrString("work_local-trace"),
 		TraceID:   ptrString("trace-local-trace"),
 	}))
 	if err != nil {
@@ -1064,7 +1064,7 @@ func TestManagerDeliversLocalTraceLifecycleMessages(t *testing.T) {
 			Message: "Patch prepared and tests pass.",
 			Result:  mustRawJSON(t, map[string]any{"summary": "migration fix applied"}),
 		}),
-		WorkID:      ptrString("int-local-trace"),
+		WorkID:      ptrString("work_local-trace"),
 		ReplyTo:     &directID,
 		TraceID:     ptrString("trace-local-trace"),
 		CausationID: &directID,

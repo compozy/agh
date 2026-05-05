@@ -86,7 +86,7 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 		Channel:   "builders",
 		Kind:      KindSay,
 		To:        stringPtr(peerB.PeerID),
-		WorkID:    stringPtr("int_direct_integration"),
+		WorkID:    stringPtr("work_direct_integration"),
 		Body:      mustRawJSON(t, SayBody{Text: "please review"}),
 	})); err != nil {
 		t.Fatalf("routerA.Send(direct) error = %v", err)
@@ -288,7 +288,7 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 				registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
 		}, "peer discovery")
 
-		const workID = "int_capability_lifecycle"
+		const workID = "work_capability_lifecycle"
 
 		if _, err := routerA.Send(ctx, withTestConversation(SendRequest{
 			SessionID: "sess-a",

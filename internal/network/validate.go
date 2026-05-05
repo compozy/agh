@@ -40,6 +40,9 @@ var (
 	ErrVerificationFailed = errors.New("network: verification failed")
 	// ErrLegacyFieldRejected reports an obsolete hard-cut wire field.
 	ErrLegacyFieldRejected = errors.New("network: legacy field rejected")
+	// ErrDirectRoomCollision reports that a direct_id is bound to a different
+	// channel peer pair than its deterministic identity permits.
+	ErrDirectRoomCollision = errors.New("network: direct room collision")
 )
 
 var (
@@ -105,6 +108,11 @@ func ValidateChannel(channel string) error {
 	return nil
 }
 
+// ValidateSurface reports whether the surface matches the RFC conversation values.
+func ValidateSurface(surface Surface) error {
+	return Surface(strings.TrimSpace(string(surface))).Validate()
+}
+
 // ValidatePeerID reports whether the peer identifier matches the RFC grammar.
 func ValidatePeerID(peerID string) error {
 	if !peerIDPattern.MatchString(peerID) {
@@ -141,29 +149,88 @@ func ValidateWorkID(id string) error {
 	return ValidateConversationID(id, "work_id")
 }
 
+// ValidateWorkState reports whether the state is a known work lifecycle state.
+func ValidateWorkState(state WorkState) error {
+	return WorkState(strings.TrimSpace(string(state))).Validate()
+}
+
+// ValidateWorkTransition reports whether a trace may advance work from one state to another.
+func ValidateWorkTransition(from WorkState, to WorkState) error {
+	current := WorkState(strings.TrimSpace(string(from)))
+	next := WorkState(strings.TrimSpace(string(to)))
+	if err := ValidateWorkState(current); err != nil {
+		return err
+	}
+	if err := ValidateWorkState(next); err != nil {
+		return err
+	}
+	if !canApplyTrace(current, next) {
+		return fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, current, next)
+	}
+	return nil
+}
+
+// NormalizeDirectRoomPeers validates, rejects same-peer rooms, and returns
+// peers in their stable direct-room storage order.
+func NormalizeDirectRoomPeers(localPeer string, remotePeer string) (string, string, error) {
+	peerA := strings.TrimSpace(localPeer)
+	peerB := strings.TrimSpace(remotePeer)
+	if err := ValidatePeerID(peerA); err != nil {
+		return "", "", err
+	}
+	if err := ValidatePeerID(peerB); err != nil {
+		return "", "", err
+	}
+	if peerA == peerB {
+		return "", "", fmt.Errorf("%w: direct room peers must differ", ErrInvalidField)
+	}
+	if peerB < peerA {
+		peerA, peerB = peerB, peerA
+	}
+	return peerA, peerB, nil
+}
+
+// ValidateDirectRoomPeers reports whether two peer IDs form a valid two-party direct room.
+func ValidateDirectRoomPeers(peerA string, peerB string) error {
+	_, _, err := NormalizeDirectRoomPeers(peerA, peerB)
+	return err
+}
+
 // DirectRoomIdentity derives the stable two-party direct room identity scoped to one channel.
 func DirectRoomIdentity(channel string, localPeer string, remotePeer string) (string, string, string, error) {
 	trimmedChannel := strings.TrimSpace(channel)
 	if err := ValidateChannel(trimmedChannel); err != nil {
 		return "", "", "", err
 	}
-	peerA := strings.TrimSpace(localPeer)
-	peerB := strings.TrimSpace(remotePeer)
-	if err := ValidatePeerID(peerA); err != nil {
+	peerA, peerB, err := NormalizeDirectRoomPeers(localPeer, remotePeer)
+	if err != nil {
 		return "", "", "", err
-	}
-	if err := ValidatePeerID(peerB); err != nil {
-		return "", "", "", err
-	}
-	if peerA == peerB {
-		return "", "", "", fmt.Errorf("%w: direct room peers must differ", ErrInvalidField)
-	}
-	if peerB < peerA {
-		peerA, peerB = peerB, peerA
 	}
 
 	sum := sha256.Sum256([]byte("agh-network/direct-room/v1\x00" + trimmedChannel + "\x00" + peerA + "\x00" + peerB))
 	return "direct_" + hex.EncodeToString(sum[:])[:32], peerA, peerB, nil
+}
+
+// ValidateDirectRoomBinding proves that an existing direct room row matches
+// the deterministic identity for its channel-scoped peer pair.
+func ValidateDirectRoomBinding(channel string, directID string, peerA string, peerB string) error {
+	trimmedDirectID := strings.TrimSpace(directID)
+	if err := ValidateConversationID(trimmedDirectID, "direct_id"); err != nil {
+		return err
+	}
+	expectedID, _, _, err := DirectRoomIdentity(channel, peerA, peerB)
+	if err != nil {
+		return err
+	}
+	if trimmedDirectID != expectedID {
+		return fmt.Errorf(
+			"%w: direct_id=%q expected=%q",
+			ErrDirectRoomCollision,
+			trimmedDirectID,
+			expectedID,
+		)
+	}
+	return nil
 }
 
 // ValidateConversationRef reports whether a conversation reference identifies exactly one container.
