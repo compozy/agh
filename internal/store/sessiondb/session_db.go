@@ -284,6 +284,11 @@ func (s *SessionDB) QueryHookRuns(ctx context.Context, query store.HookRunQuery)
 			return nil, err
 		}
 	}
+	s.acceptMu.RLock()
+	defer s.acceptMu.RUnlock()
+	if s.state.Load() != sessionStateOpen {
+		return nil, store.ErrClosed
+	}
 
 	baseQuery := `SELECT
 		rowid, hook_name, event, source, mode, duration_ns, outcome,
@@ -341,6 +346,11 @@ func (s *SessionDB) Query(ctx context.Context, query store.EventQuery) ([]store.
 	}
 	if err := query.Validate(); err != nil {
 		return nil, err
+	}
+	s.acceptMu.RLock()
+	defer s.acceptMu.RUnlock()
+	if s.state.Load() != sessionStateOpen {
+		return nil, store.ErrClosed
 	}
 
 	baseQuery := `SELECT id, sequence, turn_id, type, agent_name, content, timestamp FROM events`

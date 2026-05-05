@@ -1,0 +1,40 @@
+{
+  "id": "sess-f225672703443d05",
+  "agent_name": "ops-coordinator",
+  "provider": "claude",
+  "workspace_id": "ws_707d6d413854c7c8",
+  "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab",
+  "channel": "builders",
+  "type": "user",
+  "state": "active",
+  "acp_session_id": "ops-coordinator-session-1",
+  "acp_caps": {
+    "supports_load_session": true
+  },
+  "sandbox": {
+    "sandbox_id": "env-b23e761af72a0627",
+    "backend": "local",
+    "profile": "local",
+    "state": "prepared"
+  },
+  "lineage": {
+    "root_session_id": "sess-f225672703443d05",
+    "spawn_depth": 0,
+    "auto_stop_on_parent": false,
+    "spawn_budget": {
+      "max_children": 0,
+      "max_depth": 0,
+      "ttl_seconds": 0
+    },
+    "permission_policy": {
+      "tools": [],
+      "skills": [],
+      "mcp_servers": [],
+      "workspace_paths": [],
+      "network_channels": [],
+      "sandbox_profiles": []
+    }
+  },
+  "created_at": "2026-05-05T17:31:09.077081Z",
+  "updated_at": "2026-05-05T17:31:09.152167Z"
+}

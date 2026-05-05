@@ -1,0 +1,9 @@
+{
+  "provider": "claude",
+  "display_name": "Claude Code",
+  "auth_mode": "native_cli",
+  "env_policy": "filtered",
+  "home_policy": "operator",
+  "state": "native_cli",
+  "message": "Provider owns authentication through its native CLI login state."
+}

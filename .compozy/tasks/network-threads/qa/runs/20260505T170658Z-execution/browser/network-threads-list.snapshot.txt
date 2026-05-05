@@ -1,0 +1,127 @@
+- generic
+  - complementary
+    - generic
+      - link "Go to dashboard" [ref=e2]
+      - button "Workspace: agh-network-threads-20260505-170603-687358-lab" [ref=e3]
+        - StaticText "A"
+      - button "Add workspace" [ref=e4]
+      - button "Toggle sidebar" [expanded=true, ref=e5]
+    - generic
+      - generic
+        - StaticText "AGENTS"
+      - link "ops-coordinator" [ref=e6]
+        - StaticText "ops-coordinator"
+      - link "patch-worker" [ref=e7]
+        - StaticText "patch-worker"
+      - generic
+        - StaticText "WORKSPACE"
+      - link "Network" [ref=e8]
+        - StaticText "Network"
+      - link "Tasks" [ref=e9]
+        - StaticText "Tasks"
+      - link "Bridges" [ref=e10]
+        - StaticText "Bridges"
+      - link "Jobs" [ref=e11]
+        - StaticText "Jobs"
+      - link "Triggers" [ref=e12]
+        - StaticText "Triggers"
+      - link "Knowledge" [ref=e13]
+        - StaticText "Knowledge"
+      - link "Skills" [ref=e14]
+        - StaticText "Skills"
+      - link "Sandbox" [ref=e15]
+        - StaticText "Sandbox"
+      - status
+        - StaticText "CONNECTED"
+      - StaticText "v"
+      - StaticText "1897db7e-dirty"
+      - link "Settings" [ref=e16]
+        - StaticText "Settings"
+  - main
+    - complementary "Network channels"
+      - region "Cross-channel recents" [ref=e17]
+        - generic
+          - StaticText "RECENTS"
+        - link "#builders·Summary: migration review passed with one cleanup follow-up. 36s ago" [ref=e20]
+          - StaticText "#"
+          - StaticText "builders"
+          - StaticText "·"
+          - StaticText "Summary: migration review passed with one cleanup follow-up."
+          - StaticText "36s ago"
+        - link "Trace update recorded.in#builders 36s ago" [ref=e21]
+          - StaticText "Trace update recorded."
+          - StaticText "in"
+          - StaticText "#"
+          - StaticText "builders"
+          - StaticText "36s ago"
+        - link "#builders·Summary: migration review passed with one cleanup follow-up. 12m ago" [ref=e22]
+          - StaticText "#"
+          - StaticText "builders"
+          - StaticText "·"
+          - StaticText "Summary: migration review passed with one cleanup follow-up."
+          - StaticText "12m ago"
+        - link "Review the migration details in the direct room.in#builders 12m ago" [ref=e23]
+          - StaticText "Review the migration details in the direct room."
+          - StaticText "in"
+          - StaticText "#"
+          - StaticText "builders"
+          - StaticText "12m ago"
+      - region "Channels" [ref=e18]
+        - generic
+          - StaticText "CHANNELS"
+        - generic
+          - link "builders" [ref=e25]
+            - StaticText "builders"
+          - button "Pin #builders" [ref=e26]
+    - main
+      - sectionheader
+        - heading "#builders" [level=1, ref=e24]
+          - StaticText "#"
+          - StaticText "builders"
+        - StaticText "6 LOCAL"
+        - generic
+          - button "Channel actions" [expanded=false, ref=e27]
+        - tablist "Surfaces for #builders"
+          - tab "Threads" [selected, ref=e28]
+            - StaticText "Threads"
+          - tab "Directs" [ref=e29]
+            - StaticText "Directs"
+          - tab "Activity" [ref=e30]
+            - StaticText "Activity"
+      - region "Threads in #builders" [ref=e19]
+        - generic "Threads in #builders"
+          - link "Review the launch checklist. Summary: migration review passed with one cleanup follow-up. 2 PEERS 2 MSGS 36S AGO" [ref=e31]
+            - paragraph
+              - StaticText "Review the launch checklist."
+            - paragraph
+              - StaticText "Summary: migration review passed with one cleanup follow-up."
+            - StaticText "2"
+            - StaticText " "
+            - StaticText "PEERS"
+            - StaticText "2"
+            - StaticText " "
+            - StaticText "MSGS"
+            - StaticText "36S AGO"
+          - link "Review the launch checklist. Summary: migration review passed with one cleanup follow-up. 2 PEERS 2 MSGS 12M AGO" [ref=e32]
+            - paragraph
+              - StaticText "Review the launch checklist."
+            - paragraph
+              - StaticText "Summary: migration review passed with one cleanup follow-up."
+            - StaticText "2"
+            - StaticText " "
+            - StaticText "PEERS"
+            - StaticText "2"
+            - StaticText " "
+            - StaticText "MSGS"
+            - StaticText "12M AGO"
+        - form "Send to #builders"
+          - textbox "Start a new thread…" [ref=e33]
+            - generic
+          - toolbar "Composer toolbar"
+            - button "Attach" [ref=e35]
+            - button "Text formatting" [ref=e36]
+            - button "Mention" [ref=e37]
+            - button "Slash command" [ref=e38]
+          - button "Send to #builders" [disabled, ref=e34]
+            - StaticText "Send"
+  - region "Notifications alt+T" [ref=e1]

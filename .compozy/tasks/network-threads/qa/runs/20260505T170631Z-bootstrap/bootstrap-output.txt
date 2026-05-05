@@ -1,0 +1,15 @@
+SCENARIO_SLUG=network-threads-20260505-170603-687358
+WORKSPACE_PATH=/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab
+QA_OUTPUT_PATH=/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab/qa-artifacts
+BOOTSTRAP_MANIFEST=/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab/qa-artifacts/qa/bootstrap-manifest.json
+BOOTSTRAP_ENV=/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab/qa-artifacts/qa/bootstrap.env
+AGH_HOME=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-0517b5b397c4/runtime
+AGH_HTTP_PORT=60149
+AGH_UDS_PATH=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-0517b5b397c4/runtime/aghd.sock
+TMUX_BRIDGE_SOCKET=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-0517b5b397c4/runtime/tmux-bridge.sock
+AGH_WEB_API_PROXY_TARGET=http://127.0.0.1:60149
+PROVIDER_HOME=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-0517b5b397c4/provider
+PROVIDER_CODEX_HOME=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-0517b5b397c4/provider/.codex
+BROWSER_MODE=browser-use
+BROWSER_BLOCKER=
+REUSED_LAB=false

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI Network Thread, Direct, Work, and Send Commands
 type: backend
 complexity: high
@@ -35,11 +35,11 @@ Update the agent-operable CLI for the new conversation model. This task adds thr
 
 ## Subtasks
 
-- [ ] 9.1 Update CLI client methods for thread, direct, work, and send routes.
-- [ ] 9.2 Add thread list/show/messages commands and structured output.
-- [ ] 9.3 Add direct list/resolve/show/messages commands and structured output.
-- [ ] 9.4 Update `network send` flags and validation.
-- [ ] 9.5 Add CLI unit/integration tests for success paths and hard-cut rejections.
+- [x] 9.1 Update CLI client methods for thread, direct, work, and send routes.
+- [x] 9.2 Add thread list/show/messages commands and structured output.
+- [x] 9.3 Add direct list/resolve/show/messages commands and structured output.
+- [x] 9.4 Update `network send` flags and validation.
+- [x] 9.5 Add CLI unit/integration tests for success paths and hard-cut rejections.
 
 ## Implementation Details
 
@@ -85,17 +85,27 @@ The CLI must remain usable by agents in scripts. Prefer stable JSON field names 
 ## Tests
 
 - Unit tests:
-  - [ ] `agh network send --surface thread --thread ...` builds the expected payload.
-  - [ ] `agh network send --surface direct --direct ... --work ...` builds the expected payload.
-  - [ ] `--interaction-id` is rejected.
-  - [ ] `--kind direct` is rejected.
-  - [ ] JSON/jsonl/toon output shapes match the contract.
+  - [x] `agh network send --surface thread --thread ...` builds the expected payload.
+  - [x] `agh network send --surface direct --direct ... --work ...` builds the expected payload.
+  - [x] `--interaction-id` is rejected.
+  - [x] `--kind direct` is rejected.
+  - [x] JSON/jsonl/toon output shapes match the contract.
 - Integration tests:
-  - [ ] CLI list/show/messages flows match HTTP/UDS responses for the same persisted state.
-  - [ ] Direct resolve through CLI is idempotent for the same peer pair.
-  - [ ] Raw claim-token payloads are rejected.
+  - [x] CLI list/show/messages flows match HTTP/UDS responses for the same persisted state.
+  - [x] Direct resolve through CLI is idempotent for the same peer pair.
+  - [x] Raw claim-token payloads are rejected.
 - Test coverage target: >=80% for touched CLI code.
 - All tests must pass.
+
+## Verification Evidence
+
+- `go test ./internal/cli -run 'TestNetwork' -count=1`
+- `go test -tags integration ./internal/cli -run 'TestCLINetwork' -count=1`
+- `go test -race ./internal/cli -run 'TestNetwork' -count=1`
+- `go test -race -tags integration ./internal/cli -run 'TestCLINetwork' -count=1`
+- `go test ./internal/cli -run 'TestCommandPathsAndHelpers|TestNetwork' -count=1`
+- `go test ./internal/skills/bundled -run 'TestBundledAghNetworkSkillContent' -count=1`
+- `make verify`
 
 ## Success Criteria
 

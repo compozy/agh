@@ -3,9 +3,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const navigateMock = vi.fn();
+const threadDetailMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: React.ReactNode }) => (
@@ -50,24 +51,7 @@ vi.mock("../../hooks/use-threads", async () => {
     await vi.importActual<typeof import("../../hooks/use-threads")>("../../hooks/use-threads");
   return {
     ...actual,
-    useNetworkThreadDetail: () => ({
-      thread: {
-        channel: "ops",
-        last_activity_at: "2026-04-17T14:33:00Z",
-        last_message_preview: "First reply",
-        message_count: 2,
-        open_work_count: 0,
-        opened_at: "2026-04-17T14:32:00Z",
-        opened_by_peer_id: "peer-codex",
-        opened_session_id: "sess-1",
-        participant_count: 2,
-        root_message_id: "msg-root",
-        thread_id: "thread-test",
-        title: "Launch command brief",
-      },
-      isLoading: false,
-      error: null,
-    }),
+    useNetworkThreadDetail: () => threadDetailMock(),
   };
 });
 
@@ -105,6 +89,27 @@ function renderOverlay({ fullPage = false }: { fullPage?: boolean } = {}) {
 }
 
 describe("ThreadOverlay", () => {
+  beforeEach(() => {
+    threadDetailMock.mockReturnValue({
+      thread: {
+        channel: "ops",
+        last_activity_at: "2026-04-17T14:33:00Z",
+        last_message_preview: "First reply",
+        message_count: 2,
+        open_work_count: 0,
+        opened_at: "2026-04-17T14:32:00Z",
+        opened_by_peer_id: "peer-codex",
+        opened_session_id: "sess-1",
+        participant_count: 2,
+        root_message_id: "msg-root",
+        thread_id: "thread-test",
+        title: "Launch command brief",
+      },
+      isLoading: false,
+      error: null,
+    });
+  });
+
   it("Should render the thread title, root, and reply count", () => {
     renderOverlay();
     expect(screen.getByText("Launch command brief")).toBeInTheDocument();
@@ -154,5 +159,36 @@ describe("ThreadOverlay", () => {
     for (const element of [root, ...all]) {
       expect(element.getAttribute("style") ?? "").not.toContain("box-shadow");
     }
+  });
+
+  it("Should render an unavailable state without composer when the thread detail fails", () => {
+    threadDetailMock.mockReturnValue({
+      thread: null,
+      isLoading: false,
+      error: new Error("Thread not found"),
+    });
+
+    renderOverlay();
+
+    expect(screen.getByTestId("network-thread-overlay-error")).toHaveTextContent(
+      "Thread unavailable"
+    );
+    expect(screen.queryByRole("textbox", { name: /reply/i })).toBeNull();
+  });
+
+  it("Should render loading state without composer while thread detail resolves", () => {
+    threadDetailMock.mockReturnValue({
+      thread: null,
+      isLoading: true,
+      error: null,
+    });
+
+    renderOverlay();
+
+    expect(screen.getByTestId("network-thread-overlay-root-loading")).toHaveTextContent(
+      "Loading root"
+    );
+    expect(screen.getByTestId("network-timeline-skeleton")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /reply/i })).toBeNull();
   });
 });

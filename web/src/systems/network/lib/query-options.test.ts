@@ -16,7 +16,13 @@ vi.mock("../adapters/network-api", async () => {
   };
 });
 
-import { networkDirectMessagesOptions, networkThreadMessagesOptions } from "./query-options";
+import { NetworkApiError } from "../adapters/network-api";
+import {
+  networkDirectDetailOptions,
+  networkDirectMessagesOptions,
+  networkThreadDetailOptions,
+  networkThreadMessagesOptions,
+} from "./query-options";
 import { networkKeys } from "./query-keys";
 
 function makeQueryContext<TQueryKey extends readonly unknown[]>(queryKey: TQueryKey) {
@@ -36,6 +42,16 @@ function requireQueryFn<TQueryKey extends readonly unknown[]>(
   }
 
   return queryFn;
+}
+
+function requireRetry(
+  retry: boolean | number | ((failureCount: number, error: Error) => boolean) | undefined
+) {
+  if (typeof retry !== "function") {
+    throw new Error("Expected retry to be a function");
+  }
+
+  return retry;
 }
 
 describe("network query options — surface isolation", () => {
@@ -173,5 +189,21 @@ describe("network query options — surface isolation", () => {
       { limit: 120 },
       expect.any(AbortSignal)
     );
+  });
+
+  it("does not retry 4xx conversation detail failures", () => {
+    const threadRetry = requireRetry(networkThreadDetailOptions("builders", "missing").retry);
+    const directRetry = requireRetry(networkDirectDetailOptions("builders", "missing").retry);
+
+    expect(threadRetry(0, new NetworkApiError("Thread not found", 404))).toBe(false);
+    expect(directRetry(0, new NetworkApiError("Invalid direct id", 400))).toBe(false);
+  });
+
+  it("retries transient conversation detail failures within the detail retry budget", () => {
+    const retry = requireRetry(networkThreadDetailOptions("builders", "thread_one").retry);
+
+    expect(retry(0, new Error("temporary network failure"))).toBe(true);
+    expect(retry(1, new Error("temporary network failure"))).toBe(true);
+    expect(retry(2, new Error("temporary network failure"))).toBe(false);
   });
 });

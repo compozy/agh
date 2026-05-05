@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Network Wire Model, Validation, and Hard-Cut Symbol Deletion
 type: backend
 complexity: critical
@@ -35,11 +35,11 @@ Implement the core runtime wire model for conversation containers. This task rep
 
 ## Subtasks
 
-- [ ] 2.1 Update envelope structs, constants, enums, marshal/unmarshal behavior, and JSON field names.
-- [ ] 2.2 Implement symmetric container validation for `surface`, `thread_id`, and `direct_id`.
-- [ ] 2.3 Delete `kind:"direct"` handling and ensure normal direct-room chat is `kind:"say"` with `surface:"direct"`.
-- [ ] 2.4 Rename network lifecycle-facing symbols from interaction to work where they live in `internal/network`.
-- [ ] 2.5 Update unit tests for all legacy rejections, container invariants, raw token rejection, and trust canonicalization.
+- [x] 2.1 Update envelope structs, constants, enums, marshal/unmarshal behavior, and JSON field names.
+- [x] 2.2 Implement symmetric container validation for `surface`, `thread_id`, and `direct_id`.
+- [x] 2.3 Delete `kind:"direct"` handling and ensure normal direct-room chat is `kind:"say"` with `surface:"direct"`.
+- [x] 2.4 Rename network lifecycle-facing symbols from interaction to work where they live in `internal/network`.
+- [x] 2.5 Update unit tests for all legacy rejections, container invariants, raw token rejection, and trust canonicalization.
 
 ## Implementation Details
 
@@ -87,16 +87,16 @@ Keep this task focused on pure wire/runtime validation. Store-backed thread/dire
 ## Tests
 
 - Unit tests:
-  - [ ] `surface:"thread"` requires `thread_id` and rejects `direct_id`.
-  - [ ] `surface:"direct"` requires `direct_id` and rejects `thread_id`.
-  - [ ] `thread_id` or `direct_id` without `surface` is invalid.
-  - [ ] `greet` and `whois` reject `surface`, `thread_id`, `direct_id`, and `work_id`.
-  - [ ] `receipt` and `trace` require `work_id`.
-  - [ ] Legacy `interaction_id` and `kind:"direct"` payloads fail closed.
-  - [ ] Raw `claim_token` remains rejected in body and extension fields.
-  - [ ] RFC 004 canonical bytes change when `surface`, `thread_id`, `direct_id`, or `work_id` changes.
+  - [x] `surface:"thread"` requires `thread_id` and rejects `direct_id`.
+  - [x] `surface:"direct"` requires `direct_id` and rejects `thread_id`.
+  - [x] `thread_id` or `direct_id` without `surface` is invalid.
+  - [x] `greet` and `whois` reject `surface`, `thread_id`, `direct_id`, and `work_id`.
+  - [x] `receipt` and `trace` require `work_id`.
+  - [x] Legacy `interaction_id` and `kind:"direct"` payloads fail closed.
+  - [x] Raw `claim_token` remains rejected in body and extension fields.
+  - [x] RFC 004 canonical bytes change when `surface`, `thread_id`, `direct_id`, or `work_id` changes.
 - Integration tests:
-  - [ ] Existing router tests compile against the new surface model without compatibility branches.
+  - [x] Existing router tests compile against the new surface model without compatibility branches.
 - Test coverage target: >=80% for touched `internal/network` packages.
 - All tests must pass.
 

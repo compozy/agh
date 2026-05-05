@@ -1,0 +1,5 @@
+{"type":"review_context","reviewType":"uncommitted","currentBranch":"network-threads","baseBranch":"main","workingDirectory":"/Users/pedronauck/Dev/compozy/agh2/web"}
+{"type":"status","phase":"connecting","status":"connecting_to_review_service"}
+{"type":"status","phase":"setup","status":"setting_up"}
+{"type":"error","errorType":"rate_limit","message":"Rate limit exceeded","recoverable":true,"details":{},"metadata":{"isProUser":false,"waitTime":"18 minutes and 17 seconds","policyGuidance":"To unlock additional reviews beyond the hourly cap, upgrade to Pro or higher. Account admins can upgrade under [billing](https://app.coderabbit.ai/settings/subscription?tab=usage)."}}
+[error] stopping cli

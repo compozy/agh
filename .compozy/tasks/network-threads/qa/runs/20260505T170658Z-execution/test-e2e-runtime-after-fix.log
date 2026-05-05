@@ -1,0 +1,12 @@
+✓  internal/daemon (15.697s)
+
+DONE 22 tests in 15.697s
+✓  internal/api/httpapi (2.348s)
+
+DONE 8 tests in 2.348s
+✓  internal/api/udsapi (2.961s)
+
+DONE 14 tests in 2.962s
+✓  internal/testutil/e2e (21.778s)
+
+DONE 6 tests in 21.778s

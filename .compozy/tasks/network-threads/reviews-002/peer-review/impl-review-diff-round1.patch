@@ -1,0 +1,655 @@
+diff --git a/internal/session/query.go b/internal/session/query.go
+index 84156d91..9d11c98f 100644
+--- a/internal/session/query.go
++++ b/internal/session/query.go
+@@ -160,24 +160,23 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
+ 		return nil, nil, errors.New("session: session id is required")
+ 	}
+ 
+-	if session, ok := m.Get(target); ok {
+-		recorder := session.recorderHandle()
+-		if recorder != nil {
+-			return recorder, func() error { return nil }, nil
+-		}
+-		waited, err := m.waitForSessionFinalization(ctx, target)
+-		if err != nil {
+-			return nil, nil, fmt.Errorf("session: wait for finalization for %q: %w", target, err)
+-		}
+-		if !waited {
+-			return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
+-		}
++	waited, err := m.waitForSessionFinalization(ctx, target)
++	if err != nil {
++		return nil, nil, fmt.Errorf("session: wait for finalization for %q: %w", target, err)
++	}
++	if !waited {
+ 		if session, ok := m.Get(target); ok {
+ 			recorder := session.recorderHandle()
+-			if recorder == nil {
++			if recorder != nil {
++				return recorder, func() error { return nil }, nil
++			}
++			waited, err = m.waitForSessionFinalization(ctx, target)
++			if err != nil {
++				return nil, nil, fmt.Errorf("session: wait for finalization for %q: %w", target, err)
++			}
++			if !waited {
+ 				return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
+ 			}
+-			return recorder, func() error { return nil }, nil
+ 		}
+ 	}
+ 
+diff --git a/internal/session/query_test.go b/internal/session/query_test.go
+index 603dea89..cd0f6b4e 100644
+--- a/internal/session/query_test.go
++++ b/internal/session/query_test.go
+@@ -474,6 +474,25 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
+ 		}
+ 	})
+ 
++	t.Run("Should wait for finalization before returning active recorder", func(t *testing.T) {
++		h := newHarness(t)
++		session := createSession(t, h)
++		done := make(chan struct{})
++		h.manager.mu.Lock()
++		h.manager.finalizing[session.ID] = done
++		h.manager.mu.Unlock()
++		t.Cleanup(func() {
++			h.manager.finishFinalization(session.ID)
++			_ = h.manager.Stop(testutil.Context(t), session.ID)
++		})
++
++		ctx, cancel := context.WithCancel(testutil.Context(t))
++		cancel()
++		if _, _, err := h.manager.openQueryRecorder(ctx, session.ID); !errors.Is(err, context.Canceled) {
++			t.Fatalf("openQueryRecorder(finalizing canceled ctx) error = %v, want context.Canceled", err)
++		}
++	})
++
+ 	t.Run("finalizing active session reopens stored events after recorder closes", func(t *testing.T) {
+ 		h := newHarness(t)
+ 		session := createSession(t, h)
+diff --git a/internal/store/sessiondb/session_db.go b/internal/store/sessiondb/session_db.go
+index abc60b11..5926e340 100644
+--- a/internal/store/sessiondb/session_db.go
++++ b/internal/store/sessiondb/session_db.go
+@@ -284,6 +284,11 @@ func (s *SessionDB) QueryHookRuns(ctx context.Context, query store.HookRunQuery)
+ 			return nil, err
+ 		}
+ 	}
++	s.acceptMu.RLock()
++	defer s.acceptMu.RUnlock()
++	if s.state.Load() != sessionStateOpen {
++		return nil, store.ErrClosed
++	}
+ 
+ 	baseQuery := `SELECT
+ 		rowid, hook_name, event, source, mode, duration_ns, outcome,
+@@ -342,6 +347,11 @@ func (s *SessionDB) Query(ctx context.Context, query store.EventQuery) ([]store.
+ 	if err := query.Validate(); err != nil {
+ 		return nil, err
+ 	}
++	s.acceptMu.RLock()
++	defer s.acceptMu.RUnlock()
++	if s.state.Load() != sessionStateOpen {
++		return nil, store.ErrClosed
++	}
+ 
+ 	baseQuery := `SELECT id, sequence, turn_id, type, agent_name, content, timestamp FROM events`
+ 	where, args := store.BuildClauses(
+diff --git a/internal/store/sessiondb/session_db_extra_test.go b/internal/store/sessiondb/session_db_extra_test.go
+index 5a61e7be..ce87c5fb 100644
+--- a/internal/store/sessiondb/session_db_extra_test.go
++++ b/internal/store/sessiondb/session_db_extra_test.go
+@@ -39,6 +39,9 @@ func TestSessionDBAccessorsAndCloseLifecycle(t *testing.T) {
+ 	}); !errors.Is(err, store.ErrClosed) {
+ 		t.Fatalf("Record(after close) error = %v, want ErrClosed", err)
+ 	}
++	if _, err := sessionDB.Query(testutil.Context(t), EventQuery{}); !errors.Is(err, store.ErrClosed) {
++		t.Fatalf("Query(after close) error = %v, want ErrClosed", err)
++	}
+ }
+ 
+ func TestSessionDBGuardClauses(t *testing.T) {
+diff --git a/web/src/systems/network/components/directs/direct-room.test.tsx b/web/src/systems/network/components/directs/direct-room.test.tsx
+index 1d818dd6..5ec05a57 100644
+--- a/web/src/systems/network/components/directs/direct-room.test.tsx
++++ b/web/src/systems/network/components/directs/direct-room.test.tsx
+@@ -2,7 +2,9 @@
+ 
+ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+ import { render, screen } from "@testing-library/react";
+-import { describe, expect, it, vi } from "vitest";
++import { beforeEach, describe, expect, it, vi } from "vitest";
++
++const directDetailMock = vi.hoisted(() => vi.fn());
+ 
+ vi.mock("@tanstack/react-router", () => ({
+   Link: ({ children, ...rest }: { children: React.ReactNode }) => (
+@@ -20,21 +22,7 @@ vi.mock("../../hooks/use-directs", async () => {
+     await vi.importActual<typeof import("../../hooks/use-directs")>("../../hooks/use-directs");
+   return {
+     ...actual,
+-    useNetworkDirectDetail: () => ({
+-      direct: {
+-        channel: "ops",
+-        direct_id: "direct_test",
+-        last_activity_at: "2026-04-17T18:00:00Z",
+-        last_message_preview: "preview",
+-        message_count: 0,
+-        open_work_count: 0,
+-        opened_at: "2026-04-17T17:00:00Z",
+-        peer_a: "peer-self",
+-        peer_b: "peer-remote",
+-      },
+-      isLoading: false,
+-      error: null,
+-    }),
++    useNetworkDirectDetail: () => directDetailMock(),
+   };
+ });
+ 
+@@ -63,6 +51,24 @@ vi.mock("../../hooks/use-active-session", () => ({
+ import { DirectRoom } from "./direct-room";
+ 
+ describe("DirectRoom headerless layout", () => {
++  beforeEach(() => {
++    directDetailMock.mockReturnValue({
++      direct: {
++        channel: "ops",
++        direct_id: "direct_test",
++        last_activity_at: "2026-04-17T18:00:00Z",
++        last_message_preview: "preview",
++        message_count: 0,
++        open_work_count: 0,
++        opened_at: "2026-04-17T17:00:00Z",
++        peer_a: "peer-self",
++        peer_b: "peer-remote",
++      },
++      isLoading: false,
++      error: null,
++    });
++  });
++
+   function renderRoom() {
+     const client = new QueryClient({
+       defaultOptions: { queries: { retry: false } },
+@@ -90,4 +96,32 @@ describe("DirectRoom headerless layout", () => {
+     renderRoom();
+     expect(screen.queryByTestId("network-direct-presence-dot")).toBeNull();
+   });
++
++  it("Should render an unavailable state without composer when the direct detail fails", () => {
++    directDetailMock.mockReturnValue({
++      direct: null,
++      isLoading: false,
++      error: new Error("Direct room not found"),
++    });
++
++    renderRoom();
++
++    expect(screen.getByTestId("network-direct-room-error")).toHaveTextContent(
++      "Direct room unavailable"
++    );
++    expect(screen.queryByRole("textbox", { name: /message @peer/i })).toBeNull();
++  });
++
++  it("Should render loading state without composer while direct detail resolves", () => {
++    directDetailMock.mockReturnValue({
++      direct: null,
++      isLoading: true,
++      error: null,
++    });
++
++    renderRoom();
++
++    expect(screen.getByTestId("network-timeline-skeleton")).toBeInTheDocument();
++    expect(screen.queryByRole("textbox", { name: /message @peer/i })).toBeNull();
++  });
+ });
+diff --git a/web/src/systems/network/components/directs/direct-room.tsx b/web/src/systems/network/components/directs/direct-room.tsx
+index 0be38cd8..1e8ea5a7 100644
+--- a/web/src/systems/network/components/directs/direct-room.tsx
++++ b/web/src/systems/network/components/directs/direct-room.tsx
+@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
+ 
+ import type { NetworkPresenceState } from "../../hooks/use-network-presence";
+ import { DetailComposer } from "../composer/detail-composer";
++import { ConversationError } from "../empty-states/conversation-error";
+ import { DirectEmpty } from "../empty-states/direct-empty";
+ import { Timeline } from "../timeline/timeline";
+ import { MessageAvatar } from "../timeline/message-avatar";
+@@ -52,6 +53,8 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
+   const view = useDirectRoomView({ channel, directId, selfPeerId });
+   const { room, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
+   const otherPeerId = room.otherPeerId;
++  const detailError = room.detailError;
++  const isResolvingDetail = !detailError && !room.detail;
+ 
+   return (
+     <section
+@@ -77,30 +80,49 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
+         </div>
+       </header>
+ 
+-      <WorkBanner hasNeedsInput={openWork.hasNeedsInput} openCount={openWork.openCount} />
++      {detailError ? (
++        <div className="flex flex-1 items-center justify-center px-5 py-10" role="alert">
++          <ConversationError
++            description={`AGH could not load ${directId}. Choose an existing direct room from #${channel}.`}
++            testId="network-direct-room-error"
++            title="Direct room unavailable"
++          />
++        </div>
++      ) : isResolvingDetail ? (
++        <Timeline
++          ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
++          density="channel"
++          isLoading
++          messages={[]}
++        />
++      ) : (
++        <>
++          <WorkBanner hasNeedsInput={openWork.hasNeedsInput} openCount={openWork.openCount} />
+ 
+-      <Timeline
+-        ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
+-        density="channel"
+-        emptyState={<DirectEmpty />}
+-        isLoading={room.isMessagesLoading}
+-        lastReadAt={room.lastReadIso}
+-        messages={room.messages}
+-        onDiscardOptimistic={handleDiscard}
+-        onRetryOptimistic={handleRetry}
+-      />
++          <Timeline
++            ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
++            density="channel"
++            emptyState={<DirectEmpty />}
++            isLoading={room.isDetailLoading || room.isMessagesLoading}
++            lastReadAt={room.lastReadIso}
++            messages={room.messages}
++            onDiscardOptimistic={handleDiscard}
++            onRetryOptimistic={handleRetry}
++          />
+ 
+-      <DetailComposer
+-        channel={channel}
+-        directId={directId}
+-        disabledReason={disabledReason ?? undefined}
+-        displayName={session?.displayName}
+-        peerFrom={session?.peerId ?? ""}
+-        peerLabel={otherPeerId ? `@${otherPeerId}` : "@peer"}
+-        peerTo={otherPeerId || undefined}
+-        sessionId={session?.sessionId ?? ""}
+-        surface="direct"
+-      />
++          <DetailComposer
++            channel={channel}
++            directId={directId}
++            disabledReason={disabledReason ?? undefined}
++            displayName={session?.displayName}
++            peerFrom={session?.peerId ?? ""}
++            peerLabel={otherPeerId ? `@${otherPeerId}` : "@peer"}
++            peerTo={otherPeerId || undefined}
++            sessionId={session?.sessionId ?? ""}
++            surface="direct"
++          />
++        </>
++      )}
+     </section>
+   );
+ }
+diff --git a/web/src/systems/network/components/thread-overlay/thread-overlay.test.tsx b/web/src/systems/network/components/thread-overlay/thread-overlay.test.tsx
+index b5c82e29..c54db3dd 100644
+--- a/web/src/systems/network/components/thread-overlay/thread-overlay.test.tsx
++++ b/web/src/systems/network/components/thread-overlay/thread-overlay.test.tsx
+@@ -3,9 +3,10 @@
+ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+ import { fireEvent, render, screen } from "@testing-library/react";
+ import userEvent from "@testing-library/user-event";
+-import { describe, expect, it, vi } from "vitest";
++import { beforeEach, describe, expect, it, vi } from "vitest";
+ 
+ const navigateMock = vi.fn();
++const threadDetailMock = vi.hoisted(() => vi.fn());
+ 
+ vi.mock("@tanstack/react-router", () => ({
+   Link: ({ children, ...rest }: { children: React.ReactNode }) => (
+@@ -50,24 +51,7 @@ vi.mock("../../hooks/use-threads", async () => {
+     await vi.importActual<typeof import("../../hooks/use-threads")>("../../hooks/use-threads");
+   return {
+     ...actual,
+-    useNetworkThreadDetail: () => ({
+-      thread: {
+-        channel: "ops",
+-        last_activity_at: "2026-04-17T14:33:00Z",
+-        last_message_preview: "First reply",
+-        message_count: 2,
+-        open_work_count: 0,
+-        opened_at: "2026-04-17T14:32:00Z",
+-        opened_by_peer_id: "peer-codex",
+-        opened_session_id: "sess-1",
+-        participant_count: 2,
+-        root_message_id: "msg-root",
+-        thread_id: "thread-test",
+-        title: "Launch command brief",
+-      },
+-      isLoading: false,
+-      error: null,
+-    }),
++    useNetworkThreadDetail: () => threadDetailMock(),
+   };
+ });
+ 
+@@ -105,6 +89,27 @@ function renderOverlay({ fullPage = false }: { fullPage?: boolean } = {}) {
+ }
+ 
+ describe("ThreadOverlay", () => {
++  beforeEach(() => {
++    threadDetailMock.mockReturnValue({
++      thread: {
++        channel: "ops",
++        last_activity_at: "2026-04-17T14:33:00Z",
++        last_message_preview: "First reply",
++        message_count: 2,
++        open_work_count: 0,
++        opened_at: "2026-04-17T14:32:00Z",
++        opened_by_peer_id: "peer-codex",
++        opened_session_id: "sess-1",
++        participant_count: 2,
++        root_message_id: "msg-root",
++        thread_id: "thread-test",
++        title: "Launch command brief",
++      },
++      isLoading: false,
++      error: null,
++    });
++  });
++
+   it("Should render the thread title, root, and reply count", () => {
+     renderOverlay();
+     expect(screen.getByText("Launch command brief")).toBeInTheDocument();
+@@ -155,4 +160,35 @@ describe("ThreadOverlay", () => {
+       expect(element.getAttribute("style") ?? "").not.toContain("box-shadow");
+     }
+   });
++
++  it("Should render an unavailable state without composer when the thread detail fails", () => {
++    threadDetailMock.mockReturnValue({
++      thread: null,
++      isLoading: false,
++      error: new Error("Thread not found"),
++    });
++
++    renderOverlay();
++
++    expect(screen.getByTestId("network-thread-overlay-error")).toHaveTextContent(
++      "Thread unavailable"
++    );
++    expect(screen.queryByRole("textbox", { name: /reply/i })).toBeNull();
++  });
++
++  it("Should render loading state without composer while thread detail resolves", () => {
++    threadDetailMock.mockReturnValue({
++      thread: null,
++      isLoading: true,
++      error: null,
++    });
++
++    renderOverlay();
++
++    expect(screen.getByTestId("network-thread-overlay-root-loading")).toHaveTextContent(
++      "Loading root"
++    );
++    expect(screen.getByTestId("network-timeline-skeleton")).toBeInTheDocument();
++    expect(screen.queryByRole("textbox", { name: /reply/i })).toBeNull();
++  });
+ });
+diff --git a/web/src/systems/network/components/thread-overlay/thread-overlay.tsx b/web/src/systems/network/components/thread-overlay/thread-overlay.tsx
+index f6e61885..c28e76c3 100644
+--- a/web/src/systems/network/components/thread-overlay/thread-overlay.tsx
++++ b/web/src/systems/network/components/thread-overlay/thread-overlay.tsx
+@@ -1,4 +1,5 @@
+ import { DetailComposer } from "../composer/detail-composer";
++import { ConversationError } from "../empty-states/conversation-error";
+ import { ThreadEmpty } from "../empty-states/thread-empty";
+ import { WorkBanner } from "../work/work-banner";
+ import { ThreadOverlayHeader } from "./thread-overlay-header";
+@@ -16,6 +17,8 @@ export interface ThreadOverlayProps {
+ export function ThreadOverlay({ channel, threadId, fullPage = false }: ThreadOverlayProps) {
+   const view = useThreadOverlayView({ channel, fullPage, threadId });
+   const { overlay, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
++  const detailError = overlay.detailError;
++  const isResolvingDetail = !detailError && !overlay.detail;
+ 
+   return (
+     <section
+@@ -25,27 +28,47 @@ export function ThreadOverlay({ channel, threadId, fullPage = false }: ThreadOve
+       data-testid="network-thread-overlay"
+     >
+       <ThreadOverlayHeader channel={channel} detail={overlay.detail} threadId={threadId} />
+-      <WorkBanner hasNeedsInput={openWork.hasNeedsInput} openCount={openWork.openCount} />
+-      <ThreadOverlayRoot isLoading={overlay.isDetailLoading} rootMessage={overlay.rootMessage} />
+-      <ThreadOverlayReplies
+-        emptyOverride={<ThreadEmpty />}
+-        isLoading={overlay.isMessagesLoading}
+-        lastReadAt={overlay.lastReadIso}
+-        messages={overlay.replies}
+-        onDiscardOptimistic={handleDiscard}
+-        onRetryOptimistic={handleRetry}
+-        replyCount={overlay.replyCount}
+-      />
++      {detailError ? (
++        <div className="flex flex-1 items-center justify-center px-5 py-10" role="alert">
++          <ConversationError
++            description={`Could not load thread ${threadId}. Choose an existing thread from #${channel}.`}
++            testId="network-thread-overlay-error"
++            title="Thread unavailable"
++          />
++        </div>
++      ) : isResolvingDetail ? (
++        <>
++          <ThreadOverlayRoot isLoading rootMessage={null} />
++          <ThreadOverlayReplies isLoading messages={[]} replyCount={0} />
++        </>
++      ) : (
++        <>
++          <WorkBanner hasNeedsInput={openWork.hasNeedsInput} openCount={openWork.openCount} />
++          <ThreadOverlayRoot
++            isLoading={overlay.isDetailLoading}
++            rootMessage={overlay.rootMessage}
++          />
++          <ThreadOverlayReplies
++            emptyOverride={<ThreadEmpty />}
++            isLoading={overlay.isMessagesLoading}
++            lastReadAt={overlay.lastReadIso}
++            messages={overlay.replies}
++            onDiscardOptimistic={handleDiscard}
++            onRetryOptimistic={handleRetry}
++            replyCount={overlay.replyCount}
++          />
+ 
+-      <DetailComposer
+-        channel={channel}
+-        disabledReason={disabledReason ?? undefined}
+-        displayName={session?.displayName}
+-        peerFrom={session?.peerId ?? ""}
+-        sessionId={session?.sessionId ?? ""}
+-        surface="thread"
+-        threadId={threadId}
+-      />
++          <DetailComposer
++            channel={channel}
++            disabledReason={disabledReason ?? undefined}
++            displayName={session?.displayName}
++            peerFrom={session?.peerId ?? ""}
++            sessionId={session?.sessionId ?? ""}
++            surface="thread"
++            threadId={threadId}
++          />
++        </>
++      )}
+     </section>
+   );
+ }
+diff --git a/web/src/systems/network/hooks/use-direct-room.ts b/web/src/systems/network/hooks/use-direct-room.ts
+index e50d014d..2ef15a47 100644
+--- a/web/src/systems/network/hooks/use-direct-room.ts
++++ b/web/src/systems/network/hooks/use-direct-room.ts
+@@ -43,6 +43,7 @@ export function useDirectRoom({
+   const messagesQuery = useNetworkMessages({
+     channel,
+     containerId: directId,
++    enabled: Boolean(detail.direct),
+     surface: "direct",
+   });
+   const otherPeerId = useMemo(
+diff --git a/web/src/systems/network/hooks/use-thread-overlay.ts b/web/src/systems/network/hooks/use-thread-overlay.ts
+index 30f91d93..17b41144 100644
+--- a/web/src/systems/network/hooks/use-thread-overlay.ts
++++ b/web/src/systems/network/hooks/use-thread-overlay.ts
+@@ -48,6 +48,7 @@ export function useThreadOverlay({
+   const messagesQuery = useNetworkMessages({
+     channel,
+     containerId: threadId,
++    enabled: Boolean(detail.thread),
+     surface: "thread",
+   });
+   const { lastReadAt, markRead } = useLastRead();
+diff --git a/web/src/systems/network/lib/query-options.test.ts b/web/src/systems/network/lib/query-options.test.ts
+index 105f836e..d2cac4f3 100644
+--- a/web/src/systems/network/lib/query-options.test.ts
++++ b/web/src/systems/network/lib/query-options.test.ts
+@@ -16,7 +16,13 @@ vi.mock("../adapters/network-api", async () => {
+   };
+ });
+ 
+-import { networkDirectMessagesOptions, networkThreadMessagesOptions } from "./query-options";
++import { NetworkApiError } from "../adapters/network-api";
++import {
++  networkDirectDetailOptions,
++  networkDirectMessagesOptions,
++  networkThreadDetailOptions,
++  networkThreadMessagesOptions,
++} from "./query-options";
+ import { networkKeys } from "./query-keys";
+ 
+ function makeQueryContext<TQueryKey extends readonly unknown[]>(queryKey: TQueryKey) {
+@@ -38,6 +44,16 @@ function requireQueryFn<TQueryKey extends readonly unknown[]>(
+   return queryFn;
+ }
+ 
++function requireRetry(
++  retry: boolean | number | ((failureCount: number, error: Error) => boolean) | undefined
++) {
++  if (typeof retry !== "function") {
++    throw new Error("Expected retry to be a function");
++  }
++
++  return retry;
++}
++
+ describe("network query options — surface isolation", () => {
+   beforeEach(() => {
+     vi.clearAllMocks();
+@@ -174,4 +190,20 @@ describe("network query options — surface isolation", () => {
+       expect.any(AbortSignal)
+     );
+   });
++
++  it("does not retry 4xx conversation detail failures", () => {
++    const threadRetry = requireRetry(networkThreadDetailOptions("builders", "missing").retry);
++    const directRetry = requireRetry(networkDirectDetailOptions("builders", "missing").retry);
++
++    expect(threadRetry(0, new NetworkApiError("Thread not found", 404))).toBe(false);
++    expect(directRetry(0, new NetworkApiError("Invalid direct id", 400))).toBe(false);
++  });
++
++  it("retries transient conversation detail failures within the detail retry budget", () => {
++    const retry = requireRetry(networkThreadDetailOptions("builders", "thread_one").retry);
++
++    expect(retry(0, new Error("temporary network failure"))).toBe(true);
++    expect(retry(1, new Error("temporary network failure"))).toBe(true);
++    expect(retry(2, new Error("temporary network failure"))).toBe(false);
++  });
+ });
+diff --git a/web/src/systems/network/lib/query-options.ts b/web/src/systems/network/lib/query-options.ts
+index 0fe59adb..5897044b 100644
+--- a/web/src/systems/network/lib/query-options.ts
++++ b/web/src/systems/network/lib/query-options.ts
+@@ -1,6 +1,7 @@
+ import { queryOptions } from "@tanstack/react-query";
+ 
+ import {
++  NetworkApiError,
+   getNetworkChannel,
+   getNetworkDirectRoom,
+   getNetworkPeer,
+@@ -29,6 +30,15 @@ const MESSAGES_STALE_TIME = 2_000;
+ const WORK_REFETCH_INTERVAL = 3_000;
+ const DEFAULT_TIMELINE_LIMIT = 120;
+ const DEFAULT_LIST_LIMIT = 50;
++const DETAIL_RETRY_LIMIT = 2;
++
++function shouldRetryDetailQuery(failureCount: number, error: Error): boolean {
++  if (error instanceof NetworkApiError && error.status >= 400 && error.status < 500) {
++    return false;
++  }
++
++  return failureCount < DETAIL_RETRY_LIMIT;
++}
+ 
+ export function networkStatusOptions() {
+   return queryOptions({
+@@ -82,6 +92,7 @@ export function networkThreadDetailOptions(channel: string, threadId: string, en
+   return queryOptions({
+     queryKey: networkKeys.threadDetail(channel, threadId),
+     queryFn: ({ signal }) => getNetworkThread(channel, threadId, signal),
++    retry: shouldRetryDetailQuery,
+     staleTime: LIST_STALE_TIME,
+     refetchInterval: LIST_REFETCH_INTERVAL,
+     refetchOnWindowFocus: true,
+@@ -126,6 +137,7 @@ export function networkDirectDetailOptions(channel: string, directId: string, en
+   return queryOptions({
+     queryKey: networkKeys.directDetail(channel, directId),
+     queryFn: ({ signal }) => getNetworkDirectRoom(channel, directId, signal),
++    retry: shouldRetryDetailQuery,
+     staleTime: LIST_STALE_TIME,
+     refetchInterval: LIST_REFETCH_INTERVAL,
+     refetchOnWindowFocus: true,
+diff --git a/web/src/systems/network/components/empty-states/conversation-error.tsx b/web/src/systems/network/components/empty-states/conversation-error.tsx
+new file mode 100644
+index 00000000..a0bf6c81
+--- /dev/null
++++ b/web/src/systems/network/components/empty-states/conversation-error.tsx
+@@ -0,0 +1,28 @@
++import { AlertTriangle } from "lucide-react";
++
++import { Empty } from "@agh/ui";
++
++export interface ConversationErrorProps {
++  title: string;
++  description: string;
++  className?: string;
++  testId?: string;
++}
++
++export function ConversationError({
++  title,
++  description,
++  className,
++  testId = "network-conversation-error",
++}: ConversationErrorProps) {
++  return (
++    <Empty
++      className={className}
++      data-testid={testId}
++      description={description}
++      fill={false}
++      icon={AlertTriangle}
++      title={title}
++    />
++  );
++}

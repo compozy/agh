@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Public Contracts, HTTP/UDS Parity, and Codegen
 type: backend
 complexity: critical
@@ -36,12 +36,12 @@ Expose the new conversation model through shared public contracts, HTTP routes, 
 
 ## Subtasks
 
-- [ ] 8.1 Update contract DTOs and validation for send, thread, direct, work, and message payloads.
-- [ ] 8.2 Add shared core handlers for thread/direct/work read paths and direct resolve.
-- [ ] 8.3 Register equivalent HTTP and UDS routes.
-- [ ] 8.4 Update agent-native UDS channel send/receive/reply behavior.
-- [ ] 8.5 Regenerate OpenAPI and generated TypeScript consumers with the approved codegen path.
-- [ ] 8.6 Add parity, contract, and legacy rejection tests.
+- [x] 8.1 Update contract DTOs and validation for send, thread, direct, work, and message payloads.
+- [x] 8.2 Add shared core handlers for thread/direct/work read paths and direct resolve.
+- [x] 8.3 Register equivalent HTTP and UDS routes.
+- [x] 8.4 Update agent-native UDS channel send/receive/reply behavior.
+- [x] 8.5 Regenerate OpenAPI and generated TypeScript consumers with the approved codegen path.
+- [x] 8.6 Add parity, contract, and legacy rejection tests.
 
 ## Implementation Details
 
@@ -94,15 +94,15 @@ Generated files must be regenerated, not hand-edited. The current worktree may a
 ## Tests
 
 - Unit tests:
-  - [ ] Contract decoding rejects `interaction_id`.
-  - [ ] Contract decoding rejects `kind:"direct"`.
-  - [ ] Send validation enforces matching `surface` and container fields.
-  - [ ] `receipt` and `trace` require `work_id`.
+  - [x] Contract decoding rejects `interaction_id`.
+  - [x] Contract decoding rejects `kind:"direct"`.
+  - [x] Send validation enforces matching `surface` and container fields.
+  - [x] `receipt` and `trace` require `work_id`.
 - Integration tests:
-  - [ ] HTTP and UDS expose the same thread/direct/work routes.
-  - [ ] Agent-native UDS send/receive/reply no longer uses direct kind or interaction ID.
-  - [ ] Direct resolve can create or return an existing direct room through HTTP and UDS.
-  - [ ] `make codegen-check` passes after regeneration.
+  - [x] HTTP and UDS expose the same thread/direct/work routes.
+  - [x] Agent-native UDS send/receive/reply no longer uses direct kind or interaction ID.
+  - [x] Direct resolve can create or return an existing direct room through HTTP and UDS.
+  - [x] `make codegen-check` passes after regeneration.
 - Test coverage target: >=80% for touched API packages.
 - All tests must pass.
 

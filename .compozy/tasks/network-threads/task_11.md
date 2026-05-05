@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extension Host API, SDK, and Bridge Mapping
 type: backend
 complexity: high
@@ -33,12 +33,12 @@ Expose the network conversation model through extension Host API methods, SDK ex
 
 ## Subtasks
 
-- [ ] 11.1 Add Host API protocol and contract method definitions.
-- [ ] 11.2 Implement Host API handlers and dependency injection.
-- [ ] 11.3 Add capability gates and denial tests for read/write operations.
-- [ ] 11.4 Update SDK generation/exports for network methods.
-- [ ] 11.5 Define and test bridge mapping for provider `ThreadID` versus AGH `thread_id`.
-- [ ] 11.6 Add validation parity, direct resolve, and raw-token tests.
+- [x] 11.1 Add Host API protocol and contract method definitions.
+- [x] 11.2 Implement Host API handlers and dependency injection.
+- [x] 11.3 Add capability gates and denial tests for read/write operations.
+- [x] 11.4 Update SDK generation/exports for network methods.
+- [x] 11.5 Define and test bridge mapping for provider `ThreadID` versus AGH `thread_id`.
+- [x] 11.6 Add validation parity, direct resolve, and raw-token tests.
 
 ## Implementation Details
 
@@ -89,16 +89,16 @@ Bridge ingress may map external Slack-like thread/direct constructs into AGH con
 ## Tests
 
 - Unit tests:
-  - [ ] Read methods require `network.read`.
-  - [ ] Direct resolve and send require `network.write`.
-  - [ ] Host API payloads reject `interaction_id` and `kind:"direct"`.
-  - [ ] Raw claim tokens are rejected or redacted.
-  - [ ] Bridge provider `ThreadID` is not conflated with AGH `thread_id` without explicit mapping.
+  - [x] Read methods require `network.read`.
+  - [x] Direct resolve and send require `network.write`.
+  - [x] Host API payloads reject `interaction_id` and `kind:"direct"`.
+  - [x] Raw claim tokens are rejected or redacted.
+  - [x] Bridge provider `ThreadID` is not conflated with AGH `thread_id` without explicit mapping.
 - Integration tests:
-  - [ ] Host API direct resolve is idempotent and parity-aligned with HTTP/UDS.
-  - [ ] Host API send validates surface/container fields consistently.
-  - [ ] SDK exports compile and expose new network methods.
-  - [ ] Bridge ingress preserves provider routing dimensions while producing valid AGH conversation refs when configured.
+  - [x] Host API direct resolve is idempotent and parity-aligned with HTTP/UDS.
+  - [x] Host API send validates surface/container fields consistently.
+  - [x] SDK exports compile and expose new network methods.
+  - [x] Bridge ingress preserves provider routing dimensions while producing valid AGH conversation refs when configured.
 - Test coverage target: >=80% for touched extension/bridge packages.
 - All tests must pass.
 

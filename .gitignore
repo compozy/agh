@@ -30,6 +30,11 @@ ai-docs/
 .kodebase
 .compozy/tasks/final-qa/_runs
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Next.js
 .next/
 out/

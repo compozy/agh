@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 
 import type { NetworkPresenceState } from "../../hooks/use-network-presence";
 import { DetailComposer } from "../composer/detail-composer";
+import { ConversationError } from "../empty-states/conversation-error";
 import { DirectEmpty } from "../empty-states/direct-empty";
 import { Timeline } from "../timeline/timeline";
 import { MessageAvatar } from "../timeline/message-avatar";
@@ -52,6 +53,8 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
   const view = useDirectRoomView({ channel, directId, selfPeerId });
   const { room, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
   const otherPeerId = room.otherPeerId;
+  const detailError = room.detailError;
+  const isResolvingDetail = !detailError && !room.detail;
 
   return (
     <section
@@ -77,30 +80,49 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
         </div>
       </header>
 
-      <WorkBanner hasNeedsInput={openWork.hasNeedsInput} openCount={openWork.openCount} />
+      {detailError ? (
+        <div className="flex flex-1 items-center justify-center px-5 py-10" role="alert">
+          <ConversationError
+            description={`Could not load direct room ${directId}. Choose an existing direct room from #${channel}.`}
+            testId="network-direct-room-error"
+            title="Direct room unavailable"
+          />
+        </div>
+      ) : isResolvingDetail ? (
+        <Timeline
+          ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
+          density="channel"
+          isLoading
+          messages={[]}
+        />
+      ) : (
+        <>
+          <WorkBanner hasNeedsInput={openWork.hasNeedsInput} openCount={openWork.openCount} />
 
-      <Timeline
-        ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
-        density="channel"
-        emptyState={<DirectEmpty />}
-        isLoading={room.isMessagesLoading}
-        lastReadAt={room.lastReadIso}
-        messages={room.messages}
-        onDiscardOptimistic={handleDiscard}
-        onRetryOptimistic={handleRetry}
-      />
+          <Timeline
+            ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
+            density="channel"
+            emptyState={<DirectEmpty />}
+            isLoading={room.isDetailLoading || room.isMessagesLoading}
+            lastReadAt={room.lastReadIso}
+            messages={room.messages}
+            onDiscardOptimistic={handleDiscard}
+            onRetryOptimistic={handleRetry}
+          />
 
-      <DetailComposer
-        channel={channel}
-        directId={directId}
-        disabledReason={disabledReason ?? undefined}
-        displayName={session?.displayName}
-        peerFrom={session?.peerId ?? ""}
-        peerLabel={otherPeerId ? `@${otherPeerId}` : "@peer"}
-        peerTo={otherPeerId || undefined}
-        sessionId={session?.sessionId ?? ""}
-        surface="direct"
-      />
+          <DetailComposer
+            channel={channel}
+            directId={directId}
+            disabledReason={disabledReason ?? undefined}
+            displayName={session?.displayName}
+            peerFrom={session?.peerId ?? ""}
+            peerLabel={otherPeerId ? `@${otherPeerId}` : "@peer"}
+            peerTo={otherPeerId || undefined}
+            sessionId={session?.sessionId ?? ""}
+            surface="direct"
+          />
+        </>
+      )}
     </section>
   );
 }

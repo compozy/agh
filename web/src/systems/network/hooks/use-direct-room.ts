@@ -43,6 +43,7 @@ export function useDirectRoom({
   const messagesQuery = useNetworkMessages({
     channel,
     containerId: directId,
+    enabled: Boolean(detail.direct),
     surface: "direct",
   });
   const otherPeerId = useMemo(

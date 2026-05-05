@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: RFC, Glossary, and Protocol Hard Cut
 type: docs
 complexity: high
@@ -31,11 +31,11 @@ Rewrite the active AGH Network protocol vocabulary before implementation begins 
 
 ## Subtasks
 
-- [ ] 1.1 Rewrite RFC 003 envelope, validation, routing, lifecycle, and examples.
-- [ ] 1.2 Rewrite RFC 004 trust, signed-field, canonicalization, and NATS examples.
-- [ ] 1.3 Update `docs/_memory/glossary.md` with canonical terms and deleted terminology.
-- [ ] 1.4 Add docs checks that active protocol examples no longer teach `interaction_id` or `kind:"direct"`.
-- [ ] 1.5 Record any remaining archived references as historical only, not supported behavior.
+- [x] 1.1 Rewrite RFC 003 envelope, validation, routing, lifecycle, and examples.
+- [x] 1.2 Rewrite RFC 004 trust, signed-field, canonicalization, and NATS examples.
+- [x] 1.3 Update `docs/_memory/glossary.md` with canonical terms and deleted terminology.
+- [x] 1.4 Add docs checks that active protocol examples no longer teach `interaction_id` or `kind:"direct"`.
+- [x] 1.5 Record any remaining archived references as historical only, not supported behavior.
 
 ## Implementation Details
 
@@ -84,15 +84,24 @@ This is a docs-first hard cut. It gives implementation agents the authoritative 
 ## Tests
 
 - Unit tests:
-  - [ ] Active RFC examples use `surface:"thread"` or `surface:"direct"` for conversation-bearing messages.
-  - [ ] Active RFC examples use `work_id` only for lifecycle-bearing work.
-  - [ ] Active RFC examples do not use `interaction_id` or `kind:"direct"`.
-  - [ ] RFC 004 examples include new signed fields when present.
+  - [x] Active RFC examples use `surface:"thread"` or `surface:"direct"` for conversation-bearing messages.
+  - [x] Active RFC examples use `work_id` only for lifecycle-bearing work.
+  - [x] Active RFC examples do not use `interaction_id` or `kind:"direct"`.
+  - [x] RFC 004 examples include new signed fields when present.
 - Integration tests:
-  - [ ] Docs validation command used by the repo passes for changed RFC/glossary files.
-  - [ ] `rg` scans confirm stale terms exist only in archived/historical artifacts or peer-review inputs.
+  - [x] Docs validation command used by the repo passes for changed RFC/glossary files.
+  - [x] `rg` scans confirm stale terms exist only in archived/historical artifacts or peer-review inputs.
 - Test coverage target: docs validation coverage for every changed active doc.
 - All tests must pass.
+
+## Verification Evidence
+
+- `bunx vitest run packages/site/lib/protocol-rfc-hard-cut.test.ts` passed 1 file / 4 tests.
+- `bunx oxfmt --check docs/rfcs/003_agh-network-v0.md docs/rfcs/004_agh-network-v1.md docs/_memory/glossary.md packages/site/lib/protocol-rfc-hard-cut.test.ts` passed.
+- `bun run typecheck` in `packages/site` passed.
+- Active RFC/glossary stale-term scan returned no matches:
+  `rg -n 'interaction_id|kind:"direct"|...` over `docs/rfcs/003_agh-network-v0.md`, `docs/rfcs/004_agh-network-v1.md`, and `docs/_memory/glossary.md`.
+- Full `make verify` passed after one unrelated transient `internal/session` retry; final run ended with `DONE 8066 tests` and `OK: all package boundaries respected`.
 
 ## Success Criteria
 

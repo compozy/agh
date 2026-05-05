@@ -1,0 +1,30 @@
+web/e2e/fixtures/browser-artifact-session.test.ts:48:    expect(routeState).not.toHaveProperty("network_selected_peer");
+packages/site/content/protocol/message-kinds.mdx:16:reject envelopes that try to set `kind:"direct"`.
+packages/site/content/protocol/message-kinds.mdx:230:`kind:"direct"`.
+internal/network/validate.go:698:	if _, ok := object["interaction_id"]; ok {
+internal/network/validate.go:699:		return fmt.Errorf("%w: interaction_id", ErrLegacyFieldRejected)
+internal/skills/bundled/bundled_test.go:276:		{name: "ShouldNotDocumentInteractionID", snippet: "interaction_id", absent: true},
+internal/skills/bundled/bundled_test.go:277:		{name: "ShouldNotDocumentInteractionIDFlag", snippet: "--interaction-id", absent: true},
+internal/skills/bundled/bundled_test.go:278:		{name: "ShouldNotDocumentDirectKindJSON", snippet: `kind:"direct"`, absent: true},
+packages/site/content/protocol/conformance.mdx:36:| Reject `kind:"direct"` and `interaction_id` envelopes              | MUST   | MUST   | MUST   |
+packages/site/content/protocol/conformance.mdx:179:| Envelope fixtures     | Valid and invalid envelopes, required fields, unknown fields, nullable fields, timestamp rules, surface and container-id pairing, rejection of `kind:"direct"`. |
+web/e2e/network.spec.ts:169:  expect(routeState).not.toHaveProperty("network_selected_peer");
+web/e2e/network.spec.ts:170:  expect(routeState).not.toHaveProperty("interaction_id");
+web/e2e/network.spec.ts:177:  expect(browserArtifactText).not.toContain("network_selected_peer");
+web/e2e/network.spec.ts:178:  expect(browserArtifactText).not.toContain("interaction_id");
+web/src/systems/network/hooks/use-network-actions.test.tsx:167:    expect(sent).not.toHaveProperty("interaction_id");
+internal/cli/network_test.go:747:				"--interaction-id", "work_1",
+internal/cli/network_test.go:749:			wantErr: "unknown flag: --interaction-id",
+internal/network/validate_test.go:823:			name: "Should reject legacy interaction_id",
+internal/network/validate_test.go:833:			  "interaction_id": "work_patch_42",
+internal/api/contract/contract.go:486:	if _, ok := raw["interaction_id"]; ok {
+internal/api/contract/contract.go:487:		return errors.New("network send request rejects interaction_id; use work_id")
+packages/site/content/protocol/guide/testing.mdx:231:| JSON fixtures   | Required fields, kind-specific bodies, malformed body shapes, conversation surface pairing, rejection of `kind:"direct"` and `interaction_id`. | Accepting invalid envelopes or legacy fields.                                                        |
+internal/api/contract/contract_test.go:119:				"interaction_id":"legacy",
+internal/api/contract/contract_test.go:122:			want: "interaction_id",
+web/src/systems/network/components/composer/channel-thread-composer.test.tsx:86:    expect(sent).not.toHaveProperty("interaction_id");
+web/src/systems/network/components/activity/activity-feed.tsx:29:  kind: "direct";
+web/src/systems/network/components/activity/activity-feed.tsx:60:      kind: "direct",
+web/src/systems/network/mocks/handlers.ts:259:    if ((body != null && Object.hasOwn(body, "interaction_id")) || kind === "direct") {
+web/src/systems/network/mocks/network-mocks.test.ts:139:          kind: "direct",
+packages/site/content/runtime/core/network/protocol.mdx:55:and a matching `direct_id`. The runtime rejects envelopes that try to set `kind:"direct"`.

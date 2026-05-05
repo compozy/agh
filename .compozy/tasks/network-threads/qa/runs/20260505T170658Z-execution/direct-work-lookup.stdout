@@ -1,0 +1,14 @@
+{
+  "work": {
+    "work_id": "work_patch_qa2",
+    "channel": "builders",
+    "surface": "direct",
+    "direct_id": "direct_8eeac8fd8fc697295a67c6206051e959",
+    "opened_by_peer_id": "patch-worker.sess-8658903011bda794",
+    "opened_session_id": "sess-8658903011bda794",
+    "target_peer_id": "ops-coordinator.sess-f225672703443d05",
+    "state": "working",
+    "opened_at": "2026-05-05T17:31:09Z",
+    "last_activity_at": "2026-05-05T17:31:09Z"
+  }
+}

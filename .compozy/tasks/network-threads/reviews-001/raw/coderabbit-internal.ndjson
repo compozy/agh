@@ -1,0 +1,6 @@
+{"type":"review_context","reviewType":"uncommitted","currentBranch":"network-threads","baseBranch":"main","workingDirectory":"/Users/pedronauck/Dev/compozy/agh2/internal"}
+{"type":"status","phase":"connecting","status":"connecting_to_review_service"}
+{"type":"status","phase":"setup","status":"setting_up"}
+{"type":"status","phase":"analyzing","status":"summarizing"}
+{"type":"status","phase":"analyzing","status":"reviewing"}
+{"type":"complete","status":"review_completed","findings":0}

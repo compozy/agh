@@ -1,0 +1,242 @@
+[
+  {
+    "id": "sess-5b75aa2325a14975",
+    "agent_name": "ops-coordinator",
+    "provider": "claude",
+    "workspace_id": "ws_707d6d413854c7c8",
+    "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab",
+    "channel": "builders",
+    "type": "user",
+    "state": "active",
+    "acp_session_id": "ops-coordinator-session-1",
+    "acp_caps": {
+      "supports_load_session": true
+    },
+    "sandbox": {
+      "sandbox_id": "env-93f867277633bd69",
+      "backend": "local",
+      "profile": "local",
+      "state": "prepared"
+    },
+    "lineage": {
+      "root_session_id": "sess-5b75aa2325a14975",
+      "spawn_depth": 0,
+      "auto_stop_on_parent": false,
+      "spawn_budget": {
+        "max_children": 0,
+        "max_depth": 0,
+        "ttl_seconds": 0
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-05T17:18:48.175501Z",
+    "updated_at": "2026-05-05T17:31:10.070889Z"
+  },
+  {
+    "id": "sess-c7e73151eb2e88a8",
+    "agent_name": "patch-worker",
+    "provider": "claude",
+    "workspace_id": "ws_707d6d413854c7c8",
+    "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab",
+    "channel": "builders",
+    "type": "user",
+    "state": "active",
+    "acp_session_id": "patch-worker-session-1",
+    "acp_caps": {
+      "supports_load_session": true
+    },
+    "sandbox": {
+      "sandbox_id": "env-c393cfeb5625df75",
+      "backend": "local",
+      "profile": "local",
+      "state": "prepared"
+    },
+    "lineage": {
+      "root_session_id": "sess-c7e73151eb2e88a8",
+      "spawn_depth": 0,
+      "auto_stop_on_parent": false,
+      "spawn_budget": {
+        "max_children": 0,
+        "max_depth": 0,
+        "ttl_seconds": 0
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-05T17:18:48.290316Z",
+    "updated_at": "2026-05-05T17:31:10.094692Z"
+  },
+  {
+    "id": "sess-52cf772402635963",
+    "agent_name": "ops-coordinator",
+    "provider": "claude",
+    "workspace_id": "ws_707d6d413854c7c8",
+    "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab",
+    "channel": "builders",
+    "type": "user",
+    "state": "active",
+    "acp_session_id": "ops-coordinator-session-1",
+    "acp_caps": {
+      "supports_load_session": true
+    },
+    "sandbox": {
+      "sandbox_id": "env-fd0117e7721d8ddc",
+      "backend": "local",
+      "profile": "local",
+      "state": "prepared"
+    },
+    "lineage": {
+      "root_session_id": "sess-52cf772402635963",
+      "spawn_depth": 0,
+      "auto_stop_on_parent": false,
+      "spawn_budget": {
+        "max_children": 0,
+        "max_depth": 0,
+        "ttl_seconds": 0
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-05T17:19:06.626943Z",
+    "updated_at": "2026-05-05T17:31:10.085271Z"
+  },
+  {
+    "id": "sess-1a43a08be3e7c019",
+    "agent_name": "patch-worker",
+    "provider": "claude",
+    "workspace_id": "ws_707d6d413854c7c8",
+    "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab",
+    "channel": "builders",
+    "type": "user",
+    "state": "active",
+    "acp_session_id": "patch-worker-session-1",
+    "acp_caps": {
+      "supports_load_session": true
+    },
+    "sandbox": {
+      "sandbox_id": "env-8516eafb1503f7ab",
+      "backend": "local",
+      "profile": "local",
+      "state": "prepared"
+    },
+    "lineage": {
+      "root_session_id": "sess-1a43a08be3e7c019",
+      "spawn_depth": 0,
+      "auto_stop_on_parent": false,
+      "spawn_budget": {
+        "max_children": 0,
+        "max_depth": 0,
+        "ttl_seconds": 0
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-05T17:19:06.741842Z",
+    "updated_at": "2026-05-05T17:31:10.082199Z"
+  },
+  {
+    "id": "sess-f225672703443d05",
+    "agent_name": "ops-coordinator",
+    "provider": "claude",
+    "workspace_id": "ws_707d6d413854c7c8",
+    "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab",
+    "channel": "builders",
+    "type": "user",
+    "state": "active",
+    "acp_session_id": "ops-coordinator-session-1",
+    "acp_caps": {
+      "supports_load_session": true
+    },
+    "sandbox": {
+      "sandbox_id": "env-b23e761af72a0627",
+      "backend": "local",
+      "profile": "local",
+      "state": "prepared"
+    },
+    "lineage": {
+      "root_session_id": "sess-f225672703443d05",
+      "spawn_depth": 0,
+      "auto_stop_on_parent": false,
+      "spawn_budget": {
+        "max_children": 0,
+        "max_depth": 0,
+        "ttl_seconds": 0
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-05T17:31:09.077081Z",
+    "updated_at": "2026-05-05T17:31:10.081023Z"
+  },
+  {
+    "id": "sess-8658903011bda794",
+    "agent_name": "patch-worker",
+    "provider": "claude",
+    "workspace_id": "ws_707d6d413854c7c8",
+    "workspace_path": "/Users/pedronauck/dev/qa-labs/agh-network-threads-20260505-170603-687358-lab",
+    "channel": "builders",
+    "type": "user",
+    "state": "active",
+    "acp_session_id": "patch-worker-session-1",
+    "acp_caps": {
+      "supports_load_session": true
+    },
+    "sandbox": {
+      "sandbox_id": "env-b47454f75f7038a1",
+      "backend": "local",
+      "profile": "local",
+      "state": "prepared"
+    },
+    "lineage": {
+      "root_session_id": "sess-8658903011bda794",
+      "spawn_depth": 0,
+      "auto_stop_on_parent": false,
+      "spawn_budget": {
+        "max_children": 0,
+        "max_depth": 0,
+        "ttl_seconds": 0
+      },
+      "permission_policy": {
+        "tools": [],
+        "skills": [],
+        "mcp_servers": [],
+        "workspace_paths": [],
+        "network_channels": [],
+        "sandbox_profiles": []
+      }
+    },
+    "created_at": "2026-05-05T17:31:09.207965Z",
+    "updated_at": "2026-05-05T17:31:09.775151Z"
+  }
+]

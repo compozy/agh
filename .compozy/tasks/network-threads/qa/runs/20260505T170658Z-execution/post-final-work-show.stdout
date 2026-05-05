@@ -1,0 +1,17 @@
+Inspect lifecycle-bearing network work
+
+Usage:
+  agh network work [command]
+
+Available Commands:
+  lookup      Show one network work item
+  status      Show one network work item
+
+Flags:
+  -h, --help   help for work
+
+Global Flags:
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+
+Use "agh network work [command] --help" for more information about a command.

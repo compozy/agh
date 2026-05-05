@@ -1,0 +1,32 @@
+{
+  "threads": [
+    {
+      "channel": "builders",
+      "thread_id": "thread_builders_qa2",
+      "root_message_id": "msg_say_qa2",
+      "title": "Review the launch checklist.",
+      "opened_by_peer_id": "ops-coordinator.sess-f225672703443d05",
+      "opened_session_id": "sess-f225672703443d05",
+      "opened_at": "2026-05-05T17:31:09Z",
+      "last_activity_at": "2026-05-05T17:31:09Z",
+      "message_count": 1,
+      "participant_count": 1,
+      "open_work_count": 0,
+      "last_message_preview": "Review the launch checklist."
+    },
+    {
+      "channel": "builders",
+      "thread_id": "thread_builders_main",
+      "root_message_id": "msg_say_01",
+      "title": "Review the launch checklist.",
+      "opened_by_peer_id": "ops-coordinator.sess-52cf772402635963",
+      "opened_session_id": "sess-52cf772402635963",
+      "opened_at": "2026-05-05T17:19:06Z",
+      "last_activity_at": "2026-05-05T17:19:07Z",
+      "message_count": 2,
+      "participant_count": 2,
+      "open_work_count": 0,
+      "last_message_preview": "Summary: migration review passed with one cleanup follow-up."
+    }
+  ]
+}

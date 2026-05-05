@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
+  NetworkApiError,
   getNetworkChannel,
   getNetworkDirectRoom,
   getNetworkPeer,
@@ -29,6 +30,15 @@ const MESSAGES_STALE_TIME = 2_000;
 const WORK_REFETCH_INTERVAL = 3_000;
 const DEFAULT_TIMELINE_LIMIT = 120;
 const DEFAULT_LIST_LIMIT = 50;
+const DETAIL_RETRY_LIMIT = 2;
+
+function shouldRetryDetailQuery(failureCount: number, error: Error): boolean {
+  if (error instanceof NetworkApiError && error.status >= 400 && error.status < 500) {
+    return false;
+  }
+
+  return failureCount < DETAIL_RETRY_LIMIT;
+}
 
 export function networkStatusOptions() {
   return queryOptions({
@@ -82,6 +92,7 @@ export function networkThreadDetailOptions(channel: string, threadId: string, en
   return queryOptions({
     queryKey: networkKeys.threadDetail(channel, threadId),
     queryFn: ({ signal }) => getNetworkThread(channel, threadId, signal),
+    retry: shouldRetryDetailQuery,
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
@@ -126,6 +137,7 @@ export function networkDirectDetailOptions(channel: string, directId: string, en
   return queryOptions({
     queryKey: networkKeys.directDetail(channel, directId),
     queryFn: ({ signal }) => getNetworkDirectRoom(channel, directId, signal),
+    retry: shouldRetryDetailQuery,
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,

@@ -1,0 +1,13 @@
+{
+  "id": "msg_direct_qa2",
+  "session_id": "sess-8658903011bda794",
+  "channel": "builders",
+  "surface": "direct",
+  "direct_id": "direct_8eeac8fd8fc697295a67c6206051e959",
+  "kind": "say",
+  "to": "ops-coordinator.sess-f225672703443d05",
+  "work_id": "work_patch_qa2",
+  "reply_to": "msg_say_qa2",
+  "trace_id": "trace_ops_patch_qa2",
+  "causation_id": "msg_say_qa2"
+}

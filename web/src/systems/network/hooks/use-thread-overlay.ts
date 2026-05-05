@@ -48,6 +48,7 @@ export function useThreadOverlay({
   const messagesQuery = useNetworkMessages({
     channel,
     containerId: threadId,
+    enabled: Boolean(detail.thread),
     surface: "thread",
   });
   const { lastReadAt, markRead } = useLastRead();
