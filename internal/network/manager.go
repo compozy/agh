@@ -16,6 +16,7 @@ import (
 	"github.com/nats-io/nats.go"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	sessionpkg "github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 const (
@@ -56,10 +57,11 @@ type Status struct {
 type ManagerOption func(*managerOptions)
 
 type managerOptions struct {
-	logger  *slog.Logger
-	now     func() time.Time
-	auditor AuditWriter
-	tasks   TaskService
+	logger        *slog.Logger
+	now           func() time.Time
+	auditor       AuditWriter
+	tasks         TaskService
+	conversations store.NetworkConversationStore
 }
 
 type managedSession struct {
@@ -85,13 +87,14 @@ type Manager struct {
 	lifecycleCtx context.Context
 	cancel       context.CancelFunc
 
-	transport  *Transport
-	peers      *PeerRegistry
-	router     *Router
-	auditor    AuditWriter
-	tasks      TaskService
-	deliveries *deliveryCoordinator
-	stats      *runtimeStats
+	transport     *Transport
+	peers         *PeerRegistry
+	router        *Router
+	auditor       AuditWriter
+	tasks         TaskService
+	conversations store.NetworkConversationStore
+	deliveries    *deliveryCoordinator
+	stats         *runtimeStats
 
 	mu             sync.Mutex
 	sessions       map[string]*managedSession
@@ -119,6 +122,14 @@ func WithManagerClock(now func() time.Time) ManagerOption {
 func WithManagerAuditWriter(auditor AuditWriter) ManagerOption {
 	return func(opts *managerOptions) {
 		opts.auditor = auditor
+	}
+}
+
+// WithManagerConversationStore injects the durable conversation repository used
+// as the commit boundary before runtime delivery side effects.
+func WithManagerConversationStore(conversations store.NetworkConversationStore) ManagerOption {
+	return func(opts *managerOptions) {
+		opts.conversations = conversations
 	}
 }
 
@@ -192,17 +203,18 @@ func newManagerRuntime(
 	cancel context.CancelFunc,
 ) *Manager {
 	return &Manager{
-		config:       cfg,
-		logger:       options.logger,
-		now:          options.now,
-		lifecycleCtx: lifecycleCtx,
-		cancel:       cancel,
-		auditor:      options.auditor,
-		sessions:     make(map[string]*managedSession),
-		channels:     make(map[string]*managedChannel),
-		connected:    true,
-		stats:        newRuntimeStats(),
-		tasks:        options.tasks,
+		config:        cfg,
+		logger:        options.logger,
+		now:           options.now,
+		lifecycleCtx:  lifecycleCtx,
+		cancel:        cancel,
+		auditor:       options.auditor,
+		sessions:      make(map[string]*managedSession),
+		channels:      make(map[string]*managedChannel),
+		connected:     true,
+		stats:         newRuntimeStats(),
+		tasks:         options.tasks,
+		conversations: options.conversations,
 	}
 }
 
@@ -220,6 +232,7 @@ func (m *Manager) initialize(
 	if err := m.initPeers(cfg); err != nil {
 		return m.rollbackInit(ctx, err)
 	}
+	m.initConversationStore(auditStore)
 	if err := m.initRouter(cfg); err != nil {
 		return m.rollbackInit(ctx, err)
 	}
@@ -256,6 +269,17 @@ func (m *Manager) initPeers(cfg aghconfig.NetworkConfig) error {
 	return nil
 }
 
+func (m *Manager) initConversationStore(auditStore AuditStore) {
+	if m == nil || m.conversations != nil || auditStore == nil {
+		return
+	}
+	conversations, ok := auditStore.(store.NetworkConversationStore)
+	if !ok {
+		return
+	}
+	m.conversations = conversations
+}
+
 func (m *Manager) initRouter(cfg aghconfig.NetworkConfig) error {
 	router, err := NewRouter(
 		m.peers,
@@ -275,11 +299,7 @@ func (m *Manager) initAuditor(auditPath string, auditStore AuditStore) error {
 		return nil
 	}
 
-	auditor, err := NewAuditWriter(
-		auditPath,
-		auditStore,
-		WithAuditWriterPresenceWindow(2*m.config.GreetIntervalDuration()),
-	)
+	auditor, err := NewAuditWriter(auditPath, auditStore)
 	if err != nil {
 		return err
 	}
@@ -574,11 +594,28 @@ func (m *Manager) Send(ctx context.Context, req SendRequest) (string, error) {
 		return "", errors.New("network: manager router is required")
 	}
 
-	result, err := m.router.Send(ctx, req)
+	prepared, err := m.router.PrepareSend(ctx, req)
 	if err != nil {
 		return "", err
 	}
-	m.recordAuditSent(ctx, req.SessionID, result.Envelope)
+	writeResult, wrote, err := m.writeConversationMessage(ctx, req.SessionID, AuditDirectionSent, prepared.Envelope)
+	if err != nil {
+		m.recordAuditRejected(ctx, req.SessionID, prepared.Envelope, conversationPersistenceReason(err))
+		return "", err
+	}
+	if wrote && writeResult.Duplicate {
+		m.logger.Info(
+			"network.message.send_duplicate",
+			networkLogFields(prepared.Envelope, "session_id", req.SessionID)...)
+		return prepared.ID, nil
+	}
+
+	result, err := m.router.PublishPrepared(ctx, prepared)
+	if err != nil {
+		m.recordAuditRejected(ctx, req.SessionID, prepared.Envelope, "publish_failed")
+		return "", err
+	}
+	m.recordSentDelivery(ctx, req.SessionID, result.Envelope, wrote)
 	return result.ID, nil
 }
 
@@ -838,7 +875,24 @@ func (m *Manager) handleInboundMessage(payload []byte) {
 		m.logger.Warn("network.message.receive_failed", "error", err)
 		return
 	}
-	m.recordInboundAudit(result)
+	persisted, err := m.writeInboundConversationMessages(m.lifecycleCtx, result)
+	if err != nil {
+		m.logger.Warn("network.message.persist_failed", "error", err)
+		if result.Envelope != nil {
+			m.recordAuditRejected(
+				m.lifecycleCtx,
+				inboundRejectedSessionID(m, *result.Envelope),
+				*result.Envelope,
+				conversationPersistenceReason(err),
+			)
+		}
+		return
+	}
+	if persisted.Duplicate {
+		m.logger.Info("network.message.receive_duplicate_store", "message_id", persisted.MessageID)
+		return
+	}
+	m.recordInboundAudit(result, persisted.MessageIDs)
 
 	if len(result.Deliveries) == 0 {
 		return
@@ -848,8 +902,117 @@ func (m *Manager) handleInboundMessage(payload []byte) {
 	}
 }
 
-func (m *Manager) recordInboundAudit(result RouteResult) {
-	if m == nil || m.auditor == nil {
+type conversationPersistenceSummary struct {
+	MessageIDs map[string]struct{}
+	Duplicate  bool
+	MessageID  string
+}
+
+func (m *Manager) writeInboundConversationMessages(
+	ctx context.Context,
+	result RouteResult,
+) (conversationPersistenceSummary, error) {
+	summary := conversationPersistenceSummary{MessageIDs: make(map[string]struct{})}
+	if m == nil || m.conversations == nil {
+		return summary, nil
+	}
+	if result.Envelope != nil && !result.Rejected && !result.Ignored && len(result.Deliveries) > 0 {
+		writeResult, wrote, err := m.writeConversationMessage(
+			ctx,
+			result.Deliveries[0].SessionID,
+			AuditDirectionReceived,
+			*result.Envelope,
+		)
+		if err != nil {
+			return conversationPersistenceSummary{}, err
+		}
+		if wrote {
+			if writeResult.Duplicate {
+				if m.isLocalEnvelopeSender(*result.Envelope) {
+					summary.MessageIDs[result.Envelope.ID] = struct{}{}
+					return summary, nil
+				}
+				summary.Duplicate = true
+				summary.MessageID = writeResult.MessageID
+				return summary, nil
+			}
+			summary.MessageIDs[result.Envelope.ID] = struct{}{}
+		}
+	}
+
+	for _, envelope := range result.Generated {
+		local, ok := m.peers.LocalByPeer(envelope.Channel, envelope.From)
+		if !ok {
+			continue
+		}
+		writeResult, wrote, err := m.writeConversationMessage(ctx, local.SessionID, AuditDirectionSent, envelope)
+		if err != nil {
+			return conversationPersistenceSummary{}, err
+		}
+		if wrote && !writeResult.Duplicate {
+			summary.MessageIDs[envelope.ID] = struct{}{}
+		}
+	}
+	return summary, nil
+}
+
+func (m *Manager) isLocalEnvelopeSender(envelope Envelope) bool {
+	if m == nil || m.peers == nil {
+		return false
+	}
+	_, ok := m.peers.LocalByPeer(envelope.Channel, envelope.From)
+	return ok
+}
+
+func (m *Manager) writeConversationMessage(
+	ctx context.Context,
+	sessionID string,
+	direction string,
+	envelope Envelope,
+) (store.NetworkConversationWriteResult, bool, error) {
+	if ctx == nil {
+		return store.NetworkConversationWriteResult{}, false, errors.New("network: conversation context is required")
+	}
+	if m == nil || m.conversations == nil || !isConversationKind(envelope.Kind) {
+		return store.NetworkConversationWriteResult{}, false, nil
+	}
+	entry, ok, err := normalizeTimelineMessageEntry(sessionID, direction, envelope, envelopeRecordTime(envelope, m.now))
+	if err != nil {
+		return store.NetworkConversationWriteResult{}, false, err
+	}
+	if !ok {
+		return store.NetworkConversationWriteResult{}, false, nil
+	}
+	result, err := m.conversations.WriteConversationMessage(ctx, entry)
+	if err != nil {
+		return store.NetworkConversationWriteResult{}, true, err
+	}
+	return result, true, nil
+}
+
+func envelopeRecordTime(envelope Envelope, now func() time.Time) time.Time {
+	if envelope.TS > 0 {
+		return time.Unix(envelope.TS, 0).UTC()
+	}
+	if now != nil {
+		return now().UTC()
+	}
+	return time.Now().UTC()
+}
+
+func inboundRejectedSessionID(manager *Manager, envelope Envelope) string {
+	if manager == nil || manager.peers == nil || !envelope.IsDirected() {
+		return ""
+	}
+	target, ok := manager.peers.LocalByPeer(envelope.Channel, *envelope.To)
+	if !ok {
+		return ""
+	}
+	return target.SessionID
+}
+
+func (m *Manager) recordInboundAudit(result RouteResult, persisted map[string]struct{}) {
+	if m == nil {
 		return
 	}
 	recordedReceivers := make(map[string]struct{})
@@ -868,21 +1031,75 @@ func (m *Manager) recordInboundAudit(result RouteResult) {
 	}
 
 	for _, delivery := range result.Deliveries {
-		m.recordAuditReceived(m.lifecycleCtx, delivery.SessionID, delivery.Envelope)
+		_, durable := persisted[delivery.Envelope.ID]
+		m.recordReceivedDelivery(m.lifecycleCtx, delivery.SessionID, delivery.Envelope, durable)
 		recordedReceivers[delivery.SessionID] = struct{}{}
 	}
 	for _, sessionID := range m.controlMessageReceivers(result) {
 		if _, ok := recordedReceivers[sessionID]; ok {
 			continue
 		}
-		m.recordAuditReceived(m.lifecycleCtx, sessionID, *result.Envelope)
+		_, durable := persisted[result.Envelope.ID]
+		m.recordReceivedDelivery(m.lifecycleCtx, sessionID, *result.Envelope, durable)
 	}
 	for _, envelope := range result.Generated {
 		local, ok := m.peers.LocalByPeer(envelope.Channel, envelope.From)
 		if !ok {
 			continue
 		}
-		m.recordAuditSent(m.lifecycleCtx, local.SessionID, envelope)
+		_, durable := persisted[envelope.ID]
+		m.recordSentDelivery(m.lifecycleCtx, local.SessionID, envelope, durable)
+	}
+}
+
+func (m *Manager) recordSentDelivery(ctx context.Context, sessionID string, envelope Envelope, durable bool) {
+	if durable {
+		m.recordSentObserved(sessionID, envelope)
+		return
+	}
+	m.recordAuditSent(ctx, sessionID, envelope)
+}
+
+func (m *Manager) recordReceivedDelivery(ctx context.Context, sessionID string, envelope Envelope, durable bool) {
+	if durable {
+		m.recordReceivedObserved(sessionID, envelope)
+		return
+	}
+	m.recordAuditReceived(ctx, sessionID, envelope)
+}
+
+func (m *Manager) recordSentObserved(sessionID string, envelope Envelope) {
+	if m == nil {
+		return
+	}
+	if m.stats != nil {
+		m.stats.recordSent(envelope)
+	}
+	m.logger.Info("network.message.sent", networkLogFields(envelope, "session_id", sessionID)...)
+}
+
+func (m *Manager) recordReceivedObserved(sessionID string, envelope Envelope) {
+	if m == nil {
+		return
+	}
+	if m.stats != nil {
+		m.stats.recordReceived(envelope)
+	}
+	m.logger.Info("network.message.received", networkLogFields(envelope, "session_id", sessionID)...)
+}
+
+func conversationPersistenceReason(err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, store.ErrNetworkWorkClosed):
+		return "work_closed"
+	case errors.Is(err, store.ErrNetworkWorkContainerMismatch):
+		return "work_container_mismatch"
+	case errors.Is(err, store.ErrNetworkDirectRoomCollision):
+		return "direct_room_collision"
+	default:
+		return "conversation_persist_failed"
 	}
 }
 

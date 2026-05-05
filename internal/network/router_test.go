@@ -157,6 +157,74 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	}
 }
 
+func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should route direct surface broadcast by deterministic room membership", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 10, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-reviewer",
+			"builders",
+			mustPeerCard(t, "reviewer.sess-b"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-observer",
+			"builders",
+			mustPeerCard(t, "observer.sess-c"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(observer) error = %v", err)
+		}
+		directID, _, _, err := DirectRoomIdentity("builders", "coder.sess-remote", "reviewer.sess-b")
+		if err != nil {
+			t.Fatalf("DirectRoomIdentity() error = %v", err)
+		}
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+		payload, err := json.Marshal(Envelope{
+			Protocol: ProtocolV0,
+			ID:       "msg_direct_room_broadcast",
+			Kind:     KindSay,
+			Channel:  "builders",
+			Surface:  surfacePtr(SurfaceDirect),
+			DirectID: stringPtr(directID),
+			From:     "coder.sess-remote",
+			TS:       now.Unix(),
+			Body:     mustRawJSON(t, SayBody{Text: "room-only update"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(direct room broadcast) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(direct room broadcast) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 1; got != want {
+			t.Fatalf("len(direct room deliveries) = %d, want %d", got, want)
+		}
+		if got, want := result.Deliveries[0].SessionID, "sess-reviewer"; got != want {
+			t.Fatalf("direct room delivery session = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestRouterDoesNotDeliverLocalEchoesToSender(t *testing.T) {
 	t.Parallel()
 

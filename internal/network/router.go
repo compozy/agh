@@ -250,13 +250,17 @@ func (r *Router) StartHeartbeat(ctx context.Context, sessionID string, summary s
 	return heartbeat, nil
 }
 
-// Send validates one outbound request, enforces presence preflight, and publishes it.
-func (r *Router) Send(ctx context.Context, req SendRequest) (SendResult, error) {
+// PrepareSend validates one outbound request and computes the publish subject
+// without performing transport side effects.
+func (r *Router) PrepareSend(ctx context.Context, req SendRequest) (SendResult, error) {
 	if ctx == nil {
 		return SendResult{}, errors.New("network: send context is required")
 	}
 	if r == nil {
 		return SendResult{}, errors.New("network: router is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return SendResult{}, err
 	}
 
 	now := r.now().UTC()
@@ -280,16 +284,55 @@ func (r *Router) Send(ctx context.Context, req SendRequest) (SendResult, error) 
 	if err != nil {
 		return SendResult{}, err
 	}
-	if err := r.publishEnvelope(ctx, envelope); err != nil {
-		return SendResult{}, err
-	}
-	r.syncSentLifecycle(envelope, now)
 
 	return SendResult{
 		ID:       envelope.ID,
 		Subject:  subject,
 		Envelope: envelope,
 	}, nil
+}
+
+// PublishPrepared publishes a previously prepared envelope and syncs the local
+// lifecycle cache only after the transport accepts the publish.
+func (r *Router) PublishPrepared(ctx context.Context, prepared SendResult) (SendResult, error) {
+	if ctx == nil {
+		return SendResult{}, errors.New("network: send context is required")
+	}
+	if r == nil {
+		return SendResult{}, errors.New("network: router is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return SendResult{}, err
+	}
+
+	envelope := prepared.Envelope
+	subject := strings.TrimSpace(prepared.Subject)
+	if subject == "" {
+		var err error
+		subject, err = subjectForEnvelope(envelope)
+		if err != nil {
+			return SendResult{}, err
+		}
+	}
+	if err := r.publishEnvelope(ctx, envelope); err != nil {
+		return SendResult{}, err
+	}
+	r.syncSentLifecycle(envelope, time.Unix(envelope.TS, 0).UTC())
+
+	return SendResult{
+		ID:       envelope.ID,
+		Subject:  subject,
+		Envelope: envelope,
+	}, nil
+}
+
+// Send validates one outbound request, enforces presence preflight, and publishes it.
+func (r *Router) Send(ctx context.Context, req SendRequest) (SendResult, error) {
+	prepared, err := r.PrepareSend(ctx, req)
+	if err != nil {
+		return SendResult{}, err
+	}
+	return r.PublishPrepared(ctx, prepared)
 }
 
 // Receive validates one inbound envelope, updates presence, and returns delivery decisions.
@@ -1016,11 +1059,28 @@ func deliveryFromLocalPeer(peer LocalPeer, envelope Envelope) (Delivery, bool) {
 	if strings.TrimSpace(peer.PeerID) == "" || isEnvelopeSender(peer, envelope) {
 		return Delivery{}, false
 	}
+	if !localPeerMatchesConversation(peer, envelope) {
+		return Delivery{}, false
+	}
 	return Delivery{
 		SessionID: peer.SessionID,
 		PeerID:    peer.PeerID,
 		Envelope:  envelope,
 	}, true
+}
+
+func localPeerMatchesConversation(peer LocalPeer, envelope Envelope) bool {
+	if envelope.Surface == nil || *envelope.Surface != SurfaceDirect || envelope.IsDirected() {
+		return true
+	}
+	if envelope.DirectID == nil {
+		return false
+	}
+	directID, _, _, err := DirectRoomIdentity(envelope.Channel, envelope.From, peer.PeerID)
+	if err != nil {
+		return false
+	}
+	return directID == strings.TrimSpace(*envelope.DirectID)
 }
 
 func isEnvelopeSender(peer LocalPeer, envelope Envelope) bool {
@@ -1051,19 +1111,21 @@ func buildWorkReceipt(
 		return Envelope{}, false, err
 	}
 	receipt := Envelope{
-		Protocol: ProtocolV0,
-		ID:       store.NewID("msg"),
-		Kind:     KindReceipt,
-		Channel:  envelope.Channel,
-		Surface:  cloneSurfacePtr(envelope.Surface),
-		ThreadID: normalizeOptionalIdentifier(envelope.ThreadID),
-		DirectID: normalizeOptionalIdentifier(envelope.DirectID),
-		From:     local.PeerID,
-		To:       ptrString(envelope.From),
-		WorkID:   ptrString(*envelope.WorkID),
-		ReplyTo:  ptrString(envelope.ID),
-		TS:       now.Unix(),
-		Body:     payload,
+		Protocol:    ProtocolV0,
+		ID:          store.NewID("msg"),
+		Kind:        KindReceipt,
+		Channel:     envelope.Channel,
+		Surface:     cloneSurfacePtr(envelope.Surface),
+		ThreadID:    normalizeOptionalIdentifier(envelope.ThreadID),
+		DirectID:    normalizeOptionalIdentifier(envelope.DirectID),
+		From:        local.PeerID,
+		To:          ptrString(envelope.From),
+		WorkID:      ptrString(*envelope.WorkID),
+		ReplyTo:     ptrString(envelope.ID),
+		TraceID:     normalizeOptionalIdentifier(envelope.TraceID),
+		CausationID: ptrString(envelope.ID),
+		TS:          now.Unix(),
+		Body:        payload,
 	}
 	return receipt, true, nil
 }

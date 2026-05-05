@@ -162,19 +162,18 @@ type PromptMeta struct {
 
 // PromptNetworkMeta captures stable AGH network envelope correlation fields.
 type PromptNetworkMeta struct {
-	MessageID     string `json:"message_id,omitempty"`
-	Kind          string `json:"kind,omitempty"`
-	Channel       string `json:"channel,omitempty"`
-	Surface       string `json:"surface,omitempty"`
-	ThreadID      string `json:"thread_id,omitempty"`
-	DirectID      string `json:"direct_id,omitempty"`
-	From          string `json:"from,omitempty"`
-	To            string `json:"to,omitempty"`
-	WorkID        string `json:"work_id,omitempty"`
-	InteractionID string `json:"interaction_id,omitempty"`
-	ReplyTo       string `json:"reply_to,omitempty"`
-	TraceID       string `json:"trace_id,omitempty"`
-	CausationID   string `json:"causation_id,omitempty"`
+	MessageID   string `json:"message_id,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	Channel     string `json:"channel,omitempty"`
+	Surface     string `json:"surface,omitempty"`
+	ThreadID    string `json:"thread_id,omitempty"`
+	DirectID    string `json:"direct_id,omitempty"`
+	From        string `json:"from,omitempty"`
+	To          string `json:"to,omitempty"`
+	WorkID      string `json:"work_id,omitempty"`
+	ReplyTo     string `json:"reply_to,omitempty"`
+	TraceID     string `json:"trace_id,omitempty"`
+	CausationID string `json:"causation_id,omitempty"`
 }
 
 // PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
@@ -248,19 +247,18 @@ func (m PromptMeta) Validate() error {
 // Normalize returns a trimmed copy of the network metadata.
 func (m PromptNetworkMeta) Normalize() PromptNetworkMeta {
 	return PromptNetworkMeta{
-		MessageID:     strings.TrimSpace(m.MessageID),
-		Kind:          strings.TrimSpace(m.Kind),
-		Channel:       strings.TrimSpace(m.Channel),
-		Surface:       strings.TrimSpace(m.Surface),
-		ThreadID:      strings.TrimSpace(m.ThreadID),
-		DirectID:      strings.TrimSpace(m.DirectID),
-		From:          strings.TrimSpace(m.From),
-		To:            strings.TrimSpace(m.To),
-		WorkID:        strings.TrimSpace(m.WorkID),
-		InteractionID: strings.TrimSpace(m.InteractionID),
-		ReplyTo:       strings.TrimSpace(m.ReplyTo),
-		TraceID:       strings.TrimSpace(m.TraceID),
-		CausationID:   strings.TrimSpace(m.CausationID),
+		MessageID:   strings.TrimSpace(m.MessageID),
+		Kind:        strings.TrimSpace(m.Kind),
+		Channel:     strings.TrimSpace(m.Channel),
+		Surface:     strings.TrimSpace(m.Surface),
+		ThreadID:    strings.TrimSpace(m.ThreadID),
+		DirectID:    strings.TrimSpace(m.DirectID),
+		From:        strings.TrimSpace(m.From),
+		To:          strings.TrimSpace(m.To),
+		WorkID:      strings.TrimSpace(m.WorkID),
+		ReplyTo:     strings.TrimSpace(m.ReplyTo),
+		TraceID:     strings.TrimSpace(m.TraceID),
+		CausationID: strings.TrimSpace(m.CausationID),
 	}
 }
 

@@ -422,15 +422,17 @@ func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 		Meta: PromptMeta{
 			TurnSource: PromptTurnSourceNetwork,
 			Network: &PromptNetworkMeta{
-				MessageID:     "msg-meta-1",
-				Kind:          "direct",
-				Channel:       "builders",
-				From:          "ops.peer",
-				To:            "worker.peer",
-				InteractionID: "int-meta-1",
-				ReplyTo:       "msg-root-1",
-				TraceID:       "trace-meta-1",
-				CausationID:   "msg-root-1",
+				MessageID:   "msg-meta-1",
+				Kind:        "say",
+				Channel:     "builders",
+				Surface:     "direct",
+				DirectID:    "direct_meta_1",
+				From:        "ops.peer",
+				To:          "worker.peer",
+				WorkID:      "work-meta-1",
+				ReplyTo:     "msg-root-1",
+				TraceID:     "trace-meta-1",
+				CausationID: "msg-root-1",
 			},
 		},
 	})
@@ -455,6 +457,9 @@ func TestPromptTransmitsStructuredMetadata(t *testing.T) {
 	}
 	if got, want := payload.Network.MessageID, "msg-meta-1"; got != want {
 		t.Fatalf("payload.Network.MessageID = %q, want %q", got, want)
+	}
+	if got, want := payload.Network.WorkID, "work-meta-1"; got != want {
+		t.Fatalf("payload.Network.WorkID = %q, want %q", got, want)
 	}
 }
 

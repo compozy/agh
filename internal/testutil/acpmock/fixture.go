@@ -65,15 +65,18 @@ type TurnMatch struct {
 
 // TurnMatchNetwork captures exact AGH network envelope field matching.
 type TurnMatchNetwork struct {
-	MessageID     string `json:"message_id,omitempty"`
-	Kind          string `json:"kind,omitempty"`
-	Channel       string `json:"channel,omitempty"`
-	From          string `json:"from,omitempty"`
-	To            string `json:"to,omitempty"`
-	InteractionID string `json:"interaction_id,omitempty"`
-	ReplyTo       string `json:"reply_to,omitempty"`
-	TraceID       string `json:"trace_id,omitempty"`
-	CausationID   string `json:"causation_id,omitempty"`
+	MessageID   string `json:"message_id,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	Channel     string `json:"channel,omitempty"`
+	Surface     string `json:"surface,omitempty"`
+	ThreadID    string `json:"thread_id,omitempty"`
+	DirectID    string `json:"direct_id,omitempty"`
+	From        string `json:"from,omitempty"`
+	To          string `json:"to,omitempty"`
+	WorkID      string `json:"work_id,omitempty"`
+	ReplyTo     string `json:"reply_to,omitempty"`
+	TraceID     string `json:"trace_id,omitempty"`
+	CausationID string `json:"causation_id,omitempty"`
 }
 
 // Step describes one deterministic ACP action emitted or executed by the driver.
@@ -350,15 +353,18 @@ func canonicalUserText(prompt string) string {
 // Normalize returns a trimmed copy of the network matcher.
 func (m TurnMatchNetwork) Normalize() TurnMatchNetwork {
 	return TurnMatchNetwork{
-		MessageID:     strings.TrimSpace(m.MessageID),
-		Kind:          strings.TrimSpace(m.Kind),
-		Channel:       strings.TrimSpace(m.Channel),
-		From:          strings.TrimSpace(m.From),
-		To:            strings.TrimSpace(m.To),
-		InteractionID: strings.TrimSpace(m.InteractionID),
-		ReplyTo:       strings.TrimSpace(m.ReplyTo),
-		TraceID:       strings.TrimSpace(m.TraceID),
-		CausationID:   strings.TrimSpace(m.CausationID),
+		MessageID:   strings.TrimSpace(m.MessageID),
+		Kind:        strings.TrimSpace(m.Kind),
+		Channel:     strings.TrimSpace(m.Channel),
+		Surface:     strings.TrimSpace(m.Surface),
+		ThreadID:    strings.TrimSpace(m.ThreadID),
+		DirectID:    strings.TrimSpace(m.DirectID),
+		From:        strings.TrimSpace(m.From),
+		To:          strings.TrimSpace(m.To),
+		WorkID:      strings.TrimSpace(m.WorkID),
+		ReplyTo:     strings.TrimSpace(m.ReplyTo),
+		TraceID:     strings.TrimSpace(m.TraceID),
+		CausationID: strings.TrimSpace(m.CausationID),
 	}
 }
 
@@ -381,9 +387,12 @@ func (m TurnMatchNetwork) matches(meta acp.PromptNetworkMeta) bool {
 	return exactStringMatch(want.MessageID, got.MessageID) &&
 		exactStringMatch(want.Kind, got.Kind) &&
 		exactStringMatch(want.Channel, got.Channel) &&
+		exactStringMatch(want.Surface, got.Surface) &&
+		exactStringMatch(want.ThreadID, got.ThreadID) &&
+		exactStringMatch(want.DirectID, got.DirectID) &&
 		exactStringMatch(want.From, got.From) &&
 		exactStringMatch(want.To, got.To) &&
-		exactStringMatch(want.InteractionID, got.InteractionID) &&
+		exactStringMatch(want.WorkID, got.WorkID) &&
 		exactStringMatch(want.ReplyTo, got.ReplyTo) &&
 		exactStringMatch(want.TraceID, got.TraceID) &&
 		exactStringMatch(want.CausationID, got.CausationID)

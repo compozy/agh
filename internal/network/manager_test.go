@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	sessionpkg "github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 )
 
 func nilTestContext() context.Context {
@@ -257,6 +258,150 @@ func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 		if status.LocalPeers != 0 || status.Channels != 0 {
 			t.Fatalf("Status(left) = %#v, want zero local peers and channels", status)
 		}
+	})
+}
+
+func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should write outbound conversation before publishing", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(time.Minute, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal("sess-a", "builders", mustPeerCard(t, "coder.sess-a"), now); err != nil {
+			t.Fatalf("RegisterLocal() error = %v", err)
+		}
+		transport := &spyRouterTransport{}
+		router, err := NewRouter(
+			registry,
+			transport,
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+		conversations := &recordingConversationStore{
+			publishCount: transport.Count,
+		}
+		manager := &Manager{
+			logger:        discardManagerLogger(),
+			now:           func() time.Time { return now },
+			router:        router,
+			conversations: conversations,
+			stats:         newRuntimeStats(),
+		}
+
+		messageID, err := manager.Send(context.Background(), withTestConversation(SendRequest{
+			ID:        ptrString("msg-store-send"),
+			SessionID: "sess-a",
+			Channel:   "builders",
+			Kind:      KindSay,
+			Body:      mustRawJSON(t, SayBody{Text: "commit before publish"}),
+		}))
+		if err != nil {
+			t.Fatalf("Send() error = %v", err)
+		}
+		if got, want := messageID, "msg-store-send"; got != want {
+			t.Fatalf("Send() messageID = %q, want %q", got, want)
+		}
+		if got, want := conversations.publishCountAtWrite, 0; got != want {
+			t.Fatalf("publish count at conversation write = %d, want %d", got, want)
+		}
+		if got, want := transport.Count(), 1; got != want {
+			t.Fatalf("transport publish count = %d, want %d", got, want)
+		}
+		entry := conversations.entry(0)
+		if got, want := entry.MessageID, "msg-store-send"; got != want {
+			t.Fatalf("conversation MessageID = %q, want %q", got, want)
+		}
+		if got, want := entry.Direction, AuditDirectionSent; got != want {
+			t.Fatalf("conversation Direction = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should write inbound conversation before prompt delivery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		now := time.Date(2026, 5, 5, 12, 5, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(time.Minute, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal("sess-b", "builders", mustPeerCard(t, "reviewer.sess-b"), now); err != nil {
+			t.Fatalf("RegisterLocal() error = %v", err)
+		}
+		prompter := newFakeDeliveryPrompter()
+		conversations := &recordingConversationStore{
+			promptCount: prompter.callCount,
+		}
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+		deliveries, err := newDeliveryCoordinator(
+			ctx,
+			4,
+			prompter,
+			withDeliveryLogger(discardManagerLogger()),
+			withDeliveryClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("newDeliveryCoordinator() error = %v", err)
+		}
+		manager := &Manager{
+			logger:        discardManagerLogger(),
+			now:           func() time.Time { return now },
+			lifecycleCtx:  ctx,
+			peers:         registry,
+			router:        router,
+			conversations: conversations,
+			deliveries:    deliveries,
+			stats:         newRuntimeStats(),
+		}
+
+		payload, err := json.Marshal(withThreadSurface(Envelope{
+			Protocol: ProtocolV0,
+			ID:       "msg-store-receive",
+			Kind:     KindSay,
+			Channel:  "builders",
+			From:     "coder.sess-remote",
+			TS:       now.Unix(),
+			Body:     mustRawJSON(t, SayBody{Text: "commit before prompt"}),
+		}))
+		if err != nil {
+			t.Fatalf("json.Marshal(inbound) error = %v", err)
+		}
+
+		manager.handleInboundMessage(payload)
+		prompter.waitForCalls(t, 1)
+		if got, want := conversations.promptCountAtWrite, 0; got != want {
+			t.Fatalf("prompt count at conversation write = %d, want %d", got, want)
+		}
+		entry := conversations.entry(0)
+		if got, want := entry.MessageID, "msg-store-receive"; got != want {
+			t.Fatalf("conversation MessageID = %q, want %q", got, want)
+		}
+		if got, want := entry.Direction, AuditDirectionReceived; got != want {
+			t.Fatalf("conversation Direction = %q, want %q", got, want)
+		}
+		call := prompter.call(0)
+		if got, want := call.meta.ThreadID, testThreadRef().ThreadID; got != want {
+			t.Fatalf("prompt meta ThreadID = %q, want %q", got, want)
+		}
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: now})
+		deliveries.wait()
 	})
 }
 
@@ -1525,7 +1670,7 @@ func TestManagerRecordInboundAuditCapturesRejectedAndGeneratedEntries(t *testing
 			Channel: "builders",
 			From:    "reviewer.sess-local",
 		}},
-	})
+	}, nil)
 
 	if len(auditor.rejected) != 1 {
 		t.Fatalf("rejected audit count = %d, want 1", len(auditor.rejected))
@@ -1549,6 +1694,52 @@ func testManagerConfig() aghconfig.NetworkConfig {
 
 func discardManagerLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+type recordingConversationStore struct {
+	store.NetworkConversationStore
+
+	mu                  sync.Mutex
+	entries             []store.NetworkConversationMessage
+	publishCount        func() int
+	promptCount         func() int
+	publishCountAtWrite int
+	promptCountAtWrite  int
+	result              store.NetworkConversationWriteResult
+	err                 error
+}
+
+func (s *recordingConversationStore) WriteConversationMessage(
+	_ context.Context,
+	entry store.NetworkConversationMessage,
+) (store.NetworkConversationWriteResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.publishCount != nil {
+		s.publishCountAtWrite = s.publishCount()
+	}
+	if s.promptCount != nil {
+		s.promptCountAtWrite = s.promptCount()
+	}
+	s.entries = append(s.entries, entry)
+	if s.err != nil {
+		return store.NetworkConversationWriteResult{}, s.err
+	}
+	result := s.result
+	if strings.TrimSpace(result.MessageID) == "" {
+		result.MessageID = entry.MessageID
+	}
+	return result, nil
+}
+
+func (s *recordingConversationStore) entry(index int) store.NetworkConversationMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.entries) {
+		return store.NetworkConversationMessage{}
+	}
+	return s.entries[index]
 }
 
 type recordingAuditWriter struct {
