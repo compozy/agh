@@ -54,7 +54,7 @@ test("operator can onboard, create a session, submit work, approve a permission 
   await ui.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
-  await expect(appPage.getByTestId("session-create-agent-select")).toHaveValue(
+  await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
     browserLifecycleAgent
   );
 

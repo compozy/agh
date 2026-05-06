@@ -4,10 +4,13 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storyWorkspacePaths } from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
+import { withStoryAgentCategories } from "@/systems/agent/components/stories/agent-command-select.stories";
 import { sessionFixtures } from "@/systems/session/mocks";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
 
 import { AppSidebar, type AppSidebarProps } from "../app-sidebar";
+
+const categorizedAgentFixtures = withStoryAgentCategories(agentFixtures);
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
@@ -61,7 +64,7 @@ const meta: Meta<typeof AppSidebarHarness> = {
     docs: {
       description: {
         component:
-          "Thin composition over `@agh/ui` `Sidebar`. The rail owns the workspace switcher, the nav owns the agent tree and workspace nav, and the footer owns the connection indicator + settings link. The global `agh` wordmark lives in the app-shell header one level up.",
+          "Thin composition over `@agh/ui` `Sidebar`. The rail owns the workspace switcher; the nav holds Dashboard plus four labeled sections: Agents, Operate (Network/Tasks/Jobs/Triggers), Catalog (Knowledge/Skills/Bridges), and System (Sandbox/Settings); the footer keeps only the connection indicator and version badge. The global `agh` wordmark lives in the app-shell header one level up.",
       },
     },
   },
@@ -82,6 +85,28 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+export const Categorized: Story = {
+  args: {
+    agents: categorizedAgentFixtures,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Agents grouped by `category_path`. Top-level folders (Engineering, Marketing, Risk, ...) expand by default, multi-level branches (Engineering / Platform, Marketing / Campaigns, Risk / Fraud) demonstrate the nested tree, and root-level agents (Finance, Product, Support) sit alongside the folders.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByTestId("agent-category-Engineering")).toBeInTheDocument();
+    await expect(canvas.getByTestId("agent-category-Marketing")).toBeInTheDocument();
+    await expect(canvas.getByTestId("agent-category-Risk")).toBeInTheDocument();
+    await expect(canvas.getByTestId("agent-category-Engineering/Platform")).toBeInTheDocument();
+    await expect(canvas.getByTestId("agent-category-Marketing/Campaigns")).toBeInTheDocument();
+  },
+};
 
 export const Collapsed: Story = {
   args: {
@@ -108,7 +133,7 @@ export const NoWorkspaces: Story = {
   parameters: {
     docs: {
       description: {
-        story: "Empty state: no workspaces, no agents — only the + add-workspace affordance.",
+        story: "Empty state: no workspaces, no agents; only the + add-workspace affordance.",
       },
     },
   },

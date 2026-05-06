@@ -33,7 +33,11 @@ export function useAgentDetailPage(name: string): UseAgentDetailPageResult {
   const queryClient = useQueryClient();
   const { activeWorkspaceId } = useActiveWorkspace();
   const sessionCreate = useSessionCreate();
-  const { data: agent, isLoading: agentLoading, error: agentError } = useAgent(name);
+  const {
+    data: agent,
+    isLoading: agentLoading,
+    error: agentError,
+  } = useAgent(name, activeWorkspaceId);
   const {
     sessions,
     isLoading: sessionsLoading,

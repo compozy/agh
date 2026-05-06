@@ -30,18 +30,19 @@ func validateAgentResourceSpec(
 	}
 
 	normalized := AgentDef{
-		Name:        strings.TrimSpace(spec.Name),
-		Provider:    strings.TrimSpace(spec.Provider),
-		Command:     strings.TrimSpace(spec.Command),
-		Model:       strings.TrimSpace(spec.Model),
-		Tools:       normalizeAgentToolPatterns(spec.Tools),
-		Toolsets:    normalizeAgentToolsetRefs(spec.Toolsets),
-		DenyTools:   normalizeAgentToolPatterns(spec.DenyTools),
-		Permissions: strings.TrimSpace(spec.Permissions),
-		Skills:      normalizeAgentSkillsConfig(spec.Skills),
-		MCPServers:  cloneMCPServers(spec.MCPServers),
-		Hooks:       cloneHookDecls(spec.Hooks),
-		Prompt:      strings.TrimSpace(spec.Prompt),
+		Name:         strings.TrimSpace(spec.Name),
+		Provider:     strings.TrimSpace(spec.Provider),
+		Command:      strings.TrimSpace(spec.Command),
+		Model:        strings.TrimSpace(spec.Model),
+		Tools:        normalizeAgentToolPatterns(spec.Tools),
+		Toolsets:     normalizeAgentToolsetRefs(spec.Toolsets),
+		DenyTools:    normalizeAgentToolPatterns(spec.DenyTools),
+		Permissions:  strings.TrimSpace(spec.Permissions),
+		Skills:       normalizeAgentSkillsConfig(spec.Skills),
+		CategoryPath: normalizeAgentCategoryPath(spec.CategoryPath),
+		MCPServers:   cloneMCPServers(spec.MCPServers),
+		Hooks:        cloneHookDecls(spec.Hooks),
+		Prompt:       strings.TrimSpace(spec.Prompt),
 	}
 	if spec.Capabilities != nil {
 		capabilities, err := normalizeCapabilityCatalog(spec.Capabilities, "agent.capabilities")

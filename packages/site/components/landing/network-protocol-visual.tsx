@@ -3,7 +3,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import { ArrowLeftRight, Pause, Play } from "lucide-react";
 import { Button, Pill } from "@agh/ui";
-import { cn } from "@agh/ui/utils";
+import { cn } from "@agh/ui/lib/utils";
 import { AnimatedDiagram } from "./primitives/animated-diagram";
 import { KIND_MEANING, type NetworkKind } from "./primitives/network-kinds";
 

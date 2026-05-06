@@ -56,6 +56,7 @@ export interface BrowserMockAgentSeed {
   fixturePath: string;
   fixtureAgent?: string;
   agentName?: string;
+  category_path?: string[];
 }
 
 export interface BrowserWorkspaceSeed {
@@ -261,6 +262,7 @@ interface MockFixtureAgent {
   model?: string;
   permissions?: string;
   prompt?: string;
+  category_path?: string[];
 }
 
 interface MockFixture {
@@ -1592,7 +1594,11 @@ async function loadMockAgentRegistration(
     diagnosticsPath,
   ]);
 
-  return { agentName, command, agent };
+  const resolvedAgent: MockFixtureAgent = spec.category_path
+    ? { ...agent, category_path: spec.category_path }
+    : agent;
+
+  return { agentName, command, agent: resolvedAgent };
 }
 
 async function ensureACPmockDriverBinary(repoRoot: string): Promise<string> {
@@ -1639,6 +1645,10 @@ function renderMockAgentDef(name: string, agent: MockFixtureAgent, command: stri
   }
   if (agent.permissions?.trim()) {
     lines.push(`permissions: ${agent.permissions.trim()}`);
+  }
+  const segments = agent.category_path?.map(seg => seg.trim()).filter(seg => seg.length > 0) ?? [];
+  if (segments.length > 0) {
+    lines.push(`category_path: [${segments.map(seg => JSON.stringify(seg)).join(", ")}]`);
   }
 
   lines.push("---", "", prompt, "");

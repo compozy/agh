@@ -1,15 +1,22 @@
+import type { ReactElement } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { UIProvider } from "@agh/ui";
 import { agentFixtures } from "@/systems/agent/mocks";
 
 import { createNetworkChannelDraft } from "../lib/network-formatters";
 import { NetworkCreateChannelDialog } from "./network-create-channel-dialog";
 
+function renderDialog(ui: ReactElement) {
+  return render(<UIProvider reducedMotion="always">{ui}</UIProvider>);
+}
+
 describe("NetworkCreateChannelDialog", () => {
   it("Should render the submit button disabled and not fire onSubmit when canSubmit=false", () => {
     const onSubmit = vi.fn();
-    render(
+    renderDialog(
       <NetworkCreateChannelDialog
         agents={agentFixtures}
         canSubmit={false}
@@ -18,8 +25,8 @@ describe("NetworkCreateChannelDialog", () => {
         onChannelNameChange={() => undefined}
         onOpenChange={() => undefined}
         onPurposeChange={() => undefined}
+        onAgentSelectionChange={() => undefined}
         onSubmit={onSubmit}
-        onToggleAgent={() => undefined}
         open
         workspaceName="polybot"
       />
@@ -33,7 +40,7 @@ describe("NetworkCreateChannelDialog", () => {
 
   it("Should surface the channel-name input wired to onChannelNameChange", () => {
     const onChannelNameChange = vi.fn();
-    render(
+    renderDialog(
       <NetworkCreateChannelDialog
         agents={agentFixtures}
         canSubmit
@@ -42,8 +49,8 @@ describe("NetworkCreateChannelDialog", () => {
         onChannelNameChange={onChannelNameChange}
         onOpenChange={() => undefined}
         onPurposeChange={() => undefined}
+        onAgentSelectionChange={() => undefined}
         onSubmit={() => undefined}
-        onToggleAgent={() => undefined}
         open
         workspaceName="polybot"
       />
@@ -58,7 +65,7 @@ describe("NetworkCreateChannelDialog", () => {
 
   it("Should surface the purpose input wired to onPurposeChange", () => {
     const onPurposeChange = vi.fn();
-    render(
+    renderDialog(
       <NetworkCreateChannelDialog
         agents={agentFixtures}
         canSubmit
@@ -67,8 +74,8 @@ describe("NetworkCreateChannelDialog", () => {
         onChannelNameChange={() => undefined}
         onOpenChange={() => undefined}
         onPurposeChange={onPurposeChange}
+        onAgentSelectionChange={() => undefined}
         onSubmit={() => undefined}
-        onToggleAgent={() => undefined}
         open
         workspaceName="polybot"
       />
@@ -86,9 +93,10 @@ describe("NetworkCreateChannelDialog", () => {
     expect(onPurposeChange).toHaveBeenCalledWith("Coordinate deploy verification");
   });
 
-  it("Should toggle an agent when its row is clicked", () => {
-    const onToggleAgent = vi.fn();
-    render(
+  it("Should toggle an agent when its row is clicked from the multi-select popover", async () => {
+    const user = userEvent.setup();
+    const onAgentSelectionChange = vi.fn();
+    renderDialog(
       <NetworkCreateChannelDialog
         agents={agentFixtures}
         canSubmit
@@ -97,20 +105,21 @@ describe("NetworkCreateChannelDialog", () => {
         onChannelNameChange={() => undefined}
         onOpenChange={() => undefined}
         onPurposeChange={() => undefined}
+        onAgentSelectionChange={onAgentSelectionChange}
         onSubmit={() => undefined}
-        onToggleAgent={onToggleAgent}
         open
         workspaceName="polybot"
       />
     );
 
     const firstAgent = agentFixtures[0]!;
-    fireEvent.click(screen.getByTestId(`network-agent-option-${firstAgent.name}`));
-    expect(onToggleAgent).toHaveBeenCalledWith(firstAgent.name);
+    await user.click(screen.getByTestId("network-create-channel-agent-trigger"));
+    await user.click(screen.getByTestId(`network-agent-option-${firstAgent.name}`));
+    expect(onAgentSelectionChange).toHaveBeenCalledWith([firstAgent.name]);
   });
 
   it("Should surface the Empty agents state and a workspace warning when the active workspace is missing", () => {
-    render(
+    renderDialog(
       <NetworkCreateChannelDialog
         agents={[]}
         canSubmit={false}
@@ -119,8 +128,8 @@ describe("NetworkCreateChannelDialog", () => {
         onChannelNameChange={() => undefined}
         onOpenChange={() => undefined}
         onPurposeChange={() => undefined}
+        onAgentSelectionChange={() => undefined}
         onSubmit={() => undefined}
-        onToggleAgent={() => undefined}
         open
         workspaceName={null}
       />
@@ -134,7 +143,7 @@ describe("NetworkCreateChannelDialog", () => {
 
   it("Should fire onSubmit once when the form is submitted with canSubmit=true", () => {
     const onSubmit = vi.fn();
-    render(
+    renderDialog(
       <NetworkCreateChannelDialog
         agents={agentFixtures}
         canSubmit
@@ -148,8 +157,8 @@ describe("NetworkCreateChannelDialog", () => {
         onChannelNameChange={() => undefined}
         onOpenChange={() => undefined}
         onPurposeChange={() => undefined}
+        onAgentSelectionChange={() => undefined}
         onSubmit={onSubmit}
-        onToggleAgent={() => undefined}
         open
         workspaceName="polybot"
       />
@@ -161,7 +170,7 @@ describe("NetworkCreateChannelDialog", () => {
 
   it("Should call onOpenChange when the Cancel button is pressed", () => {
     const onOpenChange = vi.fn();
-    render(
+    renderDialog(
       <NetworkCreateChannelDialog
         agents={agentFixtures}
         canSubmit
@@ -170,8 +179,8 @@ describe("NetworkCreateChannelDialog", () => {
         onChannelNameChange={() => undefined}
         onOpenChange={onOpenChange}
         onPurposeChange={() => undefined}
+        onAgentSelectionChange={() => undefined}
         onSubmit={() => undefined}
-        onToggleAgent={() => undefined}
         open
         workspaceName="polybot"
       />

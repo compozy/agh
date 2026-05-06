@@ -232,6 +232,7 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 			Name:         strings.TrimSpace(agent.Agent.Name),
 			Provider:     strings.TrimSpace(agent.Agent.Provider),
 			Model:        strings.TrimSpace(agent.Agent.Model),
+			CategoryPath: append([]string(nil), agent.Agent.CategoryPath...),
 			HasSoul:      agent.Soul != nil,
 			HasHeartbeat: agent.Heartbeat != nil,
 		})

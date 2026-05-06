@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import { cn } from "@agh/ui/utils";
+import { cn } from "@agh/ui/lib/utils";
 
 interface FeatureCardProps {
   eyebrow?: string;

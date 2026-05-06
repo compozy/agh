@@ -1,0 +1,82 @@
+{
+  "blockers": [],
+  "generated_at": "2026-05-06T20:17:41.593231+00:00",
+  "metadata": {
+    "contract": {
+      "enforcement": {
+        "auditor": ".agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py",
+        "blocking_checks": [
+          "behavioral-charter-json-compatible",
+          "journey-log-present",
+          "provider-backed-session-present",
+          "cross-surface-category-path-parity",
+          "final-make-verify-evidence-present"
+        ],
+        "strict": true
+      },
+      "forbidden_observations": [
+        "category_path silently dropped by any conversion surface",
+        "categories alias mapped onto AgentDef.CategoryPath",
+        "category_path scalar string auto-split on '/'",
+        "synthetic Uncategorized folder rendered in the Web sidebar",
+        "case normalization or segment reordering",
+        "config.toml key introduced for category UI"
+      ],
+      "minimums": {
+        "agents": 3,
+        "artifacts_used_later": 2,
+        "channels": 0,
+        "cross_surface_objects": 1,
+        "differentiated_roles": 3,
+        "disruption_probes": 2,
+        "provider_backed_sessions": 1,
+        "surfaces_required": [
+          "cli",
+          "api",
+          "uds",
+          "web",
+          "runtime",
+          "provider"
+        ],
+        "tasks": {
+          "dependencies": 0,
+          "roots": 0,
+          "runs": 0,
+          "subtasks": 0
+        }
+      },
+      "release_grade": true,
+      "required_feature_surfaces": [
+        "cli.agent.list",
+        "cli.agent.info",
+        "http.api.agents.list",
+        "http.api.agents.detail",
+        "http.api.workspaces.detail",
+        "uds.workspace.describe",
+        "native_tool.agh__workspace_describe",
+        "web.sidebar.category_tree",
+        "web.session_create.agent_command_select"
+      ],
+      "schema_version": 1,
+      "scope_slug": "agent-categories"
+    },
+    "cross_surface_objects": {
+      "agent.category_path:categorized-multi": [
+        "api",
+        "cli",
+        "provider",
+        "runtime",
+        "uds",
+        "web"
+      ]
+    },
+    "log_entries": 15,
+    "playbook_ref": null,
+    "prompt_corpus_size": 2,
+    "qa_root": "/Users/pedronauck/Dev/compozy/agh/.tmp/qa-labs/agh-agent-categories-20260506-193527-733386-lab/qa-artifacts/qa",
+    "workspace_path": "/Users/pedronauck/Dev/compozy/agh/.tmp/qa-labs/agh-agent-categories-20260506-193527-733386-lab"
+  },
+  "schema_version": 1,
+  "verdict": "pass",
+  "warnings": []
+}

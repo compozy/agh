@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@agh/ui/utils";
+import { cn } from "@agh/ui/lib/utils";
 import { useReducedMotion } from "./primitives/use-reduced-motion";
 
 const SUBSYSTEMS = [

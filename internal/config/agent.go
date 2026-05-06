@@ -15,20 +15,21 @@ import (
 
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
-	Name         string              `yaml:"name"                  toml:"name"`
-	Provider     string              `yaml:"provider"              toml:"provider"`
-	Command      string              `yaml:"command,omitempty"     toml:"command,omitempty"`
-	Model        string              `yaml:"model,omitempty"       toml:"model,omitempty"`
-	Tools        []string            `yaml:"tools,omitempty"       toml:"tools,omitempty"`
-	Toolsets     []string            `yaml:"toolsets,omitempty"    toml:"toolsets,omitempty"`
-	DenyTools    []string            `yaml:"deny_tools,omitempty"  toml:"deny_tools,omitempty"`
-	Permissions  string              `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
-	Skills       AgentSkillsConfig   `yaml:"skills,omitempty"      toml:"skills,omitempty"`
-	MCPServers   []MCPServer         `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
-	Hooks        []hookspkg.HookDecl `yaml:"hooks,omitempty"       toml:"hooks,omitempty"`
-	Capabilities *CapabilityCatalog  `yaml:"-"                     toml:"-"                     json:"capabilities,omitempty"`
+	Name         string              `yaml:"name"                    toml:"name"`
+	Provider     string              `yaml:"provider"                toml:"provider"`
+	Command      string              `yaml:"command,omitempty"       toml:"command,omitempty"`
+	Model        string              `yaml:"model,omitempty"         toml:"model,omitempty"`
+	Tools        []string            `yaml:"tools,omitempty"         toml:"tools,omitempty"`
+	Toolsets     []string            `yaml:"toolsets,omitempty"      toml:"toolsets,omitempty"`
+	DenyTools    []string            `yaml:"deny_tools,omitempty"    toml:"deny_tools,omitempty"`
+	Permissions  string              `yaml:"permissions,omitempty"   toml:"permissions,omitempty"`
+	Skills       AgentSkillsConfig   `yaml:"skills,omitempty"        toml:"skills,omitempty"`
+	CategoryPath []string            `yaml:"category_path,omitempty" toml:"category_path,omitempty" json:"category_path,omitempty"`
+	MCPServers   []MCPServer         `yaml:"mcp_servers,omitempty"   toml:"mcp_servers,omitempty"`
+	Hooks        []hookspkg.HookDecl `yaml:"hooks,omitempty"         toml:"hooks,omitempty"`
+	Capabilities *CapabilityCatalog  `yaml:"-"                       toml:"-"                       json:"capabilities,omitempty"`
 	Prompt       string              `yaml:"-"`
-	SourcePath   string              `yaml:"-"                     toml:"-"                     json:"-"`
+	SourcePath   string              `yaml:"-"                       toml:"-"                       json:"-"`
 }
 
 // AgentSkillsConfig captures agent-local skill policy stored in AGENT.md.
@@ -37,17 +38,18 @@ type AgentSkillsConfig struct {
 }
 
 type parsedAgentDef struct {
-	Name        string                  `yaml:"name"                  toml:"name"`
-	Provider    string                  `yaml:"provider"              toml:"provider"`
-	Command     string                  `yaml:"command,omitempty"     toml:"command,omitempty"`
-	Model       string                  `yaml:"model,omitempty"       toml:"model,omitempty"`
-	Tools       []string                `yaml:"tools,omitempty"       toml:"tools,omitempty"`
-	Toolsets    []string                `yaml:"toolsets,omitempty"    toml:"toolsets,omitempty"`
-	DenyTools   []string                `yaml:"deny_tools,omitempty"  toml:"deny_tools,omitempty"`
-	Permissions string                  `yaml:"permissions,omitempty" toml:"permissions,omitempty"`
-	Skills      AgentSkillsConfig       `yaml:"skills,omitempty"      toml:"skills,omitempty"`
-	MCPServers  []MCPServer             `yaml:"mcp_servers,omitempty" toml:"mcp_servers,omitempty"`
-	Hooks       []parsedHookDeclaration `yaml:"hooks,omitempty"       toml:"hooks,omitempty"`
+	Name         string                  `yaml:"name"                    toml:"name"`
+	Provider     string                  `yaml:"provider"                toml:"provider"`
+	Command      string                  `yaml:"command,omitempty"       toml:"command,omitempty"`
+	Model        string                  `yaml:"model,omitempty"         toml:"model,omitempty"`
+	Tools        []string                `yaml:"tools,omitempty"         toml:"tools,omitempty"`
+	Toolsets     []string                `yaml:"toolsets,omitempty"      toml:"toolsets,omitempty"`
+	DenyTools    []string                `yaml:"deny_tools,omitempty"    toml:"deny_tools,omitempty"`
+	Permissions  string                  `yaml:"permissions,omitempty"   toml:"permissions,omitempty"`
+	Skills       AgentSkillsConfig       `yaml:"skills,omitempty"        toml:"skills,omitempty"`
+	CategoryPath []string                `yaml:"category_path,omitempty" toml:"category_path,omitempty"`
+	MCPServers   []MCPServer             `yaml:"mcp_servers,omitempty"   toml:"mcp_servers,omitempty"`
+	Hooks        []parsedHookDeclaration `yaml:"hooks,omitempty"         toml:"hooks,omitempty"`
 }
 
 // WorkspaceDiscoverySource identifies where a discovery root came from.
@@ -234,17 +236,18 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 	}
 
 	agent := AgentDef{
-		Name:        strings.TrimSpace(parsed.Name),
-		Provider:    strings.TrimSpace(parsed.Provider),
-		Command:     strings.TrimSpace(parsed.Command),
-		Model:       strings.TrimSpace(parsed.Model),
-		Tools:       normalizeAgentToolPatterns(parsed.Tools),
-		Toolsets:    normalizeAgentToolsetRefs(parsed.Toolsets),
-		DenyTools:   normalizeAgentToolPatterns(parsed.DenyTools),
-		Permissions: strings.TrimSpace(parsed.Permissions),
-		Skills:      normalizeAgentSkillsConfig(parsed.Skills),
-		MCPServers:  cloneMCPServers(parsed.MCPServers),
-		Prompt:      strings.TrimSpace(body),
+		Name:         strings.TrimSpace(parsed.Name),
+		Provider:     strings.TrimSpace(parsed.Provider),
+		Command:      strings.TrimSpace(parsed.Command),
+		Model:        strings.TrimSpace(parsed.Model),
+		Tools:        normalizeAgentToolPatterns(parsed.Tools),
+		Toolsets:     normalizeAgentToolsetRefs(parsed.Toolsets),
+		DenyTools:    normalizeAgentToolPatterns(parsed.DenyTools),
+		Permissions:  strings.TrimSpace(parsed.Permissions),
+		Skills:       normalizeAgentSkillsConfig(parsed.Skills),
+		CategoryPath: normalizeAgentCategoryPath(parsed.CategoryPath),
+		MCPServers:   cloneMCPServers(parsed.MCPServers),
+		Prompt:       strings.TrimSpace(body),
 	}
 	if len(parsed.Hooks) > 0 {
 		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
@@ -291,6 +294,9 @@ func (a AgentDef) Validate() error {
 	if err := validateAgentToolPatterns(a.DenyTools, "agent.deny_tools"); err != nil {
 		return err
 	}
+	if err := validateAgentCategoryPath(a.CategoryPath); err != nil {
+		return err
+	}
 
 	for i, server := range a.MCPServers {
 		if err := server.Validate(fmt.Sprintf("agent.mcp_servers[%d]", i)); err != nil {
@@ -310,6 +316,33 @@ func (a AgentDef) Validate() error {
 		*a.Capabilities = *normalizedCapabilities
 	}
 
+	return nil
+}
+
+// normalizeAgentCategoryPath trims each segment, preserving casing and order.
+func normalizeAgentCategoryPath(path []string) []string {
+	if len(path) == 0 {
+		return nil
+	}
+
+	normalized := make([]string, 0, len(path))
+	for _, segment := range path {
+		normalized = append(normalized, strings.TrimSpace(segment))
+	}
+	return normalized
+}
+
+func validateAgentCategoryPath(path []string) error {
+	for idx, segment := range path {
+		switch {
+		case segment == "":
+			return fmt.Errorf("agent.category_path[%d]: blank segment", idx)
+		case segment == "." || segment == "..":
+			return fmt.Errorf("agent.category_path[%d]: %q is not a valid segment", idx, segment)
+		case strings.ContainsAny(segment, `/\`):
+			return fmt.Errorf("agent.category_path[%d]: %q must not contain '/' or '\\'", idx, segment)
+		}
+	}
 	return nil
 }
 

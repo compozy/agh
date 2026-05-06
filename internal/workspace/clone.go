@@ -175,21 +175,7 @@ func cloneAgentDefs(src []aghconfig.AgentDef) []aghconfig.AgentDef {
 
 	cloned := make([]aghconfig.AgentDef, 0, len(src))
 	for _, agent := range src {
-		cloned = append(cloned, aghconfig.AgentDef{
-			Name:         agent.Name,
-			Provider:     agent.Provider,
-			Command:      agent.Command,
-			Model:        agent.Model,
-			Tools:        append([]string(nil), agent.Tools...),
-			Toolsets:     append([]string(nil), agent.Toolsets...),
-			DenyTools:    append([]string(nil), agent.DenyTools...),
-			Permissions:  agent.Permissions,
-			MCPServers:   cloneMCPServers(agent.MCPServers),
-			Hooks:        cloneHookDecls(agent.Hooks),
-			Capabilities: agent.Capabilities.Clone(),
-			Prompt:       agent.Prompt,
-			SourcePath:   agent.SourcePath,
-		})
+		cloned = append(cloned, aghconfig.CloneAgentDef(agent))
 	}
 
 	return cloned

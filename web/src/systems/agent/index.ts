@@ -14,6 +14,20 @@ export {
   type AgentSessionStatus,
   type AgentSessionStatusKind,
 } from "./lib/session-status";
+export {
+  AGENT_CATEGORY_FOLDER_ID_PREFIX,
+  AGENT_CATEGORY_LEAF_ID_PREFIX,
+  AGENT_CATEGORY_LABEL_SEPARATOR,
+  buildAgentCategoryTree,
+  formatCategoryLabel,
+  getAgentCategoryFolderId,
+  getAgentLeafId,
+  isAgentRootLevel,
+  joinAgentCategorySegments,
+  type AgentCategoryFolderNode,
+  type AgentCategoryLeafNode,
+  type AgentCategoryNode,
+} from "./lib/agent-category";
 
 // Hooks
 export { useAgent, useAgents } from "./hooks/use-agents";
@@ -25,3 +39,12 @@ export { AgentPageHeader, type AgentPageHeaderProps } from "./components/agent-p
 export { AgentSessionsList, type AgentSessionsListProps } from "./components/agent-sessions-list";
 export { AgentInfoPanel, type AgentInfoPanelProps } from "./components/agent-info-panel";
 export { AgentStatsGrid, type AgentStatsGridProps } from "./components/agent-stats-grid";
+export { AgentCategoryTree, type AgentCategoryTreeProps } from "./components/agent-category-tree";
+export {
+  AgentCommandSelect,
+  type AgentCommandSelectProps,
+} from "./components/agent-command-select";
+export {
+  AgentCommandMultiSelect,
+  type AgentCommandMultiSelectProps,
+} from "./components/agent-command-multi-select";

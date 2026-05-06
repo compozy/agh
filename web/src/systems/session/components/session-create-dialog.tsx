@@ -16,7 +16,7 @@ import {
   NativeSelectOption,
 } from "@agh/ui";
 
-import { AgentIcon, type AgentPayload } from "@/systems/agent";
+import { AgentCommandSelect, AgentIcon, type AgentPayload } from "@/systems/agent";
 import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 
 export interface SessionCreateDialogProps {
@@ -54,15 +54,29 @@ function SessionCreateDialog({
 }: SessionCreateDialogProps) {
   const trimmedSelectedAgentName = selectedAgentName.trim();
   const trimmedSelectedProvider = selectedProvider.trim();
-  const activeAgent = agents.find(agent => agent.name === trimmedSelectedAgentName);
+  const workspaceSelected = workspace !== undefined;
+  const activeAgent = workspaceSelected
+    ? agents.find(agent => agent.name === trimmedSelectedAgentName)
+    : undefined;
   const hasAgents = agents.length > 0;
   const hasProviderOptions = providerOptions.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
   const hasSelectedProvider = providerOptions.some(
     option => option.name === trimmedSelectedProvider
   );
-  const activeProvider = providerOptions.find(option => option.name === trimmedSelectedProvider);
-  const workspaceSelected = workspace !== undefined;
+  const activeProvider = workspaceSelected
+    ? providerOptions.find(option => option.name === trimmedSelectedProvider)
+    : undefined;
+  const agentPlaceholder = !workspaceSelected
+    ? "Select a workspace first"
+    : hasAgents
+      ? "Select an agent"
+      : "No agents available";
+  const providerPlaceholder = !workspaceSelected
+    ? "Select a workspace first"
+    : providersLoading
+      ? "Loading providers…"
+      : "No providers available";
   const canSubmit =
     !isSubmitting &&
     !providersLoading &&
@@ -108,23 +122,15 @@ function SessionCreateDialog({
               <FieldDescription>
                 The agent owns the default prompt, tools, and provider for this session.
               </FieldDescription>
-              <NativeSelect
-                className="w-full"
-                data-testid="session-create-agent-select"
-                disabled={!hasAgents || isSubmitting}
-                id="session-create-agent"
-                onChange={event => onAgentChange(event.target.value)}
-                value={selectedAgentName}
-              >
-                {hasAgents ? null : (
-                  <NativeSelectOption value="">No agents available</NativeSelectOption>
-                )}
-                {agents.map(agent => (
-                  <NativeSelectOption key={agent.name} value={agent.name}>
-                    {agent.name} · {agent.provider}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+              <AgentCommandSelect
+                agents={agents}
+                value={workspaceSelected ? trimmedSelectedAgentName || null : null}
+                onChange={next => onAgentChange(next ?? "")}
+                disabled={!workspaceSelected || !hasAgents || isSubmitting}
+                triggerId="session-create-agent"
+                triggerTestId="session-create-agent-select"
+                placeholder={agentPlaceholder}
+              />
               {activeAgent ? (
                 <div
                   className="mt-1 flex items-center gap-1.5 text-xs text-[color:var(--color-text-tertiary)]"
@@ -148,15 +154,15 @@ function SessionCreateDialog({
               <NativeSelect
                 className="w-full"
                 data-testid="session-create-provider-select"
-                disabled={providersLoading || !hasProviderOptions || isSubmitting}
+                disabled={
+                  !workspaceSelected || providersLoading || !hasProviderOptions || isSubmitting
+                }
                 id="session-create-provider"
                 onChange={event => onProviderChange(event.target.value)}
-                value={selectedProvider}
+                value={workspaceSelected ? selectedProvider : ""}
               >
-                {hasProviderOptions ? null : (
-                  <NativeSelectOption value="">
-                    {providersLoading ? "Loading providers…" : "No providers available"}
-                  </NativeSelectOption>
+                {workspaceSelected && hasProviderOptions ? null : (
+                  <NativeSelectOption value="">{providerPlaceholder}</NativeSelectOption>
                 )}
                 {providerOptions.map(option => (
                   <NativeSelectOption key={option.name} value={option.name}>
@@ -187,7 +193,7 @@ function SessionCreateDialog({
                   {providersError}
                 </p>
               ) : null}
-              {!providersLoading && !providersError && !hasProviderOptions ? (
+              {workspaceSelected && !providersLoading && !providersError && !hasProviderOptions ? (
                 <p
                   className="mt-1 text-xs text-[color:var(--color-warning)]"
                   data-testid="session-create-providers-empty"

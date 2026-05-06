@@ -27,12 +27,13 @@ type BundleChannelPayload struct {
 }
 
 type BundleAgentPayload struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Provider     string `json:"provider,omitempty"`
-	Model        string `json:"model,omitempty"`
-	HasSoul      bool   `json:"has_soul,omitempty"`
-	HasHeartbeat bool   `json:"has_heartbeat,omitempty"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Provider     string   `json:"provider,omitempty"`
+	Model        string   `json:"model,omitempty"`
+	CategoryPath []string `json:"category_path,omitempty"`
+	HasSoul      bool     `json:"has_soul,omitempty"`
+	HasHeartbeat bool     `json:"has_heartbeat,omitempty"`
 }
 
 type BundleJobPayload struct {

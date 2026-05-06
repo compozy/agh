@@ -1,11 +1,10 @@
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   Book,
-  Bot,
   Boxes,
   Clock3,
+  LayoutDashboard,
   ListChecks,
-  Loader2,
   Network,
   Plus,
   Settings,
@@ -15,7 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { cn, Logo, Sidebar, SidebarSectionLabel, Pill } from "@agh/ui";
+import { cn, Logo, Sidebar, SidebarSectionLabel } from "@agh/ui";
 
 import { ConnectionIndicator, type ConnectionStatus } from "@/components/connection-indicator";
 import {
@@ -23,7 +22,7 @@ import {
   ACTIVE_NAV_ROW_CLASS,
   NAV_ROW_CLASS,
 } from "@/components/sidebar-nav-classes";
-import { AgentIcon, type AgentPayload } from "@/systems/agent";
+import { AgentCategoryTree, type AgentPayload } from "@/systems/agent";
 import type { SessionPayload } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
@@ -118,110 +117,28 @@ function NavItem({ to, icon: Icon, label, fuzzy }: NavItemProps) {
   );
 }
 
-interface AgentItemProps {
-  agent: AgentPayload;
-  hasActiveSession: boolean;
-}
+const DASHBOARD_NAV_ITEM: NavItemProps = {
+  to: "/",
+  icon: LayoutDashboard,
+  label: "Dashboard",
+};
 
-function AgentItem({ agent, hasActiveSession }: AgentItemProps) {
-  const matchRoute = useMatchRoute();
-  const isActive = Boolean(
-    matchRoute({ to: "/agents/$name", params: { name: agent.name }, fuzzy: true })
-  );
-
-  return (
-    <Link
-      to="/agents/$name"
-      params={{ name: agent.name }}
-      data-testid={`agent-row-${agent.name}`}
-      data-active={isActive}
-      className={cn(NAV_ROW_CLASS, isActive && ACTIVE_NAV_ROW_CLASS)}
-    >
-      {isActive && (
-        <span
-          aria-hidden="true"
-          data-testid={`agent-active-${agent.name}`}
-          className={ACTIVE_NAV_INDICATOR_CLASS}
-        />
-      )}
-      <AgentIcon
-        provider={agent.provider}
-        className="size-3.5 shrink-0 text-[color:var(--color-text-tertiary)]"
-      />
-      <span className="truncate">{agent.name}</span>
-      {hasActiveSession ? (
-        <Pill.Dot
-          tone="success"
-          size="sm"
-          className="ml-auto"
-          data-testid={`agent-status-dot-${agent.name}`}
-        />
-      ) : null}
-    </Link>
-  );
-}
-
-interface AgentListProps {
-  agents: AgentPayload[] | undefined;
-  agentsLoading: boolean;
-  agentsError: boolean;
-  sessions: SessionPayload[] | undefined;
-}
-
-function AgentList({ agents, agentsLoading, agentsError, sessions }: AgentListProps) {
-  if (agentsLoading) {
-    return (
-      <div
-        data-testid="agents-loading"
-        className="flex items-center gap-2 px-3 py-2 text-[12px] text-[color:var(--color-text-tertiary)]"
-      >
-        <Loader2 aria-hidden="true" className="size-3 animate-spin" />
-        <span>Loading agents...</span>
-      </div>
-    );
-  }
-
-  if (agentsError || !agents || agents.length === 0) {
-    return (
-      <div
-        data-testid="agents-empty"
-        className="flex items-center gap-2 px-3 py-2 text-[12px] text-[color:var(--color-text-tertiary)]"
-      >
-        <Bot aria-hidden="true" className="size-3" />
-        <span>Run `agh install` to bootstrap AGH</span>
-      </div>
-    );
-  }
-
-  const activeAgentNames = new Set<string>();
-  if (sessions) {
-    for (const session of sessions) {
-      if (session.state === "active") activeAgentNames.add(session.agent_name);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      {agents.map(agent => (
-        <AgentItem
-          key={agent.name}
-          agent={agent}
-          hasActiveSession={activeAgentNames.has(agent.name)}
-        />
-      ))}
-    </div>
-  );
-}
-
-const WORKSPACE_NAV_ITEMS: NavItemProps[] = [
+const OPERATE_NAV_ITEMS: NavItemProps[] = [
   { to: "/network", icon: Network, label: "Network" },
   { to: "/tasks", icon: ListChecks, label: "Tasks", fuzzy: true },
-  { to: "/bridges", icon: Waypoints, label: "Bridges" },
   { to: "/jobs", icon: Clock3, label: "Jobs" },
   { to: "/triggers", icon: Zap, label: "Triggers" },
+];
+
+const CATALOG_NAV_ITEMS: NavItemProps[] = [
   { to: "/knowledge", icon: Book, label: "Knowledge" },
   { to: "/skills", icon: Wrench, label: "Skills" },
+  { to: "/bridges", icon: Waypoints, label: "Bridges" },
+];
+
+const SYSTEM_NAV_ITEMS: NavItemProps[] = [
   { to: "/sandbox", icon: Boxes, label: "Sandbox" },
+  { to: "/settings", icon: Settings, label: "Settings", fuzzy: true },
 ];
 
 interface NavSlotProps {
@@ -234,26 +151,44 @@ interface NavSlotProps {
 function NavSlot({ agents, agentsLoading, agentsError, sessions }: NavSlotProps) {
   return (
     <div data-testid="sidebar-nav" className="flex flex-col gap-1 px-2 py-3">
-      <SectionLabel>Agents</SectionLabel>
-      <AgentList
+      <NavItem
+        to={DASHBOARD_NAV_ITEM.to}
+        icon={DASHBOARD_NAV_ITEM.icon}
+        label={DASHBOARD_NAV_ITEM.label}
+      />
+
+      <SectionLabel className="mt-4">Agents</SectionLabel>
+      <AgentCategoryTree
         agents={agents}
         agentsLoading={agentsLoading}
         agentsError={agentsError}
         sessions={sessions}
       />
 
-      <SectionLabel className="mt-3">Workspace</SectionLabel>
-      <div className="flex flex-col gap-0.5">
-        {WORKSPACE_NAV_ITEMS.map(item => (
-          <NavItem
-            key={item.to}
-            to={item.to}
-            icon={item.icon}
-            label={item.label}
-            fuzzy={item.fuzzy}
-          />
-        ))}
-      </div>
+      <SectionLabel className="mt-4">Operate</SectionLabel>
+      <NavGroup items={OPERATE_NAV_ITEMS} />
+
+      <SectionLabel className="mt-4">Catalog</SectionLabel>
+      <NavGroup items={CATALOG_NAV_ITEMS} />
+
+      <SectionLabel className="mt-4">System</SectionLabel>
+      <NavGroup items={SYSTEM_NAV_ITEMS} />
+    </div>
+  );
+}
+
+function NavGroup({ items }: { items: NavItemProps[] }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      {items.map(item => (
+        <NavItem
+          key={item.to}
+          to={item.to}
+          icon={item.icon}
+          label={item.label}
+          fuzzy={item.fuzzy}
+        />
+      ))}
     </div>
   );
 }
@@ -275,38 +210,17 @@ interface FooterSlotProps {
 }
 
 function FooterSlot({ connectionStatus, health }: FooterSlotProps) {
-  const matchRoute = useMatchRoute();
-  const settingsActive = Boolean(matchRoute({ to: "/settings", fuzzy: true }));
-
   return (
-    <div data-testid="sidebar-footer" className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <ConnectionIndicator status={connectionStatus} />
-        {health && (
-          <span
-            data-testid="sidebar-version"
-            className="ml-auto font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
-          >
-            v{health.version}
-          </span>
-        )}
-      </div>
-      <Link
-        to="/settings"
-        data-testid="nav-settings"
-        data-active={settingsActive}
-        className={cn(NAV_ROW_CLASS, settingsActive && ACTIVE_NAV_ROW_CLASS)}
-      >
-        {settingsActive && (
-          <span
-            aria-hidden="true"
-            data-testid="nav-active-settings"
-            className={ACTIVE_NAV_INDICATOR_CLASS}
-          />
-        )}
-        <Settings aria-hidden="true" className="size-3.5 shrink-0" />
-        <span>Settings</span>
-      </Link>
+    <div data-testid="sidebar-footer" className="flex items-center gap-2">
+      <ConnectionIndicator status={connectionStatus} />
+      {health && (
+        <span
+          data-testid="sidebar-version"
+          className="ml-auto font-mono text-[10px] text-[color:var(--color-text-tertiary)]"
+        >
+          v{health.version}
+        </span>
+      )}
     </div>
   );
 }

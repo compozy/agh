@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "release_grade": true,
+  "scope_slug": "agent-categories",
+  "minimums": {
+    "agents": 3,
+    "differentiated_roles": 3,
+    "channels": 0,
+    "tasks": {
+      "roots": 0,
+      "subtasks": 0,
+      "dependencies": 0,
+      "runs": 0
+    },
+    "surfaces_required": ["cli", "api", "uds", "web", "runtime", "provider"],
+    "cross_surface_objects": 1,
+    "provider_backed_sessions": 1,
+    "artifacts_used_later": 2,
+    "disruption_probes": 2
+  },
+  "enforcement": {
+    "strict": true,
+    "auditor": ".agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py",
+    "blocking_checks": [
+      "behavioral-charter-json-compatible",
+      "journey-log-present",
+      "provider-backed-session-present",
+      "cross-surface-category-path-parity",
+      "final-make-verify-evidence-present"
+    ]
+  },
+  "required_feature_surfaces": [
+    "cli.agent.list",
+    "cli.agent.info",
+    "http.api.agents.list",
+    "http.api.agents.detail",
+    "http.api.workspaces.detail",
+    "uds.workspace.describe",
+    "native_tool.agh__workspace_describe",
+    "web.sidebar.category_tree",
+    "web.session_create.agent_command_select"
+  ],
+  "forbidden_observations": [
+    "category_path silently dropped by any conversion surface",
+    "categories alias mapped onto AgentDef.CategoryPath",
+    "category_path scalar string auto-split on '/'",
+    "synthetic Uncategorized folder rendered in the Web sidebar",
+    "case normalization or segment reordering",
+    "config.toml key introduced for category UI"
+  ]
+}

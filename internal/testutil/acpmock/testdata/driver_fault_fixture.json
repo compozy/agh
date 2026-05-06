@@ -60,18 +60,20 @@
                     },
                     "steps": [
                         {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "disconnect",
+                                "async": true,
+                                "delay_ms": 250
+                            }
+                        },
+                        {
                             "kind": "permission",
                             "tool_call_id": "perm-fault-1",
                             "title": "Need approval before disconnect",
                             "tool_kind": "edit",
                             "path": "fault.txt",
                             "status": "pending"
-                        },
-                        {
-                            "kind": "driver_control",
-                            "driver_control": {
-                                "action": "disconnect"
-                            }
                         }
                     ]
                 },

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, Copy } from "lucide-react";
 import { Button } from "@agh/ui";
-import { cn } from "@agh/ui/utils";
+import { cn } from "@agh/ui/lib/utils";
 
 interface CodeBlockProps {
   code: string;

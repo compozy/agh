@@ -22,20 +22,21 @@ The parser is strict. Unknown frontmatter fields fail loading.
 
 ## Quick Reference
 
-| Field         | Type                        | Default                                     | Valid values                                                        | Description                                                               |
-| ------------- | --------------------------- | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `name`        | string                      | required                                    | Non-empty. Must match the requested agent name when loaded by name. | Agent identity and discovery key.                                         |
-| `provider`    | string                      | `[defaults].provider`                       | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, auth mode, and runtime metadata. |
-| `command`     | string                      | Provider `command`                          | Non-empty when overriding.                                          | Agent-specific ACP launch command.                                        |
-| `model`       | string                      | Provider `default_model`                    | Any string.                                                         | Agent-specific model metadata.                                            |
-| `tools`       | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Additional agent tool allowlist grammar.                                  |
-| `toolsets`    | string array                | empty                                       | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.                      |
-| `deny_tools`  | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.                          |
-| `permissions` | string                      | `[permissions].mode`, default `approve-all` | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                           |
-| `skills`      | object                      | empty                                       | Currently only `disabled` is accepted.                              | Agent-scoped logical skill tombstones and agent-local overlay policy.     |
-| `mcp_servers` | array of MCP server objects | empty                                       | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                                  |
-| `hooks`       | array of hook declarations  | empty                                       | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                           |
-| Markdown body | Markdown text               | required                                    | Non-empty after trimming.                                           | Startup prompt sent as the agent system prompt.                           |
+| Field           | Type                        | Default                                     | Valid values                                                        | Description                                                               |
+| --------------- | --------------------------- | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `name`          | string                      | required                                    | Non-empty. Must match the requested agent name when loaded by name. | Agent identity and discovery key.                                         |
+| `provider`      | string                      | `[defaults].provider`                       | Built-in provider key or custom provider key.                       | Provider used to resolve command, model, auth mode, and runtime metadata. |
+| `command`       | string                      | Provider `command`                          | Non-empty when overriding.                                          | Agent-specific ACP launch command.                                        |
+| `model`         | string                      | Provider `default_model`                    | Any string.                                                         | Agent-specific model metadata.                                            |
+| `tools`         | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Additional agent tool allowlist grammar.                                  |
+| `toolsets`      | string array                | empty                                       | Canonical ToolsetIDs.                                               | Additional named tool bundles allowed for the agent.                      |
+| `deny_tools`    | string array                | empty                                       | Exact canonical ToolIDs or namespace-prefix wildcards.              | Tool denies that always narrow the agent grants.                          |
+| `permissions`   | string                      | `[permissions].mode`, default `approve-all` | `deny-all`, `approve-reads`, `approve-all`                          | Agent-specific permission mode.                                           |
+| `skills`        | object                      | empty                                       | Currently only `disabled` is accepted.                              | Agent-scoped logical skill tombstones and agent-local overlay policy.     |
+| `category_path` | string array                | empty                                       | Non-empty path segments without `.`, `..`, `/`, or `\`.             | Display-only hierarchy used by CLI/API/Web views.                         |
+| `mcp_servers`   | array of MCP server objects | empty                                       | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                                  |
+| `hooks`         | array of hook declarations  | empty                                       | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                           |
+| Markdown body   | Markdown text               | required                                    | Non-empty after trimming.                                           | Startup prompt sent as the agent system prompt.                           |
 
 Even when `tools` and `toolsets` are empty, AGH adds the discovery toolsets `agh__bootstrap` and
 `agh__catalog` at runtime unless effective policy denies them. Agents should discover AGH-native
@@ -66,6 +67,7 @@ does not merge lower-precedence definitions.
 | Unknown fields        | Unknown YAML or TOML fields are errors.                                                               |
 | Body                  | The Markdown body after frontmatter is trimmed. Empty body fails with `agent prompt is required`.     |
 | Name match            | `LoadAgentDef(name)` requires the parsed `name` to match the requested directory/name.                |
+| Category path         | `category_path` must be an array. `categories` and slash-string forms such as `Marketing/Sales` fail. |
 | Sidecar               | `mcp.json` next to `AGENT.md` is optional and replaces same-name inline MCP servers as whole objects. |
 
 ## Complete Annotated Example
@@ -95,6 +97,11 @@ deny_tools:
 
 # Optional. Defaults to [permissions].mode.
 permissions: approve-reads
+
+# Optional. Display-only UI/CLI/API organization path.
+category_path:
+  - Engineering
+  - Review
 
 # Optional. Merged after top-level and provider MCP servers.
 mcp_servers:
@@ -226,6 +233,29 @@ agent's `skills/` directory, then disables any logical skill names listed here f
 This is separate from the global skills settings field `disabled_skills`; use `AGENT.md`
 `skills.disabled` for one agent's tombstones and [settings](/runtime/api-reference/settings)
 for daemon-managed global defaults.
+
+### `category_path`
+
+| Attribute    | Value                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| Type         | string array                                                                                        |
+| Default      | empty                                                                                               |
+| Required     | no                                                                                                  |
+| Valid values | Ordered, non-empty path segments. Segments are trimmed and must not be `.`, `..`, or contain slash. |
+| Description  | Display-only hierarchy surfaced by CLI JSON, HTTP/UDS payloads, and the web UI.                     |
+
+Use `category_path` when a large agent set needs a stable visual grouping:
+
+```yaml
+category_path:
+  - Marketing
+  - Sales
+```
+
+This field does not affect provider selection, permissions, tools, scheduling, skill resolution,
+hooks, memory, or ACP startup. It is not a multi-tag list; it is one ordered path. Root-level agents
+omit the field or use an empty array. AGH rejects `categories: [...]` and `category_path:
+"Marketing/Sales"` because the runtime has one canonical array shape and no compatibility aliases.
 
 ### `mcp_servers`
 
@@ -429,6 +459,7 @@ Sidecar behavior:
 | Deny tools    | `AGENT.md` `deny_tools`                              | Same grammar as `tools`; denies narrow later policy evaluation.           |
 | Permissions   | `AGENT.md` `permissions`, then `[permissions].mode`  | Must be a supported permission mode.                                      |
 | Skills policy | `AGENT.md` `skills.disabled`                         | Disables logical skill names after precedence resolution for this agent.  |
+| Category path | `AGENT.md` `category_path`                           | Display-only metadata; surfaced as a flat string array.                   |
 | MCP servers   | Top-level config, provider, agent, active skills     | Same-name TOML entries merge fields; JSON sidecars replace whole objects. |
 
 The `Tools` and `Toolsets` rows describe configured agent policy. Effective runtime discovery also
@@ -447,20 +478,22 @@ The current runtime diverges from the broader RFC 001 draft in these ways:
 | `memory.inherit`          | Control inherited memory.             | Rejected.        |
 | `memory.scope`            | Default write scope for memory.       | Rejected.        |
 | `memory.auto_consolidate` | Agent-scoped memory consolidation.    | Rejected.        |
+| `categories`              | Ambiguous multi-tag grouping.         | Rejected.        |
 
 RFC examples also use permission values such as `plan`. Current AGH uses `deny-all`,
 `approve-reads`, and `approve-all`.
 
 ## Common Errors
 
-| Error                                   | Cause                                               | Fix                                                              |
-| --------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------- |
-| `config: missing YAML frontmatter`      | The file does not start with a frontmatter block.   | Add an opening and closing `---` block.                          |
-| `config: unterminated YAML frontmatter` | The opening delimiter has no closing delimiter.     | Close the frontmatter before the prompt body.                    |
-| `unknown field`                         | A draft or misspelled frontmatter field is present. | Remove it or move the setting to a supported config surface.     |
-| `agent prompt is required`              | The body after frontmatter is empty.                | Add the agent prompt.                                            |
-| `agent.permissions must be one of ...`  | Unsupported permission value.                       | Use `deny-all`, `approve-reads`, or `approve-all`.               |
-| `provider "<name>" command is required` | A custom provider has no command.                   | Add `[providers.<name>].command` or set `command` in `AGENT.md`. |
+| Error                                   | Cause                                                      | Fix                                                                        |
+| --------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `config: missing YAML frontmatter`      | The file does not start with a frontmatter block.          | Add an opening and closing `---` block.                                    |
+| `config: unterminated YAML frontmatter` | The opening delimiter has no closing delimiter.            | Close the frontmatter before the prompt body.                              |
+| `unknown field`                         | A draft or misspelled frontmatter field is present.        | Remove it or move the setting to a supported config surface.               |
+| `agent prompt is required`              | The body after frontmatter is empty.                       | Add the agent prompt.                                                      |
+| `agent.permissions must be one of ...`  | Unsupported permission value.                              | Use `deny-all`, `approve-reads`, or `approve-all`.                         |
+| `agent.category_path[...]`              | A category segment is blank, `.`, `..`, or contains slash. | Use an array of clean path segments, for example `["Marketing", "Sales"]`. |
+| `provider "<name>" command is required` | A custom provider has no command.                          | Add `[providers.<name>].command` or set `command` in `AGENT.md`.           |
 
 ## Related Pages
 

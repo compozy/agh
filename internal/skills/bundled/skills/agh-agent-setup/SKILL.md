@@ -43,6 +43,7 @@ The prompt body after the frontmatter is required. AGH will reject an agent defi
 - `toolsets`: optional named ToolsetIDs, such as `agh__catalog`
 - `deny_tools`: optional exact ToolIDs or patterns that narrow the agent's grants
 - `permissions`: optional; AGH falls back to the global permissions mode when omitted
+- `category_path`: optional display-only hierarchy as an array, for example `["Marketing", "Sales"]`
 - `mcp_servers`: optional per-agent MCP server list
 - `mcp.json`: optional sidecar file in the same agent directory when you want MCP declarations outside frontmatter
 
@@ -69,9 +70,14 @@ provider: claude
 toolsets: [agh__tasks]
 deny_tools: [agh__task_cancel]
 permissions: approve-reads
+category_path: [Engineering, Tasks]
 ---
 You maintain task metadata and write concise task updates.
 ```
+
+`category_path` is only for organization in CLI/API/Web views. It never changes provider
+selection, permissions, tool grants, scheduling, or startup behavior. Use the array form only:
+AGH rejects `categories: [...]` and slash-string values such as `"Engineering/Tasks"`.
 
 ## Permission modes
 

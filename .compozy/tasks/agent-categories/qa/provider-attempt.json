@@ -1,0 +1,38 @@
+{
+  "agent_name": "categorized-multi",
+  "blocked_boundary": "",
+  "category_path": [
+    "Marketing",
+    "Sales"
+  ],
+  "command": "AGH_HOME=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6d7ced711656/runtime ./bin/agh session new --workspace ws_3ed80219747768c7 --agent categorized-multi --name qa-category-session -o json",
+  "events_path": "/Users/pedronauck/Dev/compozy/agh/.tmp/qa-labs/agh-agent-categories-20260506-193527-733386-lab/qa-artifacts/qa/evidence/provider-session-events.json",
+  "exit_code": 0,
+  "finished_at": "2026-05-06T16:46:40-0300",
+  "live_proof_session_ids": [
+    "sess-78095017870b2ac0"
+  ],
+  "observed_agent_decisions": [
+    "categorized agent responded with CATEGORY_PATH_READY to a live prompt"
+  ],
+  "observed_joined_agent_text": "CATEGORY_PATH_READY",
+  "prompt_command": "AGH_HOME=/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/aghqa-6d7ced711656/runtime ./bin/agh session prompt sess-78095017870b2ac0 Respond exactly with CATEGORY_PATH_READY to confirm this categorized agent session is live. -o json",
+  "prompt_exit_code": 0,
+  "prompt_stderr_path": "/Users/pedronauck/Dev/compozy/agh/.tmp/qa-labs/agh-agent-categories-20260506-193527-733386-lab/qa-artifacts/qa/evidence/provider-session-prompt.stderr",
+  "prompt_stdout_path": "/Users/pedronauck/Dev/compozy/agh/.tmp/qa-labs/agh-agent-categories-20260506-193527-733386-lab/qa-artifacts/qa/evidence/provider-session-prompt.stdout",
+  "provider": "codex",
+  "providers_probed": [
+    {
+      "auth_mode": "native_cli",
+      "home_policy": "operator",
+      "name": "codex"
+    }
+  ],
+  "schema_version": 1,
+  "session_list_path": "/Users/pedronauck/Dev/compozy/agh/.tmp/qa-labs/agh-agent-categories-20260506-193527-733386-lab/qa-artifacts/qa/evidence/provider-session-list.json",
+  "started_at": "2026-05-06T16:45:42-0300",
+  "status_path": "/Users/pedronauck/Dev/compozy/agh/.tmp/qa-labs/agh-agent-categories-20260506-193527-733386-lab/qa-artifacts/qa/evidence/provider-session-status.json",
+  "stderr_path": "/Users/pedronauck/Dev/compozy/agh/.tmp/qa-labs/agh-agent-categories-20260506-193527-733386-lab/qa-artifacts/qa/evidence/provider-session-new.stderr",
+  "stdout_path": "/Users/pedronauck/Dev/compozy/agh/.tmp/qa-labs/agh-agent-categories-20260506-193527-733386-lab/qa-artifacts/qa/evidence/provider-session-new.stdout",
+  "verdict": "PASS"
+}
