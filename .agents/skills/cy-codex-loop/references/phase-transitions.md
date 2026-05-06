@@ -38,7 +38,7 @@ and resumes from wherever the filesystem now indicates.
 **Entry**: `mode=tasks` AND `tasks.pending` is non-empty AND the head of `tasks.pending` is **not** a QA task (qa-report / qa-execution).
 
 **Action**:
-1. Pick the head of `tasks.pending`. Confirm `task_NN.md` frontmatter `status: pending` (frontmatter wins; if it disagrees with state.yaml, trust frontmatter and reconcile state).
+1. Pick the head of `tasks.pending`. Confirm `task_NN.md` frontmatter `status: pending` or `status: in_progress` (frontmatter wins; if it disagrees with state.yaml, trust frontmatter and reconcile state).
 2. Activate `cy-spec-preflight` in phase=task-body for the picked file.
 3. Read `references/frontend-docs-delegation.md`. If the task frontmatter `type:` is `frontend` or `docs`, the delegation lane is mandatory. If `type:` is missing, delegate only when the owned paths / acceptance scope are exclusively frontend/docs surfaces per that reference.
 4. Pass the shared/current memory paths from `memory-protocol.md` into the lane that will execute the work.

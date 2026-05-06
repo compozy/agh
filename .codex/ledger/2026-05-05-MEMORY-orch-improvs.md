@@ -1,0 +1,413 @@
+Goal (incl. success criteria):
+
+- Execute `.compozy/tasks/orch-improvs` through `cy-codex-loop` until the workflow reaches the done signature.
+- Success criteria: follow one phase action per loop iteration, obey frontend/docs delegation via Claude Opus when required, keep workflow/session memory current, use root-cause/no-workaround discipline for failures, and only mark completion after required verification and clean review gates.
+
+Constraints/Assumptions:
+
+- Conversation in Brazilian Portuguese; repo artifacts in English.
+- Root AGENTS.md forbids destructive git commands without explicit user permission.
+- `make verify` is the blocking completion gate.
+- `cy-codex-loop` permits exactly one phase action per assistant iteration.
+- Subagents are read-only unless the user explicitly authorizes subagent execution; frontend/docs Phase B work must use `compozy exec --ide claude --model opus`.
+
+Key decisions:
+
+- Treat `.codex/ledger/2026-05-04-MEMORY-orch-improvs-techspec.md` as prior spec-authoring context, not this implementation session's execution state.
+- Use `.compozy/tasks/orch-improvs/state.yaml` and task frontmatter as the authoritative execution state once detected.
+
+State:
+
+- Session goal initialized on 2026-05-05.
+- Prior ledger shows TechSpec/ADRs peer-reviewed through round 4 and `make verify` passed during spec authoring.
+- `cy-codex-loop` state initialized for `.compozy/tasks/orch-improvs` in `mode=free`.
+- Free slice 002 completed one Phase B implementation slice for typed task orchestration config defaults and validation; `state.yaml` records final completion as iteration 003 after the slice-pick record in iteration 002.
+- Free slice 004 completed: global DB migration v17 for orchestration/profile schema, plus schema tests and `make verify` PASS evidence.
+- Free slice 006 completed: shared DDL primitive for task orchestration profile schema, fresh DB/migration v17 unification, positional current-run index dependency removal, and `make verify` PASS evidence.
+- Free slice 008 completed: global DB migration v18 for review-gate policy fields, `task_run_reviews`, and task-run review trigger/continuation columns, plus fresh/migrated schema tests and `make verify` PASS evidence.
+- `state.yaml` records free slice 008 completion at iteration 009 with `verify.last_status=PASS`.
+- Free slice 010 completed: `tasks.current_run_id` projection maintenance across task-run claim, lease terminal, release, recovery, and service-managed `UpdateTaskRun` transitions. The slice also fixed fresh global DB bootstrap cost and an extension lifecycle data race exposed by the final gate.
+- Final `make verify` for slice 010 passed after targeted fixes.
+- Free slice 012 completed: durable `notification_cursors` primitive, `internal/notifications` cursor types/service, global DB migration v19, global DB cursor store CRUD, monotonic advance/idempotent replay/reset semantics, and focused schema/store tests.
+- Final `make verify` for slice 012 passed after investigating two non-reproducible full-gate failures with focused reruns.
+- `state.yaml` records free slice 012 completion at iteration 013 with `verify.last_status=PASS`; `detect-phase.py` reports `phase=B action=execute_free_slice`.
+- Free slice 014 completed: bridge task subscription persistence and terminal notifier consumer over `notification_cursors`; `make verify` passed.
+- Free slice 016 completed: task execution profile domain types, task manager profile authority, GlobalDB profile CRUD over selector tables, and focused tests. The slice also fixed a Host API prompt cleanup race exposed by the final gate.
+- Final `make verify` for slice 016 passed with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8177 tests in 37.298s`, and package boundaries respected.
+- `state.yaml` records free slice 016 completion at iteration 017 with `verify.last_status=PASS`; `detect-phase.py` reports `phase=B action=execute_free_slice`.
+- Free slice 018 completed: task run review domain types, GlobalDB review CRUD, and task manager review request/binding authority over `task_run_reviews`.
+- Final `make verify` for slice 018 passed with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8193 tests in 96.339s`, and package boundaries respected.
+- `state.yaml` records free slice 018 completion at iteration 019 with `verify.last_status=PASS`; `detect-phase.py` reports `phase=B action=execute_free_slice`.
+- Free slice 020 completed: task run review verdict recording, GlobalDB verdict persistence, task review rollup writes, outcome/retry events, reviewer-session binding enforcement, and idempotent rejected-review continuation-run creation.
+- Final `make verify` for slice 020 passed with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8198 tests in 182.159s`, and package boundaries respected.
+- `state.yaml` records free slice 020 completion at iteration 021 with `verify.last_status=PASS`; `detect-phase.py` reports `phase=B action=execute_free_slice`.
+- Free slice 022 completed: `ClaimNextRun` applies task execution profile worker/participant eligibility filters for exact worker agent, allowed worker/participant agents, and required worker/participant capabilities.
+- Final `make verify` for slice 022 passed with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8200 tests in 126.178s`, and package boundaries respected.
+- `state.yaml` records free slice 022 completion at iteration 023 with `verify.last_status=PASS`; `detect-phase.py` reports `phase=B action=execute_free_slice`.
+- Free slice 024 completed: task service loads the effective execution profile before session start; daemon task bridge applies worker agent/provider/model to `session.CreateOpts`; session/config resolution validates runtime provider/model overrides through provider config.
+- Final `make verify` for slice 024 passed after fixing an automation test synchronization bug exposed by the first full gate.
+- `state.yaml` records free slice 024 completion at iteration 025 with `verify.last_status=PASS`; `detect-phase.py` should report `phase=B action=execute_free_slice`.
+- Free slice 026 completed: daemon task bridge applies `TaskExecutionProfile.Sandbox` to session create options; session create resolves named sandbox refs through workspace config and supports explicit no-sandbox starts without invoking sandbox providers.
+- Final `make verify` for slice 026 passed after correcting a `gocritic hugeParam` issue in the sandbox override helper.
+- `state.yaml` records free slice 026 in progress at iteration 026 and is being updated to completion; next detect phase should remain `phase=B action=execute_free_slice`.
+- Free slice 028 completed: added bundled `agh-task-worker`, `agh-orchestrator`, and `agh-task-reviewer` skills with `metadata.agh` guardrails and bundled loader/content tests.
+- Final `make verify` for slice 028 passed after one non-reproduced `internal/session` prompt event channel close timeout was isolated with focused race reruns.
+- Free slice 030 completed: added reviewer-bound native `submit_run_review` as internal tool id `agh__task_run_review_submit`, gated by bundled `agh-task-reviewer` metadata plus active review-session binding, and delegated verdict persistence to `task.Service.RecordRunReview`.
+- Final `make verify` for slice 030 passed with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8227 tests in 73.950s`, and package boundaries respected.
+- Free slice 032 completed: added task execution profile native get/set/delete tools as internal tool ids `agh__task_execution_profile_get`, `agh__task_execution_profile_set`, and `agh__task_execution_profile_delete`, routed through task-service profile authority.
+- Final `make verify` for slice 032 passed with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8232 tests in 141.445s`, and package boundaries respected.
+- Free slice 034 completed: added native review request/list/show tools as internal tool ids `agh__task_run_review_request`, `agh__task_run_review_list`, and `agh__task_run_review_show`, routed through task-service review authority.
+- Final `make verify` for slice 034 passed with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8238 tests in 99.634s`, and package boundaries respected.
+- Free slice 036 completed: added task execution profile HTTP, UDS, CLI, and OpenAPI surfaces for inspect/update/delete, regenerated OpenAPI/TypeScript and CLI reference docs, and kept profile authority delegated to `task.Service`.
+- First `make verify` for slice 036 failed on `gocritic hugeParam` for passing large profile payloads by value; corrected helper/client/test boundaries to pass profile request/record values by pointer.
+- Final `make verify` for slice 036 passed with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8245 tests in 70.794s`, and package boundaries respected.
+- Free slice 038 completed: added task-run review HTTP, UDS, CLI, and OpenAPI surfaces for request/list/show/verdict submission, regenerated OpenAPI/TypeScript and CLI reference docs, and kept review authority delegated to `task.Service`.
+- Final `make verify` for slice 038 passed with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8254 tests in 85.160s`, and package boundaries respected.
+- Free slice 040 completed: generated `.compozy/tasks/orch-improvs/_tasks.md` plus `task_01.md` through `task_06.md` for remaining context/SSE/notification transport, web UI, packages/site narrative docs, docs-memory lessons, QA report, and QA execution work.
+- `compozy tasks validate --name orch-improvs --format json` passed for the six new task files; final `make verify` passed with Vitest 329 files / 2088 tests, `golangci-lint` 0 issues, Go race gate `DONE 8254 tests in 14.246s`, and boundaries OK.
+- User asked to pause implementation and run `cy-create-tasks` properly with completed work included. `_tasks.md` and `task_01.md` through `task_32.md` now form the full tracking graph: 20 completed historical tasks, `task_21` in progress for bridge notification transport/spec alignment, and `task_22` through `task_32` pending for ReviewRouter, context bundle, SSE, diagnostics, web, site docs, lessons, and QA.
+- Validation after regeneration: `compozy tasks validate --name orch-improvs --format json` passed with 32 scanned task files; local structural check confirmed all task files have required sections, the last two rows are the QA pair, and no `TODO`/`TBD`/placeholder text exists. `detect-phase.py` still reports `phase=B action=execute_free_slice`. Final `make verify` passed with Vitest 329 files / 2088 tests, `golangci-lint` 0 issues, Go race gate `DONE 8261 tests in 81.823s`, and package boundaries OK.
+- User asked to align `state.yaml` with the new task graph and switch the mode. Added `update-state.py --reconcile-tasks`, with script tests/docs updated, then ran it. `state.yaml` now has `mode=tasks`, `tasks.total=32`, 20 completed tasks, `tasks.current=task_21`, `tasks.pending` beginning with `task_21`, and `verify.last_status=PASS`.
+- Current detect output is now `phase=B action=execute_task task=task_21`.
+- Final verification after state realignment exposed a real `packages/site` OpenGraph font loader bug when tests run from repo root. Fixed `packages/site/lib/og/fonts.ts` to resolve fonts from supported package-root and monorepo-root contexts; focused site tests/typecheck passed, `make bun-test` passed with 329 files / 2092 tests, and final `make verify` passed with `golangci-lint` 0 issues, Go race gate `DONE 8261 tests in 11.596s`, and boundaries OK.
+- `state.yaml` was updated through `update-state.py` to iteration 44 with `verify.last_status=PASS`, `verify.last_run=2026-05-05T15:45:55Z`, and detect still returns `phase=B action=execute_task task=task_21`.
+- Task 21 completed: bridge terminal notification transport now uses canonical `/api/tasks/{id}/notifications/bridges` create/list and `/api/tasks/{id}/notifications/bridges/{subscription_id}` show/delete routes across HTTP, UDS, OpenAPI, generated TypeScript, CLI, and generated CLI docs. The old `bridge-notification-subscriptions` route shape has no matches outside workflow memory notes.
+- Final task 21 validation passed after fixing the site OG font loader root-cause: Context7 confirmed Next `ImageResponse` font loading should use `readFile(join(process.cwd(), ...))`; Exa surfaced Vitest workspace `cwd` limitations. The runtime keeps the Next default, while `packages/site/vitest.config.ts` injects `AGH_SITE_ROOT` for root-workspace tests. `make verify` passed with Vitest 329 files / 2092 tests, web build, `golangci-lint` 0 issues, Go race gate `DONE 8262 tests in 95.480s`, and boundaries OK.
+- `state.yaml` is now iteration 46, `mode=tasks`, completed tasks 01-21, pending starts at task_22, `verify.last_status=PASS`, and detect returns `phase=B action=execute_task task=task_22`.
+- Task 22 completed: review request creation now emits a best-effort task-service observer notification, daemon boot wires it into a ReviewRouter, the router selects or creates eligible reviewer sessions from review profile selectors, original worker sessions are excluded, reviewer sessions are bound through task service, deterministic no-route diagnostics are persisted through `RecordRunReview`, and review-store UNIQUE classification now uses typed SQLite errors instead of string matching.
+- First `make verify` for task 22 failed once in `sdk/typescript/src/integration.test.ts` with a 30s timeout unrelated to Go changes; the focused SDK integration test passed, and final `make verify` passed with Vitest 329 files / 2092 tests, web build, `golangci-lint` 0 issues, Go race gate `DONE 8267 tests in 142.023s`, and boundaries OK.
+- `state.yaml` is now iteration 47, `mode=tasks`, completed tasks 01-22, pending starts at task_23, `verify.last_status=PASS`, and detect returns `phase=B action=execute_task task=task_23`.
+- Task 23 completed: `task.ContextBundle` is wired into `/agent/context`, active worker sessions, review-bound reviewer sessions, task session starts, reviewer session starts, and coordinator starts. Free-text and event payload redaction now removes raw `claim_token` fields and redacts raw `agh_claim_*` token values. Contract artifacts were regenerated, task memory/frontmatter/state were updated, and final `make verify` passed with Go race gate `DONE 8276 tests in 130.651s`.
+- `state.yaml` is now iteration 48, `mode=tasks`, completed tasks 01-23, pending starts at task_24, `verify.last_status=PASS`, and `detect-phase.py` returns `phase=B action=execute_task task=task_24`.
+- Task 24 completed: `latest_event_seq` is exposed from durable task event sequence projections across task read models/context/API payloads, task stream seed parsing gives present `Last-Event-ID` precedence over `after_sequence`, context recent events preserve durable event sequence, and read-then-stream tests prove no missed terminal/review/notification events after a snapshot seed.
+- `make verify` passed for task 24 with Go race gate `DONE 8279 tests in 135.206s` and package boundaries OK. `state.yaml` is now iteration 49, `mode=tasks`, completed tasks 01-24, pending starts at task_25, `verify.last_status=PASS`, and `detect-phase.py` returns `phase=B action=execute_task task=task_25`.
+- Task 25 completed: bridge notification subscription read models now expose durable cursor diagnostics (`last_sequence`, `last_delivery_id`, `last_delivered_at`, `last_error`, `updated_at`) across shared HTTP/UDS core handlers and CLI list/show output; terminal notifier states now distinguish delivered, deferred-without-mismatch, replay/noop, superseded final, and fail-closed mismatch; GlobalDB lifecycle tests prove deleted subscriptions return not found while stale cursor diagnostics remain preserved.
+- Final `make verify` for task 25 passed with Vitest 329 files / 2092 tests, web build, `golangci-lint` 0 issues, Go race gate `DONE 8283 tests in 136.798s`, and package boundaries OK. Task frontmatter/memory were finalized, `state.yaml` is iteration 50, completed tasks 01-25, current `task_26`, and `detect-phase.py` returns `phase=B action=execute_task task=task_26`.
+
+Done:
+
+- Read root AGENTS instructions provided in prompt.
+- Loaded `cy-codex-loop` and `cy-workflow-memory` skill instructions from disk.
+- Scanned `.codex/ledger` and read the related `orch-improvs` TechSpec ledger.
+- Confirmed `.compozy/tasks/orch-improvs/_techspec.md` exists.
+- Ran `python3 .agents/skills/cy-codex-loop/scripts/detect-phase.py orch-improvs`; initial output was `phase=0 action=bootstrap`.
+- Ran `init-state.py` with goal signature `Implement the ENTIRE .compozy/tasks/orch-improvs`; helper wrote `state.yaml` with `mode=free`.
+- Loaded `cy-spec-preflight` context needed by bootstrap, including the playbook, standing directives, glossary, task-body lessons, root `CLAUDE.md`, `_techspec.md`, and ADRs.
+- Created `.compozy/tasks/orch-improvs/memory/MEMORY.md`.
+- Ran `update-state.py` for bootstrap completion; iteration 1 recorded.
+- Selected Phase B free slice: `Add typed task orchestration config defaults and validation for [task.orchestration], [task.orchestration.profile], and [task.orchestration.review].`
+- Added typed config structs, defaults, validation, TOML overlays, and agent-mutable config paths for task orchestration/profile/review under `internal/config`.
+- Added focused config tests and agent-mutable path tests.
+- Verified `go test ./internal/config -count=1`, `go test -race ./internal/config -count=1`, and `make verify` pass.
+- Selected Phase B free slice: `Add global DB orchestration/profile schema migration for task projection fields, run summaries/provenance, and task execution profile selector tables.`
+- Added global DB migration v17, fresh schema updates, previous-schema tests, and migration-count updates for task orchestration/profile persistence foundation.
+- Verified impacted globaldb tests, isolated race coverage for the new migration, `go test ./internal/store/globaldb -count=1`, and `make verify` pass.
+- Selected Phase B free slice: `Unify task orchestration profile schema DDL between fresh global DB creation and migration v17 to prevent drift.`
+- Moved task orchestration profile DDL into shared `taskOrchestrationProfileSchemaStatements`, added explicit `taskCurrentRunIndexStatement`, composed fresh global schema from shared groups, and added drift guard tests.
+- First `make verify` in slice 006 failed on `golangci-lint` `funlen` for a long schema builder; corrected the structure with a short slice-concat helper instead of suppressing lint.
+- Verified targeted globaldb tests, targeted race tests, full `go test ./internal/store/globaldb -count=1`, and `make verify` pass after the correction.
+- Selected Phase B free slice: `Add global DB review-gate schema migration for task review policy fields, task_run_reviews, and task_runs review trigger/continuation columns.`
+- Added migration v18, shared review-gate DDL helpers, fresh schema columns/indexes, legacy task-table rebuild preservation, exact schema guard updates, and fresh/migrated review-gate schema tests.
+- The first full `go test ./internal/store/globaldb -count=1` in slice 008 exposed an old exact schema expectation; updated the schema guard to the intentional review-gate column/index contract instead of weakening the new migration tests.
+- Verified targeted review-gate/globaldb tests, targeted race tests, full `go test ./internal/store/globaldb -count=1`, full `go test -race ./internal/store/globaldb -count=1`, and `make verify` pass.
+- Added `CurrentRunID` to task domain/read model types and wired global DB task scans/summaries.
+- Added `internal/store/globaldb/global_db_task_projection.go` and transition-call-site updates so active-run projection is set/cleared inside the same transactions as claim, completion, failure, release, recovery, and service-managed run updates.
+- Added current-run projection tests in `global_db_task_claim_test.go` and updated task equality/read-model assertions.
+- Fixed empty global DB bootstrap to apply the numbered global migration registry in a single transaction and record all migration checksums, while preserving upgrade migrations for existing DBs.
+- Made task-run claim lease migration v7 idempotent and included its fresh DDL in the current schema to prevent fresh/migration drift.
+- Fixed `internal/extension` shutdown/recovery race by snapshotting mutable `managedExtension` fields under `Manager.mu`.
+- Verified focused task/globaldb/task tests, `go test -race -parallel=4 ./internal/store/globaldb -count=1`, focused `automation`/`soul`/`network` race repros, focused and full `internal/extension` race tests, and final `make verify` pass.
+- Selected Phase B free slice: `Add durable notification cursor primitive and global DB migration for notification_cursors.`
+- Created `.compozy/tasks/orch-improvs/memory/free-iter-012.md` before implementation.
+- Added `internal/notifications` cursor API and service contract with typed sentinel errors.
+- Added global DB `notification_cursors` fresh schema statements, migration v19, cursor store CRUD, monotonic advance validation, reset handling, and schema/store tests.
+- Verified `go test ./internal/notifications -count=1`, focused globaldb cursor tests, focused globaldb cursor race tests, `go test ./internal/store/globaldb ./internal/notifications -count=1`, and `go test -race -parallel=4 ./internal/store/globaldb -count=1`.
+- Investigated first full-gate failure: `sdk/typescript/src/integration.test.ts` timed out once; focused SDK integration test and `make bun-test` both passed.
+- Investigated second full-gate failure: `internal/extension` temp-dir cleanup failed once; focused test and full `internal/extension` race package both passed.
+- Final `make verify` passed for slice 012 with Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8149 tests in 51.714s`, and package boundaries respected.
+- Selected Phase B free slice: `Add bridge task subscription persistence and terminal notifier consumer over notification_cursors.`
+- Added `bridge_task_subscriptions` fresh schema and migration v20, plus GlobalDB CRUD/list/delete methods.
+- Added `bridges.BridgeTaskSubscription` target/cursor identity and `TerminalTaskNotifier` replay/delivery logic over durable `task_events`.
+- Added `notifications.Service.RecordError` and GlobalDB `RecordCursorError` so bridge delivery failures record diagnostics without advancing cursor sequence.
+- Added focused tests for subscription schema migration/fresh DB, shared DDL use, subscription CRUD/list/delete, notifier delivery, delivery failure no-advance, superseded terminal-event skipping, and cursor error recording.
+- Verified focused tests, package tests, `go test -race ./internal/bridges -count=1`, `go test -race -parallel=4 ./internal/store/globaldb -count=1`, `make lint`, and final `make verify` pass. The final gate included Bun lint/typecheck/test, web build, `golangci-lint` 0 issues, Go race gate `DONE 8163 tests in 175.624s`, and package boundaries respected.
+- Selected Phase B free slice: `Add task execution profile domain types, task-service validation, and GlobalDB profile CRUD over task_execution_profiles selector tables.`
+- Added `task.ExecutionProfile` and profile selector value types for coordinator/worker/review/participant/sandbox settings.
+- Added task manager `GetExecutionProfile`, `SetExecutionProfile`, and `DeleteExecutionProfile` authority methods with validation, active-run mutation rejection, store persistence, and audit events.
+- Added GlobalDB profile CRUD over `task_execution_profiles` plus selector side tables, with transactional selector replacement on upsert.
+- Updated manager/store stubs and fakes for the new profile interfaces.
+- Added focused profile validation, manager authority, and GlobalDB selector persistence tests.
+- Fixed `internal/extension` Host API test cleanup to wait for prompt drain completion before stopping sessions, after the first `make verify` exposed a tempdir cleanup race under `-race`.
+- Verified focused task/profile/store tests, `go test -race -parallel=4 ./internal/store/globaldb -count=1`, `go test -race -parallel=4 ./internal/extension -run TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries -count=20`, full `internal/extension` race package, and final `make verify` pass.
+- Selected Phase B free slice: `Add task run review domain types, GlobalDB review CRUD, and task manager review request/binding authority over task_run_reviews.`
+- Added `task.RunReview` domain types, review status/outcome/policy validation, request/binding/query types, and `ErrRunReviewNotFound`.
+- Added task manager review request, bind, lookup-by-session, and list authority methods with actor validation and audit events.
+- Added GlobalDB review request/bind/list/lookup persistence over `task_run_reviews`, including idempotent `(run_id, review_round, attempt)` request creation and same-transaction `task_runs.review_request_id` linkage.
+- Updated task/store fakes plus API/daemon test stubs for the new review interfaces.
+- Added focused `internal/task` and `internal/store/globaldb` tests for review validation, manager authority, and GlobalDB review CRUD.
+- Fixed Host API prompt cleanup root cause by adding `session.Manager.WaitForPromptDrains` to track prompt pump goroutines and using it from `host_api_test.go`; this replaced relying on `IsPrompting=false` as cleanup evidence.
+- Verified focused task/store/session/extension tests, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Add task run review verdict recording with approved/rejected/blocked events and idempotent continuation-run creation for rejected reviews.`
+- Added `task.RunReviewVerdict`, `task.RecordRunReviewRequest`, and `task.RunReviewResult` validation, requiring delivery ids and bounded verdict payloads.
+- Added task manager `RecordRunReview` authority with post-store review recorded/outcome/retry event emission.
+- Added GlobalDB review verdict persistence, task review rollup writes, reviewer-session binding enforcement, same-verdict replay by delivery id, and rejected-review continuation-run creation linked by `task_runs.review_id`.
+- Refactored task-run review lineage into `task.Run.Review *RunReviewLineage` to keep optional review state typed without making hot `task.Run` values too large for lint.
+- Verified focused task/store tests, full `internal/store/globaldb` race tests, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Apply TaskExecutionProfile worker and participant eligibility filters to ClaimNextRun so ineligible agent names and missing capabilities cannot claim queued runs.`
+- Added profile-backed claim filters in GlobalDB for exact worker agent, allowed worker/participant agent selector rows, and required worker/participant capability selector rows.
+- Added `TestGlobalDBClaimNextRunAppliesExecutionProfileEligibility` to prove wrong-agent and missing-profile-capability claims return `ErrNoClaimableRun` without mutating the queued run, while an eligible claimer succeeds.
+- Verified focused claim tests, focused claim race tests, full `go test ./internal/store/globaldb -count=1`, full `go test -race -parallel=4 ./internal/store/globaldb -count=1`, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Apply TaskExecutionProfile worker agent, provider, and model selection to task session starts.`
+- Added runtime model override resolution in config/session so profile-selected models are validated through provider config instead of bypassing it.
+- Added `ExecutionProfile` to `task.StartTaskSession`, loaded persisted/default profiles from task service before session executor handoff, and failed the run if profile loading fails after the run entered `starting`.
+- Added daemon task bridge mapping from worker `agent_name`, `provider`, and `model` into `session.CreateOpts`; coordinator runtime also now passes configured coordinator model through session creation.
+- Added focused config/session/task/daemon tests for provider/model override resolution, runtime model create opts, task manager profile handoff, and daemon session create opts.
+- First `make verify` for slice 024 exposed `TestSchedulerRecordsDeliveryErrorWithoutRollingBackCursor` reading delivery diagnostics after dispatcher completion but before scheduler persistence. Fixed the test harness to wait for the store's delivery-error write.
+- Verified focused tests, `go test -race -parallel=4 ./internal/automation -run TestSchedulerRecordsDeliveryErrorWithoutRollingBackCursor -count=20`, full `go test -race -parallel=4 ./internal/automation -count=1`, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Apply TaskExecutionProfile sandbox inherit, none, and ref selection to task session starts without bypassing sandbox authorization.`
+- Added daemon/session runtime sandbox override handling for `inherit`, `none`, and named `ref` modes while preserving workspace sandbox authorization.
+- Verified focused session/daemon sandbox tests, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Add bundled orchestration skills agh-orchestrator, agh-task-worker, and agh-task-reviewer with deterministic metadata and bundled loader coverage.`
+- Added bundled instructional skill content and `metadata.agh` load contracts for worker, coordinator, and reviewer sessions.
+- Extended bundled skill tests to cover embed path discovery, parse/load, metadata guardrails, and content snippets for the new skills.
+- Verified metadata validation, focused bundled skill tests, `internal/skills` package tests, bundled race tests, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Add reviewer-bound native submit_run_review tool wired to task.Service.RecordRunReview and hidden without an active review request binding.`
+- Added builtin tool descriptor, autonomy toolset registration, daemon native binding, reviewer-skill metadata availability gating, active review binding lookup, payload normalization, and `RecordRunReview` delegation for `submit_run_review`.
+- Added native-tool tests for successful reviewer-bound review submission, hidden tool behavior without active binding, and schema-invalid input rejection before verdict writes.
+- Verified focused builtin/daemon tests, native-tool race tests, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Add task execution profile native read, update, and delete tools wired to task.Service profile authority.`
+- Added builtin task tool descriptors and IDs for `task_execution_profile_get`, `task_execution_profile_set`, and `task_execution_profile_delete`.
+- Added daemon native profile bindings that delegate get/set/delete to `task.Service` profile authority and reject malformed/server-owned fields before writes.
+- Added native-tool tests for profile get/set/delete routing, invalid profile rejection before service writes, descriptor registration, and task toolset inclusion.
+- Fixed a `gocritic hugeParam` issue in `native_profile_tools.go` by passing the large profile input helper by pointer.
+- Verified focused builtin/daemon tests, native-tool race tests, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Add native review request, list, and show tools wired to task.Service review authority.`
+- Added builtin task tool descriptors and IDs for `task_run_review_request`, `task_run_review_list`, and `task_run_review_show`.
+- Added daemon native review bindings that delegate request/list/show to `task.Service` review authority and reject malformed request/list/show inputs before service calls.
+- Added `task.Manager.GetRunReview` as the service-level read authority for one persisted review.
+- Added native-tool tests for request/list/show routing, invalid request rejection before review writes, descriptor registration, and task toolset inclusion.
+- Verified focused task/builtin/daemon tests, native-tool race tests, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Add HTTP, UDS, CLI, and OpenAPI surfaces for task execution profile inspect, update, and delete.`
+- Added task execution profile contract payloads, shared API core handlers, HTTP/UDS route mounts, OpenAPI operations/enums, CLI UDS client methods, and `agh task profile inspect|update|delete`.
+- Regenerated `openapi/agh.json`, `web/src/generated/agh-openapi.d.ts`, and generated CLI reference pages under `packages/site/content/runtime/cli-reference/task/profile/`.
+- Verified focused API/CLI/spec/route tests, `make codegen`, `make codegen-check`, `make cli-docs`, `make site-build`, impacted API/CLI race tests, `make lint`, and final `make verify` pass.
+- Selected Phase B free slice: `Generate _tasks.md acceptance cross-walk with QA pair tail and Web/Docs Impact coverage for remaining orch-improvs work.`
+- Added `_tasks.md` and six task files under `.compozy/tasks/orch-improvs/` covering the remaining implementation/docs/QA surfaces. Kept `state.yaml` in managed free mode rather than hand-editing `tasks.*`.
+- Fixed Compozy metadata validation by using `type: test` for QA tasks while keeping a detector-friendly `QA Report` title.
+- Verified `compozy tasks validate --name orch-improvs --format json`, custom structural validation, `detect-phase.py` output, and final `make verify` pass.
+- Rebuilt the task tree after user approval so completed work is tracked too: `_tasks.md` plus `task_01.md` through `task_32.md`; validation passed with 32 scanned files, structural checks passed, and `make verify` passed.
+- Extended `update-state.py` with explicit task reconciliation from task-file frontmatter; test coverage added in `.agents/skills/cy-codex-loop/tests/test_scripts.py`; `state-schema.md`, `phase-transitions.md`, and `SKILL.md` now document the post-free-bootstrap reconciliation path.
+- Completed task 24 and updated `.compozy/tasks/orch-improvs/memory/task_24.md`, shared workflow memory, `.compozy/tasks/orch-improvs/task_24.md`, and `state.yaml`.
+- Implemented task 25 diagnostics/lifecycle code and tests across `internal/api/contract`, `internal/api/core`, `internal/bridges`, `internal/store/globaldb`, `internal/cli`, `internal/daemon`, generated OpenAPI/TypeScript contracts, and task memory.
+- Delegated `task_26` implementation to Claude Opus via `compozy exec --ide claude --model opus --prompt-file /tmp/cy-codex-loop-orch-improvs-task_26.md`; the delegation returned code 0, updated task/memory files, and reported `make verify` PASS after an earlier transient SQLite timeout run.
+- Removed an unrelated `.gitignore` Python ignore block that appeared during the delegated run; it was outside the task 26 scope.
+- Local audit found the task 26 stream requirement was not fully covered: the delegated pass added stream types/query keys but no exported task SSE hook or URL/data-layer surface. Prepared a focused Claude Opus correction prompt at `/tmp/cy-codex-loop-orch-improvs-task_26-stream-gap.md`.
+- Follow-up audit found the first stream hook correction listened only to `onmessage`, but AGH emits named SSE task events via `event: <task event type>`. Prepared `/tmp/cy-codex-loop-orch-improvs-task_26-stream-named-events.md` for a second focused Claude correction.
+- Task 26 stream corrections completed: `useTaskStream` now builds cursor-seeded URLs, registers named SSE listeners for canonical task/review/notification event types, keeps unnamed-message fallback, invalidates authoritative query roots, and has focused React/Vitest coverage.
+- Final local `make verify` on the current task 26 worktree passed: Bun/Vitest `333 passed (333)` / `2163 passed (2163)`, `golangci-lint` `0 issues`, Go race gate `DONE 8283 tests in 66.726s`, boundaries OK.
+- `state.yaml` updated via `update-state.py` to iteration 51 with `task_26` completed, `verify.last_status=PASS`, pending tasks 27-32, and `detect-phase.py` now returns `phase=B action=execute_task task=task_27`.
+- Task 27 completed through the mandatory frontend/docs delegation lane: Claude Opus implemented the task orchestration UI surfaces, route wiring, hooks, component tests, and a daemon-served Playwright journey. Local audit found an orchestration-tab stream-state reset bug; a focused Claude follow-up fixed it and added coverage.
+- Local task 27 validation passed: focused Vitest orchestration UI tests `6 files / 31 tests`, daemon-served Playwright `web/e2e/tasks-orchestration.spec.ts` `1 passed`, `compozy tasks validate --name orch-improvs --format json` scanned 32 tasks successfully, `git diff --check` passed, and final `make verify` passed with Go race gate `DONE 8283 tests in 75.167s` plus boundaries OK.
+- `state.yaml` updated via `update-state.py` to iteration 52 with `task_27` completed, `verify.last_status=PASS`, pending tasks 28-32, and `detect-phase.py` now returns `phase=B action=execute_task task=task_28`.
+- Task 28 completed through the mandatory frontend/docs delegation lane. The first Claude Opus docs run was not accepted because it did not return final task/tracking evidence; a second focused Claude Opus run finalized the site docs, task file, and workflow memory, then local Codex audit verified runtime truth before state update.
+- Task 28 docs added `packages/site/content/runtime/core/autonomy/execution-profiles.mdx`, updated autonomy navigation/meta, extended `config-toml.mdx` with `[task.orchestration]`, `[task.orchestration.profile]`, and `[task.orchestration.review]`, and added checklist tests in `packages/site/lib/runtime-autonomy-docs.test.ts`.
+- Local task 28 validation passed: site `source:generate`, `content:generate`, `typecheck`, focused `runtime-autonomy-docs.test.ts` (`8 passed`), full site tests (`74 files / 256 tests`), site build, `compozy tasks validate --name orch-improvs --format json`, `git diff --check`, and final `make verify` with Bun/Vitest `339 files / 2199 tests`, `golangci-lint` `0 issues`, Go race gate `DONE 8283 tests in 14.344s`, and boundaries OK.
+- `state.yaml` updated via `update-state.py` to iteration 53 with `task_28` completed, `verify.last_status=PASS`, pending tasks 29-32, and `detect-phase.py` now returns `phase=B action=execute_task task=task_29`.
+- Task 29 completed after mandatory docs-lane delegation plus local audit. Site docs now cover the review gate, implemented review event taxonomy, reviewer binding/native tool boundaries, bundled orchestration skills, bridge notification subscriptions, cursor diagnostics, and SSE resume seeding. The local audit corrected false claims around non-existent review events, no-route outcome type, a broken `/runtime/core/agent/context` link, bridge notification UI placement, and public cursor reset exposure.
+- Task 29 also fixed a site test performance issue exposed by the full site suite: static blog/changelog metadata moved to lightweight modules so metadata tests no longer import route component/content trees.
+- Local task 29 validation passed: focused docs test `15 passed`, focused metadata test `3 passed`, full site tests `74 files / 263 tests`, site build generated `1086` static pages, `compozy tasks validate --name orch-improvs --format json` scanned 32 tasks successfully, `git diff --check` passed, and final `make verify` passed with Bun/Vitest `339 files / 2206 tests`, `golangci-lint` `0 issues`, Go race gate `DONE 8283 tests in 32.697s`, and boundaries OK.
+- `state.yaml` updated via `update-state.py` to iteration 54 with `task_29` completed, `verify.last_status=PASS`, pending tasks 30-32, and `detect-phase.py` now returns `phase=B action=execute_task task=task_30`.
+- Task 30 completed through the mandatory docs delegation lane plus local audit. It authored `docs/_memory/lessons/L-017` through `L-020`, updated `docs/_memory/lessons/README.md`, and extended `docs/_memory/glossary.md` with canonical Autonomy terms for Task Execution Profile, Notification Cursor, Bridge Task Subscription, Run Review, Continuation Run, Task Context Bundle, and Current Run ID.
+- Local audit corrected L-020 evidence wording after a focused Claude correction attempt hit provider rate limits before edits. The accepted lesson now cites historical `free-iter-020`, `free-iter-026`, `free-iter-030`, `free-iter-032`, `free-iter-036`, and `task_22` evidence instead of mixing free-slice numbers with formal task numbers, and it names existing pointer-boundary files.
+- Local task 30 validation passed after the correction: `compozy tasks validate --name orch-improvs --format json` scanned 32 tasks successfully, `git diff --check` passed, site `source:generate`, `content:generate`, `typecheck`, full site tests (`74 files / 263 tests`), site build generated `1086` static pages, and final `make verify` passed with Bun/Vitest `339 files / 2206 tests`, `golangci-lint` `0 issues`, Go race gate `DONE 8283 tests in 68.242s`, and boundaries OK.
+- `state.yaml` updated via `update-state.py` to iteration 55 with `task_30` completed, `verify.last_status=PASS`, pending tasks 31-32, and `detect-phase.py` now returns `phase=B action=execute_task task=task_31`.
+- Task 31 completed locally via `qa-report` planning. It created `.compozy/tasks/orch-improvs/qa/test-plans/orch-improvs-test-plan.md`, `qa/test-plans/orch-improvs-regression-suite.md`, eight `qa/test-cases/TC-*.md` cases, and README handoffs under `qa/issues/` and `qa/screenshots/`.
+- Local task 31 validation passed: `compozy tasks validate --name orch-improvs --format json` scanned 32 tasks, `git diff --check` passed, structural QA checks confirmed every test case has priority/objective/preconditions/Expected/behavioral evidence/disruption probes, marker scan found no unfinished-work markers, and final `make verify` passed with Bun/Vitest `339 files / 2206 tests`, `golangci-lint` `0 issues`, Go race gate `DONE 8283 tests in 11.125s`, and boundaries OK.
+- `state.yaml` updated via `update-state.py` to iteration 56 with `task_31` completed, `qa.report_done=true`, `verify.last_status=PASS`, pending task 32, and `detect-phase.py` now returns `phase=C action=qa_execution`.
+- Task 32 QA execution completed against an isolated AGH lab rooted at `.tmp/qa-labs/agh-orch-improvs-qa-20260505-223520-643030-lab`; bootstrap metadata is persisted in `.compozy/tasks/orch-improvs/qa/bootstrap-manifest.json` and `.compozy/tasks/orch-improvs/qa/bootstrap.env`.
+- QA execution filed and fixed `BUG-001` through `BUG-008` under `.compozy/tasks/orch-improvs/qa/issues/`, covering bridge notification missing-bridge errors, bridge ingress prompt semantics, browser/transport approval fixtures, acpmock prompt diagnostics, transport stub drift, observe transport sequence drift, and session finalization recorder lifetime.
+- Task 32 final validation passed: `make test-e2e-runtime` passed across daemon/httpapi/udsapi/e2e packages, isolated `make test-e2e-web` passed 20 Playwright tests, and final `make verify` passed with Bun/Vitest `339 files / 2206 tests`, web build PASS, `golangci-lint` 0 issues, Go race gate `DONE 8290 tests in 98.066s`, and boundaries OK. Verification report is `.compozy/tasks/orch-improvs/qa/verification-report.md`.
+- `state.yaml` updated via `update-state.py` to iteration 57 with all 32 tasks completed, `qa.execution_done=true`, `verify.last_status=PASS`, CodeRabbit clean streak still `0/3`, and `detect-phase.py` now returns `phase=D action=coderabbit_round round=001`.
+
+Now:
+
+- Stopping after one completed Phase C action for this assistant iteration: `qa_execution` / `task_32`.
+- Current loop detector output is `phase=D action=coderabbit_round round=001`.
+
+Next:
+
+- Continue with Phase D CodeRabbit review round 001 on the next iteration. Do not claim the done signature until three consecutive clean rounds and final verify pass.
+
+Open questions (UNCONFIRMED if needed):
+
+- None.
+
+Working set (files/ids/commands):
+
+- `.compozy/tasks/orch-improvs/task_31.md`
+- `.compozy/tasks/orch-improvs/memory/task_31.md`
+- `.compozy/tasks/orch-improvs/qa/test-plans/orch-improvs-test-plan.md`
+- `.compozy/tasks/orch-improvs/qa/test-plans/orch-improvs-regression-suite.md`
+- `.compozy/tasks/orch-improvs/qa/test-cases/`
+- `.compozy/tasks/orch-improvs/qa/issues/README.md`
+- `.compozy/tasks/orch-improvs/qa/screenshots/README.md`
+- `.compozy/tasks/orch-improvs/task_32.md`
+- `.compozy/tasks/orch-improvs/memory/task_32.md`
+- `.compozy/tasks/orch-improvs/memory/qa-execution.md`
+- `.compozy/tasks/orch-improvs/qa/bootstrap-manifest.json`
+- `.compozy/tasks/orch-improvs/qa/bootstrap.env`
+- `.compozy/tasks/orch-improvs/qa/verification-report.md`
+- `.compozy/tasks/orch-improvs/qa/issues/BUG-001-bridge-notification-missing-bridge-500.md`
+- `.compozy/tasks/orch-improvs/qa/issues/BUG-002-bridge-ingest-session-adapter-hidden-network-prompt.md`
+- `.compozy/tasks/orch-improvs/qa/issues/BUG-003-browser-session-approval-auto-rejected.md`
+- `.compozy/tasks/orch-improvs/qa/issues/BUG-004-acpmock-diagnostics-lost-augmented-prompt.md`
+- `.compozy/tasks/orch-improvs/qa/issues/BUG-005-transport-bridge-stub-subscription-drift.md`
+- `.compozy/tasks/orch-improvs/qa/issues/BUG-006-transport-approval-fixture-auto-rejected.md`
+- `.compozy/tasks/orch-improvs/qa/issues/BUG-007-observe-transport-augmenter-drift.md`
+- `.compozy/tasks/orch-improvs/qa/issues/BUG-008-finalizing-session-events-used-closed-recorder.md`
+- `docs/_memory/lessons/L-017-named-sse-listener-registration.md`
+- `docs/_memory/lessons/L-018-delegated-docs-runtime-truth-audit.md`
+- `docs/_memory/lessons/L-019-diagnostic-data-outlives-primary-record.md`
+- `docs/_memory/lessons/L-020-dense-typed-records-need-pointer-boundaries.md`
+- `docs/_memory/lessons/README.md`
+- `docs/_memory/glossary.md`
+- `.compozy/tasks/orch-improvs/task_30.md`
+- `.compozy/tasks/orch-improvs/memory/task_30.md`
+- `.compozy/tasks/orch-improvs/`
+- `.compozy/tasks/orch-improvs/_techspec.md`
+- `.compozy/tasks/orch-improvs/_techspec_orchestration.md`
+- `.compozy/tasks/orch-improvs/_techspec_review_gate.md`
+- `.compozy/tasks/orch-improvs/task_26.md`
+- `.compozy/tasks/orch-improvs/memory/task_26.md`
+- `.compozy/tasks/orch-improvs/task_27.md`
+- `.compozy/tasks/orch-improvs/memory/task_27.md`
+- `web/src/hooks/routes/use-task-detail-orchestration-tab.ts`
+- `web/src/systems/tasks/components/tasks-detail-orchestration-panel.tsx`
+- `web/e2e/tasks-orchestration.spec.ts`
+- `web/src/systems/tasks/**`
+- `.compozy/tasks/orch-improvs/state.yaml`
+- `.compozy/tasks/orch-improvs/memory/MEMORY.md`
+- `.compozy/tasks/orch-improvs/memory/task_25.md`
+- `.compozy/tasks/orch-improvs/task_25.md`
+- `.compozy/tasks/orch-improvs/task_24.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-002.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-004.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-006.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-008.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-010.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-012.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-014.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-040.md`
+- `internal/task/context.go`
+- `internal/situation/task_context.go`
+- `internal/situation/service.go`
+- `internal/situation/service_test.go`
+- `internal/api/contract/agents.go`
+- `internal/daemon/task_runtime.go`
+- `internal/daemon/task_runtime_test.go`
+- `internal/daemon/review_router.go`
+- `internal/daemon/review_router_test.go`
+- `internal/daemon/coordinator_runtime.go`
+- `internal/daemon/coordinator_runtime_test.go`
+- `go test ./internal/situation -count=1`
+- `go test ./internal/daemon -count=1`
+- `make lint`
+- `make codegen`
+- `make codegen-check`
+- `make web-typecheck`
+- `make web-test`
+- `cd packages/site && bun run typecheck`
+- `cd packages/site && bun run test`
+- `cd packages/site && bun run build`
+- `make verify`
+- `.compozy/tasks/orch-improvs/memory/task_23.md`
+- `.agents/skills/cy-codex-loop/scripts/detect-phase.py`
+- `.agents/skills/cy-codex-loop/scripts/update-state.py`
+- `.agents/skills/cy-codex-loop/scripts/init-state.py`
+- `.compozy/tasks/orch-improvs/memory/task_21.md`
+- `.compozy/tasks/orch-improvs/memory/task_22.md`
+- `internal/daemon/review_router.go`
+- `internal/daemon/review_router_test.go`
+- `packages/site/lib/og/fonts.ts`
+- `packages/site/vitest.config.ts`
+- `internal/config/task_orchestration.go`
+- `internal/config/task_orchestration_test.go`
+- `internal/config/config.go`
+- `internal/config/merge.go`
+- `internal/config/tool_surface.go`
+- `internal/config/tool_surface_test.go`
+- `internal/store/globaldb/global_db.go`
+- `internal/store/globaldb/migrate_task_orchestration_profile.go`
+- `internal/store/globaldb/migrate_task_review_gate.go`
+- `internal/store/globaldb/schema_task_orchestration_profile.go`
+- `internal/store/globaldb/schema_task_review_gate.go`
+- `internal/store/globaldb/migrate_workspace.go`
+- `internal/store/globaldb/global_db_review_gate_schema_test.go`
+- `internal/store/globaldb/global_db_task_orchestration_schema_test.go`
+- `internal/store/globaldb/global_db_task_projection.go`
+- `internal/notifications/errors.go`
+- `internal/notifications/cursor.go`
+- `internal/store/globaldb/schema_notification_cursor.go`
+- `internal/store/globaldb/migrate_notification_cursor.go`
+- `internal/store/globaldb/global_db_notification_cursor.go`
+- `internal/store/globaldb/global_db_notification_cursor_test.go`
+- `internal/bridges/task_subscription.go`
+- `internal/bridges/task_notifier.go`
+- `internal/bridges/task_notifier_test.go`
+- `internal/store/globaldb/schema_bridge_task_subscription.go`
+- `internal/store/globaldb/migrate_bridge_task_subscription.go`
+- `internal/store/globaldb/global_db_bridge_task_subscription_test.go`
+- `.compozy/tasks/orch-improvs/memory/free-iter-016.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-018.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-020.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-022.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-024.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-026.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-028.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-030.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-032.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-034.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-036.md`
+- `.compozy/tasks/orch-improvs/memory/free-iter-038.md`
+- `internal/api/contract/tasks.go`
+- `internal/api/core/tasks.go`
+- `internal/api/core/tasks_test.go`
+- `internal/api/httpapi/routes.go`
+- `internal/api/udsapi/routes.go`
+- `internal/api/spec/spec.go`
+- `internal/cli/client.go`
+- `internal/cli/task.go`
+- `internal/cli/task_test.go`
+- `openapi/agh.json`
+- `web/src/generated/agh-openapi.d.ts`
+- `packages/site/content/runtime/cli-reference/task/profile/`
+- `packages/site/content/runtime/cli-reference/task/review/`
+- `internal/api/core/task_reviews.go`
+- `internal/skills/bundled/skills/agh-task-worker/SKILL.md`
+- `internal/skills/bundled/skills/agh-orchestrator/SKILL.md`
+- `internal/skills/bundled/skills/agh-task-reviewer/SKILL.md`
+- `internal/skills/bundled/bundled_test.go`
+- `internal/tools/builtin_ids.go`
+- `internal/tools/builtin/autonomy.go`
+- `internal/tools/builtin/toolsets.go`
+- `internal/tools/builtin/builtin_test.go`
+- `internal/tools/builtin/tasks.go`
+- `internal/daemon/native_review_tools.go`
+- `internal/daemon/native_profile_tools.go`
+- `internal/daemon/native_tools.go`
+- `internal/daemon/native_tools_test.go`
+- `internal/task/review.go`
+- `internal/task/review_test.go`
+- `internal/task/manager_review.go`
+- `internal/task/manager_review_test.go`
+- `internal/store/globaldb/global_db_task_review.go`
+- `internal/store/globaldb/global_db_task_review_test.go`
+- `internal/session/manager_prompt.go`
+- `internal/session/manager_test.go`
+- `internal/extension/host_api_test.go`
+- `internal/extension/manager.go`
+- `internal/store/schema.go`
+- `internal/store/globaldb/global_db_task_test.go`
+- `internal/store/globaldb/global_db_test.go`
+- `internal/store/globaldb/global_db_soul_test.go`
+- `internal/store/globaldb/global_db_heartbeat_test.go`

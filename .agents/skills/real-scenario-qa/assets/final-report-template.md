@@ -1,4 +1,6 @@
-# Real Scenario QA Final Report
+# Real Scenario QA — Observer Report
+
+The QA observer never directs the agents under test. This report documents what the AGH runtime produced under one in-persona operator kickoff, against the playbook's required deliverables and collaboration loops.
 
 ## Claim
 
@@ -6,7 +8,8 @@
 
 ## Scope
 
-- Scenario:
+- Playbook: <playbook-ref>
+- Scenario slug:
 - Workspace:
 - QA artifacts:
 - Commit/build:
@@ -17,93 +20,67 @@
 - Behavioral charter:
 - Journey log:
 - Provider attempt:
+- Observation summary:
 
-## Behavioral Scenario Charter
+## Operator kickoff
 
-- Startup situation:
-- Operator intent:
-- Expected business outcome:
-- Agent roles:
-- Live provider plan:
-- Realistic disruption probes:
-- Smoke checks used only as readiness gates:
+- Persona: <name> (<role>) — <company>
+- Posted at:
+- Recorded in: `journey-log.jsonl` (kickoff: true)
+- Forbidden-phrase scan: PASS / FAIL
 
-## Real User Journey Evidence
+## Playbook compliance
 
-| Journey | Operator Goal | Surfaces Used | Persisted Objects | Verdict | Evidence |
-|---|---|---|---|---|---|
-| | | | | | |
+### Deliverable counts (auditor C16)
 
-## Live Agent / LLM Evidence
+| deliverable_type | required | found | valid (parsed/compiled) | invalid notes |
+|---|---:|---:|---:|---|
+|  |  |  |  |  |
 
-| Agent | Provider Session | Work Performed | Artifact/Decision/Message | State Verification | Verdict |
-|---|---|---|---|---|---|
-| | | | | | |
+### Collaboration loops (auditor C17)
 
-## Produced Artifacts
+| metric | required | observed |
+|---|---:|---:|
+| peer_messages_min |  |  |
+| review_cycles_min |  |  |
+| disagreements_resolved_min |  |  |
+| channels_active_min |  |  |
 
-| Artifact | Producer | Used Later By | Content Check | Evidence | Verdict |
-|---|---|---|---|---|---|
-| | | | | | |
+## Disruption probes seeded by the playbook
 
-## Scenario Tracks
-
-| Track | Verdict | Evidence |
-|---|---|---|
-| Operator launch day | | |
-| Feature in real use | | |
-| Live agent work | | |
-| Agent collaboration | | |
-| Task orchestration | | |
-| Automation in context | | |
-| Knowledge in context | | |
-| Hooks/extensions in context | | |
-| Operator Web understanding | | |
-| Recovery and long-running behavior | | |
-
-## Verification Gates
-
-| Command | Executed At | Exit Code | Verdict | Summary |
+| seed type | delivery | seed_at_minute | observed runtime response | verdict |
 |---|---|---:|---|---|
-| | | | | |
+|  |  |  |  |  |
 
-## Cross-Surface Product Truth
+## Cross-surface product truth
 
 | Surface | Tool | Workflow/Object | Evidence | Verdict |
 |---|---|---|---|---|
-| CLI | | | | |
-| Web | browser-use:browser or agent-browser fallback | | | |
-| API | | | | |
-| Runtime/persistence | | | | |
+| CLI |  |  |  |  |
+| Web | browser-use:browser or agent-browser fallback |  |  |  |
+| API |  |  |  |  |
+| Runtime/persistence |  |  |  |  |
 
-## Realistic Disruptions Attempted
+## Stall diagnosis (auditor C18)
 
-| Disruption | Why It Matters | Trigger | Expected Behavior | Actual Behavior | Verdict |
+- Stall detected: yes / no
+- If yes:
+  - Agent(s) silent:
+  - Task(s) unstarted:
+  - Channels silent:
+  - BUG report:
+
+## Agents that drove the runtime
+
+| Agent | Workspace | Provider session | Real artifacts authored | Channel messages | Reviews requested/answered |
 |---|---|---|---|---|---|
-| | | | | | |
+|  |  |  |  |  |  |
 
-## Smoke / Non-Release Evidence
+## Verification gates
 
-These checks prove readiness or regression coverage only. They do not satisfy behavioral release-grade QA by themselves.
-
-| Check | Purpose | Result | Evidence |
-|---|---|---|---|
-| | | | |
-
-## Issues Found
-
-| ID | Severity | Status | Summary |
-|---|---|---|---|
-| | | | |
-
-## Live Evidence
-
-- CLI:
-- API:
-- Web browser:
-- Live agent/LLM:
-- Artifacts:
-- Persistence/health:
+| Command | Executed at | Exit code | Verdict | Summary |
+|---|---|---:|---|---|
+|  |  |  |  |  |
 
 ## Audit Result
 
@@ -115,13 +92,23 @@ These checks prove readiness or regression coverage only. They do not satisfy be
 - Warnings:
 - Verdict: PASS | FAIL | BLOCKED
 
-## Blocked Validations
+## Issues filed against the AGH runtime
+
+| ID | Severity | Status | Summary |
+|---|---|---|---|
+|  |  |  |  |
+
+## Blocked validations
 
 - Browser-use:
 - Agent-browser:
 - Live provider/LLM:
 - Other:
 
-## Final Verdict
+## Final verdict
 
 -
+
+## Notes for the next observer
+
+- What the next run should change (different playbook, longer duration, different disruption seed):

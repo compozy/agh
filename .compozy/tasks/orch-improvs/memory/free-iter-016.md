@@ -1,0 +1,40 @@
+# Free Iteration 016 Memory
+
+- Slice: Add task execution profile domain types, task-service validation, and GlobalDB profile CRUD over task_execution_profiles selector tables.
+- Phase/action: B / execute_free_slice.
+- Status: completed.
+- Scope:
+  - Add `internal/task` profile value types and validation for coordinator/worker/review/participant/sandbox selectors.
+  - Add task-service read/write/delete methods that enforce task authority and reject active-run profile mutation.
+  - Add GlobalDB CRUD over `task_execution_profiles` and selector side tables.
+  - Add focused task-domain and GlobalDB tests.
+- Out of scope for this slice:
+  - HTTP/UDS/CLI/native tools.
+  - Session-start profile application and claim filtering.
+  - Review verdict persistence and continuation runs.
+  - Web/site/docs/lessons/QA/CodeRabbit gates.
+- Validation target:
+  - Focused `internal/task` and `internal/store/globaldb` tests.
+  - `make verify` before marking the slice complete.
+- Open risks:
+  - Keep selector tables as typed state; do not reconstruct profile from metadata JSON.
+  - Do not allow profile mutation while `tasks.current_run_id` points at an active run.
+- Implementation completed:
+  - Added `task.ExecutionProfile`, coordinator/worker/review/participant/sandbox selector value types, normalization, and validation options.
+  - Added task manager profile authority methods for get/set/delete, including read/write authorization, active-run mutation rejection, store persistence, and audit events.
+  - Added `GlobalDB` profile CRUD over `task_execution_profiles` plus typed selector side tables, replacing selectors transactionally on upsert.
+  - Updated task manager/store/test fakes to satisfy the profile interfaces.
+  - Added focused tests for profile normalization/validation, manager authority behavior, and GlobalDB selector persistence/replacement/delete.
+  - Fixed `internal/extension` Host API test cleanup to wait for in-flight prompt drains before stopping sessions, after `make verify` exposed a tempdir cleanup race under `-race`.
+- Validation evidence:
+  - `go test ./internal/task -run 'TestExecutionProfileValidation|TestTaskManagerExecutionProfiles' -count=1` passed.
+  - `go test ./internal/store/globaldb -run 'TestGlobalDBExecutionProfileStore' -count=1` passed.
+  - `go test ./internal/api/testutil ./internal/daemon -run 'TestDaemonNativeTools|TestDaemon' -count=1` passed.
+  - `go test ./internal/task ./internal/store/globaldb ./internal/api/testutil ./internal/daemon -count=1` passed.
+  - `go test -race ./internal/task -run 'TestExecutionProfileValidation|TestTaskManagerExecutionProfiles' -count=1` passed.
+  - `go test -race ./internal/store/globaldb -run 'TestGlobalDBExecutionProfileStore' -count=1` passed.
+  - `go test -race -parallel=4 ./internal/store/globaldb -count=1` passed in `151.941s`.
+  - `go test -race -parallel=4 ./internal/extension -run TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries -count=20` passed.
+  - `go test -race -parallel=4 ./internal/extension -count=1` passed in `71.999s`.
+  - First `make verify` failed on `internal/extension` tempdir cleanup for `TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries`; the cleanup race was fixed instead of bypassed.
+  - Final `make verify` passed with Bun lint/typecheck/test, Vitest `329 files / 2088 tests`, web build, `golangci-lint` `0 issues`, Go race gate `DONE 8177 tests in 37.298s`, and package boundaries respected.

@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Append one structured QA scenario action to journey-log.jsonl."""
+"""Append one structured QA scenario action to journey-log.jsonl.
+
+Mutating helper. Used by both the AGH runtime (when wired) and by the QA observer when it
+needs to record an out-of-band signal (e.g., a deliverable artifact landing on disk).
+"""
 
 from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def parse_json_arg(value: str, label: str) -> object:
@@ -32,6 +36,42 @@ def main() -> int:
     parser.add_argument("--task-kind", default="", choices=["", "root", "subtask", "dependency", "run"])
     parser.add_argument("--probe-id", default="", help="Disruption probe id when applicable")
     parser.add_argument("--phase", default="", help="trigger, observed, or result for disruption probes")
+    parser.add_argument(
+        "--artifact-type",
+        default="",
+        help="Playbook deliverable_type (tsx_page, go_service_stub, etc.) when this row records a produced artifact",
+    )
+    parser.add_argument(
+        "--produced-by-agent",
+        default="",
+        help="Agent id that authored the artifact (defaults to actor when unset)",
+    )
+    parser.add_argument(
+        "--used-later-by",
+        default="",
+        help="JSON array of consumer agent ids or task ids that later use this artifact",
+    )
+    parser.add_argument(
+        "--file-stats",
+        default="",
+        help="JSON object with artifact stats (e.g., lines, has_errors, parse_ok)",
+    )
+    parser.add_argument(
+        "--review-cycle",
+        default="",
+        choices=["", "requested", "verdict_approved", "verdict_changes_requested", "resubmitted"],
+        help="Mark this row as part of a review handoff cycle",
+    )
+    parser.add_argument(
+        "--disagreement-resolved",
+        action="store_true",
+        help="Mark this row as the resolution point of a disagreement between agents",
+    )
+    parser.add_argument(
+        "--kickoff",
+        action="store_true",
+        help="Mark this row as the operator kickoff (auditor exemption marker)",
+    )
     args = parser.parse_args()
 
     try:
@@ -42,6 +82,30 @@ def main() -> int:
     if not isinstance(ids, list):
         print("--ids must decode to a JSON array", file=sys.stderr)
         return 2
+
+    used_later: list[str] = []
+    if args.used_later_by:
+        try:
+            parsed = parse_json_arg(args.used_later_by, "--used-later-by")
+        except ValueError as err:
+            print(err, file=sys.stderr)
+            return 2
+        if not isinstance(parsed, list):
+            print("--used-later-by must decode to a JSON array", file=sys.stderr)
+            return 2
+        used_later = [str(item) for item in parsed]
+
+    file_stats: dict | None = None
+    if args.file_stats:
+        try:
+            parsed = parse_json_arg(args.file_stats, "--file-stats")
+        except ValueError as err:
+            print(err, file=sys.stderr)
+            return 2
+        if not isinstance(parsed, dict):
+            print("--file-stats must decode to a JSON object", file=sys.stderr)
+            return 2
+        file_stats = parsed
 
     log_path = Path(args.log)
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,6 +126,19 @@ def main() -> int:
         entry["probe_id"] = args.probe_id.strip()
     if args.phase:
         entry["phase"] = args.phase.strip().lower()
+    if args.artifact_type:
+        entry["artifact_type"] = args.artifact_type.strip()
+        entry["produced_by_agent"] = (args.produced_by_agent or args.actor).strip()
+    if used_later:
+        entry["used_later_by"] = used_later
+    if file_stats is not None:
+        entry["file_stats"] = file_stats
+    if args.review_cycle:
+        entry["review_cycle"] = args.review_cycle
+    if args.disagreement_resolved:
+        entry["disagreement_resolved"] = True
+    if args.kickoff:
+        entry["kickoff"] = True
 
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, sort_keys=True) + "\n")

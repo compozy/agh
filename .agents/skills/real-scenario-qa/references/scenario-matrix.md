@@ -1,50 +1,33 @@
-# Scenario Matrix
+# Playbook selection guide
 
-Select rows based on `scope-or-context`. Always include one behavior-first operator journey, one live agent/LLM track when reachable, one cross-surface truth check, and one realistic disruption probe. Smoke checks are readiness gates only and do not count as scenario completion. When `<QA_OUTPUT_PATH>/qa/scenario-contract.json` exists, its minimums are the release gate; missing minimums mean `FAIL` or `BLOCKED`, never `PASS`.
+Real-scenario QA selects exactly one playbook per run. The bootstrap materializes the playbook into the lab, the operator posts a single in-persona kickoff, and the AGH runtime drives the rest. The auditor enforces the playbook's `required_deliverables`, `required_collaboration`, and disruption-probe recovery — these are the release gate for that run, not the legacy contract minimums.
 
-| Track | Use When | Required Surfaces | Evidence |
+Available playbooks live in `references/playbooks/`. Read `references/playbooks/README.md` for the canonical index.
+
+## Selection table
+
+| Playbook | Pick when the change touches… | Stress profile | Required deliverables (summary) |
 |---|---|---|---|
-| Operator launch day | Preparing a broad release or validating readiness | verify gate, daemon, CLI, API, Web through browser-use or agent-browser fallback, persisted tasks/channels/artifacts | launch/rollback/QA artifacts, operator-visible status, CLI/Web/API parity, final gate |
-| Feature in real use | Branch introduces a complex feature | changed feature plus adjacent features that consume, display, or mutate the same state | before/after behavior, real artifacts, live scenario replay, regression tests |
-| Live agent work | Provider-backed agents are reachable | sessions, prompts, task-linked sessions, channel messages, generated artifacts, persisted transcripts/events | agent decisions, non-placeholder artifacts, task/channel compliance, provider boundary notes |
-| Agent collaboration | Agents coordinate work, hand off, or negotiate ownership | channels, peers, direct/say/receipt/trace messages, tasks, task runs, CLI/Web channel views | message timelines, ownership/claim evidence, handoff outcome, no wrong-agent or wrong-channel behavior |
-| Task orchestration | Agents spawn/manage work or task state changed | root tasks, subtasks, dependencies, claims, starts, completions, failures, retries, task-linked sessions | task tree, lifecycle transitions, blocked/unblocked behavior, operator-readable state |
-| Automation in context | Jobs, cron, triggers, hooks, or scheduler behavior changed | jobs, cron/every schedules, webhook triggers, hook runs, run history, artifacts, CLI/Web run views | user-visible side effects, generated artifacts, retry/fire-limit behavior, history clarity |
-| Knowledge in context | Knowledge, memory, retrieval, or workspace context changed | write/list/search/read/reindex/consolidate flows, agent prompts, CLI/Web knowledge views | created entries, search/open evidence, later agent/operator use, stale/historical behavior |
-| Hooks and extensions in context | Lifecycle hooks or extensions changed | extension install/enable/disable, hook catalog, hook runs, side effects, agent/skill/resource exposure | extension-provided capability use, hook side-effect files/logs, status visibility, failure reporting |
-| Operator Web understanding | UI behavior or read model changed | `browser-use:browser` flows, or `agent-browser` only when browser-use is unavailable, navigation, filters/toggles, details, loading/error states | screenshot/DOM evidence that real state is understandable and actionable |
-| Recovery and long-running behavior | Restart, interruption, stale data, memory, storage, or concurrency risk exists | daemon restart, health endpoints, DB size, process RSS, repeated runs, concurrent agents, historical views | recovery outcome, bounded growth, no stuck work, stale state handling, operator-facing history |
+| `northstar-pay` | Network channels, peer messaging, multi-corridor coordination, regulated copy | High channel volume, partner timeouts, claim compliance | 2 tsx_page, 2 tsx_component, 1 go_service_stub, 2 ts_test, 1 shell_script, 1 runbook_md |
+| `devtool-oss-launch` | CLI / release pipelines, docs surface, benchmark harness | Bench regression, signing failure, undocumented breaking change | 1 go_service_stub, 2 python_script, 1 shell_script, 1 tsx_page, 1 tsx_component, 1 ts_test, 1 runbook_md, 1 spec_md |
+| `consumer-saas-growth` | Persistence, segmentation, web read models, lifecycle automation | Silent telemetry drop, assignment skew, lifecycle misfire | 2 tsx_page, 1 tsx_component, 2 ts_module, 2 ts_test, 1 sql_migration, 1 runbook_md, 1 spec_md |
 
-## Minimum Scenario Composition
+When `[scope-or-context]` is unspecified, rotate the playbook (use the previous run's `PLAYBOOK_REF` from `bootstrap-manifest.json` and pick the next one alphabetically). Rotation prevents agents from memorizing one scenario.
 
-For broad release validation, include:
+## How a playbook satisfies the legacy contract
 
-1. Startup workspace bootstrap.
-2. A Behavioral Scenario Charter with operator intent, expected outcome, agent roles, live provider plan, and realistic disruption probes.
-3. At least eight agents across distinct company functions, with at least one provider-backed live agent workflow when reachable.
-4. At least five channels representing company areas.
-5. At least one automation job and one trigger that produce user-visible side effects.
-6. At least one task tree with dependencies and multiple runs tied to the operator journey.
-7. At least one knowledge entry that is written, searched, opened, and used by an agent or operator later in the scenario.
-8. At least one coherent artifact produced by an agent and used in a later step, not just created.
-9. At least one Web UI pass through `browser-use:browser` when the app has a Web surface, with `agent-browser` allowed only when browser-use is unavailable after setup.
-10. At least three realistic disruption probes, such as wrong agent assignment, blocked dependency, failed run, invalid trigger, missed handoff, interrupted session, retry, stale channel, historical data view, or confusing operator state.
-11. At least three CLI/Web/API/runtime parity checks that prove the same persisted objects or artifacts are correct across exposed surfaces.
-12. A strict audit run using `.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict` with no blockers.
+The bootstrap derives the legacy `scenario-contract.json` minimums from the selected playbook: agent count, differentiated role count, channel count, open-task roots, review dependencies, expected task runs, disruption probes, deliverable reuse, and required collaboration all come from the parsed playbook spec. You do not need to hand-edit the contract. The auditor checks legacy minimums (C1–C14) AND playbook minimums (C15–C18) on every run.
 
-The following do not satisfy broad release validation by themselves:
+## Anti-pattern: bare scenario without a playbook
 
-1. Running `make verify`.
-2. Creating one task or channel and listing it.
-3. Opening a Web page and confirming it renders.
-4. Prompting an agent only to echo a token.
-5. Producing placeholder artifacts that are not inspected or used.
+Calling `real-scenario-qa` without `--playbook` falls back to the legacy charter skeleton (UNFILLED placeholders). This path exists only for backwards compatibility with non-playbook QA flows (e.g., a single-feature smoke). Release-grade QA must always select a playbook — running the bare skeleton against the auditor will fail C16 (no required_deliverables to satisfy) and C17 (no required_collaboration to satisfy).
 
-For feature-focused validation, include the broad release baseline plus:
+## Adding a new playbook
 
-1. A scenario explicitly built around how a real operator or agent would use the feature.
-2. At least two adjacent features that consume, display, mutate, or depend on the feature's state.
-3. One historical or stale-data case when persistence is involved.
-4. One real agent decision, handoff, or artifact influenced by the feature when provider-backed agents are reachable.
-5. One concurrency, repeated-operation, recovery, or interruption case when orchestration is involved.
-6. One final browser-use check, or `agent-browser` fallback check when browser-use is unavailable, that proves the feature's output is understandable and actionable in the operator-facing UI.
+See `references/playbooks/README.md` "How to add a new playbook". Authoring rules:
+
+- Conform to `references/playbook-schema.json`.
+- Single ```` ```json ```` fenced block at the END of the playbook .md file (parser source of truth).
+- `kickoff_brief` and every agent `system_prompt` must pass `references/forbidden-prompt-phrases.md`.
+- `required_deliverables` total non-markdown count must be ≥ 4.
+- Disruption probe seeds must use `delivery: knowledge_file | channel_message | task_event | config_change` — never delivered as a direct prompt to an agent.

@@ -45,7 +45,10 @@ The bootstrap helper writes two canonical artifacts under:
     "BEHAVIORAL_CHARTER": "/abs/path/to/lab/qa-artifacts/qa/behavioral-scenario-charter.yaml",
     "JOURNEY_LOG": "/abs/path/to/lab/qa-artifacts/qa/journey-log.jsonl",
     "PROVIDER_ATTEMPT": "/abs/path/to/lab/qa-artifacts/qa/provider-attempt.json",
-    "AUDIT_COMMAND": "/abs/path/to/repo/.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py"
+    "AUDIT_COMMAND": "/abs/path/to/repo/.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py",
+    "PLAYBOOK_REF": "northstar-pay",
+    "KICKOFF_POSTED": "false",
+    "KICKOFF_TIMESTAMP": ""
   },
   "browser": {
     "mode": "browser-use",
@@ -58,10 +61,23 @@ The bootstrap helper writes two canonical artifacts under:
 ## QA evidence contract files
 
 - `scenario-contract.json` defines the release-grade minimums that downstream QA must satisfy before a `PASS` claim.
-- `behavioral-scenario-charter.yaml` is JSON-compatible YAML. It must name the startup situation, operator intent, business outcome, agents, channels, task tree, provider plan, cross-surface targets, disruption probes, and artifacts.
+- `behavioral-scenario-charter.yaml` is JSON-compatible YAML. It must name the startup situation, operator intent, business outcome, agents, channels, task tree, provider plan, cross-surface targets, disruption probes, and artifacts. When `--playbook` was passed, the charter is materialized from the playbook spec and includes `playbook_ref`, `required_deliverables`, and `required_collaboration`.
 - `journey-log.jsonl` is append-only structured evidence. Each meaningful CLI/API/Web/runtime/provider action must add one row.
 - `provider-attempt.json` records live provider-backed proof or the exact blocked boundary. A blocked provider boundary supports a `BLOCKED` result, not a live-provider `PASS`.
 - The auditor writes `qa-audit-report.json` and `qa-audit-report.md`; exit code `2` is a blocking QA failure.
+
+## Playbook scaffolding (when --playbook is passed)
+
+The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
+
+- `.agh/playbook.json` — the resolved playbook spec (the canonical structured JSON parsed from `references/playbooks/<ref>.md`).
+- `.agh/agents/<agent-id>.json` — one file per agent declared by the playbook (id, role, persona, system_prompt, workspace_id, workspace_path, skills, playbook_ref).
+- `.agh/tasks/open-tasks.json` — array of open tasks with owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, channel, playbook_ref.
+- `.agh/disruption-seeds.json` — playbook disruption_probe_seeds for downstream consumers.
+- `workspaces/<workspace-name>/README.md` — per-workspace stub README.
+- `knowledge/<...>` — every knowledge file declared by the playbook.
+
+`PLAYBOOK_REF` and `KICKOFF_POSTED=false` are written to the manifest env. `real-scenario-qa` Step 4 flips `KICKOFF_POSTED=true` and sets `KICKOFF_TIMESTAMP` after posting the single in-persona kickoff.
 
 ## Reuse policy
 

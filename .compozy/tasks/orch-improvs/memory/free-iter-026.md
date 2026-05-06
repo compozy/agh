@@ -1,0 +1,28 @@
+# Free Slice 026 - Task Session Sandbox Profile Selection
+
+- Timestamp: 2026-05-05T12:00:48Z
+- Phase/action: `B / execute_free_slice`
+- Slice: `Apply TaskExecutionProfile sandbox inherit, none, and ref selection to task session starts without bypassing sandbox authorization.`
+- Acceptance anchors:
+  - `_techspec.md` Implementation Step 4: task execution profiles reach daemon/session runtime, including sandbox selection.
+  - `_techspec_orchestration.md` worker profile contract: task worker session start resolves `SandboxPolicy` as `inherit`, `none`, or `ref`, using workspace defaults only for inherit.
+- Intended code surface:
+  - `internal/daemon`: translate `task.ExecutionProfile.Sandbox` into session create options.
+  - `internal/session`: add runtime sandbox override fields that still resolve named sandbox refs through workspace config.
+  - `internal/session`: support explicit no-sandbox session starts without requiring a sandbox provider.
+  - Tests: prove daemon create opts for `none`/`ref`, session sandbox ref resolution, and explicit no-sandbox startup.
+- Implemented code surface:
+  - `internal/daemon`: `taskSessionBridge` now maps profile sandbox modes into `session.CreateOpts.SandboxRef` or `DisableSandbox`.
+  - `internal/session`: `CreateOpts` now has sandbox runtime override fields, create-start resolution applies named sandbox refs through workspace config, and explicit no-sandbox starts skip sandbox registry/provider setup.
+  - `internal/session`: resumed sessions with nil sandbox metadata keep sandbox disabled, and disabled starts never inherit `DestroyOnStop`.
+  - Tests cover daemon profile-to-create-opts mapping for sandbox `ref` and `none`, session runtime sandbox-ref resolution, explicit no-sandbox start, and conflicting sandbox-ref/no-sandbox options.
+- Verification evidence:
+  - `go test ./internal/session -run 'TestSessionSandboxCreateAppliesRuntimeSandboxOverride|TestCreateAppliesRuntimeModelOverride' -count=1`
+  - `go test ./internal/daemon -run 'TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime' -count=1`
+  - `go test -race ./internal/session -run 'TestSessionSandboxCreateAppliesRuntimeSandboxOverride|TestSessionSandboxStartPrepareSyncAndLaunchSequence|TestCreateAppliesRuntimeModelOverride' -count=1`
+  - `go test -race ./internal/daemon -run 'TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime|TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions' -count=1`
+  - `make lint` initially failed with `gocritic hugeParam` because a helper accepted `workspace.ResolvedWorkspace` by value; fixed by mutating the local resolved workspace through a pointer.
+  - `make lint` PASS with `0 issues`.
+  - `make verify` PASS: Bun lint/typecheck/test, Vitest `329 files / 2088 tests`, web build, `golangci-lint` `0 issues`, Go race gate `DONE 8213 tests in 113.615s`, and package boundaries respected.
+- Explicitly out of this slice:
+  - Review routing, API/UDS/CLI/native tools, web/site/docs, QA pair, and CodeRabbit rounds.

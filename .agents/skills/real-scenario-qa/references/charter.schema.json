@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AGH Behavioral Scenario Charter",
+  "description": "Charter consumed by the auditor. When the scenario is playbook-driven (real-scenario-qa with --playbook), the bootstrap materializes this charter from the playbook spec — so playbook_ref, required_deliverables, and required_collaboration are populated automatically.",
   "type": "object",
   "additionalProperties": true,
   "required": [
@@ -101,6 +102,30 @@
     },
     "artifacts": {
       "type": "array"
+    },
+    "playbook_ref": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "When the charter was materialized from a playbook, this is the playbook ref (e.g., northstar-pay)."
+    },
+    "required_deliverables": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "description": "Map of deliverable_type → minimum count of valid (parses/compiles/runs) artifacts the auditor must find."
+    },
+    "required_collaboration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "peer_messages_min": { "type": "integer", "minimum": 1 },
+        "review_cycles_min": { "type": "integer", "minimum": 1 },
+        "disagreements_resolved_min": { "type": "integer", "minimum": 0 },
+        "channels_active_min": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "kickoff_brief": {
+      "type": "string",
+      "description": "Single in-persona operator message posted at scenario start. Must not contain any forbidden prompt phrase."
     }
   }
 }

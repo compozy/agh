@@ -66,15 +66,16 @@ Execute QA as a real operator using the product. Smoke checks, unit tests, integ
 Skip this step if the project has no Web UI surface.
 
 1. Read `references/web-ui-qa.md` for the full browser testing procedure and checklist.
-2. Use `browser-use:browser` first when the Browser plugin is available or when the bootstrap manifest says `BROWSER_MODE=browser-use`. Read and follow that skill before the first browser action.
-3. If browser-use is unavailable after setup, use the `agent-browser` CLI as the approved fallback. The fallback core loop is: **open, snapshot, interact, re-snapshot, verify**. Valid commands are: `open`, `back`, `forward`, `reload`, `snapshot -i`, `click @ref`, `fill @ref "text"`, `select @ref "value"`, `press Key`, `check @ref`, `uncheck @ref`, `wait`, `get text @ref`, `get url`, `get title`, `screenshot`, `state save`, `state load`, `close`. Do not invent commands outside this set.
-4. For each critical user flow identified in Step 2, execute the flow with browser-use first or the approved agent-browser fallback, capture URL/snapshot/screenshot evidence, and record which browser tool was used.
-5. Test critical form flows: fill valid data and verify success, fill invalid data and verify error messages appear.
-6. When the changed surface includes responsive behavior, test at multiple viewports. Read the viewport testing section of `references/web-ui-qa.md` for session setup.
-7. Verify navigation flows: page transitions, back/forward, deep links, and 404 handling.
-8. Check error and loading states: trigger error conditions and verify the UI handles them gracefully.
-9. Verify the operator can understand and act on the real scenario state in the Web UI. A route rendering, list count, or empty page check is not enough.
-10. Close the browser session after all fallback flows complete: `agent-browser close`.
+2. When a real-scenario QA playbook is active (`PLAYBOOK_REF` set in the bootstrap manifest), the **primary Web target is the playbook product** — the TSX pages and components produced by the agents under test (e.g., the Northstar Pay hero page, the Lumen Notes variant landings). Render and validate those artifacts. The AGH web UI itself is exercised separately as a cross-surface truth check, not as the user-facing target.
+3. Use `browser-use:browser` first when the Browser plugin is available or when the bootstrap manifest says `BROWSER_MODE=browser-use`. Read and follow that skill before the first browser action.
+4. If browser-use is unavailable after setup, use the `agent-browser` CLI as the approved fallback. The fallback core loop is: **open, snapshot, interact, re-snapshot, verify**. Valid commands are: `open`, `back`, `forward`, `reload`, `snapshot -i`, `click @ref`, `fill @ref "text"`, `select @ref "value"`, `press Key`, `check @ref`, `uncheck @ref`, `wait`, `get text @ref`, `get url`, `get title`, `screenshot`, `state save`, `state load`, `close`. Do not invent commands outside this set.
+5. For each critical user flow identified in Step 2, execute the flow with browser-use first or the approved agent-browser fallback, capture URL/snapshot/screenshot evidence, and record which browser tool was used.
+6. Test critical form flows: fill valid data and verify success, fill invalid data and verify error messages appear.
+7. When the changed surface includes responsive behavior, test at multiple viewports. Read the viewport testing section of `references/web-ui-qa.md` for session setup.
+8. Verify navigation flows: page transitions, back/forward, deep links, and 404 handling.
+9. Check error and loading states: trigger error conditions and verify the UI handles them gracefully.
+10. Verify the operator can understand and act on the real scenario state in the Web UI. A route rendering, list count, or empty page check is not enough.
+11. Close the browser session after all fallback flows complete: `agent-browser close`.
 
 **Step 6: Diagnose and Fix Regressions**
 

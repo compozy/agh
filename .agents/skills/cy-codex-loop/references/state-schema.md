@@ -16,7 +16,7 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 | `slug` | string | Directory name under `.compozy/tasks/`. Mirrors the value passed at bootstrap. |
 | `created_at` | RFC3339 UTC | When `init-state.py` first wrote the file. |
 | `last_updated` | RFC3339 UTC | When `update-state.py` last touched the file. |
-| `mode` | enum: `tasks` `free` | Decided once at bootstrap. `tasks` if `_tasks.md` exists; `free` otherwise. Never changes after bootstrap. |
+| `mode` | enum: `tasks` `free` | Decided at bootstrap. `tasks` if `_tasks.md` exists; `free` otherwise. May change only through `update-state.py --reconcile-tasks` when task files are authored after a free-mode bootstrap. |
 | `iteration` | int ≥ 0 | Monotonic counter. `update-state.py` increments it once per call. |
 | `goal_signature` | string | Verbatim text from the user's `[[CODEX_LOOP goal="..."]]` header (or manual invocation reason). Read-only after bootstrap. |
 | `tasks.total` | int | Total entries in `_tasks.md`. Populated only in `mode=tasks`. |
@@ -40,7 +40,7 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 ## Invariants
 
 1. There is no top-level `current_phase`: `detect-phase.py` derives the next phase from `state.yaml` plus the filesystem every time. Phase labels live only in `iterations[].phase` as history.
-2. `mode` is immutable after bootstrap. Switching modes requires deleting `state.yaml` and starting over.
+2. `mode` is stable after bootstrap unless `update-state.py --reconcile-tasks` is used to rebuild `tasks.*` from task-file frontmatter after `_tasks.md` is authored later in the workflow. Do not hand-edit `mode`.
 3. `coderabbit.rounds_clean_streak` resets to 0 the instant any new unresolved critical/high issue appears, even mid-round.
 4. `progress.checklist[]` items move only forward (`pending → in_progress → completed`). Reverting requires a new entry.
 5. `iterations[]` is append-only; older entries get pruned by `update-state.py` once it exceeds 50, never edited.

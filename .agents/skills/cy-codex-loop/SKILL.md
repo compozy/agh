@@ -71,7 +71,7 @@ Run exactly one of the branches below. Do not start another phase in the same it
 
 ### Phase B mode=tasks — Execute one task
 
-1. Pick the head of `state.tasks.pending`. Read the corresponding `.compozy/tasks/<slug>/<task_NN>.md` to confirm its frontmatter `status:` is `pending`. Frontmatter wins — if it disagrees with state.yaml, reconcile state with `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --task-completed <stem>` for any already-finished task, then re-run `.agents/skills/cy-codex-loop/scripts/detect-phase.py`.
+1. Pick the head of `state.tasks.pending`. Read the corresponding `.compozy/tasks/<slug>/<task_NN>.md` to confirm its frontmatter `status:` is `pending` or `in_progress`. Frontmatter wins — if it disagrees with state.yaml, reconcile state with `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --task-completed <stem>` for any already-finished task, or `--reconcile-tasks` when the task graph was authored after free-mode bootstrap, then re-run `.agents/skills/cy-codex-loop/scripts/detect-phase.py`.
 2. Activate `cy-spec-preflight` in `task-body` mode for the picked file.
 3. Read `references/frontend-docs-delegation.md`. If the task frontmatter `type:` is `frontend` or `docs`, the delegation lane is mandatory. If `type:` is missing, delegate only when the owned paths / acceptance scope are exclusively frontend/docs surfaces per that reference.
 4. Pass these paths to `cy-workflow-memory` in the lane that will execute the work (per `references/memory-protocol.md`): workflow memory directory `.compozy/tasks/<slug>/memory/`, shared `.compozy/tasks/<slug>/memory/MEMORY.md`, current `.compozy/tasks/<slug>/memory/<task_NN>.md`.
@@ -152,7 +152,7 @@ When invoked under `~/dev/ai/codex-loop-plugin` in goal mode, the user pastes a 
 ## Error Handling
 
 - **`_techspec.md` missing at bootstrap**: write blocker to memory, run `.agents/skills/cy-codex-loop/scripts/update-state.py --blocker "techspec_missing"`, stop.
-- **Mode disagreement**: `.agents/skills/cy-codex-loop/scripts/init-state.py` exits 4 if `--mode` overrides the filesystem-detected mode. Reconcile by adding/removing `_tasks.md` rather than fighting the script.
+- **Mode disagreement**: `.agents/skills/cy-codex-loop/scripts/init-state.py` exits 4 if `--mode` overrides the filesystem-detected mode. Reconcile by adding/removing `_tasks.md` before bootstrap, or by running `.agents/skills/cy-codex-loop/scripts/update-state.py <slug> --reconcile-tasks` when `_tasks.md` and task files were intentionally authored after a free-mode bootstrap.
 - **`state.yaml` parse failure**: `.agents/skills/cy-codex-loop/scripts/detect-phase.py` exits 1 with the parse error on stderr. Inspect the file; the most likely cause is hand-editing. Restore from `git diff` and resume.
 - **`.agents/skills/cy-codex-loop/scripts/coderabbit-to-rounds.py` exit 4**: the target `reviews-NNN/` already has files. Re-derive `NNN` (use `ls` rather than memory) and pass a fresh directory.
 - **`cy-final-verify` FAIL**: do not advance the phase. Run `.agents/skills/cy-codex-loop/scripts/update-state.py --verify-fail --action "verify FAIL: <summary>" --outcome blocked` and let the next iteration re-enter the same phase to fix the failure. After two consecutive verify failures in the same phase, declare a blocker and stop (per the two-touch rule).

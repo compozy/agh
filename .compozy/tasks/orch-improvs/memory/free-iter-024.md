@@ -1,0 +1,29 @@
+# Free Slice 024 - Task Session Profile Selection
+
+- Timestamp: 2026-05-05T11:23:44Z
+- Phase/action: `B / execute_free_slice`
+- Slice: `Apply TaskExecutionProfile worker agent, provider, and model selection to task session starts.`
+- Acceptance anchors:
+  - `_techspec.md` Implementation Step 4: worker/session profile resolution reaches daemon session start.
+  - `_techspec_orchestration.md` worker profile contract: task worker session start uses effective worker agent/provider/model, falling back to workspace defaults when fields inherit/empty.
+- Implemented code surface:
+  - `internal/task`: `StartTaskSession` now carries the effective execution profile, validates profile/task identity, and loads persisted profile state before handing the run to the session executor.
+  - `internal/daemon`: task session bridge maps worker `agent_name`, `provider`, and `model` from the execution profile into `session.CreateOpts`.
+  - `internal/session` + `internal/config`: session creation now has a runtime model override path, and provider/model override resolution still flows through provider config validation.
+  - `internal/daemon`: coordinator runtime now passes configured coordinator model through the same `session.CreateOpts.Model` field.
+  - `internal/automation`: fixed a flaky test synchronization bug exposed by `make verify`; the test store now waits for delivery-error persistence instead of assuming dispatcher completion means scheduler diagnostics were already recorded.
+- Verification evidence:
+  - `go test ./internal/config -run TestResolveSessionAgent -count=1`
+  - `go test ./internal/session -run TestCreateAppliesRuntimeModelOverride -count=1`
+  - `go test ./internal/task -run 'TestManagerStartRunExecutionProfile|TestManagerStartRunPersistsDedicatedSessionAfterCallerCancellation' -count=1`
+  - `go test ./internal/daemon -run 'TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime|TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions|TestCoordinatorRuntimeBootstrapsCoordinatorSession' -count=1`
+  - `go test -race ./internal/session -run TestCreateAppliesRuntimeModelOverride -count=1`
+  - `go test -race ./internal/task -run 'TestManagerStartRunExecutionProfile|TestManagerStartRunPersistsDedicatedSessionAfterCallerCancellation' -count=1`
+  - `go test -race ./internal/daemon -run 'TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime|TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions|TestCoordinatorRuntimeBootstrapsCoordinatorSession' -count=1`
+  - `go test ./internal/config ./internal/session ./internal/task ./internal/daemon -count=1`
+  - `go test -race -parallel=4 ./internal/automation -run TestSchedulerRecordsDeliveryErrorWithoutRollingBackCursor -count=20`
+  - `go test -race -parallel=4 ./internal/automation -count=1`
+  - `make lint`
+  - `make verify` PASS: Bun lint/typecheck/test, Vitest `329 files / 2088 tests`, web build, `golangci-lint` `0 issues`, Go race gate `DONE 8207 tests in 20.121s`, and package boundaries respected.
+- Explicitly out of this slice:
+  - Sandbox override selection, review routing, API/UDS/CLI/native tools, web/site/docs, QA pair, and CodeRabbit rounds.

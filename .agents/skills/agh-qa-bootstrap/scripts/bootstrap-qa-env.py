@@ -262,36 +262,88 @@ def discover_project_contract(repo_root: Path) -> dict:
     return json.loads(proc.stdout)
 
 
-def scenario_profile(scenario_slug: str) -> str:
+def scenario_profile(scenario_slug: str, playbook: dict | None = None) -> str:
+    if playbook is not None:
+        return "broad"
     broad_markers = ("release", "broad", "full", "final", "launch", "scenario")
     if any(marker in scenario_slug for marker in broad_markers):
         return "broad"
-    return "broad"
+    return "feature"
 
 
-def build_scenario_contract(repo_root: Path, scenario_slug: str) -> dict:
-    profile = scenario_profile(scenario_slug)
-    broad_minimums = {
-        "agents": 8,
-        "differentiated_roles": 6,
-        "channels": 5,
+def build_contract_minimums(scenario_slug: str, playbook: dict | None = None) -> dict:
+    if playbook is None:
+        profile = scenario_profile(scenario_slug)
+        if profile == "feature":
+            return {
+                "agents": 4,
+                "differentiated_roles": 3,
+                "channels": 3,
+                "tasks": {
+                    "roots": 1,
+                    "subtasks": 0,
+                    "dependencies": 0,
+                    "runs": 1,
+                },
+                "provider_backed_sessions": 1,
+                "cross_surface_objects": 1,
+                "disruption_probes": 1,
+                "artifacts_used_later": 1,
+                "surfaces_required": ["cli", "api", "web", "runtime", "provider"],
+            }
+        return {
+            "agents": 8,
+            "differentiated_roles": 6,
+            "channels": 5,
+            "tasks": {
+                "roots": 2,
+                "subtasks": 4,
+                "dependencies": 2,
+                "runs": 6,
+            },
+            "provider_backed_sessions": 1,
+            "cross_surface_objects": 3,
+            "disruption_probes": 3,
+            "artifacts_used_later": 2,
+            "surfaces_required": ["cli", "api", "web", "runtime", "provider"],
+        }
+
+    agents = [agent for agent in playbook.get("agents", []) if isinstance(agent, dict)]
+    roles = {str(agent.get("role", "")).strip().lower() for agent in agents if agent.get("role")}
+    channels = [channel for channel in playbook.get("channels", []) if isinstance(channel, dict)]
+    open_tasks = [task for task in playbook.get("open_tasks", []) if isinstance(task, dict)]
+    review_dependencies = [task for task in open_tasks if task.get("review_required_by")]
+    disruption_seeds = [
+        seed for seed in playbook.get("disruption_probe_seeds", []) if isinstance(seed, dict)
+    ]
+    return {
+        "agents": len(agents),
+        "differentiated_roles": len(roles),
+        "channels": len(channels),
         "tasks": {
-            "roots": 2,
-            "subtasks": 4,
-            "dependencies": 2,
-            "runs": 6,
+            "roots": len(open_tasks),
+            "subtasks": 0,
+            "dependencies": len(review_dependencies),
+            "runs": len(open_tasks),
         },
         "provider_backed_sessions": 1,
-        "cross_surface_objects": 3,
-        "disruption_probes": 3,
-        "artifacts_used_later": 2,
+        "cross_surface_objects": min(3, len(open_tasks)),
+        "disruption_probes": len(disruption_seeds),
+        "artifacts_used_later": min(2, len(review_dependencies)),
         "surfaces_required": ["cli", "api", "web", "runtime", "provider"],
+        "required_deliverables": playbook.get("required_deliverables", {}),
+        "required_collaboration": playbook.get("required_collaboration", {}),
     }
+
+
+def build_scenario_contract(repo_root: Path, scenario_slug: str, playbook: dict | None = None) -> dict:
+    profile = scenario_profile(scenario_slug, playbook)
+    minimums = build_contract_minimums(scenario_slug, playbook)
     return {
         "schema_version": 1,
         "release_grade": profile,
         "scope_slug": scenario_slug,
-        "minimums": broad_minimums,
+        "minimums": minimums,
         "profile_overrides": {
             "feature": {
                 "agents": 4,
@@ -330,6 +382,141 @@ def build_charter_skeleton(scenario_slug: str) -> dict:
     }
 
 
+def build_charter_from_playbook(scenario_slug: str, playbook: dict) -> dict:
+    company_name = playbook.get("company", {}).get("name", scenario_slug)
+    tagline = playbook.get("company", {}).get("tagline", "")
+    operator_role = playbook.get("operator_persona", {}).get("role", "operator")
+    open_tasks = playbook.get("open_tasks", []) or []
+    agents = [
+        {
+            "id": agent["id"],
+            "role": agent["role"],
+            "responsibility": agent.get("persona", agent["role"]),
+        }
+        for agent in playbook.get("agents", [])
+        if isinstance(agent, dict)
+    ]
+    channels = [
+        {"id": channel["id"], "purpose": channel["purpose"]}
+        for channel in playbook.get("channels", [])
+        if isinstance(channel, dict)
+    ]
+    artifacts = [
+        {
+            "path": task.get("deliverable_path_hint", ""),
+            "producer_agent": task.get("owner_agent", ""),
+            "deliverable_type": task.get("deliverable_type", ""),
+            "used_later_by": [task.get("review_required_by")] if task.get("review_required_by") else [],
+        }
+        for task in open_tasks
+    ]
+    disruption_probes = [
+        {
+            "probe_id": f"{seed.get('type', 'probe')}-{seed.get('seed_at_minute', 0)}",
+            "type": seed.get("type", ""),
+            "delivery": seed.get("delivery", "knowledge_file"),
+            "expected_recovery": seed.get("expected_recovery", ""),
+        }
+        for seed in playbook.get("disruption_probe_seeds", [])
+    ]
+    return {
+        "schema_version": 1,
+        "startup_situation": f"{company_name} — {tagline}".strip(" —"),
+        "operator_intent": (
+            f"{operator_role} drives the active work in {company_name} via a single in-persona kickoff; "
+            "the AGH runtime then sustains autonomous collaboration without further QA prompts."
+        ),
+        "expected_business_outcome": (
+            "All required deliverables exist as runnable artifacts (compile/parse/run) and the "
+            "required collaboration loops complete (peer messages, reviews, disagreement resolved)."
+        ),
+        "playbook_ref": playbook.get("playbook_ref", ""),
+        "agents": agents,
+        "channels": channels,
+        "task_tree": {
+            "roots": [task["title"] for task in open_tasks if task.get("title")],
+            "subtasks": [],
+            "dependencies": [
+                {
+                    "task": task["title"],
+                    "review_required_by": task.get("review_required_by", ""),
+                }
+                for task in open_tasks
+                if task.get("review_required_by")
+            ],
+            "runs": [],
+        },
+        "provider_plan": {
+            "required": True,
+            "providers": [],
+            "reachability_probe": (
+                "Provider sessions are launched by the AGH runtime per the playbook agent registrations. "
+                "Each agent system prompt names the persona and product context."
+            ),
+            "fallback_boundary": None,
+        },
+        "cross_surface_targets": [
+            {"surface": "cli", "object": "task"},
+            {"surface": "api", "object": "session"},
+            {"surface": "web", "object": "channel"},
+            {"surface": "runtime", "object": "task_run"},
+        ],
+        "disruption_probes": disruption_probes,
+        "artifacts": artifacts,
+        "required_deliverables": playbook.get("required_deliverables", {}),
+        "required_collaboration": playbook.get("required_collaboration", {}),
+    }
+
+
+def load_playbook_via_helper(repo_root: Path, playbook_ref: str) -> dict:
+    helper = repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "playbook_loader.py"
+    if not helper.is_file():
+        raise RuntimeError(f"playbook loader not found at {helper}")
+    proc = subprocess.run(
+        [
+            "python3",
+            "-c",
+            (
+                "import json, sys; "
+                f"sys.path.insert(0, {str(helper.parent)!r}); "
+                "from playbook_loader import load_validated_playbook; "
+                f"print(json.dumps(load_validated_playbook({str(repo_root)!r}, {playbook_ref!r})))"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(proc.stdout)
+
+
+def seed_playbook_workspace(repo_root: Path, workspace_path: Path, playbook_ref: str) -> dict:
+    helper = repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "seed-playbook-workspace.py"
+    if not helper.is_file():
+        raise RuntimeError(f"seed-playbook-workspace.py not found at {helper}")
+    proc = subprocess.run(
+        [
+            "python3",
+            str(helper),
+            "--workspace",
+            str(workspace_path),
+            "--playbook",
+            playbook_ref,
+            "--repo-root",
+            str(repo_root),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError as err:
+        raise RuntimeError(
+            f"seed-playbook-workspace.py emitted non-JSON output: {err}\n{proc.stdout}"
+        ) from err
+
+
 def build_provider_attempt_stub() -> dict:
     return {
         "schema_version": 1,
@@ -346,15 +533,31 @@ def write_json_if_absent(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def seed_qa_evidence_contracts(repo_root: Path, qa_root: Path, scenario_slug: str) -> dict[str, Path]:
+def seed_qa_evidence_contracts(
+    repo_root: Path,
+    qa_root: Path,
+    scenario_slug: str,
+    playbook: dict | None = None,
+) -> dict[str, Path]:
     scenario_contract_path = qa_root / "scenario-contract.json"
     charter_path = qa_root / "behavioral-scenario-charter.yaml"
     journey_log_path = qa_root / "journey-log.jsonl"
     provider_attempt_path = qa_root / "provider-attempt.json"
     audit_command = repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "audit-qa-evidence.py"
 
-    write_json_if_absent(scenario_contract_path, build_scenario_contract(repo_root, scenario_slug))
-    write_json_if_absent(charter_path, build_charter_skeleton(scenario_slug))
+    scenario_contract = build_scenario_contract(repo_root, scenario_slug, playbook)
+    if playbook is not None and scenario_contract_path.exists():
+        scenario_contract_path.unlink()
+    write_json_if_absent(scenario_contract_path, scenario_contract)
+    if playbook is not None:
+        if charter_path.exists():
+            charter_path.unlink()
+        charter_path.write_text(
+            json.dumps(build_charter_from_playbook(scenario_slug, playbook), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    else:
+        write_json_if_absent(charter_path, build_charter_skeleton(scenario_slug))
     if not journey_log_path.exists():
         journey_log_path.write_text("", encoding="utf-8")
     write_json_if_absent(provider_attempt_path, build_provider_attempt_stub())
@@ -391,11 +594,24 @@ def main() -> int:
         default="",
         help="Reuse an existing bootstrap manifest for the same active QA session or loop continuation",
     )
+    parser.add_argument(
+        "--playbook",
+        default="",
+        help="Real-scenario QA playbook ref (e.g., northstar-pay). When set, charter and workspace "
+        "are materialized from .agents/skills/real-scenario-qa/references/playbooks/<ref>.md.",
+    )
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
     global_codex_home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).expanduser().resolve()
     scenario = slugify(args.scenario)
+    playbook_ref = args.playbook.strip()
+    playbook_data: dict | None = None
+    if playbook_ref:
+        try:
+            playbook_data = load_playbook_via_helper(repo_root, playbook_ref)
+        except (RuntimeError, subprocess.CalledProcessError, json.JSONDecodeError) as err:
+            raise RuntimeError(f"failed to load playbook {playbook_ref!r}: {err}") from err
 
     reused_lab = False
     status_notes: list[str] = []
@@ -428,9 +644,24 @@ def main() -> int:
     qa_root = qa_output_path / "qa"
     ensure_lab_scaffold(workspace_path, qa_output_path)
 
+    if playbook_data is not None and not reused_lab:
+        try:
+            seed_summary = seed_playbook_workspace(repo_root, workspace_path, playbook_ref)
+            status_notes.append(
+                f"seeded playbook {playbook_ref!r} ({len(seed_summary.get('agents_registered', []))} agents, "
+                f"{len(seed_summary.get('knowledge_files_written', []))} knowledge files)"
+            )
+        except (RuntimeError, subprocess.CalledProcessError) as err:
+            raise RuntimeError(f"seed-playbook-workspace failed for {playbook_ref!r}: {err}") from err
+
     manifest_path = qa_root / "bootstrap-manifest.json"
     env_path = qa_root / "bootstrap.env"
-    evidence_paths = seed_qa_evidence_contracts(repo_root, qa_root, workspace_info["SCENARIO_SLUG"])
+    evidence_paths = seed_qa_evidence_contracts(
+        repo_root,
+        qa_root,
+        workspace_info["SCENARIO_SLUG"],
+        playbook=playbook_data,
+    )
 
     if reused_lab and existing_manifest is not None:
         existing_env = existing_manifest.get("env", {})
@@ -478,6 +709,9 @@ def main() -> int:
             "JOURNEY_LOG": str(evidence_paths["JOURNEY_LOG"]),
             "PROVIDER_ATTEMPT": str(evidence_paths["PROVIDER_ATTEMPT"]),
             "AUDIT_COMMAND": str(evidence_paths["AUDIT_COMMAND"]),
+            "PLAYBOOK_REF": playbook_ref,
+            "KICKOFF_POSTED": "false",
+            "KICKOFF_TIMESTAMP": "",
         }
         write_runtime_config(agh_home, env_block["AGH_HTTP_PORT"], env_block["AGH_UDS_PATH"])
 
@@ -492,6 +726,11 @@ def main() -> int:
     env_block["JOURNEY_LOG"] = str(evidence_paths["JOURNEY_LOG"])
     env_block["PROVIDER_ATTEMPT"] = str(evidence_paths["PROVIDER_ATTEMPT"])
     env_block["AUDIT_COMMAND"] = str(evidence_paths["AUDIT_COMMAND"])
+    env_block.setdefault("PLAYBOOK_REF", playbook_ref)
+    env_block.setdefault("KICKOFF_POSTED", "false")
+    env_block.setdefault("KICKOFF_TIMESTAMP", "")
+    if playbook_ref:
+        env_block["PLAYBOOK_REF"] = playbook_ref
 
     browser_mode, browser_blocker = detect_browser_mode(global_codex_home)
     env_block["BROWSER_MODE"] = browser_mode
@@ -553,6 +792,8 @@ def main() -> int:
         "PROVIDER_ATTEMPT": env_block["PROVIDER_ATTEMPT"],
         "AUDIT_COMMAND": env_block["AUDIT_COMMAND"],
         "REUSED_LAB": "true" if reused_lab else "false",
+        "PLAYBOOK_REF": env_block.get("PLAYBOOK_REF", ""),
+        "KICKOFF_POSTED": env_block.get("KICKOFF_POSTED", "false"),
     }
     for key, value in outputs.items():
         print(f"{key}={value}")

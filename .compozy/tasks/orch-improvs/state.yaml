@@ -1,0 +1,448 @@
+# cy-codex-loop state.yaml -- managed by .agents/skills/cy-codex-loop/scripts/update-state.py. Do not hand-edit.
+slug: "orch-improvs"
+created_at: "2026-05-05T05:18:36Z"
+last_updated: "2026-05-06T02:11:04Z"
+mode: "tasks"
+iteration: 59
+goal_signature: "Implement the ENTIRE .compozy/tasks/orch-improvs"
+
+tasks:
+  total: 32
+  completed: ["task_01", "task_02", "task_03", "task_04", "task_05", "task_06", "task_07", "task_08", "task_09", "task_10", "task_11", "task_12", "task_13", "task_14", "task_15", "task_16", "task_17", "task_18", "task_19", "task_20", "task_21", "task_22", "task_23", "task_24", "task_25", "task_26", "task_27", "task_28", "task_29", "task_30", "task_31", "task_32"]
+  current: null
+  pending: []
+
+progress:
+  deliverables_complete: true
+  checklist:
+    - text: "Add typed task orchestration config defaults and validation for [task.orchestration], [task.orchestration.profile], and [task.orchestration.review]."
+      status: "completed"
+      iteration: 3
+    - text: "Add global DB orchestration/profile schema migration for task projection fields, run summaries/provenance, and task execution profile selector tables."
+      status: "completed"
+      iteration: 5
+    - text: "Unify task orchestration profile schema DDL between fresh global DB creation and migration v17 to prevent drift."
+      status: "completed"
+      iteration: 7
+    - text: "Add global DB review-gate schema migration for task review policy fields, task_run_reviews, and task_runs review trigger/continuation columns."
+      status: "completed"
+      iteration: 9
+    - text: "Maintain tasks.current_run_id projection through task-run claim, lease release, terminal, and recovery transitions."
+      status: "completed"
+      iteration: 11
+    - text: "Add durable notification cursor primitive and global DB migration for notification_cursors."
+      status: "completed"
+      iteration: 13
+    - text: "Add bridge task subscription persistence and terminal notifier consumer over notification_cursors."
+      status: "completed"
+      iteration: 15
+    - text: "Add task execution profile domain types, task-service validation, and GlobalDB profile CRUD over task_execution_profiles selector tables."
+      status: "completed"
+      iteration: 17
+    - text: "Add task run review domain types, GlobalDB review CRUD, and task manager review request/binding authority over task_run_reviews."
+      status: "completed"
+      iteration: 19
+    - text: "Add task run review verdict recording with approved/rejected/blocked events and idempotent continuation-run creation for rejected reviews."
+      status: "completed"
+      iteration: 21
+    - text: "Apply TaskExecutionProfile worker and participant eligibility filters to ClaimNextRun so ineligible agent names and missing capabilities cannot claim queued runs."
+      status: "completed"
+      iteration: 23
+    - text: "Apply TaskExecutionProfile worker agent, provider, and model selection to task session starts."
+      status: "completed"
+      iteration: 25
+    - text: "Apply TaskExecutionProfile sandbox inherit, none, and ref selection to task session starts without bypassing sandbox authorization."
+      status: "completed"
+      iteration: 27
+    - text: "Add bundled orchestration skills agh-orchestrator, agh-task-worker, and agh-task-reviewer with deterministic metadata and bundled loader coverage."
+      status: "completed"
+      iteration: 29
+    - text: "Add reviewer-bound native submit_run_review tool wired to task.Service.RecordRunReview and hidden without an active review request binding."
+      status: "completed"
+      iteration: 31
+    - text: "Add task execution profile native read, update, and delete tools wired to task.Service profile authority."
+      status: "completed"
+      iteration: 33
+    - text: "Add native review request, list, and show tools wired to task.Service review authority."
+      status: "completed"
+      iteration: 35
+    - text: "Add HTTP, UDS, CLI, and OpenAPI surfaces for task execution profile inspect, update, and delete."
+      status: "completed"
+      iteration: 37
+    - text: "Add HTTP, UDS, CLI, and OpenAPI surfaces for task run review request, list, show, and verdict submission."
+      status: "completed"
+      iteration: 39
+    - text: "Generate _tasks.md acceptance cross-walk with QA pair tail and Web/Docs Impact coverage for remaining orch-improvs work."
+      status: "completed"
+      iteration: 41
+    - text: "Add HTTP, UDS, CLI, and OpenAPI surfaces for bridge terminal notification subscriptions."
+      status: "completed"
+      iteration: 46
+
+qa:
+  report_done: true
+  execution_done: true
+
+coderabbit:
+  rounds_completed: 0
+  rounds_clean_streak: 0
+  rounds_required: 3
+  current_round_dir: null
+  unresolved_critical: 0
+  unresolved_high: 0
+
+verify:
+  last_run: "2026-05-06T02:11:04Z"
+  last_status: "PASS"
+
+iterations:
+  - n: 10
+    timestamp: "2026-05-05T06:51:24Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 11
+    timestamp: "2026-05-05T07:37:15Z"
+    phase: "B"
+    action: "slice Maintain tasks.current_run_id projection through task-run claim, lease release, terminal, and recovery transitions."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-010.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 12
+    timestamp: "2026-05-05T07:43:56Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 13
+    timestamp: "2026-05-05T08:10:11Z"
+    phase: "B"
+    action: "slice Add durable notification cursor primitive and global DB migration for notification_cursors."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-012.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 14
+    timestamp: "2026-05-05T08:17:24Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 15
+    timestamp: "2026-05-05T08:40:02Z"
+    phase: "B"
+    action: "slice Add bridge task subscription persistence and terminal notifier consumer over notification_cursors."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-014.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 16
+    timestamp: "2026-05-05T08:45:42Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 17
+    timestamp: "2026-05-05T09:24:20Z"
+    phase: "B"
+    action: "slice Add task execution profile domain types, task-service validation, and GlobalDB profile CRUD over task_execution_profiles selector tables."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-016.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 18
+    timestamp: "2026-05-05T09:31:10Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 19
+    timestamp: "2026-05-05T10:13:06Z"
+    phase: "B"
+    action: "slice Add task run review domain types, GlobalDB review CRUD, and task manager review request/binding authority over task_run_reviews."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-018.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 20
+    timestamp: "2026-05-05T10:16:12Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 21
+    timestamp: "2026-05-05T11:00:22Z"
+    phase: "B"
+    action: "slice Add task run review verdict recording with approved/rejected/blocked events and idempotent continuation-run creation for rejected reviews."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-020.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 22
+    timestamp: "2026-05-05T11:03:48Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 23
+    timestamp: "2026-05-05T11:14:55Z"
+    phase: "B"
+    action: "slice Apply TaskExecutionProfile worker and participant eligibility filters to ClaimNextRun so ineligible agent names and missing capabilities cannot claim queued runs."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-022.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 24
+    timestamp: "2026-05-05T11:23:44Z"
+    phase: "B"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 25
+    timestamp: "2026-05-05T11:42:42Z"
+    phase: "B"
+    action: "slice Apply TaskExecutionProfile worker agent, provider, and model selection to task session starts."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-024.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 26
+    timestamp: "2026-05-05T11:46:59Z"
+    phase: "B"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 27
+    timestamp: "2026-05-05T12:01:33Z"
+    phase: "B"
+    action: "slice Apply TaskExecutionProfile sandbox inherit, none, and ref selection to task session starts without bypassing sandbox authorization."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-026.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 28
+    timestamp: "2026-05-05T12:05:43Z"
+    phase: "B"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 29
+    timestamp: "2026-05-05T12:18:23Z"
+    phase: "B"
+    action: "slice Add bundled orchestration skills agh-orchestrator, agh-task-worker, and agh-task-reviewer with deterministic metadata and bundled loader coverage."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-028.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 30
+    timestamp: "2026-05-05T12:24:31Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 31
+    timestamp: "2026-05-05T12:39:52Z"
+    phase: "B"
+    action: "slice Add reviewer-bound native submit_run_review tool wired to task.Service.RecordRunReview and hidden without an active review request binding."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-030.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 32
+    timestamp: "2026-05-05T12:43:15Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 33
+    timestamp: "2026-05-05T12:55:27Z"
+    phase: "B"
+    action: "slice Add task execution profile native read, update, and delete tools wired to task.Service profile authority."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-032.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 34
+    timestamp: "2026-05-05T12:59:09Z"
+    phase: "?"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 35
+    timestamp: "2026-05-05T13:16:09Z"
+    phase: "B"
+    action: "slice Add native review request, list, and show tools wired to task.Service review authority."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-034.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 36
+    timestamp: "2026-05-05T13:22:14Z"
+    phase: "B"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 37
+    timestamp: "2026-05-05T13:46:37Z"
+    phase: "B"
+    action: "slice Add HTTP, UDS, CLI, and OpenAPI surfaces for task execution profile inspect, update, and delete."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-036.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 38
+    timestamp: "2026-05-05T13:49:54Z"
+    phase: "B"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 39
+    timestamp: "2026-05-05T14:24:48Z"
+    phase: "B"
+    action: "slice Add HTTP, UDS, CLI, and OpenAPI surfaces for task run review request, list, show, and verdict submission."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-038.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 40
+    timestamp: "2026-05-05T14:31:52Z"
+    phase: "B"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 41
+    timestamp: "2026-05-05T14:39:11Z"
+    phase: "B"
+    action: "slice Generate _tasks.md acceptance cross-walk with QA pair tail and Web/Docs Impact coverage for remaining orch-improvs work."
+    outcome: "completed"
+    memory_written: ["memory/free-iter-040.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 42
+    timestamp: "2026-05-05T14:44:27Z"
+    phase: "B"
+    action: "slice picked"
+    outcome: "completed"
+    memory_written: []
+    blockers: []
+  - n: 43
+    timestamp: "2026-05-05T15:36:44Z"
+    phase: "B"
+    action: "reconcile task graph after cy-create-tasks realignment"
+    outcome: "completed"
+    memory_written: ["memory/MEMORY.md"]
+    blockers: []
+  - n: 44
+    timestamp: "2026-05-05T15:45:55Z"
+    phase: "B"
+    action: "finalize task-mode state after verification"
+    outcome: "completed"
+    memory_written: ["memory/MEMORY.md"]
+    blockers: []
+  - n: 45
+    timestamp: "2026-05-05T16:10:52Z"
+    phase: "B"
+    action: "executed task_21"
+    outcome: "completed"
+    memory_written: ["memory/task_21.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 46
+    timestamp: "2026-05-05T16:11:05Z"
+    phase: "B"
+    action: "completed task_21 progress checklist entry"
+    outcome: "completed"
+    memory_written: ["memory/task_21.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 47
+    timestamp: "2026-05-05T16:42:16Z"
+    phase: "B"
+    action: "execute_task task_22 ReviewRouter runtime routing and reviewer binding orchestration"
+    outcome: "completed"
+    memory_written: ["memory/task_22.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 48
+    timestamp: "2026-05-05T17:21:30Z"
+    phase: "B"
+    action: "task task_23 Task Context Bundle and Review Continuation Redaction"
+    outcome: "completed"
+    memory_written: ["memory/task_23.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 49
+    timestamp: "2026-05-05T18:01:39Z"
+    phase: "B"
+    action: "execute_task task_24"
+    outcome: "completed"
+    memory_written: [".compozy/tasks/orch-improvs/memory/task_24.md", ".compozy/tasks/orch-improvs/memory/MEMORY.md"]
+    blockers: []
+  - n: 50
+    timestamp: "2026-05-05T18:22:58Z"
+    phase: "B"
+    action: "execute_task task_25 Notification Cursor Diagnostics and Bridge Subscription Lifecycle"
+    outcome: "completed"
+    memory_written: [".compozy/tasks/orch-improvs/memory/task_25.md", ".compozy/tasks/orch-improvs/memory/MEMORY.md"]
+    blockers: []
+  - n: 51
+    timestamp: "2026-05-05T19:35:41Z"
+    phase: "B"
+    action: "executed task_26 web data layer and stream SSE corrections"
+    outcome: "completed"
+    memory_written: ["memory/task_26.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 52
+    timestamp: "2026-05-05T20:27:45Z"
+    phase: "B"
+    action: "executed task_27"
+    outcome: "completed"
+    memory_written: ["memory/task_27.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 53
+    timestamp: "2026-05-05T21:12:43Z"
+    phase: "B"
+    action: "executed task_28"
+    outcome: "completed"
+    memory_written: ["memory/task_28.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 54
+    timestamp: "2026-05-05T21:49:41Z"
+    phase: "B"
+    action: "execute_task task_29"
+    outcome: "completed"
+    memory_written: ["memory/task_29.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 55
+    timestamp: "2026-05-05T22:21:55Z"
+    phase: "B"
+    action: "execute_task task_30"
+    outcome: "completed"
+    memory_written: ["memory/task_30.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 56
+    timestamp: "2026-05-05T22:33:19Z"
+    phase: "B"
+    action: "execute_task task_31"
+    outcome: "completed"
+    memory_written: ["memory/task_31.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 57
+    timestamp: "2026-05-05T23:46:37Z"
+    phase: "C"
+    action: "qa-execution produced"
+    outcome: "completed"
+    memory_written: ["memory/task_32.md", "memory/qa-execution.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 58
+    timestamp: "2026-05-06T01:16:17Z"
+    phase: "E"
+    action: "QA blocked on live Slack bridge terminal-delivery lane"
+    outcome: "blocked"
+    memory_written: [".compozy/tasks/orch-improvs/qa/pending-blockers.md"]
+    blockers: ["TC-INT-003/TC-SCEN-003 require live Slack bot_token/signing_secret and a real target; bridge brg-7b3e5ec6ee5cc52e remains auth_required and subscription-bridge-task-terminal-prime-agent cursor remains last_sequence=0."]
+  - n: 59
+    timestamp: "2026-05-06T02:11:04Z"
+    phase: "C"
+    action: "qa-execution re-scoped Slack skipped and verified bridge cursor via Telegram"
+    outcome: "completed"
+    memory_written: ["qa/pending-blockers.md"]
+    blockers: []

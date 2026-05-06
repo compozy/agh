@@ -72,7 +72,8 @@ Parse the user request to determine which deliverable to generate:
 
 **Step 4: Generate Manual Test Cases**
 
-1. Read `references/test_case_templates.md` to select the appropriate template variant (Real Scenario, Functional, UI, Integration, Regression, Security, Performance).
+1. When `<qa-output-path>/qa/bootstrap-manifest.json` exists and carries `PLAYBOOK_REF`, the **subject of every TC-FUNC-, TC-UI-, TC-INT-, TC-REG- case is the playbook product** — the TSX pages, scripts, services, and runbooks the AGH runtime is producing during the run. Treat the playbook as if a real startup had hired QA: the cases assert the product behaves correctly, not that QA itself ran. Reserve TC-SCEN- ids for cases derived from auditor blockers, not for prescriptive test scripts.
+2. Read `references/test_case_templates.md` to select the appropriate template variant (Real Scenario, Functional, UI, Integration, Regression, Security, Performance).
 2. Assign each test case an ID following the naming scheme:
 
    | Type | Prefix | Example |

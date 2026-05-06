@@ -1,8 +1,8 @@
 ---
 name: agh-qa-bootstrap
-description: Builds a reusable local QA bootstrap for AGH by creating a realistic scenario workspace, isolating AGH runtime paths and provider home, writing bootstrap-manifest.json and bootstrap.env, discovering the repository verification contract, and recording browser policy for downstream real-scenario-qa or qa-execution runs. Use when local QA would otherwise rebuild the lab from scratch or inherit broken global ~/.codex state. Do not use for single-command unit-test runs, static planning, or browser-only checks without daemon or workspace setup.
+description: Builds a reusable local QA bootstrap for AGH by creating an isolated scenario workspace, optionally materializing a real-scenario QA playbook (workspaces, knowledge files, agents, open task tree), isolating AGH runtime paths and provider home, writing bootstrap-manifest.json and bootstrap.env, discovering the repository verification contract, and recording browser policy for downstream real-scenario-qa or qa-execution runs. Use when local QA would otherwise rebuild the lab from scratch or inherit broken global ~/.codex state. Do not use for single-command unit-test runs, static planning, or browser-only checks without daemon or workspace setup.
 trigger: explicit
-argument-hint: "[scenario-slug]"
+argument-hint: "[scenario-slug] [--playbook <ref>]"
 ---
 
 # AGH QA Bootstrap
@@ -14,17 +14,19 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 ## Required Inputs
 
 - **scenario-slug** (optional): short context for the QA lab, such as `release-qa`, `autonomy`, or `hooks-network`. Defaults to `release-candidate`.
+- **--playbook \<ref\>** (required for real-scenario-qa runs): playbook ref under `.agents/skills/real-scenario-qa/references/playbooks/` (e.g., `northstar-pay`, `devtool-oss-launch`, `consumer-saas-growth`). When set, the helper materializes the playbook's workspaces, knowledge files, agent registrations, and open task tree, and replaces the legacy charter skeleton with a populated charter. When omitted, the legacy skeleton charter is generated for backwards compatibility with non-playbook flows.
 
 ## Procedures
 
 **Step 1: Run the Bootstrap CLI**
 
 1. Resolve the scenario slug from the user request. Default to `release-candidate`.
-2. For a new QA pass, execute the repo-root bootstrap helper:
-   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root .`
-3. Only when continuing the same active QA session or loop and a manifest path is already known, reuse that exact lab:
-   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . --reuse-manifest "<manifest-path>"`
-4. Read the helper output and record:
+2. When the caller is `real-scenario-qa`, the playbook ref is REQUIRED. Confirm `references/playbooks/<ref>.md` exists before running the helper.
+3. For a new QA pass, execute the repo-root bootstrap helper (bootstrap, mutating). Pass `--playbook` when applicable:
+   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"]`
+4. Only when continuing the same active QA session or loop and a manifest path is already known, reuse that exact lab:
+   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"] --reuse-manifest "<manifest-path>"`
+5. Read the helper output and record:
    - `SCENARIO_SLUG`
    - `WORKSPACE_PATH`
    - `QA_OUTPUT_PATH`
@@ -45,6 +47,8 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
    - `PROVIDER_ATTEMPT`
    - `AUDIT_COMMAND`
    - `REUSED_LAB`
+   - `PLAYBOOK_REF` (empty when `--playbook` was not passed)
+   - `KICKOFF_POSTED` (`false` until `real-scenario-qa` Step 4 posts the kickoff)
 
 **Step 2: Verify the Bootstrap Contract**
 
@@ -53,6 +57,7 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 3. Open `<QA_OUTPUT_PATH>/qa/bootstrap.env` only when shell export lines are needed.
 4. Treat `REUSED_LAB=true` as valid only when the manifest came from the same active QA session or loop continuation. Do not reuse older labs across separate QA passes just because they target the same feature or scenario slug.
 5. Confirm the helper created `<QA_OUTPUT_PATH>/qa/scenario-contract.json`, `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml`, `<QA_OUTPUT_PATH>/qa/journey-log.jsonl`, and `<QA_OUTPUT_PATH>/qa/provider-attempt.json`. These files are evidence scaffolding only; they do not validate behavior until downstream QA fills them and the auditor passes.
+6. When `--playbook` was passed, additionally confirm the helper created `<WORKSPACE_PATH>/.agh/playbook.json`, `<WORKSPACE_PATH>/.agh/agents/*.json`, `<WORKSPACE_PATH>/.agh/tasks/open-tasks.json`, and the knowledge files under `<WORKSPACE_PATH>/knowledge/`. The seeded `behavioral-scenario-charter.yaml` is a populated charter (not the UNFILLED skeleton).
 
 **Step 3: Launch Downstream QA with the Manifest**
 

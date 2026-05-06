@@ -6,24 +6,28 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 
 ## Index
 
-| ID                                                    | Title                                                                        | Class                   |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------- |
-| [L-001](L-001-detached-prompt-lifetime.md)            | HTTP request lifetime ≠ prompt execution lifetime                            | Concurrency / API       |
-| [L-002](L-002-tparallel-vs-tsetenv.md)                | `t.Parallel()` is incompatible with `t.Setenv`                               | Testing                 |
-| [L-003](L-003-task-runs-single-queue.md)              | `task_runs` is the single durable work queue                                 | Architecture / Autonomy |
-| [L-004](L-004-manual-equals-peer.md)                  | Manual operator paths converge with autonomous on same primitives            | Architecture / Autonomy |
-| [L-005](L-005-authoritative-primitive-exclusivity.md) | Authoritative primitives are exclusive — observe ≠ own                       | Architecture            |
-| [L-006](L-006-greenfield-delete-not-adapt.md)         | Greenfield + zero-legacy means delete, not adapt                             | Project posture         |
-| [L-007](L-007-e2e-follows-runtime-contract.md)        | E2E harness regressions follow runtime contract changes                      | Testing                 |
-| [L-008](L-008-schema-migrations-mandatory.md)         | Schema migrations are required even on fresh DBs                             | Persistence             |
-| [L-009](L-009-concurrent-worktree-deadlock.md)        | Concurrent worktree commits deadlock; isolate `AGH_HOME` + ports             | Workflow                |
-| [L-010](L-010-model-name-validation.md)               | Non-existent model name silently breaks the entire batch                     | Workflow / CI           |
-| [L-011](L-011-fraco-test-coverage-pushback.md)        | "Fraco" test coverage is the most repeated pushback on generated `_tasks.md` | Spec authoring          |
-| [L-012](L-012-techspec-prose-only-rework.md)          | TechSpec without Go interface signatures triggers heavy review rework        | Spec authoring          |
-| [L-013](L-013-prd-must-not-name-implementation.md)    | PRD must not name frameworks, storage, error codes, or file formats          | Spec authoring          |
-| [L-014](L-014-sandbox-vocabulary-drift.md)            | Runtime vocabulary must match public contracts                               | Architecture / Product  |
-| [L-015](L-015-native-provider-auth-boundary.md)       | Provider auth ownership must be explicit                                     | Architecture / Security |
-| [L-016](L-016-native-provider-qa-home-policy.md)      | Native provider QA must respect home policy                                  | Testing / Workflow      |
+| ID                                                            | Title                                                                        | Class                      |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------- |
+| [L-001](L-001-detached-prompt-lifetime.md)                    | HTTP request lifetime ≠ prompt execution lifetime                            | Concurrency / API          |
+| [L-002](L-002-tparallel-vs-tsetenv.md)                        | `t.Parallel()` is incompatible with `t.Setenv`                               | Testing                    |
+| [L-003](L-003-task-runs-single-queue.md)                      | `task_runs` is the single durable work queue                                 | Architecture / Autonomy    |
+| [L-004](L-004-manual-equals-peer.md)                          | Manual operator paths converge with autonomous on same primitives            | Architecture / Autonomy    |
+| [L-005](L-005-authoritative-primitive-exclusivity.md)         | Authoritative primitives are exclusive — observe ≠ own                       | Architecture               |
+| [L-006](L-006-greenfield-delete-not-adapt.md)                 | Greenfield + zero-legacy means delete, not adapt                             | Project posture            |
+| [L-007](L-007-e2e-follows-runtime-contract.md)                | E2E harness regressions follow runtime contract changes                      | Testing                    |
+| [L-008](L-008-schema-migrations-mandatory.md)                 | Schema migrations are required even on fresh DBs                             | Persistence                |
+| [L-009](L-009-concurrent-worktree-deadlock.md)                | Concurrent worktree commits deadlock; isolate `AGH_HOME` + ports             | Workflow                   |
+| [L-010](L-010-model-name-validation.md)                       | Non-existent model name silently breaks the entire batch                     | Workflow / CI              |
+| [L-011](L-011-fraco-test-coverage-pushback.md)                | "Fraco" test coverage is the most repeated pushback on generated `_tasks.md` | Spec authoring             |
+| [L-012](L-012-techspec-prose-only-rework.md)                  | TechSpec without Go interface signatures triggers heavy review rework        | Spec authoring             |
+| [L-013](L-013-prd-must-not-name-implementation.md)            | PRD must not name frameworks, storage, error codes, or file formats          | Spec authoring             |
+| [L-014](L-014-sandbox-vocabulary-drift.md)                    | Runtime vocabulary must match public contracts                               | Architecture / Product     |
+| [L-015](L-015-native-provider-auth-boundary.md)               | Provider auth ownership must be explicit                                     | Architecture / Security    |
+| [L-016](L-016-native-provider-qa-home-policy.md)              | Native provider QA must respect home policy                                  | Testing / Workflow         |
+| [L-017](L-017-named-sse-listener-registration.md)             | Named SSE events require explicit `addEventListener` registration            | Frontend / SSE             |
+| [L-018](L-018-delegated-docs-runtime-truth-audit.md)          | Delegated docs lanes need a runtime-truth audit before acceptance            | Documentation              |
+| [L-019](L-019-diagnostic-data-outlives-primary-record.md)     | Diagnostic data must outlive its primary record when audit/replay matters    | Architecture / Persistence |
+| [L-020](L-020-dense-typed-records-need-pointer-boundaries.md) | Dense typed orchestration records need pointer boundaries                    | Architecture / Code style  |
 
 ## How to use
 

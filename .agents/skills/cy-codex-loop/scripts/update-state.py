@@ -18,6 +18,7 @@ Flags (multiple may combine in one call):
     --blocker "<text>"               appends to iteration entry blockers[]
     --task-completed <stem>          mode=tasks: move stem from pending to completed
     --task-current <stem|->          set tasks.current; '-' clears it
+    --reconcile-tasks                rebuild mode/tasks.* from task_*.md frontmatter
     --add-progress "<text>"          mode=free: append checklist entry status=in_progress
     --complete-progress "<text>"     mode=free: flip checklist entry to completed
     --deliverables-complete          mode=free: set progress.deliverables_complete=true
@@ -40,6 +41,7 @@ Exits:
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -49,6 +51,24 @@ from _state_io import dump, load, now_iso  # noqa: E402
 
 class StateUpdateError(ValueError):
     """Raised when a requested state mutation is invalid."""
+
+
+_FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+_IN_PROGRESS_STATUSES = {"in_progress", "in-progress", "running"}
+
+
+def _read_frontmatter(md_path: Path) -> dict[str, str]:
+    text = md_path.read_text(encoding="utf-8", errors="replace")
+    match = _FRONTMATTER.match(text)
+    if not match:
+        return {}
+    fm: dict[str, str] = {}
+    for line in match.group(1).splitlines():
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        fm[key.strip()] = value.strip().strip("'\"")
+    return fm
 
 
 def _parse_args() -> argparse.Namespace:
@@ -65,6 +85,7 @@ def _parse_args() -> argparse.Namespace:
 
     ap.add_argument("--task-completed")
     ap.add_argument("--task-current")
+    ap.add_argument("--reconcile-tasks", action="store_true")
     ap.add_argument("--add-progress")
     ap.add_argument("--complete-progress")
     ap.add_argument("--deliverables-complete", action="store_true")
@@ -82,7 +103,54 @@ def _parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def _apply(state: dict, args: argparse.Namespace) -> None:
+def _reconcile_tasks(state: dict, slug_dir: Path) -> None:
+    task_files = sorted(slug_dir.glob("task_*.md"))
+    tasks = state.setdefault("tasks", {})
+    if not task_files:
+        state["mode"] = "free"
+        tasks["total"] = 0
+        tasks["completed"] = []
+        tasks["current"] = None
+        tasks["pending"] = []
+        return
+    if not (slug_dir / "_tasks.md").exists():
+        raise StateUpdateError(
+            "--reconcile-tasks found task_*.md files but _tasks.md is missing"
+        )
+
+    completed: list[str] = []
+    pending: list[str] = []
+    current: str | None = None
+    in_progress: list[str] = []
+    for path in task_files:
+        stem = path.stem
+        status = _read_frontmatter(path).get("status", "pending").lower()
+        if status == "completed":
+            completed.append(stem)
+            continue
+        pending.append(stem)
+        if status in _IN_PROGRESS_STATUSES:
+            in_progress.append(stem)
+
+    if len(in_progress) > 1:
+        joined = ", ".join(in_progress)
+        raise StateUpdateError(
+            f"--reconcile-tasks found multiple in-progress tasks: {joined}"
+        )
+    if in_progress:
+        current = in_progress[0]
+
+    state["mode"] = "tasks"
+    tasks["total"] = len(task_files)
+    tasks["completed"] = completed
+    tasks["current"] = current
+    tasks["pending"] = pending
+
+
+def _apply(state: dict, args: argparse.Namespace, slug_dir: Path) -> None:
+    if args.reconcile_tasks:
+        _reconcile_tasks(state, slug_dir)
+
     if args.task_completed:
         tasks = state.setdefault("tasks", {})
         pending = list(tasks.get("pending") or [])
@@ -178,6 +246,7 @@ def _has_observation(args: argparse.Namespace) -> bool:
             args.round_complete,
             args.verify_pass,
             args.verify_fail,
+            args.reconcile_tasks,
         ]
     )
 
@@ -200,7 +269,7 @@ def main() -> int:
 
     record_iteration = _has_observation(args)
     try:
-        _apply(state, args)
+        _apply(state, args, slug_dir)
     except StateUpdateError as exc:
         print(f"update-state: {exc}", file=sys.stderr)
         return 1

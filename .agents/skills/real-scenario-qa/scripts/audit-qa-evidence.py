@@ -7,10 +7,28 @@ import argparse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import re
 import sys
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+try:
+    from playbook_loader import (  # noqa: E402
+        PlaybookError,
+        deliverable_extension,
+        is_markdown_deliverable,
+        load_forbidden_rules,
+        repo_root_from,
+    )
+except Exception:  # noqa: BLE001 - loader is optional; legacy charters still audit without it
+    PlaybookError = RuntimeError  # type: ignore[assignment]
+    deliverable_extension = None  # type: ignore[assignment]
+    is_markdown_deliverable = None  # type: ignore[assignment]
+    load_forbidden_rules = None  # type: ignore[assignment]
+    repo_root_from = None  # type: ignore[assignment]
 
 
 MOCK_MARKERS = ("mock", "acpmock", "fake", "stub", "fixture")
@@ -289,6 +307,392 @@ def final_verify_paths(report_text: str) -> list[str]:
     return sorted(set(candidates))
 
 
+def load_playbook_snapshot(workspace_path: Path | None) -> dict[str, Any] | None:
+    if workspace_path is None:
+        return None
+    snapshot = workspace_path / ".agh" / "playbook.json"
+    if not snapshot.is_file():
+        return None
+    try:
+        data = json.loads(snapshot.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def workspace_path_from_manifest(manifest_path: Path) -> Path | None:
+    if not manifest_path.is_file():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if isinstance(manifest, dict):
+        env = manifest.get("env", {}) if isinstance(manifest.get("env"), dict) else {}
+        candidate = env.get("WORKSPACE_PATH") or manifest.get("workspace_path")
+        if isinstance(candidate, str) and candidate.strip():
+            return Path(candidate).resolve()
+    return None
+
+
+def collect_prompt_corpus(qa_root: Path, log_entries: list[dict[str, Any]], provider_attempt: dict[str, Any]) -> list[dict[str, str]]:
+    """Return prompt records across journey log, provider attempt, and qa-artifacts JSONL."""
+    corpus: list[dict[str, str]] = []
+    for entry in log_entries:
+        surface = str(entry.get("surface", "")).lower()
+        action = str(entry.get("action", "")).lower()
+        actor = str(entry.get("actor", "")).strip()
+        if surface in {"runtime", "provider"} or action in {"prompt", "operator_kickoff", "session_prompt", "say"}:
+            text_parts: list[str] = []
+            for key in ("prompt", "message", "text", "body", "content"):
+                value = entry.get(key)
+                if isinstance(value, str) and value.strip():
+                    text_parts.append(value)
+            if text_parts:
+                corpus.append(
+                    {
+                        "source": f"journey_log:{action or surface}",
+                        "content": "\n".join(text_parts),
+                        "kickoff": "true" if entry.get("kickoff") else "false",
+                        "surface": surface,
+                        "actor": actor,
+                        "action": action,
+                    }
+                )
+    if isinstance(provider_attempt, dict):
+        for item in provider_attempt.get("providers_probed", []) or []:
+            if isinstance(item, dict):
+                for key in ("prompt", "system_prompt", "message"):
+                    value = item.get(key)
+                    if isinstance(value, str) and value.strip():
+                        corpus.append(
+                            {
+                                "source": f"provider_attempt:{key}",
+                                "content": value,
+                                "kickoff": "false",
+                                "surface": "provider",
+                                "actor": "",
+                                "action": "",
+                            }
+                        )
+        decisions = provider_attempt.get("observed_agent_decisions", [])
+        if isinstance(decisions, list):
+            for decision in decisions:
+                if isinstance(decision, str) and decision.strip():
+                    corpus.append(
+                        {
+                            "source": "provider_attempt:observed",
+                            "content": decision,
+                            "kickoff": "false",
+                            "surface": "provider",
+                            "actor": "",
+                            "action": "",
+                        }
+                    )
+    for jsonl_path in sorted(qa_root.glob("**/*.jsonl")):
+        try:
+            with jsonl_path.open("r", encoding="utf-8") as handle:
+                for lineno, line in enumerate(handle, start=1):
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    try:
+                        payload = json.loads(stripped)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(payload, dict):
+                        continue
+                    surface = str(payload.get("surface", "")).lower()
+                    actor = str(payload.get("actor", "")).strip()
+                    action = str(payload.get("action", "")).lower()
+                    for key in ("prompt", "input", "user_message", "content", "text"):
+                        value = payload.get(key)
+                        if isinstance(value, str) and value.strip():
+                            corpus.append(
+                                {
+                                    "source": f"{jsonl_path.relative_to(qa_root)}:{lineno}:{key}",
+                                    "content": value,
+                                    "kickoff": "true" if payload.get("kickoff") else "false",
+                                    "surface": surface,
+                                    "actor": actor,
+                                    "action": action,
+                                }
+                            )
+        except OSError:
+            continue
+    return corpus
+
+
+def is_operator_kickoff_prompt(item: dict[str, str], playbook: dict[str, Any] | None) -> bool:
+    if playbook is None:
+        return False
+    if item.get("kickoff") != "true" or item.get("surface") != "runtime":
+        return False
+    persona = playbook.get("operator_persona", {})
+    if not isinstance(persona, dict):
+        return False
+    allowed = {
+        str(persona.get("name", "")).strip(),
+        str(persona.get("role", "")).strip(),
+    }
+    allowed.discard("")
+    return item.get("actor", "").strip() in allowed
+
+
+def scan_forbidden_phrases(
+    corpus: list[dict[str, str]],
+    rules: dict[str, list[str]],
+    playbook: dict[str, Any] | None = None,
+) -> list[Finding]:
+    findings: list[Finding] = []
+    for item in corpus:
+        if is_operator_kickoff_prompt(item, playbook):
+            continue
+        text = item["content"]
+        lowered = text.lower()
+        for literal in rules.get("literals", []):
+            if literal.lower() in lowered:
+                findings.append(
+                    Finding(
+                        "C15",
+                        f"forbidden literal {literal!r} present in prompt",
+                        item["source"],
+                    )
+                )
+        for pattern in rules.get("patterns", []):
+            try:
+                if re.search(pattern, text):
+                    findings.append(
+                        Finding(
+                            "C15",
+                            f"forbidden regex {pattern!r} matched in prompt",
+                            item["source"],
+                        )
+                    )
+            except re.error:
+                continue
+    return findings
+
+
+def collect_workspace_files(workspace_path: Path) -> list[Path]:
+    skip = {".agh", "node_modules", ".git", "__pycache__"}
+    files: list[Path] = []
+    for root, dirs, filenames in os.walk(workspace_path):
+        dirs[:] = [d for d in dirs if d not in skip]
+        for filename in filenames:
+            if filename.startswith("."):
+                continue
+            files.append(Path(root) / filename)
+    return files
+
+
+def parse_check(deliverable_type: str, path: Path) -> tuple[bool, str]:
+    """Return (parsed_ok, note). Best-effort parse using local tools; missing tool degrades to ok."""
+    text = ""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        return False, f"unreadable: {err}"
+    if not text.strip():
+        return False, "empty file"
+    if deliverable_type in {"runbook_md", "spec_md"}:
+        return text.strip().startswith("#") or len(text.strip()) >= 200, "markdown"
+    if deliverable_type in {"tsx_page", "tsx_component"}:
+        if not re.search(r"export\s+(default\s+)?(function|const|class)", text):
+            return False, "no exported component"
+        return True, "tsx"
+    if deliverable_type in {"ts_module", "ts_test"}:
+        if not re.search(r"\b(export|describe|test|it)\b", text):
+            return False, "no ts exports / vitest hooks"
+        return True, "ts"
+    if deliverable_type in {"go_service_stub", "go_test"}:
+        if not re.search(r"^package\s+\w+", text, flags=re.MULTILINE):
+            return False, "no go package"
+        return True, "go"
+    if deliverable_type == "python_script":
+        try:
+            compile(text, str(path), "exec")
+        except SyntaxError as err:
+            return False, f"python syntax: {err}"
+        return True, "python"
+    if deliverable_type == "shell_script":
+        if not text.startswith("#!"):
+            return False, "missing shebang"
+        return True, "shell"
+    if deliverable_type == "sql_migration":
+        if not re.search(r"\b(CREATE|INSERT|ALTER|UPDATE|DELETE|WITH|SELECT)\b", text, re.IGNORECASE):
+            return False, "no SQL keywords"
+        return True, "sql"
+    if deliverable_type == "config_toml":
+        return "=" in text, "toml"
+    if deliverable_type == "html_static":
+        return "<html" in text.lower() or "<!doctype" in text.lower(), "html"
+    if deliverable_type == "yaml_workflow":
+        return ":" in text, "yaml"
+    return True, "unknown_type"
+
+
+def check_required_deliverables(
+    workspace_path: Path | None,
+    playbook: dict[str, Any] | None,
+) -> tuple[list[Finding], dict[str, Any]]:
+    findings: list[Finding] = []
+    summary: dict[str, Any] = {}
+    if workspace_path is None or playbook is None or deliverable_extension is None:
+        return findings, summary
+    required = playbook.get("required_deliverables", {}) or {}
+    if not isinstance(required, dict) or not required:
+        return findings, summary
+    files = collect_workspace_files(workspace_path)
+    counts: dict[str, dict[str, Any]] = {}
+    for deliverable_type, minimum in required.items():
+        if not isinstance(minimum, int):
+            continue
+        try:
+            ext = deliverable_extension(deliverable_type)
+        except KeyError:
+            findings.append(
+                Finding("C16", f"unknown deliverable_type {deliverable_type!r} in playbook", "playbook")
+            )
+            continue
+        candidates = [path for path in files if path.name.endswith(ext)]
+        valid = 0
+        invalid_notes: list[str] = []
+        for candidate in candidates:
+            ok, note = parse_check(deliverable_type, candidate)
+            if ok:
+                valid += 1
+            else:
+                invalid_notes.append(f"{candidate.relative_to(workspace_path)}: {note}")
+        counts[deliverable_type] = {
+            "required": minimum,
+            "found": len(candidates),
+            "valid": valid,
+            "invalid": invalid_notes,
+        }
+        if valid < minimum:
+            findings.append(
+                Finding(
+                    "C16",
+                    f"deliverable {deliverable_type} valid count {valid} < required {minimum}",
+                    f"workspace:{workspace_path}",
+                )
+            )
+    summary["deliverable_counts"] = counts
+    non_md = sum(
+        info["valid"]
+        for dtype, info in counts.items()
+        if is_markdown_deliverable is not None and not is_markdown_deliverable(dtype)
+    )
+    summary["non_markdown_valid"] = non_md
+    if non_md < 4:
+        findings.append(
+            Finding(
+                "C16",
+                f"non-markdown deliverable total {non_md} < required 4",
+                f"workspace:{workspace_path}",
+            )
+        )
+    return findings, summary
+
+
+def check_collaboration_loops(
+    log_entries: list[dict[str, Any]],
+    playbook: dict[str, Any] | None,
+) -> tuple[list[Finding], dict[str, Any]]:
+    findings: list[Finding] = []
+    summary: dict[str, Any] = {}
+    if playbook is None:
+        return findings, summary
+    required = playbook.get("required_collaboration", {}) or {}
+    if not isinstance(required, dict):
+        return findings, summary
+    peer_messages = sum(
+        1
+        for entry in log_entries
+        if str(entry.get("action", "")).lower() in {"peer_message", "say", "direct_message", "channel_message"}
+        or str(entry.get("channel", "")).strip()
+        and str(entry.get("surface", "")).lower() in {"runtime", "api"}
+    )
+    review_cycles = 0
+    review_state: dict[str, set[str]] = {}
+    for entry in log_entries:
+        cycle = str(entry.get("review_cycle", "")).lower()
+        if not cycle:
+            continue
+        ids = entry.get("ids", []) or []
+        if not isinstance(ids, list):
+            continue
+        for rid in ids:
+            review_state.setdefault(str(rid), set()).add(cycle)
+    for cycles in review_state.values():
+        if cycles & {"requested"} and cycles & {
+            "verdict_approved",
+            "verdict_changes_requested",
+        }:
+            review_cycles += 1
+    disagreements = sum(1 for entry in log_entries if entry.get("disagreement_resolved"))
+    active_channels = {
+        str(entry.get("channel", "")).strip()
+        for entry in log_entries
+        if str(entry.get("channel", "")).strip()
+    }
+    summary.update(
+        {
+            "peer_messages": peer_messages,
+            "review_cycles_complete": review_cycles,
+            "disagreements_resolved": disagreements,
+            "channels_active": sorted(active_channels),
+        }
+    )
+
+    def under(label: str, actual: int) -> None:
+        minimum = required.get(label)
+        if isinstance(minimum, int) and actual < minimum:
+            findings.append(
+                Finding("C17", f"{label} {actual} < required {minimum}", "journey_log"),
+            )
+
+    under("peer_messages_min", peer_messages)
+    under("review_cycles_min", review_cycles)
+    under("disagreements_resolved_min", disagreements)
+    if isinstance(required.get("channels_active_min"), int) and len(active_channels) < required["channels_active_min"]:
+        findings.append(
+            Finding(
+                "C17",
+                f"channels_active {len(active_channels)} < required {required['channels_active_min']}",
+                "journey_log",
+            )
+        )
+    return findings, summary
+
+
+def check_stall_diagnosis(qa_root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    summary_path = qa_root / "observation-summary.json"
+    if not summary_path.is_file():
+        return findings
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return findings
+    if not isinstance(summary, dict):
+        return findings
+    if not summary.get("stall_detected"):
+        return findings
+    issues_dir = qa_root / "issues"
+    bug_files = list(issues_dir.glob("BUG-*.md")) if issues_dir.is_dir() else []
+    if not bug_files:
+        findings.append(
+            Finding(
+                "C18",
+                "observe-runtime reported a stall but no BUG-*.md was filed in qa/issues",
+                str(summary_path),
+            )
+        )
+    return findings
+
+
 def audit(args: argparse.Namespace) -> tuple[list[Finding], list[Finding], dict[str, Any]]:
     qa_output_path = Path(args.qa_output_path).resolve()
     qa_root = qa_output_path / "qa" if (qa_output_path / "qa").is_dir() else qa_output_path
@@ -436,7 +840,41 @@ def audit(args: argparse.Namespace) -> tuple[list[Finding], list[Finding], dict[
             blockers.append(Finding("C14", "final make verify evidence is missing", str(final_report_path)))
 
     if args.api_base_url:
-        warnings.append(Finding("C15", "API deep equality check is not implemented; rely on captured CLI/API/Web/runtime evidence", args.api_base_url))
+        warnings.append(Finding("C99", "API deep equality check is not implemented; rely on captured CLI/API/Web/runtime evidence", args.api_base_url))
+
+    workspace_path = workspace_path_from_manifest(manifest_path)
+    playbook_snapshot = load_playbook_snapshot(workspace_path)
+    metadata["workspace_path"] = str(workspace_path) if workspace_path else None
+    metadata["playbook_ref"] = playbook_snapshot.get("playbook_ref") if playbook_snapshot else None
+
+    if load_forbidden_rules is not None:
+        try:
+            repo_root = repo_root_from(Path(__file__).resolve()) if repo_root_from else None
+        except PlaybookError:
+            repo_root = None
+        if repo_root is not None:
+            try:
+                forbidden_rules = load_forbidden_rules(repo_root)
+            except Exception as err:  # noqa: BLE001
+                warnings.append(Finding("C15", f"forbidden-prompt-phrases.md failed to load: {err}", str(repo_root)))
+                forbidden_rules = {"literals": [], "patterns": []}
+            qa_root = qa_output_path / "qa" if (qa_output_path / "qa").is_dir() else qa_output_path
+            corpus = collect_prompt_corpus(qa_root, log_entries, provider_attempt if isinstance(provider_attempt, dict) else {})
+            metadata["prompt_corpus_size"] = len(corpus)
+            blockers.extend(scan_forbidden_phrases(corpus, forbidden_rules, playbook_snapshot))
+
+    deliverable_findings, deliverable_summary = check_required_deliverables(workspace_path, playbook_snapshot)
+    blockers.extend(deliverable_findings)
+    if deliverable_summary:
+        metadata["playbook_compliance"] = deliverable_summary
+
+    collab_findings, collab_summary = check_collaboration_loops(log_entries, playbook_snapshot)
+    blockers.extend(collab_findings)
+    if collab_summary:
+        metadata.setdefault("playbook_compliance", {}).update({"collaboration": collab_summary})
+
+    qa_root_for_stall = qa_output_path / "qa" if (qa_output_path / "qa").is_dir() else qa_output_path
+    blockers.extend(check_stall_diagnosis(qa_root_for_stall))
 
     return blockers, warnings, metadata
 

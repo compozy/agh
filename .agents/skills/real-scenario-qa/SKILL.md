@@ -1,151 +1,93 @@
 ---
 name: real-scenario-qa
-description: Runs behavior-first release and feature QA by bootstrapping an AGH startup lab, proving realistic operator journeys, live provider-backed agent/LLM behavior when reachable, persisted artifacts, CLI/API/Web parity, and root-cause fixes. Use when validating AGH releases or complex integration features through real scenarios. Do not use for smoke-only checks, static planning, mock-only tests, simple unit-test edits, or architecture brainstorming without execution.
+description: Runs release-grade AGH QA by selecting a startup playbook, materializing it into an isolated lab, posting one in-persona operator kickoff, observing the AGH runtime under autonomous agent collaboration, and auditing the produced deliverables (TSX pages, scripts, services, runbooks) plus collaboration loops. The QA observer never instructs agents about QA. Use when validating AGH releases or complex integration features. Do not use for smoke-only checks, static planning, mock-only tests, simple unit-test edits, or architecture brainstorming without execution.
 trigger: explicit
-argument-hint: "[scope-or-context]"
+argument-hint: "[playbook-ref]"
 ---
 
 # Real Scenario QA
 
-Execute release-grade QA by simulating a real startup operating on AGH. Validate user/operator outcomes, live agent behavior, real persisted artifacts, public CLI/API/Web surfaces, automations, tasks, networks, knowledge, hooks, extensions, and final verification gates.
+Execute release-grade QA by running an entire fictional startup project on the AGH runtime and observing the result. The runtime drives the work; the observer never tells agents they are being evaluated. The auditor enforces real deliverables (compiled/parsed/runnable artifacts) and real collaboration (peer messages, review cycles, disagreement resolution).
 
-Smoke checks, CRUD-only checks, page-render checks, unit tests, integration tests, and mock-backed sessions are entry criteria only. They never satisfy this skill by themselves.
+The skill rejects any prompt that frames the work as QA. See `references/forbidden-prompt-phrases.md`.
 
 ## Required Inputs
 
-- **scope-or-context** (optional): Short description of the release, branch, feature, or focus area under test. Examples: `release-candidate`, `autonomy-feature`, `network-tasks`, `cron-triggers-knowledge`. Use it to name the scenario, prioritize flows, and explain why specific surfaces were stressed.
+- **playbook-ref** (optional): Slug of the playbook to run (e.g., `northstar-pay`, `devtool-oss-launch`, `consumer-saas-growth`). When omitted, rotate from the previous run's `PLAYBOOK_REF` recorded in `bootstrap-manifest.json`.
 
 ## Procedures
 
-**Step 1: Resolve Scope and Bootstrap the Lab**
+**Step 1: Select the Playbook**
 
-1. Parse the optional `scope-or-context`. When omitted, use `release-candidate`.
-2. Activate `agh-qa-bootstrap` first and execute the repo-root helper for a fresh lab:
-   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scope-or-context>" --repo-root .`
-3. Only when the current active QA session or loop continuation already provides an exact manifest path for this same run, reuse that lab instead:
-   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scope-or-context>" --repo-root . --reuse-manifest "<manifest-path>"`
-4. Read the helper output and record:
-   - `SCENARIO_SLUG`
-   - `WORKSPACE_PATH`
-   - `QA_OUTPUT_PATH`
-   - `BOOTSTRAP_MANIFEST`
-   - `BOOTSTRAP_ENV`
-   - `AGH_HOME`
-   - `AGH_HTTP_PORT`
-   - `AGH_WEB_API_PROXY_TARGET`
-   - `PROVIDER_HOME`
-   - `PROVIDER_CODEX_HOME`
-   - `BROWSER_MODE`
-   - `BROWSER_BLOCKER`
-   - `SCENARIO_CONTRACT`
-   - `BEHAVIORAL_CHARTER`
-   - `JOURNEY_LOG`
-   - `PROVIDER_ATTEMPT`
-   - `AUDIT_COMMAND`
-   - `REUSED_LAB`
-5. Open `<QA_OUTPUT_PATH>/qa/bootstrap-manifest.json` and treat it as the canonical handoff for every downstream command in this scenario.
-6. For a brand-new QA invocation, prefer a fresh lab even if an older lab exists for the same feature. Reuse is only for the same active QA session or loop continuation when `--reuse-manifest` was passed intentionally.
-7. Store all QA artifacts under `<QA_OUTPUT_PATH>/qa/`.
-8. If the repository has a stricter artifact convention, keep the generated workspace but mirror the final report into the repository convention.
-9. Treat `<QA_OUTPUT_PATH>/qa/scenario-contract.json`, `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml`, `<QA_OUTPUT_PATH>/qa/journey-log.jsonl`, and `<QA_OUTPUT_PATH>/qa/provider-attempt.json` as mandatory evidence inputs. The bootstrap helper creates skeletons; downstream QA must fill them with real evidence.
+1. Read `references/playbooks/README.md` and the `references/scenario-matrix.md` selection table.
+2. Resolve the playbook ref:
+   - If the user supplied a slug, validate it exists at `references/playbooks/<slug>.md`.
+   - Otherwise, list `references/playbooks/*.md` (excluding `README`) and rotate from the previous `PLAYBOOK_REF`.
+3. Record `PLAYBOOK_REF`.
 
-**Step 2: Activate Companion QA and Debugging Skills**
+**Step 2: Bootstrap the Lab With the Playbook**
 
-1. Use `qa-report` when planning test cases or documenting issues.
-2. Use `qa-execution` when running gates, starting services, exercising CLI/API/Web flows, and writing the verification report.
-3. Use `systematic-debugging` and `no-workarounds` for every unexpected behavior, failed test, flaky runtime, memory spike, bad UX, or integration issue.
-4. When starting provider-backed commands, follow the provider home policy:
-   - Bound-secret, brokered, or explicitly isolated-home lanes:
-     `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <provider-command>`
-   - `native_cli` providers with `home_policy=operator`: preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior.
-5. When starting Web flows against an isolated daemon, export:
-   `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET"`
-6. Use `browser-use:browser` as the primary Web validation path when the Browser plugin is available. Read and follow that skill before any browser interaction. Use the in-app browser against the local Web app and capture DOM snapshot, screenshot, URL, and visible-state evidence for the tested flows.
-7. Treat CLI validation and Web validation as separate mandatory release gates. A CLI-only, API-only, or unit-only pass is not enough to claim readiness when the Web app exists.
-8. If `browser-use:browser` is unavailable after following its setup procedure, read and follow `agent-browser`, then use it as the approved fallback. Record the failed browser-use prerequisite, the agent-browser commands used, and the resulting URL/snapshot/screenshot evidence.
-9. If both `browser-use:browser` and `agent-browser` are unavailable or blocked, record the browser blocker explicitly in the final report. Do not silently replace browser automation with shell-only, API-only, or fake Web checks.
-10. Do not treat mocks, stubs, fake agent replies, or unit-only tests as final proof. Final proof must include real integration or end-to-end behavior whenever the surface is reachable.
+1. Run the bootstrap helper (bootstrap, mutating):
+   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<playbook-ref>" --playbook "$PLAYBOOK_REF" --repo-root .`
+2. Only when continuing the same active QA session/loop and a manifest is already known, reuse:
+   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<playbook-ref>" --playbook "$PLAYBOOK_REF" --repo-root . --reuse-manifest "<manifest-path>"`
+3. Read the helper output and record the env block from the bootstrap contract: `SCENARIO_SLUG`, `WORKSPACE_PATH`, `QA_OUTPUT_PATH`, `BOOTSTRAP_MANIFEST`, `BOOTSTRAP_ENV`, `AGH_HOME`, `AGH_HTTP_PORT`, `AGH_UDS_PATH`, `TMUX_BRIDGE_SOCKET`, `AGH_WEB_API_PROXY_TARGET`, `PROVIDER_HOME`, `PROVIDER_CODEX_HOME`, `BROWSER_MODE`, `BROWSER_BLOCKER`, `SCENARIO_CONTRACT`, `BEHAVIORAL_CHARTER`, `JOURNEY_LOG`, `PROVIDER_ATTEMPT`, `AUDIT_COMMAND`, `REUSED_LAB`, `PLAYBOOK_REF`, `KICKOFF_POSTED`.
+4. Confirm the bootstrap created `<WORKSPACE_PATH>/.agh/playbook.json`, `<WORKSPACE_PATH>/.agh/agents/*.json`, `<WORKSPACE_PATH>/.agh/tasks/open-tasks.json`, and the knowledge files under `<WORKSPACE_PATH>/knowledge/`.
+5. Confirm `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml` is materialized from the playbook (no UNFILLED placeholders) and includes `playbook_ref`, `required_deliverables`, `required_collaboration`.
 
-**Step 3: Discover the Product Contract**
+**Step 3: Activate Companion Skills**
 
-1. Read root agent instructions, build files, web instructions, and relevant package docs before running scenarios.
-2. Use the bootstrap manifest as the first source of truth for daemon/API URLs, isolated runtime paths, provider env, and browser policy before rediscovering anything manually.
-3. Identify the canonical verification gate, startup commands, daemon/API URLs, CLI commands, Web UI entry points, and persistence locations.
-4. Run the broadest repository-defined baseline gate before scenario testing.
-5. Record baseline command, timestamp, exit code, and output summary in `<QA_OUTPUT_PATH>/qa/verification-report.md`.
-6. If baseline fails, root-cause and fix only when the failure is relevant or blocks realistic scenario execution. Otherwise document it as a pre-existing blocker with evidence.
+1. Use `qa-execution` to validate the playbook product (does the TSX page render? do scripts run? does the canary control respond?). Pass `<QA_OUTPUT_PATH>` as its argument.
+2. Use `qa-report` to author test plans for the playbook product (TC-FUNC, TC-UI on the playbook deliverables — never on QA itself).
+3. Use `agh-worktree-isolation` only when concurrency was explicitly signaled by the user.
+4. Use `systematic-debugging` and `no-workarounds` for any unexpected runtime behavior the observer captures.
+5. Provider home policy stays the same as the bootstrap contract: bound-secret/brokered lanes use `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME"`; native_cli with `home_policy=operator` preserves the operator HOME.
+6. Web flows must export `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET"` before launching the dev server.
 
-**Step 4: Write the Behavioral Scenario Charter and Contract**
+**Step 4: Post the Operator Kickoff**
 
-1. Before creating scenario data, fill `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml` in JSON-compatible YAML using `references/charter.schema.json`. Do not replace it with freeform Markdown.
-2. Read `<QA_OUTPUT_PATH>/qa/scenario-contract.json` and treat the `minimums` block as the release gate. Broad/release scenarios require at least 8 agents, 6 differentiated roles, 5 channels, 2 root tasks, 4 subtasks, 2 dependencies, 6 runs, 1 provider-backed session, 3 cross-surface objects, 3 disruption probes, and 2 artifacts used later unless the contract explicitly declares a smaller `feature` profile.
-3. Define the real-world startup situation being simulated, the operator intent, and the business outcome that must be true when the scenario succeeds.
-4. Define the human/operator journey in concrete terms: what the operator is trying to accomplish, which AGH surfaces they use, what they need to understand, and which persisted objects prove progress.
-5. Define the agent cast and responsibilities in the charter's `agents` array. Broad/release validation must meet the contract minimum and include differentiated responsibilities; a two-agent or mock-only scenario is a blocking failure.
-6. Define the expected agent behavior: decisions to make, artifacts to create or revise, messages to exchange, task/channel constraints to respect, and handoffs to complete.
-7. Define the live LLM/provider plan in `provider_plan`. Execute at least one provider-backed agent session unless credentials or local prerequisites are unavailable. If unavailable, record the exact boundary in `<QA_OUTPUT_PATH>/qa/provider-attempt.json`; this makes live-provider readiness `BLOCKED`, not `PASS`.
-8. Define realistic disruption probes that matter to a user, such as wrong agent ownership, missed handoff, incoherent artifact, stale operator view, failed automation side effect, interrupted session, restart recovery, or confusing history.
-9. Mark smoke checks separately as readiness checks. Do not count them as behavioral evidence.
+1. Render and validate the kickoff with the helper (mutating):
+   `python3 .agents/skills/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST"`
+2. The helper aborts with exit code 2 if the rendered kickoff contains any phrase from `references/forbidden-prompt-phrases.md`. Do not edit the helper to suppress the check; rewrite the playbook's `kickoff_brief` instead.
+3. Read `<WORKSPACE_PATH>/.agh/operator-kickoff.txt` for inspection. Use the same text verbatim when the AGH CLI is invoked to deliver the kickoff to the operator session:
+   `agh session prompt <operator-session-id> "$(cat $WORKSPACE_PATH/.agh/operator-kickoff.txt)" -o jsonl > $QA_OUTPUT_PATH/qa/operator-kickoff.jsonl`
+4. Confirm the manifest now reports `KICKOFF_POSTED=true` and `KICKOFF_TIMESTAMP` is set.
+5. From this point on, the QA observer must not send any further prompt to any agent under test. If an agent stalls, file a bug — do not patch over the stall with a prompt.
 
-**Step 5: Build a Realistic Startup Scenario**
+**Step 5: Observe the Runtime**
 
-1. Read `references/scenario-matrix.md` and select the scenario tracks that match `scope-or-context`.
-2. Create a startup-like workspace under `WORKSPACE_PATH` with real directories for company, product, marketing, finance, operations, reviews, and QA artifacts.
-3. Configure realistic agents from the charter, such as founder, CTO, backend, frontend, marketing, finance, review, QA, ops, and operator agents. Use real project configuration or real AGH provider-backed sessions when reachable.
-4. Create channels that represent company areas, such as leadership, development, marketing, finance, operations, review, and launch coordination.
-5. Add realistic custom skills, hooks, extensions, automations, cron jobs, webhook triggers, knowledge/memory entries, and tasks/subtasks when those surfaces exist.
-6. Make the scenario produce coherent artifacts that a startup would actually use, such as strategy notes, launch plans, rollback plans, campaign copy, frontend pages, backend service stubs that run, review notes, task evidence, automation outputs, and QA reports.
-7. Verify artifacts are not placeholders: inspect their content, connect them to the task/channel/session that produced them, and use at least one artifact in a later scenario step.
+1. Run the observer (read-only) for the configured window:
+   `python3 .agents/skills/real-scenario-qa/scripts/observe-runtime.py --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --duration-sec 1800 --stall-threshold-sec 300`
+2. While the observer is tailing the journey log, capture cross-surface evidence WITHOUT directing agents:
+   - CLI: `agh task list`, `agh agent list`, `agh channel list`, `agh session list` against the isolated daemon.
+   - API: read endpoints that intersect the playbook's primary domain.
+   - Web: open the AGH web app via `browser-use:browser` (or the `agent-browser` fallback) against `$AGH_WEB_API_PROXY_TARGET`. Capture DOM snapshot, URL, screenshot.
+   - Runtime: confirm the journey-log keeps growing.
+3. When the observer reports stall (exit code 1), open `<QA_OUTPUT_PATH>/qa/observation-summary.json`, identify the silent agent / unstarted task, and proceed to Step 6 with that diagnosis. Do not attempt to "wake" the agent with a prompt.
+4. When the observer completes cleanly (exit code 0), proceed to Step 6.
 
-**Step 6: Execute Real CLI, API, Web, and Agent Flows**
+**Step 6: Audit, Diagnose, Fix, Re-Verify**
 
-1. Drive all setup and operations through public CLI, HTTP/API, Web UI, or documented daemon interfaces.
-2. Exercise the changed feature inside the behavioral charter first, then exercise adjacent integrations that consume, display, or depend on the same state.
-3. Execute at least one complete operator journey from setup through outcome. A journey must include actor intent, command/browser/API actions, agent work, persisted state, and final operator-facing understanding.
-4. Append a structured row to `<QA_OUTPUT_PATH>/qa/journey-log.jsonl` for every meaningful CLI/API/Web/runtime/provider action. Use the mutating recorder helper when practical:
-   `python3 .agents/skills/real-scenario-qa/scripts/record-scenario-action.py --log "$JOURNEY_LOG" --surface cli --actor operator --action "<action>" --target "<target>" --ids '["<id>"]' --evidence-path "<path>"`
-5. Execute at least one complete CLI workflow for each selected scenario track, using real commands and persisted state.
-6. Execute at least one matching Web workflow through `browser-use:browser` for each operator-facing selected scenario track, using the same or directly related persisted state created by the CLI/runtime flow. If browser-use is unavailable, execute the same Web workflow through `agent-browser`.
-7. Compare CLI/API/runtime state against Web rendering for the contract's required cross-surface object count. The same tasks, automation runs, channels, messages, knowledge entries, hook results, extension states, or generated artifacts must be visible and correct across surfaces when the product exposes them.
-8. For live agent scenarios, prompt provider-backed agents to perform real work, then verify their messages, decisions, artifacts, and task/channel behavior through AGH state. Write the provider probe result to `<QA_OUTPUT_PATH>/qa/provider-attempt.json`. Do not accept token echo, canned text, mock/acpmock sessions, or fake provider output as final proof.
-9. For network scenarios, require the contract's agent/channel minimums: multiple agents join channels, exchange messages, reply, hand off work, coordinate around tasks, and avoid cross-channel or wrong-agent ownership leaks.
-10. For task scenarios, create root tasks, subtasks, dependencies, runs, claims, starts, completions, failures, retries, and task-linked sessions that support the charter outcome.
-11. For automation scenarios, validate manual runs, scheduled cron/every jobs, webhook triggers, run history, retry/fire-limit behavior, and resulting artifacts as part of a user-visible workflow.
-12. For knowledge scenarios, write, search, list, open, and use knowledge entries from real workspace state in a later agent or operator decision.
-13. For Web scenarios, validate whether the operator can understand and act on real state: default states, navigation, detail pages, filters/toggles, real data rendering, error states, stale or historical data, and generated artifacts in the browser, not only through API responses.
-14. Execute the realistic disruption probes from the charter and record both trigger and observed/result rows in `journey-log.jsonl`.
-15. Read `references/evidence-checklist.md` before marking a scenario complete.
-
-**Step 7: Diagnose, File, Fix, and Re-Verify Issues**
-
-1. Reproduce every issue with the narrowest real command or Web flow before editing code.
-2. Write an issue under `<QA_OUTPUT_PATH>/qa/issues/BUG-<num>.md` using `assets/scenario-issue-template.md`.
-3. Fix the production code, configuration, or runtime contract at the root cause. Do not patch symptoms or weaken tests.
-4. Add focused regression coverage for the bug at the correct layer.
-5. Re-run the narrow reproduction, impacted scenario, and relevant package tests.
-6. Continue the realistic scenario after the fix; do not stop at the first green unit test.
-
-**Step 8: Validate Final Release Readiness**
-
-1. Re-run the full canonical verification gate from scratch after the last code change.
-2. Re-run the highest-risk behavioral journey against the current build, including live agent/provider behavior when it was reachable before the fix.
-3. Re-run both the CLI and Web browser versions of the highest-risk workflow after the last code change.
-4. Confirm no active sessions, stuck runs, unhealthy memory state, scheduler failures, or runaway persisted data remain unless the scenario intentionally leaves them running.
-5. Write the final report using `assets/final-report-template.md`.
-6. Include pass/fail status for every selected scenario track from `references/scenario-matrix.md`.
-7. Include all blocked validations with exact environment or tool failure details, including browser-use setup failures and any `agent-browser` fallback usage or failure.
-8. Run the validation auditor in strict mode and record its output. The auditor writes `qa-audit-report.json` and `qa-audit-report.md`:
-   `python3 .agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
-9. Treat auditor exit code `2` as a blocking QA failure even if `make verify` passed. Do not convert missing live provider behavior or missing contract minimums into a passing release-readiness claim.
-10. Append the machine-readable QA bootstrap block from `.agents/skills/agh-qa-bootstrap/references/bootstrap-contract.md` so timed-loop continuations can reuse the healthy lab.
-11. Do not claim release readiness unless the full gate, the auditor, the CLI evidence, the browser-based Web evidence, and the behavioral journey evidence are fresh for the current state.
+1. Run the strict auditor:
+   `python3 "$AUDIT_COMMAND" --qa-output-path "$QA_OUTPUT_PATH" --strict`
+2. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check:
+   - **C15** forbidden phrase in a prompt → rewrite the playbook source (system_prompt or kickoff_brief), not the auditor or the regex list.
+   - **C16** deliverable count short → file a runtime bug under `<QA_OUTPUT_PATH>/qa/issues/BUG-NN.md` (which AGH agent failed to produce the artifact, why, what state shows the failure). Do not author the missing artifact yourself — the runtime is what's under test.
+   - **C17** collaboration loop short → file a runtime bug describing which channel, agent, or review cycle did not complete. Cite journey-log timestamps.
+   - **C18** stall → BUG-NN.md is mandatory and must name the silent agent and stalled task.
+3. If the bug is a real AGH runtime defect (channel delivery failed, task scheduler stuck, hook misfired), fix it at the root cause in production code with regression coverage. Do not patch the playbook to dodge the bug.
+4. If the bug is a playbook authoring mistake (impossible task, missing knowledge file, ambiguous handoff), fix the playbook .md, regenerate the bootstrap, rerun from Step 2.
+5. Re-run the auditor after every fix.
+6. Re-run the broadest verification gate (`make verify` or repository equivalent) after the last code change.
+7. Write the observer report using `assets/final-report-template.md`. Include playbook_compliance counts, collaboration counts, stall diagnosis, cross-surface evidence, and the audit verdict.
+8. Append the machine-readable QA bootstrap block from `.agents/skills/agh-qa-bootstrap/references/bootstrap-contract.md` so timed-loop continuations can reuse the lab.
 
 ## Error Handling
 
-- If `.agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py` fails, inspect stderr, fix the missing prerequisite, and rerun it. Do not fall back to ad-hoc manual lab creation.
-- If a required CLI/API/Web surface does not exist, record that as out-of-scope only after proving the repository has no supported public entry point for it.
-- If `browser-use:browser` cannot access the app, diagnose setup, local URL, auth, and service health first. If browser-use is unavailable after that procedure, use `agent-browser` with `open`, `snapshot -i`, interaction commands, `get url`, and screenshots as the Web fallback. If `agent-browser` also fails, keep testing via CLI/API/runtime surfaces and document both browser limitations in the final report.
-- If a live integration lacks credentials, validate every local boundary up to the credential boundary and record the exact missing prerequisite.
-- If live provider-backed agents are unavailable, do not replace them with mocks as final proof. Record the provider boundary, then prove the same behavioral journey through every reachable AGH runtime surface.
-- If scenario data grows unexpectedly in memory or disk, stop new load generation, inspect persistence growth, root-cause the largest writer, and fix before continuing.
-- If the system produces excessive noisy operational history, distinguish protocol/audit data from operator-facing history and validate both read-side cleanup and write-side prevention.
+- If `bootstrap-qa-env.py` fails to load the playbook, validate the playbook .md against `references/playbook-schema.json` and re-run. Do not bypass the playbook by falling back to the legacy skeleton charter.
+- If the kickoff helper aborts on a forbidden phrase, rewrite the playbook's `kickoff_brief`. Do not edit `references/forbidden-prompt-phrases.md` to remove the rule.
+- If `observe-runtime.py` reports a stall, do NOT inject a prompt to wake the agent. The runtime stall IS the bug under test. File BUG-NN.md against the AGH runtime.
+- If a required deliverable type cannot be parsed by the auditor (e.g., a TSX file with non-standard exports), fix the artifact in the workspace via the agent that authored it (re-prompting in-persona is fine; new operator prompts are not). If the agent cannot fix it, that is a runtime bug.
+- If `browser-use:browser` is unavailable, follow the `agent-browser` fallback per the bootstrap browser policy. Do not silently drop the Web surface.
+- If providers are unreachable, record the boundary in `provider-attempt.json`. The run verdict becomes BLOCKED, never PASS.
+- If the auditor's `playbook_compliance` block reports zero counts despite agents working, confirm `WORKSPACE_PATH/.agh/playbook.json` exists and `journey-log.jsonl` is being written. Empty counts often mean the runtime is not wired to the journey log — that is a runtime bug.

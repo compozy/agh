@@ -221,6 +221,67 @@ class CyCodexLoopScriptTests(unittest.TestCase):
             updated = state_io.load(state_path)
             self.assertEqual(updated["iterations"][0]["phase"], "D")
 
+    def test_update_state_reconciles_task_files_into_tasks_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "reconcile"
+            slug_dir = tasks_root / slug
+            state_path = self.write_state(
+                tasks_root,
+                slug,
+                mode="free",
+                progress={"deliverables_complete": False, "checklist": []},
+                qa={"report_done": False, "execution_done": False},
+            )
+            (slug_dir / "_tasks.md").write_text("# tasks\n", encoding="utf-8")
+            (slug_dir / "task_01.md").write_text(
+                "---\nstatus: completed\ntitle: one\ntype: backend\n---\n\n# one\n",
+                encoding="utf-8",
+            )
+            (slug_dir / "task_02.md").write_text(
+                "---\nstatus: in_progress\ntitle: two\ntype: backend\n---\n\n# two\n",
+                encoding="utf-8",
+            )
+            (slug_dir / "task_03.md").write_text(
+                "---\nstatus: pending\ntitle: three\ntype: test\n---\n\n# three\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_script(
+                "update-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--phase",
+                "B",
+                "--action",
+                "reconcile task graph",
+                "--outcome",
+                "completed",
+                "--reconcile-tasks",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            updated = state_io.load(state_path)
+            self.assertEqual(updated["mode"], "tasks")
+            self.assertEqual(updated["tasks"]["total"], 3)
+            self.assertEqual(updated["tasks"]["completed"], ["task_01"])
+            self.assertEqual(updated["tasks"]["current"], "task_02")
+            self.assertEqual(updated["tasks"]["pending"], ["task_02", "task_03"])
+
+            phase = self.run_script(
+                "detect-phase.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+            )
+
+            self.assertEqual(phase.returncode, 0, phase.stderr)
+            self.assertEqual(
+                phase.stdout.strip(),
+                "phase=B action=execute_task task=task_02",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

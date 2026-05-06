@@ -226,6 +226,42 @@ Daemon-owned operational-safety component (`internal/scheduler`). Idle registry,
 
 The single durable network channel bound to every workspace-scoped coordinated run via `coordination_channel_id`. "Bind always, speak when useful." Messages carry typed correlation but channels are NOT an ownership/status authority.
 
+### Task Execution Profile
+
+The task-owned typed overlay that selects the runtime shape of orchestration for one task. Persisted under `task_execution_profiles` plus selector side tables (never in `metadata_json`). Configured under `[task.orchestration.profile]` and managed through `agh task profile inspect|update|delete`, `/api/tasks/{id}/profile`, native task tools, and the operator web UI Orchestration tab.
+
+The profile carries `CoordinatorProfile` (`mode = "inherit" | "guided"`), `WorkerProfile` (worker agent/provider/model + worker eligibility selectors), `ReviewProfile` (reviewer selectors), `ParticipantPolicy` (allowed/preferred channels, peers, agents, capabilities), and `SandboxPolicy` (`mode = "inherit" | "none" | "ref"`). Validation runs at write time in `task.Service.SetExecutionProfile`; session start loads the persisted profile without re-running validation. PUT replaces the entire profile — omitted blocks normalize to defaults.
+
+The profile is **not** runtime authority: task ownership remains in `task_runs`, worker mutation remains session-bound, review verdict authority remains `task.Service.RecordRunReview`, sandbox policy does not bypass tool/approval policy, and coordinator guidance does not create queue or terminal-state authority.
+
+### Notification Cursor
+
+The shared durable delivery-progress primitive in `internal/notifications`. Identity is `(consumer_id, stream_name, subject_id)`; storage is `notification_cursors`. The cursor records `last_sequence`, `last_delivery_id`, `last_delivered_at`, `last_error`, and `updated_at`.
+
+Advance is monotonic; same-sequence replay is accepted only when both sequence and delivery id match. `Reset` is the only path that may lower a cursor and requires an explicit recovery reason. Cursors do **not** assign tasks, claim runs, complete runs, replace SSE replay cursors, replace task hooks, or define bridge delivery targets. Notification cursors are NOT SSE `after_sequence` cursors — SSE cursors are client-side replay positions, while notification cursors are daemon-side confirmed-delivery state.
+
+### Bridge Task Subscription
+
+The delivery-target row in `bridge_task_subscriptions` that selects which bridge instance, task, delivery mode, and routing fields receive a terminal task notification. Owns target state only. Cursor identity is fixed to `consumer_id = "bridge_task_subscription:<subscription_id>"`, `stream_name = "task_events"`, `subject_id = <task_id>`; delivery progress lives in the matching `notification_cursors` row.
+
+Subscription delete removes the active target row only. Stale cursor diagnostics remain inspectable by cursor key, and same-id recreation resumes from the preserved cursor. Public route shape is `/api/tasks/{id}/notifications/bridges` (create/list) and `/api/tasks/{id}/notifications/bridges/{subscription_id}` (show/delete) across HTTP, UDS, OpenAPI, generated TypeScript, CLI, and generated CLI docs.
+
+### Run Review
+
+The post-terminal review attached to a `task_run` in `task_run_reviews`. Created by `task.Service.RequestRunReview` (idempotent on `(run_id, review_round, attempt = 1)`), bound to a reviewer session by `BindRunReviewSession`, and persisted by `task.Service.RecordRunReview` (the sole verdict authority). Run review status is `requested | routed | in_review | recorded | circuit_opened | canceled`. Verdict outcomes (orthogonal to status) are `approved | rejected | blocked | error | timeout | invalid_output`. `approved` and `rejected` are not statuses.
+
+### Continuation Run
+
+A new `task_run` enqueued by `task.Service.RecordRunReview` when a `rejected` verdict still has `max_rounds` remaining, linked by `task_runs.review_id` and replayed by delivery id. Carries reviewer-supplied `missing_work` and `next_round_guidance`. Continuation runs use the task's current `TaskExecutionProfile` at enqueue time; they do not rewrite the previous run.
+
+### Task Context Bundle
+
+The shared rendered overlay assembled by `internal/situation`, exposed in Go as `task.ContextBundle` and on the wire as `/agent/context.task.bundle`. Carries run summary, continuation guidance, review history, redacted active-run context, reviewer-bound context, and `latest_event_seq` projection. Reviewer sessions can receive a review-bound context bundle without receiving a worker lease — context implies neither claim ownership nor mutation rights.
+
+### Current Run ID
+
+`tasks.current_run_id` is a denormalized read projection over `task_runs`, maintained only by `task.Service`/store transition methods. It is **not** claim authority, scheduler assignment authority, coordinator ownership authority, or terminal-state authority. API and web payloads expose it as read-model state. Profile mutation rejects while `current_run_id` is non-empty.
+
 ### Safe Spawn
 
 Daemon-managed child-session creation. Defaults: `max_depth = 1`, `max_children = 5`, mandatory TTL. Permission narrowing on **concrete atoms only**: tools, skills, MCP server IDs, workspace path grants, network channels, env profile grants. Subset-only; unknown child atoms count as widening and reject.

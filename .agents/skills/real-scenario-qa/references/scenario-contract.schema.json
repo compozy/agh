@@ -90,6 +90,21 @@
             "enum": ["cli", "api", "web", "runtime", "provider"]
           },
           "uniqueItems": true
+        },
+        "required_deliverables": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 },
+          "description": "Per-type deliverable minimums consumed by C16 in the auditor."
+        },
+        "required_collaboration": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "peer_messages_min": { "type": "integer", "minimum": 1 },
+            "review_cycles_min": { "type": "integer", "minimum": 1 },
+            "disagreements_resolved_min": { "type": "integer", "minimum": 0 },
+            "channels_active_min": { "type": "integer", "minimum": 1 }
+          }
         }
       }
     },
