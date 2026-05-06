@@ -1,51 +1,89 @@
 // Types
 export type {
+  KnowledgeAgentTier,
   KnowledgeFilter,
   KnowledgeMemoryItem,
   KnowledgeScope,
-  MemoryConsolidateResponse,
+  KnowledgeSelector,
+  MemoryAgentTier,
+  MemoryDecision,
+  MemoryDecisionOp,
+  MemoryDecisionsResponse,
+  MemoryDecisionSource,
+  MemoryDeleteResponse,
+  MemoryDreamTriggerResponse,
+  MemoryEditRequest,
+  MemoryEditResponse,
   MemoryHeader,
-  MemoryMutationResponse,
   MemoryReadResponse,
   MemoryScope,
+  MemorySearchRequest,
+  MemorySearchResponse,
+  MemorySearchResult,
   MemoryType,
+  MemoryWriteRequest,
+  MemoryWriteResponse,
 } from "./types";
 
 // Adapters
 export {
-  consolidateMemory,
   deleteMemory,
+  editMemory,
   KnowledgeApiError,
   listMemories,
+  listMemoryDecisions,
   readMemory,
+  searchMemory,
+  triggerMemoryDream,
   writeMemory,
+  type ListMemoryDecisionsParams,
 } from "./adapters/knowledge-api";
 
 // Query infrastructure
 export { knowledgeKeys } from "./lib/query-keys";
-export { memoriesListOptions, memoryDetailOptions } from "./lib/query-options";
+export {
+  memoriesListOptions,
+  memoryDecisionsOptions,
+  memoryDetailOptions,
+  memorySearchOptions,
+} from "./lib/query-options";
 
 // Hooks
-export { useMemories, useMemory } from "./hooks/use-knowledge";
-export { useConsolidateMemory, useDeleteMemory } from "./hooks/use-knowledge-actions";
+export {
+  useMemories,
+  useMemory,
+  useMemoryDecisions,
+  useMemorySearch,
+  type UseMemorySearchOptions,
+} from "./hooks/use-knowledge";
+export {
+  useDeleteMemory,
+  useEditMemory,
+  useTriggerMemoryDream,
+  type EditMemoryParams,
+} from "./hooks/use-knowledge-actions";
 
 // Components
 export { KnowledgeListPanel } from "./components/knowledge-list-panel";
 export { KnowledgeDetailPanel } from "./components/knowledge-detail-panel";
 export { KnowledgeDeleteDialog } from "./components/knowledge-delete-dialog";
+export { KnowledgeEditDialog } from "./components/knowledge-edit-dialog";
+export { KnowledgeDecisionsSection } from "./components/knowledge-decisions-section";
 
 // Lib
 export {
   compareKnowledgeScope,
-  deriveScopeFromFilename,
-  knowledgeMemoryKey,
+  decisionOpLabel,
+  decisionSourceLabel,
   formatKnowledgeDateTime,
   formatKnowledgeRelativeTime,
+  knowledgeAgentTierLabel,
+  knowledgeAgentTierShortLabel,
+  knowledgeMemoryKey,
   knowledgeScopeLabel,
   knowledgeScopeShortLabel,
   memoryScopeTone,
   memoryTypeTone,
-  resolveKnowledgeScope,
 } from "./lib/knowledge-formatters";
 export {
   filterKnowledgeMemories,

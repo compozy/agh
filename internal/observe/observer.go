@@ -58,6 +58,15 @@ type PermissionModeResolver func(ctx context.Context, agentName, workspaceID str
 // VersionSource returns the current daemon build metadata.
 type VersionSource func() version.Info
 
+// MemoryEventSource exposes canonical memory events across all memory DB authorities.
+type MemoryEventSource interface {
+	ListMemoryEventSummaries(
+		ctx context.Context,
+		workspaces []string,
+		query store.EventSummaryQuery,
+	) ([]store.EventSummary, error)
+}
+
 // HookCatalogSource provides resolved hook catalog views from the live runtime.
 type HookCatalogSource interface {
 	Catalog(filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
@@ -117,6 +126,7 @@ type Observer struct {
 	homePaths             aghconfig.HomePaths
 	sessionSource         SessionSource
 	resolvePermissionMode PermissionModeResolver
+	memoryEventSource     MemoryEventSource
 	workspaceResolver     workspacepkg.RuntimeResolver
 	now                   func() time.Time
 	startedAt             time.Time
@@ -166,6 +176,13 @@ func WithSessionSource(source SessionSource) Option {
 func WithPermissionModeResolver(resolver PermissionModeResolver) Option {
 	return func(observer *Observer) {
 		observer.resolvePermissionMode = resolver
+	}
+}
+
+// WithMemoryEventSource injects the Memory v2 canonical event aggregation source.
+func WithMemoryEventSource(source MemoryEventSource) Option {
+	return func(observer *Observer) {
+		observer.memoryEventSource = source
 	}
 }
 

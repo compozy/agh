@@ -206,6 +206,7 @@ func TestWorkspaceStructSurface(t *testing.T) {
 			target: reflect.TypeFor[workspace.ResolvedWorkspace](),
 			fields: []fieldSpec{
 				{name: "Workspace", fieldType: reflect.TypeFor[workspace.Workspace](), embedded: true},
+				{name: "WorkspaceID", fieldType: reflect.TypeFor[string]()},
 				{name: "Config", fieldType: reflect.TypeFor[aghconfig.Config]()},
 				{name: "Agents", fieldType: reflect.TypeFor[[]aghconfig.AgentDef]()},
 				{name: "AgentDiagnostics", fieldType: reflect.TypeFor[[]workspace.AgentDiagnostic]()},

@@ -10,7 +10,6 @@ import (
 
 	"github.com/pedronauck/agh/internal/agentidentity"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
@@ -102,62 +101,86 @@ type stubClient struct {
 		string,
 		AgentHeartbeatHistoryRequest,
 	) (AgentHeartbeatHistoryRecord, error)
-	rollbackAgentHeartbeatFn  func(context.Context, string, AgentHeartbeatRollbackRequest) (AgentHeartbeatMutationRecord, error)
-	getAgentHeartbeatStatusFn func(context.Context, string, AgentHeartbeatStatusRequest) (AgentHeartbeatStatusRecord, error)
-	wakeAgentHeartbeatFn      func(context.Context, string, AgentHeartbeatWakeRequest) (AgentHeartbeatWakeDecisionRecord, error)
-	listResourcesFn           func(context.Context, ResourceListQuery) ([]ResourceRecord, error)
-	getResourceFn             func(context.Context, string, string) (ResourceRecord, error)
-	putResourceFn             func(context.Context, string, string, ResourcePutRequest) (ResourceRecord, error)
-	deleteResourceFn          func(context.Context, string, string, ResourceDeleteRequest) error
-	listSkillsFn              func(context.Context, SkillQuery) ([]SkillRecord, error)
-	getSkillFn                func(context.Context, string, SkillQuery) (SkillRecord, error)
-	getSkillContentFn         func(context.Context, string, SkillQuery) (string, error)
-	enableSkillFn             func(context.Context, string, SkillQuery) (SkillActionRecord, error)
-	disableSkillFn            func(context.Context, string, SkillQuery) (SkillActionRecord, error)
-	listToolsFn               func(context.Context, ToolQuery) (ToolsResponseRecord, error)
-	searchToolsFn             func(context.Context, ToolSearchRequest) (ToolsResponseRecord, error)
-	getToolFn                 func(context.Context, string, ToolQuery) (ToolResponseRecord, error)
-	createToolApprovalFn      func(context.Context, string, ToolApprovalRequest) (ToolApprovalRecord, error)
-	invokeToolFn              func(context.Context, string, ToolInvokeRequest) (ToolInvokeResponseRecord, error)
-	listToolsetsFn            func(context.Context, ToolQuery) (ToolsetsResponseRecord, error)
-	getToolsetFn              func(context.Context, string, ToolQuery) (ToolsetResponseRecord, error)
-	hookCatalogFn             func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
-	hookRunsFn                func(context.Context, HookRunsQuery) ([]HookRunRecord, error)
-	hookEventsFn              func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
-	observeEventsFn           func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
-	streamObserveEventsFn     func(context.Context, ObserveEventQuery, string, SSEHandler) error
-	observeHealthFn           func(context.Context) (HealthStatus, error)
-	memoryHealthFn            func(context.Context, string) (MemoryHealthRecord, error)
-	memoryHistoryFn           func(context.Context, MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
-	listMemoryFn              func(context.Context, memory.Scope, string) ([]MemoryHeaderRecord, error)
-	searchMemoryFn            func(context.Context, string, MemorySearchQuery) ([]MemorySearchRecord, error)
-	readMemoryFn              func(context.Context, string, memory.Scope, string) (MemoryReadRecord, error)
-	writeMemoryFn             func(context.Context, string, MemoryWriteRequest) (MemoryMutationRecord, error)
-	deleteMemoryFn            func(context.Context, string, memory.Scope, string) (MemoryMutationRecord, error)
-	reindexMemoryFn           func(context.Context, MemoryReindexRequest) (MemoryReindexRecord, error)
-	consolidateMemoryFn       func(context.Context, string) (MemoryConsolidateRecord, error)
-	listAutomationJobsFn      func(context.Context, AutomationJobQuery) ([]JobRecord, error)
-	createAutomationJobFn     func(context.Context, AutomationJobCreateRequest) (JobRecord, error)
-	getAutomationJobFn        func(context.Context, string) (JobRecord, error)
-	updateAutomationJobFn     func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error)
-	deleteAutomationJobFn     func(context.Context, string) error
-	triggerAutomationJobFn    func(context.Context, string) (RunRecord, error)
-	automationJobRunsFn       func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
-	listAutomationTriggersFn  func(context.Context, AutomationTriggerQuery) ([]TriggerRecord, error)
-	createAutomationTriggerFn func(context.Context, AutomationTriggerCreateRequest) (TriggerRecord, error)
-	getAutomationTriggerFn    func(context.Context, string) (TriggerRecord, error)
-	updateAutomationTriggerFn func(context.Context, string, AutomationTriggerUpdateRequest) (TriggerRecord, error)
-	deleteAutomationTriggerFn func(context.Context, string) error
-	automationTriggerRunsFn   func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
-	listAutomationRunsFn      func(context.Context, AutomationRunQuery) ([]RunRecord, error)
-	getAutomationRunFn        func(context.Context, string) (RunRecord, error)
-	listTasksFn               func(context.Context, TaskListQuery) ([]TaskSummaryRecord, error)
-	createTaskFn              func(context.Context, CreateTaskRequest) (TaskRecord, error)
-	getTaskFn                 func(context.Context, string) (TaskDetailRecord, error)
-	updateTaskFn              func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
-	deleteTaskFn              func(context.Context, string) error
-	getTaskExecutionProfileFn func(context.Context, string) (TaskExecutionProfileRecord, error)
-	setTaskExecutionProfileFn func(
+	rollbackAgentHeartbeatFn      func(context.Context, string, AgentHeartbeatRollbackRequest) (AgentHeartbeatMutationRecord, error)
+	getAgentHeartbeatStatusFn     func(context.Context, string, AgentHeartbeatStatusRequest) (AgentHeartbeatStatusRecord, error)
+	wakeAgentHeartbeatFn          func(context.Context, string, AgentHeartbeatWakeRequest) (AgentHeartbeatWakeDecisionRecord, error)
+	listResourcesFn               func(context.Context, ResourceListQuery) ([]ResourceRecord, error)
+	getResourceFn                 func(context.Context, string, string) (ResourceRecord, error)
+	putResourceFn                 func(context.Context, string, string, ResourcePutRequest) (ResourceRecord, error)
+	deleteResourceFn              func(context.Context, string, string, ResourceDeleteRequest) error
+	listSkillsFn                  func(context.Context, SkillQuery) ([]SkillRecord, error)
+	getSkillFn                    func(context.Context, string, SkillQuery) (SkillRecord, error)
+	getSkillContentFn             func(context.Context, string, SkillQuery) (string, error)
+	enableSkillFn                 func(context.Context, string, SkillQuery) (SkillActionRecord, error)
+	disableSkillFn                func(context.Context, string, SkillQuery) (SkillActionRecord, error)
+	listToolsFn                   func(context.Context, ToolQuery) (ToolsResponseRecord, error)
+	searchToolsFn                 func(context.Context, ToolSearchRequest) (ToolsResponseRecord, error)
+	getToolFn                     func(context.Context, string, ToolQuery) (ToolResponseRecord, error)
+	createToolApprovalFn          func(context.Context, string, ToolApprovalRequest) (ToolApprovalRecord, error)
+	invokeToolFn                  func(context.Context, string, ToolInvokeRequest) (ToolInvokeResponseRecord, error)
+	listToolsetsFn                func(context.Context, ToolQuery) (ToolsetsResponseRecord, error)
+	getToolsetFn                  func(context.Context, string, ToolQuery) (ToolsetResponseRecord, error)
+	hookCatalogFn                 func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
+	hookRunsFn                    func(context.Context, HookRunsQuery) ([]HookRunRecord, error)
+	hookEventsFn                  func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
+	observeEventsFn               func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
+	streamObserveEventsFn         func(context.Context, ObserveEventQuery, string, SSEHandler) error
+	observeHealthFn               func(context.Context) (HealthStatus, error)
+	memoryHealthFn                func(context.Context, string) (MemoryHealthRecord, error)
+	memoryHistoryFn               func(context.Context, MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
+	listMemoryFn                  func(context.Context, MemoryListQuery) (MemoryListRecord, error)
+	showMemoryFn                  func(context.Context, string, MemorySelectorQuery) (MemoryEntryRecord, error)
+	createMemoryFn                func(context.Context, MemoryCreateRequest) (MemoryMutationRecord, error)
+	editMemoryFn                  func(context.Context, string, MemoryEditRequest) (MemoryMutationRecord, error)
+	deleteMemoryFn                func(context.Context, string, MemorySelectorQuery) (MemoryDeleteRecord, error)
+	searchMemoryFn                func(context.Context, MemorySearchRequest) (MemorySearchRecord, error)
+	reindexMemoryFn               func(context.Context, MemoryReindexRequest) (MemoryReindexRecord, error)
+	promoteMemoryFn               func(context.Context, MemoryPromoteRequest) (MemoryPromoteRecord, error)
+	resetMemoryFn                 func(context.Context, MemoryResetRequest) (MemoryResetRecord, error)
+	reloadMemoryFn                func(context.Context, MemorySelectorQuery) (MemoryReloadRecord, error)
+	memoryScopeShowFn             func(context.Context, MemorySelectorQuery) (MemoryScopeShowRecord, error)
+	listMemoryDecisionsFn         func(context.Context, MemoryDecisionListQuery) (MemoryDecisionListRecord, error)
+	getMemoryDecisionFn           func(context.Context, string) (MemoryDecisionRecord, error)
+	revertMemoryDecisionFn        func(context.Context, string, MemoryDecisionRevertRequest) (MemoryDecisionRevertRecord, error)
+	getMemoryRecallTraceFn        func(context.Context, string, int64) (MemoryRecallTraceRecord, error)
+	listMemoryDreamsFn            func(context.Context) (MemoryDreamListRecord, error)
+	getMemoryDreamFn              func(context.Context, string) (MemoryDreamRecord, error)
+	triggerMemoryDreamFn          func(context.Context, MemoryDreamTriggerRequest) (MemoryDreamTriggerRecord, error)
+	retryMemoryDreamFn            func(context.Context, string, MemoryDreamRetryRequest) (MemoryDreamRetryRecord, error)
+	getMemoryDreamStatusFn        func(context.Context) (MemoryDreamListRecord, error)
+	listMemoryDailyLogsFn         func(context.Context, MemorySelectorQuery) (MemoryDailyLogListRecord, error)
+	getMemoryExtractorStatusFn    func(context.Context, string) (MemoryExtractorStatusRecord, error)
+	listMemoryExtractorFailuresFn func(context.Context) (MemoryExtractorFailuresRecord, error)
+	retryMemoryExtractorFn        func(context.Context, MemoryExtractorRetryRequest) (MemoryExtractorRetryRecord, error)
+	drainMemoryExtractorFn        func(context.Context) (MemoryExtractorDrainRecord, error)
+	listMemoryProvidersFn         func(context.Context) (MemoryProviderListRecord, error)
+	getMemoryProviderFn           func(context.Context, string) (MemoryProviderRecord, error)
+	selectMemoryProviderFn        func(context.Context, MemoryProviderSelectRequest) (MemoryProviderLifecycleRecord, error)
+	enableMemoryProviderFn        func(context.Context, string, MemoryProviderLifecycleRequest) (MemoryProviderLifecycleRecord, error)
+	disableMemoryProviderFn       func(context.Context, string, MemoryProviderLifecycleRequest) (MemoryProviderLifecycleRecord, error)
+	createMemoryAdhocNoteFn       func(context.Context, MemoryAdhocNoteRequest) (MemoryAdhocNoteRecord, error)
+	listAutomationJobsFn          func(context.Context, AutomationJobQuery) ([]JobRecord, error)
+	createAutomationJobFn         func(context.Context, AutomationJobCreateRequest) (JobRecord, error)
+	getAutomationJobFn            func(context.Context, string) (JobRecord, error)
+	updateAutomationJobFn         func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error)
+	deleteAutomationJobFn         func(context.Context, string) error
+	triggerAutomationJobFn        func(context.Context, string) (RunRecord, error)
+	automationJobRunsFn           func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
+	listAutomationTriggersFn      func(context.Context, AutomationTriggerQuery) ([]TriggerRecord, error)
+	createAutomationTriggerFn     func(context.Context, AutomationTriggerCreateRequest) (TriggerRecord, error)
+	getAutomationTriggerFn        func(context.Context, string) (TriggerRecord, error)
+	updateAutomationTriggerFn     func(context.Context, string, AutomationTriggerUpdateRequest) (TriggerRecord, error)
+	deleteAutomationTriggerFn     func(context.Context, string) error
+	automationTriggerRunsFn       func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
+	listAutomationRunsFn          func(context.Context, AutomationRunQuery) ([]RunRecord, error)
+	getAutomationRunFn            func(context.Context, string) (RunRecord, error)
+	listTasksFn                   func(context.Context, TaskListQuery) ([]TaskSummaryRecord, error)
+	createTaskFn                  func(context.Context, CreateTaskRequest) (TaskRecord, error)
+	getTaskFn                     func(context.Context, string) (TaskDetailRecord, error)
+	updateTaskFn                  func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
+	deleteTaskFn                  func(context.Context, string) error
+	getTaskExecutionProfileFn     func(context.Context, string) (TaskExecutionProfileRecord, error)
+	setTaskExecutionProfileFn     func(
 		context.Context,
 		string,
 		*TaskExecutionProfileRequest,
@@ -1204,59 +1227,62 @@ func (s *stubClient) MemoryHistory(
 
 func (s *stubClient) ListMemory(
 	ctx context.Context,
-	scope memory.Scope,
-	workspace string,
-) ([]MemoryHeaderRecord, error) {
+	query MemoryListQuery,
+) (MemoryListRecord, error) {
 	if s.listMemoryFn != nil {
-		return s.listMemoryFn(ctx, scope, workspace)
+		return s.listMemoryFn(ctx, query)
 	}
-	return nil, errors.New("unexpected ListMemory call")
+	return MemoryListRecord{}, errors.New("unexpected ListMemory call")
 }
 
-func (s *stubClient) SearchMemory(
-	ctx context.Context,
-	query string,
-	opts MemorySearchQuery,
-) ([]MemorySearchRecord, error) {
-	if s.searchMemoryFn != nil {
-		return s.searchMemoryFn(ctx, query, opts)
-	}
-	return nil, errors.New("unexpected SearchMemory call")
-}
-
-func (s *stubClient) ReadMemory(
+func (s *stubClient) ShowMemory(
 	ctx context.Context,
 	filename string,
-	scope memory.Scope,
-	workspace string,
-) (MemoryReadRecord, error) {
-	if s.readMemoryFn != nil {
-		return s.readMemoryFn(ctx, filename, scope, workspace)
+	query MemorySelectorQuery,
+) (MemoryEntryRecord, error) {
+	if s.showMemoryFn != nil {
+		return s.showMemoryFn(ctx, filename, query)
 	}
-	return MemoryReadRecord{}, errors.New("unexpected ReadMemory call")
+	return MemoryEntryRecord{}, errors.New("unexpected ShowMemory call")
 }
 
-func (s *stubClient) WriteMemory(
+func (s *stubClient) CreateMemory(ctx context.Context, request MemoryCreateRequest) (MemoryMutationRecord, error) {
+	if s.createMemoryFn != nil {
+		return s.createMemoryFn(ctx, request)
+	}
+	return MemoryMutationRecord{}, errors.New("unexpected CreateMemory call")
+}
+
+func (s *stubClient) EditMemory(
 	ctx context.Context,
 	filename string,
-	request MemoryWriteRequest,
+	request MemoryEditRequest,
 ) (MemoryMutationRecord, error) {
-	if s.writeMemoryFn != nil {
-		return s.writeMemoryFn(ctx, filename, request)
+	if s.editMemoryFn != nil {
+		return s.editMemoryFn(ctx, filename, request)
 	}
-	return MemoryMutationRecord{}, errors.New("unexpected WriteMemory call")
+	return MemoryMutationRecord{}, errors.New("unexpected EditMemory call")
 }
 
 func (s *stubClient) DeleteMemory(
 	ctx context.Context,
 	filename string,
-	scope memory.Scope,
-	workspace string,
-) (MemoryMutationRecord, error) {
+	query MemorySelectorQuery,
+) (MemoryDeleteRecord, error) {
 	if s.deleteMemoryFn != nil {
-		return s.deleteMemoryFn(ctx, filename, scope, workspace)
+		return s.deleteMemoryFn(ctx, filename, query)
 	}
-	return MemoryMutationRecord{}, errors.New("unexpected DeleteMemory call")
+	return MemoryDeleteRecord{}, errors.New("unexpected DeleteMemory call")
+}
+
+func (s *stubClient) SearchMemory(
+	ctx context.Context,
+	request MemorySearchRequest,
+) (MemorySearchRecord, error) {
+	if s.searchMemoryFn != nil {
+		return s.searchMemoryFn(ctx, request)
+	}
+	return MemorySearchRecord{}, errors.New("unexpected SearchMemory call")
 }
 
 func (s *stubClient) ReindexMemory(
@@ -1269,14 +1295,213 @@ func (s *stubClient) ReindexMemory(
 	return MemoryReindexRecord{}, errors.New("unexpected ReindexMemory call")
 }
 
-func (s *stubClient) ConsolidateMemory(
-	ctx context.Context,
-	workspace string,
-) (MemoryConsolidateRecord, error) {
-	if s.consolidateMemoryFn != nil {
-		return s.consolidateMemoryFn(ctx, workspace)
+func (s *stubClient) PromoteMemory(ctx context.Context, request MemoryPromoteRequest) (MemoryPromoteRecord, error) {
+	if s.promoteMemoryFn != nil {
+		return s.promoteMemoryFn(ctx, request)
 	}
-	return MemoryConsolidateRecord{}, errors.New("unexpected ConsolidateMemory call")
+	return MemoryPromoteRecord{}, errors.New("unexpected PromoteMemory call")
+}
+
+func (s *stubClient) ResetMemory(ctx context.Context, request MemoryResetRequest) (MemoryResetRecord, error) {
+	if s.resetMemoryFn != nil {
+		return s.resetMemoryFn(ctx, request)
+	}
+	return MemoryResetRecord{}, errors.New("unexpected ResetMemory call")
+}
+
+func (s *stubClient) ReloadMemory(ctx context.Context, request MemorySelectorQuery) (MemoryReloadRecord, error) {
+	if s.reloadMemoryFn != nil {
+		return s.reloadMemoryFn(ctx, request)
+	}
+	return MemoryReloadRecord{}, errors.New("unexpected ReloadMemory call")
+}
+
+func (s *stubClient) MemoryScopeShow(ctx context.Context, query MemorySelectorQuery) (MemoryScopeShowRecord, error) {
+	if s.memoryScopeShowFn != nil {
+		return s.memoryScopeShowFn(ctx, query)
+	}
+	return MemoryScopeShowRecord{}, errors.New("unexpected MemoryScopeShow call")
+}
+
+func (s *stubClient) ListMemoryDecisions(
+	ctx context.Context,
+	query MemoryDecisionListQuery,
+) (MemoryDecisionListRecord, error) {
+	if s.listMemoryDecisionsFn != nil {
+		return s.listMemoryDecisionsFn(ctx, query)
+	}
+	return MemoryDecisionListRecord{}, errors.New("unexpected ListMemoryDecisions call")
+}
+
+func (s *stubClient) GetMemoryDecision(ctx context.Context, id string) (MemoryDecisionRecord, error) {
+	if s.getMemoryDecisionFn != nil {
+		return s.getMemoryDecisionFn(ctx, id)
+	}
+	return MemoryDecisionRecord{}, errors.New("unexpected GetMemoryDecision call")
+}
+
+func (s *stubClient) RevertMemoryDecision(
+	ctx context.Context,
+	id string,
+	request MemoryDecisionRevertRequest,
+) (MemoryDecisionRevertRecord, error) {
+	if s.revertMemoryDecisionFn != nil {
+		return s.revertMemoryDecisionFn(ctx, id, request)
+	}
+	return MemoryDecisionRevertRecord{}, errors.New("unexpected RevertMemoryDecision call")
+}
+
+func (s *stubClient) GetMemoryRecallTrace(
+	ctx context.Context,
+	sessionID string,
+	turnSeq int64,
+) (MemoryRecallTraceRecord, error) {
+	if s.getMemoryRecallTraceFn != nil {
+		return s.getMemoryRecallTraceFn(ctx, sessionID, turnSeq)
+	}
+	return MemoryRecallTraceRecord{}, errors.New("unexpected GetMemoryRecallTrace call")
+}
+
+func (s *stubClient) ListMemoryDreams(ctx context.Context) (MemoryDreamListRecord, error) {
+	if s.listMemoryDreamsFn != nil {
+		return s.listMemoryDreamsFn(ctx)
+	}
+	return MemoryDreamListRecord{}, errors.New("unexpected ListMemoryDreams call")
+}
+
+func (s *stubClient) GetMemoryDream(ctx context.Context, id string) (MemoryDreamRecord, error) {
+	if s.getMemoryDreamFn != nil {
+		return s.getMemoryDreamFn(ctx, id)
+	}
+	return MemoryDreamRecord{}, errors.New("unexpected GetMemoryDream call")
+}
+
+func (s *stubClient) TriggerMemoryDream(
+	ctx context.Context,
+	request MemoryDreamTriggerRequest,
+) (MemoryDreamTriggerRecord, error) {
+	if s.triggerMemoryDreamFn != nil {
+		return s.triggerMemoryDreamFn(ctx, request)
+	}
+	return MemoryDreamTriggerRecord{}, errors.New("unexpected TriggerMemoryDream call")
+}
+
+func (s *stubClient) RetryMemoryDream(
+	ctx context.Context,
+	id string,
+	request MemoryDreamRetryRequest,
+) (MemoryDreamRetryRecord, error) {
+	if s.retryMemoryDreamFn != nil {
+		return s.retryMemoryDreamFn(ctx, id, request)
+	}
+	return MemoryDreamRetryRecord{}, errors.New("unexpected RetryMemoryDream call")
+}
+
+func (s *stubClient) GetMemoryDreamStatus(ctx context.Context) (MemoryDreamListRecord, error) {
+	if s.getMemoryDreamStatusFn != nil {
+		return s.getMemoryDreamStatusFn(ctx)
+	}
+	return MemoryDreamListRecord{}, errors.New("unexpected GetMemoryDreamStatus call")
+}
+
+func (s *stubClient) ListMemoryDailyLogs(
+	ctx context.Context,
+	query MemorySelectorQuery,
+) (MemoryDailyLogListRecord, error) {
+	if s.listMemoryDailyLogsFn != nil {
+		return s.listMemoryDailyLogsFn(ctx, query)
+	}
+	return MemoryDailyLogListRecord{}, errors.New("unexpected ListMemoryDailyLogs call")
+}
+
+func (s *stubClient) GetMemoryExtractorStatus(
+	ctx context.Context,
+	sessionID string,
+) (MemoryExtractorStatusRecord, error) {
+	if s.getMemoryExtractorStatusFn != nil {
+		return s.getMemoryExtractorStatusFn(ctx, sessionID)
+	}
+	return MemoryExtractorStatusRecord{}, errors.New("unexpected GetMemoryExtractorStatus call")
+}
+
+func (s *stubClient) ListMemoryExtractorFailures(ctx context.Context) (MemoryExtractorFailuresRecord, error) {
+	if s.listMemoryExtractorFailuresFn != nil {
+		return s.listMemoryExtractorFailuresFn(ctx)
+	}
+	return MemoryExtractorFailuresRecord{}, errors.New("unexpected ListMemoryExtractorFailures call")
+}
+
+func (s *stubClient) RetryMemoryExtractor(
+	ctx context.Context,
+	request MemoryExtractorRetryRequest,
+) (MemoryExtractorRetryRecord, error) {
+	if s.retryMemoryExtractorFn != nil {
+		return s.retryMemoryExtractorFn(ctx, request)
+	}
+	return MemoryExtractorRetryRecord{}, errors.New("unexpected RetryMemoryExtractor call")
+}
+
+func (s *stubClient) DrainMemoryExtractor(ctx context.Context) (MemoryExtractorDrainRecord, error) {
+	if s.drainMemoryExtractorFn != nil {
+		return s.drainMemoryExtractorFn(ctx)
+	}
+	return MemoryExtractorDrainRecord{}, errors.New("unexpected DrainMemoryExtractor call")
+}
+
+func (s *stubClient) ListMemoryProviders(ctx context.Context) (MemoryProviderListRecord, error) {
+	if s.listMemoryProvidersFn != nil {
+		return s.listMemoryProvidersFn(ctx)
+	}
+	return MemoryProviderListRecord{}, errors.New("unexpected ListMemoryProviders call")
+}
+
+func (s *stubClient) GetMemoryProvider(ctx context.Context, name string) (MemoryProviderRecord, error) {
+	if s.getMemoryProviderFn != nil {
+		return s.getMemoryProviderFn(ctx, name)
+	}
+	return MemoryProviderRecord{}, errors.New("unexpected GetMemoryProvider call")
+}
+
+func (s *stubClient) SelectMemoryProvider(
+	ctx context.Context,
+	request MemoryProviderSelectRequest,
+) (MemoryProviderLifecycleRecord, error) {
+	if s.selectMemoryProviderFn != nil {
+		return s.selectMemoryProviderFn(ctx, request)
+	}
+	return MemoryProviderLifecycleRecord{}, errors.New("unexpected SelectMemoryProvider call")
+}
+
+func (s *stubClient) EnableMemoryProvider(
+	ctx context.Context,
+	name string,
+	request MemoryProviderLifecycleRequest,
+) (MemoryProviderLifecycleRecord, error) {
+	if s.enableMemoryProviderFn != nil {
+		return s.enableMemoryProviderFn(ctx, name, request)
+	}
+	return MemoryProviderLifecycleRecord{}, errors.New("unexpected EnableMemoryProvider call")
+}
+
+func (s *stubClient) DisableMemoryProvider(
+	ctx context.Context,
+	name string,
+	request MemoryProviderLifecycleRequest,
+) (MemoryProviderLifecycleRecord, error) {
+	if s.disableMemoryProviderFn != nil {
+		return s.disableMemoryProviderFn(ctx, name, request)
+	}
+	return MemoryProviderLifecycleRecord{}, errors.New("unexpected DisableMemoryProvider call")
+}
+
+func (s *stubClient) CreateMemoryAdhocNote(
+	ctx context.Context,
+	request MemoryAdhocNoteRequest,
+) (MemoryAdhocNoteRecord, error) {
+	if s.createMemoryAdhocNoteFn != nil {
+		return s.createMemoryAdhocNoteFn(ctx, request)
+	}
+	return MemoryAdhocNoteRecord{}, errors.New("unexpected CreateMemoryAdhocNote call")
 }
 
 func (s *stubClient) ListAutomationJobs(

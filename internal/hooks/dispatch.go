@@ -671,6 +671,23 @@ func (h *Hooks) DispatchNetworkWorkClosed(
 	)
 }
 
+// DispatchSessionMessagePersisted runs the session.message_persisted hook dispatch.
+func (h *Hooks) DispatchSessionMessagePersisted(
+	ctx context.Context,
+	payload SessionMessagePersistedPayload,
+) (SessionMessagePersistedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookSessionMessagePersisted,
+		payload,
+		dispatchConfig[SessionMessagePersistedPayload, AuthoredContextObservationPatch]{
+			match: matchSessionMessagePersisted,
+			apply: applyNoop[SessionMessagePersistedPayload, AuthoredContextObservationPatch],
+		},
+	)
+}
+
 // DispatchTurnStart runs the turn.start hook pipeline.
 func (h *Hooks) DispatchTurnStart(ctx context.Context, payload TurnStartPayload) (TurnStartPayload, error) {
 	return executeDispatch(

@@ -68,9 +68,10 @@ var builtinToolsets = []toolspkg.Toolset{
 		ID: toolspkg.ToolsetIDMemory,
 		Tools: []string{
 			toolspkg.ToolIDMemoryList.String(),
-			toolspkg.ToolIDMemoryRead.String(),
+			toolspkg.ToolIDMemoryShow.String(),
 			toolspkg.ToolIDMemorySearch.String(),
-			toolspkg.ToolIDMemoryHistory.String(),
+			toolspkg.ToolIDMemoryPropose.String(),
+			toolspkg.ToolIDMemoryNote.String(),
 		},
 	},
 	{

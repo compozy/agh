@@ -116,6 +116,7 @@ type Manager struct {
 	soulStore                    SoulSnapshotStore
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore
+	ledgerMaterializer           LedgerMaterializer
 	homePaths                    aghconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
 	openStore                    StoreOpener
@@ -236,6 +237,13 @@ func WithSoulRunActivityChecker(checker SoulRunActivityChecker) Option {
 func WithSessionHealthStore(store HealthStore) Option {
 	return func(manager *Manager) {
 		manager.sessionHealthStore = store
+	}
+}
+
+// WithLedgerMaterializer injects the forensic session-ledger materializer.
+func WithLedgerMaterializer(materializer LedgerMaterializer) Option {
+	return func(manager *Manager) {
+		manager.ledgerMaterializer = materializer
 	}
 }
 

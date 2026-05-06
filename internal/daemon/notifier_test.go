@@ -513,7 +513,8 @@ func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 
 	observer := &spyLifecycleObserver{}
 	dream := &spyDreamRuntime{}
-	decls, executors := daemonNativeHooks(observer, dream)
+	extractor := newSpyMessagePersistedObserver()
+	decls, executors := daemonNativeHooks(observer, dream, extractor)
 	hooks := hookspkg.NewHooks(
 		hookspkg.WithLogger(discardLogger()),
 		hookspkg.WithNativeDeclarations(decls),
@@ -550,6 +551,22 @@ func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 	); err != nil {
 		t.Fatalf("DispatchSessionPostStop() error = %v", err)
 	}
+	messagePayload := hookspkg.SessionMessagePersistedPayload{
+		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookSessionMessagePersisted, Timestamp: fixedNow},
+		SessionContext: hookspkg.SessionContext{
+			SessionID:   sess.ID,
+			AgentName:   sess.AgentName,
+			WorkspaceID: sess.WorkspaceID,
+			Workspace:   sess.Workspace,
+		},
+		MessageID:  "msg-1",
+		MessageSeq: 1,
+		Role:       "assistant",
+		Text:       "done",
+	}
+	if _, err := hooks.DispatchSessionMessagePersisted(testutil.Context(t), messagePayload); err != nil {
+		t.Fatalf("DispatchSessionMessagePersisted() error = %v", err)
+	}
 
 	if got := len(observer.created); got != 1 {
 		t.Fatalf("len(observer.created) = %d, want 1", got)
@@ -562,6 +579,10 @@ func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 	}
 	if got, want := dream.calls, []string{"session_stop:ws-1"}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("dream calls = %#v, want %#v", got, want)
+	}
+	gotMessage := extractor.wait(t)
+	if gotMessage.SessionID != sess.ID || gotMessage.MessageID != "msg-1" {
+		t.Fatalf("extractor payload = %#v, want session/message ids", gotMessage)
 	}
 }
 
@@ -977,6 +998,33 @@ type spyDreamRuntime struct {
 
 func (s *spyDreamRuntime) EnqueueCheck(reason string, workspaceRef string) {
 	s.calls = append(s.calls, reason+":"+workspaceRef)
+}
+
+type spyMessagePersistedObserver struct {
+	ch chan hookspkg.SessionMessagePersistedPayload
+}
+
+func newSpyMessagePersistedObserver() *spyMessagePersistedObserver {
+	return &spyMessagePersistedObserver{ch: make(chan hookspkg.SessionMessagePersistedPayload, 1)}
+}
+
+func (s *spyMessagePersistedObserver) HandleSessionMessagePersisted(
+	_ context.Context,
+	payload hookspkg.SessionMessagePersistedPayload,
+) error {
+	s.ch <- payload
+	return nil
+}
+
+func (s *spyMessagePersistedObserver) wait(t *testing.T) hookspkg.SessionMessagePersistedPayload {
+	t.Helper()
+	select {
+	case payload := <-s.ch:
+		return payload
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for memory extractor hook")
+		return hookspkg.SessionMessagePersistedPayload{}
+	}
 }
 
 func marketplaceSkillForTest(registry string, slug string, hash string) *skills.Skill {

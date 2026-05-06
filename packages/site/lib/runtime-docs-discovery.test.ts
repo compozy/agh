@@ -76,6 +76,44 @@ describe("runtime docs discovery", () => {
     expect(toolsMeta.pages).toEqual(["index", "toolsets", "policy-and-invocation"]);
   });
 
+  it("keeps Memory v2 narrative pages reachable from core memory meta", () => {
+    const coreMeta = readRuntimeJSON<{ pages: string[] }>("core/meta.json");
+    const memoryMeta = readRuntimeJSON<{ pages: string[] }>("core/memory/meta.json");
+
+    expect(coreMeta.pages).toContain("memory");
+    expect(memoryMeta.pages).toEqual(["system", "scopes", "dream", "best-practices"]);
+    for (const page of memoryMeta.pages) {
+      expect(runtimePageExists("core", "memory", `${page}.mdx`)).toBe(true);
+    }
+  });
+
+  it("exposes the Slice 1 memory CLI surface from the generated cli-reference meta", () => {
+    const memoryMeta = readRuntimeJSON<{ pages: string[] }>("cli-reference/memory/meta.json");
+    const dreamMeta = readRuntimeJSON<{ pages: string[] }>("cli-reference/memory/dream/meta.json");
+
+    for (const page of ["index", "show", "search", "edit", "delete", "write", "history", "dream"]) {
+      expect(memoryMeta.pages).toContain(page);
+    }
+    expect(memoryMeta.pages).not.toContain("read");
+    expect(memoryMeta.pages).not.toContain("consolidate");
+    expect(runtimePageExists("cli-reference", "memory", "show.mdx")).toBe(true);
+    expect(runtimePageExists("cli-reference", "memory", "read.mdx")).toBe(false);
+
+    for (const page of ["index", "trigger", "retry", "show", "status"]) {
+      expect(dreamMeta.pages).toContain(page);
+    }
+    expect(dreamMeta.pages).not.toContain("consolidate");
+    expect(runtimePageExists("cli-reference", "memory", "dream", "trigger.mdx")).toBe(true);
+    expect(runtimePageExists("cli-reference", "memory", "dream", "consolidate.mdx")).toBe(false);
+  });
+
+  it("exposes the memory tag in the generated api-reference meta", () => {
+    const apiMeta = readRuntimeJSON<{ pages: string[] }>("api-reference/meta.json");
+
+    expect(apiMeta.pages).toContain("memory");
+    expect(runtimePageExists("api-reference", "memory.mdx")).toBe(true);
+  });
+
   it("keeps protocol implementation status reachable from protocol meta", () => {
     const protocolMeta = readProtocolJSON<{ pages: string[] }>("meta.json");
 

@@ -1,34 +1,40 @@
 ---
 title: "agh memory write"
-description: "Write or update a persistent memory file"
+description: "Create a Memory v2 entry through the controller"
 ---
 
 ## agh memory write
 
-Write or update a persistent memory file
+Create a Memory v2 entry through the controller
 
 ```
-agh memory write <filename> --type <type> --description <description> [flags]
+agh memory write --type <type> --name <name> --content <@file|text> [flags]
 ```
 
 ### Examples
 
 ```
-  # Write workspace-scoped project memory from a flag
-  agh memory write runtime-notes.md --type project --description "Runtime docs live in the site package" --content "Runtime docs are authored under packages/site/content/runtime."
+  # Write workspace-scoped project memory from a file
+  agh memory write --scope workspace --type project --name "Runtime docs" --content @runtime.md
 
-  # Write global user memory from stdin
-  printf "Prefer concise PR summaries.\n" | agh memory write review-style.md --type user --description "User wants concise PR summaries"
+  # Write agent-global feedback
+  agh memory write --scope agent --agent reviewer --agent-tier global \
+    --type feedback --name "Review tone" --content @feedback.md
 ```
 
 ### Options
 
 ```
-      --content string       Memory body content (alternative to stdin)
+      --agent string         Agent name for agent-scoped memory
+      --agent-tier string    Agent memory tier: workspace or global
+      --content string       Memory content; use @file to read from disk or - for stdin
       --description string   One-line durable memory description
+      --dry-run              Ask the controller for a decision without applying it
   -h, --help                 help for write
-      --scope string         Memory scope: global or workspace
+      --name string          Memory display name
+      --scope string         Memory scope: global, workspace, or agent
       --type string          Memory type: user, feedback, project, or reference
+      --workspace string     Workspace ID or path for workspace-bound memory
 ```
 
 ### Options inherited from parent commands
@@ -50,5 +56,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh memory write <filename> --type <type> --description <description> -o json
+agh memory write --type <type> --name <name> --content <@file|text> -o json
 ```

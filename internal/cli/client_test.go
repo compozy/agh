@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	"github.com/pedronauck/agh/internal/agentidentity"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
-	"github.com/pedronauck/agh/internal/memory"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
@@ -1421,48 +1422,79 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user"}]`,
+						`{"memories":[{"filename":"memory.md","mod_time":"2026-04-03T12:00:00Z","name":"Memory","description":"desc","type":"user","scope":"global","injection":true}]}`,
 					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/search":
-					if got := req.URL.Query().Get("q"); got != "release plan" {
-						t.Fatalf("memory search q = %q, want %q", got, "release plan")
+				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/search":
+					var body contract.MemorySearchRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode memory search request error = %v", err)
 					}
-					if got := req.URL.Query().Get("scope"); got != "workspace" {
-						t.Fatalf("memory search scope = %q, want %q", got, "workspace")
-					}
-					if got := req.URL.Query().Get("workspace"); got != "/workspace/project" {
-						t.Fatalf("memory search workspace = %q, want %q", got, "/workspace/project")
-					}
-					if got := req.URL.Query().Get("limit"); got != "5" {
-						t.Fatalf("memory search limit = %q, want %q", got, "5")
+					if body.QueryText != "release plan" || body.Scope != memcontract.ScopeWorkspace ||
+						body.WorkspaceID != "/workspace/project" || body.TopK != 5 {
+						t.Fatalf("memory search body = %#v", body)
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`[{"filename":"release.md","scope":"workspace","workspace":"/workspace/project","type":"project","name":"Release Plan","description":"plan","score":3.4,"snippet":"Ship phases incrementally","mod_time":"2026-04-03T12:00:00Z"}]`,
+						`{"results":[{"memory":{"filename":"release.md","scope":"workspace","workspace_id":"/workspace/project","type":"project","name":"Release Plan","description":"plan","mod_time":"2026-04-03T12:00:00Z","injection":true},"score":3.4,"snippet":"Ship phases incrementally"}],"recall":{"blocks":null}}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/memory.md":
-					return newHTTPResponse(http.StatusOK, `{"content":"---\nname: Memory\n---\n\nhello"}`), nil
-				case req.Method == http.MethodPut && req.URL.Path == "/api/memory/memory.md":
-					return newHTTPResponse(http.StatusOK, `{"ok":true}`), nil
+					if got := req.URL.Query().Get("scope"); got != "global" {
+						t.Fatalf("show memory scope query = %q, want %q", got, "global")
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"user","scope":"global","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"hello"}}`,
+					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/memory":
+					var body contract.MemoryCreateRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode memory create request error = %v", err)
+					}
+					if body.Scope != memcontract.ScopeGlobal ||
+						body.Type != memcontract.TypeUser ||
+						body.Name != "Memory" ||
+						body.Content != "payload" {
+						t.Fatalf("memory create body = %#v", body)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"decision":{"id":"dec-write","candidate_hash":"sha256:test","op":"add","scope":"global","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
+					), nil
 				case req.Method == http.MethodDelete && req.URL.Path == "/api/memory/memory.md":
 					if got := req.URL.Query().Get("scope"); got != "workspace" {
 						t.Fatalf("delete memory scope query = %q, want %q", got, "workspace")
 					}
-					return newHTTPResponse(http.StatusOK, `{"ok":true}`), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/consolidate":
-					return newHTTPResponse(http.StatusOK, `{"triggered":true}`), nil
+					if got := req.URL.Query().Get("workspace_id"); got != "/workspace/project" {
+						t.Fatalf("delete memory workspace_id query = %q, want %q", got, "/workspace/project")
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"decision":{"id":"dec-delete","candidate_hash":"sha256:test","op":"delete","scope":"workspace","frontmatter":{"name":"Memory","type":"user"},"confidence":0.9,"source":"rule","decided_at":"2026-04-03T12:00:00Z"},"applied":true}`,
+					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/dreams/trigger":
+					var body contract.MemoryDreamTriggerRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode memory dream trigger request error = %v", err)
+					}
+					if body.Scope != memcontract.ScopeWorkspace || body.WorkspaceID != "/workspace/project" {
+						t.Fatalf("memory dream trigger body = %#v", body)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"dream":{"id":"dream-1","status":"running","scope":"workspace","workspace_id":"/workspace/project","candidate_count":0,"promoted_count":0,"started_at":"2026-04-03T12:00:00Z"},"triggered":true}`,
+					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/memory/reindex":
 					body, err := io.ReadAll(req.Body)
 					if err != nil {
 						t.Fatalf("io.ReadAll(memory reindex body) error = %v", err)
 					}
 					if !strings.Contains(string(body), `"scope":"workspace"`) ||
-						!strings.Contains(string(body), `"workspace":"/workspace/project"`) {
+						!strings.Contains(string(body), `"workspace_id":"/workspace/project"`) {
 						t.Fatalf("memory reindex body = %s, want scope/workspace", body)
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"indexed_files":2,"scope":"workspace","workspace":"/workspace/project","completed_at":"2026-04-03T12:00:00Z"}`,
+						`{"indexed_files":2,"scope":"workspace","workspace_id":"/workspace/project","completed_at":"2026-04-03T12:00:00Z"}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/daemon/status":
 					return newHTTPResponse(
@@ -1636,56 +1668,70 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	}
 
 	memoryHistoryRecords, err := client.MemoryHistory(ctx, MemoryHistoryQuery{
-		Scope:     memory.ScopeWorkspace,
-		Workspace: "/workspace/project",
-		Operation: "memory.write",
-		Since:     time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
-		Limit:     4,
+		Scope:       memcontract.ScopeWorkspace,
+		WorkspaceID: "/workspace/project",
+		Operation:   "memory.write",
+		Since:       time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
+		Limit:       4,
 	})
 	if err != nil || len(memoryHistoryRecords) != 1 || memoryHistoryRecords[0].Operation != "memory.write" {
 		t.Fatalf("MemoryHistory() = %#v, %v", memoryHistoryRecords, err)
 	}
 
-	memories, err := client.ListMemory(ctx, memory.ScopeGlobal, "")
-	if err != nil || len(memories) != 1 {
+	memories, err := client.ListMemory(ctx, MemoryListQuery{
+		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeGlobal},
+	})
+	if err != nil || len(memories.Memories) != 1 {
 		t.Fatalf("ListMemory() = %#v, %v", memories, err)
 	}
 
-	searchResults, err := client.SearchMemory(ctx, "release plan", MemorySearchQuery{
-		Scope:     memory.ScopeWorkspace,
-		Workspace: "/workspace/project",
-		Limit:     5,
+	searchResults, err := client.SearchMemory(ctx, MemorySearchRequest{
+		QueryText:   "release plan",
+		Scope:       memcontract.ScopeWorkspace,
+		WorkspaceID: "/workspace/project",
+		TopK:        5,
 	})
-	if err != nil || len(searchResults) != 1 || searchResults[0].Filename != "release.md" {
+	if err != nil || len(searchResults.Results) != 1 || searchResults.Results[0].Memory.Filename != "release.md" {
 		t.Fatalf("SearchMemory() = %#v, %v", searchResults, err)
 	}
 
-	memoryRecord, err := client.ReadMemory(ctx, "memory.md", memory.ScopeGlobal, "")
-	if err != nil || !strings.Contains(memoryRecord.Content, "hello") {
-		t.Fatalf("ReadMemory() = %#v, %v", memoryRecord, err)
+	memoryRecord, err := client.ShowMemory(ctx, "memory.md", MemorySelectorQuery{Scope: memcontract.ScopeGlobal})
+	if err != nil || !strings.Contains(memoryRecord.Memory.Content, "hello") {
+		t.Fatalf("ShowMemory() = %#v, %v", memoryRecord, err)
 	}
 
-	written, err := client.WriteMemory(ctx, "memory.md", MemoryWriteRequest{Scope: "global", Content: "payload"})
-	if err != nil || !written.OK {
-		t.Fatalf("WriteMemory() = %#v, %v", written, err)
+	written, err := client.CreateMemory(ctx, MemoryCreateRequest{
+		Scope:   memcontract.ScopeGlobal,
+		Type:    memcontract.TypeUser,
+		Name:    "Memory",
+		Content: "payload",
+	})
+	if err != nil || !written.Applied {
+		t.Fatalf("CreateMemory() = %#v, %v", written, err)
 	}
 
-	deleted, err := client.DeleteMemory(ctx, "memory.md", memory.ScopeWorkspace, "/workspace/project")
-	if err != nil || !deleted.OK {
+	deleted, err := client.DeleteMemory(ctx, "memory.md", MemorySelectorQuery{
+		Scope:       memcontract.ScopeWorkspace,
+		WorkspaceID: "/workspace/project",
+	})
+	if err != nil || !deleted.Applied {
 		t.Fatalf("DeleteMemory() = %#v, %v", deleted, err)
 	}
 
 	reindexed, err := client.ReindexMemory(ctx, MemoryReindexRequest{
-		Scope:     "workspace",
-		Workspace: "/workspace/project",
+		Scope:       memcontract.ScopeWorkspace,
+		WorkspaceID: "/workspace/project",
 	})
 	if err != nil || reindexed.IndexedFiles != 2 {
 		t.Fatalf("ReindexMemory() = %#v, %v", reindexed, err)
 	}
 
-	consolidated, err := client.ConsolidateMemory(ctx, "/workspace/project")
-	if err != nil || !consolidated.Triggered {
-		t.Fatalf("ConsolidateMemory() = %#v, %v", consolidated, err)
+	dreamed, err := client.TriggerMemoryDream(ctx, MemoryDreamTriggerRequest{
+		Scope:       memcontract.ScopeWorkspace,
+		WorkspaceID: "/workspace/project",
+	})
+	if err != nil || !dreamed.Triggered {
+		t.Fatalf("TriggerMemoryDream() = %#v, %v", dreamed, err)
 	}
 }
 
@@ -2762,33 +2808,38 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		t.Fatalf("hookEventsValues() = %v, want family/sync_only", got)
 	}
 
-	if got := memoryValues(
-		memory.ScopeWorkspace,
-		"/workspace/project",
-	); got.Get("scope") != "workspace" ||
-		got.Get("workspace") != "/workspace/project" {
-		t.Fatalf("memoryValues() = %v, want scope/workspace", got)
+	if got := memorySelectorValues(MemorySelectorQuery{
+		Scope:         memcontract.ScopeWorkspace,
+		WorkspaceID:   "/workspace/project",
+		AgentName:     "reviewer",
+		AgentTier:     memcontract.AgentTierWorkspace,
+		IncludeSystem: true,
+	}); got.Get("scope") != "workspace" ||
+		got.Get("workspace_id") != "/workspace/project" ||
+		got.Get("agent_name") != "reviewer" ||
+		got.Get("agent_tier") != "workspace" ||
+		got.Get("include_system") != "true" {
+		t.Fatalf("memorySelectorValues() = %v, want selector filters", got)
 	}
 
-	if got := memorySearchValues("release plan", MemorySearchQuery{
-		Scope:     memory.ScopeWorkspace,
-		Workspace: "/workspace/project",
-		Limit:     5,
-	}); got.Get("q") != "release plan" ||
-		got.Get("scope") != "workspace" ||
-		got.Get("workspace") != "/workspace/project" ||
-		got.Get("limit") != "5" {
-		t.Fatalf("memorySearchValues() = %v, want q/scope/workspace/limit", got)
+	if got := memoryListValues(MemoryListQuery{
+		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeWorkspace},
+		Type:                memcontract.TypeProject,
+		IncludeShadowed:     true,
+	}); got.Get("scope") != "workspace" ||
+		got.Get("type") != "project" ||
+		got.Get("include_shadowed") != "true" {
+		t.Fatalf("memoryListValues() = %v, want list filters", got)
 	}
 
 	if got := memoryHistoryValues(MemoryHistoryQuery{
-		Scope:     memory.ScopeWorkspace,
-		Workspace: "/workspace/project",
-		Operation: "memory.delete",
-		Since:     time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
-		Limit:     6,
+		Scope:       memcontract.ScopeWorkspace,
+		WorkspaceID: "/workspace/project",
+		Operation:   "memory.delete",
+		Since:       time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
+		Limit:       6,
 	}); got.Get("scope") != "workspace" ||
-		got.Get("workspace") != "/workspace/project" ||
+		got.Get("workspace_id") != "/workspace/project" ||
 		got.Get("operation") != "memory.delete" ||
 		got.Get("since") != "2026-04-03T11:00:00Z" ||
 		got.Get("limit") != "6" {
@@ -3199,14 +3250,14 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 			want:    contract.WorkspaceSkillPayload{},
 		},
 		{
-			name:    "Should alias MemoryReadRecord to the shared contract",
-			cliType: MemoryReadRecord{},
-			want:    contract.MemoryReadResponse{},
+			name:    "Should alias MemoryEntryRecord to the shared contract",
+			cliType: MemoryEntryRecord{},
+			want:    contract.MemoryEntryResponse{},
 		},
 		{
-			name:    "Should alias MemoryWriteRequest to the shared contract",
-			cliType: MemoryWriteRequest{},
-			want:    contract.MemoryWriteRequest{},
+			name:    "Should alias MemoryCreateRequest to the shared contract",
+			cliType: MemoryCreateRequest{},
+			want:    contract.MemoryCreateRequest{},
 		},
 		{
 			name:    "Should alias MemoryHealthRecord to the shared contract",
@@ -3216,17 +3267,17 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 		{
 			name:    "Should alias MemoryHistoryRecord to the shared contract",
 			cliType: MemoryHistoryRecord{},
-			want:    contract.MemoryOperationPayload{},
+			want:    contract.MemoryOperationHistoryPayload{},
 		},
 		{
 			name:    "Should alias MemoryMutationRecord to the shared contract",
 			cliType: MemoryMutationRecord{},
-			want:    contract.MemoryMutationResponse{},
+			want:    contract.MemoryMutationDecisionResponse{},
 		},
 		{
-			name:    "Should alias MemoryConsolidateRecord to the shared contract",
-			cliType: MemoryConsolidateRecord{},
-			want:    contract.MemoryConsolidateResponse{},
+			name:    "Should alias MemoryDreamTriggerRecord to the shared contract",
+			cliType: MemoryDreamTriggerRecord{},
+			want:    contract.MemoryDreamTriggerResponse{},
 		},
 		{
 			name:    "Should alias AutomationJobCreateRequest to the shared contract",
@@ -3330,7 +3381,13 @@ func TestSharedContractJSONParity(t *testing.T) {
 		t.Fatalf("cli session decode = %#v, want decoded shared contract payload", cliSessions)
 	}
 
-	memoryRequest := MemoryWriteRequest{Content: "payload", Scope: "workspace", Workspace: "/workspace/project"}
+	memoryRequest := MemoryCreateRequest{
+		Scope:       memcontract.ScopeWorkspace,
+		WorkspaceID: "/workspace/project",
+		Type:        memcontract.TypeProject,
+		Name:        "Memory",
+		Content:     "payload",
+	}
 	cliMemoryJSON, err := json.Marshal(memoryRequest)
 	if err != nil {
 		t.Fatalf("json.Marshal(cli memory request) error = %v", err)
@@ -3366,17 +3423,17 @@ func TestSharedContractJSONParity(t *testing.T) {
 		t.Fatalf("bridge request json = %s, want %s", cliBridgeJSON, sharedBridgeJSON)
 	}
 
-	readResponse := `{"content":"stored memory body"}`
-	var cliRead MemoryReadRecord
+	readResponse := `{"memory":{"summary":{"filename":"memory.md","name":"Memory","type":"project","scope":"workspace","mod_time":"2026-04-03T12:00:00Z","injection":true},"content":"stored memory body"}}`
+	var cliRead MemoryEntryRecord
 	if err := json.Unmarshal([]byte(readResponse), &cliRead); err != nil {
-		t.Fatalf("json.Unmarshal(cli memory read) error = %v", err)
+		t.Fatalf("json.Unmarshal(cli memory show) error = %v", err)
 	}
-	var sharedRead contract.MemoryReadResponse
+	var sharedRead contract.MemoryEntryResponse
 	if err := json.Unmarshal([]byte(readResponse), &sharedRead); err != nil {
-		t.Fatalf("json.Unmarshal(shared memory read) error = %v", err)
+		t.Fatalf("json.Unmarshal(shared memory show) error = %v", err)
 	}
 	if !reflect.DeepEqual(cliRead, sharedRead) {
-		t.Fatalf("memory read decode = %#v, want %#v", cliRead, sharedRead)
+		t.Fatalf("memory show decode = %#v, want %#v", cliRead, sharedRead)
 	}
 
 	observeResponse := `{"events":[{"id":"sum-1","session_id":"sess-1","type":"done","agent_name":"coder","summary":"complete","timestamp":"2026-04-03T12:00:00Z"}]}`

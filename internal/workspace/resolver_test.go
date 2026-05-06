@@ -656,6 +656,175 @@ func TestResolveMissingRootReturnsErrWorkspaceRootMissing(t *testing.T) {
 	}
 }
 
+func TestResolveCreatesAndLoadsStableWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := newTestHomePaths(t)
+	root := t.TempDir()
+	ws := Workspace{ID: "ws_identity", RootDir: root, Name: "repo"}
+	store := newMockWorkspaceStore(ws)
+	resolver := newTestResolver(t, store,
+		WithHomePaths(homePaths),
+		WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+	)
+
+	first, err := resolver.Resolve(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("Resolve(first) error = %v", err)
+	}
+	if !IsWorkspaceID(first.WorkspaceID) {
+		t.Fatalf("Resolve(first).WorkspaceID = %q, want workspace ULID", first.WorkspaceID)
+	}
+	identityPath := filepath.Join(first.RootDir, ".agh", "workspace.toml")
+	identity, err := loadIdentityFile(identityPath)
+	if err != nil {
+		t.Fatalf("loadIdentityFile(%q) error = %v", identityPath, err)
+	}
+	if identity.WorkspaceID != first.WorkspaceID {
+		t.Fatalf("identity.WorkspaceID = %q, want %q", identity.WorkspaceID, first.WorkspaceID)
+	}
+
+	restarted := newTestResolver(t, store,
+		WithHomePaths(homePaths),
+		WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+	)
+	second, err := restarted.Resolve(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("Resolve(after restart) error = %v", err)
+	}
+	if second.WorkspaceID != first.WorkspaceID {
+		t.Fatalf("Resolve(after restart).WorkspaceID = %q, want stable %q", second.WorkspaceID, first.WorkspaceID)
+	}
+}
+
+func TestResolveMatchesWorkspaceByStableWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve a registered workspace by stable identity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		canonical, err := canonicalRoot(root)
+		if err != nil {
+			t.Fatalf("canonicalRoot(%q) error = %v", root, err)
+		}
+		if _, err := ensureIdentity(
+			ctx,
+			canonical,
+			func() time.Time { return time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC) },
+			func() string { return testWorkspaceULID },
+		); err != nil {
+			t.Fatalf("ensureIdentity(%q) error = %v", canonical, err)
+		}
+
+		ws := Workspace{ID: "ws_registered", RootDir: canonical, Name: "repo"}
+		store := newMockWorkspaceStore(ws)
+		resolver := newTestResolver(t, store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+
+		resolved, err := resolver.Resolve(ctx, testWorkspaceULID)
+		if err != nil {
+			t.Fatalf("Resolve(stable identity) error = %v", err)
+		}
+		if resolved.ID != ws.ID {
+			t.Fatalf("Resolve(stable identity).ID = %q, want %q", resolved.ID, ws.ID)
+		}
+		if resolved.WorkspaceID != testWorkspaceULID {
+			t.Fatalf("Resolve(stable identity).WorkspaceID = %q, want %q", resolved.WorkspaceID, testWorkspaceULID)
+		}
+		if got := len(store.getByNameCalls); got != 0 {
+			t.Fatalf("GetWorkspaceByName() calls = %d, want 0", got)
+		}
+		if got := store.listCalls; got != 1 {
+			t.Fatalf("ListWorkspaces() calls = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should reject an unknown stable identity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		store := newMockWorkspaceStore()
+		resolver := newTestResolver(t, store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+
+		_, err := resolver.Resolve(ctx, testWorkspaceULID)
+		if !errors.Is(err, ErrWorkspaceNotFound) {
+			t.Fatalf("Resolve(unknown stable identity) error = %v, want %v", err, ErrWorkspaceNotFound)
+		}
+		if got := len(store.getByNameCalls); got != 0 {
+			t.Fatalf("GetWorkspaceByName() calls = %d, want 0", got)
+		}
+		if got := store.listCalls; got != 1 {
+			t.Fatalf("ListWorkspaces() calls = %d, want 1", got)
+		}
+	})
+}
+
+func TestResolveFailsClosedForInvalidWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	homePaths := newTestHomePaths(t)
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".agh", "workspace.toml"), `workspace_id = "invalid"
+created_at = "2026-05-05T12:00:00Z"
+realpath_at_creation = "/tmp/repo"
+`)
+	store := newMockWorkspaceStore(Workspace{ID: "ws_invalid_identity", RootDir: root, Name: "repo"})
+	resolver := newTestResolver(t, store,
+		WithHomePaths(homePaths),
+		WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+	)
+
+	_, err := resolver.Resolve(ctx, "ws_invalid_identity")
+	if !errors.Is(err, ErrWorkspaceIdentityInvalid) {
+		t.Fatalf("Resolve() error = %v, want %v", err, ErrWorkspaceIdentityInvalid)
+	}
+}
+
+func TestResolveFailsClosedForPermissionDeniedWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	if os.Geteuid() == 0 {
+		t.Skip("permission-denied identity test is not reliable as root")
+	}
+
+	ctx := context.Background()
+	homePaths := newTestHomePaths(t)
+	root := t.TempDir()
+	identityPath := filepath.Join(root, ".agh", "workspace.toml")
+	writeFile(t, identityPath, `workspace_id = "`+testWorkspaceULID+`"
+created_at = "2026-05-05T12:00:00Z"
+realpath_at_creation = "/tmp/repo"
+`)
+	if err := os.Chmod(identityPath, 0); err != nil {
+		t.Fatalf("os.Chmod(identityPath) error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(identityPath, workspaceIdentityFilePerm)
+	})
+
+	store := newMockWorkspaceStore(Workspace{ID: "ws_permission_identity", RootDir: root, Name: "repo"})
+	resolver := newTestResolver(t, store,
+		WithHomePaths(homePaths),
+		WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+	)
+
+	_, err := resolver.Resolve(ctx, "ws_permission_identity")
+	if !errors.Is(err, ErrWorkspaceIdentityPermissionDenied) {
+		t.Fatalf("Resolve() error = %v, want %v", err, ErrWorkspaceIdentityPermissionDenied)
+	}
+}
+
 func TestResolveSymlinkChangedUpdatesStoredRootDir(t *testing.T) {
 	t.Parallel()
 

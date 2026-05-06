@@ -97,14 +97,97 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeWriteMemoryRequiredAndOptionalFields",
+			name: "ShouldDescribeMemoryV2PublicContractAndHardCuts",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				writeMemory := operationFor(t, doc, "/api/memory/{filename}", "PUT")
+				writeMemory := operationFor(t, doc, "/api/memory", "POST")
 				writeMemorySchema := jsonRequestSchema(t, writeMemory)
-				assertRequired(t, writeMemorySchema, "content")
-				assertNotRequired(t, writeMemorySchema, "scope", "workspace")
+				assertRequired(t, writeMemorySchema, "scope", "type", "name", "content")
+				assertNotRequired(
+					t,
+					writeMemorySchema,
+					"workspace_id",
+					"agent_name",
+					"agent_tier",
+					"origin",
+					"idempotency_key",
+					"dry_run",
+				)
+				assertEnumValues(t, propertySchema(t, writeMemorySchema, "scope"), "global", "workspace", "agent")
+				assertEnumValues(t, propertySchema(t, writeMemorySchema, "agent_tier"), "workspace", "global")
+				assertEnumValues(
+					t,
+					propertySchema(t, writeMemorySchema, "type"),
+					"user",
+					"feedback",
+					"project",
+					"reference",
+				)
+				assertEnumValues(t, propertySchema(t, writeMemorySchema, "origin"),
+					"cli",
+					"http",
+					"uds",
+					"tool",
+					"extractor",
+					"dreaming",
+					"file",
+					"provider",
+				)
+
+				editMemory := operationFor(t, doc, "/api/memory/{filename}", "PATCH")
+				editMemorySchema := jsonRequestSchema(t, editMemory)
+				assertRequired(t, editMemorySchema, "content")
+				assertNotRequired(t, editMemorySchema, "workspace_id", "agent_name", "agent_tier")
+
+				readMemory := operationFor(t, doc, "/api/memory/{filename}", "GET")
+				readMemorySchema := jsonResponseSchema(t, readMemory, 200)
+				assertRequired(t, readMemorySchema, "memory")
+				memorySchema := propertySchema(t, readMemorySchema, "memory")
+				assertRequired(t, memorySchema, "summary", "content")
+				summarySchema := propertySchema(t, memorySchema, "summary")
+				assertEnumValues(t, propertySchema(t, summarySchema, "scope"), "global", "workspace", "agent")
+				assertEnumValues(t, propertySchema(t, summarySchema, "agent_tier"), "workspace", "global")
+
+				searchMemory := operationFor(t, doc, "/api/memory/search", "POST")
+				searchSchema := jsonRequestSchema(t, searchMemory)
+				assertRequired(t, searchSchema, "query_text")
+				assertNotRequired(t, searchSchema, "include_system", "include_already_surfaced", "agent_tier")
+
+				decision := operationFor(t, doc, "/api/memory/decisions/{decision_id}", "GET")
+				decisionSchema := propertySchema(t, jsonResponseSchema(t, decision, 200), "decision")
+				assertRequired(
+					t,
+					decisionSchema,
+					"id",
+					"candidate_hash",
+					"op",
+					"scope",
+					"frontmatter",
+					"confidence",
+					"source",
+					"decided_at",
+				)
+				assertEnumValues(
+					t,
+					propertySchema(t, decisionSchema, "op"),
+					"noop",
+					"add",
+					"update",
+					"delete",
+					"reject",
+				)
+				assertPropertyAbsent(t, decisionSchema, "post_content")
+				assertPropertyAbsent(t, decisionSchema, "prior_content")
+
+				errorSchema := jsonResponseSchema(t, writeMemory, 422)
+				assertRequired(t, errorSchema, "code", "message")
+				assertNotRequired(t, errorSchema, "details")
+				assertPropertyAbsent(t, errorSchema, "error")
+
+				assertOperationAbsent(t, doc, "/api/memory/{filename}", "PUT")
+				assertOperationAbsent(t, doc, "/api/memory/search", "GET")
+				assertOperationAbsent(t, doc, "/api/memory/consolidate", "POST")
 			},
 		},
 		{
@@ -1284,6 +1367,18 @@ func operationFor(t *testing.T, doc *openapi3.T, path string, method string) *op
 	return operation
 }
 
+func assertOperationAbsent(t *testing.T, doc *openapi3.T, path string, method string) {
+	t.Helper()
+
+	pathItem := doc.Paths.Value(path)
+	if pathItem == nil {
+		return
+	}
+	if operation := pathItem.GetOperation(method); operation != nil {
+		t.Fatalf("unexpected operation %s %s", method, path)
+	}
+}
+
 func jsonResponseSchema(t *testing.T, operation *openapi3.Operation, status int) *openapi3.Schema {
 	t.Helper()
 
@@ -1325,6 +1420,14 @@ func propertySchema(t *testing.T, schema *openapi3.Schema, name string) *openapi
 		t.Fatalf("missing property %q", name)
 	}
 	return propertyRef.Value
+}
+
+func assertPropertyAbsent(t *testing.T, schema *openapi3.Schema, name string) {
+	t.Helper()
+
+	if propertyRef := schema.Properties[name]; propertyRef != nil {
+		t.Fatalf("expected property %q to be absent", name)
+	}
 }
 
 func assertParameter(t *testing.T, operation *openapi3.Operation, name string, in string, required bool) {

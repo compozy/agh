@@ -18,12 +18,13 @@ import (
 	"strings"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	"github.com/pedronauck/agh/internal/agentidentity"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
-	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/sse"
 )
@@ -213,18 +214,52 @@ type DaemonClient interface {
 	ObserveHealth(ctx context.Context) (HealthStatus, error)
 	MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error)
 	MemoryHistory(ctx context.Context, query MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
-	ListMemory(ctx context.Context, scope memory.Scope, workspace string) ([]MemoryHeaderRecord, error)
-	SearchMemory(ctx context.Context, query string, opts MemorySearchQuery) ([]MemorySearchRecord, error)
-	ReadMemory(ctx context.Context, filename string, scope memory.Scope, workspace string) (MemoryReadRecord, error)
-	WriteMemory(ctx context.Context, filename string, request MemoryWriteRequest) (MemoryMutationRecord, error)
-	DeleteMemory(
-		ctx context.Context,
-		filename string,
-		scope memory.Scope,
-		workspace string,
-	) (MemoryMutationRecord, error)
+	ListMemory(ctx context.Context, query MemoryListQuery) (MemoryListRecord, error)
+	ShowMemory(ctx context.Context, filename string, query MemorySelectorQuery) (MemoryEntryRecord, error)
+	CreateMemory(ctx context.Context, request MemoryCreateRequest) (MemoryMutationRecord, error)
+	EditMemory(ctx context.Context, filename string, request MemoryEditRequest) (MemoryMutationRecord, error)
+	DeleteMemory(ctx context.Context, filename string, query MemorySelectorQuery) (MemoryDeleteRecord, error)
+	SearchMemory(ctx context.Context, request MemorySearchRequest) (MemorySearchRecord, error)
 	ReindexMemory(ctx context.Context, request MemoryReindexRequest) (MemoryReindexRecord, error)
-	ConsolidateMemory(ctx context.Context, workspace string) (MemoryConsolidateRecord, error)
+	PromoteMemory(ctx context.Context, request MemoryPromoteRequest) (MemoryPromoteRecord, error)
+	ResetMemory(ctx context.Context, request MemoryResetRequest) (MemoryResetRecord, error)
+	ReloadMemory(ctx context.Context, request MemorySelectorQuery) (MemoryReloadRecord, error)
+	MemoryScopeShow(ctx context.Context, query MemorySelectorQuery) (MemoryScopeShowRecord, error)
+	ListMemoryDecisions(ctx context.Context, query MemoryDecisionListQuery) (MemoryDecisionListRecord, error)
+	GetMemoryDecision(ctx context.Context, id string) (MemoryDecisionRecord, error)
+	RevertMemoryDecision(
+		ctx context.Context,
+		id string,
+		request MemoryDecisionRevertRequest,
+	) (MemoryDecisionRevertRecord, error)
+	GetMemoryRecallTrace(ctx context.Context, sessionID string, turnSeq int64) (MemoryRecallTraceRecord, error)
+	ListMemoryDreams(ctx context.Context) (MemoryDreamListRecord, error)
+	GetMemoryDream(ctx context.Context, id string) (MemoryDreamRecord, error)
+	TriggerMemoryDream(ctx context.Context, request MemoryDreamTriggerRequest) (MemoryDreamTriggerRecord, error)
+	RetryMemoryDream(ctx context.Context, id string, request MemoryDreamRetryRequest) (MemoryDreamRetryRecord, error)
+	GetMemoryDreamStatus(ctx context.Context) (MemoryDreamListRecord, error)
+	ListMemoryDailyLogs(ctx context.Context, query MemorySelectorQuery) (MemoryDailyLogListRecord, error)
+	GetMemoryExtractorStatus(ctx context.Context, sessionID string) (MemoryExtractorStatusRecord, error)
+	ListMemoryExtractorFailures(ctx context.Context) (MemoryExtractorFailuresRecord, error)
+	RetryMemoryExtractor(ctx context.Context, request MemoryExtractorRetryRequest) (MemoryExtractorRetryRecord, error)
+	DrainMemoryExtractor(ctx context.Context) (MemoryExtractorDrainRecord, error)
+	ListMemoryProviders(ctx context.Context) (MemoryProviderListRecord, error)
+	GetMemoryProvider(ctx context.Context, name string) (MemoryProviderRecord, error)
+	SelectMemoryProvider(
+		ctx context.Context,
+		request MemoryProviderSelectRequest,
+	) (MemoryProviderLifecycleRecord, error)
+	EnableMemoryProvider(
+		ctx context.Context,
+		name string,
+		request MemoryProviderLifecycleRequest,
+	) (MemoryProviderLifecycleRecord, error)
+	DisableMemoryProvider(
+		ctx context.Context,
+		name string,
+		request MemoryProviderLifecycleRequest,
+	) (MemoryProviderLifecycleRecord, error)
+	CreateMemoryAdhocNote(ctx context.Context, request MemoryAdhocNoteRequest) (MemoryAdhocNoteRecord, error)
 	ListAutomationJobs(ctx context.Context, query AutomationJobQuery) ([]JobRecord, error)
 	CreateAutomationJob(ctx context.Context, request AutomationJobCreateRequest) (JobRecord, error)
 	GetAutomationJob(ctx context.Context, id string) (JobRecord, error)
@@ -564,51 +599,169 @@ type ObserveEventQuery struct {
 	Last      int
 }
 
-// MemoryHeaderRecord is one memory header returned by the daemon API.
-type MemoryHeaderRecord = memory.Header
-
 // MemoryHealthRecord is the shared daemon memory health payload.
 type MemoryHealthRecord = contract.MemoryHealthPayload
 
+// MemorySelectorQuery captures scope selectors sent through Memory v2 query parameters.
+type MemorySelectorQuery struct {
+	Scope         memcontract.Scope
+	WorkspaceID   string
+	AgentName     string
+	AgentTier     memcontract.AgentTier
+	IncludeSystem bool
+}
+
 // MemoryHistoryQuery captures filters for memory operation history.
 type MemoryHistoryQuery struct {
-	Scope     memory.Scope
-	Workspace string
-	Operation string
-	Since     time.Time
-	Limit     int
+	Scope       memcontract.Scope
+	WorkspaceID string
+	AgentName   string
+	AgentTier   memcontract.AgentTier
+	Operation   string
+	Since       time.Time
+	Limit       int
 }
 
 // MemoryHistoryRecord is one redacted memory operation history row.
-type MemoryHistoryRecord = contract.MemoryOperationPayload
+type MemoryHistoryRecord = contract.MemoryOperationHistoryPayload
 
-// MemoryReadRecord is the shared daemon memory document payload.
-type MemoryReadRecord = contract.MemoryReadResponse
-
-// MemorySearchQuery captures filters for durable memory search.
-type MemorySearchQuery struct {
-	Scope     memory.Scope
-	Workspace string
-	Limit     int
+// MemoryDecisionListQuery captures filters for controller decision history.
+type MemoryDecisionListQuery struct {
+	Scope       memcontract.Scope
+	WorkspaceID string
+	AgentName   string
+	AgentTier   memcontract.AgentTier
+	Operation   string
+	Since       time.Time
+	Reason      string
 }
 
-// MemorySearchRecord is one ranked durable memory search hit.
-type MemorySearchRecord = memory.SearchResult
+// MemoryListQuery captures filters for Memory v2 list calls.
+type MemoryListQuery struct {
+	MemorySelectorQuery
+	Type            memcontract.Type
+	IncludeShadowed bool
+}
 
-// MemoryWriteRequest captures the daemon API write payload.
-type MemoryWriteRequest = contract.MemoryWriteRequest
+// MemoryListRecord wraps Memory v2 list output.
+type MemoryListRecord = contract.MemoryListResponse
 
-// MemoryMutationRecord captures the daemon API write/delete response.
-type MemoryMutationRecord = contract.MemoryMutationResponse
+// MemoryEntryRecord wraps one Memory v2 entry.
+type MemoryEntryRecord = contract.MemoryEntryResponse
+
+// MemoryCreateRequest captures the daemon API memory create/propose payload.
+type MemoryCreateRequest = contract.MemoryCreateRequest
+
+// MemoryEditRequest captures the daemon API memory edit/propose payload.
+type MemoryEditRequest = contract.MemoryEditRequest
+
+// MemoryDeleteRecord captures the daemon API memory delete response.
+type MemoryDeleteRecord = contract.MemoryDeleteResponse
+
+// MemoryMutationRecord captures the daemon API memory write/edit response.
+type MemoryMutationRecord = contract.MemoryMutationDecisionResponse
+
+// MemorySearchRequest captures the daemon API deterministic recall/search payload.
+type MemorySearchRequest = contract.MemorySearchRequest
+
+// MemorySearchRecord wraps deterministic recall/search output.
+type MemorySearchRecord = contract.MemorySearchResponse
 
 // MemoryReindexRequest captures the daemon API memory reindex payload.
-type MemoryReindexRequest = contract.MemoryReindexRequest
+type MemoryReindexRequest = contract.MemoryReindexV2Request
 
 // MemoryReindexRecord captures the daemon API memory reindex response.
-type MemoryReindexRecord = memory.ReindexResult
+type MemoryReindexRecord = contract.MemoryReindexResponse
 
-// MemoryConsolidateRecord captures the daemon API consolidation response.
-type MemoryConsolidateRecord = contract.MemoryConsolidateResponse
+// MemoryPromoteRequest captures the daemon API memory promotion payload.
+type MemoryPromoteRequest = contract.MemoryPromoteRequest
+
+// MemoryPromoteRecord captures the daemon API memory promotion response.
+type MemoryPromoteRecord = contract.MemoryPromoteResponse
+
+// MemoryResetRequest captures the daemon API memory reset payload.
+type MemoryResetRequest = contract.MemoryResetRequest
+
+// MemoryResetRecord captures the daemon API memory reset response.
+type MemoryResetRecord = contract.MemoryResetResponse
+
+// MemoryReloadRecord captures the daemon API memory reload response.
+type MemoryReloadRecord = contract.MemoryReloadResponse
+
+// MemoryScopeShowRecord captures effective memory scope resolution.
+type MemoryScopeShowRecord = contract.MemoryScopeShowResponse
+
+// MemoryDecisionListRecord wraps controller decision history.
+type MemoryDecisionListRecord = contract.MemoryDecisionListResponse
+
+// MemoryDecisionRecord wraps one controller decision.
+type MemoryDecisionRecord = contract.MemoryDecisionResponse
+
+// MemoryDecisionRevertRequest captures a decision revert request.
+type MemoryDecisionRevertRequest = contract.MemoryDecisionRevertRequest
+
+// MemoryDecisionRevertRecord captures a decision revert response.
+type MemoryDecisionRevertRecord = contract.MemoryDecisionRevertResponse
+
+// MemoryRecallTraceRecord captures one redaction-safe recall trace.
+type MemoryRecallTraceRecord = contract.MemoryRecallTraceResponse
+
+// MemoryDreamListRecord wraps dreaming runtime records.
+type MemoryDreamListRecord = contract.MemoryDreamListResponse
+
+// MemoryDreamRecord wraps one dreaming runtime record.
+type MemoryDreamRecord = contract.MemoryDreamResponse
+
+// MemoryDreamTriggerRequest captures a dreaming trigger request.
+type MemoryDreamTriggerRequest = contract.MemoryDreamTriggerRequest
+
+// MemoryDreamTriggerRecord captures a dreaming trigger response.
+type MemoryDreamTriggerRecord = contract.MemoryDreamTriggerResponse
+
+// MemoryDreamRetryRequest captures a dreaming retry request.
+type MemoryDreamRetryRequest = contract.MemoryDreamRetryRequest
+
+// MemoryDreamRetryRecord captures a dreaming retry response.
+type MemoryDreamRetryRecord = contract.MemoryDreamRetryResponse
+
+// MemoryDailyLogListRecord wraps daily memory log artifacts.
+type MemoryDailyLogListRecord = contract.MemoryDailyLogListResponse
+
+// MemoryExtractorStatusRecord wraps extractor runtime status.
+type MemoryExtractorStatusRecord = contract.MemoryExtractorStatusResponse
+
+// MemoryExtractorFailuresRecord wraps extractor DLQ records.
+type MemoryExtractorFailuresRecord = contract.MemoryExtractorFailuresResponse
+
+// MemoryExtractorRetryRequest captures an extractor retry request.
+type MemoryExtractorRetryRequest = contract.MemoryExtractorRetryRequest
+
+// MemoryExtractorRetryRecord captures extractor retry results.
+type MemoryExtractorRetryRecord = contract.MemoryExtractorRetryResponse
+
+// MemoryExtractorDrainRecord captures extractor drain completion.
+type MemoryExtractorDrainRecord = contract.MemoryExtractorDrainResponse
+
+// MemoryProviderListRecord wraps registered memory providers.
+type MemoryProviderListRecord = contract.MemoryProviderListResponse
+
+// MemoryProviderRecord wraps one memory provider.
+type MemoryProviderRecord = contract.MemoryProviderResponse
+
+// MemoryProviderSelectRequest captures active-provider selection.
+type MemoryProviderSelectRequest = contract.MemoryProviderSelectRequest
+
+// MemoryProviderLifecycleRequest captures provider lifecycle mutation.
+type MemoryProviderLifecycleRequest = contract.MemoryProviderLifecycleRequest
+
+// MemoryProviderLifecycleRecord captures provider lifecycle state after mutation.
+type MemoryProviderLifecycleRecord = contract.MemoryProviderLifecycleResponse
+
+// MemoryAdhocNoteRequest captures the ad-hoc memory note write surface.
+type MemoryAdhocNoteRequest = contract.MemoryAdhocNoteRequest
+
+// MemoryAdhocNoteRecord captures the created ad-hoc memory note artifact.
+type MemoryAdhocNoteRecord = contract.MemoryAdhocNoteResponse
 
 // AutomationJobQuery captures CLI filters for automation job list calls.
 type AutomationJobQuery = automationpkg.JobListQuery
@@ -2490,7 +2643,7 @@ func (c *unixSocketClient) MemoryHistory(
 	ctx context.Context,
 	query MemoryHistoryQuery,
 ) ([]MemoryHistoryRecord, error) {
-	var response contract.MemoryHistoryResponse
+	var response contract.MemoryOperationHistoryResponse
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
@@ -2506,64 +2659,54 @@ func (c *unixSocketClient) MemoryHistory(
 
 func (c *unixSocketClient) ListMemory(
 	ctx context.Context,
-	scope memory.Scope,
-	workspace string,
-) ([]MemoryHeaderRecord, error) {
-	var response []MemoryHeaderRecord
-	if err := c.doJSON(ctx, http.MethodGet, "/api/memory", memoryValues(scope, workspace), nil, &response); err != nil {
-		return nil, err
+	query MemoryListQuery,
+) (MemoryListRecord, error) {
+	var response MemoryListRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/memory", memoryListValues(query), nil, &response); err != nil {
+		return MemoryListRecord{}, err
 	}
 	return response, nil
 }
 
-func (c *unixSocketClient) SearchMemory(
-	ctx context.Context,
-	query string,
-	opts MemorySearchQuery,
-) ([]MemorySearchRecord, error) {
-	var response []MemorySearchRecord
-	if err := c.doJSON(
-		ctx,
-		http.MethodGet,
-		"/api/memory/search",
-		memorySearchValues(query, opts),
-		nil,
-		&response,
-	); err != nil {
-		return nil, err
-	}
-	return response, nil
-}
-
-func (c *unixSocketClient) ReadMemory(
+func (c *unixSocketClient) ShowMemory(
 	ctx context.Context,
 	filename string,
-	scope memory.Scope,
-	workspace string,
-) (MemoryReadRecord, error) {
-	var response MemoryReadRecord
+	query MemorySelectorQuery,
+) (MemoryEntryRecord, error) {
+	var response MemoryEntryRecord
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
 		"/api/memory/"+url.PathEscape(strings.TrimSpace(filename)),
-		memoryValues(scope, workspace),
+		memorySelectorValues(query),
 		nil,
 		&response,
 	); err != nil {
-		return MemoryReadRecord{}, err
+		return MemoryEntryRecord{}, err
 	}
 	return response, nil
 }
 
-func (c *unixSocketClient) WriteMemory(
+func (c *unixSocketClient) CreateMemory(
+	ctx context.Context,
+	request MemoryCreateRequest,
+) (MemoryMutationRecord, error) {
+	var response MemoryMutationRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/memory", nil, request, &response); err != nil {
+		return MemoryMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) EditMemory(
 	ctx context.Context,
 	filename string,
-	request MemoryWriteRequest,
+	request MemoryEditRequest,
 ) (MemoryMutationRecord, error) {
 	var response MemoryMutationRecord
 	if err := c.doJSON(
 		ctx,
-		http.MethodPut,
+		http.MethodPatch,
 		"/api/memory/"+url.PathEscape(strings.TrimSpace(filename)),
 		nil,
 		request,
@@ -2577,19 +2720,36 @@ func (c *unixSocketClient) WriteMemory(
 func (c *unixSocketClient) DeleteMemory(
 	ctx context.Context,
 	filename string,
-	scope memory.Scope,
-	workspace string,
-) (MemoryMutationRecord, error) {
-	var response MemoryMutationRecord
+	query MemorySelectorQuery,
+) (MemoryDeleteRecord, error) {
+	var response MemoryDeleteRecord
 	if err := c.doJSON(
 		ctx,
 		http.MethodDelete,
 		"/api/memory/"+url.PathEscape(strings.TrimSpace(filename)),
-		memoryValues(scope, workspace),
+		memorySelectorValues(query),
 		nil,
 		&response,
 	); err != nil {
-		return MemoryMutationRecord{}, err
+		return MemoryDeleteRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) SearchMemory(
+	ctx context.Context,
+	request MemorySearchRequest,
+) (MemorySearchRecord, error) {
+	var response MemorySearchRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		"/api/memory/search",
+		nil,
+		request,
+		&response,
+	); err != nil {
+		return MemorySearchRecord{}, err
 	}
 	return response, nil
 }
@@ -2612,17 +2772,285 @@ func (c *unixSocketClient) ReindexMemory(
 	return response, nil
 }
 
-func (c *unixSocketClient) ConsolidateMemory(ctx context.Context, workspace string) (MemoryConsolidateRecord, error) {
-	var response MemoryConsolidateRecord
+func (c *unixSocketClient) PromoteMemory(
+	ctx context.Context,
+	request MemoryPromoteRequest,
+) (MemoryPromoteRecord, error) {
+	var response MemoryPromoteRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/promote", nil, request, &response); err != nil {
+		return MemoryPromoteRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ResetMemory(ctx context.Context, request MemoryResetRequest) (MemoryResetRecord, error) {
+	var response MemoryResetRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/reset", nil, request, &response); err != nil {
+		return MemoryResetRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ReloadMemory(ctx context.Context, request MemorySelectorQuery) (MemoryReloadRecord, error) {
+	var response MemoryReloadRecord
 	if err := c.doJSON(
 		ctx,
 		http.MethodPost,
-		"/api/memory/consolidate",
+		"/api/memory/reload",
+		memorySelectorValues(request),
 		nil,
-		map[string]string{"workspace": strings.TrimSpace(workspace)},
 		&response,
 	); err != nil {
-		return MemoryConsolidateRecord{}, err
+		return MemoryReloadRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) MemoryScopeShow(
+	ctx context.Context,
+	query MemorySelectorQuery,
+) (MemoryScopeShowRecord, error) {
+	var response MemoryScopeShowRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/memory/scope-show",
+		memorySelectorValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return MemoryScopeShowRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListMemoryDecisions(
+	ctx context.Context,
+	query MemoryDecisionListQuery,
+) (MemoryDecisionListRecord, error) {
+	var response MemoryDecisionListRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/memory/decisions",
+		memoryDecisionValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return MemoryDecisionListRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetMemoryDecision(ctx context.Context, id string) (MemoryDecisionRecord, error) {
+	var response MemoryDecisionRecord
+	path := "/api/memory/decisions/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return MemoryDecisionRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) RevertMemoryDecision(
+	ctx context.Context,
+	id string,
+	request MemoryDecisionRevertRequest,
+) (MemoryDecisionRevertRecord, error) {
+	var response MemoryDecisionRevertRecord
+	path := "/api/memory/decisions/" + url.PathEscape(strings.TrimSpace(id)) + "/revert"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return MemoryDecisionRevertRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetMemoryRecallTrace(
+	ctx context.Context,
+	sessionID string,
+	turnSeq int64,
+) (MemoryRecallTraceRecord, error) {
+	var response MemoryRecallTraceRecord
+	path := fmt.Sprintf(
+		"/api/memory/recall-traces/%s/%d",
+		url.PathEscape(strings.TrimSpace(sessionID)),
+		turnSeq,
+	)
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return MemoryRecallTraceRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListMemoryDreams(ctx context.Context) (MemoryDreamListRecord, error) {
+	var response MemoryDreamListRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/dreams", nil, nil, &response); err != nil {
+		return MemoryDreamListRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetMemoryDream(ctx context.Context, id string) (MemoryDreamRecord, error) {
+	var response MemoryDreamRecord
+	path := "/api/memory/dreams/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return MemoryDreamRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) TriggerMemoryDream(
+	ctx context.Context,
+	request MemoryDreamTriggerRequest,
+) (MemoryDreamTriggerRecord, error) {
+	var response MemoryDreamTriggerRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/dreams/trigger", nil, request, &response); err != nil {
+		return MemoryDreamTriggerRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) RetryMemoryDream(
+	ctx context.Context,
+	id string,
+	request MemoryDreamRetryRequest,
+) (MemoryDreamRetryRecord, error) {
+	var response MemoryDreamRetryRecord
+	path := "/api/memory/dreams/" + url.PathEscape(strings.TrimSpace(id)) + "/retry"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return MemoryDreamRetryRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetMemoryDreamStatus(ctx context.Context) (MemoryDreamListRecord, error) {
+	var response MemoryDreamListRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/dreams/status", nil, nil, &response); err != nil {
+		return MemoryDreamListRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListMemoryDailyLogs(
+	ctx context.Context,
+	query MemorySelectorQuery,
+) (MemoryDailyLogListRecord, error) {
+	var response MemoryDailyLogListRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/memory/daily",
+		memorySelectorValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return MemoryDailyLogListRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetMemoryExtractorStatus(
+	ctx context.Context,
+	sessionID string,
+) (MemoryExtractorStatusRecord, error) {
+	var response MemoryExtractorStatusRecord
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
+		values.Set("session_id", trimmed)
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/extractor/status", values, nil, &response); err != nil {
+		return MemoryExtractorStatusRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListMemoryExtractorFailures(ctx context.Context) (MemoryExtractorFailuresRecord, error) {
+	var response MemoryExtractorFailuresRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/extractor/failures", nil, nil, &response); err != nil {
+		return MemoryExtractorFailuresRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) RetryMemoryExtractor(
+	ctx context.Context,
+	request MemoryExtractorRetryRequest,
+) (MemoryExtractorRetryRecord, error) {
+	var response MemoryExtractorRetryRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/extractor/retry", nil, request, &response); err != nil {
+		return MemoryExtractorRetryRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) DrainMemoryExtractor(ctx context.Context) (MemoryExtractorDrainRecord, error) {
+	var response MemoryExtractorDrainRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/extractor/drain", nil, nil, &response); err != nil {
+		return MemoryExtractorDrainRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListMemoryProviders(ctx context.Context) (MemoryProviderListRecord, error) {
+	var response MemoryProviderListRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/providers", nil, nil, &response); err != nil {
+		return MemoryProviderListRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetMemoryProvider(ctx context.Context, name string) (MemoryProviderRecord, error) {
+	var response MemoryProviderRecord
+	path := "/api/memory/providers/" + url.PathEscape(strings.TrimSpace(name))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return MemoryProviderRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) SelectMemoryProvider(
+	ctx context.Context,
+	request MemoryProviderSelectRequest,
+) (MemoryProviderLifecycleRecord, error) {
+	var response MemoryProviderLifecycleRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/providers/select", nil, request, &response); err != nil {
+		return MemoryProviderLifecycleRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) EnableMemoryProvider(
+	ctx context.Context,
+	name string,
+	request MemoryProviderLifecycleRequest,
+) (MemoryProviderLifecycleRecord, error) {
+	var response MemoryProviderLifecycleRecord
+	path := "/api/memory/providers/" + url.PathEscape(strings.TrimSpace(name)) + "/enable"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return MemoryProviderLifecycleRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) DisableMemoryProvider(
+	ctx context.Context,
+	name string,
+	request MemoryProviderLifecycleRequest,
+) (MemoryProviderLifecycleRecord, error) {
+	var response MemoryProviderLifecycleRecord
+	path := "/api/memory/providers/" + url.PathEscape(strings.TrimSpace(name)) + "/disable"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return MemoryProviderLifecycleRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) CreateMemoryAdhocNote(
+	ctx context.Context,
+	request MemoryAdhocNoteRequest,
+) (MemoryAdhocNoteRecord, error) {
+	var response MemoryAdhocNoteRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/ad-hoc", nil, request, &response); err != nil {
+		return MemoryAdhocNoteRecord{}, err
 	}
 	return response, nil
 }
@@ -4065,30 +4493,44 @@ func hookEventsValues(query HookEventsQuery) url.Values {
 	return values
 }
 
-func memoryValues(scope memory.Scope, workspace string) url.Values {
+func memorySelectorValues(query MemorySelectorQuery) url.Values {
 	values := url.Values{}
-	if trimmed := strings.TrimSpace(string(scope)); trimmed != "" {
+	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
 		values.Set("scope", trimmed)
 	}
-	if trimmed := strings.TrimSpace(workspace); trimmed != "" {
-		values.Set("workspace", trimmed)
+	if trimmed := strings.TrimSpace(query.WorkspaceID); trimmed != "" {
+		values.Set("workspace_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.AgentName); trimmed != "" {
+		values.Set("agent_name", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.AgentTier)); trimmed != "" {
+		values.Set("agent_tier", trimmed)
+	}
+	if query.IncludeSystem {
+		values.Set("include_system", strconv.FormatBool(query.IncludeSystem))
 	}
 	return values
 }
 
-func memorySearchValues(query string, opts MemorySearchQuery) url.Values {
-	values := memoryValues(opts.Scope, opts.Workspace)
-	if trimmed := strings.TrimSpace(query); trimmed != "" {
-		values.Set("q", trimmed)
+func memoryListValues(query MemoryListQuery) url.Values {
+	values := memorySelectorValues(query.MemorySelectorQuery)
+	if trimmed := strings.TrimSpace(string(query.Type)); trimmed != "" {
+		values.Set("type", trimmed)
 	}
-	if opts.Limit > 0 {
-		values.Set("limit", strconv.Itoa(opts.Limit))
+	if query.IncludeShadowed {
+		values.Set("include_shadowed", strconv.FormatBool(query.IncludeShadowed))
 	}
 	return values
 }
 
 func memoryHistoryValues(query MemoryHistoryQuery) url.Values {
-	values := memoryValues(query.Scope, query.Workspace)
+	values := memorySelectorValues(MemorySelectorQuery{
+		Scope:       query.Scope,
+		WorkspaceID: query.WorkspaceID,
+		AgentName:   query.AgentName,
+		AgentTier:   query.AgentTier,
+	})
 	if trimmed := strings.TrimSpace(query.Operation); trimmed != "" {
 		values.Set("operation", trimmed)
 	}
@@ -4097,6 +4539,25 @@ func memoryHistoryValues(query MemoryHistoryQuery) url.Values {
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func memoryDecisionValues(query MemoryDecisionListQuery) url.Values {
+	values := memorySelectorValues(MemorySelectorQuery{
+		Scope:       query.Scope,
+		WorkspaceID: query.WorkspaceID,
+		AgentName:   query.AgentName,
+		AgentTier:   query.AgentTier,
+	})
+	if trimmed := strings.TrimSpace(query.Operation); trimmed != "" {
+		values.Set("op", trimmed)
+	}
+	if !query.Since.IsZero() {
+		values.Set("since", query.Since.UTC().Format(time.RFC3339Nano))
+	}
+	if trimmed := strings.TrimSpace(query.Reason); trimmed != "" {
+		values.Set("reason", trimmed)
 	}
 	return values
 }
@@ -4264,6 +4725,15 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 	}
 	if len(body) > 0 && json.Unmarshal(body, &payload) == nil && strings.TrimSpace(payload.Error) != "" {
 		return errors.New(redactToolDiagnostic(payload.Error))
+	}
+	var memoryPayload contract.MemoryErrorPayload
+	if len(body) > 0 && json.Unmarshal(body, &memoryPayload) == nil &&
+		strings.TrimSpace(memoryPayload.Code) != "" {
+		message := strings.TrimSpace(memoryPayload.Message)
+		if message == "" {
+			message = strings.TrimSpace(memoryPayload.Code)
+		}
+		return fmt.Errorf("%s: %s", strings.TrimSpace(memoryPayload.Code), redactToolDiagnostic(message))
 	}
 	var toolPayload contract.ToolErrorResponse
 	if len(body) > 0 && json.Unmarshal(body, &toolPayload) == nil && toolPayload.Error.Code != "" {

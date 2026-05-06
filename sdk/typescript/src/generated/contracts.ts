@@ -103,6 +103,7 @@ export type HookEvent =
   | "session.post_resume"
   | "session.pre_stop"
   | "session.post_stop"
+  | "session.message_persisted"
   | "sandbox.prepare"
   | "sandbox.ready"
   | "sandbox.sync.before"
@@ -1992,7 +1993,7 @@ export interface Job {
   updated_at: ISODateTime;
 }
 
-export type MemoryScope = "global" | "workspace";
+export type MemoryScope = "global" | "workspace" | "agent";
 
 export interface MemoryForgetParams {
   key: string;
@@ -3285,6 +3286,34 @@ export interface SessionLifecyclePayload {
   soul_digest?: string;
   created_at: ISODateTime;
   updated_at: ISODateTime;
+}
+
+export interface SessionMessagePersistedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  acp_session_id?: string;
+  state?: string;
+  soul_snapshot_id?: string;
+  soul_digest?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  turn_id?: string;
+  message_id?: string;
+  message_seq?: number;
+  role?: string;
+  text?: string;
+  raw?: JSONValue;
+  persisted?: JSONValue;
+  root_session_id?: string;
+  parent_session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
 }
 
 export interface SessionPostCreatePatch {
@@ -4890,6 +4919,7 @@ export interface HookPayloadByEvent {
   "session.post_resume": SessionPostResumePayload;
   "session.pre_stop": SessionPreStopPayload;
   "session.post_stop": SessionPostStopPayload;
+  "session.message_persisted": SessionMessagePersistedPayload;
   "sandbox.prepare": SandboxPreparePayload;
   "sandbox.ready": SandboxReadyPayload;
   "sandbox.sync.before": SandboxSyncBeforePayload;
@@ -4962,6 +4992,7 @@ export interface HookPatchByEvent {
   "session.post_resume": SessionPostResumePatch;
   "session.pre_stop": SessionPreStopPatch;
   "session.post_stop": SessionPostStopPatch;
+  "session.message_persisted": AuthoredContextObservationPatch;
   "sandbox.prepare": SandboxPreparePatch;
   "sandbox.ready": SandboxReadyPatch;
   "sandbox.sync.before": SandboxSyncBeforePatch;

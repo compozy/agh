@@ -171,14 +171,11 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 			return recorder, func() error { return nil }, nil
 		}
 		if !waited {
-			return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
-		}
-		if session, ok := m.Get(target); ok {
 			recorder := session.recorderHandle()
-			if recorder == nil {
-				return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
+			if recorder != nil {
+				return recorder, func() error { return nil }, nil
 			}
-			return recorder, func() error { return nil }, nil
+			return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
 		}
 	}
 

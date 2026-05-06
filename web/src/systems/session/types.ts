@@ -29,6 +29,10 @@ export type SessionRepairResponse = OperationResponse<"repairSession", 200>;
 export type SessionRepairPayload = SessionRepairResponse["repair"];
 export type SessionRepairQuery = OperationQuery<"repairSession">;
 
+export type SessionLedgerResponse = OperationResponse<"getMemorySessionLedger", 200>;
+export type SessionLedgerMeta = SessionLedgerResponse["meta"];
+export type SessionLedgerEvent = SessionLedgerResponse["events"][number];
+
 export type CreateSessionParams = OperationRequestBody<"createSession">;
 export type SessionApprovalResponse = OperationResponse<"approveSession", 200>;
 export type ApproveSessionParams = OperationRequestBody<"approveSession">;

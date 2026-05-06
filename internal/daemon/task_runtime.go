@@ -40,6 +40,7 @@ type taskRuntime struct {
 	detached            *harnessDetachedWorkBridge
 	reentry             *harnessReentryBridge
 	bridgeNotifications *bridgeTerminalTaskNotificationObserver
+	roles               *taskRoleRuntime
 }
 
 type taskBridgeSessionManager interface {
@@ -130,10 +131,11 @@ func (b *taskSessionBridge) StartTaskSession(
 	}
 
 	opts := session.CreateOpts{
-		Provider: "",
-		Name:     taskSessionName(spec),
-		Channel:  strings.TrimSpace(spec.Run.NetworkChannel),
-		Type:     session.SessionTypeSystem,
+		AgentName: taskSessionAgentName(spec.Task),
+		Provider:  "",
+		Name:      taskSessionName(spec),
+		Channel:   taskRunSessionChannel(spec.Run),
+		Type:      session.SessionTypeSystem,
 	}
 	applyTaskSessionWorkerProfile(&opts, spec.ExecutionProfile)
 	applyTaskSessionSandboxProfile(&opts, spec.ExecutionProfile)
@@ -448,6 +450,22 @@ func (d *Daemon) bootSpawnReaper(ctx context.Context, state *bootState, cleanup 
 	return nil
 }
 
+func (d *Daemon) bootTaskRoles(ctx context.Context, state *bootState) error {
+	if state == nil || state.tasks == nil || state.tasks.store == nil || state.sessions == nil {
+		return nil
+	}
+	runtime, err := newTaskRoleRuntime(state.tasks.store, state.sessions, d.homePaths.HomeDir, state.logger)
+	if err != nil {
+		return err
+	}
+	if state.notifier != nil {
+		state.notifier.AddTaskRunEnqueuedObserver(runtime)
+	}
+	runtime.Recover(ctx)
+	state.tasks.roles = runtime
+	return nil
+}
+
 func taskManagerOptions(
 	store taskStore,
 	bridge taskpkg.SessionExecutor,
@@ -759,6 +777,24 @@ func taskSessionName(spec *taskpkg.StartTaskSession) string {
 		base = strings.TrimSpace(spec.Run.ID)
 	}
 	return fmt.Sprintf("task:%s#%d", base, spec.Run.Attempt)
+}
+
+func taskSessionAgentName(taskRecord taskpkg.Task) string {
+	if taskRecord.Owner == nil || taskRecord.Owner.IsZero() {
+		return ""
+	}
+	owner := *taskRecord.Owner
+	if owner.Kind.Normalize() != taskpkg.OwnerKindPool {
+		return ""
+	}
+	return strings.TrimSpace(owner.Ref)
+}
+
+func taskRunSessionChannel(run taskpkg.Run) string {
+	if channel := strings.TrimSpace(run.CoordinationChannelID); channel != "" {
+		return channel
+	}
+	return strings.TrimSpace(run.NetworkChannel)
 }
 
 func taskStopCause(reason taskpkg.StopReason) session.StopCause {

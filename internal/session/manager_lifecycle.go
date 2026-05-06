@@ -170,6 +170,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 
 	errs = appendLifecycleErr(errs, m.closeSessionRecorder(session))
 	errs = appendLifecycleErr(errs, m.markSessionStopped(session))
+	errs = appendLifecycleErr(errs, m.materializeSessionLedger(ctx, session))
 	errs = appendLifecycleErr(errs, m.leaveSessionNetwork(ctx, session))
 	m.failQueuedSyntheticPrompts(session.ID, ErrSessionNotActive)
 

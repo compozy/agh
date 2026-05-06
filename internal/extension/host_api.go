@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"maps"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 
 	"github.com/goccy/go-yaml"
 	"github.com/pedronauck/agh/internal/acp"
@@ -19,7 +20,6 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	"github.com/pedronauck/agh/internal/frontmatter"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	observepkg "github.com/pedronauck/agh/internal/observe"
@@ -90,6 +90,7 @@ type HostAPIHandler struct {
 	heartbeatWake    hostAPIHeartbeatWakeService
 	sessionHealth    hostAPISessionHealthReader
 	wakeEvents       hostAPIHeartbeatWakeEventReader
+	memoryProviders  *MemoryProviderRegistry
 	capChecker       *CapabilityChecker
 	limiter          *hostAPIRateLimiter
 	automationGetter func() HostAPIAutomationManager
@@ -417,6 +418,13 @@ func WithHostAPIBridgeIngressConfig(dedupTTL time.Duration, cleanupInterval time
 	return func(handler *HostAPIHandler) {
 		handler.bridgeIngestDedupTTL = dedupTTL
 		handler.bridgeCleanupInterval = cleanupInterval
+	}
+}
+
+// WithHostAPIMemoryProviderRegistry injects MemoryProvider registration state.
+func WithHostAPIMemoryProviderRegistry(registry *MemoryProviderRegistry) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.memoryProviders = registry
 	}
 }
 
@@ -1164,8 +1172,12 @@ func (h *HostAPIHandler) handleMemoryStore(ctx context.Context, raw json.RawMess
 	if err != nil {
 		return nil, err
 	}
-	if err := storeHandle.Write(scope, filename, []byte(doc)); err != nil {
+	result, err := storeHandle.ProposeWrite(ctx, scope, filename, []byte(doc), memcontract.OriginTool)
+	if err != nil {
 		return nil, err
+	}
+	if result.Decision.Op == memcontract.OpReject {
+		return nil, invalidParamsRPCError(fmt.Errorf("memory write rejected: %s", result.Decision.Reason))
 	}
 	return struct{}{}, nil
 }
@@ -1180,51 +1192,21 @@ func (h *HostAPIHandler) handleMemoryRecall(ctx context.Context, raw json.RawMes
 		return nil, invalidParamsRPCError(errors.New("query is required"))
 	}
 
-	sources, err := h.memorySourcesForRecall(ctx, string(params.Scope), params.Workspace)
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]hostAPIMemoryRecallEntry, 0)
-	for _, source := range sources {
-		headers, scanErr := source.store.Scan(source.scope)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		for _, header := range headers {
-			content, readErr := source.store.Read(source.scope, header.Filename)
-			if readErr != nil {
-				return nil, readErr
-			}
-			body, tags := extractMemoryBodyAndTags(content)
-			score := scoreMemoryRecall(query, header, body, tags)
-			if score <= 0 {
-				continue
-			}
-			results = append(results, hostAPIMemoryRecallEntry{
-				Key:     header.Filename,
-				Content: body,
-				Score:   score,
-			})
-		}
-	}
-
-	sort.SliceStable(results, func(i, j int) bool {
-		if results[i].Score == results[j].Score {
-			return results[i].Key < results[j].Key
-		}
-		return results[i].Score > results[j].Score
-	})
-
 	limit := params.Limit
 	if limit <= 0 {
 		limit = defaultHostAPIRecallLimit
 	}
-	if len(results) > limit {
-		results = results[:limit]
+
+	packaged, err := h.recallMemory(ctx, query, hostAPIMemoryRecallSelection{
+		Limit:     limit,
+		Scope:     params.Scope,
+		Workspace: params.Workspace,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return results, nil
+	return hostAPIMemoryRecallEntries(packaged, limit), nil
 }
 
 func (h *HostAPIHandler) handleMemoryForget(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -1240,7 +1222,12 @@ func (h *HostAPIHandler) handleMemoryForget(ctx context.Context, raw json.RawMes
 	if err != nil {
 		return nil, err
 	}
-	if err := storeHandle.Delete(scope, normalizeMemoryFilename(params.Key)); err != nil {
+	if _, err := storeHandle.ProposeDelete(
+		ctx,
+		scope,
+		normalizeMemoryFilename(params.Key),
+		memcontract.OriginTool,
+	); err != nil {
 		return nil, err
 	}
 	return struct{}{}, nil
@@ -1888,78 +1875,114 @@ func (h *HostAPIHandler) latestSessionSequence(ctx context.Context, sessionID st
 	return events[len(events)-1].Sequence, nil
 }
 
-type hostAPIMemorySource struct {
-	store *memory.Store
-	scope memory.Scope
+type hostAPIMemoryRecallSelection struct {
+	Limit     int
+	Scope     memcontract.Scope
+	Workspace string
 }
 
-func (h *HostAPIHandler) memorySourcesForRecall(
+func (h *HostAPIHandler) recallMemory(
 	ctx context.Context,
-	rawScope string,
-	rawWorkspace string,
-) ([]hostAPIMemorySource, error) {
-	if h.memory == nil {
-		return nil, errors.New("extension: memory store is not configured")
+	query string,
+	selection hostAPIMemoryRecallSelection,
+) (memcontract.Packaged, error) {
+	workspaceID, err := h.resolveWorkspaceID(ctx, selection.Workspace)
+	if err != nil {
+		return memcontract.Packaged{}, err
 	}
+	if selection.Scope.Normalize() == memcontract.ScopeGlobal {
+		workspaceID = ""
+	}
+	if providerRecall, ok, err := h.recallMemoryFromProvider(
+		ctx,
+		query,
+		workspaceID,
+		selection.Limit,
+	); ok ||
+		err != nil {
+		return providerRecall, err
+	}
+	return h.recallMemoryFromStore(ctx, query, workspaceID, selection)
+}
 
-	scope := memory.Scope(strings.TrimSpace(rawScope)).Normalize()
-	switch scope {
-	case "":
-		sources := []hostAPIMemorySource{{store: h.memory, scope: memory.ScopeGlobal}}
-		workspaceRoot, err := h.resolveWorkspaceRoot(ctx, rawWorkspace)
-		if err != nil {
-			return nil, err
-		}
-		if workspaceRoot != "" {
-			sources = append(sources, hostAPIMemorySource{
-				store: h.memory.ForWorkspace(workspaceRoot),
-				scope: memory.ScopeWorkspace,
-			})
-		}
-		return sources, nil
-	case memory.ScopeGlobal:
-		return []hostAPIMemorySource{{store: h.memory, scope: memory.ScopeGlobal}}, nil
-	case memory.ScopeWorkspace:
-		storeHandle, _, err := h.memoryStoreFor(ctx, rawScope, rawWorkspace)
-		if err != nil {
-			return nil, err
-		}
-		return []hostAPIMemorySource{{store: storeHandle, scope: memory.ScopeWorkspace}}, nil
-	default:
-		return nil, invalidParamsRPCError(fmt.Errorf("memory scope must be one of global or workspace"))
+func (h *HostAPIHandler) recallMemoryFromProvider(
+	ctx context.Context,
+	query string,
+	workspaceID string,
+	limit int,
+) (memcontract.Packaged, bool, error) {
+	if h.memoryProviders == nil {
+		return memcontract.Packaged{}, false, nil
 	}
+	registration, err := h.memoryProviders.Select(ctx, workspaceID, "")
+	if err != nil {
+		if errors.Is(err, ErrMemoryProviderNotFound) {
+			return memcontract.Packaged{}, false, nil
+		}
+		return memcontract.Packaged{}, true, err
+	}
+	recalled, err := registration.Provider.Recall(ctx, memcontract.RecallRequest{
+		Query: memcontract.Query{
+			WorkspaceID: workspaceID,
+			QueryText:   query,
+		},
+		Options: memcontract.RecallOptions{TopK: limit},
+	})
+	if err != nil {
+		if errors.Is(err, memcontract.ErrNotImplemented) {
+			return memcontract.Packaged{}, false, nil
+		}
+		return memcontract.Packaged{}, true, err
+	}
+	return recalled.Packaged, true, nil
+}
+
+func (h *HostAPIHandler) recallMemoryFromStore(
+	ctx context.Context,
+	query string,
+	workspaceID string,
+	selection hostAPIMemoryRecallSelection,
+) (memcontract.Packaged, error) {
+	storeHandle, _, err := h.memoryStoreFor(ctx, string(selection.Scope), selection.Workspace)
+	if err != nil {
+		return memcontract.Packaged{}, err
+	}
+	return storeHandle.Recall(ctx, memcontract.Query{
+		WorkspaceID: workspaceID,
+		QueryText:   query,
+	}, memcontract.RecallOptions{TopK: selection.Limit})
 }
 
 func (h *HostAPIHandler) memoryStoreFor(
 	ctx context.Context,
 	rawScope string,
 	rawWorkspace string,
-) (*memory.Store, memory.Scope, error) {
+) (*memory.Store, memcontract.Scope, error) {
 	if h.memory == nil {
 		return nil, "", errors.New("extension: memory store is not configured")
 	}
 
-	scope := memory.Scope(strings.TrimSpace(rawScope)).Normalize()
+	scope := memcontract.Scope(strings.TrimSpace(rawScope)).Normalize()
 	workspaceRoot, err := h.resolveWorkspaceRoot(ctx, rawWorkspace)
 	if err != nil {
 		return nil, "", err
 	}
 	if scope == "" {
 		if workspaceRoot != "" {
-			scope = memory.ScopeWorkspace
+			scope = memcontract.ScopeWorkspace
 		} else {
-			scope = memory.ScopeGlobal
+			scope = memcontract.ScopeGlobal
 		}
 	}
 
 	switch scope {
-	case memory.ScopeGlobal:
-		return h.memory, memory.ScopeGlobal, nil
-	case memory.ScopeWorkspace:
+	case memcontract.ScopeGlobal:
+		return h.memory, memcontract.ScopeGlobal, nil
+	case memcontract.ScopeWorkspace:
 		if workspaceRoot == "" {
 			return nil, "", invalidParamsRPCError(errors.New("workspace is required for workspace memory scope"))
 		}
-		return h.memory.ForWorkspace(workspaceRoot), memory.ScopeWorkspace, nil
+		return h.memory.ForWorkspace(workspaceRoot), memcontract.ScopeWorkspace, nil
 	default:
 		return nil, "", invalidParamsRPCError(fmt.Errorf("memory scope must be one of global or workspace"))
 	}
@@ -1977,6 +2000,21 @@ func (h *HostAPIHandler) resolveWorkspaceRoot(ctx context.Context, rawWorkspace 
 		return "", err
 	}
 	return strings.TrimSpace(resolved.RootDir), nil
+}
+
+func (h *HostAPIHandler) resolveWorkspaceID(ctx context.Context, rawWorkspace string) (string, error) {
+	trimmed := strings.TrimSpace(rawWorkspace)
+	if trimmed == "" {
+		return "", nil
+	}
+	if h.workspaces == nil {
+		return trimmed, nil
+	}
+	resolved, err := h.workspaces.Resolve(ctx, trimmed)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(resolved.ID), nil
 }
 
 func (h *HostAPIHandler) automationManager() (HostAPIAutomationManager, error) {
@@ -2227,14 +2265,14 @@ func validateHostAPIConfigTriggerUpdate(req apicontract.UpdateTriggerRequest) er
 
 type hostAPIMemoryDocument struct {
 	Key       string
-	Scope     memory.Scope
+	Scope     memcontract.Scope
 	Content   string
 	Tags      []string
 	AgentName string
 }
 
 func renderMemoryDocument(doc hostAPIMemoryDocument) (string, error) {
-	header := memory.Header{
+	header := memcontract.Header{
 		Name:        memoryNameFromFilename(doc.Key),
 		Description: memoryDescriptionFromContent(doc.Content),
 		Type:        memoryTypeForScope(doc.Scope, doc.Tags),
@@ -2265,17 +2303,17 @@ func renderMemoryDocument(doc hostAPIMemoryDocument) (string, error) {
 	return builder.String(), nil
 }
 
-func memoryTypeForScope(scope memory.Scope, tags []string) memory.Type {
+func memoryTypeForScope(scope memcontract.Scope, tags []string) memcontract.Type {
 	for _, tag := range normalizeUniqueStrings(tags) {
-		switch memory.Type(tag).Normalize() {
-		case memory.MemoryTypeUser, memory.MemoryTypeFeedback, memory.MemoryTypeProject, memory.MemoryTypeReference:
-			return memory.Type(tag).Normalize()
+		switch memcontract.Type(tag).Normalize() {
+		case memcontract.TypeUser, memcontract.TypeFeedback, memcontract.TypeProject, memcontract.TypeReference:
+			return memcontract.Type(tag).Normalize()
 		}
 	}
-	if scope == memory.ScopeWorkspace {
-		return memory.MemoryTypeProject
+	if scope == memcontract.ScopeWorkspace {
+		return memcontract.TypeProject
 	}
-	return memory.MemoryTypeUser
+	return memcontract.TypeUser
 }
 
 func memoryNameFromFilename(filename string) string {
@@ -2319,59 +2357,24 @@ func normalizeMemoryFilename(key string) string {
 	return filename
 }
 
-func extractMemoryBodyAndTags(content []byte) (string, []string) {
-	body := strings.TrimSpace(string(content))
-	parts, err := frontmatter.Split(content)
-	if err == nil {
-		body = strings.TrimSpace(parts.Body)
-	}
-	if !strings.HasPrefix(body, tagCommentPrefix) {
-		return body, nil
-	}
-
-	lineEnd := strings.IndexByte(body, '\n')
-	if lineEnd < 0 {
-		lineEnd = len(body)
-	}
-	comment := strings.TrimSpace(body[:lineEnd])
-	body = strings.TrimSpace(strings.TrimPrefix(body[lineEnd:], "\n"))
-
-	comment = strings.TrimPrefix(comment, tagCommentPrefix)
-	comment = strings.TrimSuffix(comment, "-->")
-	comment = strings.TrimSpace(comment)
-	if comment == "" {
-		return body, nil
-	}
-	return body, normalizeUniqueStrings(strings.Split(comment, ","))
-}
-
-func scoreMemoryRecall(query string, header memory.Header, body string, tags []string) float64 {
-	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
-	if normalizedQuery == "" {
-		return 0
-	}
-
-	haystack := strings.ToLower(strings.Join([]string{
-		header.Filename,
-		header.Name,
-		header.Description,
-		header.AgentName,
-		strings.Join(tags, " "),
-		body,
-	}, " "))
-
-	score := 0.0
-	if strings.Contains(haystack, normalizedQuery) {
-		score += 4
-	}
-
-	for token := range strings.FieldsSeq(normalizedQuery) {
-		if strings.Contains(haystack, token) {
-			score++
+func hostAPIMemoryRecallEntries(packaged memcontract.Packaged, limit int) []hostAPIMemoryRecallEntry {
+	entries := make([]hostAPIMemoryRecallEntry, 0)
+	for _, block := range packaged.Blocks {
+		for _, entry := range block.Entries {
+			entries = append(entries, hostAPIMemoryRecallEntry{
+				Key:     strings.TrimSpace(entry.ID),
+				Content: taskpkg.RedactClaimTokens(strings.TrimSpace(entry.Body)),
+				Score:   float64(len(entries) + 1),
+			})
 		}
 	}
-
-	return score
+	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+		entries[i].Score, entries[j].Score = entries[j].Score, entries[i].Score
+	}
+	if limit > 0 && len(entries) > limit {
+		return entries[:limit]
+	}
+	return entries
 }
 
 func hostAPISessionStatusFromInfo(info *session.Info) hostAPISessionStatus {

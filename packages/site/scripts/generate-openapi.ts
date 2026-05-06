@@ -1,17 +1,32 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { generateFiles } from "fumadocs-openapi";
-import { openapi, AGH_OPENAPI_PATH } from "../lib/openapi";
+import { generateFiles, type Document } from "fumadocs-openapi";
+import { createOpenAPI } from "fumadocs-openapi/server";
+import { AGH_OPENAPI_ID, AGH_OPENAPI_PATH } from "../lib/openapi";
 import { API_SECTIONS } from "../lib/runtime-navigation";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(HERE, "../content/runtime/api-reference");
+const REPO_ROOT = path.resolve(HERE, "../../..");
 const PRESERVE = new Set(["index.mdx"]);
+const OPENAPI_METHODS = new Set(["get", "post", "patch", "put", "delete"]);
 
 type OpenAPIDocument = {
-  paths?: Record<string, Record<string, { tags?: string[] }>>;
+  paths?: Record<string, Record<string, unknown>>;
 };
+
+type OpenAPIOperation = {
+  tags?: string[];
+  [key: string]: unknown;
+};
+
+type APIRoute = {
+  method: string;
+  path: string;
+};
+
+let referenceDocument: OpenAPIDocument | null = null;
 
 async function cleanGenerated(): Promise<void> {
   const entries = await fs.readdir(OUT_DIR);
@@ -22,12 +37,126 @@ async function cleanGenerated(): Promise<void> {
   );
 }
 
+async function readRepoFile(...parts: string[]): Promise<string> {
+  return fs.readFile(path.resolve(REPO_ROOT, ...parts), "utf8");
+}
+
+function joinRoute(left: string, right: string): string {
+  if (!right) {
+    return left || "/";
+  }
+  return `${left.replace(/\/$/, "")}/${right.replace(/^\//, "")}`;
+}
+
+async function extractRegisteredRoutes(sourcePath: string): Promise<APIRoute[]> {
+  const routes: APIRoute[] = [];
+  const source = await readRepoFile(sourcePath);
+  const groups = new Map<string, string>([["api", "/api"]]);
+  const assignmentMatcher = /^\s*(\w+)\s*:=\s*(\w+)\.Group\("([^"]*)"/;
+  const methodMatcher = /^\s*(\w+)\.(GET|POST|PATCH|PUT|DELETE)\("([^"]*)"/;
+
+  for (const line of source.split("\n")) {
+    const assignment = line.match(assignmentMatcher);
+    if (assignment) {
+      const [, target, parent, suffix] = assignment;
+      const parentPath = groups.get(parent ?? "");
+      if (target && parentPath !== undefined) {
+        groups.set(target, joinRoute(parentPath, suffix ?? ""));
+      }
+      continue;
+    }
+
+    const method = line.match(methodMatcher);
+    if (method) {
+      const [, group, verb, suffix] = method;
+      const prefix = groups.get(group ?? "");
+      if (prefix !== undefined && verb) {
+        routes.push({
+          method: verb,
+          path: joinRoute(prefix, suffix ?? ""),
+        });
+      }
+    }
+  }
+
+  return routes;
+}
+
+async function implementedRoutes(): Promise<APIRoute[]> {
+  const [httpRoutes, udsRoutes] = await Promise.all([
+    extractRegisteredRoutes("internal/api/httpapi/routes.go"),
+    extractRegisteredRoutes("internal/api/udsapi/routes.go"),
+  ]);
+  return [...httpRoutes, ...udsRoutes];
+}
+
+function routePattern(route: string): RegExp {
+  const escaped = route
+    .split("/")
+    .map(part => {
+      if (part.startsWith(":")) {
+        return "[^/]+";
+      }
+      return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    })
+    .join("/");
+  return new RegExp(`^${escaped}$`);
+}
+
+function isCoveredByRegisteredRoute(openapiPath: string, method: string, routes: APIRoute[]) {
+  const upperMethod = method.toUpperCase();
+  return routes.some(
+    route => route.method === upperMethod && routePattern(route.path).test(openapiPath)
+  );
+}
+
+function isOpenAPIOperation(method: string, value: unknown): value is OpenAPIOperation {
+  return OPENAPI_METHODS.has(method) && typeof value === "object" && value !== null;
+}
+
+function filterUnimplementedRoutes(doc: OpenAPIDocument, routes: APIRoute[]): OpenAPIDocument {
+  for (const [openapiPath, pathItem] of Object.entries(doc.paths ?? {})) {
+    for (const [method, operation] of Object.entries(pathItem)) {
+      if (!isOpenAPIOperation(method, operation)) {
+        continue;
+      }
+      if (!isCoveredByRegisteredRoute(openapiPath, method, routes)) {
+        delete pathItem[method];
+      }
+    }
+
+    const hasOperation = Object.entries(pathItem).some(([method, operation]) =>
+      isOpenAPIOperation(method, operation)
+    );
+    if (!hasOperation) {
+      delete doc.paths?.[openapiPath];
+    }
+  }
+  return doc;
+}
+
+async function loadReferenceDocument(): Promise<OpenAPIDocument> {
+  if (referenceDocument) {
+    return referenceDocument;
+  }
+  const [raw, routes] = await Promise.all([
+    fs.readFile(AGH_OPENAPI_PATH, "utf8"),
+    implementedRoutes(),
+  ]);
+  referenceDocument = filterUnimplementedRoutes(JSON.parse(raw) as OpenAPIDocument, routes);
+  return referenceDocument;
+}
+
+const referenceOpenAPI = createOpenAPI({
+  input: async () => ({ [AGH_OPENAPI_ID]: (await loadReferenceDocument()) as Document }),
+});
+
 async function readUsedTags(): Promise<string[]> {
-  const raw = await fs.readFile(AGH_OPENAPI_PATH, "utf8");
-  const doc = JSON.parse(raw) as OpenAPIDocument;
+  const doc = await loadReferenceDocument();
   const tags = new Set<string>();
   for (const ops of Object.values(doc.paths ?? {})) {
     for (const op of Object.values(ops)) {
+      if (!isOpenAPIOperation("get", op)) continue;
       for (const tag of op.tags ?? []) tags.add(tag);
     }
   }
@@ -96,7 +225,7 @@ function iconForTitle(title: string): string | undefined {
 async function main(): Promise<void> {
   await cleanGenerated();
   await generateFiles({
-    input: openapi,
+    input: referenceOpenAPI,
     output: OUT_DIR,
     per: "tag",
     includeDescription: true,

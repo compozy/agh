@@ -3875,6 +3875,35 @@ func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 	}
 }
 
+func TestManagerClaimRunRejectsAutonomousOwners(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject explicit claims for pool-owned runs", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Pool-owned work",
+			Owner: &Ownership{Kind: OwnerKindPool, Ref: "frontend-engineer-agent"},
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		_, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("ClaimRun(pool owner) error = %v, want %v", err, ErrPermissionDenied)
+		}
+	})
+}
+
 func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 	t.Parallel()
 

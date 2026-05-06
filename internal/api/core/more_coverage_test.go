@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
@@ -267,6 +269,9 @@ func TestMemoryWrapperExports(t *testing.T) {
 	t.Parallel()
 
 	workspace := t.TempDir()
+	if _, err := workspacepkg.EnsureIdentity(context.Background(), workspace); err != nil {
+		t.Fatalf("EnsureIdentity(%q) error = %v", workspace, err)
+	}
 	req := contract.MemoryWriteRequest{
 		Scope:     "workspace",
 		Workspace: workspace,
@@ -276,7 +281,7 @@ func TestMemoryWrapperExports(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveMemoryWriteScope() error = %v", err)
 	}
-	if scope != memory.ScopeWorkspace || resolvedWorkspace == "" {
+	if scope != memcontract.ScopeWorkspace || resolvedWorkspace == "" {
 		t.Fatalf("scope=%q workspace=%q", scope, resolvedWorkspace)
 	}
 	if _, err := core.ParseOptionalMemoryScope("bogus"); err == nil {
@@ -287,7 +292,7 @@ func TestMemoryWrapperExports(t *testing.T) {
 	}
 	if scope, resolved, err := core.ResolveMemoryWriteScope(contract.MemoryWriteRequest{
 		Content: "---\nname: Global\ndescription: desc\ntype: user\n---\n\nbody",
-	}); err != nil || scope != memory.ScopeGlobal || resolved != "" {
+	}); err != nil || scope != memcontract.ScopeGlobal || resolved != "" {
 		t.Fatalf("ResolveMemoryWriteScope(user default) = %q %q %v", scope, resolved, err)
 	}
 
@@ -296,7 +301,7 @@ func TestMemoryWrapperExports(t *testing.T) {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
 	if err := store.ForWorkspace(workspace).
-		Write(memory.ScopeWorkspace, "note.md", []byte("---\nname: note\ndescription: desc\ntype: project\n---\n\nbody")); err != nil {
+		Write(memcontract.ScopeWorkspace, "note.md", []byte("---\nname: note\ndescription: desc\ntype: project\n---\n\nbody")); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 	manager := testutil.StubSessionManager{

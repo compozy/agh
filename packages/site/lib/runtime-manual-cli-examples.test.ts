@@ -170,6 +170,21 @@ describe("manual site CLI examples", () => {
     expect(stalePatternViolations(/\bagh spawn\b[\s\S]{0,240}--prompt(?!-overlay)\b/)).toEqual([]);
   });
 
+  it("does not execute the replaced agh memory verbs in any documented shell block", () => {
+    const violations = listManualDocs(contentRoot).flatMap(doc =>
+      extractBashBlocks(doc).flatMap(block =>
+        block
+          .replaceAll("\\\n", " ")
+          .split("\n")
+          .map(line => line.replace(/^[\s$>]+/, ""))
+          .filter(line => /^agh memory (read|consolidate)\b/.test(line))
+          .map(line => `${doc.path}: ${line.trim()}`)
+      )
+    );
+
+    expect(violations).toEqual([]);
+  });
+
   it("uses the implemented flag shape for network send examples", () => {
     const violations = commandBlocks("agh network send")
       .filter(({ block }) => {

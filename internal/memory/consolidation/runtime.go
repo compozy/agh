@@ -55,7 +55,11 @@ type checkRequest struct {
 	workspaceRef string
 }
 
-const defaultSessionStopTimeout = 10 * time.Second
+const (
+	defaultSessionStopTimeout = 10 * time.Second
+	// DreamingCuratorAgentName is the dedicated default agent for memory dreaming.
+	DreamingCuratorAgentName = "dreaming-curator"
+)
 
 // NewRuntime constructs a dream runtime that can be started by the daemon.
 func NewRuntime(
@@ -108,6 +112,9 @@ func (r *Runtime) Trigger(ctx context.Context, workspace string) (bool, string, 
 	if err := r.service.Run(ctx, r.spawner, strings.TrimSpace(workspace)); err != nil {
 		if errors.Is(err, memory.ErrLockUnavailable) {
 			return false, "dream consolidation is already running", nil
+		}
+		if errors.Is(err, memory.ErrDreamGateNotSatisfied) {
+			return false, "dream consolidation gates are not satisfied", nil
 		}
 		return false, "", err
 	}
@@ -240,6 +247,10 @@ func (r *Runtime) runCheck(
 			logger.Debug("daemon: dream consolidation already running", "reason", reason, "workspace_ref", workspaceRef)
 			return
 		}
+		if errors.Is(err, memory.ErrDreamGateNotSatisfied) {
+			logger.Debug("daemon: dream consolidation skipped", "reason", reason, "workspace_ref", workspaceRef)
+			return
+		}
 		logger.Warn("daemon: dream consolidation failed", "reason", reason, "workspace_ref", workspaceRef, "error", err)
 		return
 	}
@@ -256,7 +267,7 @@ func NewSessionSpawner(
 	if cfg == nil || !cfg.Memory.Enabled || !cfg.Memory.Dream.Enabled || sessions == nil || resolver == nil {
 		return nil
 	}
-	agentName := strings.TrimSpace(cfg.Memory.Dream.Agent)
+	agentName := dreamingAgentName(cfg.Memory.Dream.Agent)
 
 	return func(ctx context.Context, goal, prompt, workspace string) error {
 		workspaces, err := resolveWorkspaces(ctx, sessions, resolver, globalMemoryDir, workspace)
@@ -280,6 +291,14 @@ func NewSessionSpawner(
 
 		return nil
 	}
+}
+
+func dreamingAgentName(configured string) string {
+	trimmed := strings.TrimSpace(configured)
+	if trimmed == "" || trimmed == aghconfig.DefaultAgentName {
+		return DreamingCuratorAgentName
+	}
+	return trimmed
 }
 
 func resolveWorkspaces(

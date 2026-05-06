@@ -237,9 +237,9 @@ func (s *service) updateMemorySection(
 	if req.Memory == nil {
 		return MutationResult{}, validationError(errors.New("settings: memory section payload is required"))
 	}
-	changed := diffMemorySettings(cfg.Memory, *req.Memory)
+	changed := diffMemorySettings(&cfg.Memory, req.Memory)
 	return s.updateConfigSection(req.Section, changed, target, func(editor *aghconfig.OverlayEditor) error {
-		return applyMemorySettings(editor, *req.Memory)
+		return applyMemorySettings(editor, req.Memory)
 	})
 }
 
@@ -773,28 +773,19 @@ func diffGeneralSettings(cfg *aghconfig.Config, desired GeneralSettings) []strin
 	return changed
 }
 
-func diffMemorySettings(current aghconfig.MemoryConfig, desired aghconfig.MemoryConfig) []string {
+func diffMemorySettings(current *aghconfig.MemoryConfig, desired *aghconfig.MemoryConfig) []string {
 	var changed []string
-	if current.Enabled != desired.Enabled {
-		changed = append(changed, "memory.enabled")
-	}
-	if current.GlobalDir != desired.GlobalDir {
-		changed = append(changed, "memory.global_dir")
-	}
-	if current.Dream.Enabled != desired.Dream.Enabled {
-		changed = append(changed, "memory.dream.enabled")
-	}
-	if current.Dream.Agent != desired.Dream.Agent {
-		changed = append(changed, "memory.dream.agent")
-	}
-	if current.Dream.MinHours != desired.Dream.MinHours {
-		changed = append(changed, "memory.dream.min_hours")
-	}
-	if current.Dream.MinSessions != desired.Dream.MinSessions {
-		changed = append(changed, "memory.dream.min_sessions")
-	}
-	if current.Dream.CheckInterval != desired.Dream.CheckInterval {
-		changed = append(changed, "memory.dream.check_interval")
+	currentValues := memorySettingsUpdates(current)
+	desiredValues := memorySettingsUpdates(desired)
+	for i, currentValue := range currentValues {
+		if i >= len(desiredValues) {
+			break
+		}
+		desiredValue := desiredValues[i]
+		if reflect.DeepEqual(currentValue.value, desiredValue.value) {
+			continue
+		}
+		changed = append(changed, strings.Join(currentValue.path, "."))
 	}
 	return changed
 }
@@ -941,20 +932,211 @@ func applyGeneralSettings(editor *aghconfig.OverlayEditor, settings GeneralSetti
 	return applyValueUpdates(editor, updates)
 }
 
-func applyMemorySettings(editor *aghconfig.OverlayEditor, settings aghconfig.MemoryConfig) error {
+func applyMemorySettings(editor *aghconfig.OverlayEditor, settings *aghconfig.MemoryConfig) error {
+	return applyValueUpdates(editor, memorySettingsUpdates(settings))
+}
+
+func memorySettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+	path  []string
+	value any
+} {
+	if settings == nil {
+		return nil
+	}
 	updates := []struct {
 		path  []string
 		value any
 	}{
 		{path: []string{"memory", "enabled"}, value: settings.Enabled},
 		{path: []string{"memory", "global_dir"}, value: settings.GlobalDir},
+	}
+	updates = append(updates, memoryControllerSettingsUpdates(settings)...)
+	updates = append(updates, memoryRecallSettingsUpdates(settings)...)
+	updates = append(updates, memoryExtractorSettingsUpdates(settings)...)
+	updates = append(updates, memoryDreamSettingsUpdates(settings)...)
+	updates = append(updates, memoryRetentionSettingsUpdates(settings)...)
+	return append(updates, memoryProviderSettingsUpdates(settings)...)
+}
+
+func memoryControllerSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+	path  []string
+	value any
+} {
+	return []struct {
+		path  []string
+		value any
+	}{
+		{path: []string{"memory", "controller", "mode"}, value: settings.Controller.Mode},
+		{path: []string{"memory", "controller", "max_latency"}, value: settings.Controller.MaxLatency.String()},
+		{path: []string{"memory", "controller", "default_op_on_fail"}, value: settings.Controller.DefaultOpOnFail},
+		{path: []string{"memory", "controller", "llm", "enabled"}, value: settings.Controller.LLM.Enabled},
+		{path: []string{"memory", "controller", "llm", "model"}, value: settings.Controller.LLM.Model},
+		{path: []string{"memory", "controller", "llm", "top_k"}, value: settings.Controller.LLM.TopK},
+		{path: []string{"memory", "controller", "llm", "prompt_version"}, value: settings.Controller.LLM.PromptVersion},
+		{path: []string{"memory", "controller", "llm", "timeout"}, value: settings.Controller.LLM.Timeout.String()},
+		{path: []string{"memory", "controller", "llm", "max_tokens_out"}, value: settings.Controller.LLM.MaxTokensOut},
+		{
+			path:  []string{"memory", "controller", "policy", "max_content_chars"},
+			value: settings.Controller.Policy.MaxContentChars,
+		},
+		{
+			path:  []string{"memory", "controller", "policy", "max_writes_per_min"},
+			value: settings.Controller.Policy.MaxWritesPerMin,
+		},
+		{
+			path:  []string{"memory", "controller", "policy", "allow_origins"},
+			value: append([]string(nil), settings.Controller.Policy.AllowOrigins...),
+		},
+	}
+}
+
+func memoryRecallSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+	path  []string
+	value any
+} {
+	return []struct {
+		path  []string
+		value any
+	}{
+		{path: []string{"memory", "recall", "top_k"}, value: settings.Recall.TopK},
+		{path: []string{"memory", "recall", "raw_candidates"}, value: settings.Recall.RawCandidates},
+		{path: []string{"memory", "recall", "fusion"}, value: settings.Recall.Fusion},
+		{path: []string{"memory", "recall", "include_already_surfaced"}, value: settings.Recall.IncludeAlreadySurfaced},
+		{path: []string{"memory", "recall", "include_system"}, value: settings.Recall.IncludeSystem},
+		{path: []string{"memory", "recall", "weights", "bm25_unicode"}, value: settings.Recall.Weights.BM25Unicode},
+		{path: []string{"memory", "recall", "weights", "bm25_trigram"}, value: settings.Recall.Weights.BM25Trigram},
+		{path: []string{"memory", "recall", "weights", "recency"}, value: settings.Recall.Weights.Recency},
+		{path: []string{"memory", "recall", "weights", "recall_signal"}, value: settings.Recall.Weights.RecallSignal},
+		{
+			path:  []string{"memory", "recall", "freshness", "banner_after_days"},
+			value: settings.Recall.Freshness.BannerAfterDays,
+		},
+		{path: []string{"memory", "recall", "signals", "queue_capacity"}, value: settings.Recall.Signals.QueueCapacity},
+		{
+			path:  []string{"memory", "recall", "signals", "worker_retry_max"},
+			value: settings.Recall.Signals.WorkerRetryMax,
+		},
+		{
+			path:  []string{"memory", "recall", "signals", "metrics_enabled"},
+			value: settings.Recall.Signals.MetricsEnabled,
+		},
+		{
+			path:  []string{"memory", "decisions", "prune_after_applied_days"},
+			value: settings.Decisions.PruneAfterAppliedDays,
+		},
+		{path: []string{"memory", "decisions", "keep_audit_summary"}, value: settings.Decisions.KeepAuditSummary},
+		{
+			path:  []string{"memory", "decisions", "max_post_content_bytes"},
+			value: settings.Decisions.MaxPostContentBytes,
+		},
+	}
+}
+
+func memoryExtractorSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+	path  []string
+	value any
+} {
+	return []struct {
+		path  []string
+		value any
+	}{
+		{path: []string{"memory", "extractor", "enabled"}, value: settings.Extractor.Enabled},
+		{path: []string{"memory", "extractor", "mode"}, value: settings.Extractor.Mode},
+		{path: []string{"memory", "extractor", "throttle_turns"}, value: settings.Extractor.ThrottleTurns},
+		{path: []string{"memory", "extractor", "deadline"}, value: settings.Extractor.Deadline.String()},
+		{path: []string{"memory", "extractor", "sandbox_inbox_only"}, value: settings.Extractor.SandboxInboxOnly},
+		{path: []string{"memory", "extractor", "inbox_path"}, value: settings.Extractor.InboxPath},
+		{path: []string{"memory", "extractor", "dlq_path"}, value: settings.Extractor.DLQPath},
+		{path: []string{"memory", "extractor", "model"}, value: settings.Extractor.Model},
+		{path: []string{"memory", "extractor", "queue", "capacity"}, value: settings.Extractor.Queue.Capacity},
+		{path: []string{"memory", "extractor", "queue", "coalesce_max"}, value: settings.Extractor.Queue.CoalesceMax},
+	}
+}
+
+func memoryDreamSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+	path  []string
+	value any
+} {
+	return []struct {
+		path  []string
+		value any
+	}{
 		{path: []string{"memory", "dream", "enabled"}, value: settings.Dream.Enabled},
 		{path: []string{"memory", "dream", "agent"}, value: settings.Dream.Agent},
 		{path: []string{"memory", "dream", "min_hours"}, value: settings.Dream.MinHours},
 		{path: []string{"memory", "dream", "min_sessions"}, value: settings.Dream.MinSessions},
+		{path: []string{"memory", "dream", "debounce"}, value: settings.Dream.Debounce.String()},
+		{path: []string{"memory", "dream", "prompt_version"}, value: settings.Dream.PromptVersion},
 		{path: []string{"memory", "dream", "check_interval"}, value: settings.Dream.CheckInterval.String()},
+		{path: []string{"memory", "dream", "gates", "min_unpromoted"}, value: settings.Dream.Gates.MinUnpromoted},
+		{path: []string{"memory", "dream", "gates", "min_recall_count"}, value: settings.Dream.Gates.MinRecallCount},
+		{path: []string{"memory", "dream", "gates", "min_score"}, value: settings.Dream.Gates.MinScore},
+		{
+			path:  []string{"memory", "dream", "scoring", "recency_half_life_days"},
+			value: settings.Dream.Scoring.RecencyHalfLifeDays,
+		},
+		{
+			path:  []string{"memory", "dream", "scoring", "weights", "frequency"},
+			value: settings.Dream.Scoring.Weights.Frequency,
+		},
+		{
+			path:  []string{"memory", "dream", "scoring", "weights", "relevance"},
+			value: settings.Dream.Scoring.Weights.Relevance,
+		},
+		{
+			path:  []string{"memory", "dream", "scoring", "weights", "recency"},
+			value: settings.Dream.Scoring.Weights.Recency,
+		},
+		{
+			path:  []string{"memory", "dream", "scoring", "weights", "freshness"},
+			value: settings.Dream.Scoring.Weights.Freshness,
+		},
 	}
-	return applyValueUpdates(editor, updates)
+}
+
+func memoryRetentionSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+	path  []string
+	value any
+} {
+	return []struct {
+		path  []string
+		value any
+	}{
+		{path: []string{"memory", "session", "ledger_format"}, value: settings.Session.LedgerFormat},
+		{path: []string{"memory", "session", "ledger_root"}, value: settings.Session.LedgerRoot},
+		{path: []string{"memory", "session", "events_purge_grace"}, value: settings.Session.EventsPurgeGrace.String()},
+		{path: []string{"memory", "session", "cold_archive_days"}, value: settings.Session.ColdArchiveDays},
+		{path: []string{"memory", "session", "hard_delete_days"}, value: settings.Session.HardDeleteDays},
+		{path: []string{"memory", "session", "max_archive_bytes"}, value: settings.Session.MaxArchiveBytes},
+		{path: []string{"memory", "session", "unbound_partition"}, value: settings.Session.UnboundPartition},
+		{path: []string{"memory", "daily", "max_bytes"}, value: settings.Daily.MaxBytes},
+		{path: []string{"memory", "daily", "max_lines"}, value: settings.Daily.MaxLines},
+		{path: []string{"memory", "daily", "rotate_format"}, value: settings.Daily.RotateFormat},
+		{path: []string{"memory", "daily", "dreaming_window"}, value: settings.Daily.DreamingWindow},
+		{path: []string{"memory", "daily", "cold_archive_days"}, value: settings.Daily.ColdArchiveDays},
+		{path: []string{"memory", "daily", "hard_delete_days"}, value: settings.Daily.HardDeleteDays},
+		{path: []string{"memory", "daily", "max_archive_bytes"}, value: settings.Daily.MaxArchiveBytes},
+		{path: []string{"memory", "daily", "sweep_hour"}, value: settings.Daily.SweepHour},
+		{path: []string{"memory", "daily", "archive_path"}, value: settings.Daily.ArchivePath},
+		{path: []string{"memory", "file", "max_lines"}, value: settings.File.MaxLines},
+		{path: []string{"memory", "file", "max_bytes"}, value: settings.File.MaxBytes},
+	}
+}
+
+func memoryProviderSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
+	path  []string
+	value any
+} {
+	return []struct {
+		path  []string
+		value any
+	}{
+		{path: []string{"memory", "provider", "name"}, value: settings.Provider.Name},
+		{path: []string{"memory", "provider", "timeout"}, value: settings.Provider.Timeout.String()},
+		{path: []string{"memory", "provider", "failure_threshold"}, value: settings.Provider.FailureThreshold},
+		{path: []string{"memory", "provider", "cooldown"}, value: settings.Provider.Cooldown.String()},
+		{path: []string{"memory", "workspace", "auto_create"}, value: settings.Workspace.AutoCreate},
+	}
 }
 
 func applySkillsSettings(editor *aghconfig.OverlayEditor, settings aghconfig.SkillsConfig) error {

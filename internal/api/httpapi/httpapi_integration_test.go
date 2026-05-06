@@ -25,6 +25,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
 	sandboxlocal "github.com/pedronauck/agh/internal/sandbox/local"
@@ -56,7 +57,14 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("root body = %q, want SPA shell", string(indexBody))
 	}
 
-	deepLinkResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/session/demo"), nil, nil)
+	deepLinkResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/session/demo"),
+		nil,
+		nil,
+	)
 	if deepLinkResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(deepLinkResp.Body)
 		_ = deepLinkResp.Body.Close()
@@ -71,18 +79,48 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("deep link body = %q, want SPA shell", string(deepLinkBody))
 	}
 
-	statusResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/daemon/status"), nil, nil)
+	statusResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/daemon/status"),
+		nil,
+		nil,
+	)
 	if statusResp.StatusCode != http.StatusOK {
 		t.Fatalf("daemon status = %d, want %d", statusResp.StatusCode, http.StatusOK)
 	}
-	_ = statusResp.Body.Close()
+	var statusPayload contract.DaemonStatusResponse
+	decodeHTTPJSON(t, statusResp, &statusPayload)
+	if statusPayload.Daemon.PID <= 0 ||
+		statusPayload.Daemon.HTTPHost != runtime.host ||
+		statusPayload.Daemon.HTTPPort != runtime.port {
+		t.Fatalf(
+			"daemon status payload = %#v, want populated daemon fields for %s:%d",
+			statusPayload,
+			runtime.host,
+			runtime.port,
+		)
+	}
 
 	origin := fmt.Sprintf("http://%s:%d", runtime.host, runtime.port)
-	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","name":"demo","workspace_path":"`+runtime.workspace+`"}`), map[string]string{"Origin": origin})
+	createResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		[]byte(`{"agent_name":"coder","name":"demo","workspace_path":"`+runtime.workspace+`"}`),
+		map[string]string{"Origin": origin},
+	)
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
-		t.Fatalf("create session status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
+		t.Fatalf(
+			"create session status = %d, want %d; body=%s",
+			createResp.StatusCode,
+			http.StatusCreated,
+			string(body),
+		)
 	}
 	if got := createResp.Header.Get("Access-Control-Allow-Origin"); got != origin {
 		t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, origin)
@@ -95,7 +133,14 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatal("expected created session id")
 	}
 
-	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions"), nil, nil)
+	listResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		nil,
+		nil,
+	)
 	if listResp.StatusCode != http.StatusOK {
 		t.Fatalf("list sessions status = %d, want %d", listResp.StatusCode, http.StatusOK)
 	}
@@ -122,7 +167,12 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 	}
 	runsAfterManualSession, err := runtime.registry.ListTaskRunsByStatus(
 		context.Background(),
-		[]taskpkg.RunStatus{taskpkg.TaskRunStatusQueued, taskpkg.TaskRunStatusClaimed, taskpkg.TaskRunStatusStarting, taskpkg.TaskRunStatusRunning},
+		[]taskpkg.RunStatus{
+			taskpkg.TaskRunStatusQueued,
+			taskpkg.TaskRunStatusClaimed,
+			taskpkg.TaskRunStatusStarting,
+			taskpkg.TaskRunStatusRunning,
+		},
 	)
 	if err != nil {
 		t.Fatalf("ListTaskRunsByStatus(after manual session) error = %v", err)
@@ -131,7 +181,14 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("open task runs after manual session = %#v, want none", runsAfterManualSession)
 	}
 
-	filteredResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions?workspace="+created.Session.WorkspaceID), nil, nil)
+	filteredResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions?workspace="+created.Session.WorkspaceID),
+		nil,
+		nil,
+	)
 	if filteredResp.StatusCode != http.StatusOK {
 		t.Fatalf("filtered sessions status = %d, want %d", filteredResp.StatusCode, http.StatusOK)
 	}
@@ -143,7 +200,14 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("filtered sessions = %#v", filtered.Sessions)
 	}
 
-	promptResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/prompt"), []byte(`{"message":"hello"}`), nil)
+	promptResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/prompt"),
+		[]byte(`{"message":"hello"}`),
+		nil,
+	)
 	if promptResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(promptResp.Body)
 		_ = promptResp.Body.Close()
@@ -165,7 +229,14 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t.Fatalf("last prompt record = %#v, want [DONE]", promptEvents[len(promptEvents)-1])
 	}
 
-	eventsResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/events"), nil, nil)
+	eventsResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/events"),
+		nil,
+		nil,
+	)
 	if eventsResp.StatusCode != http.StatusOK {
 		t.Fatalf("session events status = %d, want %d", eventsResp.StatusCode, http.StatusOK)
 	}
@@ -323,7 +394,12 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 	if secondResp.StatusCode != http.StatusConflict {
 		body, _ := io.ReadAll(secondResp.Body)
 		_ = secondResp.Body.Close()
-		t.Fatalf("second prompt status = %d, want %d; body=%s", secondResp.StatusCode, http.StatusConflict, string(body))
+		t.Fatalf(
+			"second prompt status = %d, want %d; body=%s",
+			secondResp.StatusCode,
+			http.StatusConflict,
+			string(body),
+		)
 	}
 	var secondErr contract.ErrorPayload
 	decodeHTTPJSON(t, secondResp, &secondErr)
@@ -380,7 +456,14 @@ func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 	sessionID := createIntegrationSession(t, runtime)
 	sendPrompt(t, runtime, sessionID, "hello")
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/transcript"), nil, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/transcript"),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -425,18 +508,29 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	cancelNetwork()
 
 	syntheticCtx, cancelSynthetic := context.WithTimeout(context.Background(), promptTimeout)
-	syntheticEvents, syntheticErr := runtime.manager.PromptSynthetic(syntheticCtx, sessionID, session.SyntheticPromptOpts{
-		Message: "daemon wake-up",
-		Metadata: acp.PromptSyntheticMeta{
-			TaskRunID: "run-1",
-			Reason:    "task_run_completed",
-			Summary:   "background work finished",
+	syntheticEvents, syntheticErr := runtime.manager.PromptSynthetic(
+		syntheticCtx,
+		sessionID,
+		session.SyntheticPromptOpts{
+			Message: "daemon wake-up",
+			Metadata: acp.PromptSyntheticMeta{
+				TaskRunID: "run-1",
+				Reason:    "task_run_completed",
+				Summary:   "background work finished",
+			},
 		},
-	})
+	)
 	collectIntegrationPromptEvents(t, mustIntegrationPrompt(t, syntheticEvents, syntheticErr), promptTimeout)
 	cancelSynthetic()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/transcript"), nil, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/transcript"),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -523,7 +617,14 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 	sendPrompt(t, runtime, sessionID, "hello")
 	stopIntegrationSession(t, runtime, sessionID)
 
-	streamResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"), nil, nil)
+	streamResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"),
+		nil,
+		nil,
+	)
 	if streamResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(streamResp.Body)
 		_ = streamResp.Body.Close()
@@ -539,7 +640,14 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 	}
 
 	headers := map[string]string{"Last-Event-ID": initial[0].ID}
-	replayResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"), nil, headers)
+	replayResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"),
+		nil,
+		headers,
+	)
 	if replayResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(replayResp.Body)
 		_ = replayResp.Body.Close()
@@ -714,7 +822,14 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		t.Fatalf("sessions[0].StopReason = %q, want %q", sessions[0].StopReason, store.StopUserCanceled)
 	}
 
-	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions"), nil, nil)
+	listResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		nil,
+		nil,
+	)
 	if listResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(listResp.Body)
 		_ = listResp.Body.Close()
@@ -731,7 +846,14 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		t.Fatalf("listed.Sessions[0].StopReason = %q, want %q", listed.Sessions[0].StopReason, store.StopUserCanceled)
 	}
 
-	statusResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID), nil, nil)
+	statusResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID),
+		nil,
+		nil,
+	)
 	if statusResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(statusResp.Body)
 		_ = statusResp.Body.Close()
@@ -752,11 +874,23 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","channel":"builders"}`), nil)
+	createResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		[]byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","channel":"builders"}`),
+		nil,
+	)
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
-		t.Fatalf("create session status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
+		t.Fatalf(
+			"create session status = %d, want %d; body=%s",
+			createResp.StatusCode,
+			http.StatusCreated,
+			string(body),
+		)
 	}
 	var created struct {
 		Session sessionPayload `json:"session"`
@@ -766,7 +900,14 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 		t.Fatalf("created.Session.Channel = %q, want %q", created.Session.Channel, "builders")
 	}
 
-	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions"), nil, nil)
+	listResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		nil,
+		nil,
+	)
 	if listResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(listResp.Body)
 		_ = listResp.Body.Close()
@@ -785,7 +926,14 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 
 	stopIntegrationSession(t, runtime, created.Session.ID)
 
-	statusResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID), nil, nil)
+	statusResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID),
+		nil,
+		nil,
+	)
 	if statusResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(statusResp.Body)
 		_ = statusResp.Body.Close()
@@ -810,7 +958,14 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 		t.Fatalf("indexed[0].Channel = %q, want %q", indexed[0].Channel, "builders")
 	}
 
-	resumeResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/resume"), nil, nil)
+	resumeResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/resume"),
+		nil,
+		nil,
+	)
 	if resumeResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resumeResp.Body)
 		_ = resumeResp.Body.Close()
@@ -850,7 +1005,14 @@ func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopAgentCrashed)
 	}
 
-	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions"), nil, nil)
+	listResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		nil,
+		nil,
+	)
 	if listResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(listResp.Body)
 		_ = listResp.Body.Close()
@@ -867,7 +1029,14 @@ func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		t.Fatalf("listed.Sessions[0].StopReason = %q, want %q", listed.Sessions[0].StopReason, store.StopAgentCrashed)
 	}
 
-	statusResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID), nil, nil)
+	statusResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID),
+		nil,
+		nil,
+	)
 	if statusResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(statusResp.Body)
 		_ = statusResp.Body.Close()
@@ -886,7 +1055,14 @@ func TestHTTPApprovePermissionFullFlow(t *testing.T) {
 	runtime := newIntegrationRuntimeWithPermissionWait(t, 250*time.Millisecond)
 	sessionID := createIntegrationSession(t, runtime)
 
-	promptResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"), []byte(`{"message":"request permission"}`), nil)
+	promptResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		[]byte(`{"message":"request permission"}`),
+		nil,
+	)
 	if promptResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(promptResp.Body)
 		_ = promptResp.Body.Close()
@@ -907,7 +1083,14 @@ func TestHTTPApprovePermissionFullFlow(t *testing.T) {
 		t.Fatal("permission request_id = empty, want non-empty")
 	}
 
-	approveResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/approve"), []byte(fmt.Sprintf(`{"request_id":"%s","decision":"allow-always"}`, requestID)), nil)
+	approveResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/approve"),
+		[]byte(fmt.Sprintf(`{"request_id":"%s","decision":"allow-always"}`, requestID)),
+		nil,
+	)
 	if approveResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(approveResp.Body)
 		_ = approveResp.Body.Close()
@@ -941,7 +1124,14 @@ func TestHTTPApprovePermissionTimeout(t *testing.T) {
 	runtime := newIntegrationRuntimeWithPermissionWait(t, 25*time.Millisecond)
 	sessionID := createIntegrationSession(t, runtime)
 
-	promptResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"), []byte(`{"message":"request permission"}`), nil)
+	promptResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		[]byte(`{"message":"request permission"}`),
+		nil,
+	)
 	if promptResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(promptResp.Body)
 		_ = promptResp.Body.Close()
@@ -980,39 +1170,72 @@ func TestHTTPApprovePermissionTimeout(t *testing.T) {
 func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	writeResp := mustHTTPRequest(t, runtime.client, http.MethodPut, mustURL(runtime.host, runtime.port, "/api/memory/integration.md"), []byte(`{"scope":"global","content":"`+escapeJSON(memoryDocument(t, "Integration", "desc", memory.MemoryTypeUser, "hello integration"))+`"}`), nil)
+	writeResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/memory"),
+		[]byte(`{"scope":"global","type":"user","name":"Integration","description":"desc","content":"hello integration"}`),
+		nil,
+	)
 	if writeResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(writeResp.Body)
 		_ = writeResp.Body.Close()
 		t.Fatalf("write status = %d, want %d; body=%s", writeResp.StatusCode, http.StatusOK, string(body))
 	}
-	_ = writeResp.Body.Close()
+	var writePayload memoryMutationDecisionResponse
+	decodeHTTPJSON(t, writeResp, &writePayload)
+	targetFilename := writePayload.Decision.TargetFilename
+	if targetFilename == "" {
+		t.Fatalf("write payload = %#v, want target filename", writePayload)
+	}
 
-	readResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/memory/integration.md?scope=global"), nil, nil)
+	readResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=global"),
+		nil,
+		nil,
+	)
 	if readResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(readResp.Body)
 		_ = readResp.Body.Close()
 		t.Fatalf("read status = %d, want %d; body=%s", readResp.StatusCode, http.StatusOK, string(body))
 	}
-	var readPayload memoryReadResponse
+	var readPayload memoryEntryResponse
 	decodeHTTPJSON(t, readResp, &readPayload)
-	if !strings.Contains(readPayload.Content, "hello integration") {
-		t.Fatalf("content = %q, want written body", readPayload.Content)
+	if !strings.Contains(readPayload.Memory.Content, "hello integration") {
+		t.Fatalf("content = %q, want written body", readPayload.Memory.Content)
 	}
 
-	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/memory?scope=global"), nil, nil)
+	listResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/memory?scope=global"),
+		nil,
+		nil,
+	)
 	if listResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(listResp.Body)
 		_ = listResp.Body.Close()
 		t.Fatalf("list status = %d, want %d; body=%s", listResp.StatusCode, http.StatusOK, string(body))
 	}
-	var headers []memory.Header
-	decodeHTTPJSON(t, listResp, &headers)
-	if len(headers) != 1 || headers[0].Filename != "integration.md" {
-		t.Fatalf("headers = %#v, want integration.md", headers)
+	var listPayload memoryListResponse
+	decodeHTTPJSON(t, listResp, &listPayload)
+	if len(listPayload.Memories) != 1 || listPayload.Memories[0].Filename != targetFilename {
+		t.Fatalf("memories = %#v, want %s", listPayload.Memories, targetFilename)
 	}
 
-	deleteResp := mustHTTPRequest(t, runtime.client, http.MethodDelete, mustURL(runtime.host, runtime.port, "/api/memory/integration.md?scope=global"), nil, nil)
+	deleteResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		mustURL(runtime.host, runtime.port, "/api/memory/"+targetFilename+"?scope=global"),
+		nil,
+		nil,
+	)
 	if deleteResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(deleteResp.Body)
 		_ = deleteResp.Body.Close()
@@ -1020,37 +1243,72 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 	}
 	_ = deleteResp.Body.Close()
 
-	emptyList := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/memory?scope=global"), nil, nil)
+	emptyList := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/memory?scope=global"),
+		nil,
+		nil,
+	)
 	if emptyList.StatusCode != http.StatusOK {
 		t.Fatalf("post-delete list status = %d, want %d", emptyList.StatusCode, http.StatusOK)
 	}
-	decodeHTTPJSON(t, emptyList, &headers)
-	if len(headers) != 0 {
-		t.Fatalf("headers = %#v, want empty list after delete", headers)
+	decodeHTTPJSON(t, emptyList, &listPayload)
+	if len(listPayload.Memories) != 0 {
+		t.Fatalf("memories = %#v, want empty list after delete", listPayload.Memories)
 	}
 }
 
-func TestHTTPMemoryConsolidateIntegration(t *testing.T) {
+func TestHTTPMemoryDreamTriggerIntegration(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/memory/consolidate"), []byte(`{"workspace":"`+runtime.workspace+`"}`), nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/memory/dreams/trigger"),
+		mustIntegrationJSON(map[string]any{
+			"scope":        "workspace",
+			"workspace_id": runtime.workspace,
+		}),
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
-		t.Fatalf("consolidate status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf("dream trigger status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 
-	var payload memoryConsolidateResponse
+	var payload memoryDreamTriggerResponse
 	decodeHTTPJSON(t, resp, &payload)
-	if !payload.Triggered || runtime.dream.calls != 1 {
-		t.Fatalf("payload = %#v dream.calls=%d, want triggered once", payload, runtime.dream.calls)
+	if !payload.Triggered || runtime.dream.calls != 1 || runtime.dream.recordedWorkspace != runtime.workspace {
+		t.Fatalf(
+			"payload = %#v dream.calls=%d workspace=%q, want triggered once for %q",
+			payload,
+			runtime.dream.calls,
+			runtime.dream.recordedWorkspace,
+			runtime.workspace,
+		)
+	}
+	if payload.Dream.Scope != memcontract.ScopeWorkspace || payload.Dream.WorkspaceID != runtime.workspace {
+		t.Fatalf("dream payload = %#v, want workspace-scoped dream for %q", payload.Dream, runtime.workspace)
 	}
 }
 
 func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/automation/jobs"), []byte(`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"}}`), nil)
+	createResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
+		[]byte(
+			`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"}}`,
+		),
+		nil,
+	)
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
@@ -1065,7 +1323,14 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		t.Fatalf("created job source = %q, want %q", created.Job.Source, automationpkg.JobSourceDynamic)
 	}
 
-	getResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID), nil, nil)
+	getResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
+		nil,
+		nil,
+	)
 	if getResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(getResp.Body)
 		_ = getResp.Body.Close()
@@ -1077,7 +1342,14 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		t.Fatalf("expected next_run for fetched job: %#v", fetched.Job)
 	}
 
-	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/automation/jobs?scope=global&source=dynamic"), nil, nil)
+	listResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/jobs?scope=global&source=dynamic"),
+		nil,
+		nil,
+	)
 	if listResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(listResp.Body)
 		_ = listResp.Body.Close()
@@ -1089,7 +1361,14 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		t.Fatalf("listed jobs = %#v", listed.Jobs)
 	}
 
-	updateResp := mustHTTPRequest(t, runtime.client, http.MethodPatch, mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID), []byte(`{"prompt":"review repo now"}`), nil)
+	updateResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPatch,
+		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
+		[]byte(`{"prompt":"review repo now"}`),
+		nil,
+	)
 	if updateResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(updateResp.Body)
 		_ = updateResp.Body.Close()
@@ -1101,7 +1380,14 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		t.Fatalf("updated job prompt = %q, want %q", updated.Job.Prompt, "review repo now")
 	}
 
-	triggerResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/trigger"), nil, nil)
+	triggerResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/trigger"),
+		nil,
+		nil,
+	)
 	if triggerResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(triggerResp.Body)
 		_ = triggerResp.Body.Close()
@@ -1113,7 +1399,14 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		t.Fatalf("trigger run = %#v", run.Run)
 	}
 
-	jobRunsResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/runs"), nil, nil)
+	jobRunsResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID+"/runs"),
+		nil,
+		nil,
+	)
 	if jobRunsResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(jobRunsResp.Body)
 		_ = jobRunsResp.Body.Close()
@@ -1125,7 +1418,14 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		t.Fatalf("job run history missing %q: %#v", run.Run.ID, jobRuns.Runs)
 	}
 
-	runsResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/automation/runs?job_id="+created.Job.ID), nil, nil)
+	runsResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/runs?job_id="+created.Job.ID),
+		nil,
+		nil,
+	)
 	if runsResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(runsResp.Body)
 		_ = runsResp.Body.Close()
@@ -1137,7 +1437,14 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		t.Fatalf("runs list missing %q: %#v", run.Run.ID, runs.Runs)
 	}
 
-	runResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/automation/runs/"+run.Run.ID), nil, nil)
+	runResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/runs/"+run.Run.ID),
+		nil,
+		nil,
+	)
 	if runResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(runResp.Body)
 		_ = runResp.Body.Close()
@@ -1149,7 +1456,14 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 		t.Fatalf("fetched run = %#v", fetchedRun.Run)
 	}
 
-	deleteResp := mustHTTPRequest(t, runtime.client, http.MethodDelete, mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID), nil, nil)
+	deleteResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		mustURL(runtime.host, runtime.port, "/api/automation/jobs/"+created.Job.ID),
+		nil,
+		nil,
+	)
 	if deleteResp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(deleteResp.Body)
 		_ = deleteResp.Body.Close()
@@ -1157,7 +1471,14 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 	}
 	_ = deleteResp.Body.Close()
 
-	emptyResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/automation/jobs"), nil, nil)
+	emptyResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/jobs"),
+		nil,
+		nil,
+	)
 	if emptyResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(emptyResp.Body)
 		_ = emptyResp.Body.Close()
@@ -1173,11 +1494,25 @@ func TestHTTPAutomationJobsRoundTrip(t *testing.T) {
 func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	createResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/automation/triggers"), []byte(`{"scope":"global","name":"deploy-review","agent_name":"coder","prompt":"review {{ index .Data \"payload\" }}","event":"webhook","endpoint_slug":"deploy-review","webhook_secret_value":"shared-secret"}`), nil)
+	createResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/automation/triggers"),
+		[]byte(
+			`{"scope":"global","name":"deploy-review","agent_name":"coder","prompt":"review {{ index .Data \"payload\" }}","event":"webhook","endpoint_slug":"deploy-review","webhook_secret_value":"shared-secret"}`,
+		),
+		nil,
+	)
 	if createResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(createResp.Body)
 		_ = createResp.Body.Close()
-		t.Fatalf("create trigger status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, string(body))
+		t.Fatalf(
+			"create trigger status = %d, want %d; body=%s",
+			createResp.StatusCode,
+			http.StatusCreated,
+			string(body),
+		)
 	}
 	createBody, err := io.ReadAll(createResp.Body)
 	_ = createResp.Body.Close()
@@ -1200,7 +1535,14 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		t.Fatalf("FormatWebhookEndpoint() error = %v", err)
 	}
 
-	getResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+created.Trigger.ID), nil, nil)
+	getResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+created.Trigger.ID),
+		nil,
+		nil,
+	)
 	if getResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(getResp.Body)
 		_ = getResp.Body.Close()
@@ -1222,7 +1564,14 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		t.Fatalf("fetched trigger endpoint_slug = %q, want %q", fetched.Trigger.EndpointSlug, "deploy-review")
 	}
 
-	updateResp := mustHTTPRequest(t, runtime.client, http.MethodPatch, mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+created.Trigger.ID), []byte(`{"prompt":"triage {{ index .Data \"payload\" }}"}`), nil)
+	updateResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPatch,
+		mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+created.Trigger.ID),
+		[]byte(`{"prompt":"triage {{ index .Data \"payload\" }}"}`),
+		nil,
+	)
 	if updateResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(updateResp.Body)
 		_ = updateResp.Body.Close()
@@ -1246,27 +1595,50 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 
 	payload := []byte(`{"payload":"deploy"}`)
 	timestamp := time.Now().UTC()
-	invalidResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/webhooks/global/"+endpoint), payload, map[string]string{
-		core.WebhookTimestampHeader:  timestamp.Format(time.RFC3339),
-		core.WebhookSignatureHeader:  "sha256=deadbeef",
-		core.WebhookDeliveryIDHeader: "delivery-invalid",
-	})
+	invalidResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/webhooks/global/"+endpoint),
+		payload,
+		map[string]string{
+			core.WebhookTimestampHeader:  timestamp.Format(time.RFC3339),
+			core.WebhookSignatureHeader:  "sha256=deadbeef",
+			core.WebhookDeliveryIDHeader: "delivery-invalid",
+		},
+	)
 	if invalidResp.StatusCode != http.StatusUnauthorized {
 		body, _ := io.ReadAll(invalidResp.Body)
 		_ = invalidResp.Body.Close()
-		t.Fatalf("invalid webhook status = %d, want %d; body=%s", invalidResp.StatusCode, http.StatusUnauthorized, string(body))
+		t.Fatalf(
+			"invalid webhook status = %d, want %d; body=%s",
+			invalidResp.StatusCode,
+			http.StatusUnauthorized,
+			string(body),
+		)
 	}
-	_ = invalidResp.Body.Close()
+	var invalidPayload contract.ErrorPayload
+	decodeHTTPJSON(t, invalidResp, &invalidPayload)
+	if !strings.Contains(strings.ToLower(invalidPayload.Error), "signature") {
+		t.Fatalf("invalid webhook error = %#v, want signature failure detail", invalidPayload)
+	}
 
 	signature, err := automationpkg.SignWebhookPayload("shared-secret", timestamp, payload)
 	if err != nil {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}
-	validResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/webhooks/global/"+endpoint), payload, map[string]string{
-		core.WebhookTimestampHeader:  timestamp.Format(time.RFC3339),
-		core.WebhookSignatureHeader:  signature,
-		core.WebhookDeliveryIDHeader: "delivery-valid",
-	})
+	validResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/webhooks/global/"+endpoint),
+		payload,
+		map[string]string{
+			core.WebhookTimestampHeader:  timestamp.Format(time.RFC3339),
+			core.WebhookSignatureHeader:  signature,
+			core.WebhookDeliveryIDHeader: "delivery-valid",
+		},
+	)
 	if validResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(validResp.Body)
 		_ = validResp.Body.Close()
@@ -1279,7 +1651,14 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 	}
 
 	runID := delivery.Result.Runs[0].ID
-	triggerRunsResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+created.Trigger.ID+"/runs"), nil, nil)
+	triggerRunsResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+created.Trigger.ID+"/runs"),
+		nil,
+		nil,
+	)
 	if triggerRunsResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(triggerRunsResp.Body)
 		_ = triggerRunsResp.Body.Close()
@@ -1291,7 +1670,14 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		t.Fatalf("trigger run history missing %q: %#v", runID, triggerRuns.Runs)
 	}
 
-	runResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/automation/runs/"+runID), nil, nil)
+	runResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/automation/runs/"+runID),
+		nil,
+		nil,
+	)
 	if runResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(runResp.Body)
 		_ = runResp.Body.Close()
@@ -1303,7 +1689,14 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		t.Fatalf("trigger run = %#v, want trigger_id %q", run.Run, created.Trigger.ID)
 	}
 
-	healthResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/observe/health"), nil, nil)
+	healthResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/observe/health"),
+		nil,
+		nil,
+	)
 	if healthResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(healthResp.Body)
 		_ = healthResp.Body.Close()
@@ -1318,11 +1711,23 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		t.Fatalf("automation trigger health = %#v", health.Automation.Triggers)
 	}
 
-	deleteResp := mustHTTPRequest(t, runtime.client, http.MethodDelete, mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+created.Trigger.ID), nil, nil)
+	deleteResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodDelete,
+		mustURL(runtime.host, runtime.port, "/api/automation/triggers/"+created.Trigger.ID),
+		nil,
+		nil,
+	)
 	if deleteResp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(deleteResp.Body)
 		_ = deleteResp.Body.Close()
-		t.Fatalf("delete trigger status = %d, want %d; body=%s", deleteResp.StatusCode, http.StatusNoContent, string(body))
+		t.Fatalf(
+			"delete trigger status = %d, want %d; body=%s",
+			deleteResp.StatusCode,
+			http.StatusNoContent,
+			string(body),
+		)
 	}
 	_ = deleteResp.Body.Close()
 }
@@ -1459,7 +1864,18 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("created metadata = %s, want %s", got, `{"priority":"high"}`)
 	}
 
-	listResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks?scope=global&status=ready&owner_kind=pool&owner_ref=ops&network_channel=builders"), nil, nil)
+	listResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(
+			runtime.host,
+			runtime.port,
+			"/api/tasks?scope=global&status=ready&owner_kind=pool&owner_ref=ops&network_channel=builders",
+		),
+		nil,
+		nil,
+	)
 	if listResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(listResp.Body)
 		_ = listResp.Body.Close()
@@ -1471,7 +1887,14 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("listed tasks = %#v, want created task", listed.Tasks)
 	}
 
-	getResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID), nil, nil)
+	getResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID),
+		nil,
+		nil,
+	)
 	if getResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(getResp.Body)
 		_ = getResp.Body.Close()
@@ -1486,12 +1909,19 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("detail task children/runs = %#v, want empty", detail.Task)
 	}
 
-	updateResp := mustHTTPRequest(t, runtime.client, http.MethodPatch, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID), []byte(`{
+	updateResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPatch,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID),
+		[]byte(`{
 		"title":"Ship task routes now",
 		"description":"Expose the task and run transports everywhere",
 		"network_channel":"ops",
 		"clear_owner":true
-	}`), nil)
+	}`),
+		nil,
+	)
 	if updateResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(updateResp.Body)
 		_ = updateResp.Body.Close()
@@ -1512,11 +1942,23 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("updated owner = %#v, want nil", updated.Task.Owner)
 	}
 
-	updatedListResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks?scope=global&status=ready&network_channel=ops"), nil, nil)
+	updatedListResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/tasks?scope=global&status=ready&network_channel=ops"),
+		nil,
+		nil,
+	)
 	if updatedListResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(updatedListResp.Body)
 		_ = updatedListResp.Body.Close()
-		t.Fatalf("updated list tasks status = %d, want %d; body=%s", updatedListResp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf(
+			"updated list tasks status = %d, want %d; body=%s",
+			updatedListResp.StatusCode,
+			http.StatusOK,
+			string(body),
+		)
 	}
 	var updatedList contract.TasksResponse
 	decodeHTTPJSON(t, updatedListResp, &updatedList)
@@ -1532,11 +1974,23 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		runtime := newIntegrationRuntime(t)
 		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
 
-		enqueueResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"), []byte(`{"idempotency_key":"enqueue-1","network_channel":"builders"}`), nil)
+		enqueueResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"),
+			[]byte(`{"idempotency_key":"enqueue-1","network_channel":"builders"}`),
+			nil,
+		)
 		if enqueueResp.StatusCode != http.StatusCreated {
 			body, _ := io.ReadAll(enqueueResp.Body)
 			_ = enqueueResp.Body.Close()
-			t.Fatalf("enqueue run status = %d, want %d; body=%s", enqueueResp.StatusCode, http.StatusCreated, string(body))
+			t.Fatalf(
+				"enqueue run status = %d, want %d; body=%s",
+				enqueueResp.StatusCode,
+				http.StatusCreated,
+				string(body),
+			)
 		}
 		var queued contract.TaskRunResponse
 		decodeHTTPJSON(t, enqueueResp, &queued)
@@ -1547,11 +2001,23 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			t.Fatalf("queued network_channel = %q, want %q", queued.Run.NetworkChannel, "builders")
 		}
 
-		listQueuedResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs?status=queued&limit=1"), nil, nil)
+		listQueuedResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs?status=queued&limit=1"),
+			nil,
+			nil,
+		)
 		if listQueuedResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(listQueuedResp.Body)
 			_ = listQueuedResp.Body.Close()
-			t.Fatalf("list queued runs status = %d, want %d; body=%s", listQueuedResp.StatusCode, http.StatusOK, string(body))
+			t.Fatalf(
+				"list queued runs status = %d, want %d; body=%s",
+				listQueuedResp.StatusCode,
+				http.StatusOK,
+				string(body),
+			)
 		}
 		var queuedList contract.TaskRunsResponse
 		decodeHTTPJSON(t, listQueuedResp, &queuedList)
@@ -1559,7 +2025,14 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			t.Fatalf("queued runs = %#v, want queued run", queuedList.Runs)
 		}
 
-		claimResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/claim"), []byte(`{"idempotency_key":"claim-1"}`), nil)
+		claimResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/claim"),
+			[]byte(`{"idempotency_key":"claim-1"}`),
+			nil,
+		)
 		if claimResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(claimResp.Body)
 			_ = claimResp.Body.Close()
@@ -1574,7 +2047,14 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.Run.ClaimedBy)
 		}
 
-		startResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/start"), []byte(`{"idempotency_key":"start-1"}`), nil)
+		startResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/start"),
+			[]byte(`{"idempotency_key":"start-1"}`),
+			nil,
+		)
 		if startResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(startResp.Body)
 			_ = startResp.Body.Close()
@@ -1589,7 +2069,14 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			t.Fatal("expected started run session id")
 		}
 
-		completeResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/complete"), []byte(`{"result":{"ok":true}}`), nil)
+		completeResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/complete"),
+			[]byte(`{"result":{"ok":true}}`),
+			nil,
+		)
 		if completeResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(completeResp.Body)
 			_ = completeResp.Body.Close()
@@ -1610,11 +2097,23 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
 		claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-2"}`)
 
-		attachResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/attach-session"), []byte(`{"session_id":"sess-resume-1"}`), nil)
+		attachResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/attach-session"),
+			[]byte(`{"session_id":"sess-resume-1"}`),
+			nil,
+		)
 		if attachResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(attachResp.Body)
 			_ = attachResp.Body.Close()
-			t.Fatalf("attach run session status = %d, want %d; body=%s", attachResp.StatusCode, http.StatusOK, string(body))
+			t.Fatalf(
+				"attach run session status = %d, want %d; body=%s",
+				attachResp.StatusCode,
+				http.StatusOK,
+				string(body),
+			)
 		}
 		var attached contract.TaskRunResponse
 		decodeHTTPJSON(t, attachResp, &attached)
@@ -1625,7 +2124,14 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			t.Fatalf("attached session_id = %q, want %q", attached.Run.SessionID, "sess-resume-1")
 		}
 
-		failResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/fail"), []byte(`{"error":"boom","metadata":{"step":"attach"}}`), nil)
+		failResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/fail"),
+			[]byte(`{"error":"boom","metadata":{"step":"attach"}}`),
+			nil,
+		)
 		if failResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(failResp.Body)
 			_ = failResp.Body.Close()
@@ -1645,7 +2151,14 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-3"}`)
 
-		cancelResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/cancel"), []byte(`{"reason":"operator cancelled"}`), nil)
+		cancelResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/cancel"),
+			[]byte(`{"reason":"operator cancelled"}`),
+			nil,
+		)
 		if cancelResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(cancelResp.Body)
 			_ = cancelResp.Body.Close()
@@ -1657,11 +2170,23 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			t.Fatalf("cancelled status = %q, want %q", cancelled.Run.Status, taskpkg.TaskRunStatusCanceled)
 		}
 
-		finalRunsResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"), nil, nil)
+		finalRunsResp := mustHTTPRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"),
+			nil,
+			nil,
+		)
 		if finalRunsResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(finalRunsResp.Body)
 			_ = finalRunsResp.Body.Close()
-			t.Fatalf("final list runs status = %d, want %d; body=%s", finalRunsResp.StatusCode, http.StatusOK, string(body))
+			t.Fatalf(
+				"final list runs status = %d, want %d; body=%s",
+				finalRunsResp.StatusCode,
+				http.StatusOK,
+				string(body),
+			)
 		}
 		var finalRuns contract.TaskRunsResponse
 		decodeHTTPJSON(t, finalRunsResp, &finalRuns)
@@ -1708,7 +2233,14 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 	run := published.Run
 	claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-live-1"}`)
 
-	startResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/start"), []byte(`{"idempotency_key":"start-live-1"}`), nil)
+	startResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID+"/start"),
+		[]byte(`{"idempotency_key":"start-live-1"}`),
+		nil,
+	)
 	if startResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(startResp.Body)
 		_ = startResp.Body.Close()
@@ -1720,7 +2252,14 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("started run status = %q, want %q", started.Run.Status, taskpkg.TaskRunStatusRunning)
 	}
 
-	runDetailResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID), nil, nil)
+	runDetailResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/task-runs/"+run.ID),
+		nil,
+		nil,
+	)
 	if runDetailResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(runDetailResp.Body)
 		_ = runDetailResp.Body.Close()
@@ -1735,7 +2274,14 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("run detail task id = %q, want %q", runDetail.Run.Task.ID, draft.ID)
 	}
 
-	timelineResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+draft.ID+"/timeline?limit=20"), nil, nil)
+	timelineResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+draft.ID+"/timeline?limit=20"),
+		nil,
+		nil,
+	)
 	if timelineResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(timelineResp.Body)
 		_ = timelineResp.Body.Close()
@@ -1759,7 +2305,14 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("timeline = %#v, want run %q in at least one item", timeline.Timeline, run.ID)
 	}
 
-	treeResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+draft.ID+"/tree"), nil, nil)
+	treeResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+draft.ID+"/tree"),
+		nil,
+		nil,
+	)
 	if treeResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(treeResp.Body)
 		_ = treeResp.Body.Close()
@@ -1771,7 +2324,14 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("tree root id = %q, want %q", tree.Tree.Root.Task.ID, draft.ID)
 	}
 
-	streamResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/tasks/"+draft.ID+"/stream?after_sequence=0"), nil, nil)
+	streamResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+draft.ID+"/stream?after_sequence=0"),
+		nil,
+		nil,
+	)
 	if streamResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(streamResp.Body)
 		_ = streamResp.Body.Close()
@@ -1823,7 +2383,14 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		"title":"Dismiss me"
 	}`))
 
-	dashboardResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/observe/tasks/dashboard"), nil, nil)
+	dashboardResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/observe/tasks/dashboard"),
+		nil,
+		nil,
+	)
 	if dashboardResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(dashboardResp.Body)
 		_ = dashboardResp.Body.Close()
@@ -1841,7 +2408,14 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		)
 	}
 
-	inboxResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/observe/tasks/inbox?lane=approvals&limit=10"), nil, nil)
+	inboxResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/observe/tasks/inbox?lane=approvals&limit=10"),
+		nil,
+		nil,
+	)
 	if inboxResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(inboxResp.Body)
 		_ = inboxResp.Body.Close()
@@ -1853,7 +2427,8 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 	if approvalsGroup.Count < 2 {
 		t.Fatalf("approvals count = %d, want at least 2", approvalsGroup.Count)
 	}
-	if !httpInboxGroupHasTask(approvalsGroup, approvalTask.ID) || !httpInboxGroupHasTask(approvalsGroup, rejectTask.ID) {
+	if !httpInboxGroupHasTask(approvalsGroup, approvalTask.ID) ||
+		!httpInboxGroupHasTask(approvalsGroup, rejectTask.ID) {
 		t.Fatalf("approvals group items = %#v, want approval and reject tasks", approvalsGroup.Items)
 	}
 
@@ -1891,7 +2466,12 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 	if approveAgainResp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(approveAgainResp.Body)
 		_ = approveAgainResp.Body.Close()
-		t.Fatalf("approve again status = %d, want %d; body=%s", approveAgainResp.StatusCode, http.StatusCreated, string(body))
+		t.Fatalf(
+			"approve again status = %d, want %d; body=%s",
+			approveAgainResp.StatusCode,
+			http.StatusCreated,
+			string(body),
+		)
 	}
 	var approvedAgain contract.TaskExecutionResponse
 	decodeHTTPJSON(t, approveAgainResp, &approvedAgain)
@@ -1899,7 +2479,14 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("approve again run id = %q, want %q", approvedAgain.Run.ID, approved.Run.ID)
 	}
 
-	rejectResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+rejectTask.ID+"/reject"), nil, nil)
+	rejectResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+rejectTask.ID+"/reject"),
+		nil,
+		nil,
+	)
 	if rejectResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(rejectResp.Body)
 		_ = rejectResp.Body.Close()
@@ -1911,7 +2498,14 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("rejected approval_state = %q, want %q", rejected.Task.ApprovalState, taskpkg.ApprovalStateRejected)
 	}
 
-	readResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+triageTask.ID+"/triage/read"), nil, nil)
+	readResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+triageTask.ID+"/triage/read"),
+		nil,
+		nil,
+	)
 	if readResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(readResp.Body)
 		_ = readResp.Body.Close()
@@ -1923,7 +2517,14 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("triage read payload = %#v, want read=true", readState.Triage)
 	}
 
-	archiveResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+triageTask.ID+"/triage/archive"), nil, nil)
+	archiveResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+triageTask.ID+"/triage/archive"),
+		nil,
+		nil,
+	)
 	if archiveResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(archiveResp.Body)
 		_ = archiveResp.Body.Close()
@@ -1935,7 +2536,14 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("triage archive payload = %#v, want archived=true", archived.Triage)
 	}
 
-	dismissResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+dismissTask.ID+"/triage/dismiss"), nil, nil)
+	dismissResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+dismissTask.ID+"/triage/dismiss"),
+		nil,
+		nil,
+	)
 	if dismissResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(dismissResp.Body)
 		_ = dismissResp.Body.Close()
@@ -1947,19 +2555,43 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("triage dismiss payload = %#v, want dismissed=true", dismissed.Triage)
 	}
 
-	readMissingResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/task-missing/triage/read"), nil, nil)
+	readMissingResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/tasks/task-missing/triage/read"),
+		nil,
+		nil,
+	)
 	if readMissingResp.StatusCode != http.StatusNotFound {
 		body, _ := io.ReadAll(readMissingResp.Body)
 		_ = readMissingResp.Body.Close()
-		t.Fatalf("triage read missing status = %d, want %d; body=%s", readMissingResp.StatusCode, http.StatusNotFound, string(body))
+		t.Fatalf(
+			"triage read missing status = %d, want %d; body=%s",
+			readMissingResp.StatusCode,
+			http.StatusNotFound,
+			string(body),
+		)
 	}
 	_ = readMissingResp.Body.Close()
 
-	inboxAfterResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/observe/tasks/inbox?lane=approvals&limit=10"), nil, nil)
+	inboxAfterResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/observe/tasks/inbox?lane=approvals&limit=10"),
+		nil,
+		nil,
+	)
 	if inboxAfterResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(inboxAfterResp.Body)
 		_ = inboxAfterResp.Body.Close()
-		t.Fatalf("inbox approvals after actions status = %d, want %d; body=%s", inboxAfterResp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf(
+			"inbox approvals after actions status = %d, want %d; body=%s",
+			inboxAfterResp.StatusCode,
+			http.StatusOK,
+			string(body),
+		)
 	}
 	var inboxAfter contract.TaskInboxResponse
 	decodeHTTPJSON(t, inboxAfterResp, &inboxAfter)
@@ -1967,15 +2599,30 @@ func TestHTTPTaskDashboardInboxApprovalAndTriageRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("approvals count after approve/reject = %d, want 0", got)
 	}
 
-	archivedInboxResp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/observe/tasks/inbox?lane=archived&limit=10"), nil, nil)
+	archivedInboxResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/observe/tasks/inbox?lane=archived&limit=10"),
+		nil,
+		nil,
+	)
 	if archivedInboxResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(archivedInboxResp.Body)
 		_ = archivedInboxResp.Body.Close()
-		t.Fatalf("inbox archived status = %d, want %d; body=%s", archivedInboxResp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf(
+			"inbox archived status = %d, want %d; body=%s",
+			archivedInboxResp.StatusCode,
+			http.StatusOK,
+			string(body),
+		)
 	}
 	var archivedInbox contract.TaskInboxResponse
 	decodeHTTPJSON(t, archivedInboxResp, &archivedInbox)
-	if !httpInboxGroupHasTask(requireHTTPInboxGroup(t, archivedInbox.Inbox.Groups, contract.TaskInboxLaneArchived), triageTask.ID) {
+	if !httpInboxGroupHasTask(
+		requireHTTPInboxGroup(t, archivedInbox.Inbox.Groups, contract.TaskInboxLaneArchived),
+		triageTask.ID,
+	) {
 		t.Fatalf("archived inbox groups = %#v, want task %q", archivedInbox.Inbox.Groups, triageTask.ID)
 	}
 }
@@ -2011,7 +2658,11 @@ func (e *integrationTaskSessionExecutor) StartTaskSession(
 	return &taskpkg.SessionRef{SessionID: fmt.Sprintf("task-sess-%d", e.started)}, nil
 }
 
-func (*integrationTaskSessionExecutor) AttachTaskSession(_ context.Context, _ string, sessionID string) (*taskpkg.SessionRef, error) {
+func (*integrationTaskSessionExecutor) AttachTaskSession(
+	_ context.Context,
+	_ string,
+	sessionID string,
+) (*taskpkg.SessionRef, error) {
 	return &taskpkg.SessionRef{SessionID: sessionID}, nil
 }
 
@@ -2024,11 +2675,12 @@ func (*integrationTaskSessionExecutor) ForceTaskStop(context.Context, string, ta
 }
 
 type integrationDreamTrigger struct {
-	enabled   bool
-	triggered bool
-	reason    string
-	last      time.Time
-	calls     int
+	enabled           bool
+	triggered         bool
+	reason            string
+	last              time.Time
+	calls             int
+	recordedWorkspace string
 }
 
 type integrationBridgeSecretStore interface {
@@ -2116,7 +2768,10 @@ func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.B
 	return providers, nil
 }
 
-func (s *integrationBridgeService) ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {
+func (s *integrationBridgeService) ListSecretBindings(
+	ctx context.Context,
+	bridgeInstanceID string,
+) ([]bridgepkg.BridgeSecretBinding, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("integration bridge secret store is not configured")
 	}
@@ -2137,7 +2792,11 @@ func (s *integrationBridgeService) PutSecretBinding(
 	return s.store.PutBridgeSecretBinding(ctx, binding)
 }
 
-func (s *integrationBridgeService) DeleteSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error {
+func (s *integrationBridgeService) DeleteSecretBinding(
+	ctx context.Context,
+	bridgeInstanceID string,
+	bindingName string,
+) error {
 	if s == nil || s.store == nil {
 		return errors.New("integration bridge secret store is not configured")
 	}
@@ -2231,8 +2890,9 @@ func TestIntegrationBridgeServiceLifecycleTransitionsReachReady(t *testing.T) {
 	}
 }
 
-func (t *integrationDreamTrigger) Trigger(context.Context, string) (bool, string, error) {
+func (t *integrationDreamTrigger) Trigger(_ context.Context, workspaceID string) (bool, string, error) {
 	t.calls++
+	t.recordedWorkspace = workspaceID
 	return t.triggered, t.reason, nil
 }
 
@@ -2351,7 +3011,11 @@ func (d *integrationDriver) Start(_ context.Context, opts acp.StartOpts) (*sessi
 	return proc, nil
 }
 
-func (d *integrationDriver) Prompt(_ context.Context, proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+func (d *integrationDriver) Prompt(
+	_ context.Context,
+	proc *session.AgentProcess,
+	req acp.PromptRequest,
+) (<-chan acp.AgentEvent, error) {
 	d.mu.Lock()
 	hook := d.promptHook
 	d.mu.Unlock()
@@ -2728,7 +3392,10 @@ func streamPermissionPrompt(t *testing.T, body io.ReadCloser, requestIDCh chan<-
 			if current.Event != "" || current.ID != "" || len(current.Data) > 0 {
 				records = append(records, current)
 				if !requestIDSent {
-					if payload, ok := extractPermissionPayloadFromRecord(current); ok && payload.Decision == "" && payload.RequestID != "" {
+					if payload, ok := extractPermissionPayloadFromRecord(
+						current,
+					); ok && payload.Decision == "" &&
+						payload.RequestID != "" {
 						requestIDCh <- payload.RequestID
 						requestIDSent = true
 					}
@@ -2809,7 +3476,12 @@ func tPermissionRaw(requestID string) map[string]any {
 			{"decision": "allow-once", "kind": "allow_once", "option_id": "allow-once", "label": "allow once"},
 			{"decision": "allow-always", "kind": "allow_always", "option_id": "allow-always", "label": "allow always"},
 			{"decision": "reject-once", "kind": "reject_once", "option_id": "reject-once", "label": "reject once"},
-			{"decision": "reject-always", "kind": "reject_always", "option_id": "reject-always", "label": "reject always"},
+			{
+				"decision":  "reject-always",
+				"kind":      "reject_always",
+				"option_id": "reject-always",
+				"label":     "reject always",
+			},
 		},
 	}
 }
@@ -2831,7 +3503,17 @@ func mustIntegrationJSON(value any) json.RawMessage {
 func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 	t.Helper()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`"}`), nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		mustIntegrationJSON(map[string]any{
+			"agent_name":     "coder",
+			"workspace_path": runtime.workspace,
+		}),
+		nil,
+	)
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -2847,7 +3529,14 @@ func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte) contract.TaskPayload {
 	t.Helper()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks"), body, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/tasks"),
+		body,
+		nil,
+	)
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -2858,10 +3547,22 @@ func createIntegrationTask(t *testing.T, runtime integrationRuntime, body []byte
 	return created.Task
 }
 
-func enqueueIntegrationTaskRun(t *testing.T, runtime integrationRuntime, taskID string, body string) contract.TaskRunPayload {
+func enqueueIntegrationTaskRun(
+	t *testing.T,
+	runtime integrationRuntime,
+	taskID string,
+	body string,
+) contract.TaskRunPayload {
 	t.Helper()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/tasks/"+taskID+"/runs"), []byte(body), nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/tasks/"+taskID+"/runs"),
+		[]byte(body),
+		nil,
+	)
 	if resp.StatusCode != http.StatusCreated {
 		payload, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -2872,10 +3573,22 @@ func enqueueIntegrationTaskRun(t *testing.T, runtime integrationRuntime, taskID 
 	return created.Run
 }
 
-func claimIntegrationTaskRun(t *testing.T, runtime integrationRuntime, runID string, body string) contract.TaskRunPayload {
+func claimIntegrationTaskRun(
+	t *testing.T,
+	runtime integrationRuntime,
+	runID string,
+	body string,
+) contract.TaskRunPayload {
 	t.Helper()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/task-runs/"+runID+"/claim"), []byte(body), nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/task-runs/"+runID+"/claim"),
+		[]byte(body),
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		payload, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -2914,7 +3627,14 @@ func httpInboxGroupHasTask(group contract.TaskInboxLaneGroupPayload, taskID stri
 func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, message string) {
 	t.Helper()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"), []byte(`{"message":"`+message+`"}`), nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		mustIntegrationJSON(map[string]any{"message": message}),
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()

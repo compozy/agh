@@ -19,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	apispec "github.com/pedronauck/agh/internal/api/spec"
+	apitestutil "github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/network"
@@ -149,9 +150,22 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/internal/hosted-mcp/projection/stream",
 		"GET /api/memory",
 		"GET /api/memory/:filename",
+		"GET /api/memory/config",
+		"GET /api/memory/daily",
+		"GET /api/memory/decisions",
+		"GET /api/memory/decisions/:decision_id",
+		"GET /api/memory/dreams",
+		"GET /api/memory/dreams/:dream_id",
+		"GET /api/memory/dreams/status",
+		"GET /api/memory/extractor/failures",
+		"GET /api/memory/extractor/status",
 		"GET /api/memory/health",
 		"GET /api/memory/history",
-		"GET /api/memory/search",
+		"GET /api/memory/providers",
+		"GET /api/memory/providers/:provider_name",
+		"GET /api/memory/recall-traces/:session_id/:turn_seq",
+		"GET /api/memory/scope-show",
+		"GET /api/memory/sessions/:session_id/ledger",
 		"GET /api/network/inbox",
 		"GET /api/network/peers",
 		"GET /api/network/peers/:peer_id",
@@ -227,6 +241,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PATCH /api/automation/triggers/:id",
 		"PATCH /api/bridges/:id",
 		"PATCH /api/bundles/activations/:id",
+		"PATCH /api/memory/:filename",
 		"PATCH /api/settings/automation",
 		"PATCH /api/settings/general",
 		"PATCH /api/settings/hooks-extensions",
@@ -266,8 +281,24 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/internal/hosted-mcp/bind",
 		"POST /api/internal/hosted-mcp/release",
 		"POST /api/internal/hosted-mcp/tools/call",
-		"POST /api/memory/consolidate",
+		"POST /api/memory",
+		"POST /api/memory/ad-hoc",
+		"POST /api/memory/decisions/:decision_id/revert",
+		"POST /api/memory/dreams/:dream_id/retry",
+		"POST /api/memory/dreams/trigger",
+		"POST /api/memory/extractor/drain",
+		"POST /api/memory/extractor/retry",
+		"POST /api/memory/promote",
+		"POST /api/memory/providers/:provider_name/disable",
+		"POST /api/memory/providers/:provider_name/enable",
+		"POST /api/memory/providers/select",
 		"POST /api/memory/reindex",
+		"POST /api/memory/reload",
+		"POST /api/memory/reset",
+		"POST /api/memory/search",
+		"POST /api/memory/sessions/prune",
+		"POST /api/memory/sessions/repair",
+		"POST /api/memory/sessions/:session_id/replay",
 		"POST /api/network/channels",
 		"POST /api/network/channels/:channel/directs/resolve",
 		"POST /api/network/send",
@@ -313,7 +344,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PUT /api/agents/:name/heartbeat",
 		"PUT /api/agents/:name/soul",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
-		"PUT /api/memory/:filename",
 		"PUT /api/settings/sandboxes/:name",
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
@@ -332,6 +362,16 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			t.Fatalf("route[%d] = %q, want %q", i, got[i], want[i])
 		}
 	}
+}
+
+func TestMemoryRoutesMatchV2Contract(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	apitestutil.AssertMemoryV2RouteParity(t, apitestutil.MemoryV2RouteKeysFromGin(engine.Routes()))
 }
 
 func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {

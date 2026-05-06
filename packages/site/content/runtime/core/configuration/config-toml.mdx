@@ -24,40 +24,51 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 
 ## Quick Reference
 
-| Section                        | Purpose                                                                         | Default                                                                           |
-| ------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `[daemon]`                     | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                |
-| `[http]`                       | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                               |
-| `[defaults]`                   | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                              |
-| `[limits]`                     | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                 |
-| `[session.limits]`             | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                  |
-| `[session.supervision]`        | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes |
-| `[agents.soul]`                | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                    |
-| `[agents.heartbeat]`           | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention |
-| `[permissions]`                | Default permission mode.                                                        | `mode = "approve-all"`                                                            |
-| `[tools]`                      | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                               |
-| `[tools.hosted_mcp]`           | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                        |
-| `[tools.policy]`               | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources          |
-| `[[mcp_servers]]`              | Top-level MCP servers passed to agents.                                         | empty list                                                                        |
-| `[providers.<name>]`           | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                          |
-| `[sandboxes.<name>]`           | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                         |
-| `[observability]`              | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                            |
-| `[observability.transcripts]`  | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                      |
-| `[log]`                        | Structured log level.                                                           | `level = "info"`                                                                  |
-| `[memory]`                     | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                       |
-| `[memory.dream]`               | Background memory consolidation.                                                | enabled, agent `general`, 24 hours, 3 sessions, 30 minutes                        |
-| `[skills]`                     | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                     |
-| `[skills.marketplace]`         | Skill registry override.                                                        | unset                                                                             |
-| `[extensions.marketplace]`     | Extension registry override.                                                    | unset                                                                             |
-| `[automation]`                 | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                   |
-| `[[automation.jobs]]`          | Scheduled automation jobs.                                                      | empty list                                                                        |
-| `[[automation.triggers]]`      | Event-driven automation triggers.                                               | empty list                                                                        |
-| `[autonomy.coordinator]`       | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 active per workspace    |
-| `[task.orchestration]`         | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5      |
-| `[task.orchestration.profile]` | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed    |
-| `[task.orchestration.review]`  | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`    |
-| `[[hooks.declarations]]`       | Config-defined runtime hooks.                                                   | empty list                                                                        |
-| `[network]`                    | Experimental AGH network runtime.                                               | enabled, channel `default`                                                        |
+| Section                        | Purpose                                                                         | Default                                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `[daemon]`                     | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                 |
+| `[http]`                       | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                                |
+| `[defaults]`                   | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                               |
+| `[limits]`                     | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                  |
+| `[session.limits]`             | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                   |
+| `[session.supervision]`        | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes  |
+| `[agents.soul]`                | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                     |
+| `[agents.heartbeat]`           | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention  |
+| `[permissions]`                | Default permission mode.                                                        | `mode = "approve-all"`                                                             |
+| `[tools]`                      | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                                |
+| `[tools.hosted_mcp]`           | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                         |
+| `[tools.policy]`               | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources           |
+| `[[mcp_servers]]`              | Top-level MCP servers passed to agents.                                         | empty list                                                                         |
+| `[providers.<name>]`           | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                           |
+| `[sandboxes.<name>]`           | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                          |
+| `[observability]`              | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                             |
+| `[observability.transcripts]`  | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                       |
+| `[log]`                        | Structured log level.                                                           | `level = "info"`                                                                   |
+| `[memory]`                     | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                        |
+| `[memory.controller]`          | Hybrid write controller mode, latency, and fallback op.                         | hybrid, 300 ms, noop                                                               |
+| `[memory.controller.llm]`      | Controller LLM tiebreaker.                                                      | enabled, `anthropic/claude-haiku-4`, 250 ms, top_k 5                               |
+| `[memory.controller.policy]`   | Content/rate caps and allowed write origins.                                    | 4096 chars, 60 writes/min, all canonical origins                                   |
+| `[memory.recall]`              | Deterministic recall: top-K, weights, freshness, signal queue.                  | top-K 5, raw 50, weighted fusion                                                   |
+| `[memory.decisions]`           | Decision WAL retention and per-row body cap.                                    | 90 days, audit summary on, 64 KiB body cap                                         |
+| `[memory.extractor]`           | Post-message extractor and bounded queue.                                       | enabled, post_message mode, capacity 1, coalesce 16                                |
+| `[memory.dream]`               | Dreaming runtime, gates, and scoring.                                           | enabled, agent `dreaming-curator`, 24 h, 3 sessions, 30 min ticker                 |
+| `[memory.session]`             | Forensic session ledger materialization, archive, and unbound partition.        | jsonl, `$AGH_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition |
+| `[memory.daily]`               | Daily-log retention and rotation.                                               | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00               |
+| `[memory.file]`                | Curated memory file body limits.                                                | 200 lines, 25 KiB                                                                  |
+| `[memory.provider]`            | Active memory provider selection and circuit breaker.                           | bundled local, 2 s timeout, 5 failures, 30 s cooldown                              |
+| `[memory.workspace]`           | Workspace identity file location and auto-creation.                             | `<workspace>/.agh/workspace.toml`, auto-create on first touch                      |
+| `[skills]`                     | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                      |
+| `[skills.marketplace]`         | Skill registry override.                                                        | unset                                                                              |
+| `[extensions.marketplace]`     | Extension registry override.                                                    | unset                                                                              |
+| `[automation]`                 | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                    |
+| `[[automation.jobs]]`          | Scheduled automation jobs.                                                      | empty list                                                                         |
+| `[[automation.triggers]]`      | Event-driven automation triggers.                                               | empty list                                                                         |
+| `[autonomy.coordinator]`       | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 active per workspace     |
+| `[task.orchestration]`         | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5       |
+| `[task.orchestration.profile]` | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed     |
+| `[task.orchestration.review]`  | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`     |
+| `[[hooks.declarations]]`       | Config-defined runtime hooks.                                                   | empty list                                                                         |
+| `[network]`                    | Experimental AGH network runtime.                                               | enabled, channel `default`                                                         |
 
 ## Load And Merge Order
 
@@ -257,12 +268,120 @@ level = "info"
 enabled = true
 global_dir = "~/.agh/memory"
 
+[memory.controller]
+mode = "hybrid"                              # hybrid | rules | llm
+max_latency = "300ms"
+default_op_on_fail = "noop"
+
+[memory.controller.llm]
+enabled = true
+model = "anthropic/claude-haiku-4"
+top_k = 5
+prompt_version = "v1"
+timeout = "250ms"
+max_tokens_out = 256
+
+[memory.controller.policy]
+max_content_chars = 4096
+max_writes_per_min = 60
+allow_origins = ["cli", "http", "uds", "tool", "extractor", "dreaming", "file", "provider"]
+
+[memory.recall]
+top_k = 5
+raw_candidates = 50
+fusion = "weighted"
+include_already_surfaced = false
+include_system = false
+
+[memory.recall.weights]
+bm25_unicode = 0.55
+bm25_trigram = 0.20
+recency = 0.15
+recall_signal = 0.10
+
+[memory.recall.freshness]
+banner_after_days = 1
+
+[memory.recall.signals]
+queue_capacity = 256
+worker_retry_max = 3
+metrics_enabled = true
+
+[memory.decisions]
+prune_after_applied_days = 90
+keep_audit_summary = true
+max_post_content_bytes = 65536
+
+[memory.extractor]
+enabled = true
+mode = "post_message"
+throttle_turns = 1
+deadline = "60s"
+sandbox_inbox_only = true
+inbox_path = "$AGH_HOME/memory/_inbox"
+dlq_path = "$AGH_HOME/memory/_system/extractor/failures"
+model = ""
+
+[memory.extractor.queue]
+capacity = 1
+coalesce_max = 16
+
 [memory.dream]
 enabled = true
-agent = "general"
+agent = "dreaming-curator"
 min_hours = 24
 min_sessions = 3
+debounce = "10m"
+prompt_version = "v1"
 check_interval = "30m"
+
+[memory.dream.gates]
+min_unpromoted = 5
+min_recall_count = 2
+min_score = 0.75
+
+[memory.dream.scoring]
+recency_half_life_days = 14
+
+[memory.dream.scoring.weights]
+frequency = 0.30
+relevance = 0.35
+recency = 0.20
+freshness = 0.15
+
+[memory.session]
+ledger_format = "jsonl"
+ledger_root = "$AGH_HOME/sessions"
+events_purge_grace = "24h"
+cold_archive_days = 30
+hard_delete_days = 0
+max_archive_bytes = 10737418240
+unbound_partition = "_unbound"
+
+[memory.daily]
+max_bytes = 1048576
+max_lines = 5000
+rotate_format = "{date}.{seq}.md"
+dreaming_window = 7
+cold_archive_days = 30
+hard_delete_days = 0
+max_archive_bytes = 1073741824
+sweep_hour = 3
+archive_path = "_system/archive"
+
+[memory.file]
+max_lines = 200
+max_bytes = 25600
+
+[memory.provider]
+name = ""                                    # empty = bundled local provider
+timeout = "2s"
+failure_threshold = 5
+cooldown = "30s"
+
+[memory.workspace]
+toml_path = "<workspace>/.agh/workspace.toml" # informational; not configurable
+auto_create = true
 
 [skills]
 enabled = true
@@ -684,22 +803,208 @@ and Groq default to AGH-managed `bound_secret` slots while AGH runs Pi under the
 
 ## `[memory]`
 
+The `[memory]` tree is the Memory v2 runtime configuration. Memory v2 is the only memory subsystem;
+there is no `[memory.v2] enabled` flag and no parallel compatibility namespace. Disabling
+`[memory] enabled` short-circuits prompt assembly, the controller, recall, dreaming, the extractor,
+and the bundled local provider.
+
 | Field        | Type        | Default            | Valid values                              | Description                                                                      |
 | ------------ | ----------- | ------------------ | ----------------------------------------- | -------------------------------------------------------------------------------- |
-| `enabled`    | boolean     | `true`             | `true` or `false`                         | Enables memory assembly and consolidation runtime paths.                         |
+| `enabled`    | boolean     | `true`             | `true` or `false`                         | Master switch for the Memory v2 runtime.                                         |
 | `global_dir` | string path | `$AGH_HOME/memory` | Non-empty path when set. `~` is expanded. | Global memory directory. Blank overlays are ignored and keep the previous value. |
+
+## `[memory.controller]`
+
+| Field                | Type     | Default  | Valid values             | Description                                                                                         |
+| -------------------- | -------- | -------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `mode`               | string   | `hybrid` | `hybrid`, `rules`, `llm` | Controller decision mode. `hybrid` runs the rule-first lexical/entity logic with an LLM tiebreaker. |
+| `max_latency`        | duration | `300ms`  | Positive Go duration.    | Maximum end-to-end controller latency before fall-back behavior triggers.                           |
+| `default_op_on_fail` | string   | `noop`   | `noop`, `reject`         | Decision op used when the controller fails or its deadline is exceeded.                             |
+
+## `[memory.controller.llm]`
+
+| Field            | Type     | Default                    | Valid values                | Description                                                      |
+| ---------------- | -------- | -------------------------- | --------------------------- | ---------------------------------------------------------------- |
+| `enabled`        | boolean  | `true`                     | `true` or `false`           | Enables the LLM tiebreaker for ambiguous rule traces.            |
+| `model`          | string   | `anthropic/claude-haiku-4` | Non-empty model identifier. | Model used by the controller tiebreaker.                         |
+| `top_k`          | integer  | `5`                        | Positive integer.           | Candidates passed to the entity-slot tiebreaker.                 |
+| `prompt_version` | string   | `v1`                       | Non-empty pinned version.   | Prompt template version pinned in decisions for replay fidelity. |
+| `timeout`        | duration | `250ms`                    | Positive Go duration.       | LLM call deadline before fall-through to the rule trace.         |
+| `max_tokens_out` | integer  | `256`                      | Positive integer.           | Output cap for the tiebreaker call.                              |
+
+## `[memory.controller.policy]`
+
+| Field                | Type         | Default                                                                | Valid values                 | Description                                                                       |
+| -------------------- | ------------ | ---------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------- |
+| `max_content_chars`  | integer      | `4096`                                                                 | Positive integer.            | Hard cap on candidate body length.                                                |
+| `max_writes_per_min` | integer      | `60`                                                                   | Positive integer.            | Per-workspace write rate limit before the controller starts rejecting candidates. |
+| `allow_origins`      | string array | `["cli","http","uds","tool","extractor","dreaming","file","provider"]` | Subset of canonical origins. | Origins permitted to submit candidates. Empty rejects every write.                |
+
+## `[memory.recall]`
+
+| Field                      | Type    | Default    | Valid values      | Description                                              |
+| -------------------------- | ------- | ---------- | ----------------- | -------------------------------------------------------- |
+| `top_k`                    | integer | `5`        | Positive integer. | Top-K curated entries packaged per recall response.      |
+| `raw_candidates`           | integer | `50`       | Positive integer. | Raw candidate pool before scoring/shadowing.             |
+| `fusion`                   | string  | `weighted` | `weighted`, `rrf` | Score fusion strategy. `rrf` is reserved for slice 3.    |
+| `include_already_surfaced` | boolean | `false`    | `true` or `false` | Includes entries already surfaced this session.          |
+| `include_system`           | boolean | `false`    | `true` or `false` | Includes `_system/` artifacts in recall (operator-only). |
+
+## `[memory.recall.weights]`
+
+Weights are blended into the recall score. Defaults sum to `1.0`.
+
+| Field           | Type  | Default | Valid values | Description                             |
+| --------------- | ----- | ------- | ------------ | --------------------------------------- |
+| `bm25_unicode`  | float | `0.55`  | `0.0`–`1.0`  | BM25 score from the unicode FTS5 index. |
+| `bm25_trigram`  | float | `0.20`  | `0.0`–`1.0`  | BM25 score from the trigram FTS5 index. |
+| `recency`       | float | `0.15`  | `0.0`–`1.0`  | Time-decay factor.                      |
+| `recall_signal` | float | `0.10`  | `0.0`–`1.0`  | Live recall-signal feedback factor.     |
+
+## `[memory.recall.freshness]`
+
+| Field               | Type    | Default | Valid values      | Description                                                         |
+| ------------------- | ------- | ------- | ----------------- | ------------------------------------------------------------------- |
+| `banner_after_days` | integer | `1`     | Positive integer. | Adds a "verify before asserting" banner to entries older than this. |
+
+## `[memory.recall.signals]`
+
+| Field              | Type    | Default | Valid values      | Description                                                              |
+| ------------------ | ------- | ------- | ----------------- | ------------------------------------------------------------------------ |
+| `queue_capacity`   | integer | `256`   | Positive integer. | Bounded channel for recall-signal updates. Oldest drops on overflow.     |
+| `worker_retry_max` | integer | `3`     | Positive integer. | Per-update retries before emitting `memory.recall.signal_update_failed`. |
+| `metrics_enabled`  | boolean | `true`  | `true` or `false` | Emits recall-signal metrics for observability.                           |
+
+## `[memory.decisions]`
+
+WAL retention controls. Pruned rows are replaced by a redaction-safe summary so audit history
+survives.
+
+| Field                      | Type    | Default | Valid values      | Description                                                                                               |
+| -------------------------- | ------- | ------- | ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `prune_after_applied_days` | integer | `90`    | Positive integer. | Decisions with `applied_at` older than this are pruned after a `memory.decisions.audit_summarized` event. |
+| `keep_audit_summary`       | boolean | `true`  | `true` or `false` | Emits the audit-summary event before pruning.                                                             |
+| `max_post_content_bytes`   | integer | `65536` | Positive integer. | Per-row body cap. Oversized rows store a content-hash reference instead.                                  |
+
+## `[memory.extractor]`
+
+The extractor consumes the `session.message_persisted` hook and writes structured proposals via the
+controller. `inbox_path` and `dlq_path` are validation-locked to the canonical AGH-managed
+locations.
+
+| Field                | Type     | Default                                       | Valid values                                 | Description                                                                |
+| -------------------- | -------- | --------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------- |
+| `enabled`            | boolean  | `true`                                        | `true` or `false`                            | Enables the extractor runtime.                                             |
+| `mode`               | string   | `post_message`                                | `post_message`, `compaction_flush`, `hybrid` | Extraction mode. `compaction_flush` and `hybrid` are reserved for slice 2. |
+| `throttle_turns`     | integer  | `1`                                           | Positive integer.                            | Minimum turns between extraction attempts on the same session.             |
+| `deadline`           | duration | `60s`                                         | Positive Go duration.                        | Per-extraction deadline before the runtime drops the candidate.            |
+| `sandbox_inbox_only` | boolean  | `true`                                        | `true` or `false`                            | Restricts extractor writes to `_inbox/` until the controller accepts them. |
+| `inbox_path`         | string   | `$AGH_HOME/memory/_inbox`                     | Daemon-managed.                              | Read-only display field; the daemon manages the inbox path.                |
+| `dlq_path`           | string   | `$AGH_HOME/memory/_system/extractor/failures` | Daemon-managed.                              | Read-only display field; the daemon manages the DLQ path.                  |
+| `model`              | string   | empty                                         | Empty or model id.                           | Optional override; empty forks from the main session model.                |
+
+## `[memory.extractor.queue]`
+
+| Field          | Type    | Default | Valid values      | Description                                                                           |
+| -------------- | ------- | ------- | ----------------- | ------------------------------------------------------------------------------------- |
+| `capacity`     | integer | `1`     | Positive integer. | Bounded per-session extraction queue.                                                 |
+| `coalesce_max` | integer | `16`    | Positive integer. | Maximum coalesced turns when consecutive triggers arrive while the extractor is busy. |
 
 ## `[memory.dream]`
 
 If `enabled = false`, the remaining dream validation is skipped.
 
-| Field            | Type     | Default   | Valid values            | Description                                           |
-| ---------------- | -------- | --------- | ----------------------- | ----------------------------------------------------- |
-| `enabled`        | boolean  | `true`    | `true` or `false`       | Enables background dream consolidation.               |
-| `agent`          | string   | `general` | Non-empty when enabled. | Agent used for consolidation sessions.                |
-| `min_hours`      | float    | `24`      | Positive number.        | Minimum age threshold before consolidation.           |
-| `min_sessions`   | integer  | `3`       | Positive integer.       | Minimum session count threshold before consolidation. |
-| `check_interval` | duration | `30m`     | Positive Go duration.   | Background check interval.                            |
+| Field            | Type     | Default            | Valid values              | Description                                                              |
+| ---------------- | -------- | ------------------ | ------------------------- | ------------------------------------------------------------------------ |
+| `enabled`        | boolean  | `true`             | `true` or `false`         | Enables the dreaming runtime and the Trigger-dream action.               |
+| `agent`          | string   | `dreaming-curator` | Non-empty when enabled.   | Dedicated curator agent. Does **not** inherit `[defaults].agent`.        |
+| `min_hours`      | float    | `24`               | Positive number.          | Time-gate threshold before another successful run.                       |
+| `min_sessions`   | integer  | `3`                | Positive integer.         | Sessions-gate threshold (completed sessions since last run).             |
+| `debounce`       | duration | `10m`              | Positive Go duration.     | Debounce window for triggers fed by `session.post_stop`.                 |
+| `prompt_version` | string   | `v1`               | Non-empty pinned version. | Prompt template version pinned to dreaming sessions for replay fidelity. |
+| `check_interval` | duration | `30m`              | Positive Go duration.     | Background ticker interval.                                              |
+
+## `[memory.dream.gates]`
+
+| Field              | Type    | Default | Valid values      | Description                                                    |
+| ------------------ | ------- | ------- | ----------------- | -------------------------------------------------------------- |
+| `min_unpromoted`   | integer | `5`     | Positive integer. | Minimum unpromoted candidates with sufficient signal.          |
+| `min_recall_count` | integer | `2`     | Positive integer. | Minimum recall hits per candidate before it qualifies.         |
+| `min_score`        | float   | `0.75`  | `0.0`–`1.0`       | Minimum scored value for a candidate to clear the signal gate. |
+
+## `[memory.dream.scoring]`
+
+| Field                    | Type    | Default | Valid values      | Description                                                |
+| ------------------------ | ------- | ------- | ----------------- | ---------------------------------------------------------- |
+| `recency_half_life_days` | integer | `14`    | Positive integer. | Half-life applied to recall recency in the dreaming score. |
+
+## `[memory.dream.scoring.weights]`
+
+Defaults sum to `1.0` across the four factors.
+
+| Field       | Type  | Default | Valid values | Description                                       |
+| ----------- | ----- | ------- | ------------ | ------------------------------------------------- |
+| `frequency` | float | `0.30`  | `0.0`–`1.0`  | Weight of recall frequency.                       |
+| `relevance` | float | `0.35`  | `0.0`–`1.0`  | Weight of BM25 relevance.                         |
+| `recency`   | float | `0.20`  | `0.0`–`1.0`  | Weight of recency decay.                          |
+| `freshness` | float | `0.15`  | `0.0`–`1.0`  | Penalty weight for stale, never-promoted entries. |
+
+## `[memory.session]`
+
+Forensic ledger materialization (ADR-006). The materializer writes one read-only `ledger.jsonl`
+under `<ledger_root>/<workspace_id>/<session_id>/`. Sessions without a workspace use
+`<unbound_partition>` instead of a workspace_id segment.
+
+| Field                | Type     | Default              | Valid values          | Description                                                         |
+| -------------------- | -------- | -------------------- | --------------------- | ------------------------------------------------------------------- |
+| `ledger_format`      | string   | `jsonl`              | `jsonl`               | Forensic ledger format.                                             |
+| `ledger_root`        | string   | `$AGH_HOME/sessions` | Daemon-managed.       | Ledger root. Read-only; daemon-managed path.                        |
+| `events_purge_grace` | duration | `24h`                | Positive Go duration. | Time after materialization before live `events.db` rows are purged. |
+| `cold_archive_days`  | integer  | `30`                 | Zero or positive.     | Cold-archive window for `ledger.jsonl`. `0` keeps ledgers in-place. |
+| `hard_delete_days`   | integer  | `0`                  | Zero or positive.     | `0` keeps ledgers forever; explicit prune via CLI.                  |
+| `max_archive_bytes`  | integer  | `10737418240`        | Positive integer.     | Safety-valve cap on the cold-archive store.                         |
+| `unbound_partition`  | string   | `_unbound`           | Daemon-managed.       | Partition used for sessions without a workspace_id.                 |
+
+## `[memory.daily]`
+
+| Field               | Type    | Default           | Valid values      | Description                                           |
+| ------------------- | ------- | ----------------- | ----------------- | ----------------------------------------------------- |
+| `max_bytes`         | integer | `1048576`         | Positive integer. | Per-day daily-log byte cap before rotation.           |
+| `max_lines`         | integer | `5000`            | Positive integer. | Per-day daily-log line cap before rotation.           |
+| `rotate_format`     | string  | `{date}.{seq}.md` | Daemon-managed.   | Rotation filename format. Read-only.                  |
+| `dreaming_window`   | integer | `7`               | Positive integer. | Days the dreaming curator reads from daily logs.      |
+| `cold_archive_days` | integer | `30`              | Zero or positive. | Cold-archive window for rotated daily logs.           |
+| `hard_delete_days`  | integer | `0`               | Zero or positive. | `0` keeps daily logs forever; explicit prune via CLI. |
+| `max_archive_bytes` | integer | `1073741824`      | Positive integer. | Safety-valve cap on the daily archive.                |
+| `sweep_hour`        | integer | `3`               | `0`–`23`          | Local hour for daily housekeeping sweep.              |
+| `archive_path`      | string  | `_system/archive` | Daemon-managed.   | Archive subdirectory under each scope's `_system/`.   |
+
+## `[memory.file]`
+
+| Field       | Type    | Default | Valid values      | Description                                                       |
+| ----------- | ------- | ------- | ----------------- | ----------------------------------------------------------------- |
+| `max_lines` | integer | `200`   | Positive integer. | Cap for `MEMORY.md` lines included in the frozen prompt snapshot. |
+| `max_bytes` | integer | `25600` | Positive integer. | Cap for `MEMORY.md` bytes included in the frozen prompt snapshot. |
+
+## `[memory.provider]`
+
+`name = ""` selects the bundled local provider. Setting a configured provider name routes runtime
+calls through the registered `MemoryProvider` while keeping the local provider as a circuit-breaker
+fallback (see [Extensions](/runtime/core/extensions)).
+
+| Field               | Type     | Default | Valid values              | Description                                                         |
+| ------------------- | -------- | ------- | ------------------------- | ------------------------------------------------------------------- |
+| `name`              | string   | empty   | Empty or registered name. | Active provider. Empty falls back to the bundled local provider.    |
+| `timeout`           | duration | `2s`    | Positive Go duration.     | Per-method deadline before fail-open to the bundled local provider. |
+| `failure_threshold` | integer  | `5`     | Positive integer.         | Consecutive failures before the circuit opens.                      |
+| `cooldown`          | duration | `30s`   | Positive Go duration.     | How long the circuit stays open before retry.                       |
+
+## `[memory.workspace]`
+
+| Field         | Type    | Default                           | Valid values    | Description                                                                             |
+| ------------- | ------- | --------------------------------- | --------------- | --------------------------------------------------------------------------------------- |
+| `toml_path`   | string  | `<workspace>/.agh/workspace.toml` | Daemon-managed. | Read-only display field. Workspace identity always lives at this path.                  |
+| `auto_create` | boolean | `true`                            | `true`/`false`  | Auto-create `<workspace>/.agh/workspace.toml` on first daemon touch of a new workspace. |
 
 ## `[skills]`
 

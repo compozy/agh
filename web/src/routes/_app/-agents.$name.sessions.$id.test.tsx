@@ -2,7 +2,11 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionPayload } from "@/systems/session";
+import type {
+  InspectorMemoryState,
+  SessionLedgerResponse,
+  SessionPayload,
+} from "@/systems/session";
 import type { VaultSecret } from "@/systems/vault";
 
 type SessionVaultQueryState = {
@@ -11,8 +15,17 @@ type SessionVaultQueryState = {
   error: Error | null;
 };
 
+type SessionLedgerQueryState = {
+  data: SessionLedgerResponse | undefined;
+  isLoading: boolean;
+  error: Error | null;
+};
+
+type SessionLedgerHookOptions = { enabled?: boolean } | undefined;
+
 type SessionInspectorPropsForTest = {
   sessionId?: string;
+  memory?: InspectorMemoryState;
   vaultSecrets?: VaultSecret[];
   vaultIsLoading?: boolean;
   vaultError?: Error | null;
@@ -22,6 +35,7 @@ const {
   mockNavigate,
   mockUseSession,
   mockUseSessionVaultSecrets,
+  mockUseSessionLedger,
   mockUseWorkspaces,
   mockSessionInspector,
   mockResume,
@@ -33,6 +47,13 @@ const {
   mockUseSession: vi.fn(),
   mockUseSessionVaultSecrets: vi.fn<(sessionId: string) => SessionVaultQueryState>(() => ({
     data: [],
+    isLoading: false,
+    error: null,
+  })),
+  mockUseSessionLedger: vi.fn<
+    (sessionId: string, options?: SessionLedgerHookOptions) => SessionLedgerQueryState
+  >(() => ({
+    data: undefined,
     isLoading: false,
     error: null,
   })),
@@ -86,6 +107,8 @@ vi.mock("@/systems/session/components/session-inspector", () => ({
 
 vi.mock("@/systems/session/hooks/use-sessions", () => ({
   useSession: (id: string) => mockUseSession(id),
+  useSessionLedger: (id: string, options?: SessionLedgerHookOptions) =>
+    mockUseSessionLedger(id, options),
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -114,9 +137,7 @@ vi.mock("@assistant-ui/react", () => ({
   ) => selector({ thread: { messages: [], isRunning: false } }),
 }));
 
-import { Route } from "./agents.$name.sessions.$id";
-
-const SessionPage = (Route as unknown as { component: () => ReactNode }).component;
+import { SessionPage } from "./agents.$name.sessions.$id";
 
 function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
@@ -144,6 +165,8 @@ describe("Nested agent session route — resume failure UX", () => {
     mockUseSession.mockReset();
     mockUseSessionVaultSecrets.mockReset();
     mockUseSessionVaultSecrets.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockUseSessionLedger.mockReset();
+    mockUseSessionLedger.mockReturnValue({ data: undefined, isLoading: false, error: null });
     mockSessionInspector.mockClear();
     mockUseWorkspaces.mockReset();
     mockUseWorkspaces.mockReturnValue({ data: [] });
@@ -267,5 +290,100 @@ describe("Nested agent session route — resume failure UX", () => {
       vaultIsLoading: false,
       vaultError: null,
     });
+  });
+
+  it("passes the session-scoped ledger query state into the inspector memory prop", () => {
+    const ledger: SessionLedgerResponse = {
+      meta: {
+        version: 1,
+        session_id: "sess_123",
+        workspace_id: "ws_alpha",
+        root_session_id: "sess_root",
+        parent_session_id: "sess_parent",
+        spawn_depth: 1,
+        path: "/sessions/ws_alpha/sess_123/ledger.jsonl",
+        checksum: "sha256:abc",
+        created_at: "2026-04-20T10:00:00Z",
+        stopped_at: "2026-04-20T11:00:00Z",
+      },
+      events: [
+        { sequence: 1, event_type: "session.started", emitted_at: "2026-04-20T10:00:00Z" },
+        { sequence: 2, event_type: "memory.recall", emitted_at: "2026-04-20T10:01:00Z" },
+      ],
+    };
+    mockUseSessionLedger.mockReturnValue({ data: ledger, isLoading: false, error: null });
+
+    render(<SessionPage />);
+
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: true });
+    const inspectorProps =
+      mockSessionInspector.mock.calls[mockSessionInspector.mock.calls.length - 1]?.[0];
+    expect(inspectorProps?.memory).toEqual({
+      ledger,
+      isLoading: false,
+      error: null,
+    });
+  });
+
+  it("forwards ledger loading state into the inspector memory prop", () => {
+    mockUseSessionLedger.mockReturnValue({ data: undefined, isLoading: true, error: null });
+
+    render(<SessionPage />);
+
+    const inspectorProps =
+      mockSessionInspector.mock.calls[mockSessionInspector.mock.calls.length - 1]?.[0];
+    expect(inspectorProps?.memory).toEqual({
+      ledger: null,
+      isLoading: true,
+      error: null,
+    });
+  });
+
+  it("disables the ledger query while the session is still active", () => {
+    mockUseSession.mockReturnValue({
+      data: makeSession({ state: "active" }),
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SessionPage />);
+
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: false });
+  });
+
+  it("disables the ledger query while the session is starting", () => {
+    mockUseSession.mockReturnValue({
+      data: makeSession({ state: "starting" }),
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SessionPage />);
+
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: false });
+  });
+
+  it("disables the ledger query while the session is stopping", () => {
+    mockUseSession.mockReturnValue({
+      data: makeSession({ state: "stopping" }),
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SessionPage />);
+
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: false });
+  });
+
+  it("enables the ledger query once the session has stopped", () => {
+    mockUseSession.mockReturnValue({
+      data: makeSession({ state: "stopped" }),
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SessionPage />);
+
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: true });
   });
 });

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -23,13 +24,13 @@ func BenchmarkStoreScanCappedWorkspace(b *testing.B) {
 		payload := mustBenchmarkMemoryContent(b, testMemoryMeta{
 			Name:        fmt.Sprintf("Memory %03d", idx),
 			Description: "Benchmark memory",
-			Type:        MemoryTypeProject,
+			Type:        memcontract.TypeProject,
 		}, "Benchmark body\n")
-		if err := env.store.Write(ScopeWorkspace, filename, payload); err != nil {
+		if err := env.store.Write(memcontract.ScopeWorkspace, filename, payload); err != nil {
 			b.Fatalf("Store.Write(%q) error = %v", filename, err)
 		}
 
-		path, err := env.store.pathFor(ScopeWorkspace, filename)
+		path, err := env.store.pathFor(memcontract.ScopeWorkspace, filename)
 		if err != nil {
 			b.Fatalf("pathFor(%q) error = %v", filename, err)
 		}
@@ -40,7 +41,7 @@ func BenchmarkStoreScanCappedWorkspace(b *testing.B) {
 	}
 
 	for b.Loop() {
-		headers, err := env.store.Scan(ScopeWorkspace)
+		headers, err := env.store.Scan(memcontract.ScopeWorkspace)
 		if err != nil {
 			b.Fatalf("Store.Scan() error = %v", err)
 		}

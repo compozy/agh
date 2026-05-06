@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -13,12 +14,102 @@ import (
 
 // QueryEvents returns cross-session event summaries ordered for CLI/API consumption.
 func (o *Observer) QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
-	return o.registry.ListEventSummaries(ctx, query)
+	if ctx == nil {
+		return nil, errors.New("observe: query events context is required")
+	}
+	events, err := o.registry.ListEventSummaries(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	o.mu.RLock()
+	memorySource := o.memoryEventSource
+	o.mu.RUnlock()
+	if memorySource == nil || strings.TrimSpace(query.SessionID) != "" {
+		return events, nil
+	}
+
+	workspaces, err := o.memoryEventWorkspaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	memoryEvents, err := memorySource.ListMemoryEventSummaries(ctx, workspaces, query)
+	if err != nil {
+		return nil, fmt.Errorf("observe: query memory events: %w", err)
+	}
+
+	events = append(filterRegistryMemoryEvents(events), memoryEvents...)
+	sortObserveEvents(events)
+	return clampObserveEvents(events, query.Limit), nil
 }
 
 // QueryTokenStats returns aggregated per-session token usage rows.
 func (o *Observer) QueryTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error) {
 	return o.registry.ListTokenStats(ctx, query)
+}
+
+func (o *Observer) memoryEventWorkspaces(ctx context.Context) ([]string, error) {
+	if o.workspaceResolver == nil {
+		return nil, nil
+	}
+	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})
+	if err != nil {
+		return nil, fmt.Errorf("observe: list sessions for memory event workspaces: %w", err)
+	}
+	seen := make(map[string]struct{})
+	workspaces := make([]string, 0, len(sessions))
+	for _, session := range sessions {
+		workspaceID := strings.TrimSpace(session.WorkspaceID)
+		if workspaceID == "" {
+			continue
+		}
+		if _, exists := seen[workspaceID]; exists {
+			continue
+		}
+		seen[workspaceID] = struct{}{}
+		resolved, err := o.workspaceResolver.Resolve(ctx, workspaceID)
+		if err != nil {
+			return nil, fmt.Errorf("observe: resolve memory event workspace %q: %w", workspaceID, err)
+		}
+		if root := strings.TrimSpace(resolved.RootDir); root != "" {
+			workspaces = append(workspaces, root)
+		}
+	}
+	return workspaces, nil
+}
+
+func filterRegistryMemoryEvents(events []store.EventSummary) []store.EventSummary {
+	filtered := events[:0]
+	for _, event := range events {
+		if strings.HasPrefix(strings.TrimSpace(event.Type), "memory.") {
+			continue
+		}
+		filtered = append(filtered, event)
+	}
+	return filtered
+}
+
+func sortObserveEvents(events []store.EventSummary) {
+	sort.SliceStable(events, func(i, j int) bool {
+		left := events[i]
+		right := events[j]
+		leftAt := left.Timestamp.UTC()
+		rightAt := right.Timestamp.UTC()
+		if !leftAt.Equal(rightAt) {
+			return leftAt.Before(rightAt)
+		}
+		if left.Sequence != right.Sequence {
+			return left.Sequence < right.Sequence
+		}
+		return left.ID < right.ID
+	})
+}
+
+func clampObserveEvents(events []store.EventSummary, limit int) []store.EventSummary {
+	if limit <= 0 || len(events) <= limit {
+		return events
+	}
+	return append([]store.EventSummary(nil), events[len(events)-limit:]...)
 }
 
 // QueryPermissionLog returns permission audit rows.

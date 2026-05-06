@@ -10,6 +10,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -214,6 +215,88 @@ func TestCreateSessionRequestJSONShape(t *testing.T) {
 		if req.WorkspacePath != "/workspace" {
 			t.Fatalf("request = %#v", req)
 		}
+	})
+}
+
+func TestMemoryV2PublicContractJSONShape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose scope and agent tier without legacy workspace field", func(t *testing.T) {
+		t.Parallel()
+
+		req := contract.MemoryCreateRequest{
+			Scope:       memcontract.ScopeAgent,
+			WorkspaceID: "ws_01HXYZ",
+			AgentName:   "reviewer",
+			AgentTier:   memcontract.AgentTierWorkspace,
+			Origin:      memcontract.OriginHTTP,
+			Type:        memcontract.TypeFeedback,
+			Name:        "Reviewer preference",
+			Content:     "Prefer terse PR feedback.",
+		}
+
+		var got map[string]any
+		marshalJSON(t, req, &got)
+
+		if got["scope"] != "agent" || got["agent_tier"] != "workspace" || got["workspace_id"] != "ws_01HXYZ" {
+			t.Fatalf("memory create JSON = %#v", got)
+		}
+		assertJSONFieldAbsent(t, got, "workspace")
+	})
+
+	t.Run("Should not leak replay material or raw LLM response in decisions", func(t *testing.T) {
+		t.Parallel()
+
+		decision := contract.MemoryDecisionPayload{
+			ID:              "dec_01",
+			CandidateHash:   "sha256:candidate",
+			Op:              contract.MemoryDecisionOpUpdate,
+			Scope:           memcontract.ScopeWorkspace,
+			WorkspaceID:     "ws_01HXYZ",
+			TargetFilename:  "feedback_reviewer.md",
+			Frontmatter:     memcontract.Header{Name: "Reviewer preference", Type: memcontract.TypeFeedback},
+			PostContentHash: "sha256:post",
+			Confidence:      0.93,
+			Source:          memcontract.SourceLLM,
+			LLMTrace: &contract.MemoryLLMTracePayload{
+				Model:         "haiku",
+				PromptVersion: "v1",
+				LatencyMs:     37,
+			},
+			DecidedAt: time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC),
+		}
+
+		var got map[string]any
+		marshalJSON(t, decision, &got)
+
+		assertJSONFieldAbsent(t, got, "post_content")
+		assertJSONFieldAbsent(t, got, "prior_content")
+		llmTrace, ok := got["llm_trace"].(map[string]any)
+		if !ok {
+			t.Fatalf("llm_trace = %#v, want object", got["llm_trace"])
+		}
+		assertJSONFieldAbsent(t, llmTrace, "raw_response")
+		if llmTrace["latency_ms"] != float64(37) {
+			t.Fatalf("llm_trace latency_ms = %#v, want 37", llmTrace["latency_ms"])
+		}
+	})
+
+	t.Run("Should expose deterministic memory error envelope", func(t *testing.T) {
+		t.Parallel()
+
+		var got map[string]any
+		marshalJSON(t, contract.MemoryErrorPayload{
+			Code:    "memory.scope.workspace_required",
+			Message: "workspace_id is required for workspace scope",
+			Details: map[string]any{
+				"scope": "workspace",
+			},
+		}, &got)
+
+		if got["code"] != "memory.scope.workspace_required" || got["message"] == "" {
+			t.Fatalf("memory error JSON = %#v", got)
+		}
+		assertJSONFieldAbsent(t, got, "error")
 	})
 }
 
@@ -1002,5 +1085,13 @@ func assertZeroMetricField(t *testing.T, payload map[string]any, field string) {
 	}
 	if value != float64(0) {
 		t.Fatalf("payload[%q] = %#v, want JSON zero", field, value)
+	}
+}
+
+func assertJSONFieldAbsent(t *testing.T, payload map[string]any, field string) {
+	t.Helper()
+
+	if _, exists := payload[field]; exists {
+		t.Fatalf("payload should not include %q: %#v", field, payload)
 	}
 }

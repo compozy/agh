@@ -112,6 +112,126 @@ export const settingsAutomationSectionFixture: SettingsAutomationSection = {
   ],
 };
 
+export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
+  controller: {
+    default_op_on_fail: "noop",
+    llm: {
+      enabled: true,
+      max_tokens_out: 256,
+      model: "anthropic/claude-haiku-4",
+      prompt_version: "v1",
+      timeout: "250ms",
+      top_k: 5,
+    },
+    max_latency: "300ms",
+    mode: "hybrid",
+    policy: {
+      allow_origins: ["cli", "http", "uds", "tool", "extractor", "dreaming", "file", "provider"],
+      max_content_chars: 4096,
+      max_writes_per_min: 60,
+    },
+  },
+  daily: {
+    archive_path: "_system/archive",
+    cold_archive_days: 30,
+    dreaming_window: 7,
+    hard_delete_days: 0,
+    max_archive_bytes: 1073741824,
+    max_bytes: 1048576,
+    max_lines: 5000,
+    rotate_format: "{date}.{seq}.md",
+    sweep_hour: 3,
+  },
+  decisions: {
+    keep_audit_summary: true,
+    max_post_content_bytes: 65536,
+    prune_after_applied_days: 90,
+  },
+  dream: {
+    agent: storyAgentNames.compliance,
+    check_interval: "30m",
+    debounce: "10m",
+    enabled: true,
+    gates: {
+      min_recall_count: 2,
+      min_score: 0.75,
+      min_unpromoted: 5,
+    },
+    min_hours: 24,
+    min_sessions: 3,
+    prompt_version: "v1",
+    scoring: {
+      recency_half_life_days: 14,
+      weights: {
+        frequency: 0.3,
+        freshness: 0.15,
+        recency: 0.2,
+        relevance: 0.35,
+      },
+    },
+  },
+  enabled: true,
+  extractor: {
+    deadline: "60s",
+    dlq_path: "~/.agh/memory/_system/extractor/failures",
+    enabled: true,
+    inbox_path: "~/.agh/memory/_inbox",
+    mode: "post_message",
+    model: "",
+    queue: {
+      capacity: 1,
+      coalesce_max: 16,
+    },
+    sandbox_inbox_only: true,
+    throttle_turns: 1,
+  },
+  file: {
+    max_bytes: 25600,
+    max_lines: 200,
+  },
+  global_dir: "~/.agh/memory",
+  provider: {
+    cooldown: "30s",
+    failure_threshold: 5,
+    name: "",
+    timeout: "2s",
+  },
+  recall: {
+    freshness: {
+      banner_after_days: 1,
+    },
+    fusion: "weighted",
+    include_already_surfaced: false,
+    include_system: false,
+    raw_candidates: 50,
+    signals: {
+      metrics_enabled: true,
+      queue_capacity: 256,
+      worker_retry_max: 3,
+    },
+    top_k: 5,
+    weights: {
+      bm25_trigram: 0.2,
+      bm25_unicode: 0.55,
+      recall_signal: 0.1,
+      recency: 0.15,
+    },
+  },
+  session: {
+    cold_archive_days: 30,
+    events_purge_grace: "24h",
+    hard_delete_days: 0,
+    ledger_format: "jsonl",
+    ledger_root: "~/.agh/sessions",
+    max_archive_bytes: 10737418240,
+    unbound_partition: "_unbound",
+  },
+  workspace: {
+    auto_create: true,
+    toml_path: "<workspace>/.agh/workspace.toml",
+  },
+};
+
 export const settingsMemorySectionFixture: SettingsMemorySection = {
   section: "memory",
   scope: "global",
@@ -123,17 +243,7 @@ export const settingsMemorySectionFixture: SettingsMemorySection = {
       name: "consolidate",
     },
   },
-  config: {
-    dream: {
-      agent: storyAgentNames.compliance,
-      check_interval: "30m",
-      enabled: true,
-      min_hours: 24,
-      min_sessions: 3,
-    },
-    enabled: true,
-    global_dir: "~/.agh/memory",
-  },
+  config: settingsMemoryConfigFixture,
   health: {
     available: true,
     dream_enabled: true,

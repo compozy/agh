@@ -201,6 +201,12 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			},
 		},
 		{
+			name: "global event summary memory provider collision",
+			validate: func() error {
+				return (EventSummary{Type: "memory.provider.collision"}).Validate()
+			},
+		},
+		{
 			name: "event summary query invalid",
 			validate: func() error {
 				return (EventSummaryQuery{Limit: -1}).Validate()

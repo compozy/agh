@@ -12,7 +12,7 @@ import (
 	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/memory"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/tools"
@@ -445,8 +445,8 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[hooks.HookSkillSource]():                        hookSkillSourceValues(),
 	reflect.TypeFor[hooks.HookExecutorKind]():                       hookExecutorKindValues(),
 	reflect.TypeFor[hooks.HookSource]():                             hookSourceValues(),
-	reflect.TypeFor[memory.Type]():                                  memoryTypeValues(),
-	reflect.TypeFor[memory.Scope]():                                 memoryScopeValues(),
+	reflect.TypeFor[memcontract.Type]():                             memoryTypeValues(),
+	reflect.TypeFor[memcontract.Scope]():                            memoryScopeValues(),
 	reflect.TypeFor[session.State]():                                sessionStateValues(),
 	reflect.TypeFor[store.StopReason]():                             stopReasonValues(),
 	reflect.TypeFor[tools.ToolSource]():                             toolSourceValues(),
@@ -585,15 +585,15 @@ func hookSourceValues() []string {
 
 func memoryTypeValues() []string {
 	return []string{
-		string(memory.MemoryTypeUser),
-		string(memory.MemoryTypeFeedback),
-		string(memory.MemoryTypeProject),
-		string(memory.MemoryTypeReference),
+		string(memcontract.TypeUser),
+		string(memcontract.TypeFeedback),
+		string(memcontract.TypeProject),
+		string(memcontract.TypeReference),
 	}
 }
 
 func memoryScopeValues() []string {
-	return []string{string(memory.ScopeGlobal), string(memory.ScopeWorkspace)}
+	return []string{string(memcontract.ScopeGlobal), string(memcontract.ScopeWorkspace), string(memcontract.ScopeAgent)}
 }
 
 func sessionStateValues() []string {

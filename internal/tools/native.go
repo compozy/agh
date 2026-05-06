@@ -139,6 +139,9 @@ func (h *nativeHandle) Call(ctx context.Context, req CallRequest) (ToolResult, e
 	scope.WorkspaceID = req.WorkspaceID
 	scope.SessionID = req.SessionID
 	scope.AgentName = req.AgentName
+	if actorKind := strings.TrimSpace(req.ActorKind); actorKind != "" {
+		scope.ActorKind = actorKind
+	}
 	return h.call(ctx, scope, req)
 }
 

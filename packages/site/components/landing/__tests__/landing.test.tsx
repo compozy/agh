@@ -386,7 +386,7 @@ describe("MemoryDreamSection", () => {
     expect(screen.getByText("Memory that compounds")).toBeDefined();
     expect(screen.getByText("while you sleep.")).toBeDefined();
     for (const title of [
-      "Memory at ~/.agh/memory/*.md",
+      "Memory as scoped Markdown",
       "Time → Sessions → Lock cascade",
       "Same surface for you and the agent",
     ]) {

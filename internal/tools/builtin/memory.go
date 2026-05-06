@@ -7,7 +7,7 @@ var memoryTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDMemoryList,
 		"memory_list",
 		"Memory List",
-		"List memory headers through the current memory store.",
+		"List Memory v2 headers visible for a scope.",
 		memoryListInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -18,24 +18,24 @@ var memoryTools = []toolspkg.Descriptor{
 		[]string{"memory list", "memory headers"},
 	),
 	nativeDescriptor(
-		toolspkg.ToolIDMemoryRead,
-		"memory_read",
-		"Memory Read",
-		"Read one memory document through the current memory store.",
-		memoryReadInputSchema,
+		toolspkg.ToolIDMemoryShow,
+		"memory_show",
+		"Memory Show",
+		"Show one Memory v2 document through the current memory store.",
+		memoryShowInputSchema,
 		toolspkg.RiskRead,
 		true,
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
-		[]string{"memory", "read"},
-		[]string{"memory read", "memory document"},
+		[]string{"memory", "show"},
+		[]string{"memory show", "memory document"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDMemorySearch,
 		"memory_search",
 		"Memory Search",
-		"Search memory documents through the current memory store.",
+		"Recall Memory v2 entries through the active provider-backed recall path.",
 		memorySearchInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -46,18 +46,32 @@ var memoryTools = []toolspkg.Descriptor{
 		[]string{"memory search", "recall memory"},
 	),
 	nativeDescriptor(
-		toolspkg.ToolIDMemoryHistory,
-		"memory_history",
-		"Memory History",
-		"Read redacted memory operation history.",
-		memoryHistoryInputSchema,
-		toolspkg.RiskRead,
-		true,
+		toolspkg.ToolIDMemoryPropose,
+		"memory_propose",
+		"Memory Propose",
+		"Submit a Memory v2 write, update, or delete proposal through the write controller.",
+		memoryProposeInputSchema,
+		toolspkg.RiskMutating,
+		false,
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
-		[]string{"memory", "history"},
-		[]string{"memory history", "memory operations"},
+		[]string{"memory", "propose"},
+		[]string{"memory propose", "memory write", "memory update", "memory delete"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDMemoryNote,
+		"memory_note",
+		"Memory Note",
+		"Submit an ad-hoc Memory v2 note through the write controller.",
+		memoryNoteInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
+		[]string{"memory", "note"},
+		[]string{"memory note", "ad hoc memory"},
 	),
 }
 
@@ -68,20 +82,24 @@ func memoryDescriptors() []toolspkg.Descriptor {
 const memoryListInputSchema = `{
 	"type":"object",
 	"properties":{
-		"scope":{"type":"string"},
+		"scope":{"type":"string","enum":["global","workspace","agent"]},
 		"workspace":{"type":"string"},
+		"agent_name":{"type":"string"},
+		"agent_tier":{"type":"string","enum":["workspace","global"]},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false
 }`
 
-const memoryReadInputSchema = `{
+const memoryShowInputSchema = `{
 	"type":"object",
 	"required":["filename"],
 	"properties":{
 		"filename":{"type":"string"},
-		"scope":{"type":"string"},
-		"workspace":{"type":"string"}
+		"scope":{"type":"string","enum":["global","workspace","agent"]},
+		"workspace":{"type":"string"},
+		"agent_name":{"type":"string"},
+		"agent_tier":{"type":"string","enum":["workspace","global"]}
 	},
 	"additionalProperties":false
 }`
@@ -91,21 +109,46 @@ const memorySearchInputSchema = `{
 	"properties":{
 		"query":{"type":"string"},
 		"q":{"type":"string"},
-		"scope":{"type":"string"},
+		"scope":{"type":"string","enum":["global","workspace","agent"]},
 		"workspace":{"type":"string"},
+		"agent_name":{"type":"string"},
+		"agent_tier":{"type":"string","enum":["workspace","global"]},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false
 }`
 
-const memoryHistoryInputSchema = `{
+const memoryProposeInputSchema = `{
 	"type":"object",
 	"properties":{
-		"scope":{"type":"string"},
+		"operation":{"type":"string","enum":["add","update","delete"]},
+		"filename":{"type":"string"},
+		"target_filename":{"type":"string"},
+		"content":{"type":"string"},
+		"name":{"type":"string"},
+		"description":{"type":"string"},
+		"type":{"type":"string","enum":["user","feedback","project","reference"]},
+		"scope":{"type":"string","enum":["global","workspace","agent"]},
 		"workspace":{"type":"string"},
-		"operation":{"type":"string"},
-		"since":{"type":"string"},
-		"limit":{"type":"integer"}
+		"agent_name":{"type":"string"},
+		"agent_tier":{"type":"string","enum":["workspace","global"]},
+		"entity":{"type":"string"},
+		"attribute":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const memoryNoteInputSchema = `{
+	"type":"object",
+	"required":["content"],
+	"properties":{
+		"content":{"type":"string"},
+		"slug":{"type":"string"},
+		"scope":{"type":"string","enum":["global","workspace","agent"]},
+		"workspace":{"type":"string"},
+		"agent_name":{"type":"string"},
+		"agent_tier":{"type":"string","enum":["workspace","global"]},
+		"tags":{"type":"array","items":{"type":"string"}}
 	},
 	"additionalProperties":false
 }`

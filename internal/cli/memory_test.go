@@ -6,573 +6,680 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/testutil"
-
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/spf13/cobra"
+	"github.com/pedronauck/agh/internal/api/contract"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 )
 
-func TestMemoryListCommandFormatsAndScope(t *testing.T) {
+func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {
 	t.Parallel()
 
-	var seenScope memory.Scope
+	root := newRootCommand(commandDeps{})
+	expectedLeaves := [][]string{
+		{"memory", "list"},
+		{"memory", "show"},
+		{"memory", "write"},
+		{"memory", "edit"},
+		{"memory", "delete"},
+		{"memory", "search"},
+		{"memory", "reindex"},
+		{"memory", "history"},
+		{"memory", "health"},
+		{"memory", "promote"},
+		{"memory", "reset"},
+		{"memory", "reload"},
+		{"memory", "scope-show"},
+		{"memory", "decisions", "list"},
+		{"memory", "decisions", "show"},
+		{"memory", "decisions", "revert"},
+		{"memory", "recall", "trace"},
+		{"memory", "dream", "show"},
+		{"memory", "dream", "retry"},
+		{"memory", "dream", "trigger"},
+		{"memory", "dream", "status"},
+		{"memory", "daily", "ls"},
+		{"memory", "daily", "show"},
+		{"memory", "daily", "archive"},
+		{"memory", "daily", "restore"},
+		{"memory", "daily", "purge"},
+		{"memory", "extractor", "status"},
+		{"memory", "extractor", "list-pending"},
+		{"memory", "extractor", "replay"},
+		{"memory", "extractor", "drain"},
+		{"memory", "extractor", "disable"},
+		{"memory", "provider", "list"},
+		{"memory", "provider", "enable"},
+		{"memory", "provider", "disable"},
+		{"memory", "adhoc", "list"},
+		{"memory", "adhoc", "show"},
+	}
+	for _, args := range expectedLeaves {
+		cmd, remaining, err := root.Find(args)
+		if err != nil {
+			t.Fatalf("Find(%v) error = %v", args, err)
+		}
+		if len(remaining) != 0 {
+			t.Fatalf("Find(%v) remaining = %v, want none", args, remaining)
+		}
+		if got := strings.TrimSpace(cmd.CommandPath()); got != "agh "+strings.Join(args, " ") {
+			t.Fatalf("CommandPath(%v) = %q", args, got)
+		}
+	}
+
+	for _, legacy := range [][]string{{"memory", "read"}, {"memory", "consolidate"}} {
+		cmd, remaining, err := root.Find(legacy)
+		if err == nil && len(remaining) == 0 &&
+			strings.TrimSpace(cmd.CommandPath()) == "agh "+strings.Join(legacy, " ") {
+			t.Fatalf("legacy command %v resolved to a leaf", legacy)
+		}
+	}
+}
+
+func TestMemoryListShowAndSearchUseV2Selectors(t *testing.T) {
+	t.Parallel()
+
+	var seenList MemoryListQuery
+	var seenShowSelector MemorySelectorQuery
+	var seenSearch MemorySearchRequest
 	deps := newTestDeps(t, &stubClient{
-		listMemoryFn: func(_ context.Context, scope memory.Scope, workspace string) ([]MemoryHeaderRecord, error) {
-			seenScope = scope
-			if scope != memory.ScopeGlobal {
-				t.Fatalf("scope = %q, want global", scope)
-			}
-			if workspace != "" {
-				t.Fatalf("workspace = %q, want empty", workspace)
-			}
-			return []MemoryHeaderRecord{{
+		listMemoryFn: func(_ context.Context, query MemoryListQuery) (MemoryListRecord, error) {
+			seenList = query
+			return MemoryListRecord{Memories: []contract.MemoryEntrySummaryPayload{{
 				Filename:    "prefs.md",
 				Name:        "Prefs",
 				Description: "saved preference",
-				Type:        memory.MemoryTypeUser,
+				Type:        memcontract.TypeUser,
+				Scope:       memcontract.ScopeAgent,
+				AgentName:   "reviewer",
+				AgentTier:   memcontract.AgentTierGlobal,
+				ModTime:     fixedTestNow,
+				Injection:   true,
+			}}}, nil
+		},
+		showMemoryFn: func(
+			_ context.Context,
+			filename string,
+			query MemorySelectorQuery,
+		) (MemoryEntryRecord, error) {
+			if filename != "prefs.md" {
+				t.Fatalf("ShowMemory filename = %q, want prefs.md", filename)
+			}
+			seenShowSelector = query
+			return MemoryEntryRecord{Memory: contract.MemoryEntryPayload{
+				Summary: contract.MemoryEntrySummaryPayload{
+					Filename:  "prefs.md",
+					Scope:     memcontract.ScopeAgent,
+					AgentName: "reviewer",
+					AgentTier: memcontract.AgentTierGlobal,
+				},
+				Content: "stored memory body",
 			}}, nil
+		},
+		searchMemoryFn: func(_ context.Context, request MemorySearchRequest) (MemorySearchRecord, error) {
+			seenSearch = request
+			return MemorySearchRecord{Results: []contract.MemorySearchResultPayload{{
+				Memory: contract.MemoryEntrySummaryPayload{
+					Filename:  "prefs.md",
+					Name:      "Prefs",
+					Scope:     memcontract.ScopeAgent,
+					AgentTier: memcontract.AgentTierGlobal,
+				},
+				Score:   1,
+				Snippet: "stored memory body",
+			}}}, nil
 		},
 	})
 
-	stdout, _, err := executeRootCommand(t, deps, "memory", "list", "--scope", "global")
+	listOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"memory",
+		"list",
+		"--scope",
+		"agent",
+		"--agent",
+		"reviewer",
+		"--agent-tier",
+		"global",
+		"--type",
+		"user",
+		"--include-system",
+		"--include-shadowed",
+		"-o",
+		"jsonl",
+	)
 	if err != nil {
 		t.Fatalf("memory list error = %v", err)
 	}
-	if seenScope != memory.ScopeGlobal {
-		t.Fatalf("seenScope = %q, want global", seenScope)
+	if seenList.Scope != memcontract.ScopeAgent ||
+		seenList.AgentName != "reviewer" ||
+		seenList.AgentTier != memcontract.AgentTierGlobal ||
+		seenList.Type != memcontract.TypeUser ||
+		!seenList.IncludeSystem ||
+		!seenList.IncludeShadowed {
+		t.Fatalf("list query = %#v, want agent selector with filters", seenList)
 	}
-	if !strings.Contains(stdout, "Memories") || !strings.Contains(stdout, "prefs.md") {
-		t.Fatalf("stdout = %q, want rendered list", stdout)
+	if got := strings.Count(strings.TrimSpace(listOut), "\n") + 1; got != 1 {
+		t.Fatalf("list jsonl lines = %d, output=%q", got, listOut)
+	}
+
+	showOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"memory",
+		"show",
+		"prefs.md",
+		"--scope",
+		"agent",
+		"--agent",
+		"reviewer",
+		"--agent-tier",
+		"global",
+	)
+	if err != nil {
+		t.Fatalf("memory show error = %v", err)
+	}
+	if strings.TrimSpace(showOut) != "stored memory body" {
+		t.Fatalf("show output = %q, want raw content", showOut)
+	}
+	if seenShowSelector.Scope != memcontract.ScopeAgent ||
+		seenShowSelector.AgentName != "reviewer" ||
+		seenShowSelector.AgentTier != memcontract.AgentTierGlobal {
+		t.Fatalf("show selector = %#v, want agent selector", seenShowSelector)
+	}
+
+	searchOut, _, err := executeRootCommand(
+		t,
+		deps,
+		"memory",
+		"search",
+		"review",
+		"tone",
+		"--scope",
+		"agent",
+		"--agent",
+		"reviewer",
+		"--agent-tier",
+		"global",
+		"--top-k",
+		"3",
+		"--include-system",
+	)
+	if err != nil {
+		t.Fatalf("memory search error = %v", err)
+	}
+	if seenSearch.QueryText != "review tone" ||
+		seenSearch.Scope != memcontract.ScopeAgent ||
+		seenSearch.AgentName != "reviewer" ||
+		seenSearch.AgentTier != memcontract.AgentTierGlobal ||
+		seenSearch.TopK != 3 ||
+		!seenSearch.IncludeSystem {
+		t.Fatalf("search request = %#v, want agent query", seenSearch)
+	}
+	if !strings.Contains(searchOut, "prefs.md") {
+		t.Fatalf("search output = %q, want result filename", searchOut)
+	}
+	if !strings.Contains(searchOut, "agent:global") {
+		t.Fatalf("search output = %q, want agent tier label", searchOut)
 	}
 }
 
-func TestMemoryReadCommandOutputsContent(t *testing.T) {
+func TestMemoryExtractorDrainUsesTimeoutContext(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
-		listMemoryFn: func(_ context.Context, scope memory.Scope, _ string) ([]MemoryHeaderRecord, error) {
-			if scope == memory.ScopeGlobal {
-				return []MemoryHeaderRecord{{Filename: "prefs.md", Type: memory.MemoryTypeUser}}, nil
-			}
-			return nil, nil
-		},
-		readMemoryFn: func(_ context.Context, filename string, scope memory.Scope, workspace string) (MemoryReadRecord, error) {
-			if filename != "prefs.md" || scope != memory.ScopeGlobal {
-				t.Fatalf("ReadMemory args = %q %q %q", filename, scope, workspace)
-			}
-			return MemoryReadRecord{Content: "stored memory body"}, nil
-		},
+	t.Run("Should apply explicit timeout", func(t *testing.T) {
+		t.Parallel()
+
+		var remaining time.Duration
+		deps := newTestDeps(t, &stubClient{
+			drainMemoryExtractorFn: func(ctx context.Context) (MemoryExtractorDrainRecord, error) {
+				deadline, ok := ctx.Deadline()
+				if !ok {
+					t.Fatal("DrainMemoryExtractor context deadline missing")
+				}
+				remaining = time.Until(deadline)
+				return MemoryExtractorDrainRecord{}, nil
+			},
+		})
+
+		cmd := newRootCommand(deps)
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs([]string{"memory", "extractor", "drain", "--timeout", "5s"})
+		if err := cmd.ExecuteContext(context.Background()); err != nil {
+			t.Fatalf("memory extractor drain error = %v", err)
+		}
+		if remaining < 4*time.Second || remaining > 6*time.Second {
+			t.Fatalf("drain timeout remaining = %s, want about 5s", remaining)
+		}
 	})
 
-	stdout, _, err := executeRootCommand(t, deps, "memory", "read", "prefs.md")
-	if err != nil {
-		t.Fatalf("memory read error = %v", err)
-	}
-	if strings.TrimSpace(stdout) != "stored memory body" {
-		t.Fatalf("stdout = %q, want raw content", stdout)
-	}
+	t.Run("Should default timeout to sixty seconds", func(t *testing.T) {
+		t.Parallel()
+
+		var remaining time.Duration
+		deps := newTestDeps(t, &stubClient{
+			drainMemoryExtractorFn: func(ctx context.Context) (MemoryExtractorDrainRecord, error) {
+				deadline, ok := ctx.Deadline()
+				if !ok {
+					t.Fatal("DrainMemoryExtractor context deadline missing")
+				}
+				remaining = time.Until(deadline)
+				return MemoryExtractorDrainRecord{}, nil
+			},
+		})
+
+		cmd := newRootCommand(deps)
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs([]string{"memory", "extractor", "drain"})
+		if err := cmd.ExecuteContext(context.Background()); err != nil {
+			t.Fatalf("memory extractor drain error = %v", err)
+		}
+		if remaining < 55*time.Second || remaining > 65*time.Second {
+			t.Fatalf("drain timeout remaining = %s, want about 60s", remaining)
+		}
+	})
 }
 
-func TestMemorySearchAndReindexCommands(t *testing.T) {
+func TestMemoryWriteEditDeleteAndReindexUsePublicPayloads(t *testing.T) {
 	t.Parallel()
 
-	var searchQuery MemorySearchQuery
-	var searchText string
-	var reindexReq MemoryReindexRequest
+	contentPath := filepath.Join(t.TempDir(), "memory.md")
+	if err := os.WriteFile(contentPath, []byte("remember the runtime contract"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(content) error = %v", err)
+	}
+
+	var createRequest MemoryCreateRequest
+	var editRequest MemoryEditRequest
+	var deleteSelector MemorySelectorQuery
+	var reindexRequest MemoryReindexRequest
 	deps := newTestDeps(t, &stubClient{
-		searchMemoryFn: func(_ context.Context, query string, opts MemorySearchQuery) ([]MemorySearchRecord, error) {
-			searchText = query
-			searchQuery = opts
-			return []MemorySearchRecord{{
-				Filename:  "auth.md",
-				Name:      "Auth Rewrite",
-				Scope:     memory.ScopeWorkspace,
-				Score:     4.2,
-				Snippet:   "Auth migration uses sessions",
-				Workspace: "/workspace/project",
-			}}, nil
+		createMemoryFn: func(_ context.Context, request MemoryCreateRequest) (MemoryMutationRecord, error) {
+			createRequest = request
+			return MemoryMutationRecord{
+				Decision: testMemoryDecision("dec-create", memcontract.OpAdd),
+				Applied:  true,
+			}, nil
+		},
+		editMemoryFn: func(_ context.Context, filename string, request MemoryEditRequest) (MemoryMutationRecord, error) {
+			if filename != "prefs.md" {
+				t.Fatalf("edit filename = %q, want prefs.md", filename)
+			}
+			editRequest = request
+			return MemoryMutationRecord{
+				Decision: testMemoryDecision("dec-edit", memcontract.OpUpdate),
+				Applied:  true,
+			}, nil
+		},
+		deleteMemoryFn: func(_ context.Context, filename string, query MemorySelectorQuery) (MemoryDeleteRecord, error) {
+			if filename != "prefs.md" {
+				t.Fatalf("delete filename = %q, want prefs.md", filename)
+			}
+			deleteSelector = query
+			return MemoryDeleteRecord{
+				Decision: testMemoryDecision("dec-delete", memcontract.OpDelete),
+				Applied:  true,
+			}, nil
 		},
 		reindexMemoryFn: func(_ context.Context, request MemoryReindexRequest) (MemoryReindexRecord, error) {
-			reindexReq = request
+			reindexRequest = request
 			return MemoryReindexRecord{
 				IndexedFiles: 2,
-				Workspace:    "/workspace/project",
+				Scope:        memcontract.ScopeWorkspace,
+				WorkspaceID:  "/workspace/project",
 				CompletedAt:  fixedTestNow,
 			}, nil
 		},
 	})
 
-	searchOut, _, err := executeRootCommand(t, deps, "memory", "search", "auth", "rewrite")
-	if err != nil {
-		t.Fatalf("memory search error = %v", err)
-	}
-	if searchText != "auth rewrite" || searchQuery.Workspace != "/workspace/project" {
-		t.Fatalf("search call = query:%q opts:%#v", searchText, searchQuery)
-	}
-	if !strings.Contains(searchOut, "Auth Rewrite") || !strings.Contains(searchOut, "auth.md") {
-		t.Fatalf("search output = %q", searchOut)
-	}
-
-	reindexOut, _, err := executeRootCommand(t, deps, "memory", "reindex")
-	if err != nil {
-		t.Fatalf("memory reindex error = %v", err)
-	}
-	if reindexReq.Workspace != "/workspace/project" {
-		t.Fatalf("reindex request = %#v, want workspace", reindexReq)
-	}
-	if !strings.Contains(reindexOut, "Indexed Files") || !strings.Contains(reindexOut, "2") {
-		t.Fatalf("reindex output = %q", reindexOut)
-	}
-}
-
-func TestMemoryHealthAndHistoryCommands(t *testing.T) {
-	t.Parallel()
-
-	lastOperation := fixedTestNow.Add(-2 * time.Minute)
-	var seenHealthWorkspace string
-	var seenHistoryQuery MemoryHistoryQuery
-	deps := newTestDeps(t, &stubClient{
-		memoryHealthFn: func(_ context.Context, workspace string) (MemoryHealthRecord, error) {
-			seenHealthWorkspace = workspace
-			return MemoryHealthRecord{
-				Status:          "ok",
-				Enabled:         true,
-				Configured:      true,
-				GlobalDir:       "/tmp/agh/memory",
-				GlobalFiles:     1,
-				WorkspaceFiles:  2,
-				WorkspaceCount:  1,
-				IndexedFiles:    3,
-				OperationCount:  4,
-				LastOperationAt: &lastOperation,
-				DreamEnabled:    true,
-				DreamAgent:      "memory-agent",
-			}, nil
-		},
-		memoryHistoryFn: func(_ context.Context, query MemoryHistoryQuery) ([]MemoryHistoryRecord, error) {
-			seenHistoryQuery = query
-			return []MemoryHistoryRecord{{
-				ID:        "memevt_1",
-				Operation: "memory.write",
-				Scope:     string(memory.ScopeWorkspace),
-				Workspace: "/workspace/project",
-				Filename:  "project.md",
-				AgentName: "daemon",
-				Summary:   "scope=workspace filename=project.md token=[REDACTED]",
-				Timestamp: lastOperation,
-			}}, nil
-		},
-	})
-
-	healthOut, _, err := executeRootCommand(t, deps, "memory", "health")
-	if err != nil {
-		t.Fatalf("memory health error = %v", err)
-	}
-	if seenHealthWorkspace != "/workspace/project" {
-		t.Fatalf("health workspace = %q, want /workspace/project", seenHealthWorkspace)
-	}
-	if !strings.Contains(healthOut, "Memory Health") || !strings.Contains(healthOut, "Operation Count") {
-		t.Fatalf("health output = %q", healthOut)
-	}
-
-	historyOut, _, err := executeRootCommand(
-		t,
-		deps,
-		"memory",
-		"history",
-		"--scope",
-		"workspace",
-		"--operation",
-		"memory.write",
-		"--since",
-		"5m",
-		"--limit",
-		"7",
-	)
-	if err != nil {
-		t.Fatalf("memory history error = %v", err)
-	}
-	if seenHistoryQuery.Scope != memory.ScopeWorkspace ||
-		seenHistoryQuery.Workspace != "/workspace/project" ||
-		seenHistoryQuery.Operation != "memory.write" ||
-		seenHistoryQuery.Limit != 7 {
-		t.Fatalf("history query = %#v", seenHistoryQuery)
-	}
-	if want := fixedTestNow.Add(-5 * time.Minute); !seenHistoryQuery.Since.Equal(want) {
-		t.Fatalf("history since = %s, want %s", seenHistoryQuery.Since, want)
-	}
-	if !strings.Contains(historyOut, "memory.write") || strings.Contains(historyOut, "super-secret") {
-		t.Fatalf("history output = %q", historyOut)
-	}
-}
-
-func TestMemoryWriteCommandBuildsDocumentAndUsesContentFlag(t *testing.T) {
-	t.Parallel()
-
-	var seenRequest MemoryWriteRequest
-	deps := newTestDeps(t, &stubClient{
-		writeMemoryFn: func(_ context.Context, filename string, request MemoryWriteRequest) (MemoryMutationRecord, error) {
-			if filename != "prefs.md" {
-				t.Fatalf("filename = %q, want prefs.md", filename)
-			}
-			seenRequest = request
-			return MemoryMutationRecord{OK: true}, nil
-		},
-	})
-
-	stdout, _, err := executeRootCommand(
+	writeOut, _, err := executeRootCommand(
 		t,
 		deps,
 		"memory",
 		"write",
-		"prefs.md",
+		"--scope",
+		"workspace",
 		"--type",
-		"user",
+		"project",
+		"--name",
+		"Runtime Contract",
 		"--description",
-		"remember this",
+		"runtime memory",
 		"--content",
-		"body text",
+		"@"+contentPath,
 		"-o",
 		"json",
 	)
 	if err != nil {
 		t.Fatalf("memory write error = %v", err)
 	}
-	if seenRequest.Scope != "global" || seenRequest.Workspace != "" {
-		t.Fatalf("request scope/workspace = %#v", seenRequest)
+	if createRequest.Scope != memcontract.ScopeWorkspace ||
+		createRequest.WorkspaceID != "/workspace/project" ||
+		createRequest.Type != memcontract.TypeProject ||
+		createRequest.Name != "Runtime Contract" ||
+		createRequest.Description != "runtime memory" ||
+		createRequest.Content != "remember the runtime contract" ||
+		createRequest.Origin != memcontract.OriginCLI {
+		t.Fatalf("create request = %#v", createRequest)
 	}
-	if !strings.Contains(seenRequest.Content, "type: user") ||
-		!strings.Contains(seenRequest.Content, "description: remember this") ||
-		!strings.Contains(seenRequest.Content, "body text") {
-		t.Fatalf("request content = %q", seenRequest.Content)
+	var writePayload MemoryMutationRecord
+	if err := json.Unmarshal([]byte(writeOut), &writePayload); err != nil {
+		t.Fatalf("json.Unmarshal(write) error = %v; out=%s", err, writeOut)
+	}
+	if writePayload.Decision.ID != "dec-create" || !writePayload.Applied {
+		t.Fatalf("write payload = %#v", writePayload)
 	}
 
-	var payload memoryMutationView
-	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(write output) error = %v; stdout=%s", err, stdout)
+	if _, _, err := executeRootCommand(
+		t,
+		deps,
+		"memory",
+		"edit",
+		"prefs.md",
+		"--scope",
+		"workspace",
+		"--content",
+		"updated body",
+	); err != nil {
+		t.Fatalf("memory edit error = %v", err)
 	}
-	if payload.Status != "written" {
-		t.Fatalf("payload = %#v, want written status", payload)
+	if editRequest.Scope != memcontract.ScopeWorkspace ||
+		editRequest.WorkspaceID != "/workspace/project" ||
+		editRequest.Content != "updated body" {
+		t.Fatalf("edit request = %#v", editRequest)
 	}
 
-	var workspaceRequest MemoryWriteRequest
-	cmd := newRootCommand(newTestDeps(t, &stubClient{
-		writeMemoryFn: func(_ context.Context, filename string, request MemoryWriteRequest) (MemoryMutationRecord, error) {
-			if filename != "project.md" {
-				t.Fatalf("filename = %q, want project.md", filename)
-			}
-			workspaceRequest = request
-			return MemoryMutationRecord{OK: true}, nil
-		},
-	}))
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
-	cmd.SetOut(&stdoutBuf)
-	cmd.SetErr(&stderrBuf)
-	cmd.SetIn(strings.NewReader("stdin body"))
-	cmd.SetArgs(
-		[]string{"memory", "write", "project.md", "--type", "project", "--description", "project memory", "-o", "json"},
-	)
-	if err := cmd.ExecuteContext(testutil.Context(t)); err != nil {
-		t.Fatalf("memory write from stdin error = %v; stderr=%s", err, stderrBuf.String())
-	}
-	if workspaceRequest.Scope != "workspace" || workspaceRequest.Workspace != "/workspace/project" {
-		t.Fatalf("workspaceRequest = %#v, want workspace scope", workspaceRequest)
-	}
-}
-
-func TestMemoryDeleteAndConsolidateCommands(t *testing.T) {
-	t.Parallel()
-
-	var deleted bool
-	var consolidated bool
-	deps := newTestDeps(t, &stubClient{
-		listMemoryFn: func(_ context.Context, scope memory.Scope, _ string) ([]MemoryHeaderRecord, error) {
-			switch scope {
-			case memory.ScopeGlobal:
-				return nil, nil
-			case memory.ScopeWorkspace:
-				return []MemoryHeaderRecord{{Filename: "project.md", Type: memory.MemoryTypeProject}}, nil
-			default:
-				return nil, nil
-			}
-		},
-		deleteMemoryFn: func(_ context.Context, filename string, scope memory.Scope, workspace string) (MemoryMutationRecord, error) {
-			deleted = true
-			if filename != "project.md" || scope != memory.ScopeWorkspace || workspace != "/workspace/project" {
-				t.Fatalf("DeleteMemory args = %q %q %q", filename, scope, workspace)
-			}
-			return MemoryMutationRecord{OK: true}, nil
-		},
-		consolidateMemoryFn: func(_ context.Context, workspace string) (MemoryConsolidateRecord, error) {
-			consolidated = true
-			if workspace != "/workspace/project" {
-				t.Fatalf("workspace = %q, want /workspace/project", workspace)
-			}
-			return MemoryConsolidateRecord{Triggered: false, Reason: "gates not satisfied"}, nil
-		},
-	})
-
-	deleteOut, _, err := executeRootCommand(t, deps, "memory", "delete", "project.md")
-	if err != nil {
+	if _, _, err := executeRootCommand(t, deps, "memory", "delete", "prefs.md", "--scope", "workspace"); err != nil {
 		t.Fatalf("memory delete error = %v", err)
 	}
-	if !deleted || !strings.Contains(deleteOut, "deleted") {
-		t.Fatalf("delete output = %q, deleted=%v", deleteOut, deleted)
+	if deleteSelector.Scope != memcontract.ScopeWorkspace || deleteSelector.WorkspaceID != "/workspace/project" {
+		t.Fatalf("delete selector = %#v", deleteSelector)
 	}
 
-	consolidateOut, _, err := executeRootCommand(t, deps, "memory", "consolidate")
-	if err != nil {
-		t.Fatalf("memory consolidate error = %v", err)
+	if _, _, err := executeRootCommand(t, deps, "memory", "reindex", "--scope", "workspace"); err != nil {
+		t.Fatalf("memory reindex error = %v", err)
 	}
-	if !consolidated || !strings.Contains(consolidateOut, "gates not satisfied") {
-		t.Fatalf("consolidate output = %q, consolidated=%v", consolidateOut, consolidated)
+	if reindexRequest.Scope != memcontract.ScopeWorkspace || reindexRequest.WorkspaceID != "/workspace/project" {
+		t.Fatalf("reindex request = %#v", reindexRequest)
 	}
 }
 
-func TestMemoryJSONOutputForListAndRead(t *testing.T) {
+func TestMemoryNestedOperationsCallDaemonClient(t *testing.T) {
 	t.Parallel()
 
+	calls := make(map[string]bool)
 	deps := newTestDeps(t, &stubClient{
-		listMemoryFn: func(_ context.Context, scope memory.Scope, _ string) ([]MemoryHeaderRecord, error) {
-			switch scope {
-			case memory.ScopeGlobal:
-				return []MemoryHeaderRecord{{Filename: "prefs.md", Name: "Prefs", Type: memory.MemoryTypeUser}}, nil
-			case memory.ScopeWorkspace:
-				return nil, nil
-			default:
-				return nil, nil
-			}
+		memoryHealthFn: func(_ context.Context, workspace string) (MemoryHealthRecord, error) {
+			calls["health"] = workspace == "/workspace/project"
+			return MemoryHealthRecord{Status: "ok", Enabled: true, Configured: true}, nil
 		},
-		readMemoryFn: func(context.Context, string, memory.Scope, string) (MemoryReadRecord, error) {
-			return MemoryReadRecord{Content: "memory content"}, nil
+		memoryHistoryFn: func(_ context.Context, query MemoryHistoryQuery) ([]MemoryHistoryRecord, error) {
+			calls["history"] = query.Operation == "memory.write" && query.Limit == 7
+			return []MemoryHistoryRecord{
+				{ID: "evt-1", Operation: memcontract.OperationWrite, Timestamp: fixedTestNow},
+			}, nil
+		},
+		promoteMemoryFn: func(_ context.Context, request MemoryPromoteRequest) (MemoryPromoteRecord, error) {
+			calls["promote"] = request.Filename == "prefs.md" &&
+				request.From.Scope == memcontract.ScopeWorkspace &&
+				request.To.Scope == memcontract.ScopeAgent &&
+				request.To.AgentTier == memcontract.AgentTierGlobal
+			return MemoryPromoteRecord{
+				Decision: testMemoryDecision("dec-promote", memcontract.OpUpdate),
+				Applied:  true,
+			}, nil
+		},
+		memoryScopeShowFn: func(_ context.Context, query MemorySelectorQuery) (MemoryScopeShowRecord, error) {
+			calls["scope-show"] = query.Scope == memcontract.ScopeAgent && query.AgentName == "reviewer"
+			return MemoryScopeShowRecord{
+				Selector: contract.MemoryScopeSelectorPayload{Scope: memcontract.ScopeAgent},
+			}, nil
+		},
+		triggerMemoryDreamFn: func(_ context.Context, request MemoryDreamTriggerRequest) (MemoryDreamTriggerRecord, error) {
+			calls["dream-trigger"] = request.Scope == memcontract.ScopeWorkspace &&
+				request.WorkspaceID == "/workspace/project"
+			return MemoryDreamTriggerRecord{Triggered: true, Dream: contract.MemoryDreamPayload{
+				Status:    contract.MemoryDreamStateRunning,
+				Scope:     memcontract.ScopeWorkspace,
+				StartedAt: fixedTestNow,
+			}}, nil
+		},
+		listMemoryProvidersFn: func(context.Context) (MemoryProviderListRecord, error) {
+			calls["provider-list"] = true
+			return MemoryProviderListRecord{
+				Providers: []contract.MemoryProviderPayload{{Name: "local", Active: true}},
+			}, nil
+		},
+		enableMemoryProviderFn: func(_ context.Context, name string, _ MemoryProviderLifecycleRequest) (MemoryProviderLifecycleRecord, error) {
+			calls["provider-enable"] = name == "local"
+			return MemoryProviderLifecycleRecord{
+				Provider: contract.MemoryProviderPayload{Name: name, Active: true},
+				Changed:  true,
+			}, nil
+		},
+		getMemoryExtractorStatusFn: func(_ context.Context, sessionID string) (MemoryExtractorStatusRecord, error) {
+			calls["extractor-status"] = sessionID == "sess-1"
+			return MemoryExtractorStatusRecord{
+				Extractor: contract.MemoryExtractorStatusPayload{Status: contract.MemoryExtractorStateStopped},
+			}, nil
+		},
+		listMemoryDailyLogsFn: func(_ context.Context, query MemorySelectorQuery) (MemoryDailyLogListRecord, error) {
+			calls["daily-ls"] = query.Scope == memcontract.ScopeWorkspace
+			return MemoryDailyLogListRecord{
+				Logs: []contract.MemoryDailyLogPayload{{Date: "2026-05-05", Scope: memcontract.ScopeWorkspace}},
+			}, nil
 		},
 	})
 
-	listOut, _, err := executeRootCommand(t, deps, "memory", "list", "-o", "json")
-	if err != nil {
-		t.Fatalf("memory list json error = %v", err)
-	}
-	var listPayload []memoryListItem
-	if err := json.Unmarshal([]byte(listOut), &listPayload); err != nil {
-		t.Fatalf("json.Unmarshal(list) error = %v; out=%s", err, listOut)
-	}
-	if len(listPayload) != 1 || listPayload[0].Filename != "prefs.md" {
-		t.Fatalf("list payload = %#v", listPayload)
-	}
-
-	readOut, _, err := executeRootCommand(t, deps, "memory", "read", "prefs.md", "-o", "json")
-	if err != nil {
-		t.Fatalf("memory read json error = %v", err)
-	}
-	var readPayload memoryReadView
-	if err := json.Unmarshal([]byte(readOut), &readPayload); err != nil {
-		t.Fatalf("json.Unmarshal(read) error = %v; out=%s", err, readOut)
-	}
-	if readPayload.Content != "memory content" {
-		t.Fatalf("read payload = %#v", readPayload)
-	}
-}
-
-func TestMemoryHelperLocationResolutionAndSorting(t *testing.T) {
-	t.Parallel()
-
-	recent := fixedTestNow.Add(-time.Minute)
-	older := fixedTestNow.Add(-time.Hour)
-	var seenWorkspace string
-	client := &stubClient{
-		listMemoryFn: func(_ context.Context, scope memory.Scope, workspace string) ([]MemoryHeaderRecord, error) {
-			switch scope {
-			case memory.ScopeGlobal:
-				return []MemoryHeaderRecord{
-					{Filename: "shared.md", Name: "Shared", Type: memory.MemoryTypeUser, ModTime: older},
-				}, nil
-			case memory.ScopeWorkspace:
-				seenWorkspace = workspace
-				return []MemoryHeaderRecord{
-					{Filename: "project.md", Name: "Project", Type: memory.MemoryTypeProject, ModTime: recent},
-					{
-						Filename: "shared.md",
-						Name:     "Shared",
-						Type:     memory.MemoryTypeProject,
-						ModTime:  recent.Add(-time.Minute),
-					},
-				}, nil
-			default:
-				return nil, nil
-			}
+	commands := [][]string{
+		{"memory", "health", "-o", "json"},
+		{"memory", "history", "--operation", "memory.write", "--limit", "7", "-o", "json"},
+		{
+			"memory", "promote", "prefs.md",
+			"--from", "workspace",
+			"--to", "agent:global",
+			"--agent", "reviewer",
+			"-o", "json",
 		},
+		{
+			"memory", "scope-show",
+			"--scope", "agent",
+			"--agent", "reviewer",
+			"--agent-tier", "global",
+			"-o", "json",
+		},
+		{"memory", "dream", "trigger", "--scope", "workspace", "-o", "json"},
+		{"memory", "provider", "list", "-o", "json"},
+		{"memory", "provider", "enable", "local", "-o", "json"},
+		{"memory", "extractor", "status", "--session", "sess-1", "-o", "json"},
+		{"memory", "daily", "ls", "--scope", "workspace", "-o", "json"},
 	}
-	deps := newTestDeps(t, client)
-
-	locations, err := listMemoryLocations(context.Background(), client, deps, "")
-	if err != nil {
-		t.Fatalf("listMemoryLocations() error = %v", err)
+	for _, args := range commands {
+		if _, _, err := executeRootCommand(t, deps, args...); err != nil {
+			t.Fatalf("executeRootCommand(%v) error = %v", args, err)
+		}
 	}
-	if len(locations) != 3 {
-		t.Fatalf("locations len = %d, want 3", len(locations))
-	}
-	if locations[0].Header.Filename != "project.md" || locations[0].Scope != memory.ScopeWorkspace {
-		t.Fatalf("locations[0] = %#v, want most recent workspace memory", locations[0])
-	}
-	if seenWorkspace != "/workspace/project" {
-		t.Fatalf("workspace = %q, want /workspace/project", seenWorkspace)
-	}
-
-	location, err := resolveMemoryLocation(context.Background(), client, deps, "", "project.md")
-	if err != nil {
-		t.Fatalf("resolveMemoryLocation(project.md) error = %v", err)
-	}
-	if location.Scope != memory.ScopeWorkspace || location.Workspace != "/workspace/project" {
-		t.Fatalf("location = %#v, want workspace resolution", location)
-	}
-
-	_, err = resolveMemoryLocation(context.Background(), client, deps, "", "shared.md")
-	if err == nil || !strings.Contains(err.Error(), "--scope explicitly") {
-		t.Fatalf("resolveMemoryLocation(shared.md) error = %v, want ambiguous scope error", err)
-	}
-
-	_, err = resolveMemoryLocation(context.Background(), client, deps, "", "missing.md")
-	if !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("resolveMemoryLocation(missing.md) error = %v, want os.ErrNotExist", err)
+	for _, name := range []string{
+		"health",
+		"history",
+		"promote",
+		"scope-show",
+		"dream-trigger",
+		"provider-list",
+		"provider-enable",
+		"extractor-status",
+		"daily-ls",
+	} {
+		if !calls[name] {
+			t.Fatalf("expected call %q", name)
+		}
 	}
 }
 
-func TestMemoryHelperContentScopeAndFormatting(t *testing.T) {
+func TestMemorySelectorValidationAndUnsupportedCommands(t *testing.T) {
 	t.Parallel()
 
-	makeCmd := func(stdin string, args ...string) *cobra.Command {
-		cmd := &cobra.Command{Use: "memory-test"}
-		cmd.Flags().String("content", "", "")
-		cmd.SetIn(strings.NewReader(stdin))
-		if err := cmd.Flags().Parse(args); err != nil {
-			t.Fatalf("Flags().Parse() error = %v", err)
-		}
-		return cmd
+	deps := newTestDeps(t, &stubClient{})
+	if _, _, err := executeRootCommand(
+		t,
+		deps,
+		"memory",
+		"list",
+		"--scope",
+		"agent",
+		"--agent",
+		"reviewer",
+	); err == nil ||
+		!strings.Contains(err.Error(), "memory.scope.agent_tier_required") {
+		t.Fatalf("agent tier validation error = %v", err)
 	}
-
-	flagCmd := makeCmd("", "--content", "flag body")
-	flagContent, err := resolveMemoryWriteContent(flagCmd, "flag body")
-	if err != nil || flagContent != "flag body" {
-		t.Fatalf("resolveMemoryWriteContent(flag) = %q, %v", flagContent, err)
+	if _, _, err := executeRootCommand(t, deps, "memory", "list", "--scope", "bogus"); err == nil ||
+		!strings.Contains(err.Error(), "memory.scope.invalid") {
+		t.Fatalf("invalid scope error = %v", err)
 	}
-
-	stdinCmd := makeCmd("stdin body")
-	stdinContent, err := resolveMemoryWriteContent(stdinCmd, "")
-	if err != nil || stdinContent != "stdin body" {
-		t.Fatalf("resolveMemoryWriteContent(stdin) = %q, %v", stdinContent, err)
-	}
-
-	bothCmd := makeCmd("stdin body", "--content", "flag body")
-	if _, err := resolveMemoryWriteContent(bothCmd, "flag body"); err == nil {
-		t.Fatal("resolveMemoryWriteContent(both) error = nil, want non-nil")
-	}
-
-	emptyCmd := makeCmd("")
-	if _, err := resolveMemoryWriteContent(emptyCmd, ""); err == nil {
-		t.Fatal("resolveMemoryWriteContent(empty) error = nil, want non-nil")
-	}
-
-	if content, err := readOptionalCommandInput(nil); err != nil || content != "" {
-		t.Fatalf("readOptionalCommandInput(nil) = %q, %v", content, err)
-	}
-
-	scope, err := resolveCLIMemoryWriteScope("", memory.MemoryTypeProject)
-	if err != nil || scope != memory.ScopeWorkspace {
-		t.Fatalf("resolveCLIMemoryWriteScope(project) = %q, %v", scope, err)
-	}
-	if _, err := resolveCLIMemoryWriteScope("bogus", memory.MemoryTypeUser); err == nil {
-		t.Fatal("resolveCLIMemoryWriteScope(bogus) error = nil, want non-nil")
-	}
-	if _, err := parseMemoryType("bogus"); err == nil {
-		t.Fatal("parseMemoryType(bogus) error = nil, want non-nil")
-	}
-
-	document, err := formatMemoryDocument("my.project_notes.md", memory.MemoryTypeProject, "desc", "body")
-	if err != nil {
-		t.Fatalf("formatMemoryDocument() error = %v", err)
-	}
-	if !strings.Contains(document, "name: My Project Notes") || !strings.Contains(document, "description: desc") ||
-		!strings.Contains(document, "body") {
-		t.Fatalf("document = %q, want formatted frontmatter and body", document)
-	}
-	if _, err := formatMemoryDocument("", memory.MemoryTypeUser, "desc", "body"); err == nil {
-		t.Fatal("formatMemoryDocument(empty filename) error = nil, want non-nil")
-	}
-	if memoryNameFromFilename("release_notes.v2.md") != "Release Notes V2" {
-		t.Fatalf("memoryNameFromFilename() = %q", memoryNameFromFilename("release_notes.v2.md"))
+	if _, _, err := executeRootCommand(
+		t,
+		deps,
+		"memory",
+		"daily",
+		"archive",
+		"--older-than",
+		"7d",
+		"--dry-run",
+	); err == nil ||
+		!strings.Contains(err.Error(), "memory.unsupported") {
+		t.Fatalf("daily archive unsupported error = %v", err)
 	}
 }
 
 func TestMemoryBundleHelpers(t *testing.T) {
 	t.Parallel()
 
-	listBundle := memoryListBundle([]memoryLocation{{
-		Scope: memory.ScopeGlobal,
-		Header: MemoryHeaderRecord{
-			Filename:    "prefs.md",
-			Name:        "Prefs",
-			Type:        memory.MemoryTypeUser,
-			Description: "saved preference",
-			ModTime:     fixedTestNow.Add(-time.Minute),
-		},
-	}}, func() time.Time { return fixedTestNow })
+	listBundle := memoryListBundle(MemoryListRecord{Memories: []contract.MemoryEntrySummaryPayload{{
+		Filename:    "prefs.md",
+		Name:        "Prefs",
+		Type:        memcontract.TypeUser,
+		Description: "saved preference",
+		Scope:       memcontract.ScopeAgent,
+		AgentTier:   memcontract.AgentTierGlobal,
+		ModTime:     fixedTestNow.Add(-time.Minute),
+	}}}, func() time.Time { return fixedTestNow })
 	listHuman, err := listBundle.human()
 	if err != nil {
 		t.Fatalf("listBundle.human() error = %v", err)
 	}
-	listToon, err := listBundle.toon()
-	if err != nil {
-		t.Fatalf("listBundle.toon() error = %v", err)
-	}
-	if !strings.Contains(listHuman, "prefs.md") || !strings.Contains(listToon, "prefs.md") {
-		t.Fatalf("list outputs missing memory: human=%q toon=%q", listHuman, listToon)
+	if !strings.Contains(listHuman, "agent:global") {
+		t.Fatalf("list human = %q, want agent tier label", listHuman)
 	}
 
-	readBundle := memoryReadBundle(memoryReadView{
-		Filename: "prefs.md",
-		Scope:    memory.ScopeGlobal,
-		Content:  "memory body\n",
+	decisionBundle := memoryMutationBundle("Memory Write", MemoryMutationRecord{
+		Decision: testMemoryDecision("dec-1", memcontract.OpAdd),
+		Applied:  true,
 	})
-	readHuman, err := readBundle.human()
+	decisionHuman, err := decisionBundle.human()
 	if err != nil {
-		t.Fatalf("readBundle.human() error = %v", err)
+		t.Fatalf("decisionBundle.human() error = %v", err)
 	}
-	readToon, err := readBundle.toon()
-	if err != nil {
-		t.Fatalf("readBundle.toon() error = %v", err)
-	}
-	if readHuman != "memory body" || !strings.Contains(readToon, "prefs.md") {
-		t.Fatalf("read outputs = %q / %q", readHuman, readToon)
+	if !strings.Contains(decisionHuman, "dec-1") || !strings.Contains(decisionHuman, "add") {
+		t.Fatalf("decision human = %q", decisionHuman)
 	}
 
-	mutationBundle := memoryMutationBundle(memoryMutationView{
-		Filename: "prefs.md",
-		Scope:    memory.ScopeWorkspace,
-		Type:     memory.MemoryTypeProject,
-		Status:   boolStatus(true),
-		Reason:   "queued",
+	if memoryScopeLabel(memcontract.ScopeAgent, memcontract.AgentTierWorkspace) != "agent:workspace" {
+		t.Fatalf(
+			"memoryScopeLabel(agent workspace) = %q",
+			memoryScopeLabel(memcontract.ScopeAgent, memcontract.AgentTierWorkspace),
+		)
+	}
+	if boolStatus(false) != "false" {
+		t.Fatalf("boolStatus(false) = %q, want false", boolStatus(false))
+	}
+	if _, err := parseOptionalCLIMemoryScope("bogus"); err == nil {
+		t.Fatal("parseOptionalCLIMemoryScope(bogus) error = nil, want non-nil")
+	}
+	if _, err := parseOptionalCLIAgentTier("bogus"); err == nil {
+		t.Fatal("parseOptionalCLIAgentTier(bogus) error = nil, want non-nil")
+	}
+	if _, err := parseOptionalMemoryType("bogus"); err == nil {
+		t.Fatal("parseOptionalMemoryType(bogus) error = nil, want non-nil")
+	}
+	if _, err := resolveMemoryContentValue(newTestDeps(t, &stubClient{}), "@", strings.NewReader("")); err == nil {
+		t.Fatal("resolveMemoryContentValue(@) error = nil, want non-nil")
+	}
+	if _, err := resolveMemoryContentValue(newTestDeps(t, &stubClient{}), "-", strings.NewReader("")); err == nil {
+		t.Fatal("resolveMemoryContentValue(empty stdin) error = nil, want non-nil")
+	}
+	if _, err := readOptionalCommandInput(nil); err != nil {
+		t.Fatalf("readOptionalCommandInput(nil) error = %v", err)
+	}
+}
+
+func testMemoryDecision(id string, op memcontract.Op) contract.MemoryDecisionPayload {
+	return contract.MemoryDecisionPayload{
+		ID:             id,
+		CandidateHash:  "sha256:test",
+		Op:             contract.MemoryDecisionOp(op.String()),
+		Scope:          memcontract.ScopeWorkspace,
+		TargetFilename: "prefs.md",
+		Frontmatter: memcontract.Header{
+			Name: "Prefs",
+			Type: memcontract.TypeUser,
+		},
+		Confidence: 0.9,
+		Source:     memcontract.SourceRule,
+		Reason:     "accepted",
+		DecidedAt:  fixedTestNow,
+	}
+}
+
+func TestMemoryErrorsWrapAsExpected(t *testing.T) {
+	t.Parallel()
+
+	err := errors.New("memory.unsupported: reserved")
+	if !strings.Contains(err.Error(), "memory.unsupported") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestMemoryCommandsRejectRemovedLegacyFlags(t *testing.T) {
+	t.Parallel()
+
+	deps := commandDeps{}
+
+	t.Run("Should reject reset include-system flag", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(t, deps, "memory", "reset", "--include-system")
+		if err == nil {
+			t.Fatal("executeRootCommand(memory reset --include-system) error = nil, want unknown flag")
+		}
+		if !strings.Contains(err.Error(), "unknown flag: --include-system") {
+			t.Fatalf("memory reset unknown flag error = %v", err)
+		}
 	})
-	mutationHuman, err := mutationBundle.human()
-	if err != nil {
-		t.Fatalf("mutationBundle.human() error = %v", err)
-	}
-	mutationToon, err := mutationBundle.toon()
-	if err != nil {
-		t.Fatalf("mutationBundle.toon() error = %v", err)
-	}
-	if !strings.Contains(mutationHuman, "queued") || !strings.Contains(mutationToon, "triggered") {
-		t.Fatalf("mutation outputs = %q / %q", mutationHuman, mutationToon)
-	}
 
-	if titleCaseWord("mEMORY") != "Memory" {
-		t.Fatalf("titleCaseWord() = %q, want Memory", titleCaseWord("mEMORY"))
-	}
-	if boolStatus(false) != "not-triggered" {
-		t.Fatalf("boolStatus(false) = %q, want not-triggered", boolStatus(false))
-	}
+	t.Run("Should reject extractor replay from-dlq flag", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"memory",
+			"extractor",
+			"replay",
+			"--session",
+			"sess-1",
+			"--from-dlq",
+		)
+		if err == nil {
+			t.Fatal("executeRootCommand(memory extractor replay --from-dlq) error = nil, want unknown flag")
+		}
+		if !strings.Contains(err.Error(), "unknown flag: --from-dlq") {
+			t.Fatalf("memory extractor replay unknown flag error = %v", err)
+		}
+	})
 }

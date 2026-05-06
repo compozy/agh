@@ -1,187 +1,193 @@
 ---
-title: Dream Consolidation
-description: How AGH decides when to run memory consolidation and what a dream session does to keep memory useful.
+title: Dream
+description: How AGH gates dreaming runs, scores recall signals, promotes durable memory through the controller, and persists dreaming artifacts under `_system/`.
 ---
 
-Dream consolidation is AGH's memory cleanup loop. It starts a one-shot dream session that reviews
-recent session history and existing memory files, then tightens the persistent memory store.
+Dreaming is AGH's background promotion loop. A dream session reviews recall-validated signal,
+proposes durable curated memory through the **same controller** every other write uses, and writes
+forensic artifacts under `_system/dreaming/`.
 
-The goal is not to archive everything. The goal is to keep future sessions useful:
+The goal is not to compress every transcript. The goal is to graduate facts the system already
+believed were useful — facts referenced repeatedly during recall — into durable memory:
 
-- merge duplicate memories
-- prune stale or low-signal notes
-- update `MEMORY.md` indexes
-- preserve durable decisions, preferences, feedback, and references
+- promote signal that has been recalled often enough to matter
+- merge near-duplicates through controller updates
+- keep `MEMORY.md` indexes tight after promotions
+- record forensic artifacts and DLQ entries for failed runs
+
+## Operator Term
+
+In Slice 1 the operator-facing verb is **dream trigger**. The previous "consolidation" surface is
+gone. Use `agh memory dream trigger` and `POST /api/memory/dreams/trigger`. There is no
+`agh memory consolidate`, no `POST /api/memory/consolidate` route, and no `--consolidate` flag.
 
 ## What Triggers A Dream
 
-Dream consolidation is enabled by default when memory is enabled.
+Dreaming is enabled by default when memory is enabled.
 
-AGH evaluates dream gates from two paths:
+| Trigger path      | Behavior                                                                                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| Background ticker | The daemon evaluates gates on `memory.dream.check_interval` (default 30m).                           |
+| Session stop hook | When a non-dream session stops in a known workspace, AGH queues a dream check for that workspace_id. |
+| Manual command    | `agh memory dream trigger` evaluates gates for the resolved workspace.                               |
+| HTTP / UDS API    | `POST /api/memory/dreams/trigger` accepts an optional workspace selector.                            |
 
-| Trigger path      | What happens                                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- |
-| Background ticker | The daemon checks on `memory.dream.check_interval`, which defaults to 30 minutes.                             |
-| Session stop hook | When a non-dream session stops and has a workspace ID, AGH queues a dream check for that workspace.           |
-| Manual command    | `agh memory consolidate` asks the daemon to run a gated consolidation pass for the current working directory. |
-| HTTP or UDS API   | `POST /api/memory/consolidate` optionally targets a supplied workspace.                                       |
+A trigger always re-evaluates gates. If the gates do not pass, the response is successful and
+reports the gate that blocked the run.
 
-Manual consolidation still respects the gates. If the gates are not satisfied, the response is
-successful but says consolidation was not triggered.
+## Gate Cascade
 
-## Gate Conditions
+Gates run in this order (cheaper first, observable each step):
 
-AGH checks gates in this order:
+| Gate     | Default                                                                            | Behavior                                                                                         |
+| -------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Time     | `min_hours = 24`                                                                   | Last successful run must be at least `min_hours` ago.                                            |
+| Sessions | `min_sessions = 3`                                                                 | At least `min_sessions` completed sessions since the last successful run.                        |
+| Lock     | one active runner                                                                  | Acquires the per-workspace dreaming lock; existing runners block re-entry.                       |
+| Signal   | `gates.min_unpromoted = 5`, `gates.min_recall_count = 2`, `gates.min_score = 0.75` | Inside the lock, AGH counts unpromoted candidates with sufficient recall hits and minimum score. |
 
-| Gate         | Default              | Behavior                                                                                                          |
-| ------------ | -------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Time gate    | 24 hours             | Passes when no consolidation lock exists, or when the lock mtime is at least `memory.dream.min_hours` old.        |
-| Session gate | 3 completed sessions | Passes when at least `memory.dream.min_sessions` completed sessions exist since the last consolidation timestamp. |
-| Lock gate    | one active runner    | Passes only when AGH can acquire `.consolidate-lock`.                                                             |
+`Time` and `Sessions` are evaluated outside the lock. `Signal` is evaluated **after** the lock is
+acquired so anti-thrash stamps update even when no candidates qualify.
 
-The lock file lives in the global memory directory:
+Recall signals are live: every non-trivial recall query updates `memory_recall_signals` rows
+(`recall_score`, freshness barrier, promotion columns) without affecting the recall response. The
+score is a weighted combination of:
 
-```text
-~/.agh/memory/.consolidate-lock
-```
+- frequency (how often the entry surfaces)
+- relevance (BM25 unicode + trigram score)
+- recency (with `scoring.recency_half_life_days = 14` half-life)
+- freshness (penalty for stale, never-promoted entries)
 
-While a dream is running, the lock contains the daemon process ID. After a successful run, AGH
-clears the lock body and leaves the lock mtime as the last successful consolidation timestamp. If
-the run fails before completion, AGH rolls the timestamp back.
+Weights live under `[memory.dream.scoring.weights]` and default to
+`{ frequency = 0.30, relevance = 0.35, recency = 0.20, freshness = 0.15 }`.
 
-A lock can be reclaimed when its process is gone or the lock is older than one hour.
-
-## Dream Session Lifecycle
+## What A Dream Run Does
 
 <Mermaid
   chart={`sequenceDiagram
+participant Trigger
 participant Runtime
-participant Service
 participant Lock
-participant SessionManager
-participant DreamAgent
-participant MemoryStore
+participant Curator as Dreaming-Curator Session
+participant Controller
+participant Files
 
-Runtime->>Service: ShouldRun
-Service->>Lock: LastConsolidatedAt
-Service->>Service: Count completed sessions
-Service-->>Runtime: gates passed
-Runtime->>Service: Run
-Service->>Lock: TryAcquire
-Service->>SessionManager: Create dream session
-SessionManager->>DreamAgent: Startup with consolidation prompt
-DreamAgent->>MemoryStore: Read, write, delete memories through AGH tools
-SessionManager->>DreamAgent: Stop after prompt completes
-Service->>Lock: Release or rollback`}
-caption="Dream consolidation uses a normal AGH session type, so its work is observable and stops through the same lifecycle as other sessions."
+Trigger->>Runtime: ShouldRun (Time, Sessions)
+Runtime->>Lock: TryAcquire
+Lock-->>Runtime: locked
+Runtime->>Runtime: Score recall signals (Signal gate)
+Runtime->>Curator: Spawn dreaming session (read-only memory)
+Curator->>Curator: Review \_system/dreaming + \_inbox/ artifacts
+Curator->>Controller: ProposeWrite (origin = dreaming)
+Controller->>Files: Apply add/update/delete decisions
+Controller->>Curator: Decisions persisted
+Curator->>Files: Write \_system/dreaming/<date>-<run>.md artifact
+Runtime->>Lock: Release (anti-thrash stamp)`}
+caption="Dream output is not injected directly into curated memory. Promotions are real controller decisions; the synthesis report is forensic-only under `\_system/dreaming/`."
 />
 
-Dream sessions are ordinary persisted AGH sessions with type `dream`. They are special in two ways:
+The dream agent runs as an ordinary AGH session of type `dream`. It is special in two ways:
 
-- AGH always starts them with `approve-all` permissions.
-- The session prompt is the embedded four-phase consolidation guide.
+- AGH starts it with `approve-all` permissions for the dreaming workspace context.
+- The session prompt is the embedded dreaming-curator prompt at version `memory.dream.prompt_version = "v1"`.
 
-The dream agent is configured by `memory.dream.agent`, which defaults to `general`.
+The agent that runs the dream session is configured by `memory.dream.agent` and defaults to the
+bundled **`dreaming-curator`** agent. It does not inherit `[defaults].agent`.
 
-## The Four Phases
+## What Lands Where
 
-The embedded consolidation prompt tells the dream agent to work in four phases.
+| Output                                   | Location                                                                                            |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Curated promotions                       | `<scope>/memory/<filename>` via the controller; observable as `memory.write.committed` rows.        |
+| Synthesis artifact                       | `<scope>/memory/_system/dreaming/<YYYYMMDD>-<run-slug>.md`.                                         |
+| Promoted decision rows                   | `memory_decisions` with `origin = dreaming`.                                                        |
+| `memory.dream.run.started` / `.promoted` | `memory_events` per run.                                                                            |
+| Failed run                               | `memory.dream.run.failed` event plus `<scope>/memory/_system/dream/failures/<run-id>.md` DLQ entry. |
 
-| Phase       | What the dream agent does                                                                                                                                                          |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Orient      | Read global and workspace `MEMORY.md` indexes first. Read relevant memory files before changing them. Keep the four-type taxonomy intact.                                          |
-| Gather      | Review recent completed session artifacts, especially event databases for sessions completed since the last consolidation. Extract durable signal and ignore transient tool noise. |
-| Consolidate | Merge new signal into focused memory files. Prefer updating existing files over creating near-duplicates. Convert relative dates to absolute dates.                                |
-| Prune       | Remove duplicate, obsolete, or low-signal content. Rebuild or tighten indexes so they remain concise and discoverable.                                                             |
-
-The prompt also tells the dream agent not to store secrets, speculative ideas without evidence, or
-temporary execution steps.
-
-## Workspace Selection
-
-When a dream run receives an explicit workspace, AGH resolves that workspace and runs one dream
-session for it.
-
-When a background ticker run has no explicit workspace, AGH chooses workspaces from recent
-non-dream sessions since the last consolidation. It sorts them by most recently updated session and
-runs a dream session per eligible workspace.
-
-If no recent workspace can be found, the background run logs the problem and does not mutate memory.
+`_system/dreaming/` and `_system/dream/failures/` are structurally excluded from prompt injection
+and from default recall. Operators browse them with `agh memory dream show <date>` and
+`agh memory dream retry <run-id>`.
 
 ## Configuration
 
-Default dream configuration:
-
 ```toml
 [memory.dream]
 enabled = true
-agent = "general"
+agent = "dreaming-curator"
 min_hours = 24
 min_sessions = 3
+debounce = "10m"
+prompt_version = "v1"
 check_interval = "30m"
+
+[memory.dream.gates]
+min_unpromoted = 5
+min_recall_count = 2
+min_score = 0.75
+
+[memory.dream.scoring]
+recency_half_life_days = 14
+
+[memory.dream.scoring.weights]
+frequency = 0.30
+relevance = 0.35
+recency = 0.20
+freshness = 0.15
 ```
 
-Rules:
+| Field            | Meaning                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `enabled`        | Turns dreaming on or off. Memory writes still flow through the controller when off. |
+| `agent`          | Dedicated curator agent. Defaults to `dreaming-curator`.                            |
+| `min_hours`      | Minimum hours between successful runs (Time gate).                                  |
+| `min_sessions`   | Minimum completed sessions since the last run (Sessions gate).                      |
+| `debounce`       | Debounce window for triggers from the session stop hook.                            |
+| `prompt_version` | Pinned prompt template version for the dreaming session.                            |
+| `check_interval` | Background ticker interval.                                                         |
+| `gates.*`        | Signal-gate thresholds.                                                             |
+| `scoring.*`      | Score weights and the recency half-life used by the signal gate.                    |
 
-| Field            | Meaning                                    | Validation when enabled |
-| ---------------- | ------------------------------------------ | ----------------------- |
-| `enabled`        | Turns dream consolidation on or off.       | none                    |
-| `agent`          | Agent name used for dream sessions.        | Required and non-empty. |
-| `min_hours`      | Minimum hours between successful runs.     | Must be positive.       |
-| `min_sessions`   | Minimum completed sessions since last run. | Must be positive.       |
-| `check_interval` | Background ticker interval.                | Must be positive.       |
+Set `[memory.dream] enabled = false` to keep memory writes/recall active while disabling background
+and manual dream runs.
 
-Disable only dream consolidation:
-
-```toml
-[memory]
-enabled = true
-
-[memory.dream]
-enabled = false
-```
-
-This keeps memory files and prompt injection active, but stops background and manual dream runs from
-starting.
-
-## Manual Consolidation
-
-Run a gated consolidation check for the current workspace:
+## Manual Trigger
 
 ```bash
-agh memory consolidate
+agh memory dream trigger
 ```
 
-Call the API directly:
-
 ```bash
-curl -X POST http://localhost:2123/api/memory/consolidate \
+curl -X POST http://localhost:2123/api/memory/dreams/trigger \
   -H "Content-Type: application/json" \
-  -d '{"workspace":"/absolute/path/to/repo"}'
+  -d '{"workspace_id":"01HXJ9YR4QABCDEFGHJK0123456"}'
 ```
 
 Possible outcomes:
 
-| Outcome                                 | Meaning                                                                        |
-| --------------------------------------- | ------------------------------------------------------------------------------ |
-| `triggered: true`                       | A dream session was started and completed without reported prompt errors.      |
-| `triggered: false`, gates not satisfied | The time or session threshold has not been reached.                            |
-| `triggered: false`, disabled            | Memory dream consolidation is disabled or not wired.                           |
-| `triggered: false`, already running     | Another consolidation run holds the lock.                                      |
-| error response                          | Workspace resolution, session creation, dream prompt, or lock handling failed. |
+| Outcome                              | Meaning                                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `triggered: true`                    | A dream session ran. Promotions land via controller decisions.                        |
+| `triggered: false`, `gate: time`     | Last successful run is still within `min_hours`.                                      |
+| `triggered: false`, `gate: sessions` | Not enough completed sessions since the last run.                                     |
+| `triggered: false`, `gate: lock`     | Another dream run for this workspace holds the lock.                                  |
+| `triggered: false`, `gate: signal`   | Inside the lock, no candidate cleared the signal threshold.                           |
+| `triggered: false`, `disabled`       | Dreaming is disabled by config or composition.                                        |
+| `error response`                     | Workspace resolution, controller, lock acquisition, or dreaming session start failed. |
 
 ## What Dream Does Not Do
 
-Dream consolidation is not a per-turn extractor. AGH does not silently summarize every prompt into
-memory while a session runs. Agents write explicit memory files through `agh memory write`, and the
-dream pass later compresses and organizes that material with recent session history.
-
-Dream also does not bypass the file format. Memory remains Markdown with YAML frontmatter, and
-`MEMORY.md` remains the discoverability layer injected into the next startup prompt.
+- It does **not** bypass the controller. Every promotion is a real `memory_decisions` row.
+- It does **not** inject `_system/dreaming/<date>-*.md` artifacts directly into prompts; promoted
+  facts must land as curated entries to reach a future snapshot.
+- It does **not** replace the extractor. Mid-session candidate extraction is the
+  `session.message_persisted` hook and the bounded extractor queue. Dreaming consumes the resulting
+  signal and the `_inbox/` material.
+- It does **not** touch session ledgers. Forensic ledgers are immutable after materialization (see
+  [Sessions](/runtime/core/sessions)).
 
 ## Related Pages
 
-- [Memory System](/runtime/core/memory/system) explains memory files and indexes.
-- [Global vs Workspace Memory](/runtime/core/memory/scopes) explains storage and resolution rules.
-- [Session Lifecycle](/runtime/core/sessions/lifecycle) documents the `dream` session type.
-- [Memory Consolidate CLI](/runtime/cli-reference/memory/consolidate) shows generated command reference.
+- [Memory System](/runtime/core/memory/system) explains the controller, the WAL, and recall.
+- [Memory Scopes](/runtime/core/memory/scopes) explains scope/tier resolution and shadowing.
+- [Hooks](/runtime/core/hooks) documents `session.message_persisted` and the extractor entry point.
+- [Memory Dream Trigger CLI](/runtime/cli-reference/memory/dream/trigger) shows the generated command reference.

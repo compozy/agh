@@ -86,6 +86,13 @@ var hookEventDescriptors = map[HookEvent]EventDescriptor{
 		PayloadSchema: "SessionPostStopPayload",
 		PatchSchema:   "SessionPostStopPatch",
 	},
+	HookSessionMessagePersisted: {
+		Event:         HookSessionMessagePersisted,
+		Family:        HookEventFamilySession,
+		SyncEligible:  false,
+		PayloadSchema: "SessionMessagePersistedPayload",
+		PatchSchema:   "AuthoredContextObservationPatch",
+	},
 	HookSandboxPrepare: {
 		Event:         HookSandboxPrepare,
 		Family:        HookEventFamilySandbox,

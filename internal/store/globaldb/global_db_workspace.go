@@ -219,7 +219,7 @@ func (g *GlobalDB) normalizeWorkspaceForInsert(ws aghworkspace.Workspace) (aghwo
 	}
 
 	if strings.TrimSpace(normalized.ID) == "" {
-		normalized.ID = store.NewID("ws")
+		normalized.ID = aghworkspace.NewWorkspaceID()
 	}
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = g.now()

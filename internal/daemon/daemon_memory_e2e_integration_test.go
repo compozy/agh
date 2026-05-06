@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
 )
@@ -32,7 +33,9 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 	}
 	if err := os.WriteFile(
 		legacyPath,
-		[]byte(memoryDocument("Legacy Decoy", "Legacy path should stay ignored", memory.MemoryTypeProject, "legacy decoy")),
+		[]byte(
+			memoryDocument("Legacy Decoy", "Legacy path should stay ignored", memcontract.TypeProject, "legacy decoy"),
+		),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", legacyPath, err)
@@ -44,10 +47,10 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		harness,
 		"",
 		"prefs.md",
-		memory.MemoryTypeUser,
+		memcontract.TypeUser,
 		"User prefers concise answers",
 		"Prefer concise answers with direct technical detail.",
-		memory.ScopeGlobal,
+		memcontract.ScopeGlobal,
 	)
 	writeMemoryViaCLI(
 		t,
@@ -55,10 +58,10 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		harness,
 		harness.WorkspaceRoot,
 		"auth.md",
-		memory.MemoryTypeProject,
+		memcontract.TypeProject,
 		"Auth migration details",
 		"Remember me: auth migration uses sessions and workspace-scoped recall.",
-		memory.ScopeWorkspace,
+		memcontract.ScopeWorkspace,
 	)
 	writeMemoryViaCLI(
 		t,
@@ -66,14 +69,14 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		harness,
 		harness.WorkspaceRoot,
 		"release-plan.md",
-		memory.MemoryTypeProject,
+		memcontract.TypeProject,
 		"Release plan details",
-		"Release plan covers regression gates and observability checks.",
-		memory.ScopeWorkspace,
+		"Release plan covers durable release checklist and observability ownership.",
+		memcontract.ScopeWorkspace,
 	)
 
 	t.Run("Should return matching CLI and HTTP search results while ignoring legacy paths", func(t *testing.T) {
-		var cliSearch []memory.SearchResult
+		var cliSearch aghcontract.MemorySearchResponse
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
@@ -81,42 +84,44 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			"memory",
 			"search",
 			"auth sessions",
+			"--workspace",
+			harness.WorkspaceRoot,
 			"-o",
 			"json",
 		); err != nil {
 			t.Fatalf("CLI memory search error = %v", err)
 		}
-		if !containsSearchResult(cliSearch, "auth.md", memory.ScopeWorkspace) {
-			t.Fatalf("CLI search results = %#v, want workspace auth.md hit", cliSearch)
+		if !containsSearchResult(cliSearch, "project_auth.md", memcontract.ScopeWorkspace) {
+			t.Fatalf("CLI search results = %#v, want workspace project_auth.md hit", cliSearch)
 		}
-		if containsSearchResult(cliSearch, "legacy-only.md", memory.ScopeWorkspace) {
+		if containsSearchResult(cliSearch, "legacy-only.md", memcontract.ScopeWorkspace) {
 			t.Fatalf("CLI search results = %#v, want legacy path ignored", cliSearch)
 		}
 
-		var httpSearch []memory.SearchResult
+		var httpSearch aghcontract.MemorySearchResponse
 		if err := harness.HTTPJSON(
 			ctx,
-			http.MethodGet,
-			memorySearchPath("auth sessions", harness.WorkspaceRoot),
-			nil,
+			http.MethodPost,
+			"/api/memory/search",
+			memorySearchRequest("auth sessions", memcontract.ScopeWorkspace, harness.WorkspaceRoot),
 			&httpSearch,
 		); err != nil {
 			t.Fatalf("HTTP memory search error = %v", err)
 		}
-		if !containsSearchResult(httpSearch, "auth.md", memory.ScopeWorkspace) {
-			t.Fatalf("HTTP search results = %#v, want workspace auth.md hit", httpSearch)
+		if !containsSearchResult(httpSearch, "project_auth.md", memcontract.ScopeWorkspace) {
+			t.Fatalf("HTTP search results = %#v, want workspace project_auth.md hit", httpSearch)
 		}
-		if len(cliSearch) == 0 || len(httpSearch) == 0 {
+		if len(cliSearch.Results) == 0 || len(httpSearch.Results) == 0 {
 			t.Fatalf("search results = cli:%#v http:%#v, want non-empty parity", cliSearch, httpSearch)
 		}
-		if got, want := httpSearch[0].Filename, cliSearch[0].Filename; got != want {
+		if got, want := httpSearch.Results[0].Memory.Filename, cliSearch.Results[0].Memory.Filename; got != want {
 			t.Fatalf("HTTP top search filename = %q, want %q", got, want)
 		}
-		if got, want := httpSearch[0].Scope, cliSearch[0].Scope; got != want {
+		if got, want := httpSearch.Results[0].Memory.Scope, cliSearch.Results[0].Memory.Scope; got != want {
 			t.Fatalf("HTTP top search scope = %q, want %q", got, want)
 		}
 
-		var cliLegacy []memory.SearchResult
+		var cliLegacy aghcontract.MemorySearchResponse
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
@@ -124,32 +129,34 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			"memory",
 			"search",
 			"legacy decoy",
+			"--workspace",
+			harness.WorkspaceRoot,
 			"-o",
 			"json",
 		); err != nil {
 			t.Fatalf("CLI legacy search error = %v", err)
 		}
-		if len(cliLegacy) != 0 {
+		if len(cliLegacy.Results) != 0 {
 			t.Fatalf("CLI legacy search results = %#v, want empty result set", cliLegacy)
 		}
 
-		var httpLegacy []memory.SearchResult
+		var httpLegacy aghcontract.MemorySearchResponse
 		if err := harness.HTTPJSON(
 			ctx,
-			http.MethodGet,
-			memorySearchPath("legacy decoy", harness.WorkspaceRoot),
-			nil,
+			http.MethodPost,
+			"/api/memory/search",
+			memorySearchRequest("legacy decoy", memcontract.ScopeWorkspace, harness.WorkspaceRoot),
 			&httpLegacy,
 		); err != nil {
 			t.Fatalf("HTTP legacy search error = %v", err)
 		}
-		if len(httpLegacy) != 0 {
+		if len(httpLegacy.Results) != 0 {
 			t.Fatalf("HTTP legacy search results = %#v, want empty result set", httpLegacy)
 		}
 	})
 
 	t.Run("Should reindex through CLI and HTTP with matching counts", func(t *testing.T) {
-		var cliReindex memory.ReindexResult
+		var cliReindex memcontract.ReindexResult
 		if err := harness.CLI.RunJSONInDir(
 			ctx,
 			harness.WorkspaceRoot,
@@ -165,12 +172,12 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			t.Fatalf("CLI reindex indexed_files = %d, want %d", got, want)
 		}
 
-		var httpReindex memory.ReindexResult
+		var httpReindex memcontract.ReindexResult
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodPost,
 			"/api/memory/reindex",
-			aghcontract.MemoryReindexRequest{Workspace: harness.WorkspaceRoot},
+			aghcontract.MemoryReindexV2Request{WorkspaceID: harness.WorkspaceRoot},
 			&httpReindex,
 		); err != nil {
 			t.Fatalf("HTTP memory reindex error = %v", err)
@@ -211,13 +218,13 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
-			"/api/observe/events?type=memory.reindex&limit=10",
+			"/api/observe/events?type=memory.write.reindex&limit=10",
 			nil,
 			&reindexEvents,
 		); err != nil {
 			t.Fatalf("UDS observe reindex events error = %v", err)
 		}
-		if !containsObserveEventSummary(reindexEvents.Events, "memory.reindex", "indexed=3") {
+		if !containsObserveEventSummary(reindexEvents.Events, "memory.write.reindex", "indexed=3") {
 			t.Fatalf("reindex observe events = %#v, want indexed=3 summary", reindexEvents.Events)
 		}
 
@@ -225,16 +232,16 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
-			"/api/observe/events?type=memory.search&limit=10",
+			"/api/observe/events?type=memory.recall.executed&limit=10",
 			nil,
 			&searchEvents,
 		); err != nil {
 			t.Fatalf("UDS observe search events error = %v", err)
 		}
-		if !containsObserveEventSummary(searchEvents.Events, "memory.search", `auth sessions`) {
+		if !containsObserveEventSummary(searchEvents.Events, "memory.recall.executed", `auth sessions`) {
 			t.Fatalf("search observe events = %#v, want auth search summary", searchEvents.Events)
 		}
-		if !containsObserveEventSummary(searchEvents.Events, "memory.search", `legacy decoy`) {
+		if !containsObserveEventSummary(searchEvents.Events, "memory.recall.executed", `legacy decoy`) {
 			t.Fatalf("search observe events = %#v, want legacy search summary", searchEvents.Events)
 		}
 	})
@@ -265,12 +272,7 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 		harness,
 		"auth.md",
 		harness.WorkspaceRoot,
-		memoryDocument(
-			"Auth",
-			"Workspace auth migration details",
-			memory.MemoryTypeProject,
-			"Remember me: auth migration uses sessions and workspace-scoped recall.",
-		),
+		"Remember me: auth migration uses sessions and workspace-scoped recall.",
 	)
 
 	indexPath := filepath.Join(harness.WorkspaceRoot, ".agh", "memory", "MEMORY.md")
@@ -322,7 +324,7 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 		if !strings.Contains(prompt, "Relevant durable memory for this turn:") {
 			t.Fatalf("mock prompt = %q, want recall preamble", prompt)
 		}
-		if !strings.Contains(prompt, "- Auth [workspace]") {
+		if !strings.Contains(prompt, "- auth [workspace]") {
 			t.Fatalf("mock prompt = %q, want workspace recall heading", prompt)
 		}
 		if !strings.Contains(prompt, "auth migration uses sessions") {
@@ -347,35 +349,27 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 	})
 }
 
-type cliMemoryMutationRecord struct {
-	Filename string       `json:"filename"`
-	Scope    memory.Scope `json:"scope"`
-	Status   string       `json:"status"`
-}
-
 func writeMemoryViaCLI(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	workdir string,
 	filename string,
-	memoryType memory.Type,
+	memoryType memcontract.Type,
 	description string,
 	content string,
-	scope memory.Scope,
+	scope memcontract.Scope,
 ) {
 	t.Helper()
 
-	var result cliMemoryMutationRecord
-	if err := harness.CLI.RunJSONInDir(
-		ctx,
-		workdir,
-		&result,
+	var result aghcontract.MemoryMutationDecisionResponse
+	args := []string{
 		"memory",
 		"write",
-		filename,
 		"--type",
 		string(memoryType),
+		"--name",
+		strings.TrimSuffix(filename, filepath.Ext(filename)),
 		"--description",
 		description,
 		"--content",
@@ -384,11 +378,15 @@ func writeMemoryViaCLI(
 		string(scope),
 		"-o",
 		"json",
-	); err != nil {
+	}
+	if scope == memcontract.ScopeWorkspace {
+		args = append(args[:len(args)-2], "--workspace", workdir, "-o", "json")
+	}
+	if err := harness.CLI.RunJSONInDir(ctx, workdir, &result, args...); err != nil {
 		t.Fatalf("CLI memory write %q error = %v", filename, err)
 	}
-	if got, want := result.Status, "written"; got != want {
-		t.Fatalf("CLI memory write %q status = %q, want %q", filename, got, want)
+	if !result.Applied {
+		t.Fatalf("CLI memory write %q = %#v, want applied=true", filename, result)
 	}
 }
 
@@ -402,37 +400,42 @@ func writeMemoryViaUDS(
 ) {
 	t.Helper()
 
-	var response aghcontract.MemoryMutationResponse
+	var response aghcontract.MemoryMutationDecisionResponse
 	if err := harness.UDSJSON(
 		ctx,
-		http.MethodPut,
-		"/api/memory/"+url.PathEscape(filename),
-		aghcontract.MemoryWriteRequest{
-			Scope:     string(memory.ScopeWorkspace),
-			Workspace: workspace,
-			Content:   content,
+		http.MethodPost,
+		"/api/memory",
+		aghcontract.MemoryCreateRequest{
+			Scope:       memcontract.ScopeWorkspace,
+			WorkspaceID: workspace,
+			Type:        memcontract.TypeProject,
+			Name:        strings.TrimSuffix(filename, filepath.Ext(filename)),
+			Content:     content,
 		},
 		&response,
 	); err != nil {
 		t.Fatalf("UDS memory write %q error = %v", filename, err)
 	}
-	if !response.OK {
-		t.Fatalf("UDS memory write %q = %#v, want ok=true", filename, response)
+	if !response.Applied {
+		t.Fatalf("UDS memory write %q = %#v, want applied=true", filename, response)
 	}
 }
 
-func memorySearchPath(query string, workspace string) string {
-	values := url.Values{}
-	values.Set("q", query)
-	if strings.TrimSpace(workspace) != "" {
-		values.Set("workspace", workspace)
+func memorySearchRequest(
+	query string,
+	scope memcontract.Scope,
+	workspace string,
+) aghcontract.MemorySearchRequest {
+	return aghcontract.MemorySearchRequest{
+		QueryText:   query,
+		Scope:       scope,
+		WorkspaceID: workspace,
 	}
-	return "/api/memory/search?" + values.Encode()
 }
 
-func containsSearchResult(results []memory.SearchResult, filename string, scope memory.Scope) bool {
-	for _, result := range results {
-		if result.Filename == filename && result.Scope == scope {
+func containsSearchResult(response aghcontract.MemorySearchResponse, filename string, scope memcontract.Scope) bool {
+	for _, result := range response.Results {
+		if result.Memory.Filename == filename && result.Memory.Scope == scope {
 			return true
 		}
 	}

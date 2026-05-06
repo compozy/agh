@@ -65,6 +65,19 @@ type SessionEvent struct {
 	Timestamp time.Time
 }
 
+// SessionLedgerRecord carries the durable session evidence needed to materialize
+// a forensic session ledger after the live event store has been closed.
+type SessionLedgerRecord struct {
+	SessionID    string
+	WorkspaceID  string
+	AgentName    string
+	SessionType  string
+	EventsDBPath string
+	Lineage      *SessionLineage
+	StartedAt    time.Time
+	EndedAt      time.Time
+}
+
 // EventCorrelation carries the canonical cross-surface correlation keys for
 // session and observability events.
 type EventCorrelation struct {
@@ -413,7 +426,8 @@ func eventSummaryAllowsGlobalScope(eventType string) bool {
 		"skills.shadow",
 		"skills.load_failed",
 		"hook.dispatch.start",
-		"hook.dispatch.complete":
+		"hook.dispatch.complete",
+		"memory.provider.collision":
 		return true
 	default:
 		return false

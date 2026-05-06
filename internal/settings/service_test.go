@@ -1183,6 +1183,16 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
+	memoryHomePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-settings-home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	memoryConfig := aghconfig.DefaultWithHome(memoryHomePaths).Memory
+	memoryConfig.GlobalDir = "/tmp/updated-memory"
+	memoryConfig.Dream.Agent = "writer"
+	memoryConfig.Dream.MinHours = 12
+	memoryConfig.Dream.MinSessions = 3
+	memoryConfig.Dream.CheckInterval = 15 * time.Minute
 
 	tests := []struct {
 		name    string
@@ -1193,17 +1203,7 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			name: "memory",
 			request: SectionUpdateRequest{
 				SectionRequest: SectionRequest{Section: SectionMemory},
-				Memory: &aghconfig.MemoryConfig{
-					Enabled:   true,
-					GlobalDir: "/tmp/updated-memory",
-					Dream: aghconfig.DreamConfig{
-						Enabled:       true,
-						Agent:         "writer",
-						MinHours:      12,
-						MinSessions:   3,
-						CheckInterval: 15 * time.Minute,
-					},
-				},
+				Memory:         &memoryConfig,
 			},
 			want: `global_dir = "/tmp/updated-memory"`,
 		},

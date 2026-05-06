@@ -579,6 +579,16 @@ func TestDispatchMethodsSmokeNoHooks(t *testing.T) {
 			},
 		},
 		{
+			name: "Should dispatch session.message_persisted without hooks",
+			run: func(ctx context.Context, hooks *Hooks) error {
+				_, err := hooks.DispatchSessionMessagePersisted(
+					ctx,
+					SessionMessagePersistedPayload{PayloadBase: PayloadBase{Event: HookSessionMessagePersisted}},
+				)
+				return err
+			},
+		},
+		{
 			name: "Should dispatch tool.pre_call without hooks",
 			run: func(ctx context.Context, hooks *Hooks) error {
 				_, err := hooks.DispatchToolPreCall(

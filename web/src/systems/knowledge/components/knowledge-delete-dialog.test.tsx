@@ -6,11 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 import { KnowledgeDeleteDialog } from "./knowledge-delete-dialog";
 
 describe("KnowledgeDeleteDialog", () => {
-  it("does not render the dialog body when open is false", () => {
+  it("Should not render the dialog body when open is false", () => {
     render(
       <UIProvider reducedMotion="always">
         <KnowledgeDeleteDialog
-          filename="global/user.md"
+          filename="user.md"
           isPending={false}
           onConfirm={vi.fn()}
           onOpenChange={vi.fn()}
@@ -22,11 +22,11 @@ describe("KnowledgeDeleteDialog", () => {
     expect(screen.queryByTestId("knowledge-delete-dialog")).not.toBeInTheDocument();
   });
 
-  it("renders the filename and scope in the description when open", () => {
+  it("Should render the filename and scope in the description when open", () => {
     render(
       <UIProvider reducedMotion="always">
         <KnowledgeDeleteDialog
-          filename="workspace/project-context.md"
+          filename="project-context.md"
           isPending={false}
           onConfirm={vi.fn()}
           onOpenChange={vi.fn()}
@@ -36,17 +36,17 @@ describe("KnowledgeDeleteDialog", () => {
       </UIProvider>
     );
     expect(screen.getByTestId("knowledge-delete-dialog")).toBeInTheDocument();
-    expect(screen.getByText(/workspace\/project-context\.md/)).toBeInTheDocument();
+    expect(screen.getByText(/project-context\.md/)).toBeInTheDocument();
     expect(screen.getByText(/workspace scope/)).toBeInTheDocument();
   });
 
-  it("calls onConfirm when confirm is clicked", async () => {
+  it("Should call onConfirm when confirm is clicked", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
     render(
       <UIProvider reducedMotion="always">
         <KnowledgeDeleteDialog
-          filename="global/user.md"
+          filename="user.md"
           isPending={false}
           onConfirm={onConfirm}
           onOpenChange={vi.fn()}
@@ -59,13 +59,13 @@ describe("KnowledgeDeleteDialog", () => {
     expect(onConfirm).toHaveBeenCalled();
   });
 
-  it("calls onOpenChange(false) when cancel is clicked", async () => {
+  it("Should call onOpenChange(false) when cancel is clicked", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
       <UIProvider reducedMotion="always">
         <KnowledgeDeleteDialog
-          filename="global/user.md"
+          filename="user.md"
           isPending={false}
           onConfirm={vi.fn()}
           onOpenChange={onOpenChange}
@@ -78,11 +78,11 @@ describe("KnowledgeDeleteDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("disables the confirm button while a delete is pending", () => {
+  it("Should disable the confirm button while a delete is pending", () => {
     render(
       <UIProvider reducedMotion="always">
         <KnowledgeDeleteDialog
-          filename="global/user.md"
+          filename="user.md"
           isPending
           onConfirm={vi.fn()}
           onOpenChange={vi.fn()}

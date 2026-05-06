@@ -200,9 +200,9 @@ func (k *Kernel) ActivateSourceSession(
 	unlock := k.lockSource(normalizedSource)
 	defer unlock()
 
-	return k.withImmediateTransaction(ctx, "activate source session", func(conn *sql.Conn) error {
+	return k.withImmediateTransaction(ctx, "activate source session", func(exec sqlExecutor) error {
 		updatedAt := store.FormatTimestamp(k.now())
-		if _, err := conn.ExecContext(
+		if _, err := exec.ExecContext(
 			ctx,
 			activateSourceStateQuery,
 			normalizedSource.Kind,
@@ -243,8 +243,8 @@ func (k *Kernel) ResetSource(ctx context.Context, actor MutationActor, source Re
 	unlock := k.lockSource(normalizedSource)
 	defer unlock()
 
-	return k.withImmediateTransaction(ctx, "reset source", func(conn *sql.Conn) error {
-		if _, err := conn.ExecContext(
+	return k.withImmediateTransaction(ctx, "reset source", func(exec sqlExecutor) error {
+		if _, err := exec.ExecContext(
 			ctx,
 			deleteSourceRecordsQuery,
 			normalizedSource.Kind,
@@ -257,7 +257,7 @@ func (k *Kernel) ResetSource(ctx context.Context, actor MutationActor, source Re
 				err,
 			)
 		}
-		if _, err := conn.ExecContext(
+		if _, err := exec.ExecContext(
 			ctx,
 			deleteSourceStateQuery,
 			normalizedSource.Kind,
@@ -285,25 +285,18 @@ func (k *Kernel) PutRaw(ctx context.Context, actor MutationActor, draft RawDraft
 		return RawRecord{}, err
 	}
 
-	tx, err := k.db.BeginTx(ctx, nil)
-	if err != nil {
-		return RawRecord{}, fmt.Errorf("resources: begin put transaction: %w", err)
+	if err := store.ExecuteWrite(ctx, k.db, func(_ context.Context, tx *store.WriteTx) error {
+		var putErr error
+		record, putErr = k.putRawWithExecutor(ctx, tx, normalizedActor, normalizedDraft)
+		return putErr
+	}); err != nil {
+		return RawRecord{}, fmt.Errorf(
+			"resources: put record %q/%q: %w",
+			normalizedDraft.Kind,
+			normalizedDraft.ID,
+			err,
+		)
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			joinCleanupError(&err, rollbackTx(tx))
-		}
-	}()
-
-	record, err = k.putRawWithExecutor(ctx, tx, normalizedActor, normalizedDraft)
-	if err != nil {
-		return RawRecord{}, err
-	}
-	if err = tx.Commit(); err != nil {
-		return RawRecord{}, fmt.Errorf("resources: commit put %q/%q: %w", record.Kind, record.ID, err)
-	}
-	committed = true
 	return record, nil
 }
 
@@ -324,25 +317,11 @@ func (k *Kernel) DeleteRaw(
 		return err
 	}
 
-	tx, err := k.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("resources: begin delete transaction: %w", err)
+	if err := store.ExecuteWrite(ctx, k.db, func(_ context.Context, tx *store.WriteTx) error {
+		return k.deleteRawWithExecutor(ctx, tx, normalizedActor, normalizedKind, trimmedID, expectedVersion)
+	}); err != nil {
+		return fmt.Errorf("resources: delete record %q/%q: %w", normalizedKind, trimmedID, err)
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			joinCleanupError(&err, rollbackTx(tx))
-		}
-	}()
-
-	err = k.deleteRawWithExecutor(ctx, tx, normalizedActor, normalizedKind, trimmedID, expectedVersion)
-	if err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("resources: commit delete %q/%q: %w", normalizedKind, trimmedID, err)
-	}
-	committed = true
 	return nil
 }
 
@@ -442,10 +421,10 @@ func (k *Kernel) ApplySourceSnapshotRaw(ctx context.Context, actor MutationActor
 	unlock := k.lockSource(normalizedActor.Source)
 	defer unlock()
 
-	return k.withImmediateTransaction(ctx, "apply source snapshot", func(conn *sql.Conn) error {
+	return k.withImmediateTransaction(ctx, "apply source snapshot", func(exec sqlExecutor) error {
 		return k.applySnapshotWithExecutor(
 			ctx,
-			conn,
+			exec,
 			normalizedActor,
 			normalizedSnapshot,
 			normalizedDrafts,
@@ -1288,38 +1267,13 @@ func joinCleanupError(target *error, cleanupErr error) {
 func (k *Kernel) withImmediateTransaction(
 	ctx context.Context,
 	action string,
-	run func(conn *sql.Conn) error,
-) (err error) {
-	conn, err := k.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("resources: open connection for %s: %w", action, err)
+	run func(exec sqlExecutor) error,
+) error {
+	if err := store.ExecuteWrite(ctx, k.db, func(_ context.Context, tx *store.WriteTx) error {
+		return run(tx)
+	}); err != nil {
+		return fmt.Errorf("resources: %s transaction: %w", action, err)
 	}
-	defer func() {
-		_ = conn.Close()
-	}()
-
-	rollbackCtx := context.WithoutCancel(ctx)
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("resources: begin immediate %s transaction: %w", action, err)
-	}
-
-	finished := false
-	defer func() {
-		if !finished {
-			if rollbackErr := rollbackImmediate(rollbackCtx, conn); rollbackErr != nil && err == nil {
-				err = fmt.Errorf("resources: rollback %s transaction: %w", action, rollbackErr)
-			}
-		}
-	}()
-
-	if err := run(conn); err != nil {
-		return err
-	}
-	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return fmt.Errorf("resources: commit %s transaction: %w", action, err)
-	}
-
-	finished = true
 	return nil
 }
 

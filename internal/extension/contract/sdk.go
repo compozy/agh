@@ -6,7 +6,7 @@ import (
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/memory"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/tools"
@@ -111,7 +111,7 @@ var sdkRootTypes = []NamedType{
 	{Name: "ExtensionProvideToolsResponse", Value: tools.ExtensionProvideToolsResponse{}},
 	{Name: "ExtensionToolCallRequest", Value: tools.ExtensionToolCallRequest{}},
 	{Name: "ExtensionToolCallResponse", Value: tools.ExtensionToolCallResponse{}},
-	{Name: "MemoryScope", Value: memory.Scope("")},
+	{Name: "MemoryScope", Value: memcontract.Scope("")},
 	{Name: "HookEventFamily", Value: hooks.HookEventFamily("")},
 	{Name: "HookRunOutcome", Value: hooks.HookRunOutcome("")},
 	{Name: "HookSkillSource", Value: hooks.HookSkillSource("")},
@@ -169,6 +169,7 @@ var sdkRootTypes = []NamedType{
 	{Name: "TurnPayload", Value: hooks.TurnPayload{}},
 	{Name: "TurnPatch", Value: hooks.TurnPatch{}},
 	{Name: "MessagePayload", Value: hooks.MessagePayload{}},
+	{Name: "SessionMessagePersistedPayload", Value: hooks.SessionMessagePersistedPayload{}},
 	{Name: "MessagePatch", Value: hooks.MessagePatch{}},
 	{Name: "ToolPreCallPayload", Value: hooks.ToolPreCallPayload{}},
 	{Name: "ToolPostCallPayload", Value: hooks.ToolPostCallPayload{}},
@@ -397,18 +398,22 @@ var namedHookTypes = map[string]NamedType{
 		Name:  "NetworkWorkTransitionedPayload",
 		Value: hooks.NetworkWorkTransitionedPayload{},
 	},
-	"NetworkWorkClosedPayload":    {Name: "NetworkWorkClosedPayload", Value: hooks.NetworkWorkClosedPayload{}},
-	"NetworkObservationPatch":     {Name: "NetworkObservationPatch", Value: hooks.NetworkObservationPatch{}},
-	"TurnPayload":                 {Name: "TurnPayload", Value: hooks.TurnPayload{}},
-	"TurnStartPayload":            {Name: "TurnStartPayload", Value: hooks.TurnStartPayload{}},
-	"TurnEndPayload":              {Name: "TurnEndPayload", Value: hooks.TurnEndPayload{}},
-	"TurnPatch":                   {Name: "TurnPatch", Value: hooks.TurnPatch{}},
-	"TurnStartPatch":              {Name: "TurnStartPatch", Value: hooks.TurnStartPatch{}},
-	"TurnEndPatch":                {Name: "TurnEndPatch", Value: hooks.TurnEndPatch{}},
-	"MessagePayload":              {Name: "MessagePayload", Value: hooks.MessagePayload{}},
-	"MessageStartPayload":         {Name: "MessageStartPayload", Value: hooks.MessageStartPayload{}},
-	"MessageDeltaPayload":         {Name: "MessageDeltaPayload", Value: hooks.MessageDeltaPayload{}},
-	"MessageEndPayload":           {Name: "MessageEndPayload", Value: hooks.MessageEndPayload{}},
+	"NetworkWorkClosedPayload": {Name: "NetworkWorkClosedPayload", Value: hooks.NetworkWorkClosedPayload{}},
+	"NetworkObservationPatch":  {Name: "NetworkObservationPatch", Value: hooks.NetworkObservationPatch{}},
+	"TurnPayload":              {Name: "TurnPayload", Value: hooks.TurnPayload{}},
+	"TurnStartPayload":         {Name: "TurnStartPayload", Value: hooks.TurnStartPayload{}},
+	"TurnEndPayload":           {Name: "TurnEndPayload", Value: hooks.TurnEndPayload{}},
+	"TurnPatch":                {Name: "TurnPatch", Value: hooks.TurnPatch{}},
+	"TurnStartPatch":           {Name: "TurnStartPatch", Value: hooks.TurnStartPatch{}},
+	"TurnEndPatch":             {Name: "TurnEndPatch", Value: hooks.TurnEndPatch{}},
+	"MessagePayload":           {Name: "MessagePayload", Value: hooks.MessagePayload{}},
+	"MessageStartPayload":      {Name: "MessageStartPayload", Value: hooks.MessageStartPayload{}},
+	"MessageDeltaPayload":      {Name: "MessageDeltaPayload", Value: hooks.MessageDeltaPayload{}},
+	"MessageEndPayload":        {Name: "MessageEndPayload", Value: hooks.MessageEndPayload{}},
+	"SessionMessagePersistedPayload": {
+		Name:  "SessionMessagePersistedPayload",
+		Value: hooks.SessionMessagePersistedPayload{},
+	},
 	"MessagePatch":                {Name: "MessagePatch", Value: hooks.MessagePatch{}},
 	"MessageStartPatch":           {Name: "MessageStartPatch", Value: hooks.MessageStartPatch{}},
 	"MessageDeltaPatch":           {Name: "MessageDeltaPatch", Value: hooks.MessageDeltaPatch{}},

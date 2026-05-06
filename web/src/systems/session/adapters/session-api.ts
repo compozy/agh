@@ -9,6 +9,7 @@ import type {
   ApproveSessionParams,
   CreateSessionParams,
   FetchSessionEventsParams,
+  SessionLedgerResponse,
   SessionMessage,
   SessionEventPayload,
   SessionPayload,
@@ -283,6 +284,33 @@ export async function fetchSessionHistory(
     throwSessionRequestError(response, error, `Failed to fetch session history "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to fetch session history "${id}"`).history;
+}
+
+export class SessionLedgerUnavailableError extends SessionApiError {
+  constructor(id: string) {
+    super(`Session ledger not materialized: ${id}`, 404, id);
+    this.name = "SessionLedgerUnavailableError";
+  }
+}
+
+export async function fetchSessionLedger(
+  id: string,
+  signal?: AbortSignal
+): Promise<SessionLedgerResponse> {
+  const { data, error, response } = await apiClient.GET(
+    "/api/memory/sessions/{session_id}/ledger",
+    {
+      params: { path: { session_id: id } },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new SessionLedgerUnavailableError(id);
+    }
+    throwSessionRequestError(response, error, `Failed to fetch session ledger "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to fetch session ledger "${id}"`);
 }
 
 export async function fetchSessionTranscript(

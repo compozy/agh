@@ -12,6 +12,7 @@
                     "match": {
                         "turn_source": "network",
                         "occurrence": 1,
+                        "user_text": "Need a runtime bridge summary",
                         "network": {
                             "message_id": "321",
                             "kind": "message",
@@ -30,6 +31,7 @@
                     "match": {
                         "turn_source": "network",
                         "occurrence": 2,
+                        "user_text": "Provide a follow-up runtime bridge summary",
                         "network": {
                             "message_id": "322",
                             "kind": "message",

@@ -116,4 +116,176 @@ describe("runtime docs truth", () => {
     expect(concreteInvocations.length).toBeGreaterThan(0);
     expect(concreteInvocations.filter(id => !builtinToolIDs.has(id))).toEqual([]);
   });
+
+  it("teaches the Slice 1 Memory v2 surfaces and not their replaced predecessors", () => {
+    const memoryDocs = [
+      "packages/site/content/runtime/core/memory/index.mdx",
+      "packages/site/content/runtime/core/memory/system.mdx",
+      "packages/site/content/runtime/core/memory/scopes.mdx",
+      "packages/site/content/runtime/core/memory/dream.mdx",
+    ]
+      .map(path => readRepoFile(path))
+      .join("\n");
+
+    expect(memoryDocs).toContain("agh memory show");
+    expect(memoryDocs).toContain("agh memory dream trigger");
+    expect(memoryDocs).toContain("POST /api/memory/search");
+    expect(memoryDocs).toContain("POST /api/memory/dreams/trigger");
+    expect(memoryDocs).toContain("agh__memory_show");
+    expect(memoryDocs).toContain("agh__memory_propose");
+    expect(memoryDocs).toContain("agh__memory_note");
+    expect(memoryDocs).toContain("workspace.toml");
+    expect(memoryDocs).toContain("workspace_id");
+    expect(memoryDocs).toContain("agent-workspace");
+    expect(memoryDocs).toContain("agent-global");
+    expect(memoryDocs).toContain("dreaming-curator");
+    expect(memoryDocs).toContain("memory_decisions");
+    expect(memoryDocs).toContain("memory_events");
+    expect(memoryDocs).toContain("_inbox/");
+    expect(memoryDocs).toContain("_system/");
+
+    expect(memoryDocs).not.toMatch(/^[^`]*two scopes:\s*global and workspace[^`]*$/m);
+    // [memory.v2] must never appear as a current-tense TOML config header.
+    expect(memoryDocs).not.toMatch(/^\s*\[memory\.v2\]/m);
+    expect(memoryDocs).not.toMatch(/^\s*-\s+`memory_read`/m);
+    expect(memoryDocs).not.toMatch(/^\s*-\s+`memory_history`/m);
+    // Forbid every backtick-wrapped `PUT /api/memory*` mention except the literal
+    // `PUT /api/memory/{filename}` placeholder, which is reserved for explicit
+    // hard-cut/negative documentation of the removed route.
+    const putMemoryMentions = memoryDocs.match(/`PUT \/api\/memory[^`]*`/g) ?? [];
+    expect(putMemoryMentions.filter(snippet => snippet !== "`PUT /api/memory/{filename}`")).toEqual(
+      []
+    );
+    expect(memoryDocs).not.toMatch(/`GET \/api\/memory\/search`/);
+  });
+
+  it("documents the Memory v2 config keys that the runtime actually validates", () => {
+    const configDoc = readRepoFile(
+      "packages/site/content/runtime/core/configuration/config-toml.mdx"
+    );
+    const configSource = readRepoFile("internal/config/config.go");
+
+    expect(configSource).toContain("MemoryWorkspaceConfig");
+    expect(configSource).toContain("MemoryDreamScoringWeightsConfig");
+    expect(configSource).toContain("DefaultMemoryDreamAgentName");
+
+    expect(configDoc).toContain("[memory.controller]");
+    expect(configDoc).toContain("[memory.controller.llm]");
+    expect(configDoc).toContain("[memory.controller.policy]");
+    expect(configDoc).toContain("[memory.recall]");
+    expect(configDoc).toContain("[memory.recall.weights]");
+    expect(configDoc).toContain("[memory.recall.signals]");
+    expect(configDoc).toContain("[memory.decisions]");
+    expect(configDoc).toContain("[memory.extractor]");
+    expect(configDoc).toContain("[memory.extractor.queue]");
+    expect(configDoc).toContain("[memory.dream]");
+    expect(configDoc).toContain("[memory.dream.gates]");
+    expect(configDoc).toContain("[memory.dream.scoring]");
+    expect(configDoc).toContain("[memory.dream.scoring.weights]");
+    expect(configDoc).toContain("[memory.session]");
+    expect(configDoc).toContain("[memory.daily]");
+    expect(configDoc).toContain("[memory.file]");
+    expect(configDoc).toContain("[memory.provider]");
+    expect(configDoc).toContain("[memory.workspace]");
+    expect(configDoc).toContain("`dreaming-curator`");
+    // [memory.v2] must never appear as a current-tense TOML config header.
+    expect(configDoc).not.toMatch(/^\s*\[memory\.v2\]/m);
+  });
+
+  it("keeps file locations aligned with workspace_id-partitioned forensic ledgers", () => {
+    const fileLocations = readRepoFile(
+      "packages/site/content/runtime/core/configuration/file-locations.mdx"
+    );
+
+    expect(fileLocations).toContain("$AGH_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl");
+    expect(fileLocations).toContain("$AGH_HOME/sessions/_unbound/<session_id>/ledger.jsonl");
+    expect(fileLocations).toContain("<workspace>/.agh/workspace.toml");
+    expect(fileLocations).toContain("<workspace>/.agh/agents/<name>/memory/");
+    expect(fileLocations).toContain("$AGH_HOME/agents/<name>/memory/");
+    expect(fileLocations).toContain("$AGH_HOME/memory/_inbox/");
+    expect(fileLocations).toContain("$AGH_HOME/memory/_system/");
+  });
+
+  it("keeps the generated memory CLI reference aligned with the Slice 1 verbs", () => {
+    const memoryIndex = readRepoFile(
+      "packages/site/content/runtime/cli-reference/memory/index.mdx"
+    );
+    const memoryShow = readRepoFile("packages/site/content/runtime/cli-reference/memory/show.mdx");
+    const dreamIndex = readRepoFile(
+      "packages/site/content/runtime/cli-reference/memory/dream/index.mdx"
+    );
+    const dreamTrigger = readRepoFile(
+      "packages/site/content/runtime/cli-reference/memory/dream/trigger.mdx"
+    );
+
+    expect(memoryIndex).toContain("[agh memory show](/runtime/cli-reference/memory/show)");
+    expect(memoryIndex).toContain("[agh memory dream](/runtime/cli-reference/memory/dream)");
+    expect(memoryIndex).not.toContain("[agh memory read](");
+    expect(memoryIndex).not.toContain("[agh memory consolidate](");
+
+    expect(memoryShow).toMatch(/^## agh memory show$/m);
+    expect(memoryShow).toContain("Show one Memory v2 entry");
+
+    expect(dreamIndex).toContain(
+      "[agh memory dream trigger](/runtime/cli-reference/memory/dream/trigger)"
+    );
+    expect(dreamIndex).not.toContain("consolidate");
+    expect(dreamTrigger).toMatch(/^## agh memory dream trigger$/m);
+    expect(dreamTrigger).toContain("Trigger Memory v2 dreaming");
+
+    const memoryRoot = resolve(siteRoot, "content/runtime/cli-reference/memory");
+    for (const removed of ["read.mdx", "consolidate.mdx", "consolidate"]) {
+      expect(readdirSync(memoryRoot)).not.toContain(removed);
+    }
+    const dreamRoot = resolve(siteRoot, "content/runtime/cli-reference/memory/dream");
+    expect(readdirSync(dreamRoot)).toContain("trigger.mdx");
+    expect(readdirSync(dreamRoot)).not.toContain("consolidate.mdx");
+  });
+
+  it("keeps the generated memory API reference aligned with the Slice 1 routes", () => {
+    const apiMemory = readRepoFile("packages/site/content/runtime/api-reference/memory.mdx");
+
+    expect(apiMemory).toContain('{"path":"/api/memory/search","method":"post"}');
+    expect(apiMemory).toContain('{"path":"/api/memory/dreams/trigger","method":"post"}');
+    expect(apiMemory).toContain('{"path":"/api/memory","method":"post"}');
+    expect(apiMemory).toContain('{"path":"/api/memory/{filename}","method":"patch"}');
+    expect(apiMemory).toContain('{"path":"/api/memory/ad-hoc","method":"post"}');
+    expect(apiMemory).toContain(
+      '{"path":"/api/memory/sessions/{session_id}/ledger","method":"get"}'
+    );
+
+    expect(apiMemory).not.toContain('"/api/memory/search","method":"get"');
+    expect(apiMemory).not.toContain('"/api/memory/{filename}","method":"put"');
+    expect(apiMemory).not.toContain("/api/memory/consolidate");
+    expect(apiMemory).not.toContain("/api/memory/dreams/consolidate");
+  });
+
+  it("keeps the API reference orientation page pointed at Slice 1 memory verbs", () => {
+    const apiIndex = readRepoFile("packages/site/content/runtime/api-reference/index.mdx");
+
+    expect(apiIndex).toMatch(
+      /show, write, search, and (run )?(?:trigger|dream).*for persistent context/i
+    );
+    expect(apiIndex).not.toMatch(/\bconsolidate\b/i);
+    expect(apiIndex).not.toMatch(/`GET \/api\/memory\/search`/);
+    expect(apiIndex).not.toMatch(/`PUT \/api\/memory[^`]*`/);
+  });
+
+  it("keeps the runtime native memory tool registry aligned with the Slice 1 IDs", () => {
+    const builtinIDs = readRepoFile("internal/tools/builtin_ids.go");
+    const ids = extractGoStringConstants(builtinIDs, "ToolID");
+
+    for (const required of [
+      "agh__memory_list",
+      "agh__memory_show",
+      "agh__memory_search",
+      "agh__memory_propose",
+      "agh__memory_note",
+    ]) {
+      expect(ids.has(required)).toBe(true);
+    }
+    for (const removed of ["agh__memory_read", "agh__memory_history", "agh__memory_write"]) {
+      expect(ids.has(removed)).toBe(false);
+    }
+  });
 });

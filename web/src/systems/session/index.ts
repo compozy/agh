@@ -12,6 +12,9 @@ export type {
   SessionApprovalResponse,
   SessionEventsResponse,
   SessionHistoryResponse,
+  SessionLedgerEvent,
+  SessionLedgerMeta,
+  SessionLedgerResponse,
   SessionMessage,
   SessionPayload,
   SessionRepairPayload,
@@ -38,10 +41,12 @@ export {
   fetchSession,
   fetchSessionEvents,
   fetchSessionHistory,
+  fetchSessionLedger,
   fetchSessionTranscript,
   fetchSessions,
   repairSession,
   resumeSession,
+  SessionLedgerUnavailableError,
   stopSession,
 } from "./adapters/session-api";
 
@@ -51,6 +56,7 @@ export {
   sessionDetailOptions,
   sessionEventsOptions,
   sessionHistoryOptions,
+  sessionLedgerOptions,
   sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
@@ -65,7 +71,7 @@ export type {
 } from "./stores/session-store";
 
 // Hooks
-export { useSession, useSessions } from "./hooks/use-sessions";
+export { useSession, useSessionLedger, useSessions } from "./hooks/use-sessions";
 export {
   useClearSessionConversation,
   useCreateSession,
@@ -110,7 +116,8 @@ export {
   deriveFileReads,
   deriveTraceEvents,
   type InspectorFileEntry,
-  type InspectorMemoryDoc,
+  type InspectorMemoryState,
+  type InspectorSessionLedger,
   type InspectorTraceEvent,
   type InspectorTraceKind,
   type InspectorTraceStatus,

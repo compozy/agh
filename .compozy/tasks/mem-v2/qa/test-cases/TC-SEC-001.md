@@ -1,60 +1,22 @@
-# TC-SEC-001: Redaction, `_system` Non-Injection, And Public Payload Hygiene
+# TC-SEC-001: Scope and Lifecycle Inputs Reject Ambiguity
 
-**Priority:** P0
-**Type:** Security
+**Priority:** P1
 **Status:** Not Run
-**Estimated Time:** 50 minutes
-**Created:** 2026-05-05
-**Last Updated:** 2026-05-05
-
-## Objective
-
-Verify Memory v2 never leaks `_system/` artifacts, raw decision replay bytes, raw LLM traces, prompt-only memory sections, tokens, or secret-shaped values into recall, SSE, web, docs, or public API payloads.
 
 ## Preconditions
 
-- [ ] Isolated daemon has memories, `_system` extractor/dreaming/ad_hoc artifacts, decisions, and session events.
-- [ ] SSE/prompt stream can be exercised.
-- [ ] Public docs and generated fixtures are available.
+- HTTP and UDS endpoints are reachable.
+- Operator can craft raw requests.
 
-## Test Steps
+## Steps
 
-1. **Run redaction-focused tests**
-   - Input: `go test ./internal/sse ./internal/api/core ./internal/memory ./internal/memory/scan -run "Scrub|Redact|System|Reject|Decision" -count=1`
-   - **Expected:** Scrub, reject, and redaction tests pass.
+1. Exercise provider lifecycle endpoints with the route-selected provider.
+2. Exercise memory write/search APIs with explicit workspace_id bindings.
+3. Verify that no unsupported legacy selector field changes the targeted resource.
 
-2. **Recall system sentinel**
-   - Input: search for a string present only under `_system/`.
-   - **Expected:** No result in default recall/search output.
+**Expected:** Scope binding stays explicit, lifecycle targets remain unambiguous, and requests rely on supported fields only.
 
-3. **Inspect public decision payloads**
-   - Input: `agh memory decisions show <id> -o json` and API equivalent.
-   - **Expected:** Public payload omits raw `post_content`, `prior_content`, raw LLM output, and prompt text.
+## Required Evidence
 
-4. **Exercise SSE/log-facing surface**
-   - Input: produce output containing literal and JSON-escaped `<memory-context>`.
-   - **Expected:** SSE/log payloads scrub or neutralize prompt-only memory context markers.
-
-5. **Search web fixtures and docs**
-   - Input: grep web fixtures/docs for forbidden raw token/legacy memory/tool patterns.
-   - **Expected:** Only explicit negative test regexes contain forbidden literals; runtime docs and fixtures are clean.
-
-6. **Threat scan rejection**
-   - Input: attempt to write invisible Unicode or prompt-injection text.
-   - **Expected:** Controller returns REJECT, writes no curated file, and emits redaction-safe `memory.write.rejected`.
-
-## Evidence To Capture
-
-- Go test logs.
-- Recall/search output.
-- Decision payload JSON.
-- SSE/log payload samples.
-- Grep results.
-- Rejection event row.
-
-## Failure Criteria
-
-- `_system` content appears in default recall.
-- Public payload exposes raw replay content or raw LLM trace.
-- SSE leaks `<memory-context>` markers.
-
+- Raw request/response captures.
+- Operator notes confirming the selected provider and workspace_id.

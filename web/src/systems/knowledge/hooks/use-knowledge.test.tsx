@@ -3,17 +3,30 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useMemories, useMemory } from "@/systems/knowledge/hooks/use-knowledge";
+import {
+  useMemories,
+  useMemory,
+  useMemoryDecisions,
+  useMemorySearch,
+} from "@/systems/knowledge/hooks/use-knowledge";
 
 vi.mock("@/systems/knowledge/adapters/knowledge-api", () => ({
   listMemories: vi.fn(),
+  listMemoryDecisions: vi.fn(),
   readMemory: vi.fn(),
+  searchMemory: vi.fn(),
   deleteMemory: vi.fn(),
+  editMemory: vi.fn(),
   writeMemory: vi.fn(),
-  consolidateMemory: vi.fn(),
+  triggerMemoryDream: vi.fn(),
 }));
 
-import { listMemories, readMemory } from "@/systems/knowledge/adapters/knowledge-api";
+import {
+  listMemories,
+  listMemoryDecisions,
+  readMemory,
+  searchMemory,
+} from "@/systems/knowledge/adapters/knowledge-api";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -28,7 +41,11 @@ const validHeader = {
   filename: "user_role.md",
   mod_time: "2026-04-01T12:00:00Z",
   name: "User Role",
+  scope: "global" as const,
   type: "user" as const,
+  recall_count: 0,
+  injection: true,
+  system_managed: false,
 };
 
 describe("useMemories", () => {
@@ -40,10 +57,10 @@ describe("useMemories", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns loading state then data", async () => {
+  it("Should pass selector and abort signal to the list adapter", async () => {
     vi.mocked(listMemories).mockResolvedValue([validHeader]);
 
-    const { result } = renderHook(() => useMemories("global", "/ws"), {
+    const { result } = renderHook(() => useMemories({ scope: "global", workspaceId: "ws" }), {
       wrapper: createWrapper(),
     });
 
@@ -53,8 +70,15 @@ describe("useMemories", () => {
       expect(result.current.data).toHaveLength(1);
     });
 
-    expect(result.current.data).toEqual([validHeader]);
-    expect(listMemories).toHaveBeenCalledWith("global", "/ws", expect.any(AbortSignal));
+    expect(listMemories).toHaveBeenCalledWith(
+      { scope: "global", workspaceId: "ws" },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("Should not fetch when no selector is provided", () => {
+    renderHook(() => useMemories(undefined), { wrapper: createWrapper() });
+    expect(listMemories).not.toHaveBeenCalled();
   });
 });
 
@@ -67,33 +91,113 @@ describe("useMemory", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads a single memory content", async () => {
-    vi.mocked(readMemory).mockResolvedValue("# Memory content");
+  it("Should load a memory's summary plus content", async () => {
+    vi.mocked(readMemory).mockResolvedValue({ ...validHeader, content: "# Memory content" });
 
-    const { result } = renderHook(() => useMemory("global", "test.md", "/ws"), {
+    const { result } = renderHook(() => useMemory({ scope: "global" }, "test.md"), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => {
-      expect(result.current.data).toBe("# Memory content");
+      expect(result.current.data?.content).toBe("# Memory content");
     });
 
-    expect(readMemory).toHaveBeenCalledWith("global", "test.md", "/ws", expect.any(AbortSignal));
+    expect(readMemory).toHaveBeenCalledWith(
+      { scope: "global" },
+      "test.md",
+      expect.any(AbortSignal)
+    );
   });
 
-  it("does not fetch when scope is omitted", () => {
-    renderHook(() => useMemory(undefined, "test.md"), {
-      wrapper: createWrapper(),
-    });
-
+  it("Should not fetch when selector is omitted", () => {
+    renderHook(() => useMemory(undefined, "test.md"), { wrapper: createWrapper() });
     expect(readMemory).not.toHaveBeenCalled();
   });
 
-  it("does not fetch when filename is empty", () => {
-    renderHook(() => useMemory("global", ""), {
+  it("Should not fetch when filename is empty", () => {
+    renderHook(() => useMemory({ scope: "global" }, ""), { wrapper: createWrapper() });
+    expect(readMemory).not.toHaveBeenCalled();
+  });
+});
+
+describe("useMemorySearch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should not call the search adapter when query text is empty", () => {
+    renderHook(() => useMemorySearch({ scope: "global" }, "   "), {
       wrapper: createWrapper(),
     });
+    expect(searchMemory).not.toHaveBeenCalled();
+  });
 
-    expect(readMemory).not.toHaveBeenCalled();
+  it("Should call the search adapter with the trimmed query and selector", async () => {
+    vi.mocked(searchMemory).mockResolvedValue({
+      results: [{ memory: validHeader, score: 0.5 }],
+      recall: { blocks: [], header: { content_hash: "h", text: "" } },
+    });
+
+    const { result } = renderHook(
+      () => useMemorySearch({ scope: "global", workspaceId: "ws" }, "  rollout  ", { topK: 4 }),
+      {
+        wrapper: createWrapper(),
+      }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data?.results).toHaveLength(1);
+    });
+
+    expect(searchMemory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query_text: "rollout",
+        scope: "global",
+        workspace_id: "ws",
+        top_k: 4,
+      }),
+      expect.any(AbortSignal)
+    );
+  });
+});
+
+describe("useMemoryDecisions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should not call decisions adapter when params are missing", () => {
+    renderHook(() => useMemoryDecisions(undefined), { wrapper: createWrapper() });
+    expect(listMemoryDecisions).not.toHaveBeenCalled();
+  });
+
+  it("Should call decisions adapter with selector and filter params", async () => {
+    vi.mocked(listMemoryDecisions).mockResolvedValue({ decisions: [] });
+
+    const { result } = renderHook(
+      () =>
+        useMemoryDecisions({
+          scope: "global",
+          limit: 5,
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data?.decisions).toEqual([]);
+    });
+
+    expect(listMemoryDecisions).toHaveBeenCalledWith(
+      { scope: "global", limit: 5 },
+      expect.any(AbortSignal)
+    );
   });
 });

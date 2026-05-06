@@ -14,6 +14,9 @@ const GLOBAL: KnowledgeMemoryItem = {
   name: "User Role",
   scope: "global",
   type: "user",
+  recall_count: 2,
+  injection: true,
+  system_managed: false,
   description: "Guidance that shapes the assistant's tone and ownership.",
 };
 
@@ -24,11 +27,30 @@ const WORKSPACE: KnowledgeMemoryItem = {
   name: "Project Context",
   scope: "workspace",
   type: "project",
+  recall_count: 0,
+  injection: true,
+  system_managed: false,
   description: "Workspace-local notes about rollout.",
-  agent_name: "codex-agent",
+  workspace_id: "ws_launch",
 };
 
-const ALL: KnowledgeMemoryItem[] = [GLOBAL, WORKSPACE];
+const AGENT: KnowledgeMemoryItem = {
+  filename: "cto-tone.md",
+  key: "agent:cto-tone.md",
+  mod_time: "2026-04-09T09:00:00Z",
+  name: "CTO Tone",
+  scope: "agent",
+  agent_name: "cto",
+  agent_tier: "workspace",
+  workspace_id: "ws_launch",
+  type: "user",
+  recall_count: 5,
+  injection: true,
+  system_managed: false,
+  staleness_banner: "Updated >7 days after last recall",
+};
+
+const ALL: KnowledgeMemoryItem[] = [GLOBAL, WORKSPACE, AGENT];
 
 function renderPanel(props: Partial<React.ComponentProps<typeof KnowledgeListPanel>> = {}) {
   const merged: React.ComponentProps<typeof KnowledgeListPanel> = {
@@ -47,58 +69,44 @@ function renderPanel(props: Partial<React.ComponentProps<typeof KnowledgeListPan
 }
 
 describe("KnowledgeListPanel", () => {
-  it("renders groups with GLOBAL before WORKSPACE and renders the group count badge", () => {
+  it("Should render groups in scope order with count chips", () => {
     renderPanel();
     const groups = screen.getAllByTestId(/^knowledge-group-/).filter(element => {
       const id = element.getAttribute("data-testid") ?? "";
-      return id === "knowledge-group-global" || id === "knowledge-group-workspace";
+      return [
+        "knowledge-group-global",
+        "knowledge-group-workspace",
+        "knowledge-group-agent",
+      ].includes(id);
     });
     expect(groups[0]).toHaveAttribute("data-testid", "knowledge-group-global");
     expect(groups[1]).toHaveAttribute("data-testid", "knowledge-group-workspace");
+    expect(groups[2]).toHaveAttribute("data-testid", "knowledge-group-agent");
     expect(
       within(screen.getByTestId("knowledge-group-header-global")).getByText("1")
     ).toBeInTheDocument();
   });
 
-  it("renders MonoBadge chips for type and scope on each row", () => {
+  it("Should render type, scope, and agent tier badges per row", () => {
     renderPanel();
-    expect(screen.getByTestId("type-badge-user")).toHaveAttribute("data-tone", "accent");
+    const userBadges = screen.getAllByTestId("type-badge-user");
+    expect(userBadges.length).toBeGreaterThanOrEqual(2);
+    userBadges.forEach(badge => {
+      expect(badge).toHaveAttribute("data-tone", "accent");
+    });
     expect(screen.getByTestId("type-badge-project")).toHaveAttribute("data-tone", "success");
     expect(screen.getByTestId("scope-badge-global")).toHaveAttribute("data-tone", "neutral");
     expect(screen.getByTestId("scope-badge-workspace")).toHaveAttribute("data-tone", "info");
+    expect(screen.getByTestId("scope-badge-agent")).toHaveAttribute("data-tone", "warning");
+    expect(screen.getByTestId("agent-tier-badge-workspace")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-name-badge")).toHaveTextContent("cto");
+    const recallBadges = screen.getAllByTestId("recall-count-badge");
+    expect(recallBadges).toHaveLength(2);
+    expect(recallBadges.some(badge => badge.textContent?.includes("↻ 5"))).toBe(true);
+    expect(screen.getByTestId("staleness-badge")).toBeInTheDocument();
   });
 
-  it("filters rows by name (case-insensitive)", () => {
-    renderPanel({ searchQuery: "project" });
-    expect(screen.getByTestId("memory-item-workspace:project-context.md")).toBeInTheDocument();
-    expect(screen.queryByTestId("memory-item-global:user-role.md")).not.toBeInTheDocument();
-  });
-
-  it("filters rows by description (case-insensitive)", () => {
-    renderPanel({ searchQuery: "rollout" });
-    expect(screen.getByTestId("memory-item-workspace:project-context.md")).toBeInTheDocument();
-    expect(screen.queryByTestId("memory-item-global:user-role.md")).not.toBeInTheDocument();
-  });
-
-  it("filters rows by type", () => {
-    renderPanel({ searchQuery: "USER" });
-    expect(screen.getByTestId("memory-item-global:user-role.md")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("memory-item-workspace:project-context.md")
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows the filtered-empty Empty card when the query matches nothing", () => {
-    renderPanel({ searchQuery: "zzzzz" });
-    expect(screen.getByTestId("knowledge-list-empty")).toBeInTheDocument();
-    expect(
-      within(screen.getByTestId("knowledge-list-empty")).getByText(
-        /different search term or adjust the scope filter/i
-      )
-    ).toBeInTheDocument();
-  });
-
-  it("shows the no-items Empty card when the memories array is empty", () => {
+  it("Should show the empty fallback when there are no memories", () => {
     renderPanel({ memories: [] });
     const empty = screen.getByTestId("knowledge-list-empty");
     expect(empty).toBeInTheDocument();
@@ -107,18 +115,24 @@ describe("KnowledgeListPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the loading fallback while loading and list is empty", () => {
+  it("Should show the loading state while loading and the list is empty", () => {
     renderPanel({ isLoading: true, memories: [] });
     expect(screen.getByTestId("knowledge-list-loading")).toBeInTheDocument();
   });
 
-  it("shows the error Empty card when errorMessage is set and list is empty", () => {
+  it("Should show the error fallback when errorMessage is set and the list is empty", () => {
     renderPanel({ errorMessage: "Network failure", memories: [] });
     expect(screen.getByTestId("knowledge-list-error")).toBeInTheDocument();
     expect(screen.getByText("Network failure")).toBeInTheDocument();
   });
 
-  it("emits onSearchChange with the typed query", () => {
+  it("Should expose recall mode messaging through searchInfo and search-mode placeholder", () => {
+    renderPanel({ searchMode: true, searchInfo: "Recall 2 of top-K", memories: [] });
+    expect(screen.getByTestId("knowledge-search-info")).toHaveTextContent("Recall 2 of top-K");
+    expect(screen.getByTestId("knowledge-list-empty")).toHaveTextContent(/recall query/i);
+  });
+
+  it("Should emit onSearchChange with the typed query", () => {
     const onSearchChange = vi.fn();
     renderPanel({ onSearchChange });
     const input = screen.getByLabelText("Search knowledge");
@@ -127,7 +141,7 @@ describe("KnowledgeListPanel", () => {
     expect(onSearchChange).toHaveBeenCalledWith("alpha");
   });
 
-  it("emits onSelectMemory with the clicked filename", async () => {
+  it("Should emit onSelectMemory with the canonical key when a row is clicked", async () => {
     const user = userEvent.setup();
     const onSelectMemory = vi.fn();
     renderPanel({ onSelectMemory });
@@ -135,7 +149,7 @@ describe("KnowledgeListPanel", () => {
     expect(onSelectMemory).toHaveBeenCalledWith("workspace:project-context.md");
   });
 
-  it("uses the canonical knowledge memory key for row test ids when memory.key is absent", () => {
+  it("Should fall back to scope:filename when memory.key is missing", () => {
     renderPanel({
       memories: [
         GLOBAL,
@@ -149,7 +163,7 @@ describe("KnowledgeListPanel", () => {
     expect(screen.getByTestId("memory-item-workspace:project-context.md")).toBeInTheDocument();
   });
 
-  it("renders the 3px accent indicator on the selected row only", () => {
+  it("Should render the selection indicator only on the selected row", () => {
     renderPanel({ selectedMemoryKey: "workspace:project-context.md" });
     const selected = screen.getByTestId("memory-item-workspace:project-context.md");
     expect(within(selected).getByTestId("memory-active-indicator")).toBeInTheDocument();

@@ -20,6 +20,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	memorypkg "github.com/pedronauck/agh/internal/memory"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -2675,36 +2676,43 @@ func TestDaemonNativeTools(t *testing.T) {
 		catalogPath := filepath.Join(t.TempDir(), "memory.db")
 		memoryStore := memorypkg.NewStore(globalDir, memorypkg.WithCatalogDatabasePath(catalogPath))
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		stableWorkspaceID := "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
+		}
 		if err := memoryStore.Write(
-			memorypkg.ScopeGlobal,
+			memcontract.ScopeGlobal,
 			"global.md",
 			nativeMemoryDocument(
 				"Global "+rawClaim,
 				"Global description "+rawClaim,
-				memorypkg.MemoryTypeUser,
+				memcontract.TypeUser,
 				"global memory body "+rawClaim,
 			),
 		); err != nil {
 			t.Fatalf("Write(global memory) error = %v", err)
 		}
 		if err := memoryStore.ForWorkspace(workspaceRoot).Write(
-			memorypkg.ScopeWorkspace,
+			memcontract.ScopeWorkspace,
 			"workspace.md",
 			nativeMemoryDocument(
 				"Workspace "+rawClaim,
 				"Workspace description "+rawClaim,
-				memorypkg.MemoryTypeProject,
+				memcontract.TypeProject,
 				"workspace memory body "+rawClaim,
 			),
 		); err != nil {
 			t.Fatalf("Write(workspace memory) error = %v", err)
 		}
 		workspaces := apitest.StubWorkspaceService{
-			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
-				if ref != "ws-1" {
-					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-1" && ref != stableWorkspaceID {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
-				return workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot}, nil
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+					WorkspaceID: stableWorkspaceID,
+				}, nil
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -2717,7 +2725,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryList,
-				Input:  json.RawMessage(`{"scope":"workspace","workspace":"ws-1"}`),
+				Input:  json.RawMessage(`{"scope":"workspace","workspace":"` + stableWorkspaceID + `"}`),
 			},
 		)
 		if err != nil {
@@ -2746,7 +2754,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryList,
-				Input:  json.RawMessage(`{"workspace":"ws-1"}`),
+				Input:  json.RawMessage(`{"workspace":"` + stableWorkspaceID + `"}`),
 			},
 		)
 		if err != nil {
@@ -2760,12 +2768,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDMemoryRead,
+				ToolID: toolspkg.ToolIDMemoryShow,
 				Input:  json.RawMessage(`{"filename":"global.md","scope":"global"}`),
 			},
 		)
 		if err != nil {
-			t.Fatalf("Registry.Call(memory_read) error = %v", err)
+			t.Fatalf("Registry.Call(memory_show) error = %v", err)
 		}
 		requireNativeStructuredContains(t, readResult, []byte(`agh_claim_[REDACTED]`))
 		requireNativeStructuredExcludes(t, readResult, []byte(rawClaim))
@@ -2774,12 +2782,14 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDMemoryRead,
-				Input:  json.RawMessage(`{"filename":"workspace.md","scope":"workspace","workspace":"ws-1"}`),
+				ToolID: toolspkg.ToolIDMemoryShow,
+				Input: json.RawMessage(
+					`{"filename":"workspace.md","scope":"workspace","workspace":"` + stableWorkspaceID + `"}`,
+				),
 			},
 		)
 		if err != nil {
-			t.Fatalf("Registry.Call(memory_read workspace) error = %v", err)
+			t.Fatalf("Registry.Call(memory_show workspace) error = %v", err)
 		}
 		requireNativeStructuredContains(t, workspaceReadResult, []byte(`"workspace.md"`))
 		requireNativeStructuredExcludes(t, workspaceReadResult, []byte(rawClaim))
@@ -2789,50 +2799,143 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemorySearch,
-				Input:  json.RawMessage(`{"query":"memory","workspace":"ws-1"}`),
+				Input:  json.RawMessage(`{"query":"workspace memory body","workspace":"` + stableWorkspaceID + `"}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(memory_search) error = %v", err)
 		}
-		requireNativeStructuredContains(t, searchResult, []byte(`"workspace.md"`))
+		requireNativeStructuredContains(t, searchResult, []byte(`workspace memory body`))
+		requireNativeStructuredContains(
+			t,
+			searchResult,
+			[]byte(`workspace::`+stableWorkspaceID+`::workspace.md::chunk:0001`),
+		)
 		requireNativeStructuredExcludes(t, searchResult, []byte(rawClaim))
 
-		historyResult, err := registry.Call(
+		proposeResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDMemoryHistory,
-				Input:  json.RawMessage(`{"workspace":"ws-1","limit":10}`),
+				ToolID: toolspkg.ToolIDMemoryPropose,
+				Input: json.RawMessage(
+					`{"filename":"tool.md","type":"user","content":"Tool memory proposals use the controller path."}`,
+				),
 			},
 		)
 		if err != nil {
-			t.Fatalf("Registry.Call(memory_history) error = %v", err)
+			t.Fatalf("Registry.Call(memory_propose) error = %v", err)
 		}
-		requireNativeStructuredContains(t, historyResult, []byte(`"memory.search"`))
-		requireNativeStructuredExcludes(t, historyResult, []byte(rawClaim))
+		requireNativeStructuredContains(t, proposeResult, []byte(`"decision"`))
+		requireNativeStructuredContains(t, proposeResult, []byte(`"applied":true`))
+
+		noteResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryNote,
+				Input: json.RawMessage(
+					`{"content":"Remember to check release notes before deploys.","tags":["ad-hoc"]}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_note) error = %v", err)
+		}
+		requireNativeStructuredContains(t, noteResult, []byte(`"decision"`))
 
 		_, err = registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDMemoryRead,
+				ToolID: toolspkg.ToolIDMemoryShow,
 				Input:  json.RawMessage(`{"filename":"missing.md","scope":"global"}`),
 			},
 		)
 		if !errors.Is(err, toolspkg.ErrToolNotFound) {
-			t.Fatalf("Registry.Call(memory_read missing) error = %v, want ErrToolNotFound", err)
+			t.Fatalf("Registry.Call(memory_show missing) error = %v, want ErrToolNotFound", err)
 		}
 		_, err = registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDMemoryHistory,
-				Input:  json.RawMessage(`{"since":"not-a-date"}`),
+				ToolID: toolspkg.ToolIDMemoryPropose,
+				Input:  json.RawMessage(`{"operation":"merge"}`),
 			},
 		)
 		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
-			t.Fatalf("Registry.Call(memory_history invalid since) error = %v, want ErrToolInvalidInput", err)
+			t.Fatalf("Registry.Call(memory_propose invalid op) error = %v, want ErrToolInvalidInput", err)
+		}
+	})
+
+	t.Run("Should deny subagent memory writes and mark root tool writes", func(t *testing.T) {
+		t.Parallel()
+
+		globalDir := filepath.Join(t.TempDir(), "global-memory")
+		memoryStore := memorypkg.NewStore(
+			globalDir,
+			memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+		)
+		recorder := &nativeMemoryToolWriteRecorder{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MemoryStore:      memoryStore,
+			MemoryToolWrites: recorder,
+		}, nativeApproveAllPolicyInputs())
+
+		rootResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-root", ActorKind: "agent_root"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryPropose,
+				Input: json.RawMessage(
+					`{"filename":"root_tool.md","type":"user","content":"Root memory writes are allowed."}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(root memory_propose) error = %v", err)
+		}
+		requireNativeStructuredContains(t, rootResult, []byte(`"applied":true`))
+		if recorder.sessionID != "sess-root" || recorder.calls != 1 {
+			t.Fatalf("tool write recorder = %#v, want sess-root once", recorder)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-child", ActorKind: "agent_subagent"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryPropose,
+				Input: json.RawMessage(
+					`{"filename":"child_tool.md","type":"user","content":"Subagent memory writes are denied."}`,
+				),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolDenied) {
+			t.Fatalf("Registry.Call(subagent memory_propose) error = %v, want ErrToolDenied", err)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-child", ActorKind: "agent_subagent"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryNote,
+				Input:  json.RawMessage(`{"content":"Subagent notes are denied."}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolDenied) {
+			t.Fatalf("Registry.Call(subagent memory_note) error = %v, want ErrToolDenied", err)
+		}
+
+		events, err := memoryStore.ListMemoryEventSummaries(
+			t.Context(),
+			nil,
+			store.EventSummaryQuery{Type: "memory.write.rejected"},
+		)
+		if err != nil {
+			t.Fatalf("ListMemoryEventSummaries(write rejected) error = %v", err)
+		}
+		if len(events) != 2 {
+			t.Fatalf("write rejected events = %#v, want two denied writes", events)
 		}
 	})
 
@@ -3197,6 +3300,74 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		_, err = registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolList})
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
+
+	t.Run("Should keep Memory v2 write tools root-only unless lineage grants them", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		sessions := &nativeToolPolicySessionStub{
+			info: &session.Info{
+				ID:        "sess-root",
+				AgentName: "coder",
+				State:     session.StateActive,
+			},
+		}
+		agents := &nativeToolPolicyAgentResolverStub{
+			agent: aghconfig.AgentDef{
+				Name:        "coder",
+				Provider:    "opencode",
+				Prompt:      "Use memory tools deliberately.",
+				Permissions: string(aghconfig.PermissionModeApproveAll),
+				Toolsets:    []string{toolspkg.ToolsetIDMemory.String()},
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:            &cfg,
+			Sessions:          sessions,
+			AgentResolver:     agents,
+			ApprovalAvailable: true,
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+		memoryStore := memorypkg.NewStore(filepath.Join(t.TempDir(), "memory"))
+		registry := newDaemonNativeRegistryWithPolicyResolver(t, &daemonNativeToolsDeps{
+			MemoryStore: memoryStore,
+		}, resolver)
+		rootScope := toolspkg.Scope{SessionID: "sess-root"}
+
+		rootViews, err := registry.SessionProjection(ctx, rootScope)
+		if err != nil {
+			t.Fatalf("SessionProjection(root memory) error = %v", err)
+		}
+		requireNativeViewContains(t, rootViews, toolspkg.ToolIDMemoryShow)
+		requireNativeViewContains(t, rootViews, toolspkg.ToolIDMemoryPropose)
+		requireNativeViewContains(t, rootViews, toolspkg.ToolIDMemoryNote)
+
+		sessions.info.ID = "sess-child"
+		sessions.info.Lineage = &store.SessionLineage{
+			ParentSessionID: "sess-root",
+			RootSessionID:   "sess-root",
+			SpawnDepth:      1,
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools: []string{
+					toolspkg.ToolIDMemoryList.String(),
+					toolspkg.ToolIDMemoryShow.String(),
+					toolspkg.ToolIDMemorySearch.String(),
+				},
+			},
+		}
+		childScope := toolspkg.Scope{SessionID: "sess-child"}
+		childViews, err := registry.SessionProjection(ctx, childScope)
+		if err != nil {
+			t.Fatalf("SessionProjection(child memory) error = %v", err)
+		}
+		requireNativeViewContains(t, childViews, toolspkg.ToolIDMemoryShow)
+		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDMemoryPropose)
+		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDMemoryNote)
+	})
 }
 
 func newDaemonNativeRegistry(
@@ -3281,6 +3452,18 @@ func nativeApproveAllPolicyInputs() toolspkg.PolicyInputs {
 		SystemPermissionMode: toolspkg.PermissionModeApproveAll,
 		ApprovalAvailable:    true,
 	}
+}
+
+type nativeMemoryToolWriteRecorder struct {
+	sessionID string
+	turnSeq   int64
+	calls     int
+}
+
+func (r *nativeMemoryToolWriteRecorder) RecordToolWrite(sessionID string, turnSeq int64) {
+	r.sessionID = sessionID
+	r.turnSeq = turnSeq
+	r.calls++
 }
 
 func newLoadedNativeSkillRegistry(t *testing.T) *skills.Registry {
@@ -3379,7 +3562,7 @@ func requireNativeViewExcludes(t *testing.T, views []toolspkg.ToolView, id tools
 	}
 }
 
-func nativeMemoryDocument(name string, description string, typ memorypkg.Type, body string) []byte {
+func nativeMemoryDocument(name string, description string, typ memcontract.Type, body string) []byte {
 	return fmt.Appendf(nil,
 		"---\nname: %s\ndescription: %s\ntype: %s\n---\n\n%s",
 		name,

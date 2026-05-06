@@ -18,15 +18,16 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
 }));
 
 vi.mock("@/systems/knowledge", () => ({
-  useConsolidateMemory: () => consolidateMock,
+  useTriggerMemoryDream: () => triggerDreamMock,
 }));
 
-const consolidateMock = {
+const triggerDreamMock = {
   mutate: vi.fn(),
   isPending: false,
 };
 
 import { getSettingsMemory, updateSettingsMemory } from "@/systems/settings/adapters/settings-api";
+import { settingsMemoryConfigFixture } from "@/systems/settings/mocks/fixtures";
 import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
 import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsMemorySection } from "@/systems/settings";
@@ -39,17 +40,7 @@ const memoryEnvelope: SettingsMemorySection = {
   actions: {
     consolidate: { available: true, behavior: "action_trigger", name: "consolidate" },
   },
-  config: {
-    dream: {
-      agent: "general",
-      check_interval: "30m",
-      enabled: true,
-      min_hours: 24,
-      min_sessions: 3,
-    },
-    enabled: true,
-    global_dir: "~/.agh/memory",
-  },
+  config: settingsMemoryConfigFixture,
   health: {
     available: true,
     dream_enabled: true,
@@ -71,8 +62,8 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  consolidateMock.mutate.mockReset();
-  consolidateMock.isPending = false;
+  triggerDreamMock.mutate.mockReset();
+  triggerDreamMock.isPending = false;
   useSettingsRestartStore.setState({
     ...initialSettingsRestartState,
     startRestart: useSettingsRestartStore.getState().startRestart,
@@ -149,16 +140,16 @@ describe("useSettingsMemoryPage", () => {
     expect(updateSettingsMemory).toHaveBeenCalled();
   });
 
-  it("exposes handleConsolidate that delegates to the knowledge consolidate mutation", async () => {
+  it("exposes handleTriggerDream that delegates to the memory dreaming mutation", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsMemoryPage(), { wrapper });
 
     await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
-      result.current.handleConsolidate();
+      result.current.handleTriggerDream();
     });
 
-    expect(consolidateMock.mutate).toHaveBeenCalled();
+    expect(triggerDreamMock.mutate).toHaveBeenCalled();
   });
 });

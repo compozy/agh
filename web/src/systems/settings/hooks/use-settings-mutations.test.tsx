@@ -33,6 +33,7 @@ import {
   updateSettingsMemory,
 } from "../adapters/settings-api";
 import { settingsKeys } from "../lib/query-keys";
+import { settingsMemoryConfigFixture } from "../mocks/fixtures";
 import { initialSettingsRestartState } from "../stores/settings-restart-store";
 import { useSettingsRestartStore } from "../stores/use-settings-restart-store";
 import {
@@ -135,14 +136,8 @@ describe("useUpdateSettingsMemory", () => {
     await act(async () => {
       await result.current.mutateAsync({
         config: {
-          dream: {
-            agent: "dreamer",
-            check_interval: "30m",
-            enabled: true,
-            min_hours: 1,
-            min_sessions: 2,
-          },
-          enabled: true,
+          ...settingsMemoryConfigFixture,
+          dream: { ...settingsMemoryConfigFixture.dream, agent: "dreamer", min_hours: 1 },
         },
       });
     });

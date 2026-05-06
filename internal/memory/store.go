@@ -17,6 +17,10 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/fileutil"
 	"github.com/pedronauck/agh/internal/frontmatter"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memoryrecall "github.com/pedronauck/agh/internal/memory/recall"
+	storepkg "github.com/pedronauck/agh/internal/store"
+	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (
@@ -36,16 +40,33 @@ var (
 
 // Store manages memory files for the global and workspace scopes.
 type Store struct {
-	globalDir     string
-	workspaceDir  string
-	maxIndexLines int
-	maxIndexBytes int
-	logger        *slog.Logger
-	catalog       *catalog
-	mu            *sync.Mutex
+	globalDir        string
+	workspaceDir     string
+	workspaceRoot    string
+	agentName        string
+	agentTier        memcontract.AgentTier
+	agentWorkspaceID string
+	maxIndexLines    int
+	maxIndexBytes    int
+	logger           *slog.Logger
+	catalog          *catalog
+	mu               *sync.Mutex
+	recallSignals    recallSignalRecorderConfig
+	recallRecorders  *recallRecorderRegistry
 }
 
-var _ Backend = (*Store)(nil)
+var _ memcontract.Backend = (*Store)(nil)
+
+type recallSignalRecorderConfig struct {
+	queueCapacity  int
+	workerRetryMax int
+	metricsEnabled bool
+}
+
+type recallRecorderRegistry struct {
+	mu        sync.Mutex
+	recorders map[string]*memoryrecall.SignalRecorder
+}
 
 // NewStore constructs a Store for the provided global memory directory.
 func NewStore(globalDir string, opts ...StoreOption) *Store {
@@ -55,6 +76,12 @@ func NewStore(globalDir string, opts ...StoreOption) *Store {
 		maxIndexBytes: defaultIndexBytes,
 		logger:        slog.Default(),
 		mu:            &sync.Mutex{},
+		recallSignals: recallSignalRecorderConfig{
+			queueCapacity:  256,
+			workerRetryMax: 3,
+			metricsEnabled: true,
+		},
+		recallRecorders: &recallRecorderRegistry{recorders: make(map[string]*memoryrecall.SignalRecorder)},
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -80,26 +107,125 @@ func WithCatalogDatabasePath(path string) StoreOption {
 	}
 }
 
+// WithRecallSignalRecorderConfig configures asynchronous recall-signal writes.
+func WithRecallSignalRecorderConfig(config aghconfig.MemoryRecallSignalsConfig) StoreOption {
+	return func(store *Store) {
+		if store == nil {
+			return
+		}
+		if config.QueueCapacity > 0 {
+			store.recallSignals.queueCapacity = config.QueueCapacity
+		}
+		if config.WorkerRetryMax >= 0 {
+			store.recallSignals.workerRetryMax = config.WorkerRetryMax
+		}
+		store.recallSignals.metricsEnabled = config.MetricsEnabled
+	}
+}
+
+// RecallSignalRecorderStats returns per-workspace async signal recorder counters.
+func (s *Store) RecallSignalRecorderStats(workspaceID string) memoryrecall.SignalRecorderStats {
+	if s == nil || s.recallRecorders == nil {
+		return memoryrecall.SignalRecorderStats{}
+	}
+	key := recallSignalRecorderKey(workspaceID)
+	s.recallRecorders.mu.Lock()
+	recorder := s.recallRecorders.recorders[key]
+	s.recallRecorders.mu.Unlock()
+	return recorder.Stats()
+}
+
+// CloseRecallSignalRecorders drains and stops every async recall-signal worker.
+func (s *Store) CloseRecallSignalRecorders(ctx context.Context) error {
+	if s == nil || s.recallRecorders == nil {
+		return nil
+	}
+	s.recallRecorders.mu.Lock()
+	recorders := make([]*memoryrecall.SignalRecorder, 0, len(s.recallRecorders.recorders))
+	for key, recorder := range s.recallRecorders.recorders {
+		recorders = append(recorders, recorder)
+		delete(s.recallRecorders.recorders, key)
+	}
+	s.recallRecorders.mu.Unlock()
+	var errs []error
+	for _, recorder := range recorders {
+		if err := recorder.Close(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// ListMemoryEventSummaries returns canonical memory events from every visible
+// memory authority, keeping workspace DB rows visible to observe adapters.
+func (s *Store) ListMemoryEventSummaries(
+	ctx context.Context,
+	workspaces []string,
+	query storepkg.EventSummaryQuery,
+) ([]storepkg.EventSummary, error) {
+	if ctx == nil {
+		return nil, errors.New("memory: event summary context is required")
+	}
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
+
+	sources, err := s.observabilitySources(ctx, workspaces)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]storepkg.EventSummary, 0)
+	for _, source := range sources {
+		sourceSummaries, err := source.catalog.listEventSummaries(ctx, source.id, query)
+		if err != nil {
+			return nil, fmt.Errorf("memory: list %s memory events: %w", source.id, err)
+		}
+		summaries = append(summaries, sourceSummaries...)
+	}
+
+	sortEventSummaries(summaries)
+	return clampEventSummaries(summaries, query.Limit), nil
+}
+
 // ForWorkspace returns a clone of the store bound to the supplied workspace root.
 func (s *Store) ForWorkspace(workspaceRoot string) *Store {
 	clone := *s
-	clone.workspaceDir = workspaceMemoryDir(canonicalWorkspaceRoot(workspaceRoot))
+	clone.workspaceRoot = canonicalWorkspaceRoot(workspaceRoot)
+	clone.workspaceDir = workspaceMemoryDir(clone.workspaceRoot)
+	return &clone
+}
+
+// ForAgent returns a clone of the store bound to one agent memory tier.
+func (s *Store) ForAgent(workspaceID string, agentName string, tier memcontract.AgentTier) *Store {
+	clone := *s
+	clone.agentWorkspaceID = strings.TrimSpace(workspaceID)
+	clone.agentName = strings.TrimSpace(agentName)
+	clone.agentTier = tier.Normalize()
 	return &clone
 }
 
 // List is the backend-aligned alias for Scan.
-func (s *Store) List(scope Scope) ([]Header, error) {
+func (s *Store) List(scope memcontract.Scope) ([]memcontract.Header, error) {
 	return s.Scan(scope)
 }
 
 // LoadPromptIndex is the backend-aligned alias for LoadIndex.
-func (s *Store) LoadPromptIndex(scope Scope) (content string, truncated bool, err error) {
+func (s *Store) LoadPromptIndex(scope memcontract.Scope) (content string, truncated bool, err error) {
 	return s.LoadIndex(scope)
 }
 
 // EnsureDirs creates the configured memory directories when missing.
 func (s *Store) EnsureDirs() error {
-	for _, dir := range []string{s.globalDir, s.workspaceDir} {
+	dirs := []string{s.globalDir, s.workspaceDir}
+	if s.agentConfigured() {
+		agentDir, err := s.agentMemoryDir()
+		if err != nil {
+			return err
+		}
+		dirs = append(dirs, agentDir)
+	}
+	for _, dir := range dirs {
 		if strings.TrimSpace(dir) == "" {
 			continue
 		}
@@ -117,7 +243,7 @@ func (s *Store) EnsureDirs() error {
 }
 
 // Read returns the raw file contents for a memory file in the requested scope.
-func (s *Store) Read(scope Scope, filename string) ([]byte, error) {
+func (s *Store) Read(scope memcontract.Scope, filename string) ([]byte, error) {
 	path, err := s.pathFor(scope, filename)
 	if err != nil {
 		return nil, err
@@ -132,7 +258,7 @@ func (s *Store) Read(scope Scope, filename string) ([]byte, error) {
 }
 
 // Exists reports whether a memory file exists in the requested scope.
-func (s *Store) Exists(scope Scope, filename string) (bool, error) {
+func (s *Store) Exists(scope memcontract.Scope, filename string) (bool, error) {
 	path, err := s.pathFor(scope, filename)
 	if err != nil {
 		return false, err
@@ -149,68 +275,21 @@ func (s *Store) Exists(scope Scope, filename string) (bool, error) {
 }
 
 // Write validates the memory frontmatter and persists the raw file contents atomically.
-func (s *Store) Write(scope Scope, filename string, content []byte) error {
-	var header Header
-	if _, err := parseFrontmatter(content, &header); err != nil {
-		return fmt.Errorf("memory: parse frontmatter %q: %w", filename, fmt.Errorf("%w: %v", ErrValidation, err))
-	}
-	if err := header.Validate(); err != nil {
-		return wrapValidationError("validate frontmatter", filename, err)
-	}
-
-	path, err := s.pathFor(scope, filename)
-	if err != nil {
-		return err
-	}
-	unlock := s.lockMutations()
-	defer unlock()
-
-	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
-		return fmt.Errorf("memory: ensure directory %q: %w", filepath.Dir(path), err)
-	}
-	if err := fileutil.AtomicWriteFile(path, content, filePerm); err != nil {
-		return fmt.Errorf("memory: write %q: %w", path, err)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("memory: stat written file %q: %w", path, err)
-	}
-	header.Filename = filepath.Base(path)
-	header.FilePath = path
-	header.ModTime = info.ModTime()
-	s.syncScopeAfterWrite(scope.Normalize(), header, content)
-	s.logMutationEvent("write", scope.Normalize(), filepath.Base(path))
-
-	return nil
+func (s *Store) Write(scope memcontract.Scope, filename string, content []byte) error {
+	return s.writeRaw(context.Background(), scope, filename, content, true)
 }
 
 // Delete removes a memory file and strips any matching entry from the local MEMORY.md index.
-func (s *Store) Delete(scope Scope, filename string) error {
-	path, err := s.pathFor(scope, filename)
-	if err != nil {
-		return err
-	}
-	unlock := s.lockMutations()
-	defer unlock()
-
-	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("memory: delete %q: %w", path, err)
-	}
-	if filepath.Base(path) == indexFilename {
-		return nil
-	}
-	s.syncScopeAfterDelete(scope.Normalize(), filepath.Base(path))
-	s.logMutationEvent("delete", scope.Normalize(), filepath.Base(path))
-
-	return nil
+func (s *Store) Delete(scope memcontract.Scope, filename string) error {
+	return s.deleteRaw(context.Background(), scope, filename, true)
 }
 
 // Scan lists memory headers for a scope, sorted newest-first and capped at 200 files.
-func (s *Store) Scan(scope Scope) ([]Header, error) {
+func (s *Store) Scan(scope memcontract.Scope) ([]memcontract.Header, error) {
 	return s.scan(scope, maxScanEntries)
 }
 
-func (s *Store) scan(scope Scope, limit int) ([]Header, error) {
+func (s *Store) scan(scope memcontract.Scope, limit int) ([]memcontract.Header, error) {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return nil, err
@@ -219,7 +298,7 @@ func (s *Store) scan(scope Scope, limit int) ([]Header, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return []Header{}, nil
+			return []memcontract.Header{}, nil
 		}
 		return nil, fmt.Errorf("memory: scan %q: %w", dir, err)
 	}
@@ -228,33 +307,8 @@ func (s *Store) scan(scope Scope, limit int) ([]Header, error) {
 	if limit > 0 {
 		capacity = min(capacity, limit)
 	}
-	headers := make([]Header, 0, capacity)
-	candidates := make([]scanCandidate, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || shouldSkipFile(entry.Name()) {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			s.warn(
-				"memory: skip memory file with unreadable metadata",
-				"scope",
-				scope,
-				"filename",
-				entry.Name(),
-				"error",
-				err,
-			)
-			continue
-		}
-
-		candidates = append(candidates, scanCandidate{
-			name:    entry.Name(),
-			path:    filepath.Join(dir, entry.Name()),
-			modTime: info.ModTime(),
-		})
-	}
+	headers := make([]memcontract.Header, 0, capacity)
+	candidates := s.scanCandidates(scope, dir, entries)
 
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].modTime.Equal(candidates[j].modTime) {
@@ -270,7 +324,7 @@ func (s *Store) scan(scope Scope, limit int) ([]Header, error) {
 			continue
 		}
 
-		var header Header
+		var header memcontract.Header
 		if _, err := parseFrontmatter(content, &header); err != nil {
 			s.warn("memory: skip malformed memory file", "scope", scope, "path", candidate.path, "error", err)
 			continue
@@ -279,11 +333,24 @@ func (s *Store) scan(scope Scope, limit int) ([]Header, error) {
 			s.warn("memory: skip invalid memory metadata", "scope", scope, "path", candidate.path, "error", err)
 			continue
 		}
+		completedHeader, err := s.completeHeaderForScope(scope.Normalize(), header)
+		if err != nil {
+			s.warn(
+				"memory: skip memory file with invalid scope metadata",
+				"scope",
+				scope,
+				"path",
+				candidate.path,
+				"error",
+				err,
+			)
+			continue
+		}
 
-		header.Filename = candidate.name
-		header.FilePath = candidate.path
-		header.ModTime = candidate.modTime
-		headers = append(headers, header)
+		completedHeader.Filename = candidate.name
+		completedHeader.FilePath = candidate.path
+		completedHeader.ModTime = candidate.modTime
+		headers = append(headers, completedHeader)
 
 		if limit > 0 && len(headers) == limit {
 			break
@@ -293,8 +360,35 @@ func (s *Store) scan(scope Scope, limit int) ([]Header, error) {
 	return headers, nil
 }
 
+func (s *Store) scanCandidates(scope memcontract.Scope, dir string, entries []os.DirEntry) []scanCandidate {
+	candidates := make([]scanCandidate, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || shouldSkipFile(entry.Name()) {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			s.warn(
+				"memory: skip memory file with unreadable metadata",
+				"scope", scope,
+				"filename", entry.Name(),
+				"error", err,
+			)
+			continue
+		}
+
+		candidates = append(candidates, scanCandidate{
+			name:    entry.Name(),
+			path:    filepath.Join(dir, entry.Name()),
+			modTime: info.ModTime(),
+		})
+	}
+	return candidates
+}
+
 // LoadIndex reads MEMORY.md for a scope and truncates it to the prompt-safe limits.
-func (s *Store) LoadIndex(scope Scope) (content string, truncated bool, err error) {
+func (s *Store) LoadIndex(scope memcontract.Scope) (content string, truncated bool, err error) {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return "", false, err
@@ -340,12 +434,16 @@ func (s *Store) LoadIndex(scope Scope) (content string, truncated bool, err erro
 }
 
 // Search performs bounded lexical memory search across the visible scopes.
-func (s *Store) Search(ctx context.Context, query string, opts SearchOptions) ([]SearchResult, error) {
+func (s *Store) Search(
+	ctx context.Context,
+	query string,
+	opts memcontract.SearchOptions,
+) ([]memcontract.SearchResult, error) {
 	if ctx == nil {
 		return nil, errors.New("memory: search context is required")
 	}
 
-	scope, workspaceRoot, err := s.normalizeScopeAndWorkspace(opts.Scope, opts.Workspace)
+	scope, workspaceRoot, workspaceID, err := s.normalizeScopeAndWorkspace(ctx, opts.Scope, opts.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -354,20 +452,20 @@ func (s *Store) Search(ctx context.Context, query string, opts SearchOptions) ([
 	}
 	limit := clampSearchLimit(opts.Limit)
 
-	if err := s.ensureCatalogReady(ctx, scope, workspaceRoot); err != nil {
+	if err := s.ensureCatalogReady(ctx, scope, workspaceRoot, workspaceID); err != nil {
 		return nil, err
 	}
 	if s.catalog != nil {
-		results, err := s.catalog.search(ctx, query, scope, workspaceRoot, limit)
+		results, err := s.catalog.search(ctx, query, scope, workspaceID, limit)
 		if err != nil {
 			return nil, err
 		}
 		if err := s.logCatalogEvent(
 			ctx,
-			OperationRecord{
-				Operation: OperationSearch,
-				Scope:     operationRecordScope(scope, workspaceRoot),
-				Workspace: workspaceRoot,
+			memcontract.OperationRecord{
+				Operation: memcontract.OperationSearch,
+				Scope:     operationRecordScope(scope, workspaceID),
+				Workspace: workspaceID,
 				Summary:   fmt.Sprintf("query=%q results=%d", strings.TrimSpace(query), len(results)),
 			},
 		); err != nil {
@@ -378,7 +476,7 @@ func (s *Store) Search(ctx context.Context, query string, opts SearchOptions) ([
 		}
 	}
 
-	docs, err := s.collectSearchDocuments(scope, workspaceRoot)
+	docs, err := s.collectSearchDocuments(scope, workspaceRoot, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -390,148 +488,111 @@ func (s *Store) Search(ctx context.Context, query string, opts SearchOptions) ([
 }
 
 // Reindex rebuilds the derived catalog from the Markdown source of truth.
-func (s *Store) Reindex(ctx context.Context, opts ReindexOptions) (ReindexResult, error) {
+func (s *Store) Reindex(ctx context.Context, opts memcontract.ReindexOptions) (memcontract.ReindexResult, error) {
 	if ctx == nil {
-		return ReindexResult{}, errors.New("memory: reindex context is required")
+		return memcontract.ReindexResult{}, errors.New("memory: reindex context is required")
 	}
 
-	scope, workspaceRoot, err := s.normalizeScopeAndWorkspace(opts.Scope, opts.Workspace)
+	scope, workspaceRoot, workspaceID, err := s.normalizeScopeAndWorkspace(ctx, opts.Scope, opts.Workspace)
 	if err != nil {
-		return ReindexResult{}, err
+		return memcontract.ReindexResult{}, err
 	}
 
-	indexed, err := s.reindexScopes(ctx, scope, workspaceRoot)
+	indexed, err := s.reindexScopes(ctx, scope, workspaceRoot, workspaceID)
 	if err != nil {
-		return ReindexResult{}, err
+		return memcontract.ReindexResult{}, err
 	}
 	completedAt := time.Now().UTC()
 	if err := s.logCatalogEvent(
 		ctx,
-		OperationRecord{
-			Operation: OperationReindex,
-			Scope:     operationRecordScope(scope, workspaceRoot),
-			Workspace: workspaceRoot,
+		memcontract.OperationRecord{
+			Operation: memcontract.OperationReindex,
+			Scope:     operationRecordScope(scope, workspaceID),
+			Workspace: workspaceID,
 			Summary: fmt.Sprintf(
 				"scope=%s workspace=%s indexed=%d",
 				string(scope.Normalize()),
-				workspaceRoot,
+				workspaceID,
 				indexed,
 			),
 		},
 	); err != nil {
 		s.warn("memory: record reindex event failed", "error", err)
 	}
-	return ReindexResult{
+	return memcontract.ReindexResult{
 		IndexedFiles: indexed,
 		Scope:        scope.Normalize(),
-		Workspace:    workspaceRoot,
+		Workspace:    workspaceID,
 		CompletedAt:  completedAt,
 	}, nil
 }
 
 // HealthStats returns derived-catalog stats for the visible scopes.
-func (s *Store) HealthStats(ctx context.Context, workspaces []string) (HealthStats, error) {
+func (s *Store) HealthStats(ctx context.Context, workspaces []string) (memcontract.HealthStats, error) {
 	if ctx == nil {
-		return HealthStats{}, errors.New("memory: health stats context is required")
+		return memcontract.HealthStats{}, errors.New("memory: health stats context is required")
 	}
 	if s.catalog == nil {
-		return HealthStats{}, nil
+		return memcontract.HealthStats{}, nil
 	}
 
-	filters := make([]catalogFilter, 0, len(workspaces)+1)
-	filters = append(filters, catalogFilter{scope: ScopeGlobal})
-	seen := map[string]struct{}{}
-	for _, workspace := range workspaces {
-		workspaceRoot := canonicalWorkspaceRoot(workspace)
-		if workspaceRoot == "" {
-			continue
-		}
-		if _, exists := seen[workspaceRoot]; exists {
-			continue
-		}
-		seen[workspaceRoot] = struct{}{}
-		filters = append(filters, catalogFilter{scope: ScopeWorkspace, workspaceRoot: workspaceRoot})
+	sources, err := s.healthSources(ctx, workspaces)
+	if err != nil {
+		return memcontract.HealthStats{}, err
 	}
 
-	for _, filter := range filters {
-		if err := s.ensureCatalogFilterReady(ctx, filter); err != nil {
-			return HealthStats{}, err
+	accumulator := newHealthAccumulator()
+	for _, source := range sources {
+		if err := accumulator.addSource(ctx, source); err != nil {
+			return memcontract.HealthStats{}, err
 		}
 	}
-
-	entries, err := s.catalog.listEntries(ctx, filters)
-	if err != nil {
-		return HealthStats{}, err
-	}
-	actual, err := s.collectActualCatalogIDs(filters)
-	if err != nil {
-		return HealthStats{}, err
-	}
-
-	orphaned := 0
-	for _, entry := range entries {
-		if _, exists := actual[entry.ID]; !exists {
-			orphaned++
-		}
-	}
-
-	lastReindex, err := s.catalog.lastReindex(ctx)
-	if err != nil {
-		return HealthStats{}, err
-	}
-	operationCount, lastOperationAt, err := s.catalog.operationStats(ctx, filters)
-	if err != nil {
-		return HealthStats{}, err
-	}
-	return HealthStats{
-		IndexedFiles:    len(entries),
-		OrphanedFiles:   orphaned,
-		LastReindex:     lastReindex,
-		OperationCount:  operationCount,
-		LastOperationAt: lastOperationAt,
-	}, nil
+	return accumulator.stats(), nil
 }
 
 // History returns durable memory operation history ordered newest-first.
-func (s *Store) History(ctx context.Context, query OperationHistoryQuery) ([]OperationRecord, error) {
+func (s *Store) History(
+	ctx context.Context,
+	query memcontract.OperationHistoryQuery,
+) ([]memcontract.OperationRecord, error) {
 	if ctx == nil {
 		return nil, errors.New("memory: history context is required")
 	}
 	if s.catalog == nil {
-		return []OperationRecord{}, nil
+		return []memcontract.OperationRecord{}, nil
 	}
 	normalized := query
-	scope, workspaceRoot, err := s.normalizeScopeAndWorkspace(query.Scope, query.Workspace)
+	scope, _, workspaceID, err := s.normalizeScopeAndWorkspace(ctx, query.Scope, query.Workspace)
 	if err != nil {
 		return nil, err
 	}
 	normalized.Scope = scope
-	normalized.Workspace = workspaceRoot
+	normalized.Workspace = workspaceID
 	normalized.Operation = query.Operation.Normalize()
 	return s.catalog.listOperations(ctx, normalized)
 }
 
-func operationRecordScope(scope Scope, workspaceRoot string) Scope {
+func operationRecordScope(scope memcontract.Scope, workspaceID string) memcontract.Scope {
 	normalized := scope.Normalize()
-	if normalized == "" && strings.TrimSpace(workspaceRoot) != "" {
-		return ScopeWorkspace
+	if normalized == "" && strings.TrimSpace(workspaceID) != "" {
+		return memcontract.ScopeWorkspace
 	}
 	return normalized
 }
 
-func (s *Store) dirForScope(scope Scope) (string, error) {
+func (s *Store) dirForScope(scope memcontract.Scope) (string, error) {
 	normalized := scope.Normalize()
 	if err := normalized.Validate(); err != nil {
 		return "", wrapValidationError("resolve scope", string(scope), err)
 	}
 
 	switch normalized {
-	case ScopeGlobal:
+	case memcontract.ScopeGlobal:
 		if s.globalDir == "" {
 			return "", wrapValidationError("resolve scope", string(scope), errors.New("global directory is required"))
 		}
 		return s.globalDir, nil
-	case ScopeWorkspace:
+	case memcontract.ScopeWorkspace:
 		if s.workspaceDir == "" {
 			return "", wrapValidationError(
 				"resolve scope",
@@ -540,12 +601,81 @@ func (s *Store) dirForScope(scope Scope) (string, error) {
 			)
 		}
 		return s.workspaceDir, nil
+	case memcontract.ScopeAgent:
+		return s.agentMemoryDir()
 	default:
 		return "", wrapValidationError("resolve scope", string(scope), fmt.Errorf("unsupported scope %q", scope))
 	}
 }
 
-func (s *Store) pathFor(scope Scope, filename string) (string, error) {
+func (s *Store) agentConfigured() bool {
+	return strings.TrimSpace(s.agentName) != "" || strings.TrimSpace(string(s.agentTier)) != ""
+}
+
+func (s *Store) agentMemoryDir() (string, error) {
+	agentName, err := cleanPathSegment("agent", s.agentName)
+	if err != nil {
+		return "", err
+	}
+	tier := s.agentTier.Normalize()
+	if err := tier.Validate(); err != nil {
+		return "", wrapValidationError("resolve agent tier", string(s.agentTier), err)
+	}
+	switch tier {
+	case memcontract.AgentTierGlobal:
+		root, err := globalHomeFromMemoryDir(s.globalDir)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(root, "agents", agentName, memoryDirName), nil
+	case memcontract.AgentTierWorkspace:
+		if strings.TrimSpace(s.workspaceRoot) == "" {
+			return "", wrapValidationError(
+				"resolve agent workspace",
+				agentName,
+				errors.New("workspace directory is required"),
+			)
+		}
+		return filepath.Join(s.workspaceRoot, ".agh", "agents", agentName, memoryDirName), nil
+	default:
+		return "", wrapValidationError(
+			"resolve agent tier",
+			string(s.agentTier),
+			fmt.Errorf("unsupported agent tier %q", s.agentTier),
+		)
+	}
+}
+
+func globalHomeFromMemoryDir(globalDir string) (string, error) {
+	dir := cleanDirPath(globalDir)
+	if dir == "" {
+		return "", wrapValidationError(
+			"resolve global agent memory",
+			"global",
+			errors.New("global directory is required"),
+		)
+	}
+	if filepath.Base(dir) == memoryDirName {
+		return filepath.Dir(dir), nil
+	}
+	return filepath.Dir(dir), nil
+}
+
+func cleanPathSegment(kind string, value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", wrapValidationError("resolve "+kind, value, fmt.Errorf("%s is required", kind))
+	}
+	if strings.ContainsRune(trimmed, 0) || filepath.IsAbs(trimmed) {
+		return "", wrapValidationError("resolve "+kind, value, fmt.Errorf("invalid %s path segment", kind))
+	}
+	if trimmed == "." || trimmed == ".." || strings.ContainsAny(trimmed, `/\`) {
+		return "", wrapValidationError("resolve "+kind, value, fmt.Errorf("invalid %s path segment", kind))
+	}
+	return trimmed, nil
+}
+
+func (s *Store) pathFor(scope memcontract.Scope, filename string) (string, error) {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return "", err
@@ -559,7 +689,48 @@ func (s *Store) pathFor(scope Scope, filename string) (string, error) {
 	return filepath.Join(dir, base), nil
 }
 
-func (s *Store) syncScope(ctx context.Context, scope Scope) error {
+func (s *Store) completeHeaderForScope(
+	scope memcontract.Scope,
+	header memcontract.Header,
+) (memcontract.Header, error) {
+	normalized := scope.Normalize()
+	if normalized == "" {
+		return header, nil
+	}
+	header.Scope = normalized
+	if normalized != memcontract.ScopeAgent {
+		return header, nil
+	}
+	agentName, err := cleanPathSegment("agent", s.agentName)
+	if err != nil {
+		return memcontract.Header{}, err
+	}
+	tier := s.agentTier.Normalize()
+	if err := tier.Validate(); err != nil {
+		return memcontract.Header{}, wrapValidationError("resolve agent tier", string(s.agentTier), err)
+	}
+	if strings.TrimSpace(header.AgentName) == "" {
+		header.AgentName = agentName
+	} else if strings.TrimSpace(header.AgentName) != agentName {
+		return memcontract.Header{}, wrapValidationError(
+			"resolve agent",
+			header.AgentName,
+			fmt.Errorf("frontmatter agent does not match store agent %q", agentName),
+		)
+	}
+	if header.AgentTier.Normalize() == "" {
+		header.AgentTier = tier
+	} else if header.AgentTier.Normalize() != tier {
+		return memcontract.Header{}, wrapValidationError(
+			"resolve agent tier",
+			string(header.AgentTier),
+			fmt.Errorf("frontmatter agent tier does not match store tier %q", tier),
+		)
+	}
+	return header, nil
+}
+
+func (s *Store) syncScope(ctx context.Context, scope memcontract.Scope) error {
 	scope = scope.Normalize()
 	headers, err := s.scan(scope, 0)
 	if err != nil {
@@ -574,7 +745,7 @@ func (s *Store) syncScope(ctx context.Context, scope Scope) error {
 	return nil
 }
 
-func (s *Store) syncIndex(scope Scope, headers []Header) error {
+func (s *Store) syncIndex(scope memcontract.Scope, headers []memcontract.Header) error {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return err
@@ -588,25 +759,32 @@ func (s *Store) syncIndex(scope Scope, headers []Header) error {
 		return nil
 	}
 
-	if err := fileutil.AtomicWriteFile(indexPath, []byte(renderIndex(headers)), filePerm); err != nil {
+	if err := fileutil.AtomicWrite(indexPath, []byte(renderIndex(headers))); err != nil {
 		return fmt.Errorf("memory: write index %q: %w", indexPath, err)
 	}
 	return nil
 }
 
-func (s *Store) syncCatalogScope(ctx context.Context, scope Scope, headers []Header) error {
+func (s *Store) syncCatalogScope(ctx context.Context, scope memcontract.Scope, headers []memcontract.Header) error {
 	if s.catalog == nil {
 		return nil
 	}
-	workspaceRoot := ""
-	if scope.Normalize() == ScopeWorkspace {
-		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
-	}
-	docs, err := s.documentsForHeaders(scope, workspaceRoot, headers)
+	workspaceRoot, workspaceID, err := s.catalogWorkspaceForScope(ctx, scope)
 	if err != nil {
 		return err
 	}
-	if err := s.catalog.replaceScope(ctx, scope, workspaceRoot, docs); err != nil {
+	docs, err := s.documentsForHeaders(scope, workspaceRoot, workspaceID, headers)
+	if err != nil {
+		return err
+	}
+	if err := s.catalog.replaceScope(
+		ctx,
+		scope,
+		workspaceID,
+		s.catalogAgentName(scope),
+		s.catalogAgentTier(scope),
+		docs,
+	); err != nil {
 		return err
 	}
 	if err := s.catalog.setLastReindex(ctx, time.Now().UTC()); err != nil {
@@ -615,19 +793,12 @@ func (s *Store) syncCatalogScope(ctx context.Context, scope Scope, headers []Hea
 	return nil
 }
 
-func (s *Store) syncScopeAfterWrite(scope Scope, header Header, content []byte) {
-	if err := s.syncScopeAfterWriteErr(context.Background(), scope.Normalize(), header, content); err != nil {
-		s.warn(
-			"memory: sync derived state failed after mutation",
-			"action", "write",
-			"scope", scope.Normalize(),
-			"filename", strings.TrimSpace(header.Filename),
-			"error", err,
-		)
-	}
-}
-
-func (s *Store) syncScopeAfterWriteErr(ctx context.Context, scope Scope, header Header, content []byte) error {
+func (s *Store) syncScopeAfterWriteErr(
+	ctx context.Context,
+	scope memcontract.Scope,
+	header memcontract.Header,
+	content []byte,
+) error {
 	if needsFullSync, err := s.needsFullSyncAfterMutation(ctx, scope, strings.TrimSpace(header.Filename)); err != nil {
 		return err
 	} else if needsFullSync {
@@ -641,37 +812,23 @@ func (s *Store) syncScopeAfterWriteErr(ctx context.Context, scope Scope, header 
 		return nil
 	}
 
-	workspaceRoot := ""
-	if scope.Normalize() == ScopeWorkspace {
-		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+	_, workspaceID, err := s.catalogWorkspaceForScope(ctx, scope)
+	if err != nil {
+		return err
 	}
-	doc, err := buildCatalogDocument(scope, workspaceRoot, header, content)
+	doc, err := buildCatalogDocument(scope, workspaceID, header, content)
 	if err != nil {
 		return err
 	}
 	return s.catalog.upsertDocument(ctx, doc)
 }
 
-func (s *Store) syncScopeAfterDelete(scope Scope, filename string) {
-	if err := s.syncScopeAfterDeleteErr(
-		context.Background(),
-		scope.Normalize(),
-		strings.TrimSpace(filename),
-	); err != nil {
-		s.warn(
-			"memory: sync derived state failed after mutation",
-			"action", "delete",
-			"scope", scope.Normalize(),
-			"filename", strings.TrimSpace(filename),
-			"error", err,
-		)
-	}
-}
-
-func (s *Store) syncScopeAfterDeleteErr(ctx context.Context, scope Scope, filename string) error {
-	if needsFullSync, err := s.needsFullSyncAfterMutation(ctx, scope, strings.TrimSpace(filename)); err != nil {
+func (s *Store) syncScopeAfterDeleteErr(ctx context.Context, scope memcontract.Scope, filename string) error {
+	needsFullSync, err := s.needsFullSyncAfterMutation(ctx, scope, strings.TrimSpace(filename))
+	if err != nil {
 		return err
-	} else if needsFullSync {
+	}
+	if needsFullSync {
 		return s.syncScope(ctx, scope)
 	}
 
@@ -682,14 +839,25 @@ func (s *Store) syncScopeAfterDeleteErr(ctx context.Context, scope Scope, filena
 		return nil
 	}
 
-	workspaceRoot := ""
-	if scope.Normalize() == ScopeWorkspace {
-		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+	_, workspaceID, err := s.catalogWorkspaceForScope(ctx, scope)
+	if err != nil {
+		return err
 	}
-	return s.catalog.deleteDocument(ctx, scope, workspaceRoot, filename)
+	return s.catalog.deleteDocument(
+		ctx,
+		scope,
+		workspaceID,
+		s.catalogAgentName(scope),
+		s.catalogAgentTier(scope),
+		filename,
+	)
 }
 
-func (s *Store) needsFullSyncAfterMutation(ctx context.Context, scope Scope, filename string) (bool, error) {
+func (s *Store) needsFullSyncAfterMutation(
+	ctx context.Context,
+	scope memcontract.Scope,
+	filename string,
+) (bool, error) {
 	indexMissing, err := s.indexMissingWithExistingDocuments(scope, filename)
 	if err != nil {
 		return false, err
@@ -701,18 +869,18 @@ func (s *Store) needsFullSyncAfterMutation(ctx context.Context, scope Scope, fil
 		return false, nil
 	}
 
-	workspaceRoot := ""
-	if scope.Normalize() == ScopeWorkspace {
-		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+	_, workspaceID, err := s.catalogWorkspaceForScope(ctx, scope)
+	if err != nil {
+		return false, err
 	}
-	ready, err := s.catalog.scopeReady(ctx, scope, workspaceRoot)
+	ready, err := s.catalog.scopeReady(ctx, scope, workspaceID)
 	if err != nil {
 		return false, err
 	}
 	return !ready, nil
 }
 
-func (s *Store) indexMissingWithExistingDocuments(scope Scope, mutatedFilename string) (bool, error) {
+func (s *Store) indexMissingWithExistingDocuments(scope memcontract.Scope, mutatedFilename string) (bool, error) {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return false, err
@@ -740,7 +908,7 @@ func (s *Store) indexMissingWithExistingDocuments(scope Scope, mutatedFilename s
 	return false, nil
 }
 
-func (s *Store) syncIndexAfterWrite(scope Scope, header Header) error {
+func (s *Store) syncIndexAfterWrite(scope memcontract.Scope, header memcontract.Header) error {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return err
@@ -763,7 +931,7 @@ func (s *Store) syncIndexAfterWrite(scope Scope, header Header) error {
 	return writeIndexLines(indexPath, updated)
 }
 
-func (s *Store) syncIndexAfterDelete(scope Scope, filename string) error {
+func (s *Store) syncIndexAfterDelete(scope memcontract.Scope, filename string) error {
 	dir, err := s.dirForScope(scope)
 	if err != nil {
 		return err
@@ -801,42 +969,136 @@ type scanCandidate struct {
 	modTime time.Time
 }
 
-func (s *Store) normalizeScopeAndWorkspace(scope Scope, workspace string) (Scope, string, error) {
+func (s *Store) normalizeScopeAndWorkspace(
+	ctx context.Context,
+	scope memcontract.Scope,
+	workspace string,
+) (memcontract.Scope, string, string, error) {
 	normalizedScope := scope.Normalize()
 	if normalizedScope != "" {
 		if err := normalizedScope.Validate(); err != nil {
-			return "", "", wrapValidationError("resolve scope", string(scope), err)
+			return "", "", "", wrapValidationError("resolve scope", string(scope), err)
 		}
 	}
 
 	workspaceRoot := canonicalWorkspaceRoot(workspace)
 	if workspaceRoot == "" {
-		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+		workspaceRoot = strings.TrimSpace(s.workspaceRoot)
 	}
-	if normalizedScope == ScopeWorkspace && workspaceRoot == "" {
-		return "", "", wrapValidationError(
+	if normalizedScope == memcontract.ScopeWorkspace && workspaceRoot == "" {
+		return "", "", "", wrapValidationError(
 			"resolve scope",
 			string(scope),
 			errors.New("workspace directory is required"),
 		)
 	}
-	return normalizedScope, workspaceRoot, nil
+	if normalizedScope == memcontract.ScopeAgent && s.agentTier.Normalize() == memcontract.AgentTierWorkspace &&
+		workspaceRoot == "" {
+		return "", "", "", wrapValidationError(
+			"resolve scope",
+			string(scope),
+			errors.New("workspace directory is required"),
+		)
+	}
+	workspaceID := ""
+	if workspaceRoot != "" {
+		identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+		if err != nil {
+			return "", "", "", fmt.Errorf("memory: resolve workspace identity for %q: %w", workspaceRoot, err)
+		}
+		workspaceID = identity.WorkspaceID
+	}
+	return normalizedScope, workspaceRoot, workspaceID, nil
 }
 
-func (s *Store) ensureCatalogReady(ctx context.Context, scope Scope, workspaceRoot string) error {
+func (s *Store) workspaceIDForRoot(ctx context.Context, workspaceRoot string) (string, error) {
+	root := strings.TrimSpace(workspaceRoot)
+	if root == "" {
+		return "", wrapValidationError(
+			"resolve workspace identity",
+			"workspace",
+			errors.New("workspace directory is required"),
+		)
+	}
+	identity, err := aghworkspace.EnsureIdentity(ctx, root)
+	if err != nil {
+		return "", fmt.Errorf("memory: resolve workspace identity for %q: %w", root, err)
+	}
+	return identity.WorkspaceID, nil
+}
+
+func (s *Store) catalogWorkspaceForScope(
+	ctx context.Context,
+	scope memcontract.Scope,
+) (string, string, error) {
+	switch scope.Normalize() {
+	case memcontract.ScopeWorkspace:
+		workspaceRoot := strings.TrimSpace(s.workspaceRoot)
+		workspaceID, err := s.workspaceIDForRoot(ctx, workspaceRoot)
+		return workspaceRoot, workspaceID, err
+	case memcontract.ScopeAgent:
+		if s.agentTier.Normalize() != memcontract.AgentTierWorkspace {
+			return "", "", nil
+		}
+		workspaceRoot := strings.TrimSpace(s.workspaceRoot)
+		workspaceID := strings.TrimSpace(s.agentWorkspaceID)
+		if workspaceID != "" {
+			return workspaceRoot, workspaceID, nil
+		}
+		resolvedID, err := s.workspaceIDForRoot(ctx, workspaceRoot)
+		return workspaceRoot, resolvedID, err
+	default:
+		return "", "", nil
+	}
+}
+
+func (s *Store) catalogAgentName(scope memcontract.Scope) string {
+	if scope.Normalize() != memcontract.ScopeAgent {
+		return ""
+	}
+	return strings.TrimSpace(s.agentName)
+}
+
+func (s *Store) catalogAgentTier(scope memcontract.Scope) memcontract.AgentTier {
+	if scope.Normalize() != memcontract.ScopeAgent {
+		return ""
+	}
+	return s.agentTier.Normalize()
+}
+
+func (s *Store) ensureCatalogReady(
+	ctx context.Context,
+	scope memcontract.Scope,
+	workspaceRoot string,
+	workspaceID string,
+) error {
 	if s.catalog == nil {
 		return nil
 	}
 
-	filters := []catalogFilter{{scope: ScopeGlobal}}
+	filters := []catalogFilter{{scope: memcontract.ScopeGlobal}}
 	switch scope.Normalize() {
-	case ScopeGlobal:
+	case memcontract.ScopeGlobal:
 		filters = filters[:1]
-	case ScopeWorkspace:
-		filters = []catalogFilter{{scope: ScopeWorkspace, workspaceRoot: workspaceRoot}}
+	case memcontract.ScopeWorkspace:
+		filters = []catalogFilter{{
+			scope:         memcontract.ScopeWorkspace,
+			workspaceRoot: workspaceRoot,
+			workspaceID:   workspaceID,
+		}}
+	case memcontract.ScopeAgent:
+		filters = []catalogFilter{{
+			scope:         memcontract.ScopeAgent,
+			workspaceRoot: workspaceRoot,
+			workspaceID:   workspaceID,
+		}}
 	default:
-		if strings.TrimSpace(workspaceRoot) != "" {
-			filters = append(filters, catalogFilter{scope: ScopeWorkspace, workspaceRoot: workspaceRoot})
+		if strings.TrimSpace(workspaceID) != "" {
+			filters = append(filters, catalogFilter{
+				scope:         memcontract.ScopeWorkspace,
+				workspaceRoot: workspaceRoot,
+				workspaceID:   workspaceID,
+			})
 		}
 	}
 
@@ -853,7 +1115,7 @@ func (s *Store) ensureCatalogFilterReady(ctx context.Context, filter catalogFilt
 		return nil
 	}
 
-	ready, err := s.catalog.scopeReady(ctx, filter.scope, filter.workspaceRoot)
+	ready, err := s.catalog.scopeReady(ctx, filter.scope, filter.workspaceID)
 	if err != nil {
 		return err
 	}
@@ -861,36 +1123,49 @@ func (s *Store) ensureCatalogFilterReady(ctx context.Context, filter catalogFilt
 		return nil
 	}
 
-	entryCount, err := s.catalog.scopeEntryCount(ctx, filter.scope, filter.workspaceRoot)
+	entryCount, err := s.catalog.scopeEntryCount(ctx, filter.scope, filter.workspaceID)
 	if err != nil {
 		return err
 	}
 	if entryCount > 0 {
-		return s.catalog.setScopeReady(ctx, filter.scope, filter.workspaceRoot)
+		return s.catalog.setScopeReady(ctx, filter.scope, filter.workspaceID)
 	}
 
-	_, err = s.reindexScopes(ctx, filter.scope, filter.workspaceRoot)
+	_, err = s.reindexScopes(ctx, filter.scope, filter.workspaceRoot, filter.workspaceID)
 	return err
 }
 
-func (s *Store) reindexScopes(ctx context.Context, scope Scope, workspaceRoot string) (int, error) {
+func (s *Store) reindexScopes(
+	ctx context.Context,
+	scope memcontract.Scope,
+	workspaceRoot string,
+	workspaceID string,
+) (int, error) {
 	if s.catalog == nil {
 		return 0, nil
 	}
 
 	total := 0
-	seenWorkspace := strings.TrimSpace(workspaceRoot)
+	seenWorkspaceRoot := strings.TrimSpace(workspaceRoot)
+	seenWorkspaceID := strings.TrimSpace(workspaceID)
 
-	reindexScope := func(scope Scope, workspaceRoot string) error {
+	reindexScope := func(scope memcontract.Scope, workspaceRoot string, workspaceID string) error {
 		headers, err := s.headersForCatalogScope(scope, workspaceRoot)
 		if err != nil {
 			return err
 		}
-		docs, err := s.documentsForHeaders(scope, workspaceRoot, headers)
+		docs, err := s.documentsForHeaders(scope, workspaceRoot, workspaceID, headers)
 		if err != nil {
 			return err
 		}
-		if err := s.catalog.replaceScope(ctx, scope, workspaceRoot, docs); err != nil {
+		if err := s.catalog.replaceScope(
+			ctx,
+			scope,
+			workspaceID,
+			s.catalogAgentName(scope),
+			s.catalogAgentTier(scope),
+			docs,
+		); err != nil {
 			return err
 		}
 		total += len(docs)
@@ -898,20 +1173,24 @@ func (s *Store) reindexScopes(ctx context.Context, scope Scope, workspaceRoot st
 	}
 
 	switch scope.Normalize() {
-	case ScopeGlobal:
-		if err := reindexScope(ScopeGlobal, ""); err != nil {
+	case memcontract.ScopeGlobal:
+		if err := reindexScope(memcontract.ScopeGlobal, "", ""); err != nil {
 			return 0, err
 		}
-	case ScopeWorkspace:
-		if err := reindexScope(ScopeWorkspace, seenWorkspace); err != nil {
+	case memcontract.ScopeWorkspace:
+		if err := reindexScope(memcontract.ScopeWorkspace, seenWorkspaceRoot, seenWorkspaceID); err != nil {
+			return 0, err
+		}
+	case memcontract.ScopeAgent:
+		if err := reindexScope(memcontract.ScopeAgent, seenWorkspaceRoot, seenWorkspaceID); err != nil {
 			return 0, err
 		}
 	default:
-		if err := reindexScope(ScopeGlobal, ""); err != nil {
+		if err := reindexScope(memcontract.ScopeGlobal, "", ""); err != nil {
 			return 0, err
 		}
-		if seenWorkspace != "" {
-			if err := reindexScope(ScopeWorkspace, seenWorkspace); err != nil {
+		if seenWorkspaceRoot != "" {
+			if err := reindexScope(memcontract.ScopeWorkspace, seenWorkspaceRoot, seenWorkspaceID); err != nil {
 				return 0, err
 			}
 		}
@@ -923,17 +1202,22 @@ func (s *Store) reindexScopes(ctx context.Context, scope Scope, workspaceRoot st
 	return total, nil
 }
 
-func (s *Store) headersForCatalogScope(scope Scope, workspaceRoot string) ([]Header, error) {
+func (s *Store) headersForCatalogScope(scope memcontract.Scope, workspaceRoot string) ([]memcontract.Header, error) {
 	target := s
-	if scope.Normalize() == ScopeWorkspace {
+	if scope.Normalize() == memcontract.ScopeWorkspace {
 		target = s.ForWorkspace(workspaceRoot)
 	}
 	return target.scan(scope, 0)
 }
 
-func (s *Store) documentsForHeaders(scope Scope, workspaceRoot string, headers []Header) ([]catalogDocument, error) {
+func (s *Store) documentsForHeaders(
+	scope memcontract.Scope,
+	workspaceRoot string,
+	workspaceID string,
+	headers []memcontract.Header,
+) ([]catalogDocument, error) {
 	target := s
-	if scope.Normalize() == ScopeWorkspace {
+	if scope.Normalize() == memcontract.ScopeWorkspace {
 		target = s.ForWorkspace(workspaceRoot)
 	}
 
@@ -943,7 +1227,7 @@ func (s *Store) documentsForHeaders(scope Scope, workspaceRoot string, headers [
 		if err != nil {
 			return nil, err
 		}
-		doc, err := buildCatalogDocument(scope, workspaceRoot, header, rawContent)
+		doc, err := buildCatalogDocument(scope, workspaceID, header, rawContent)
 		if err != nil {
 			return nil, err
 		}
@@ -952,21 +1236,37 @@ func (s *Store) documentsForHeaders(scope Scope, workspaceRoot string, headers [
 	return docs, nil
 }
 
-func (s *Store) collectSearchDocuments(scope Scope, workspaceRoot string) ([]catalogDocument, error) {
+func (s *Store) collectSearchDocuments(
+	scope memcontract.Scope,
+	workspaceRoot string,
+	workspaceID string,
+) ([]catalogDocument, error) {
 	scopes := []struct {
-		scope     Scope
-		workspace string
-	}{{scope: ScopeGlobal}}
-	if scope.Normalize() == ScopeWorkspace {
+		scope       memcontract.Scope
+		workspace   string
+		workspaceID string
+	}{{scope: memcontract.ScopeGlobal}}
+	switch scope.Normalize() {
+	case memcontract.ScopeWorkspace:
 		scopes = []struct {
-			scope     Scope
-			workspace string
-		}{{scope: ScopeWorkspace, workspace: workspaceRoot}}
-	} else if strings.TrimSpace(workspaceRoot) != "" {
-		scopes = append(scopes, struct {
-			scope     Scope
-			workspace string
-		}{scope: ScopeWorkspace, workspace: workspaceRoot})
+			scope       memcontract.Scope
+			workspace   string
+			workspaceID string
+		}{{scope: memcontract.ScopeWorkspace, workspace: workspaceRoot, workspaceID: workspaceID}}
+	case memcontract.ScopeAgent:
+		scopes = []struct {
+			scope       memcontract.Scope
+			workspace   string
+			workspaceID string
+		}{{scope: memcontract.ScopeAgent, workspace: workspaceRoot, workspaceID: workspaceID}}
+	default:
+		if strings.TrimSpace(workspaceRoot) != "" {
+			scopes = append(scopes, struct {
+				scope       memcontract.Scope
+				workspace   string
+				workspaceID string
+			}{scope: memcontract.ScopeWorkspace, workspace: workspaceRoot, workspaceID: workspaceID})
+		}
 	}
 
 	docs := make([]catalogDocument, 0)
@@ -975,7 +1275,7 @@ func (s *Store) collectSearchDocuments(scope Scope, workspaceRoot string) ([]cat
 		if err != nil {
 			return nil, err
 		}
-		items, err := s.documentsForHeaders(item.scope, item.workspace, headers)
+		items, err := s.documentsForHeaders(item.scope, item.workspace, item.workspaceID, headers)
 		if err != nil {
 			return nil, err
 		}
@@ -992,13 +1292,13 @@ func (s *Store) collectActualCatalogIDs(filters []catalogFilter) (map[string]str
 			return nil, err
 		}
 		for _, header := range headers {
-			actual[catalogDocID(filter.scope, filter.workspaceRoot, header.Filename)] = struct{}{}
+			actual[catalogDocIDForHeader(filter.scope, filter.workspaceID, header)] = struct{}{}
 		}
 	}
 	return actual, nil
 }
 
-func (s *Store) logCatalogEvent(ctx context.Context, record OperationRecord) error {
+func (s *Store) logCatalogEvent(ctx context.Context, record memcontract.OperationRecord) error {
 	if s.catalog == nil {
 		return nil
 	}
@@ -1008,18 +1308,21 @@ func (s *Store) logCatalogEvent(ctx context.Context, record OperationRecord) err
 	return s.catalog.logEvent(ctx, record)
 }
 
-func (s *Store) logMutationEvent(action string, scope Scope, filename string) {
-	workspaceRoot := ""
-	if scope.Normalize() == ScopeWorkspace {
-		workspaceRoot = deriveWorkspaceRoot(s.workspaceDir)
+func (s *Store) logMutationEvent(action string, scope memcontract.Scope, filename string) {
+	_, workspaceID, err := s.catalogWorkspaceForScope(context.Background(), scope)
+	if err != nil {
+		s.warn("memory: resolve workspace identity for mutation event failed", "error", err)
+		return
 	}
+
 	if err := s.logCatalogEvent(
 		context.Background(),
-		OperationRecord{
-			Operation: Operation("memory." + strings.TrimSpace(action)),
+		memcontract.OperationRecord{
+			Operation: memcontract.Operation("memory." + strings.TrimSpace(action)),
 			Scope:     scope.Normalize(),
-			Workspace: workspaceRoot,
+			Workspace: workspaceID,
 			Filename:  strings.TrimSpace(filename),
+			AgentName: s.agentNameForEvent(scope),
 			Summary:   fmt.Sprintf("scope=%s filename=%s", scope.Normalize(), strings.TrimSpace(filename)),
 		},
 	); err != nil {
@@ -1031,6 +1334,13 @@ func (s *Store) logMutationEvent(action string, scope Scope, filename string) {
 			"error", err,
 		)
 	}
+}
+
+func (s *Store) agentNameForEvent(scope memcontract.Scope) string {
+	if scope.Normalize() != memcontract.ScopeAgent {
+		return ""
+	}
+	return strings.TrimSpace(s.agentName)
 }
 
 func (s *Store) lockMutations() func() {
@@ -1114,7 +1424,7 @@ func firstMarkdownLinkTarget(line string) (string, bool) {
 	return "", false
 }
 
-func renderIndex(headers []Header) string {
+func renderIndex(headers []memcontract.Header) string {
 	if len(headers) == 0 {
 		return ""
 	}
@@ -1125,7 +1435,7 @@ func renderIndex(headers []Header) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-func renderIndexLine(header Header) string {
+func renderIndexLine(header memcontract.Header) string {
 	header.Normalize()
 	if header.Description == "" {
 		return fmt.Sprintf("- [%s](%s)", header.Name, header.Filename)
@@ -1160,18 +1470,18 @@ func writeIndexLines(path string, lines []string) error {
 		}
 		return nil
 	}
-	if err := fileutil.AtomicWriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), filePerm); err != nil {
+	if err := fileutil.AtomicWrite(path, []byte(strings.Join(lines, "\n")+"\n")); err != nil {
 		return fmt.Errorf("memory: write index %q: %w", path, err)
 	}
 	return nil
 }
 
-func indexMatchesHeaders(content string, headers []Header) bool {
+func indexMatchesHeaders(content string, headers []memcontract.Header) bool {
 	return strings.TrimSpace(content) == strings.TrimSpace(renderIndex(headers))
 }
 
 func shouldSkipFile(name string) bool {
-	return name == indexFilename || strings.HasPrefix(name, ".")
+	return name == indexFilename || strings.HasPrefix(name, ".") || strings.Contains(name, ".tmp-")
 }
 
 func cleanDirPath(path string) string {
@@ -1187,9 +1497,6 @@ func canonicalWorkspaceRoot(path string) string {
 	clean := cleanDirPath(path)
 	if clean == "" {
 		return ""
-	}
-	if root := deriveWorkspaceRoot(clean); root != "" {
-		return root
 	}
 	return clean
 }

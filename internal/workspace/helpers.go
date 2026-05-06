@@ -118,6 +118,10 @@ func errorType(err error) string {
 		return "workspace_name_taken"
 	case errors.Is(err, ErrWorkspacePathTaken):
 		return "workspace_path_taken"
+	case errors.Is(err, ErrWorkspaceIdentityInvalid):
+		return "workspace_identity_invalid"
+	case errors.Is(err, ErrWorkspaceIdentityPermissionDenied):
+		return "workspace_identity_permission_denied"
 	case errors.Is(err, context.Canceled):
 		return "context_canceled"
 	case errors.Is(err, context.DeadlineExceeded):

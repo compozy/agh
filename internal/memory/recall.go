@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/session"
 )
 
@@ -41,16 +42,18 @@ func NewRecallAugmenter(store *Store) session.PromptInputAugmenter {
 			target = store.ForWorkspace(workspaceRoot)
 		}
 
-		results, err := target.Search(ctx, query, SearchOptions{
-			Workspace: workspaceRoot,
-			Limit:     maxRecallResults,
+		packaged, err := target.Recall(ctx, memcontract.Query{
+			AgentName: sAgentName(target),
+			QueryText: query,
+		}, memcontract.RecallOptions{
+			TopK:          maxRecallResults,
+			RawCandidates: 20,
 		})
 		if err != nil {
 			return message, err
 		}
 
-		now := time.Now().UTC()
-		block := buildRecallBlock(results, now)
+		block := buildPackagedRecallBlock(packaged)
 		if block == "" {
 			return message, nil
 		}
@@ -58,7 +61,21 @@ func NewRecallAugmenter(store *Store) session.PromptInputAugmenter {
 	}
 }
 
-func buildRecallBlock(results []SearchResult, now time.Time) string {
+func sAgentName(store *Store) string {
+	if store == nil {
+		return ""
+	}
+	return strings.TrimSpace(store.agentName)
+}
+
+func buildPackagedRecallBlock(packaged memcontract.Packaged) string {
+	return RenderRecallPromptSection(packaged, RecallPromptOptions{
+		MaxEntries:    maxRecallResults,
+		MaxCharacters: maxRecallCharacters,
+	})
+}
+
+func buildRecallBlock(results []memcontract.SearchResult, now time.Time) string {
 	if len(results) == 0 {
 		return ""
 	}

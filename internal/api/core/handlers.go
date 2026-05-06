@@ -64,6 +64,9 @@ type BaseHandlerConfig struct {
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
+	MemoryExtractor              MemoryExtractorService
+	MemoryProviders              MemoryProviderService
+	MemorySessionLedger          MemorySessionLedgerService
 	HomePaths                    aghconfig.HomePaths
 	Config                       aghconfig.Config
 	Logger                       *slog.Logger
@@ -112,6 +115,9 @@ type BaseHandlers struct {
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
+	MemoryExtractor              MemoryExtractorService
+	MemoryProviders              MemoryProviderService
+	MemorySessionLedger          MemorySessionLedgerService
 	HomePaths                    aghconfig.HomePaths
 	Config                       aghconfig.Config
 	Logger                       *slog.Logger
@@ -131,39 +137,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	if cfg == nil {
 		cfg = &BaseHandlerConfig{}
 	}
-
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	now := cfg.Now
-	if now == nil {
-		now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-	agentLoader := cfg.AgentLoader
-	if agentLoader == nil {
-		agentLoader = aghconfig.LoadAgentDef
-	}
-	if cfg.PollInterval <= 0 {
-		cfg.PollInterval = defaultPollInterval
-	}
-	if cfg.StartedAt.IsZero() {
-		cfg.StartedAt = now()
-	}
-	pid := cfg.PID
-	if pid == nil {
-		pid = os.Getpid
-	}
-
-	if cfg.StreamDone == nil {
-		logger.Warn(
-			"api: stream shutdown bridge not provided; streaming handlers will rely on caller context " +
-				"until a transport installs one",
-		)
-		cfg.StreamDone = make(chan struct{})
-	}
+	defaults := normalizeBaseHandlerConfig(cfg)
 
 	handlers := &BaseHandlers{
 		TransportName:                strings.TrimSpace(cfg.TransportName),
@@ -193,19 +167,69 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		MemoryStore:                  cfg.MemoryStore,
 		DreamTrigger:                 cfg.DreamTrigger,
+		MemoryExtractor:              cfg.MemoryExtractor,
+		MemoryProviders:              cfg.MemoryProviders,
+		MemorySessionLedger:          cfg.MemorySessionLedger,
 		HomePaths:                    cfg.HomePaths,
 		Config:                       cfg.Config,
-		Logger:                       logger,
+		Logger:                       defaults.logger,
 		StartedAt:                    cfg.StartedAt,
-		Now:                          now,
+		Now:                          defaults.now,
 		PollInterval:                 cfg.PollInterval,
-		AgentLoader:                  agentLoader,
-		PID:                          pid,
+		AgentLoader:                  defaults.agentLoader,
+		PID:                          defaults.pid,
 	}
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.httpPort.Store(int64(cfg.HTTPPort))
 	return handlers
+}
+
+type baseHandlerDefaults struct {
+	logger      *slog.Logger
+	now         func() time.Time
+	agentLoader AgentLoader
+	pid         func() int
+}
+
+func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	now := cfg.Now
+	if now == nil {
+		now = func() time.Time {
+			return time.Now().UTC()
+		}
+	}
+	agentLoader := cfg.AgentLoader
+	if agentLoader == nil {
+		agentLoader = aghconfig.LoadAgentDef
+	}
+	if cfg.PollInterval <= 0 {
+		cfg.PollInterval = defaultPollInterval
+	}
+	if cfg.StartedAt.IsZero() {
+		cfg.StartedAt = now()
+	}
+	pid := cfg.PID
+	if pid == nil {
+		pid = os.Getpid
+	}
+	if cfg.StreamDone == nil {
+		logger.Warn(
+			"api: stream shutdown bridge not provided; streaming handlers will rely on caller context " +
+				"until a transport installs one",
+		)
+		cfg.StreamDone = make(chan struct{})
+	}
+	return baseHandlerDefaults{
+		logger:      logger,
+		now:         now,
+		agentLoader: agentLoader,
+		pid:         pid,
+	}
 }
 
 func (h *BaseHandlers) applyAuthoredContextConfig(cfg *BaseHandlerConfig) {

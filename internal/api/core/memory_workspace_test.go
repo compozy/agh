@@ -8,10 +8,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 
 	"github.com/goccy/go-yaml"
 	"github.com/pedronauck/agh/internal/api/contract"
@@ -31,6 +32,13 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		t.Helper()
 
 		store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := store.CloseRecallSignalRecorders(ctx); err != nil {
+				t.Fatalf("CloseRecallSignalRecorders() error = %v", err)
+			}
+		})
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
@@ -40,14 +48,14 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("MkdirAll(workspace) error = %v", err)
 		}
 		if err := store.Write(
-			memory.ScopeGlobal,
+			memcontract.ScopeGlobal,
 			"global.md",
-			[]byte(memoryDocument(t, "Global", memory.MemoryTypeUser, "hello")),
+			[]byte(memoryDocument(t, "Global", memcontract.TypeUser, "hello")),
 		); err != nil {
 			t.Fatalf("Write(global) error = %v", err)
 		}
 		if err := store.ForWorkspace(workspace).
-			Write(memory.ScopeWorkspace, "workspace.md", []byte(memoryDocument(t, "Workspace", memory.MemoryTypeProject, "world"))); err != nil {
+			Write(memcontract.ScopeWorkspace, "workspace.md", []byte(memoryDocument(t, "Workspace", memcontract.TypeProject, "world"))); err != nil {
 			t.Fatalf("Write(workspace) error = %v", err)
 		}
 
@@ -85,19 +93,19 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		fixture, workspace, _ := setup(t)
 		query := url.Values{}
-		query.Set("workspace", workspace)
+		query.Set("workspace_id", workspace)
 		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory?"+query.Encode(), nil)
 		if listResp.Code != http.StatusOK {
-			t.Fatalf("list memory status = %d, want %d", listResp.Code, http.StatusOK)
+			t.Fatalf("list memory status = %d, want %d; body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
 		}
 
-		var headers []memory.Header
-		testutil.DecodeJSONResponse(t, listResp, &headers)
-		if len(headers) != 2 {
-			t.Fatalf("memory headers len = %d, want 2", len(headers))
+		var payload contract.MemoryListResponse
+		testutil.DecodeJSONResponse(t, listResp, &payload)
+		if len(payload.Memories) != 2 {
+			t.Fatalf("memory entries len = %d, want 2; payload=%#v", len(payload.Memories), payload)
 		}
-		if headers[0].Filename == "" || headers[1].Filename == "" {
-			t.Fatalf("memory headers = %#v", headers)
+		if payload.Memories[0].Filename == "" || payload.Memories[1].Filename == "" {
+			t.Fatalf("memory entries = %#v", payload.Memories)
 		}
 	})
 
@@ -110,9 +118,9 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("read memory status = %d, want %d", readResp.Code, http.StatusOK)
 		}
 
-		var payload contract.MemoryReadResponse
+		var payload contract.MemoryEntryResponse
 		testutil.DecodeJSONResponse(t, readResp, &payload)
-		if payload.Content == "" {
+		if payload.Memory.Content == "" {
 			t.Fatalf("read payload = %#v, want non-empty content", payload)
 		}
 	})
@@ -121,15 +129,17 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, _ := setup(t)
-		writeBody, err := json.Marshal(contract.MemoryWriteRequest{
-			Scope:     "workspace",
-			Workspace: workspace,
-			Content:   memoryDocument(t, "Project", memory.MemoryTypeProject, "updated"),
+		const rawContent = "durable response body sentinel"
+		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
+			WorkspaceID: workspace,
+			Type:        memcontract.TypeProject,
+			Name:        "Project",
+			Content:     rawContent,
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(write request) error = %v", err)
 		}
-		writeResp := performRequest(t, fixture.Engine, http.MethodPut, "/memory/new.md", writeBody)
+		writeResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory", writeBody)
 		if writeResp.Code != http.StatusOK {
 			t.Fatalf(
 				"write memory status = %d, want %d; body=%s",
@@ -139,10 +149,18 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			)
 		}
 
-		var payload contract.MemoryMutationResponse
+		var payload contract.MemoryMutationDecisionResponse
 		testutil.DecodeJSONResponse(t, writeResp, &payload)
-		if !payload.OK {
-			t.Fatalf("write payload = %#v, want ok=true", payload)
+		if !payload.Applied || payload.Decision.TargetFilename == "" {
+			t.Fatalf("write payload = %#v, want applied decision", payload)
+		}
+		if payload.Decision.PostContentHash == "" {
+			t.Fatalf("write payload = %#v, want content hash without raw content", payload)
+		}
+		for _, leaked := range []string{rawContent, `"post_content":`, `"prior_content":`, `"raw_response":`} {
+			if strings.Contains(writeResp.Body.String(), leaked) {
+				t.Fatalf("write response leaked %q in body %s", leaked, writeResp.Body.String())
+			}
 		}
 	})
 
@@ -150,31 +168,45 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, _ := setup(t)
-		writeBody, err := json.Marshal(contract.MemoryWriteRequest{
-			Scope:     "workspace",
-			Workspace: workspace,
-			Content:   memoryDocument(t, "Project", memory.MemoryTypeProject, "updated"),
+		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
+			WorkspaceID: workspace,
+			Type:        memcontract.TypeProject,
+			Name:        "Delete Me",
+			Content:     "updated",
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(write request) error = %v", err)
 		}
-		writeResp := performRequest(t, fixture.Engine, http.MethodPut, "/memory/new.md", writeBody)
+		writeResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory", writeBody)
 		if writeResp.Code != http.StatusOK {
-			t.Fatalf("write memory status = %d, want %d", writeResp.Code, http.StatusOK)
+			t.Fatalf(
+				"write memory status = %d, want %d; body=%s",
+				writeResp.Code,
+				http.StatusOK,
+				writeResp.Body.String(),
+			)
 		}
+		var writePayload contract.MemoryMutationDecisionResponse
+		testutil.DecodeJSONResponse(t, writeResp, &writePayload)
 
 		query := url.Values{}
 		query.Set("scope", "workspace")
-		query.Set("workspace", workspace)
-		deleteResp := performRequest(t, fixture.Engine, http.MethodDelete, "/memory/new.md?"+query.Encode(), nil)
+		query.Set("workspace_id", workspace)
+		deleteResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodDelete,
+			"/memory/"+writePayload.Decision.TargetFilename+"?"+query.Encode(),
+			nil,
+		)
 		if deleteResp.Code != http.StatusOK {
 			t.Fatalf("delete memory status = %d, want %d", deleteResp.Code, http.StatusOK)
 		}
 
-		var payload contract.MemoryMutationResponse
+		var payload contract.MemoryDeleteResponse
 		testutil.DecodeJSONResponse(t, deleteResp, &payload)
-		if !payload.OK {
-			t.Fatalf("delete payload = %#v, want ok=true", payload)
+		if !payload.Applied {
+			t.Fatalf("delete payload = %#v, want applied=true", payload)
 		}
 	})
 
@@ -182,19 +214,23 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, trigger := setup(t)
-		body, err := json.Marshal(contract.MemoryConsolidateRequest{Workspace: workspace})
+		identity, err := workspacepkg.EnsureIdentity(context.Background(), workspace)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
+		body, err := json.Marshal(contract.MemoryDreamTriggerRequest{WorkspaceID: identity.WorkspaceID})
 		if err != nil {
 			t.Fatalf("json.Marshal(consolidate request) error = %v", err)
 		}
-		consolidateResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/consolidate", body)
+		consolidateResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/dreams/trigger", body)
 		if consolidateResp.Code != http.StatusOK {
 			t.Fatalf("consolidate status=%d want=%d", consolidateResp.Code, http.StatusOK)
 		}
-		if trigger.Calls != 1 || trigger.Workspace != workspace {
+		if trigger.Calls != 1 || trigger.Workspace != identity.WorkspaceID {
 			t.Fatalf("trigger calls=%d workspace=%q", trigger.Calls, trigger.Workspace)
 		}
 
-		var payload contract.MemoryConsolidateResponse
+		var payload contract.MemoryDreamTriggerResponse
 		testutil.DecodeJSONResponse(t, consolidateResp, &payload)
 		if !payload.Triggered || payload.Reason != "queued" {
 			t.Fatalf("consolidate payload = %#v", payload)
@@ -206,7 +242,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		fixture, workspace, _ := setup(t)
 		query := url.Values{}
-		query.Set("workspace", workspace)
+		query.Set("workspace_id", workspace)
 		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health?"+query.Encode(), nil)
 		if healthResp.Code != http.StatusOK {
 			t.Fatalf("health status = %d, want %d", healthResp.Code, http.StatusOK)
@@ -230,7 +266,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		fixture, workspace, _ := setup(t)
 		query := url.Values{}
-		query.Set("workspace", workspace)
+		query.Set("workspace_id", workspace)
 		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health?"+query.Encode(), nil)
 		if healthResp.Code != http.StatusOK {
 			t.Fatalf("memory health status = %d, want %d", healthResp.Code, http.StatusOK)
@@ -249,7 +285,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		fixture, workspace, trigger := setup(t)
 		trigger.LastErr = errors.New("dream status failed")
 		query := url.Values{}
-		query.Set("workspace", workspace)
+		query.Set("workspace_id", workspace)
 		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health?"+query.Encode(), nil)
 		if healthResp.Code != http.StatusOK {
 			t.Fatalf(
@@ -327,13 +363,13 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
 		if err := store.Write(
-			memory.ScopeWorkspace,
+			memcontract.ScopeWorkspace,
 			"orphan.md",
-			[]byte(memoryDocument(t, "Orphan", memory.MemoryTypeProject, "orphan signal")),
+			[]byte(memoryDocument(t, "Orphan", memcontract.TypeProject, "orphan signal")),
 		); err != nil {
 			t.Fatalf("Write(workspace) error = %v", err)
 		}
-		if _, err := store.Search(context.Background(), "orphan signal", memory.SearchOptions{
+		if _, err := store.Search(context.Background(), "orphan signal", memcontract.SearchOptions{
 			Workspace: workspace,
 			Limit:     5,
 		}); err != nil {
@@ -352,7 +388,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			nil,
 		)
 		query := url.Values{}
-		query.Set("workspace", workspace)
+		query.Set("workspace_id", workspace)
 		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health?"+query.Encode(), nil)
 		if healthResp.Code != http.StatusOK {
 			t.Fatalf("memory health status = %d, want %d", healthResp.Code, http.StatusOK)
@@ -378,14 +414,14 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
 		if err := store.Write(
-			memory.ScopeWorkspace,
+			memcontract.ScopeWorkspace,
 			"project.md",
-			[]byte(memoryDocument(t, "Project", memory.MemoryTypeProject, "common signal")),
+			[]byte(memoryDocument(t, "Project", memcontract.TypeProject, "common signal")),
 		); err != nil {
 			t.Fatalf("Write(workspace) error = %v", err)
 		}
 		since := time.Now().Add(-time.Second).UTC()
-		if _, err := store.Search(context.Background(), "common token=super-secret", memory.SearchOptions{
+		if _, err := store.Search(context.Background(), "common token=super-secret", memcontract.SearchOptions{
 			Workspace: workspace,
 			Limit:     5,
 		}); err != nil {
@@ -401,7 +437,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			nil,
 		)
 		query := url.Values{}
-		query.Set("workspace", workspace)
+		query.Set("workspace_id", workspace)
 		query.Set("operation", "memory.search")
 		query.Set("since", since.Format(time.RFC3339Nano))
 		query.Set("limit", "2")
@@ -415,13 +451,17 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			)
 		}
 
-		var payload contract.MemoryHistoryResponse
+		var payload contract.MemoryOperationHistoryResponse
 		testutil.DecodeJSONResponse(t, historyResp, &payload)
 		if len(payload.Operations) != 1 {
 			t.Fatalf("len(payload.Operations) = %d, want 1; payload=%#v", len(payload.Operations), payload)
 		}
+		identity, err := workspacepkg.EnsureIdentity(context.Background(), workspace)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
 		got := payload.Operations[0]
-		if got.Operation != "memory.search" || got.Workspace != workspace {
+		if got.Operation != "memory.search" || got.WorkspaceID != identity.WorkspaceID {
 			t.Fatalf("operation payload = %#v, want workspace memory.search", got)
 		}
 		if strings.Contains(got.Summary, "super-secret") || !strings.Contains(got.Summary, "token=[REDACTED]") {
@@ -436,6 +476,239 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			core.NewMemoryValidationError(errors.New("bad")),
 		); status != http.StatusBadRequest {
 			t.Fatalf("StatusForMemoryError(validation) = %d, want %d", status, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("Should promote memory across scopes", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, workspace, _ := setup(t)
+		body, err := json.Marshal(contract.MemoryPromoteRequest{
+			Filename: "global.md",
+			From: contract.MemoryScopeSelectorPayload{
+				Scope: memcontract.ScopeGlobal,
+			},
+			To: contract.MemoryScopeSelectorPayload{
+				Scope:       memcontract.ScopeWorkspace,
+				WorkspaceID: workspace,
+			},
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(promote request) error = %v", err)
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/promote", body)
+		if resp.Code != http.StatusOK {
+			t.Fatalf(
+				"promote memory status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusOK,
+				resp.Body.String(),
+			)
+		}
+
+		var payload contract.MemoryPromoteResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if !payload.Applied || payload.Decision.Scope != memcontract.ScopeWorkspace {
+			t.Fatalf("promote payload = %#v, want applied workspace decision", payload)
+		}
+		readResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/memory/global.md?scope=workspace&workspace_id="+url.QueryEscape(workspace),
+			nil,
+		)
+		if readResp.Code != http.StatusOK {
+			t.Fatalf(
+				"promoted read status = %d, want %d; body=%s",
+				readResp.Code,
+				http.StatusOK,
+				readResp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should expose decision list show and revert", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, _ := setup(t)
+		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
+			Scope:   memcontract.ScopeGlobal,
+			Type:    memcontract.TypeUser,
+			Name:    "Decision API",
+			Content: "Decision API body for revert.",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(write request) error = %v", err)
+		}
+		writeResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory", writeBody)
+		if writeResp.Code != http.StatusOK {
+			t.Fatalf(
+				"write memory status = %d, want %d; body=%s",
+				writeResp.Code,
+				http.StatusOK,
+				writeResp.Body.String(),
+			)
+		}
+		var writePayload contract.MemoryMutationDecisionResponse
+		testutil.DecodeJSONResponse(t, writeResp, &writePayload)
+
+		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/decisions?scope=global&limit=5", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf(
+				"list decisions status = %d, want %d; body=%s",
+				listResp.Code,
+				http.StatusOK,
+				listResp.Body.String(),
+			)
+		}
+		var listPayload contract.MemoryDecisionListResponse
+		testutil.DecodeJSONResponse(t, listResp, &listPayload)
+		if len(listPayload.Decisions) == 0 || listPayload.Decisions[0].ID != writePayload.Decision.ID {
+			t.Fatalf("decision list = %#v, want decision %q first", listPayload.Decisions, writePayload.Decision.ID)
+		}
+
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/decisions/"+writePayload.Decision.ID, nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf("get decision status = %d, want %d; body=%s", getResp.Code, http.StatusOK, getResp.Body.String())
+		}
+		var getPayload contract.MemoryDecisionResponse
+		testutil.DecodeJSONResponse(t, getResp, &getPayload)
+		if getPayload.Decision.ID != writePayload.Decision.ID || getPayload.Decision.AppliedAt == nil {
+			t.Fatalf("get decision payload = %#v, want applied decision", getPayload.Decision)
+		}
+
+		revertResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/memory/decisions/"+writePayload.Decision.ID+"/revert",
+			[]byte(`{"reason":"test cleanup"}`),
+		)
+		if revertResp.Code != http.StatusOK {
+			t.Fatalf(
+				"revert decision status = %d, want %d; body=%s",
+				revertResp.Code,
+				http.StatusOK,
+				revertResp.Body.String(),
+			)
+		}
+		var revertPayload contract.MemoryDecisionRevertResponse
+		testutil.DecodeJSONResponse(t, revertResp, &revertPayload)
+		if !revertPayload.Reverted || revertPayload.Decision.ID != writePayload.Decision.ID {
+			t.Fatalf("revert payload = %#v, want reverted decision", revertPayload)
+		}
+		readResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/memory/"+writePayload.Decision.TargetFilename+"?scope=global",
+			nil,
+		)
+		if readResp.Code != http.StatusNotFound {
+			t.Fatalf("read reverted memory status = %d, want %d", readResp.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("Should reset reload list daily logs and create ad-hoc notes", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, _ := setup(t)
+		writeBody, err := json.Marshal(contract.MemoryCreateRequest{
+			Scope:   memcontract.ScopeGlobal,
+			Type:    memcontract.TypeUser,
+			Name:    "Daily Event",
+			Content: "Daily API event body.",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(write request) error = %v", err)
+		}
+		writeResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory", writeBody)
+		if writeResp.Code != http.StatusOK {
+			t.Fatalf(
+				"write memory status = %d, want %d; body=%s",
+				writeResp.Code,
+				http.StatusOK,
+				writeResp.Body.String(),
+			)
+		}
+
+		dailyResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/daily?limit=5", nil)
+		if dailyResp.Code != http.StatusOK {
+			t.Fatalf("daily status = %d, want %d; body=%s", dailyResp.Code, http.StatusOK, dailyResp.Body.String())
+		}
+		var dailyPayload contract.MemoryDailyLogListResponse
+		testutil.DecodeJSONResponse(t, dailyResp, &dailyPayload)
+		if len(dailyPayload.Logs) == 0 || dailyPayload.Logs[0].OperationCount == 0 || dailyPayload.Logs[0].Path == "" {
+			t.Fatalf("daily payload = %#v, want at least one operation log", dailyPayload)
+		}
+
+		resetResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/memory/reset",
+			[]byte(`{"scope":"global","derived_only":true,"confirm":true}`),
+		)
+		if resetResp.Code != http.StatusOK {
+			t.Fatalf("reset status = %d, want %d; body=%s", resetResp.Code, http.StatusOK, resetResp.Body.String())
+		}
+		var resetPayload contract.MemoryResetResponse
+		testutil.DecodeJSONResponse(t, resetResp, &resetPayload)
+		if !resetPayload.DerivedOnly || resetPayload.ResetAt.IsZero() {
+			t.Fatalf("reset payload = %#v, want derived reset timestamp", resetPayload)
+		}
+
+		reloadResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/reload?scope=global", nil)
+		if reloadResp.Code != http.StatusOK {
+			t.Fatalf("reload status = %d, want %d; body=%s", reloadResp.Code, http.StatusOK, reloadResp.Body.String())
+		}
+		var reloadPayload contract.MemoryReloadResponse
+		testutil.DecodeJSONResponse(t, reloadResp, &reloadPayload)
+		if reloadPayload.Generation == 0 || reloadPayload.ReloadedAt.IsZero() {
+			t.Fatalf("reload payload = %#v, want generation timestamp", reloadPayload)
+		}
+
+		adhocResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/memory/ad-hoc",
+			[]byte(`{"scope":"global","content":"Remember ad-hoc API notes.","slug":"api-note"}`),
+		)
+		if adhocResp.Code != http.StatusOK {
+			t.Fatalf("ad-hoc status = %d, want %d; body=%s", adhocResp.Code, http.StatusOK, adhocResp.Body.String())
+		}
+		var adhocPayload contract.MemoryAdhocNoteResponse
+		testutil.DecodeJSONResponse(t, adhocResp, &adhocPayload)
+		if !adhocPayload.Accepted || !strings.Contains(adhocPayload.Path, "api-note") {
+			t.Fatalf("ad-hoc payload = %#v, want accepted note path", adhocPayload)
+		}
+	})
+
+	t.Run("Should return truthful dream and recall trace responses", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, _, _ := setup(t)
+		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/dreams", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("dream list status = %d, want %d; body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
+		}
+		var listPayload contract.MemoryDreamListResponse
+		testutil.DecodeJSONResponse(t, listResp, &listPayload)
+		if listPayload.Dreams == nil {
+			t.Fatalf("dream list payload = %#v, want non-nil list", listPayload)
+		}
+
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/dreams/missing-run", nil)
+		if getResp.Code != http.StatusNotFound {
+			t.Fatalf("dream get status = %d, want %d", getResp.Code, http.StatusNotFound)
+		}
+
+		traceResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/recall-traces/sess-1/7", nil)
+		if traceResp.Code != http.StatusNotFound {
+			t.Fatalf("recall trace status = %d, want %d", traceResp.Code, http.StatusNotFound)
 		}
 	})
 }
@@ -758,10 +1031,10 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 	})
 }
 
-func memoryDocument(t *testing.T, name string, typ memory.Type, body string) string {
+func memoryDocument(t *testing.T, name string, typ memcontract.Type, body string) string {
 	t.Helper()
 
-	header := memory.Header{
+	header := memcontract.Header{
 		Name:        name,
 		Description: "desc",
 		Type:        typ,
@@ -771,9 +1044,4 @@ func memoryDocument(t *testing.T, name string, typ memory.Type, body string) str
 		t.Fatalf("yaml.Marshal() error = %v", err)
 	}
 	return "---\n" + string(metadata) + "---\n\n" + body
-}
-
-func escapeJSON(value string) string {
-	quoted := strconv.Quote(value)
-	return quoted[1 : len(quoted)-1]
 }

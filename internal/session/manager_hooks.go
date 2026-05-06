@@ -564,7 +564,13 @@ func (m *Manager) runContextCompaction(
 	return postPayload, nil
 }
 
-func (m *Manager) dispatchEventPostRecord(ctx context.Context, session *Session, event acp.AgentEvent, content string) {
+func (m *Manager) dispatchEventPostRecord(
+	ctx context.Context,
+	session *Session,
+	event acp.AgentEvent,
+	content string,
+	sequence int64,
+) {
 	if m == nil {
 		return
 	}
@@ -578,11 +584,67 @@ func (m *Manager) dispatchEventPostRecord(ctx context.Context, session *Session,
 		SessionContext: hookSessionContext(session),
 		TurnContext:    hookspkg.TurnContext{TurnID: strings.TrimSpace(event.TurnID)},
 		RecordType:     strings.TrimSpace(event.Type),
+		Sequence:       sequence,
 		Content:        json.RawMessage(content),
 	})
 	if err != nil {
 		m.warnHookDispatch(ctx, session, hookspkg.HookEventPostRecord, err)
 	}
+}
+
+func (m *Manager) dispatchSessionMessagePersisted(
+	ctx context.Context,
+	session *Session,
+	event acp.AgentEvent,
+	persisted store.SessionEvent,
+	content string,
+) {
+	if m == nil || strings.TrimSpace(event.Type) != acp.EventTypeAgentMessage {
+		return
+	}
+	ctx = hookDispatchContext(ctx, m, session)
+	rootSessionID, parentSessionID, actorKind, actorID := messagePersistedLineage(session)
+	_, err := m.hooks.conversation().DispatchSessionMessagePersisted(ctx, hookspkg.SessionMessagePersistedPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookSessionMessagePersisted,
+			Timestamp: hookTimestamp(m.now(), event.Timestamp),
+		},
+		SessionContext:  hookSessionContext(session),
+		TurnContext:     hookspkg.TurnContext{TurnID: strings.TrimSpace(event.TurnID)},
+		MessageID:       strings.TrimSpace(persisted.ID),
+		MessageSeq:      persisted.Sequence,
+		Role:            hookMessageRoleAssistant,
+		Text:            event.Text,
+		Raw:             cloneSessionRawMessage(event.Raw),
+		Persisted:       json.RawMessage(content),
+		RootSessionID:   rootSessionID,
+		ParentSessionID: parentSessionID,
+		ActorKind:       actorKind,
+		ActorID:         actorID,
+	})
+	if err != nil {
+		m.warnHookDispatch(ctx, session, hookspkg.HookSessionMessagePersisted, err)
+	}
+}
+
+func messagePersistedLineage(session *Session) (string, string, string, string) {
+	info := session.Info()
+	if info == nil {
+		return "", "", "", ""
+	}
+	rootSessionID := strings.TrimSpace(info.ID)
+	parentSessionID := ""
+	if info.Lineage != nil {
+		if root := strings.TrimSpace(info.Lineage.RootSessionID); root != "" {
+			rootSessionID = root
+		}
+		parentSessionID = strings.TrimSpace(info.Lineage.ParentSessionID)
+	}
+	actorKind := "agent_root"
+	if parentSessionID != "" {
+		actorKind = "agent_subagent"
+	}
+	return rootSessionID, parentSessionID, actorKind, strings.TrimSpace(info.ID)
 }
 
 func (m *Manager) dispatchAgentPreStart(

@@ -3,30 +3,32 @@ import { ArrowUpRight } from "lucide-react";
 import { CodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 
-const MEMORY_CODE = `agh memory write personal-notes \\
+const MEMORY_CODE = `agh memory write \\
+  --name "Conversation language" \\
   --type user \\
-  --description "Pedro prefers BR-PT in conversation"
+  --description "Pedro prefers BR-PT in conversation" \\
+  --content @personal-notes.md
 agh memory search "BR-PT"
-agh memory consolidate`;
+agh memory dream trigger`;
 
 const STEPS = [
   {
     eyebrow: "Plain files",
-    title: "Memory at ~/.agh/memory/*.md",
+    title: "Memory as scoped Markdown",
     description:
-      "Four typed files — user, feedback, project, reference — with YAML frontmatter, scoped to global or workspace. Version it. Diff it. Port it across providers.",
+      "Typed files — user, feedback, project, reference — resolve across global, workspace, and agent tiers. Version them. Diff them. Port them across providers.",
   },
   {
     eyebrow: "Dream consolidation",
     title: "Time → Sessions → Lock cascade",
     description:
-      "Default gates: 24h, 5 touched sessions, file-lock. When all three pass, AGH spawns an ephemeral session that synthesizes recent activity into durable facts. No surprise compute.",
+      "Default gates: 24h, 3 touched sessions, file-lock. When all three pass, AGH spawns an ephemeral session that synthesizes recent activity into durable facts. No surprise compute.",
   },
   {
     eyebrow: "Agent-managed",
     title: "Same surface for you and the agent",
     description:
-      "agh memory write | search | consolidate works from CLI, HTTP, and UDS. Operators inspect the same files agents write — no privileged path.",
+      "agh memory write | search | dream trigger works from CLI, HTTP, and UDS. Operators inspect the same files agents write — no privileged path.",
   },
 ];
 

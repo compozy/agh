@@ -358,7 +358,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
 		"Use `agh__skill_view` to load full instructions for any skill.",
 		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		aghCurrentSkillsLastInstructionLine,
+		currentSkillsCatalogFinalLine,
 		"",
 		"Relevant durable memory for this turn:",
 		"- Global [user]",
@@ -588,6 +588,98 @@ func TestTurnMatchNetworkRequiresExactConversationMetadata(t *testing.T) {
 			tc.edit(&meta)
 			if threadMatcher.matches(meta) {
 				t.Fatalf("thread matcher matched wrong %s metadata: %#v", tc.name, meta)
+			}
+		})
+	}
+}
+
+func TestCanonicalUserTextStripsPromptAugmentationLayers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		prompt string
+		want   string
+	}{
+		{
+			name: "Should preserve plain user prompt",
+			prompt: `
+hello alpha
+`,
+			want: "hello alpha",
+		},
+		{
+			name: "Should strip layered situation skills and durable memory wrappers",
+			prompt: strings.Join([]string{
+				"<agh-situation-context>",
+				`{"self":{"session_id":"sess_123","agent_name":"alpha"}}`,
+				"</agh-situation-context>",
+				"",
+				"<current-available-skills>",
+				`<skill name="qa-marker">Marker.</skill>`,
+				"</current-available-skills>",
+				"",
+				"The <current-available-skills> block above is the authoritative current skill state for this turn.",
+				"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
+				"Use `agh__skill_view` to load full instructions for any skill.",
+				"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
+				"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+				"",
+				"Relevant durable memory for this turn:",
+				"",
+				"- project: keep search visibility sentinel visible",
+				"",
+				"User message:",
+				"hello alpha",
+			}, "\n"),
+			want: "hello alpha",
+		},
+		{
+			name: "Should stop at malformed AGH wrapper",
+			prompt: strings.Join([]string{
+				"<current-available-skills>",
+				`<skill name="qa-marker">Marker.</skill>`,
+				"",
+				"hello alpha",
+			}, "\n"),
+			want: strings.Join([]string{
+				"<current-available-skills>",
+				`<skill name="qa-marker">Marker.</skill>`,
+				"",
+				"hello alpha",
+			}, "\n"),
+		},
+		{
+			name: "Should strip self closing legacy available skills block",
+			prompt: strings.Join([]string{
+				"<available-skills />",
+				"",
+				"hello alpha",
+			}, "\n"),
+			want: "hello alpha",
+		},
+		{
+			name: "Should strip bridge inbound envelope",
+			prompt: strings.Join([]string{
+				"Inbound bridge message",
+				"Platform message ID: 322",
+				"Received at: 2026-05-05T23:58:35Z",
+				"Sender: Alice Example @alice id=888",
+				"Peer ID: 777",
+				"Thread ID: 654",
+				"",
+				"Provide a follow-up runtime bridge summary",
+			}, "\n"),
+			want: "Provide a follow-up runtime bridge summary",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := canonicalUserText(tt.prompt); got != tt.want {
+				t.Fatalf("canonicalUserText() = %q, want %q", got, tt.want)
 			}
 		})
 	}

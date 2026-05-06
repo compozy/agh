@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/pedronauck/agh/internal/testutil"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memoryrecall "github.com/pedronauck/agh/internal/memory/recall"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -297,6 +300,268 @@ func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspaceID(t *testing.T)
 	if lock.releaseCalls != 1 {
 		t.Fatalf("release calls = %d, want 1", lock.releaseCalls)
 	}
+}
+
+func TestServiceRunDreamSignalGateBlocksWhenNoUnpromotedSignals(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stamp anti-thrash lock and skip spawn when signal gate is empty", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		env := newDreamSeedEnv(t, now)
+		lock := &stubLock{
+			tryAcquireFn: func() (time.Time, bool, error) {
+				return now.Add(-48 * time.Hour), true, nil
+			},
+		}
+		service := NewService(
+			WithMemoryStore(env.baseStore),
+			WithMinHours(0),
+			WithMinSessions(0),
+			WithDreamGateConfig(DreamGateConfig{MinCandidates: 1, MinRecallCount: 2, MinScore: 0.75}),
+			withLock(lock),
+			withNow(func() time.Time { return now }),
+		)
+
+		spawnCalls := 0
+		err := service.Run(testutil.Context(t), func(context.Context, string, string, string) error {
+			spawnCalls++
+			return nil
+		}, "")
+
+		if !errors.Is(err, ErrDreamGateNotSatisfied) {
+			t.Fatalf("Run() error = %v, want ErrDreamGateNotSatisfied", err)
+		}
+		if spawnCalls != 0 {
+			t.Fatalf("spawn calls = %d, want 0", spawnCalls)
+		}
+		if lock.releaseCalls != 1 {
+			t.Fatalf("release calls = %d, want 1 anti-thrash stamp", lock.releaseCalls)
+		}
+		if len(lock.rollbackCalls) != 0 {
+			t.Fatalf("rollback calls = %d, want 0", len(lock.rollbackCalls))
+		}
+	})
+}
+
+func TestServiceRunDreamSignalGatePromotesEligibleSignals(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create system artifact, curated promotion, and idempotent signal marks", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		env := newDreamSeedEnv(t, now)
+		seedDreamRecallSignals(t, env.workspaceStore, memcontract.ScopeWorkspace, env.workspaceID, 5, now)
+		lock := &stubLock{
+			tryAcquireFn: func() (time.Time, bool, error) {
+				return now.Add(-48 * time.Hour), true, nil
+			},
+		}
+		service := NewService(
+			WithMemoryStore(env.baseStore),
+			WithWorkspaceResolver(&fakeDreamWorkspaceResolver{
+				resolved: workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      env.workspaceID,
+						RootDir: env.workspaceRoot,
+					},
+				},
+			}),
+			WithMinHours(0),
+			WithMinSessions(0),
+			WithDreamGateConfig(DreamGateConfig{MinCandidates: 5, MinRecallCount: 2, MinScore: 0.75}),
+			withLock(lock),
+			withNow(func() time.Time { return now }),
+		)
+
+		gotWorkspace := ""
+		err := service.Run(testutil.Context(t), func(_ context.Context, _, _, workspace string) error {
+			gotWorkspace = workspace
+			return nil
+		}, env.workspaceID)
+
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if gotWorkspace != env.workspaceID {
+			t.Fatalf("spawn workspace = %q, want %q", gotWorkspace, env.workspaceID)
+		}
+		assertDreamPromotedCount(t, env.workspaceStore, 5)
+		assertDreamConsolidationStatus(t, env.workspaceStore, "completed", 5)
+		assertDreamEventCount(t, env.workspaceStore, memoryEventDreamPromoted, 1)
+		assertFileExists(
+			t,
+			filepath.Join(env.workspaceRoot, ".agh", "memory", "_system", "dreaming", "20260505-dreaming-curator.md"),
+		)
+		assertFileExists(t, filepath.Join(env.workspaceRoot, ".agh", "memory", "project_dreaming_20260505.md"))
+		if lock.releaseCalls != 1 {
+			t.Fatalf("release calls = %d, want 1", lock.releaseCalls)
+		}
+		if len(lock.rollbackCalls) != 0 {
+			t.Fatalf("rollback calls = %d, want 0", len(lock.rollbackCalls))
+		}
+	})
+}
+
+func TestServiceRunDreamFailureWritesDLQAndDoesNotMarkPromoted(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should write _system failure and leave recall signals unpromoted", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		env := newDreamSeedEnv(t, now)
+		seedDreamRecallSignals(t, env.workspaceStore, memcontract.ScopeWorkspace, env.workspaceID, 5, now)
+		spawnErr := errors.New("dreaming curator failed")
+		lock := &stubLock{
+			tryAcquireFn: func() (time.Time, bool, error) {
+				return now.Add(-48 * time.Hour), true, nil
+			},
+		}
+		service := NewService(
+			WithMemoryStore(env.baseStore),
+			WithWorkspaceResolver(&fakeDreamWorkspaceResolver{
+				resolved: workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      env.workspaceID,
+						RootDir: env.workspaceRoot,
+					},
+				},
+			}),
+			WithMinHours(0),
+			WithMinSessions(0),
+			WithDreamGateConfig(DreamGateConfig{MinCandidates: 5, MinRecallCount: 2, MinScore: 0.75}),
+			withLock(lock),
+			withNow(func() time.Time { return now }),
+		)
+
+		err := service.Run(testutil.Context(t), func(context.Context, string, string, string) error {
+			return spawnErr
+		}, env.workspaceID)
+
+		if !errors.Is(err, spawnErr) {
+			t.Fatalf("Run() error = %v, want spawnErr", err)
+		}
+		assertDreamPromotedCount(t, env.workspaceStore, 0)
+		assertDreamConsolidationStatus(t, env.workspaceStore, "failed", 0)
+		assertDreamEventCount(t, env.workspaceStore, memoryEventDreamFailed, 1)
+		failures := globDreamFailures(t, env.workspaceRoot)
+		if len(failures) != 1 {
+			t.Fatalf("dream failure files = %v, want one file", failures)
+		}
+		if lock.releaseCalls != 0 {
+			t.Fatalf("release calls = %d, want 0", lock.releaseCalls)
+		}
+		if len(lock.rollbackCalls) != 1 {
+			t.Fatalf("rollback calls = %d, want 1", len(lock.rollbackCalls))
+		}
+	})
+}
+
+func TestStoreMarkDreamPromotedIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should only stamp unpromoted signals once per run", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		env := newDreamSeedEnv(t, now)
+		seedDreamRecallSignals(t, env.workspaceStore, memcontract.ScopeWorkspace, env.workspaceID, 2, now)
+		candidates, err := env.workspaceStore.dreamCandidates(
+			testutil.Context(t),
+			env.workspaceID,
+			DreamGateConfig{MinCandidates: 2, MinRecallCount: 2, MinScore: 0.75},
+			now,
+		)
+		if err != nil {
+			t.Fatalf("dreamCandidates() error = %v", err)
+		}
+		if len(candidates) != 2 {
+			t.Fatalf("dream candidates = %d, want 2", len(candidates))
+		}
+
+		first, err := env.workspaceStore.markDreamPromoted(testutil.Context(t), candidates, "dream-run", now)
+		if err != nil {
+			t.Fatalf("markDreamPromoted(first) error = %v", err)
+		}
+		second, err := env.workspaceStore.markDreamPromoted(
+			testutil.Context(t),
+			candidates,
+			"dream-run",
+			now.Add(time.Hour),
+		)
+		if err != nil {
+			t.Fatalf("markDreamPromoted(second) error = %v", err)
+		}
+
+		if first != 2 || second != 0 {
+			t.Fatalf("promoted counts = %d/%d, want 2/0", first, second)
+		}
+		assertPromotionRunID(t, env.workspaceStore, "dream-run")
+	})
+}
+
+func TestDreamPromotionScoreUsesSignalWeights(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should rank fresh high-recall candidates above stale low-recall candidates", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+		config := normalizeDreamGateConfig(DreamGateConfig{MinRecallCount: 2})
+		fresh := DreamCandidate{
+			RecallCount:        2,
+			RecallScore:        0.95,
+			LastRecalledAt:     now.Add(-time.Hour),
+			FreshnessStartedAt: now.Add(-2 * time.Hour),
+		}
+		stale := DreamCandidate{
+			RecallCount:        1,
+			RecallScore:        0.25,
+			LastRecalledAt:     now.Add(-45 * 24 * time.Hour),
+			FreshnessStartedAt: now.Add(-45 * 24 * time.Hour),
+		}
+
+		freshScore := dreamPromotionScore(fresh, config, now)
+		staleScore := dreamPromotionScore(stale, config, now)
+
+		if freshScore <= staleScore {
+			t.Fatalf("fresh score %.3f <= stale score %.3f, want fresh higher", freshScore, staleScore)
+		}
+		if freshScore < config.MinScore {
+			t.Fatalf("fresh score %.3f < threshold %.3f", freshScore, config.MinScore)
+		}
+	})
+}
+
+func TestDreamSystemPathValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject unsafe _system path segments", func(t *testing.T) {
+		t.Parallel()
+
+		store := NewStore(filepath.Join(t.TempDir(), "memory"))
+		if _, err := store.dreamSystemPath(memcontract.ScopeGlobal, "dreaming", "../bad.json"); err == nil {
+			t.Fatal("dreamSystemPath() error = nil, want unsafe segment error")
+		}
+	})
+
+	t.Run("Should build scoped _system paths without prompt-facing filenames", func(t *testing.T) {
+		t.Parallel()
+
+		root := filepath.Join(t.TempDir(), "memory")
+		store := NewStore(root)
+		path, err := store.dreamSystemPath(memcontract.ScopeGlobal, "dream", "failures", "run.json")
+		if err != nil {
+			t.Fatalf("dreamSystemPath() error = %v", err)
+		}
+		want := filepath.Join(root, "_system", "dream", "failures", "run.json")
+		if path != want {
+			t.Fatalf("dream system path = %q, want %q", path, want)
+		}
+	})
 }
 
 func TestServiceRunRequiresWorkspaceResolverForExplicitWorkspace(t *testing.T) {
@@ -848,6 +1113,194 @@ func writeMalformedSessionMeta(t *testing.T, sessionsDir string, sessionID strin
 
 func ptrTime(value time.Time) *time.Time {
 	return &value
+}
+
+type dreamSeedEnv struct {
+	baseStore      *Store
+	workspaceStore *Store
+	workspaceRoot  string
+	workspaceID    string
+}
+
+func newDreamSeedEnv(t *testing.T, _ time.Time) *dreamSeedEnv {
+	t.Helper()
+
+	baseDir := t.TempDir()
+	workspaceRoot := filepath.Join(baseDir, "workspace")
+	baseStore := NewStore(
+		filepath.Join(baseDir, "global", "memory"),
+		WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+	)
+	workspaceStore := baseStore.ForWorkspace(workspaceRoot)
+	if err := workspaceStore.EnsureDirs(); err != nil {
+		t.Fatalf("Store.EnsureDirs() error = %v", err)
+	}
+	identity, err := workspacepkg.EnsureIdentity(testutil.Context(t), workspaceRoot)
+	if err != nil {
+		t.Fatalf("EnsureIdentity() error = %v", err)
+	}
+	return &dreamSeedEnv{
+		baseStore:      baseStore,
+		workspaceStore: workspaceStore,
+		workspaceRoot:  workspaceRoot,
+		workspaceID:    identity.WorkspaceID,
+	}
+}
+
+func seedDreamRecallSignals(
+	t *testing.T,
+	store *Store,
+	scope memcontract.Scope,
+	workspaceID string,
+	count int,
+	now time.Time,
+) {
+	t.Helper()
+
+	for idx := range count {
+		filename := fmt.Sprintf("project_signal_%02d.md", idx)
+		content := fmt.Sprintf("Recurring operator preference %02d needs durable recall.\n", idx)
+		if err := store.Write(scope, filename, mustMemoryContent(t, testMemoryMeta{
+			Name:        fmt.Sprintf("Signal %02d", idx),
+			Description: "Dreaming signal fixture",
+			Type:        memcontract.TypeProject,
+		}, content)); err != nil {
+			t.Fatalf("Store.Write(%q) error = %v", filename, err)
+		}
+		chunkID := dreamChunkIDForFilename(t, store, filename)
+		for seq := range 2 {
+			if err := store.RecordRecall(testutil.Context(t), []memoryrecall.Signal{{
+				ChunkID:     chunkID,
+				WorkspaceID: workspaceID,
+				SurfaceID:   fmt.Sprintf("surface-%02d-%02d", idx, seq),
+				Score:       0.98,
+				SurfacedAt:  now.Add(time.Duration(seq) * time.Minute),
+				SessionID:   fmt.Sprintf("session-%02d", seq),
+			}}); err != nil {
+				t.Fatalf("RecordRecall(%q) error = %v", chunkID, err)
+			}
+		}
+	}
+}
+
+func dreamChunkIDForFilename(t *testing.T, store *Store, filename string) string {
+	t.Helper()
+
+	db, err := store.catalog.ensureDB(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ensureDB() error = %v", err)
+	}
+	var chunkID string
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT c.id
+		 FROM memory_chunks c
+		 JOIN memory_catalog_entries e ON e.id = c.file_id
+		 WHERE e.filename = ?`,
+		filename,
+	).Scan(&chunkID); err != nil {
+		t.Fatalf("query chunk id for %q error = %v", filename, err)
+	}
+	return chunkID
+}
+
+func assertDreamPromotedCount(t *testing.T, store *Store, want int) {
+	t.Helper()
+
+	db, err := store.catalog.ensureDB(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ensureDB() error = %v", err)
+	}
+	var got int
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT COUNT(*) FROM memory_recall_signals WHERE promoted_at IS NOT NULL`,
+	).Scan(&got); err != nil {
+		t.Fatalf("query promoted count error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("promoted signal count = %d, want %d", got, want)
+	}
+}
+
+func assertDreamConsolidationStatus(t *testing.T, store *Store, wantStatus string, wantPromoted int) {
+	t.Helper()
+
+	db, err := store.catalog.ensureDB(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ensureDB() error = %v", err)
+	}
+	var status string
+	var promoted int
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT status, promoted_count FROM memory_consolidations ORDER BY started_at DESC LIMIT 1`,
+	).Scan(&status, &promoted); err != nil {
+		t.Fatalf("query dream consolidation status error = %v", err)
+	}
+	if status != wantStatus || promoted != wantPromoted {
+		t.Fatalf("dream consolidation = %s/%d, want %s/%d", status, promoted, wantStatus, wantPromoted)
+	}
+}
+
+func assertDreamEventCount(t *testing.T, store *Store, op string, want int) {
+	t.Helper()
+
+	db, err := store.catalog.ensureDB(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ensureDB() error = %v", err)
+	}
+	var got int
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT COUNT(*) FROM memory_events WHERE op = ?`,
+		op,
+	).Scan(&got); err != nil {
+		t.Fatalf("query dream event count error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("dream event count for %s = %d, want %d", op, got, want)
+	}
+}
+
+func assertPromotionRunID(t *testing.T, store *Store, runID string) {
+	t.Helper()
+
+	db, err := store.catalog.ensureDB(testutil.Context(t))
+	if err != nil {
+		t.Fatalf("ensureDB() error = %v", err)
+	}
+	var got int
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT COUNT(*) FROM memory_recall_signals WHERE promotion_run_id = ?`,
+		runID,
+	).Scan(&got); err != nil {
+		t.Fatalf("query promotion run id error = %v", err)
+	}
+	if got == 0 {
+		t.Fatalf("promotion_run_id %q count = 0, want promoted rows", runID)
+	}
+}
+
+func assertFileExists(t *testing.T, path string) {
+	t.Helper()
+
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("os.Stat(%q) error = %v", path, err)
+	}
+}
+
+func globDreamFailures(t *testing.T, workspaceRoot string) []string {
+	t.Helper()
+
+	matches, err := filepath.Glob(
+		filepath.Join(workspaceRoot, ".agh", "memory", "_system", "dream", "failures", "*.json"),
+	)
+	if err != nil {
+		t.Fatalf("filepath.Glob() error = %v", err)
+	}
+	return matches
 }
 
 type fakeDreamWorkspaceResolver struct {

@@ -1,56 +1,53 @@
 ---
-provider: manual
-pr:
+provider: coderabbit
+pr: "108"
 round: 1
-round_created_at: 2026-05-06T02:21:18Z
+round_created_at: 2026-05-06T04:07:28.010433Z
 status: resolved
-file: internal/memory/extractor/runtime.go
-line: 158
-severity: medium
-author: claude-code
-provider_ref:
+file: internal/api/httpapi/httpapi_integration_test.go
+line: 1596
+author: coderabbitai[bot]
+provider_ref: thread:PRRT_kwDOR5y4QM5_2Isj,comment:PRRC_kwDOR5y4QM6-UFVm
 ---
 
-# Issue 005: Extractor lacks mutual-exclusion with explicit memory_propose
-
+# Issue 005: _⚠️ Potential issue_ | _🟡 Minor_ | _⚡ Quick win_
 ## Review Comment
 
-ADR-010 / TechSpec Extractor section requires the extractor to no-op for any turn where the agent already proposed memory directly (`.compozy/tasks/mem-v2/_techspec.md` §Extractor (Mode A — ADR-010)):
+_⚠️ Potential issue_ | _🟡 Minor_ | _⚡ Quick win_
 
-> "Mutual exclusion. If main agent invoked `agh__memory_propose` in the same turn, extractor no-ops for that turn (`hasMemoryWritesSince` analog)."
+**Assert the 401 payload for invalid webhook signatures.**
 
-`Runtime.HandleSessionMessagePersisted` (`internal/memory/extractor/runtime.go:158-205`) only checks two gates:
+Right now any `401` passes here, including an unrelated auth failure or the wrong error schema. Decode and check the error body so the signature-validation contract is actually covered. As per coding guidelines, "Assert both HTTP status code AND response body in tests; status-code-only assertions are insufficient".
 
-1. Drop dream/system session types (`runtime.go:168-171`).
-2. Drop sub-agent or non-root callers (`runtime.go:172-174`).
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
 
-There is no detection of whether the same turn already produced a controller decision (e.g., a `memory_decisions` row whose `actor_kind = "agent_root"` and whose `until_message_seq` matches the persisted turn). A workspace-wide search confirms the absence: `grep -r "hasMemoryWritesSince\|HasMemoryWrites\|extractorMutualExclusion"` returns no matches anywhere in `internal/`.
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-Operationally this means a turn where the agent calls `agh__memory_propose` is followed by the extractor sub-agent re-deriving candidates from the same transcript. The controller's exact-content-hash NOOP rule (`controller.go:122-133`) deduplicates the disk write, but:
+In `@internal/api/httpapi/httpapi_integration_test.go` around lines 1574 - 1596,
+The test currently only checks for HTTP 401 but not the response payload; update
+the invalid webhook assertion to read and decode the response body from
+invalidResp (use io.ReadAll on invalidResp.Body and close it), unmarshal the
+JSON into the project's error response shape (or a small local struct with
+fields like Code and Message), and assert that the error payload indicates a
+signature-validation failure (e.g., error code/message referencing invalid
+webhook signature) for the request sent with core.WebhookSignatureHeader =
+"sha256=deadbeef"; keep the status code assertion and add explicit checks on the
+decoded fields to ensure the contract for signature validation is enforced.
+```
 
-- The extractor still spends LLM tokens and time on the duplicate extraction (cost envelope OC8 in §Open Concerns).
-- The duplicate extraction enters the bounded coalesce queue (`runtime.go:243-258`), increasing the chance that real new turns get dropped due to `coalesceMax = 16`.
-- The audit ledger gets two parallel records — one decision committed via `OriginTool`, another (NOOP/REJECT) via `OriginExtractor` — for the same logical fact, complicating forensics.
+</details>
 
-Suggested fix:
+<!-- fingerprinting:phantom:medusa:grasshopper -->
 
-- Plumb a "has tool-driven write since seq N" probe into the extractor entry point. Cheapest implementation: track the latest `memory_decisions.id` written via `OriginTool` per session in memory (the daemon already passes `memcontract.OriginTool` at `native_tools.go:1571,1614`), and short-circuit `Enqueue` when the in-flight turn's `since_message_seq..until_message_seq` overlaps the recorded tool-write seq.
-- Alternatively, add a `Store.SessionToolWritesSince(ctx, sessionID, sinceSeq)` query backed by `memory_decisions WHERE actor_kind = 'agent_root' AND origin = 'tool' AND since_seq >= sinceSeq` and gate `Runtime.Enqueue` on its result.
-- Test coverage that should land with the fix:
-  - `TestRuntime_NoopsWhenToolWriteOccurredInSameTurn` (matches `TestExtractor_MutualExclusionWithProposeTool` already enumerated in §Test Plan §Extractor).
-  - Negative case: regular root turn with no tool writes still extracts.
-  - Boundary case: tool write in turn N-1 does NOT suppress extraction for turn N.
-
-The current implementation effectively breaks ADR-010 §Mode A's mutual-exclusion property even though the surrounding queue/coalesce/DLQ machinery is in place.
+<!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Triage
 
-- Decision: `VALID`
-- Root cause: the extractor runtime only filtered dream/system/sub-agent turns and had no same-turn marker for successful explicit root memory tool writes. A root turn using `agh__memory_propose` or `agh__memory_note` could therefore enqueue extractor work for the same persisted message.
-- Fix approach: record root memory tool writes in the daemon-owned extractor runtime and consume the marker from `HandleSessionMessagePersisted` so the matching turn no-ops while later turns still extract normally. Cover exact-turn, next-turn, and marker-without-sequence behavior in runtime tests.
-
-## Resolution
-
-- Added root tool-write markers to the daemon-owned extractor runtime and consume them from `HandleSessionMessagePersisted` so same-turn explicit memory writes suppress extractor work without suppressing later turns.
-- Covered exact sequence, stale marker, and sequence-less marker behavior in extractor runtime tests.
-- Verification: `go test ./internal/memory/extractor -count=1` passed; `go test -race ./internal/memory/recall ./internal/memory ./internal/memory/extractor ./internal/api/core ./internal/daemon ./internal/tools ./internal/cli -count=1` passed; `make verify` passed with Bun 334 files / 2150 tests, Go `DONE 8393 tests in 90.274s`, and boundaries OK.
+- Decision: `valid`
+- Notes:
+  - The invalid webhook branch in `TestHTTPAutomationTriggersRoundTrip` still checks only `401` and closes the body without asserting the response payload.
+  - The HTTP transport uses the shared `contract.ErrorPayload` shape, so the test should verify that the unauthorized response is specifically the invalid-signature path rather than any unrelated auth failure.
+  - Fix approach: decode the error payload and assert that the message references the invalid webhook signature.

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,6 +30,12 @@ const (
 	marketplaceSchemeHTTP = "http"
 	// skillsMarketplaceRegistryClawhub is the currently supported skills marketplace registry.
 	skillsMarketplaceRegistryClawhub = "clawhub"
+)
+
+const (
+	// DefaultMemoryDreamAgentName is the bundled curator used for Memory v2 dreaming.
+	DefaultMemoryDreamAgentName    = "dreaming-curator"
+	defaultMemoryWorkspaceTOMLPath = "<workspace>/.agh/workspace.toml"
 )
 
 // DaemonConfig controls the daemon-local socket settings.
@@ -161,18 +169,180 @@ type LogConfig struct {
 
 // MemoryConfig controls persistent memory features.
 type MemoryConfig struct {
-	Enabled   bool        `toml:"enabled"`
-	GlobalDir string      `toml:"global_dir,omitempty"`
-	Dream     DreamConfig `toml:"dream"`
+	Enabled    bool                   `toml:"enabled"`
+	GlobalDir  string                 `toml:"global_dir,omitempty"`
+	Controller MemoryControllerConfig `toml:"controller"`
+	Recall     MemoryRecallConfig     `toml:"recall"`
+	Decisions  MemoryDecisionsConfig  `toml:"decisions"`
+	Extractor  MemoryExtractorConfig  `toml:"extractor"`
+	Dream      DreamConfig            `toml:"dream"`
+	Session    MemorySessionConfig    `toml:"session"`
+	Daily      MemoryDailyConfig      `toml:"daily"`
+	File       MemoryFileConfig       `toml:"file"`
+	Provider   MemoryProviderConfig   `toml:"provider"`
+	Workspace  MemoryWorkspaceConfig  `toml:"workspace"`
+}
+
+// MemoryControllerConfig controls the durable write controller.
+type MemoryControllerConfig struct {
+	Mode            string                       `toml:"mode"`
+	MaxLatency      time.Duration                `toml:"max_latency"`
+	DefaultOpOnFail string                       `toml:"default_op_on_fail"`
+	LLM             MemoryControllerLLMConfig    `toml:"llm"`
+	Policy          MemoryControllerPolicyConfig `toml:"policy"`
+}
+
+// MemoryControllerLLMConfig controls the controller LLM tie-breaker.
+type MemoryControllerLLMConfig struct {
+	Enabled       bool          `toml:"enabled"`
+	Model         string        `toml:"model"`
+	TopK          int           `toml:"top_k"`
+	PromptVersion string        `toml:"prompt_version"`
+	Timeout       time.Duration `toml:"timeout"`
+	MaxTokensOut  int           `toml:"max_tokens_out"`
+}
+
+// MemoryControllerPolicyConfig controls controller safety limits.
+type MemoryControllerPolicyConfig struct {
+	MaxContentChars int      `toml:"max_content_chars"`
+	MaxWritesPerMin int      `toml:"max_writes_per_min"`
+	AllowOrigins    []string `toml:"allow_origins"`
+}
+
+// MemoryRecallConfig controls deterministic recall.
+type MemoryRecallConfig struct {
+	TopK                   int                         `toml:"top_k"`
+	RawCandidates          int                         `toml:"raw_candidates"`
+	Fusion                 string                      `toml:"fusion"`
+	IncludeAlreadySurfaced bool                        `toml:"include_already_surfaced"`
+	IncludeSystem          bool                        `toml:"include_system"`
+	Weights                MemoryRecallWeightsConfig   `toml:"weights"`
+	Freshness              MemoryRecallFreshnessConfig `toml:"freshness"`
+	Signals                MemoryRecallSignalsConfig   `toml:"signals"`
+}
+
+// MemoryRecallWeightsConfig controls deterministic recall scoring weights.
+type MemoryRecallWeightsConfig struct {
+	BM25Unicode  float64 `toml:"bm25_unicode"`
+	BM25Trigram  float64 `toml:"bm25_trigram"`
+	Recency      float64 `toml:"recency"`
+	RecallSignal float64 `toml:"recall_signal"`
+}
+
+// MemoryRecallFreshnessConfig controls recall freshness banners.
+type MemoryRecallFreshnessConfig struct {
+	BannerAfterDays int `toml:"banner_after_days"`
+}
+
+// MemoryRecallSignalsConfig controls recall signal recording.
+type MemoryRecallSignalsConfig struct {
+	QueueCapacity  int  `toml:"queue_capacity"`
+	WorkerRetryMax int  `toml:"worker_retry_max"`
+	MetricsEnabled bool `toml:"metrics_enabled"`
+}
+
+// MemoryDecisionsConfig controls Decision WAL retention and content caps.
+type MemoryDecisionsConfig struct {
+	PruneAfterAppliedDays int   `toml:"prune_after_applied_days"`
+	KeepAuditSummary      bool  `toml:"keep_audit_summary"`
+	MaxPostContentBytes   int64 `toml:"max_post_content_bytes"`
+}
+
+// MemoryExtractorConfig controls the post-message extractor queue.
+type MemoryExtractorConfig struct {
+	Enabled          bool                       `toml:"enabled"`
+	Mode             string                     `toml:"mode"`
+	ThrottleTurns    int                        `toml:"throttle_turns"`
+	Deadline         time.Duration              `toml:"deadline"`
+	SandboxInboxOnly bool                       `toml:"sandbox_inbox_only"`
+	InboxPath        string                     `toml:"inbox_path"`
+	DLQPath          string                     `toml:"dlq_path"`
+	Model            string                     `toml:"model"`
+	Queue            MemoryExtractorQueueConfig `toml:"queue"`
+}
+
+// MemoryExtractorQueueConfig controls bounded extractor work.
+type MemoryExtractorQueueConfig struct {
+	Capacity    int `toml:"capacity"`
+	CoalesceMax int `toml:"coalesce_max"`
 }
 
 // DreamConfig controls background dream consolidation.
 type DreamConfig struct {
-	Enabled       bool          `toml:"enabled"`
-	Agent         string        `toml:"agent"`
-	MinHours      float64       `toml:"min_hours"`
-	MinSessions   int           `toml:"min_sessions"`
-	CheckInterval time.Duration `toml:"check_interval"`
+	Enabled       bool                     `toml:"enabled"`
+	Agent         string                   `toml:"agent"`
+	MinHours      float64                  `toml:"min_hours"`
+	MinSessions   int                      `toml:"min_sessions"`
+	Debounce      time.Duration            `toml:"debounce"`
+	PromptVersion string                   `toml:"prompt_version"`
+	CheckInterval time.Duration            `toml:"check_interval"`
+	Gates         MemoryDreamGatesConfig   `toml:"gates"`
+	Scoring       MemoryDreamScoringConfig `toml:"scoring"`
+}
+
+// MemoryDreamGatesConfig controls promotion gates for dreaming candidates.
+type MemoryDreamGatesConfig struct {
+	MinUnpromoted  int     `toml:"min_unpromoted"`
+	MinRecallCount int     `toml:"min_recall_count"`
+	MinScore       float64 `toml:"min_score"`
+}
+
+// MemoryDreamScoringConfig controls dreaming candidate scoring.
+type MemoryDreamScoringConfig struct {
+	RecencyHalfLifeDays int                             `toml:"recency_half_life_days"`
+	Weights             MemoryDreamScoringWeightsConfig `toml:"weights"`
+}
+
+// MemoryDreamScoringWeightsConfig controls dreaming score factors.
+type MemoryDreamScoringWeightsConfig struct {
+	Frequency float64 `toml:"frequency"`
+	Relevance float64 `toml:"relevance"`
+	Recency   float64 `toml:"recency"`
+	Freshness float64 `toml:"freshness"`
+}
+
+// MemorySessionConfig controls forensic session ledger retention.
+type MemorySessionConfig struct {
+	LedgerFormat     string        `toml:"ledger_format"`
+	LedgerRoot       string        `toml:"ledger_root"`
+	EventsPurgeGrace time.Duration `toml:"events_purge_grace"`
+	ColdArchiveDays  int           `toml:"cold_archive_days"`
+	HardDeleteDays   int           `toml:"hard_delete_days"`
+	MaxArchiveBytes  int64         `toml:"max_archive_bytes"`
+	UnboundPartition string        `toml:"unbound_partition"`
+}
+
+// MemoryDailyConfig controls daily note retention and rotation.
+type MemoryDailyConfig struct {
+	MaxBytes        int64  `toml:"max_bytes"`
+	MaxLines        int    `toml:"max_lines"`
+	RotateFormat    string `toml:"rotate_format"`
+	DreamingWindow  int    `toml:"dreaming_window"`
+	ColdArchiveDays int    `toml:"cold_archive_days"`
+	HardDeleteDays  int    `toml:"hard_delete_days"`
+	MaxArchiveBytes int64  `toml:"max_archive_bytes"`
+	SweepHour       int    `toml:"sweep_hour"`
+	ArchivePath     string `toml:"archive_path"`
+}
+
+// MemoryFileConfig controls individual memory file limits.
+type MemoryFileConfig struct {
+	MaxLines int   `toml:"max_lines"`
+	MaxBytes int64 `toml:"max_bytes"`
+}
+
+// MemoryProviderConfig controls the active memory provider registry entry.
+type MemoryProviderConfig struct {
+	Name             string        `toml:"name"`
+	Timeout          time.Duration `toml:"timeout"`
+	FailureThreshold int           `toml:"failure_threshold"`
+	Cooldown         time.Duration `toml:"cooldown"`
+}
+
+// MemoryWorkspaceConfig controls workspace memory file lifecycle.
+type MemoryWorkspaceConfig struct {
+	TOMLPath   string `toml:"toml_path"`
+	AutoCreate bool   `toml:"auto_create"`
 }
 
 // MarketplaceConfig controls the external skill registry used by CLI skill commands.
@@ -476,17 +646,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Log: LogConfig{
 			Level: "info",
 		},
-		Memory: MemoryConfig{
-			Enabled:   true,
-			GlobalDir: homePaths.MemoryDir,
-			Dream: DreamConfig{
-				Enabled:       true,
-				Agent:         DefaultAgentName,
-				MinHours:      24,
-				MinSessions:   3,
-				CheckInterval: 30 * time.Minute,
-			},
-		},
+		Memory: DefaultMemoryConfig(homePaths),
 		Skills: SkillsConfig{
 			Enabled:      true,
 			PollInterval: 3 * time.Second,
@@ -512,6 +672,144 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Autonomy: AutonomyConfig{
 			Coordinator: DefaultCoordinatorConfig(),
 		},
+	}
+}
+
+// DefaultMemoryConfig returns the approved Memory v2 Slice 1 defaults.
+func DefaultMemoryConfig(homePaths HomePaths) MemoryConfig {
+	return MemoryConfig{
+		Enabled:    true,
+		GlobalDir:  homePaths.MemoryDir,
+		Controller: defaultMemoryControllerConfig(),
+		Recall:     defaultMemoryRecallConfig(),
+		Decisions: MemoryDecisionsConfig{
+			PruneAfterAppliedDays: 90,
+			KeepAuditSummary:      true,
+			MaxPostContentBytes:   65536,
+		},
+		Extractor: defaultMemoryExtractorConfig(homePaths),
+		Dream:     defaultMemoryDreamConfig(),
+		Session:   defaultMemorySessionConfig(homePaths),
+		Daily:     defaultMemoryDailyConfig(),
+		File:      MemoryFileConfig{MaxLines: 200, MaxBytes: 25600},
+		Provider: MemoryProviderConfig{
+			Timeout:          2 * time.Second,
+			FailureThreshold: 5,
+			Cooldown:         30 * time.Second,
+		},
+		Workspace: MemoryWorkspaceConfig{
+			TOMLPath:   defaultMemoryWorkspaceTOMLPath,
+			AutoCreate: true,
+		},
+	}
+}
+
+func defaultMemoryControllerConfig() MemoryControllerConfig {
+	return MemoryControllerConfig{
+		Mode:            "hybrid",
+		MaxLatency:      300 * time.Millisecond,
+		DefaultOpOnFail: "noop",
+		LLM: MemoryControllerLLMConfig{
+			Enabled:       true,
+			Model:         "anthropic/claude-haiku-4",
+			TopK:          5,
+			PromptVersion: "v1",
+			Timeout:       250 * time.Millisecond,
+			MaxTokensOut:  256,
+		},
+		Policy: MemoryControllerPolicyConfig{
+			MaxContentChars: 4096,
+			MaxWritesPerMin: 60,
+			AllowOrigins: []string{
+				"cli",
+				"http",
+				"uds",
+				"tool",
+				"extractor",
+				"dreaming",
+				"file",
+				"provider",
+			},
+		},
+	}
+}
+
+func defaultMemoryRecallConfig() MemoryRecallConfig {
+	return MemoryRecallConfig{
+		TopK:          5,
+		RawCandidates: 50,
+		Fusion:        "weighted",
+		Weights: MemoryRecallWeightsConfig{
+			BM25Unicode:  0.55,
+			BM25Trigram:  0.20,
+			Recency:      0.15,
+			RecallSignal: 0.10,
+		},
+		Freshness: MemoryRecallFreshnessConfig{BannerAfterDays: 1},
+		Signals: MemoryRecallSignalsConfig{
+			QueueCapacity:  256,
+			WorkerRetryMax: 3,
+			MetricsEnabled: true,
+		},
+	}
+}
+
+func defaultMemoryExtractorConfig(homePaths HomePaths) MemoryExtractorConfig {
+	return MemoryExtractorConfig{
+		Enabled:          true,
+		Mode:             "post_message",
+		ThrottleTurns:    1,
+		Deadline:         60 * time.Second,
+		SandboxInboxOnly: true,
+		InboxPath:        filepath.Join(homePaths.MemoryDir, "_inbox"),
+		DLQPath:          filepath.Join(homePaths.MemoryDir, "_system", "extractor", "failures"),
+		Queue:            MemoryExtractorQueueConfig{Capacity: 1, CoalesceMax: 16},
+	}
+}
+
+func defaultMemoryDreamConfig() DreamConfig {
+	return DreamConfig{
+		Enabled:       true,
+		Agent:         DefaultMemoryDreamAgentName,
+		MinHours:      24,
+		MinSessions:   3,
+		Debounce:      10 * time.Minute,
+		PromptVersion: "v1",
+		CheckInterval: 30 * time.Minute,
+		Gates:         MemoryDreamGatesConfig{MinUnpromoted: 5, MinRecallCount: 2, MinScore: 0.75},
+		Scoring: MemoryDreamScoringConfig{
+			RecencyHalfLifeDays: 14,
+			Weights: MemoryDreamScoringWeightsConfig{
+				Frequency: 0.30,
+				Relevance: 0.35,
+				Recency:   0.20,
+				Freshness: 0.15,
+			},
+		},
+	}
+}
+
+func defaultMemorySessionConfig(homePaths HomePaths) MemorySessionConfig {
+	return MemorySessionConfig{
+		LedgerFormat:     "jsonl",
+		LedgerRoot:       homePaths.SessionsDir,
+		EventsPurgeGrace: 24 * time.Hour,
+		ColdArchiveDays:  30,
+		MaxArchiveBytes:  10737418240,
+		UnboundPartition: "_unbound",
+	}
+}
+
+func defaultMemoryDailyConfig() MemoryDailyConfig {
+	return MemoryDailyConfig{
+		MaxBytes:        1048576,
+		MaxLines:        5000,
+		RotateFormat:    "{date}.{seq}.md",
+		DreamingWindow:  7,
+		ColdArchiveDays: 30,
+		MaxArchiveBytes: 1073741824,
+		SweepHour:       3,
+		ArchivePath:     "_system/archive",
 	}
 }
 
@@ -1090,8 +1388,38 @@ func (c LogConfig) Validate() error {
 }
 
 // Validate ensures the memory configuration is internally consistent.
-func (c MemoryConfig) Validate() error {
-	return c.Dream.Validate()
+func (c *MemoryConfig) Validate() error {
+	if c == nil {
+		return errors.New("memory config is required")
+	}
+	if err := c.Controller.Validate(); err != nil {
+		return err
+	}
+	if err := c.Recall.Validate(); err != nil {
+		return err
+	}
+	if err := c.Decisions.Validate(); err != nil {
+		return err
+	}
+	if err := c.Extractor.Validate(); err != nil {
+		return err
+	}
+	if err := c.Dream.Validate(); err != nil {
+		return err
+	}
+	if err := c.Session.Validate(); err != nil {
+		return err
+	}
+	if err := c.Daily.Validate(); err != nil {
+		return err
+	}
+	if err := c.File.Validate(); err != nil {
+		return err
+	}
+	if err := c.Provider.Validate(); err != nil {
+		return err
+	}
+	return c.Workspace.Validate()
 }
 
 // Validate ensures the skills configuration is internally consistent.
@@ -1296,6 +1624,377 @@ func (c DreamConfig) Validate() error {
 	if c.CheckInterval <= 0 {
 		return fmt.Errorf("memory.dream.check_interval must be positive: %s", c.CheckInterval)
 	}
+	if c.Debounce <= 0 {
+		return fmt.Errorf("memory.dream.debounce must be positive: %s", c.Debounce)
+	}
+	if strings.TrimSpace(c.PromptVersion) == "" {
+		return errors.New("memory.dream.prompt_version is required")
+	}
+	if err := c.Gates.Validate(); err != nil {
+		return err
+	}
+	return c.Scoring.Validate()
+}
+
+// Validate ensures the controller configuration is internally consistent.
+func (c *MemoryControllerConfig) Validate() error {
+	mode, err := validateEnum("memory.controller.mode", c.Mode, "hybrid", "rules", "llm")
+	if err != nil {
+		return err
+	}
+	c.Mode = mode
+	if c.Mode == "llm" && !c.LLM.Enabled {
+		return errors.New(`memory.controller.llm.enabled must be true when memory.controller.mode is "llm"`)
+	}
+	if c.MaxLatency <= 0 {
+		return fmt.Errorf("memory.controller.max_latency must be positive: %s", c.MaxLatency)
+	}
+	defaultOpOnFail, err := validateEnum("memory.controller.default_op_on_fail", c.DefaultOpOnFail, "noop", "reject")
+	if err != nil {
+		return err
+	}
+	c.DefaultOpOnFail = defaultOpOnFail
+	if err := c.LLM.Validate(); err != nil {
+		return err
+	}
+	return c.Policy.Validate()
+}
+
+// Validate ensures the controller LLM configuration is internally consistent.
+func (c MemoryControllerLLMConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(c.Model) == "" {
+		return errors.New("memory.controller.llm.model is required")
+	}
+	if c.TopK <= 0 {
+		return fmt.Errorf("memory.controller.llm.top_k must be positive: %d", c.TopK)
+	}
+	if strings.TrimSpace(c.PromptVersion) == "" {
+		return errors.New("memory.controller.llm.prompt_version is required")
+	}
+	if c.Timeout <= 0 {
+		return fmt.Errorf("memory.controller.llm.timeout must be positive: %s", c.Timeout)
+	}
+	if c.MaxTokensOut <= 0 {
+		return fmt.Errorf("memory.controller.llm.max_tokens_out must be positive: %d", c.MaxTokensOut)
+	}
+	return nil
+}
+
+// Validate ensures the controller policy configuration is internally consistent.
+func (c *MemoryControllerPolicyConfig) Validate() error {
+	if c.MaxContentChars <= 0 {
+		return fmt.Errorf("memory.controller.policy.max_content_chars must be positive: %d", c.MaxContentChars)
+	}
+	if c.MaxWritesPerMin <= 0 {
+		return fmt.Errorf("memory.controller.policy.max_writes_per_min must be positive: %d", c.MaxWritesPerMin)
+	}
+	allowedOrigins := map[string]struct{}{
+		"cli":       {},
+		"http":      {},
+		"uds":       {},
+		"tool":      {},
+		"extractor": {},
+		"dreaming":  {},
+		"file":      {},
+		"provider":  {},
+	}
+	if len(c.AllowOrigins) == 0 {
+		return errors.New("memory.controller.policy.allow_origins must not be empty")
+	}
+	seen := make(map[string]struct{}, len(c.AllowOrigins))
+	canonical := make([]string, len(c.AllowOrigins))
+	for i, origin := range c.AllowOrigins {
+		normalized := strings.ToLower(strings.TrimSpace(origin))
+		if _, ok := allowedOrigins[normalized]; !ok {
+			return fmt.Errorf("memory.controller.policy.allow_origins[%d] is invalid: %q", i, origin)
+		}
+		if _, ok := seen[normalized]; ok {
+			return fmt.Errorf("memory.controller.policy.allow_origins[%d] duplicates %q", i, origin)
+		}
+		seen[normalized] = struct{}{}
+		canonical[i] = normalized
+	}
+	c.AllowOrigins = canonical
+	return nil
+}
+
+// Validate ensures the recall configuration is internally consistent.
+func (c *MemoryRecallConfig) Validate() error {
+	if c.TopK <= 0 {
+		return fmt.Errorf("memory.recall.top_k must be positive: %d", c.TopK)
+	}
+	if c.RawCandidates < c.TopK {
+		return fmt.Errorf(
+			"memory.recall.raw_candidates must be >= memory.recall.top_k: %d < %d",
+			c.RawCandidates,
+			c.TopK,
+		)
+	}
+	fusion, err := validateEnum("memory.recall.fusion", c.Fusion, "weighted", "rrf")
+	if err != nil {
+		return err
+	}
+	c.Fusion = fusion
+	if err := c.Weights.Validate(); err != nil {
+		return err
+	}
+	if c.Freshness.BannerAfterDays < 0 {
+		return fmt.Errorf(
+			"memory.recall.freshness.banner_after_days must be zero or positive: %d",
+			c.Freshness.BannerAfterDays,
+		)
+	}
+	return c.Signals.Validate()
+}
+
+// Validate ensures recall weights are usable.
+func (c MemoryRecallWeightsConfig) Validate() error {
+	weights := map[string]float64{
+		"memory.recall.weights.bm25_unicode":  c.BM25Unicode,
+		"memory.recall.weights.bm25_trigram":  c.BM25Trigram,
+		"memory.recall.weights.recency":       c.Recency,
+		"memory.recall.weights.recall_signal": c.RecallSignal,
+	}
+	var sum float64
+	for path, weight := range weights {
+		if err := validateWeight(path, weight); err != nil {
+			return err
+		}
+		sum += weight
+	}
+	return validateWeightSum("memory.recall.weights", sum)
+}
+
+// Validate ensures recall signal settings are usable.
+func (c MemoryRecallSignalsConfig) Validate() error {
+	if c.QueueCapacity <= 0 {
+		return fmt.Errorf("memory.recall.signals.queue_capacity must be positive: %d", c.QueueCapacity)
+	}
+	if c.WorkerRetryMax < 0 {
+		return fmt.Errorf("memory.recall.signals.worker_retry_max must be zero or positive: %d", c.WorkerRetryMax)
+	}
+	return nil
+}
+
+// Validate ensures Decision WAL retention settings are usable.
+func (c MemoryDecisionsConfig) Validate() error {
+	if c.PruneAfterAppliedDays < 0 {
+		return fmt.Errorf(
+			"memory.decisions.prune_after_applied_days must be zero or positive: %d",
+			c.PruneAfterAppliedDays,
+		)
+	}
+	if c.MaxPostContentBytes <= 0 {
+		return fmt.Errorf("memory.decisions.max_post_content_bytes must be positive: %d", c.MaxPostContentBytes)
+	}
+	return nil
+}
+
+// Validate ensures extractor settings are internally consistent.
+func (c *MemoryExtractorConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	mode, err := validateEnum("memory.extractor.mode", c.Mode, "post_message", "compaction_flush", "hybrid")
+	if err != nil {
+		return err
+	}
+	c.Mode = mode
+	if c.ThrottleTurns <= 0 {
+		return fmt.Errorf("memory.extractor.throttle_turns must be positive: %d", c.ThrottleTurns)
+	}
+	if c.Deadline <= 0 {
+		return fmt.Errorf("memory.extractor.deadline must be positive: %s", c.Deadline)
+	}
+	if strings.TrimSpace(c.InboxPath) == "" {
+		return errors.New("memory.extractor.inbox_path is required")
+	}
+	if strings.TrimSpace(c.DLQPath) == "" {
+		return errors.New("memory.extractor.dlq_path is required")
+	}
+	return c.Queue.Validate()
+}
+
+// Validate ensures extractor queue settings are usable.
+func (c MemoryExtractorQueueConfig) Validate() error {
+	if c.Capacity <= 0 {
+		return fmt.Errorf("memory.extractor.queue.capacity must be positive: %d", c.Capacity)
+	}
+	if c.CoalesceMax <= 0 {
+		return fmt.Errorf("memory.extractor.queue.coalesce_max must be positive: %d", c.CoalesceMax)
+	}
+	return nil
+}
+
+// Validate ensures dreaming promotion gates are usable.
+func (c MemoryDreamGatesConfig) Validate() error {
+	if c.MinUnpromoted <= 0 {
+		return fmt.Errorf("memory.dream.gates.min_unpromoted must be positive: %d", c.MinUnpromoted)
+	}
+	if c.MinRecallCount <= 0 {
+		return fmt.Errorf("memory.dream.gates.min_recall_count must be positive: %d", c.MinRecallCount)
+	}
+	if c.MinScore < 0 || c.MinScore > 1 {
+		return fmt.Errorf("memory.dream.gates.min_score must be between 0 and 1: %v", c.MinScore)
+	}
+	return nil
+}
+
+// Validate ensures dreaming scoring settings are usable.
+func (c MemoryDreamScoringConfig) Validate() error {
+	if c.RecencyHalfLifeDays <= 0 {
+		return fmt.Errorf("memory.dream.scoring.recency_half_life_days must be positive: %d", c.RecencyHalfLifeDays)
+	}
+	return c.Weights.Validate()
+}
+
+// Validate ensures dreaming scoring weights are usable.
+func (c MemoryDreamScoringWeightsConfig) Validate() error {
+	weights := map[string]float64{
+		"memory.dream.scoring.weights.frequency": c.Frequency,
+		"memory.dream.scoring.weights.relevance": c.Relevance,
+		"memory.dream.scoring.weights.recency":   c.Recency,
+		"memory.dream.scoring.weights.freshness": c.Freshness,
+	}
+	var sum float64
+	for path, weight := range weights {
+		if err := validateWeight(path, weight); err != nil {
+			return err
+		}
+		sum += weight
+	}
+	return validateWeightSum("memory.dream.scoring.weights", sum)
+}
+
+// Validate ensures session ledger settings are usable.
+func (c *MemorySessionConfig) Validate() error {
+	ledgerFormat, err := validateEnum("memory.session.ledger_format", c.LedgerFormat, "jsonl")
+	if err != nil {
+		return err
+	}
+	c.LedgerFormat = ledgerFormat
+	if strings.TrimSpace(c.LedgerRoot) == "" {
+		return errors.New("memory.session.ledger_root is required")
+	}
+	if c.EventsPurgeGrace <= 0 {
+		return fmt.Errorf("memory.session.events_purge_grace must be positive: %s", c.EventsPurgeGrace)
+	}
+	if c.ColdArchiveDays < 0 {
+		return fmt.Errorf("memory.session.cold_archive_days must be zero or positive: %d", c.ColdArchiveDays)
+	}
+	if c.HardDeleteDays < 0 {
+		return fmt.Errorf("memory.session.hard_delete_days must be zero or positive: %d", c.HardDeleteDays)
+	}
+	if c.MaxArchiveBytes <= 0 {
+		return fmt.Errorf("memory.session.max_archive_bytes must be positive: %d", c.MaxArchiveBytes)
+	}
+	return validateSafePathSegment("memory.session.unbound_partition", c.UnboundPartition)
+}
+
+// Validate ensures daily note settings are usable.
+func (c MemoryDailyConfig) Validate() error {
+	if c.MaxBytes <= 0 {
+		return fmt.Errorf("memory.daily.max_bytes must be positive: %d", c.MaxBytes)
+	}
+	if c.MaxLines <= 0 {
+		return fmt.Errorf("memory.daily.max_lines must be positive: %d", c.MaxLines)
+	}
+	if strings.TrimSpace(c.RotateFormat) == "" {
+		return errors.New("memory.daily.rotate_format is required")
+	}
+	if c.DreamingWindow <= 0 {
+		return fmt.Errorf("memory.daily.dreaming_window must be positive: %d", c.DreamingWindow)
+	}
+	if c.ColdArchiveDays < 0 {
+		return fmt.Errorf("memory.daily.cold_archive_days must be zero or positive: %d", c.ColdArchiveDays)
+	}
+	if c.HardDeleteDays < 0 {
+		return fmt.Errorf("memory.daily.hard_delete_days must be zero or positive: %d", c.HardDeleteDays)
+	}
+	if c.MaxArchiveBytes <= 0 {
+		return fmt.Errorf("memory.daily.max_archive_bytes must be positive: %d", c.MaxArchiveBytes)
+	}
+	if c.SweepHour < 0 || c.SweepHour > 23 {
+		return fmt.Errorf("memory.daily.sweep_hour must be between 0 and 23: %d", c.SweepHour)
+	}
+	if strings.TrimSpace(c.ArchivePath) == "" {
+		return errors.New("memory.daily.archive_path is required")
+	}
+	return nil
+}
+
+// Validate ensures memory file limits are usable.
+func (c MemoryFileConfig) Validate() error {
+	if c.MaxLines <= 0 {
+		return fmt.Errorf("memory.file.max_lines must be positive: %d", c.MaxLines)
+	}
+	if c.MaxBytes <= 0 {
+		return fmt.Errorf("memory.file.max_bytes must be positive: %d", c.MaxBytes)
+	}
+	return nil
+}
+
+// Validate ensures provider settings are usable.
+func (c MemoryProviderConfig) Validate() error {
+	if c.Timeout <= 0 {
+		return fmt.Errorf("memory.provider.timeout must be positive: %s", c.Timeout)
+	}
+	if c.FailureThreshold <= 0 {
+		return fmt.Errorf("memory.provider.failure_threshold must be positive: %d", c.FailureThreshold)
+	}
+	if c.Cooldown <= 0 {
+		return fmt.Errorf("memory.provider.cooldown must be positive: %s", c.Cooldown)
+	}
+	return nil
+}
+
+// Validate ensures workspace memory settings are usable.
+func (c MemoryWorkspaceConfig) Validate() error {
+	if strings.TrimSpace(c.TOMLPath) != defaultMemoryWorkspaceTOMLPath {
+		return fmt.Errorf(
+			"memory.workspace.toml_path is informational and must remain %q",
+			defaultMemoryWorkspaceTOMLPath,
+		)
+	}
+	return nil
+}
+
+func validateEnum(path string, value string, allowed ...string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if slices.Contains(allowed, normalized) {
+		return normalized, nil
+	}
+	return "", fmt.Errorf("%s must be one of %s: %q", path, strings.Join(allowed, ", "), value)
+}
+
+func validateWeight(path string, value float64) error {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return fmt.Errorf("%s must be finite: %v", path, value)
+	}
+	if value < 0 || value > 1 {
+		return fmt.Errorf("%s must be between 0 and 1: %v", path, value)
+	}
+	return nil
+}
+
+func validateWeightSum(path string, sum float64) error {
+	if math.Abs(sum-1.0) > 0.000001 {
+		return fmt.Errorf("%s must sum to 1.0: %v", path, sum)
+	}
+	return nil
+}
+
+func validateSafePathSegment(path string, value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s is required", path)
+	}
+	if trimmed == "." || trimmed == ".." || strings.ContainsAny(trimmed, `/\`) {
+		return fmt.Errorf("%s must be a safe single path segment: %q", path, value)
+	}
 	return nil
 }
 
@@ -1316,6 +2015,27 @@ func normalizeConfigPaths(cfg *Config) error {
 			return fmt.Errorf("expand memory.global_dir: %w", err)
 		}
 		cfg.Memory.GlobalDir = memoryDir
+	}
+	if strings.TrimSpace(cfg.Memory.Extractor.InboxPath) != "" {
+		inboxPath, err := expandUserPath(cfg.Memory.Extractor.InboxPath)
+		if err != nil {
+			return fmt.Errorf("expand memory.extractor.inbox_path: %w", err)
+		}
+		cfg.Memory.Extractor.InboxPath = inboxPath
+	}
+	if strings.TrimSpace(cfg.Memory.Extractor.DLQPath) != "" {
+		dlqPath, err := expandUserPath(cfg.Memory.Extractor.DLQPath)
+		if err != nil {
+			return fmt.Errorf("expand memory.extractor.dlq_path: %w", err)
+		}
+		cfg.Memory.Extractor.DLQPath = dlqPath
+	}
+	if strings.TrimSpace(cfg.Memory.Session.LedgerRoot) != "" {
+		ledgerRoot, err := expandUserPath(cfg.Memory.Session.LedgerRoot)
+		if err != nil {
+			return fmt.Errorf("expand memory.session.ledger_root: %w", err)
+		}
+		cfg.Memory.Session.LedgerRoot = ledgerRoot
 	}
 
 	return nil

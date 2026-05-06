@@ -240,6 +240,21 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Sequence:       2,
 		Content:        sampleRaw,
 	})
+	assertJSONRoundTrip(t, "SessionMessagePersistedPayload", SessionMessagePersistedPayload{
+		PayloadBase:     samplePayloadBase(HookSessionMessagePersisted),
+		SessionContext:  sampleSession,
+		TurnContext:     sampleTurn,
+		MessageID:       "msg-1",
+		MessageSeq:      3,
+		Role:            role,
+		Text:            "assistant reply",
+		Raw:             sampleRaw,
+		Persisted:       sampleRaw,
+		RootSessionID:   "root-session",
+		ParentSessionID: "parent-session",
+		ActorKind:       "agent_subagent",
+		ActorID:         "child-session",
+	})
 	assertJSONRoundTrip(t, "EventPreRecordPatch", EventPreRecordPatch{
 		Labels: map[string]string{"stage": "pre"},
 	})

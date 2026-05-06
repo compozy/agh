@@ -85,6 +85,44 @@ func TestRunOnceRecordsNoMatchWithoutWakeMutation(t *testing.T) {
 	}
 }
 
+func TestRunOnceRequiresTaskOwnerMatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wake only the session matching a pool-owned task agent", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 5, 6, 10, 15, 0, 0, time.UTC)
+		work := workSnapshot("task-owner", "run-owner", taskpkg.ScopeWorkspace, "ws-1", nil, base)
+		work.Task.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-engineer-agent"}
+		work.Run.CoordinationChannelID = "design-review"
+		wrongOwner := sessionSnapshot("sess-analytics", "ws-1", "active", false, nil, base)
+		wrongOwner.AgentName = "analytics-engineer-agent"
+		wrongOwner.Channel = "design-review"
+		matchingOwner := sessionSnapshot("sess-frontend", "ws-1", "active", false, nil, base.Add(time.Second))
+		matchingOwner.AgentName = "frontend-engineer-agent"
+		matchingOwner.Channel = "design-review"
+		source := &fakeTaskSource{pending: []RunSnapshot{work}}
+		sessions := &fakeSessionSource{sessions: []SessionSnapshot{wrongOwner, matchingOwner}}
+		waker := &fakeWaker{}
+		scheduler := newTestScheduler(t, source, sessions, waker, WithClock(clockwork.NewFakeClockAt(base)))
+
+		result, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if result.WakeSucceeded != 1 {
+			t.Fatalf("WakeSucceeded = %d, want 1 (result %#v)", result.WakeSucceeded, result)
+		}
+		targets := waker.targetsSnapshot()
+		if got, want := len(targets), 1; got != want {
+			t.Fatalf("wake targets = %d, want %d", got, want)
+		}
+		if got, want := targets[0].Session.ID, "sess-frontend"; got != want {
+			t.Fatalf("woken session = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestRunOnceDelegatesExpiredLeaseRecovery(t *testing.T) {
 	base := time.Date(2026, 4, 26, 11, 0, 0, 0, time.UTC)
 	source := &fakeTaskSource{

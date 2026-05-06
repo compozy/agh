@@ -1,25 +1,22 @@
-import type { KnowledgeMemoryItem, KnowledgeScope, MemoryType } from "@/systems/knowledge/types";
+import type {
+  KnowledgeAgentTier,
+  KnowledgeMemoryItem,
+  KnowledgeScope,
+  MemoryDecisionOp,
+  MemoryDecisionSource,
+  MemoryType,
+} from "@/systems/knowledge/types";
 
 const SCOPE_ORDER: Record<KnowledgeScope, number> = {
   global: 0,
   workspace: 1,
+  agent: 2,
 };
-
-export function deriveScopeFromFilename(filename: string): KnowledgeScope {
-  if (filename.startsWith("workspace/") || filename.startsWith("ws/")) {
-    return "workspace";
-  }
-  return "global";
-}
-
-export function resolveKnowledgeScope(memory: Pick<KnowledgeMemoryItem, "filename" | "scope">) {
-  return memory.scope ?? deriveScopeFromFilename(memory.filename);
-}
 
 export function knowledgeMemoryKey(
   memory: Pick<KnowledgeMemoryItem, "filename" | "scope" | "key">
 ) {
-  return memory.key ?? `${resolveKnowledgeScope(memory)}:${memory.filename}`;
+  return memory.key ?? `${memory.scope}:${memory.filename}`;
 }
 
 export function compareKnowledgeScope(left: KnowledgeScope, right: KnowledgeScope): number {
@@ -27,11 +24,23 @@ export function compareKnowledgeScope(left: KnowledgeScope, right: KnowledgeScop
 }
 
 export function knowledgeScopeLabel(scope: KnowledgeScope): string {
-  return scope === "workspace" ? "WORKSPACE" : "GLOBAL";
+  if (scope === "workspace") return "WORKSPACE";
+  if (scope === "agent") return "AGENT";
+  return "GLOBAL";
 }
 
 export function knowledgeScopeShortLabel(scope: KnowledgeScope): string {
-  return scope === "workspace" ? "WS" : "GLOBAL";
+  if (scope === "workspace") return "WS";
+  if (scope === "agent") return "AGENT";
+  return "GLOBAL";
+}
+
+export function knowledgeAgentTierLabel(tier: KnowledgeAgentTier): string {
+  return tier === "global" ? "AGENT-GLOBAL" : "AGENT-WORKSPACE";
+}
+
+export function knowledgeAgentTierShortLabel(tier: KnowledgeAgentTier): string {
+  return tier === "global" ? "AG-GLOBAL" : "AG-WS";
 }
 
 export type KnowledgeTone = MemoryType | KnowledgeScope;
@@ -42,6 +51,22 @@ export function memoryTypeTone(type: MemoryType): KnowledgeTone {
 
 export function memoryScopeTone(scope: KnowledgeScope): KnowledgeTone {
   return scope;
+}
+
+const DECISION_OP_LABEL: Record<MemoryDecisionOp, string> = {
+  noop: "NOOP",
+  add: "ADD",
+  update: "UPDATE",
+  delete: "DELETE",
+  reject: "REJECT",
+};
+
+export function decisionOpLabel(op: MemoryDecisionOp): string {
+  return DECISION_OP_LABEL[op] ?? op.toUpperCase();
+}
+
+export function decisionSourceLabel(source: MemoryDecisionSource): string {
+  return source === "rule" ? "RULE" : "LLM";
 }
 
 function safeDate(value: string): Date | null {

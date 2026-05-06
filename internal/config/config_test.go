@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -702,7 +703,7 @@ func TestHeartbeatConfigDefaultsAndValidation(t *testing.T) {
 	}
 }
 
-func TestLoadDreamAgentInheritsCustomizedDefaultAgentWhenUnspecified(t *testing.T) {
+func TestLoadDreamAgentKeepsDedicatedCuratorWhenDefaultAgentChanges(t *testing.T) {
 	homeRoot := filepath.Join(t.TempDir(), "home")
 	t.Setenv("AGH_HOME", homeRoot)
 
@@ -729,7 +730,7 @@ check_interval = "1m"
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if got, want := cfg.Memory.Dream.Agent, "operator"; got != want {
+	if got, want := cfg.Memory.Dream.Agent, DefaultMemoryDreamAgentName; got != want {
 		t.Fatalf("Load() Memory.Dream.Agent = %q, want %q", got, want)
 	}
 }
@@ -2196,7 +2197,7 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 	if cfg.Daemon.Socket != want.Daemon.Socket {
 		t.Fatalf("Load() Daemon.Socket = %q, want %q", cfg.Daemon.Socket, want.Daemon.Socket)
 	}
-	if cfg.Memory != want.Memory {
+	if !reflect.DeepEqual(cfg.Memory, want.Memory) {
 		t.Fatalf("Load() Memory = %#v, want %#v", cfg.Memory, want.Memory)
 	}
 	if cfg.Skills.Enabled != want.Skills.Enabled || cfg.Skills.PollInterval != want.Skills.PollInterval ||
@@ -2224,8 +2225,12 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
 		t.Fatalf("defaultConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
 	}
-	if cfg.Memory.Dream.Agent != DefaultAgentName {
-		t.Fatalf("defaultConfig() Memory.Dream.Agent = %q, want %q", cfg.Memory.Dream.Agent, DefaultAgentName)
+	if cfg.Memory.Dream.Agent != DefaultMemoryDreamAgentName {
+		t.Fatalf(
+			"defaultConfig() Memory.Dream.Agent = %q, want %q",
+			cfg.Memory.Dream.Agent,
+			DefaultMemoryDreamAgentName,
+		)
 	}
 	if !cfg.Skills.Enabled {
 		t.Fatal("defaultConfig() Skills.Enabled = false, want true")

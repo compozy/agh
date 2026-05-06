@@ -2,14 +2,25 @@
     "title": "Memory",
     "pages": [
         "index",
-        "consolidate",
         "delete",
+        "edit",
         "health",
         "history",
         "list",
-        "read",
+        "promote",
         "reindex",
+        "reload",
+        "reset",
+        "scope-show",
         "search",
-        "write"
+        "show",
+        "write",
+        "adhoc",
+        "daily",
+        "decisions",
+        "dream",
+        "extractor",
+        "provider",
+        "recall"
     ]
 }

@@ -101,6 +101,86 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 	}
 }
 
+func TestObserverQueryEventsAggregatesMemoryEventSource(t *testing.T) {
+	t.Run("Should merge memory events after durable registry events", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		sess := newSession("sess-memory-observe", session.StateActive, h.workspace, h.now)
+		h.observer.OnSessionCreated(testutil.Context(t), sess)
+		h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
+			Type:      "agent_message",
+			TurnID:    "turn-1",
+			Timestamp: h.now.Add(time.Minute),
+			Text:      "assistant replied",
+		})
+
+		source := &stubMemoryEventSource{
+			events: []store.EventSummary{{
+				ID:        "memevt-workspace-01",
+				Type:      "memory.recall.executed",
+				AgentName: "coder",
+				Summary:   "workspace recall executed",
+				Timestamp: h.now.Add(2 * time.Minute),
+			}},
+		}
+		h.observer.mu.Lock()
+		h.observer.memoryEventSource = source
+		h.observer.mu.Unlock()
+
+		events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{})
+		if err != nil {
+			t.Fatalf("QueryEvents() error = %v", err)
+		}
+		if got, want := len(events), 2; got != want {
+			t.Fatalf("len(events) = %d, want %d; events=%#v", got, want, events)
+		}
+		if got, want := events[0].Type, "agent_message"; got != want {
+			t.Fatalf("events[0].Type = %q, want %q", got, want)
+		}
+		if got, want := events[1].Type, "memory.recall.executed"; got != want {
+			t.Fatalf("events[1].Type = %q, want %q", got, want)
+		}
+		if len(source.workspaces) != 1 || source.workspaces[0] != h.workspace {
+			t.Fatalf("memory source workspaces = %#v, want [%q]", source.workspaces, h.workspace)
+		}
+	})
+}
+
+func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
+	t.Run("Should not fan memory source into session-scoped queries yet", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		sess := newSession("sess-memory-filter", session.StateActive, h.workspace, h.now)
+		h.observer.OnSessionCreated(testutil.Context(t), sess)
+		source := &stubMemoryEventSource{
+			events: []store.EventSummary{{
+				ID:        "memevt-workspace-02",
+				Type:      "memory.write.committed",
+				SessionID: sess.ID,
+				AgentName: "coder",
+				Summary:   "workspace write committed",
+				Timestamp: h.now.Add(time.Minute),
+			}},
+		}
+		h.observer.mu.Lock()
+		h.observer.memoryEventSource = source
+		h.observer.mu.Unlock()
+
+		events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+		if err != nil {
+			t.Fatalf("QueryEvents(session) error = %v", err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("session scoped events = %#v, want no memory source fan-in yet", events)
+		}
+		if len(source.workspaces) != 0 {
+			t.Fatalf("memory source workspaces = %#v, want source not queried for session scope", source.workspaces)
+		}
+	})
+}
+
 func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -873,6 +953,12 @@ type listSessionsFailingRegistry struct {
 	Registry
 }
 
+type stubMemoryEventSource struct {
+	events     []store.EventSummary
+	workspaces []string
+	query      store.EventSummaryQuery
+}
+
 func (r listSessionsFailingRegistry) ListSessions(
 	context.Context,
 	store.SessionListQuery,
@@ -887,6 +973,16 @@ type observeBridgeSource struct {
 
 func (s *stubSessionSource) List() []*session.Info {
 	return s.sessions
+}
+
+func (s *stubMemoryEventSource) ListMemoryEventSummaries(
+	_ context.Context,
+	workspaces []string,
+	query store.EventSummaryQuery,
+) ([]store.EventSummary, error) {
+	s.workspaces = append([]string(nil), workspaces...)
+	s.query = query
+	return append([]store.EventSummary(nil), s.events...), nil
 }
 
 func (s *observeBridgeSource) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {

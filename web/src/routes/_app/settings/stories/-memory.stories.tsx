@@ -50,18 +50,18 @@ export const Dirty: Story = {
 };
 
 /**
- * Consolidation action triggered from the dream section header.
+ * Dream action triggered from the dream section header.
  */
-export const ConsolidateTriggered: Story = {
+export const DreamTriggered: Story = {
   args: {},
   parameters: appRouteParameters("/settings/memory"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("settings-page-memory-consolidate"));
+    await userEvent.click(await canvas.findByTestId("settings-page-memory-dream-trigger"));
     await expect(
       canvas.findByTestId("settings-page-memory-action-message")
-    ).resolves.toHaveTextContent("Consolidation triggered");
+    ).resolves.toHaveTextContent("Dream triggered");
   },
 };
 

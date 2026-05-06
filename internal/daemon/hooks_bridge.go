@@ -96,6 +96,10 @@ type hookRuntime interface {
 	DispatchMessageStart(context.Context, hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error)
 	DispatchMessageDelta(context.Context, hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error)
 	DispatchMessageEnd(context.Context, hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error)
+	DispatchSessionMessagePersisted(
+		context.Context,
+		hookspkg.SessionMessagePersistedPayload,
+	) (hookspkg.SessionMessagePersistedPayload, error)
 	DispatchToolPreCall(context.Context, hookspkg.ToolPreCallPayload) (hookspkg.ToolPreCallPayload, error)
 	DispatchToolPostCall(context.Context, hookspkg.ToolPostCallPayload) (hookspkg.ToolPostCallPayload, error)
 	DispatchToolPostError(context.Context, hookspkg.ToolPostErrorPayload) (hookspkg.ToolPostErrorPayload, error)
@@ -256,6 +260,10 @@ type taskRunEnqueuedObserver interface {
 
 type dreamCheckEnqueuer interface {
 	EnqueueCheck(reason string, workspaceRef string)
+}
+
+type sessionMessagePersistedObserver interface {
+	HandleSessionMessagePersisted(context.Context, hookspkg.SessionMessagePersistedPayload) error
 }
 
 type sessionLifecycleFanout struct {
@@ -755,6 +763,19 @@ func (n *hooksNotifier) DispatchMessageEnd(
 		hookspkg.HookMessageEnd,
 		payload,
 		hookRuntime.DispatchMessageEnd,
+	)
+}
+
+func (n *hooksNotifier) DispatchSessionMessagePersisted(
+	ctx context.Context,
+	payload hookspkg.SessionMessagePersistedPayload,
+) (hookspkg.SessionMessagePersistedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookSessionMessagePersisted,
+		payload,
+		hookRuntime.DispatchSessionMessagePersisted,
 	)
 }
 
@@ -1396,12 +1417,30 @@ func dreamSessionStopExecutor(dreamRuntime dreamCheckEnqueuer) hookspkg.Executor
 	)
 }
 
+func memoryExtractorMessagePersistedExecutor(
+	observer sessionMessagePersistedObserver,
+) hookspkg.Executor {
+	return hookspkg.NewTypedNativeExecutor(
+		func(
+			ctx context.Context,
+			_ hookspkg.RegisteredHook,
+			payload hookspkg.SessionMessagePersistedPayload,
+		) (hookspkg.AuthoredContextObservationPatch, error) {
+			if err := observer.HandleSessionMessagePersisted(ctx, payload); err != nil {
+				return hookspkg.AuthoredContextObservationPatch{}, err
+			}
+			return hookspkg.AuthoredContextObservationPatch{}, nil
+		},
+	)
+}
+
 func daemonNativeHooks(
 	observer sessionLifecycleObserver,
 	dreamRuntime dreamCheckEnqueuer,
+	memoryExtractor sessionMessagePersistedObserver,
 ) ([]hookspkg.HookDecl, map[string]hookspkg.Executor) {
-	decls := make([]hookspkg.HookDecl, 0, 3)
-	executors := make(map[string]hookspkg.Executor, 3)
+	decls := make([]hookspkg.HookDecl, 0, 4)
+	executors := make(map[string]hookspkg.Executor, 4)
 
 	if observer != nil {
 		const (
@@ -1443,6 +1482,20 @@ func daemonNativeHooks(
 			ExecutorKind: hookspkg.HookExecutorNative,
 		})
 		executors[dreamName] = dreamSessionStopExecutor(dreamRuntime)
+	}
+
+	if memoryExtractor != nil {
+		const extractorName = "daemon.memory.extractor.session_message_persisted"
+
+		decls = append(decls, hookspkg.HookDecl{
+			Name:         extractorName,
+			Event:        hookspkg.HookSessionMessagePersisted,
+			Mode:         hookspkg.HookModeAsync,
+			Priority:     900,
+			PrioritySet:  true,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		})
+		executors[extractorName] = memoryExtractorMessagePersistedExecutor(memoryExtractor)
 	}
 
 	return decls, executors

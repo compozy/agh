@@ -91,6 +91,9 @@ type Server struct {
 	skillsRegistry    core.SkillsRegistry
 	memoryStore       *memory.Store
 	dreamTrigger      core.DreamTrigger
+	memoryExtractor   core.MemoryExtractorService
+	memoryProviders   core.MemoryProviderService
+	memoryLedger      core.MemorySessionLedgerService
 	agentLoader       core.AgentLoader
 	extensions        ExtensionService
 	hostedMCP         *mcppkg.HostedService
@@ -136,6 +139,9 @@ type handlerConfig struct {
 	skillsRegistry    core.SkillsRegistry
 	memoryStore       *memory.Store
 	dreamTrigger      core.DreamTrigger
+	memoryExtractor   core.MemoryExtractorService
+	memoryProviders   core.MemoryProviderService
+	memoryLedger      core.MemorySessionLedgerService
 	homePaths         aghconfig.HomePaths
 	config            aghconfig.Config
 	logger            *slog.Logger
@@ -420,6 +426,27 @@ func WithDreamTrigger(trigger core.DreamTrigger) Option {
 	}
 }
 
+// WithMemoryExtractorService injects the daemon-owned Memory v2 extractor runtime.
+func WithMemoryExtractorService(service core.MemoryExtractorService) Option {
+	return func(server *Server) {
+		server.memoryExtractor = service
+	}
+}
+
+// WithMemoryProviderService injects the daemon-owned MemoryProvider registry service.
+func WithMemoryProviderService(service core.MemoryProviderService) Option {
+	return func(server *Server) {
+		server.memoryProviders = service
+	}
+}
+
+// WithMemorySessionLedgerService injects the daemon-owned session ledger service.
+func WithMemorySessionLedgerService(service core.MemorySessionLedgerService) Option {
+	return func(server *Server) {
+		server.memoryLedger = service
+	}
+}
+
 // WithAgentLoader overrides agent definition loading.
 func WithAgentLoader(loader core.AgentLoader) Option {
 	return func(server *Server) {
@@ -595,6 +622,9 @@ func (s *Server) handlerConfig() *handlerConfig {
 		skillsRegistry:    s.skillsRegistry,
 		memoryStore:       s.memoryStore,
 		dreamTrigger:      s.dreamTrigger,
+		memoryExtractor:   s.memoryExtractor,
+		memoryProviders:   s.memoryProviders,
+		memoryLedger:      s.memoryLedger,
 		homePaths:         s.homePaths,
 		config:            s.config,
 		logger:            s.logger,
@@ -841,6 +871,9 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			SkillsRegistry:               cfg.skillsRegistry,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,
+			MemoryExtractor:              cfg.memoryExtractor,
+			MemoryProviders:              cfg.memoryProviders,
+			MemorySessionLedger:          cfg.memoryLedger,
 			HomePaths:                    cfg.homePaths,
 			Config:                       cfg.config,
 			Logger:                       cfg.logger,

@@ -60,8 +60,12 @@ func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {
 	if cfg.Permissions.Mode != PermissionModeApproveAll {
 		t.Fatalf("SaveBootstrapConfig() Permissions.Mode = %q, want %q", cfg.Permissions.Mode, PermissionModeApproveAll)
 	}
-	if cfg.Memory.Dream.Agent != DefaultAgentName {
-		t.Fatalf("SaveBootstrapConfig() Memory.Dream.Agent = %q, want %q", cfg.Memory.Dream.Agent, DefaultAgentName)
+	if cfg.Memory.Dream.Agent != DefaultMemoryDreamAgentName {
+		t.Fatalf(
+			"SaveBootstrapConfig() Memory.Dream.Agent = %q, want %q",
+			cfg.Memory.Dream.Agent,
+			DefaultMemoryDreamAgentName,
+		)
 	}
 	if !cfg.Network.Enabled {
 		t.Fatal("SaveBootstrapConfig() Network.Enabled = false, want inherited enabled default")
@@ -139,6 +143,36 @@ func TestSaveBootstrapConfigAllowsProviderManagedModel(t *testing.T) {
 	text := string(contents)
 	if strings.Contains(text, `default_model =`) {
 		t.Fatalf("config contents wrote provider-managed default model:\n%s", text)
+	}
+}
+
+func TestSaveBootstrapConfigMigratesPriorBootstrapDreamAgent(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	writeFile(t, homePaths.ConfigFile, `
+[memory.dream]
+agent = "general"
+`)
+
+	cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-6")
+	if err != nil {
+		t.Fatalf("SaveBootstrapConfig() error = %v", err)
+	}
+	if got := cfg.Memory.Dream.Agent; got != DefaultMemoryDreamAgentName {
+		t.Fatalf("SaveBootstrapConfig() Memory.Dream.Agent = %q, want %q", got, DefaultMemoryDreamAgentName)
+	}
+
+	reloaded, err := LoadGlobalConfig(homePaths)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig() error = %v", err)
+	}
+	if got := reloaded.Memory.Dream.Agent; got != DefaultMemoryDreamAgentName {
+		t.Fatalf("LoadGlobalConfig() Memory.Dream.Agent = %q, want %q", got, DefaultMemoryDreamAgentName)
 	}
 }
 

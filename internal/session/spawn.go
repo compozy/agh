@@ -18,6 +18,8 @@ const (
 	DefaultSpawnMaxDepth = 1
 	// DefaultSpawnRole is used when an agent omits the advisory child role.
 	DefaultSpawnRole = "worker"
+	// SpawnRoleMemoryExtractor marks daemon-owned extractor children.
+	SpawnRoleMemoryExtractor = "memory-extractor"
 )
 
 var (
@@ -31,19 +33,20 @@ var (
 
 // SpawnOpts defines the safe child-session creation request accepted by the manager.
 type SpawnOpts struct {
-	ParentSessionID  string
-	AgentName        string
-	Provider         string
-	Name             string
-	Workspace        string
-	WorkspacePath    string
-	Channel          string
-	PromptOverlay    string
-	SpawnRole        string
-	TTL              time.Duration
-	AutoStopOnParent bool
-	PermissionPolicy store.SessionPermissionPolicy
-	IdempotencyKey   string
+	ParentSessionID    string
+	AgentName          string
+	Provider           string
+	Name               string
+	Workspace          string
+	WorkspacePath      string
+	Channel            string
+	PromptOverlay      string
+	SpawnRole          string
+	TTL                time.Duration
+	AutoStopOnParent   bool
+	PermissionPolicy   store.SessionPermissionPolicy
+	IdempotencyKey     string
+	AllowStoppedParent bool
 }
 
 type permissionCategory struct {
@@ -110,7 +113,7 @@ func (m *Manager) prepareSpawn(
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
-	parent, err := m.spawnParent(ctx, normalized.ParentSessionID)
+	parent, err := m.spawnParent(ctx, normalized.ParentSessionID, normalized.AllowStoppedParent)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
@@ -162,12 +165,16 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 		return SpawnOpts{}, spawnValidation("ttl is required and must be positive")
 	case isCoordinatorSpawnRole(normalized.SpawnRole):
 		return SpawnOpts{}, spawnValidation("coordinator spawn role is not supported in MVP")
+	case normalized.AllowStoppedParent && !isMemoryExtractorSpawnRole(normalized.SpawnRole):
+		return SpawnOpts{}, spawnValidation("allow_stopped_parent is restricted to memory extractor spawns")
+	case normalized.AllowStoppedParent && normalized.AutoStopOnParent:
+		return SpawnOpts{}, spawnValidation("allow_stopped_parent cannot use auto_stop_on_parent")
 	default:
 		return normalized, nil
 	}
 }
 
-func (m *Manager) spawnParent(ctx context.Context, parentID string) (*Info, error) {
+func (m *Manager) spawnParent(ctx context.Context, parentID string, allowStopped bool) (*Info, error) {
 	parent, err := m.Status(ctx, parentID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: parent session %q: %w", ErrSpawnValidation, parentID, err)
@@ -176,6 +183,10 @@ func (m *Manager) spawnParent(ctx context.Context, parentID string) (*Info, erro
 		return nil, fmt.Errorf("%w: parent session %q returned nil status", ErrSpawnValidation, parentID)
 	}
 	if parent.State != StateActive {
+		if allowStopped && parent.State == StateStopped {
+			parent.Lineage = store.NormalizeSessionLineage(parent.ID, parent.Lineage)
+			return parent, nil
+		}
 		return nil, fmt.Errorf("%w: parent session %q is %q", ErrSpawnValidation, parent.ID, parent.State)
 	}
 	parent.Lineage = store.NormalizeSessionLineage(parent.ID, parent.Lineage)
@@ -464,6 +475,9 @@ func policyFromHookPermissionSet(src *hookspkg.PermissionSet) store.SessionPermi
 }
 
 func spawnChannel(opts SpawnOpts, parent *Info) string {
+	if isMemoryExtractorSpawnRole(opts.SpawnRole) {
+		return ""
+	}
 	if opts.Channel != "" {
 		return opts.Channel
 	}
@@ -493,6 +507,10 @@ func normalizeSpawnRole(role string) string {
 
 func isCoordinatorSpawnRole(role string) bool {
 	return strings.EqualFold(strings.TrimSpace(role), string(SessionTypeCoordinator))
+}
+
+func isMemoryExtractorSpawnRole(role string) bool {
+	return strings.EqualFold(strings.TrimSpace(role), SpawnRoleMemoryExtractor)
 }
 
 func isLiveSpawnState(state State) bool {

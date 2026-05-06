@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import {
   SessionInspector,
   SessionResumeFailure,
   useSession,
+  useSessionLedger,
+  type InspectorMemoryState,
   type SessionPayload,
 } from "@/systems/session";
 import { useSessionVaultSecrets } from "@/systems/vault";
@@ -44,6 +46,16 @@ function SessionPageContent({
     resumeFailure,
   } = useSessionPageControls(sessionId, session.state, { onDeleteSuccess });
   const sessionVault = useSessionVaultSecrets(sessionId);
+  const ledgerEnabled = session.state === "stopped";
+  const sessionLedger = useSessionLedger(sessionId, { enabled: ledgerEnabled });
+  const inspectorMemory = useMemo<InspectorMemoryState>(
+    () => ({
+      ledger: sessionLedger.data ?? null,
+      isLoading: sessionLedger.isLoading,
+      error: sessionLedger.error,
+    }),
+    [sessionLedger.data, sessionLedger.isLoading, sessionLedger.error]
+  );
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -82,6 +94,7 @@ function SessionPageContent({
       <SessionInspector
         messages={messages}
         sessionId={sessionId}
+        memory={inspectorMemory}
         vaultSecrets={sessionVault.data ?? []}
         vaultIsLoading={sessionVault.isLoading}
         vaultError={sessionVault.error}
@@ -98,7 +111,7 @@ interface SessionPageContentProps {
   onDeleteSuccess: () => void;
 }
 
-function SessionPage() {
+export function SessionPage() {
   const { name, id } = Route.useParams();
   const navigate = useNavigate();
   const { data: session, isLoading, error } = useSession(id);

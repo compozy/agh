@@ -844,6 +844,13 @@ func TestUpdateSettingsSectionHandlersRejectMissingConfig(t *testing.T) {
 func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 	t.Parallel()
 
+	memoryPayload := validSettingsMemoryConfigPayload()
+	memoryPayload.GlobalDir = "/tmp/memory"
+	memoryPayload.Dream.Agent = "dreamer"
+	memoryPayload.Dream.MinHours = 1.5
+	memoryPayload.Dream.MinSessions = 2
+	memoryPayload.Dream.CheckInterval = "1h"
+
 	tests := []struct {
 		name   string
 		path   string
@@ -880,17 +887,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			name: "memory",
 			path: "/api/settings/memory",
 			body: contract.UpdateSettingsMemoryRequest{
-				Config: contract.SettingsMemoryConfigPayload{
-					Enabled:   true,
-					GlobalDir: "/tmp/memory",
-					Dream: contract.SettingsMemoryDreamPayload{
-						Enabled:       true,
-						Agent:         "dreamer",
-						MinHours:      1.5,
-						MinSessions:   2,
-						CheckInterval: "1h",
-					},
-				},
+				Config: memoryPayload,
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
@@ -1037,6 +1034,131 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			}
 			tc.assert(t, service.LastUpdateSectionRequest)
 		})
+	}
+}
+
+func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
+	return contract.SettingsMemoryConfigPayload{
+		Enabled:   true,
+		GlobalDir: "/tmp/agh-memory",
+		Controller: contract.SettingsMemoryControllerPayload{
+			Mode:            "hybrid",
+			MaxLatency:      "300ms",
+			DefaultOpOnFail: "noop",
+			LLM: contract.SettingsMemoryControllerLLMPayload{
+				Enabled:       true,
+				Model:         "anthropic/claude-haiku-4",
+				TopK:          5,
+				PromptVersion: "v1",
+				Timeout:       "250ms",
+				MaxTokensOut:  256,
+			},
+			Policy: contract.SettingsMemoryControllerPolicyPayload{
+				MaxContentChars: 4096,
+				MaxWritesPerMin: 60,
+				AllowOrigins: []string{
+					"cli",
+					"http",
+					"uds",
+					"tool",
+					"extractor",
+					"dreaming",
+					"file",
+					"provider",
+				},
+			},
+		},
+		Recall: contract.SettingsMemoryRecallPayload{
+			TopK:          5,
+			RawCandidates: 50,
+			Fusion:        "weighted",
+			Weights: contract.SettingsMemoryRecallWeightsPayload{
+				BM25Unicode:  0.55,
+				BM25Trigram:  0.20,
+				Recency:      0.15,
+				RecallSignal: 0.10,
+			},
+			Freshness: contract.SettingsMemoryRecallFreshnessPayload{
+				BannerAfterDays: 1,
+			},
+			Signals: contract.SettingsMemoryRecallSignalsPayload{
+				QueueCapacity:  256,
+				WorkerRetryMax: 3,
+				MetricsEnabled: true,
+			},
+		},
+		Decisions: contract.SettingsMemoryDecisionsPayload{
+			PruneAfterAppliedDays: 90,
+			KeepAuditSummary:      true,
+			MaxPostContentBytes:   65536,
+		},
+		Extractor: contract.SettingsMemoryExtractorPayload{
+			Enabled:          true,
+			Mode:             "post_message",
+			ThrottleTurns:    1,
+			Deadline:         "60s",
+			SandboxInboxOnly: true,
+			InboxPath:        "/tmp/agh-memory/_inbox",
+			DLQPath:          "/tmp/agh-memory/_system/extractor/failures",
+			Queue: contract.SettingsMemoryExtractorQueuePayload{
+				Capacity:    1,
+				CoalesceMax: 16,
+			},
+		},
+		Dream: contract.SettingsMemoryDreamPayload{
+			Enabled:       true,
+			Agent:         "dreaming-curator",
+			MinHours:      24,
+			MinSessions:   3,
+			Debounce:      "10m",
+			PromptVersion: "v1",
+			CheckInterval: "30m",
+			Gates: contract.SettingsMemoryDreamGatesPayload{
+				MinUnpromoted:  5,
+				MinRecallCount: 2,
+				MinScore:       0.75,
+			},
+			Scoring: contract.SettingsMemoryDreamScoringPayload{
+				RecencyHalfLifeDays: 14,
+				Weights: contract.SettingsMemoryDreamScoringWeightsPayload{
+					Frequency: 0.30,
+					Relevance: 0.35,
+					Recency:   0.20,
+					Freshness: 0.15,
+				},
+			},
+		},
+		Session: contract.SettingsMemorySessionPayload{
+			LedgerFormat:     "jsonl",
+			LedgerRoot:       "/tmp/agh-sessions",
+			EventsPurgeGrace: "24h",
+			ColdArchiveDays:  30,
+			MaxArchiveBytes:  10737418240,
+			UnboundPartition: "_unbound",
+		},
+		Daily: contract.SettingsMemoryDailyPayload{
+			MaxBytes:        1048576,
+			MaxLines:        5000,
+			RotateFormat:    "{date}.{seq}.md",
+			DreamingWindow:  7,
+			ColdArchiveDays: 30,
+			MaxArchiveBytes: 1073741824,
+			SweepHour:       3,
+			ArchivePath:     "_system/archive",
+		},
+		File: contract.SettingsMemoryFilePayload{
+			MaxLines: 200,
+			MaxBytes: 25600,
+		},
+		Provider: contract.SettingsMemoryProviderPayload{
+			Timeout:          "2s",
+			FailureThreshold: 5,
+			Cooldown:         "30s",
+		},
+		Workspace: contract.SettingsMemoryWorkspacePayload{
+			TOMLPath:   "<workspace>/.agh/workspace.toml",
+			AutoCreate: true,
+		},
 	}
 }
 

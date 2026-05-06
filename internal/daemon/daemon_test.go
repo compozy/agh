@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	"github.com/gofrs/flock"
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
@@ -782,6 +784,7 @@ func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	memStore := memory.NewStore(t.TempDir())
+	memProviders := extensionpkg.NewMemoryProviderRegistry()
 	skillsRegistry := skills.NewRegistry(skills.RegistryConfig{})
 	sessions := &fakeSessionManager{}
 	observer := &fakeObserver{}
@@ -797,12 +800,13 @@ func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 
 	rebuilds := 0
 	state := &bootState{
-		logger:         logger,
-		registry:       db,
-		memoryStore:    memStore,
-		skillsRegistry: skillsRegistry,
-		sessions:       sessions,
-		observer:       observer,
+		logger:                 logger,
+		registry:               db,
+		memoryStore:            memStore,
+		memoryProviderRegistry: memProviders,
+		skillsRegistry:         skillsRegistry,
+		sessions:               sessions,
+		observer:               observer,
 		hooks: &fakeHookRuntime{
 			onRebuild: func(context.Context) error {
 				rebuilds++
@@ -830,6 +834,9 @@ func TestBootExtensionsBuildsManagerDepsAndRebuildsHooks(t *testing.T) {
 	}
 	if captured.MemoryStore != memStore {
 		t.Fatal("captured memory store dependency mismatch")
+	}
+	if captured.MemoryProviderRegistry != memProviders {
+		t.Fatal("captured memory provider registry dependency mismatch")
 	}
 	if captured.Observer != observer {
 		t.Fatal("captured observer dependency mismatch")
@@ -860,6 +867,7 @@ func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
 	cfg := testConfig(t, homePaths)
 	logger := discardLogger()
 	memStore := memory.NewStore(t.TempDir())
+	memProviders := extensionpkg.NewMemoryProviderRegistry()
 	skillsRegistry := skills.NewRegistry(skills.RegistryConfig{})
 	sessions := &fakeSessionManager{}
 	observer := &fakeObserver{}
@@ -871,18 +879,19 @@ func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
 
 	d := newTestDaemon(t, homePaths, &cfg)
 	deps := d.extensionManagerDeps(&bootState{
-		cfg:               cfg,
-		logger:            logger,
-		sessions:          sessions,
-		deps:              RuntimeDeps{},
-		memoryStore:       memStore,
-		observer:          observer,
-		skillsRegistry:    skillsRegistry,
-		bridges:           bridges,
-		resourceKernel:    kernel,
-		resourceCodecs:    codecs,
-		resourceReconcile: reconcile,
-		automation:        automation,
+		cfg:                    cfg,
+		logger:                 logger,
+		sessions:               sessions,
+		deps:                   RuntimeDeps{},
+		memoryStore:            memStore,
+		memoryProviderRegistry: memProviders,
+		observer:               observer,
+		skillsRegistry:         skillsRegistry,
+		bridges:                bridges,
+		resourceKernel:         kernel,
+		resourceCodecs:         codecs,
+		resourceReconcile:      reconcile,
+		automation:             automation,
 	}, extRegistry)
 
 	if deps.Registry != extRegistry {
@@ -893,6 +902,9 @@ func TestExtensionManagerDepsIncludeResourceHandlesAndTrigger(t *testing.T) {
 	}
 	if deps.MemoryStore != memStore {
 		t.Fatal("deps.MemoryStore mismatch")
+	}
+	if deps.MemoryProviderRegistry != memProviders {
+		t.Fatal("deps.MemoryProviderRegistry mismatch")
 	}
 	if deps.Observer != observer {
 		t.Fatal("deps.Observer mismatch")
@@ -3685,13 +3697,13 @@ func writeDaemonMemoryIndex(t *testing.T, globalDir string, workspace string) {
 	writeDaemonFile(
 		t,
 		filepath.Join(globalDir, "global.md"),
-		memoryDocument("Global", "global note", memory.MemoryTypeUser, "global note"),
+		memoryDocument("Global", "global note", memcontract.TypeUser, "global note"),
 	)
 	writeDaemonFile(t, filepath.Join(globalDir, "MEMORY.md"), "- [Global](global.md) - global note")
 	writeDaemonFile(
 		t,
 		filepath.Join(workspace, aghconfig.DirName, "memory", "workspace.md"),
-		memoryDocument("Workspace", "workspace note", memory.MemoryTypeProject, "workspace note"),
+		memoryDocument("Workspace", "workspace note", memcontract.TypeProject, "workspace note"),
 	)
 	writeDaemonFile(
 		t,
@@ -3700,7 +3712,7 @@ func writeDaemonMemoryIndex(t *testing.T, globalDir string, workspace string) {
 	)
 }
 
-func memoryDocument(name string, description string, memoryType memory.Type, body string) string {
+func memoryDocument(name string, description string, memoryType memcontract.Type, body string) string {
 	return strings.TrimSpace(strings.Join([]string{
 		"---",
 		"name: " + name,
@@ -4524,6 +4536,7 @@ type fakeSessionManager struct {
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
+var _ memoryExtractorSessionManager = (*fakeSessionManager)(nil)
 
 type blockingStatusSessionManager struct {
 	*fakeSessionManager
@@ -4604,6 +4617,32 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 		Type:        opts.Type,
 		State:       session.StateActive,
 	}, nil
+}
+
+func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error) {
+	child, err := f.Create(ctx, session.CreateOpts{
+		AgentName:     opts.AgentName,
+		Provider:      opts.Provider,
+		Name:          opts.Name,
+		Workspace:     opts.Workspace,
+		WorkspacePath: opts.WorkspacePath,
+		Channel:       opts.Channel,
+		PromptOverlay: opts.PromptOverlay,
+		Type:          session.SessionTypeSpawned,
+		Lineage: &store.SessionLineage{
+			ParentSessionID:  opts.ParentSessionID,
+			SpawnRole:        opts.SpawnRole,
+			AutoStopOnParent: opts.AutoStopOnParent,
+			PermissionPolicy: opts.PermissionPolicy,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	f.infos = append(f.infos, child.Info())
+	f.mu.Unlock()
+	return child, nil
 }
 
 func (f *fakeSessionManager) List() []*session.Info {
@@ -5097,6 +5136,10 @@ type syntheticPrompter interface {
 	PromptSynthetic(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 }
 
+type spawnSurface interface {
+	Spawn(context.Context, session.SpawnOpts) (*session.Session, error)
+}
+
 type nonBindableHarnessSessionManager struct {
 	SessionManager
 	syntheticPrompter syntheticPrompter
@@ -5109,7 +5152,19 @@ var (
 	_ networkBindableSessionManager = (*fakeNetworkBindableSessionManager)(nil)
 	_ syntheticPrompter             = (*fakeSessionManager)(nil)
 	_ syntheticPrompter             = nonBindableHarnessSessionManager{}
+	_ spawnSurface                  = nonBindableHarnessSessionManager{}
 )
+
+func (m nonBindableHarnessSessionManager) Spawn(
+	ctx context.Context,
+	opts session.SpawnOpts,
+) (*session.Session, error) {
+	spawner, ok := m.SessionManager.(spawnSurface)
+	if !ok {
+		return nil, errors.New("daemon test: session manager spawn surface is required")
+	}
+	return spawner.Spawn(ctx, opts)
+}
 
 func (m nonBindableHarnessSessionManager) PromptSynthetic(
 	ctx context.Context,
@@ -6200,6 +6255,7 @@ type fakeHookRuntime struct {
 	onMessageStart     func(context.Context, hookspkg.MessageStartPayload) error
 	onMessageDelta     func(context.Context, hookspkg.MessageDeltaPayload) error
 	onMessageEnd       func(context.Context, hookspkg.MessageEndPayload) error
+	onMessagePersisted func(context.Context, hookspkg.SessionMessagePersistedPayload) error
 	onToolPreCall      func(context.Context, hookspkg.ToolPreCallPayload) error
 	onToolPostCall     func(context.Context, hookspkg.ToolPostCallPayload) error
 	onToolPostError    func(context.Context, hookspkg.ToolPostErrorPayload) error
@@ -6424,6 +6480,16 @@ func (f *fakeHookRuntime) DispatchMessageEnd(
 ) (hookspkg.MessageEndPayload, error) {
 	if f.onMessageEnd != nil {
 		return payload, f.onMessageEnd(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionMessagePersisted(
+	ctx context.Context,
+	payload hookspkg.SessionMessagePersistedPayload,
+) (hookspkg.SessionMessagePersistedPayload, error) {
+	if f.onMessagePersisted != nil {
+		return payload, f.onMessagePersisted(ctx, payload)
 	}
 	return payload, nil
 }

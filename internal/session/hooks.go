@@ -79,6 +79,10 @@ type ConversationHooks interface {
 	DispatchMessageStart(context.Context, hookspkg.MessageStartPayload) (hookspkg.MessageStartPayload, error)
 	DispatchMessageDelta(context.Context, hookspkg.MessageDeltaPayload) (hookspkg.MessageDeltaPayload, error)
 	DispatchMessageEnd(context.Context, hookspkg.MessageEndPayload) (hookspkg.MessageEndPayload, error)
+	DispatchSessionMessagePersisted(
+		context.Context,
+		hookspkg.SessionMessagePersistedPayload,
+	) (hookspkg.SessionMessagePersistedPayload, error)
 }
 
 // ToolHooks groups provider-native tool execution hook dispatch.
@@ -411,6 +415,13 @@ func (noopConversationHooks) DispatchMessageEnd(
 	_ context.Context,
 	payload hookspkg.MessageEndPayload,
 ) (hookspkg.MessageEndPayload, error) {
+	return payload, nil
+}
+
+func (noopConversationHooks) DispatchSessionMessagePersisted(
+	_ context.Context,
+	payload hookspkg.SessionMessagePersistedPayload,
+) (hookspkg.SessionMessagePersistedPayload, error) {
 	return payload, nil
 }
 

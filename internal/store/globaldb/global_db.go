@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
+
+const globalMemoryEventWriteCommitted = "memory.write.committed"
 
 var taskTableIndexStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks(scope);`,
@@ -866,6 +869,12 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateBridgeTaskSubscriptions,
 		Checksum: "2026-05-05-add-bridge-task-subscriptions",
 	},
+	{
+		Version:  22,
+		Name:     "memv2_memory_events",
+		Up:       migrateMemoryV2Events,
+		Checksum: "2026-05-05-memv2-memory-events",
+	},
 }
 
 func migrateNetworkConversationContainers(ctx context.Context, tx *sql.Tx) error {
@@ -1443,6 +1452,13 @@ func eventSummaryColumnExpr(columns map[string]struct{}, name string, fallback s
 }
 
 func migrateMemoryOperationScopeColumns(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "memory_operation_log")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
 	columns, err := tableColumns(ctx, tx, "memory_operation_log")
 	if err != nil {
 		return err
@@ -1476,6 +1492,195 @@ func migrateMemoryOperationScopeColumns(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+var globalMemoryV2EventStatements = []string{
+	`CREATE TABLE IF NOT EXISTS memory_events (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		op           TEXT NOT NULL CHECK (op IN (
+			'` + globalMemoryEventWriteCommitted + `',
+			'memory.write.rejected',
+			'memory.write.shadowed',
+			'memory.write.reindex',
+			'memory.write.reverted',
+			'memory.recall.executed',
+			'memory.recall.skipped',
+			'memory.recall.signal_dropped',
+			'memory.recall.signal_update_failed',
+			'memory.decisions.audit_summarized',
+			'memory.decisions.pruned',
+			'memory.dream.run.started',
+			'memory.dream.run.promoted',
+			'memory.dream.run.failed',
+			'memory.extractor.started',
+			'memory.extractor.completed',
+			'memory.extractor.failed',
+			'memory.extractor.coalesced',
+			'memory.extractor.dropped',
+			'memory.daily.rotated',
+			'memory.daily.archived',
+			'memory.daily.restored',
+			'memory.daily.purged',
+			'memory.daily.archive_purged',
+			'memory.provider.enabled',
+			'memory.provider.disabled',
+			'memory.provider.collision',
+			'memory.workspace.relocated',
+			'memory.workspace.recovered',
+			'memory.agent.purged',
+			'memory.migration.applied'
+		)),
+		scope        TEXT CHECK (scope IN ('global', 'workspace', 'agent')),
+		agent_name   TEXT,
+		agent_tier   TEXT CHECK (agent_tier IS NULL OR agent_tier IN ('workspace', 'global')),
+		workspace_id TEXT,
+		session_id   TEXT,
+		actor_kind   TEXT NOT NULL,
+		decision_id  TEXT,
+		target_id    TEXT,
+		metadata     TEXT NOT NULL DEFAULT '{}',
+		ts_ms        INTEGER NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_events_workspace ON memory_events(workspace_id, ts_ms);`,
+	`CREATE INDEX IF NOT EXISTS idx_events_op ON memory_events(op, ts_ms);`,
+	`CREATE INDEX IF NOT EXISTS idx_events_session ON memory_events(session_id, ts_ms);`,
+}
+
+func migrateMemoryV2Events(ctx context.Context, tx *sql.Tx) error {
+	if err := ensureMemoryV2EventsSchema(ctx, tx); err != nil {
+		return err
+	}
+	return migrateLegacyMemoryOperationLog(ctx, tx)
+}
+
+func ensureMemoryV2EventsSchema(ctx context.Context, tx *sql.Tx) error {
+	for _, stmt := range globalMemoryV2EventStatements {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: migrate memory events schema: %w", err)
+		}
+	}
+	return nil
+}
+
+func migrateLegacyMemoryOperationLog(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "memory_operation_log")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	columns, err := tableColumns(ctx, tx, "memory_operation_log")
+	if err != nil {
+		return err
+	}
+	rows, err := tx.QueryContext(
+		ctx,
+		fmt.Sprintf(
+			`SELECT id, type, %s, %s, %s, agent_name, summary, timestamp
+			 FROM memory_operation_log ORDER BY timestamp ASC, id ASC`,
+			eventSummaryColumnExpr(columns, "scope", "''"),
+			eventSummaryColumnExpr(columns, "workspace_root", "''"),
+			eventSummaryColumnExpr(columns, "filename", "''"),
+		),
+	)
+	if err != nil {
+		return fmt.Errorf("store: read legacy memory operation log: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	for rows.Next() {
+		if err := migrateMemoryOperationRow(ctx, tx, rows); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("store: iterate legacy memory operation log: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DROP TABLE memory_operation_log`); err != nil {
+		return fmt.Errorf("store: drop legacy memory_operation_log: %w", err)
+	}
+	return nil
+}
+
+func migrateMemoryOperationRow(ctx context.Context, tx *sql.Tx, rows *sql.Rows) error {
+	var (
+		id           string
+		op           string
+		scope        string
+		workspace    string
+		filename     string
+		agentName    string
+		summary      string
+		timestampRaw string
+	)
+	if err := rows.Scan(&id, &op, &scope, &workspace, &filename, &agentName, &summary, &timestampRaw); err != nil {
+		return fmt.Errorf("store: scan legacy memory operation row: %w", err)
+	}
+	timestamp, err := store.ParseTimestamp(timestampRaw)
+	if err != nil {
+		return err
+	}
+	workspaceID := strings.TrimSpace(workspace)
+	if strings.TrimSpace(scope) == "workspace" &&
+		workspaceID != "" &&
+		!aghworkspace.IsWorkspaceID(workspaceID) {
+		identity, err := aghworkspace.EnsureIdentity(ctx, workspaceID)
+		if err != nil {
+			return fmt.Errorf("store: resolve legacy memory operation workspace identity %q: %w", workspaceID, err)
+		}
+		workspaceID = identity.WorkspaceID
+	}
+	metadata, err := json.Marshal(map[string]string{
+		"legacy_id": id,
+		"action":    strings.TrimSpace(op),
+		"filename":  strings.TrimSpace(filename),
+		"summary":   strings.TrimSpace(summary),
+	})
+	if err != nil {
+		return fmt.Errorf("store: encode legacy memory event metadata: %w", err)
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO memory_events (
+			op, scope, agent_name, agent_tier, workspace_id, session_id, actor_kind,
+			decision_id, target_id, metadata, ts_ms
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		canonicalMemoryEventOp(op),
+		nullableString(scope),
+		nullableString(agentName),
+		nil,
+		nullableString(workspaceID),
+		nil,
+		"system",
+		nil,
+		nullableString(filename),
+		string(metadata),
+		timestamp.UTC().UnixNano()/int64(time.Millisecond),
+	); err != nil {
+		return fmt.Errorf("store: migrate legacy memory event: %w", err)
+	}
+	return nil
+}
+
+func canonicalMemoryEventOp(op string) string {
+	switch strings.TrimSpace(op) {
+	case "memory.search":
+		return "memory.recall.executed"
+	case "memory.reindex":
+		return "memory.write.reindex"
+	default:
+		return globalMemoryEventWriteCommitted
+	}
+}
+
+func nullableString(value string) any {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return trimmed
 }
 
 func migrateMCPAuthTokens(ctx context.Context, tx *sql.Tx) error {

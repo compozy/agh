@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
-import { storyAgentNames } from "@/storybook/fintech-scenario";
+import { storyAgentNames, storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import { knowledgeMemoryKey } from "@/systems/knowledge";
 import type { KnowledgeMemoryItem } from "@/systems/knowledge/types";
@@ -27,6 +27,9 @@ const defaultMemories: KnowledgeMemoryItem[] = [
     name: "Operator Style",
     scope: "global",
     type: "user",
+    recall_count: 0,
+    injection: true,
+    system_managed: false,
     description: "Northstar guidance for concise, accountable operator communication.",
   },
   {
@@ -36,6 +39,9 @@ const defaultMemories: KnowledgeMemoryItem[] = [
     name: "Launch Week Brief",
     scope: "global",
     type: "project",
+    recall_count: 4,
+    injection: true,
+    system_managed: false,
     description: "Shared context for launch KPIs, cutover timing, and cross-functional owners.",
   },
   {
@@ -45,9 +51,14 @@ const defaultMemories: KnowledgeMemoryItem[] = [
     name: "Executive Risk Memo",
     scope: "workspace",
     type: "reference",
+    recall_count: 1,
+    injection: true,
+    system_managed: false,
     description:
       "Workspace-local memo with launch blockers, fallback paths, and decision thresholds.",
     agent_name: storyAgentNames.cto,
+    workspace_id: storyWorkspaceIds.hq,
+    staleness_banner: "Updated >7 days after last recall",
   },
   {
     filename: "support-macro-pack.md",
@@ -56,14 +67,33 @@ const defaultMemories: KnowledgeMemoryItem[] = [
     name: "Support Macro Pack",
     scope: "workspace",
     type: "reference",
+    recall_count: 0,
+    injection: true,
+    system_managed: false,
     description:
       "Approved language for pricing questions, launch delays, and high-touch merchant callbacks.",
+    workspace_id: storyWorkspaceIds.hq,
+  },
+  {
+    filename: "cto-tone.md",
+    key: "agent:cto-tone.md",
+    mod_time: "2026-04-17T17:25:00Z",
+    name: "CTO Tone",
+    scope: "agent",
+    type: "user",
+    recall_count: 6,
+    injection: true,
+    system_managed: false,
+    description: "Direct, calm tone for CTO summaries; lead with the next decision.",
+    agent_name: storyAgentNames.cto,
+    agent_tier: "workspace",
+    workspace_id: storyWorkspaceIds.hq,
   },
 ];
 
 export const Default: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
+    <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
         memories={defaultMemories}
         onSearchChange={() => undefined}
@@ -77,7 +107,7 @@ export const Default: Story = {
 
 export const Empty: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
+    <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
         memories={[]}
         onSearchChange={() => undefined}
@@ -89,13 +119,31 @@ export const Empty: Story = {
   ),
 };
 
-export const FilteredEmpty: Story = {
+export const SearchActive: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
+    <PanelSurface className="max-w-[360px]">
+      <KnowledgeListPanel
+        memories={defaultMemories.slice(0, 1)}
+        onSearchChange={() => undefined}
+        onSelectMemory={() => undefined}
+        searchInfo="Recall 1 of top-K"
+        searchMode
+        searchQuery="operator"
+        selectedMemoryKey={null}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const SearchEmpty: Story = {
+  render: () => (
+    <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
         memories={[]}
         onSearchChange={() => undefined}
         onSelectMemory={() => undefined}
+        searchInfo="Recall 0 of top-K"
+        searchMode
         searchQuery="zzzzzz"
         selectedMemoryKey={null}
       />
@@ -105,7 +153,7 @@ export const FilteredEmpty: Story = {
 
 export const Loading: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
+    <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
         isLoading
         memories={[]}
@@ -118,9 +166,9 @@ export const Loading: Story = {
   ),
 };
 
-export const Error: Story = {
+export const ErrorState: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
+    <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
         errorMessage="Network failure while loading memories"
         memories={[]}
@@ -133,25 +181,11 @@ export const Error: Story = {
   ),
 };
 
-export const ScopeGlobalOnly: Story = {
+export const AgentScopeOnly: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
+    <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
-        memories={defaultMemories.filter(memory => memory.scope === "global")}
-        onSearchChange={() => undefined}
-        onSelectMemory={() => undefined}
-        searchQuery=""
-        selectedMemoryKey={defaultMemories[0] ? knowledgeMemoryKey(defaultMemories[0]) : null}
-      />
-    </PanelSurface>
-  ),
-};
-
-export const ScopeWorkspaceOnly: Story = {
-  render: () => (
-    <PanelSurface className="max-w-[340px]">
-      <KnowledgeListPanel
-        memories={defaultMemories.filter(memory => memory.scope === "workspace")}
+        memories={defaultMemories.filter(memory => memory.scope === "agent")}
         onSearchChange={() => undefined}
         onSelectMemory={() => undefined}
         searchQuery=""
@@ -161,36 +195,10 @@ export const ScopeWorkspaceOnly: Story = {
   ),
 };
 
-export const SearchFilter: Story = {
-  tags: ["play-fn"],
-  render: () => {
-    let searchQuery = "";
-    return (
-      <PanelSurface className="max-w-[340px]">
-        <KnowledgeListPanel
-          memories={defaultMemories}
-          onSearchChange={next => {
-            searchQuery = next;
-          }}
-          onSelectMemory={() => undefined}
-          searchQuery={searchQuery}
-          selectedMemoryKey={null}
-        />
-      </PanelSurface>
-    );
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const input = await canvas.findByTestId("knowledge-search-input");
-    await userEvent.type(input, "launch");
-    await expect(input).toHaveValue("launch");
-  },
-};
-
 export const RowSelect: Story = {
   tags: ["play-fn"],
   render: () => (
-    <PanelSurface className="max-w-[340px]">
+    <PanelSurface className="max-w-[360px]">
       <KnowledgeListPanel
         memories={defaultMemories}
         onSearchChange={() => undefined}

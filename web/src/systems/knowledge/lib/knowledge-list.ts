@@ -1,7 +1,6 @@
 import {
   compareKnowledgeScope,
   knowledgeScopeLabel,
-  resolveKnowledgeScope,
 } from "@/systems/knowledge/lib/knowledge-formatters";
 import type { KnowledgeMemoryItem, KnowledgeScope } from "@/systems/knowledge/types";
 
@@ -24,7 +23,8 @@ export function filterKnowledgeMemories(
     return (
       memory.name.toLowerCase().includes(normalized) ||
       (memory.description ?? "").toLowerCase().includes(normalized) ||
-      memory.type.toLowerCase().includes(normalized)
+      memory.type.toLowerCase().includes(normalized) ||
+      (memory.agent_name ?? "").toLowerCase().includes(normalized)
     );
   });
 }
@@ -35,7 +35,7 @@ export function groupKnowledgeMemoriesByScope(
   const buckets = new Map<KnowledgeScope, KnowledgeMemoryItem[]>();
 
   for (const memory of memories) {
-    const scope = resolveKnowledgeScope(memory);
+    const scope = memory.scope;
     const list = buckets.get(scope);
     if (list) {
       list.push(memory);

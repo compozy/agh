@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+
 	"github.com/pedronauck/agh/internal/acp"
 	apicontract "github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
@@ -819,18 +821,18 @@ func TestHostAPIHandlerMemoryStorePersistsContentWithTags(t *testing.T) {
 
 	if _, err := env.call(t, "ext-memory", "memory/store", map[string]any{
 		"key":     "deploy-script",
-		"content": "The deploy script lives at /scripts/deploy.sh",
+		"content": "The deploy script is documented in the release handbook as deploy.sh.",
 		"tags":    []string{"project-knowledge", "reference"},
 	}); err != nil {
 		t.Fatalf("Handle(memory/store) error = %v", err)
 	}
 
-	content, err := env.memory.Read(memory.ScopeGlobal, "deploy-script.md")
+	content, err := env.memory.Read(memcontract.ScopeGlobal, "deploy-script.md")
 	if err != nil {
 		t.Fatalf("memory.Read() error = %v", err)
 	}
-	if !strings.Contains(string(content), "/scripts/deploy.sh") {
-		t.Fatalf("stored content = %q, want deploy path", string(content))
+	if !strings.Contains(string(content), "deploy.sh") {
+		t.Fatalf("stored content = %q, want deploy script reference", string(content))
 	}
 	if !strings.Contains(string(content), "agh-tags: project-knowledge, reference") {
 		t.Fatalf("stored content = %q, want persisted tag comment", string(content))
@@ -845,14 +847,14 @@ func TestHostAPIHandlerMemoryRecallReturnsRankedMatches(t *testing.T) {
 
 	if _, err := env.call(t, "ext-memory", "memory/store", map[string]any{
 		"key":     "deploy-script",
-		"content": "The deploy script lives at /scripts/deploy.sh",
+		"content": "The deploy script is documented in the release handbook as deploy.sh.",
 		"tags":    []string{"reference"},
 	}); err != nil {
 		t.Fatalf("Handle(memory/store) error = %v", err)
 	}
 
 	result, err := env.call(t, "ext-memory", "memory/recall", map[string]any{
-		"query": "where is the deploy script",
+		"query": "deploy script release handbook",
 		"limit": 5,
 	})
 	if err != nil {
@@ -869,6 +871,54 @@ func TestHostAPIHandlerMemoryRecallReturnsRankedMatches(t *testing.T) {
 	}
 	if entries[0].Score <= 0 {
 		t.Fatalf("memory/recall first score = %f, want > 0", entries[0].Score)
+	}
+}
+
+func TestHostAPIHandlerMemoryRecallUsesActiveProvider(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-memory", []string{"memory/recall"}, []string{"memory.read"})
+	provider := &recordingHostAPIRecallProvider{
+		packaged: memcontract.Packaged{Blocks: []memcontract.Block{{
+			Scope: memcontract.ScopeWorkspace,
+			Entries: []memcontract.PackagedEntry{{
+				ID:    "provider/chunk-1",
+				Body:  "Provider-backed recall result",
+				Title: "Provider Result",
+			}},
+		}}},
+	}
+	registry := NewMemoryProviderRegistry()
+	if err := registry.Register(testutil.Context(t), MemoryProviderRegistration{
+		Name:          "local",
+		Version:       "test",
+		ExtensionName: "provider-ext",
+		Provider:      provider,
+	}); err != nil {
+		t.Fatalf("Register(provider) error = %v", err)
+	}
+	env.handler.memoryProviders = registry
+
+	result, err := env.call(t, "ext-memory", "memory/recall", map[string]any{
+		"query":     "provider recall result",
+		"workspace": env.workspaceID,
+		"limit":     1,
+	})
+	if err != nil {
+		t.Fatalf("Handle(memory/recall provider) error = %v", err)
+	}
+
+	if got := provider.lastRequest().WorkspaceID; got != env.workspaceID {
+		t.Fatalf("provider workspace_id = %q, want %q", got, env.workspaceID)
+	}
+	var entries []hostAPIMemoryRecallEntry
+	decodeResult(t, result, &entries)
+	if got, want := len(entries), 1; got != want {
+		t.Fatalf("provider recall entries = %d, want %d", got, want)
+	}
+	if entries[0].Content != "Provider-backed recall result" {
+		t.Fatalf("provider recall content = %q", entries[0].Content)
 	}
 }
 
@@ -917,7 +967,7 @@ func TestHostAPIHandlerMemoryForgetRemovesEntries(t *testing.T) {
 		t.Fatalf("Handle(memory/forget) error = %v", err)
 	}
 
-	if _, err := env.memory.Read(memory.ScopeGlobal, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
+	if _, err := env.memory.Read(memcontract.ScopeGlobal, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("memory.Read() error = %v, want os.ErrNotExist", err)
 	}
 }
@@ -4564,6 +4614,30 @@ type hostAPITestEnvConfig struct {
 
 type hostAPITestEnvOption func(*hostAPITestEnvConfig)
 
+type recordingHostAPIRecallProvider struct {
+	stubMemoryProvider
+
+	mu       sync.Mutex
+	request  memcontract.RecallRequest
+	packaged memcontract.Packaged
+}
+
+func (p *recordingHostAPIRecallProvider) Recall(
+	_ context.Context,
+	req memcontract.RecallRequest,
+) (memcontract.RecallResult, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.request = req
+	return memcontract.RecallResult{Packaged: p.packaged}, nil
+}
+
+func (p *recordingHostAPIRecallProvider) lastRequest() memcontract.RecallRequest {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.request
+}
+
 type hostAPITestTaskSessionExecutor struct {
 	sessions            *session.Manager
 	globalWorkspacePath string
@@ -4830,7 +4904,10 @@ Review the workspace changes carefully.
 	}
 	source.manager = sessions
 
-	memoryStore := memory.NewStore(homePaths.MemoryDir)
+	memoryStore := memory.NewStore(
+		homePaths.MemoryDir,
+		memory.WithCatalogDatabasePath(filepath.Join(homePaths.HomeDir, "memory-catalog.db")),
+	)
 	if err := memoryStore.EnsureDirs(); err != nil {
 		t.Fatalf("memory.EnsureDirs() error = %v", err)
 	}

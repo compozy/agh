@@ -14,7 +14,7 @@ are no bundled resource folders, assets, or bundled `mcp.json` sidecars today.
 | Skill               | Description                                                                                                                                      | Use when                                                                                                     |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | `agh-agent-setup`   | Set up AGH agent definitions, provider defaults, permissions, and MCP server entries correctly.                                                  | You are creating or reviewing an `AGENT.md`, provider defaults, permission mode, or agent MCP configuration. |
-| `agh-memory-guide`  | Manage AGH persistent memory files, scopes, and manual consolidation from the CLI.                                                               | You need to inspect, write, delete, or consolidate global/workspace memory.                                  |
+| `agh-memory-guide`  | Manage AGH persistent memory entries, scopes, and dream checks from the CLI.                                                                     | You need to inspect, write, delete, or trigger dream checks for global/workspace memory.                     |
 | `agh-network`       | Inspect channels and peers, read inbox messages, and send safe AGH network replies through the daemon-owned CLI control plane.                   | The session is participating in an AGH Network channel and needs safe network command guidance.              |
 | `agh-orchestrator`  | Plan, spawn, hand off, and supervise task execution from a daemon-managed coordinator session without owning task state.                         | The current session is a daemon-managed coordinator and needs deterministic operational guidance.            |
 | `agh-session-guide` | Operate AGH sessions from the CLI, including creation, inspection, prompting, and shutdown.                                                      | You need to create, inspect, prompt, stop, resume, or monitor AGH sessions from the terminal.                |
@@ -89,14 +89,16 @@ agent-local overrides separate.
 
 Use this for memory operations. It covers:
 
-- global and workspace memory scopes
+- the three Memory v2 scopes (`global`, `workspace`, `agent`) with `agent_tier`
 - `agh memory list`
-- `agh memory read`
+- `agh memory show`
 - `agh memory write`
+- `agh memory edit`
 - `agh memory delete`
+- `agh memory search`
 - `agh memory health`
-- `agh memory history`
-- `agh memory consolidate`
+- `agh memory decisions list`
+- `agh memory dream trigger`
 - practical memory hygiene
 
 This skill is intentionally CLI-centered. It helps agents preserve durable facts without turning

@@ -8,7 +8,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/memory"
+	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	observepkg "github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
@@ -187,26 +187,26 @@ type SandboxExecParams struct {
 
 // MemoryStoreParams persists one memory document.
 type MemoryStoreParams struct {
-	Key       string       `json:"key"`
-	Content   string       `json:"content"`
-	Scope     memory.Scope `json:"scope,omitempty"`
-	Workspace string       `json:"workspace,omitempty"`
-	Tags      []string     `json:"tags,omitempty"`
+	Key       string            `json:"key"`
+	Content   string            `json:"content"`
+	Scope     memcontract.Scope `json:"scope,omitempty"`
+	Workspace string            `json:"workspace,omitempty"`
+	Tags      []string          `json:"tags,omitempty"`
 }
 
 // MemoryRecallParams queries stored memory documents.
 type MemoryRecallParams struct {
-	Query     string       `json:"query"`
-	Limit     int          `json:"limit,omitempty"`
-	Scope     memory.Scope `json:"scope,omitempty"`
-	Workspace string       `json:"workspace,omitempty"`
+	Query     string            `json:"query"`
+	Limit     int               `json:"limit,omitempty"`
+	Scope     memcontract.Scope `json:"scope,omitempty"`
+	Workspace string            `json:"workspace,omitempty"`
 }
 
 // MemoryForgetParams removes one stored memory document.
 type MemoryForgetParams struct {
-	Key       string       `json:"key"`
-	Scope     memory.Scope `json:"scope,omitempty"`
-	Workspace string       `json:"workspace,omitempty"`
+	Key       string            `json:"key"`
+	Scope     memcontract.Scope `json:"scope,omitempty"`
+	Workspace string            `json:"workspace,omitempty"`
 }
 
 // ObserveEventsParams filters global observability events.

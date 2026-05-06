@@ -251,6 +251,12 @@ func (r *Resolver) lookupWorkspace(ctx context.Context, idOrNameOrPath string) (
 			return Workspace{}, fmt.Errorf("workspace: lookup workspace %q by name fallback: %w", target, err)
 		}
 		return ws, nil
+	case IsWorkspaceID(target):
+		ws, err := r.lookupWorkspaceByStableIdentity(ctx, target)
+		if err != nil {
+			return Workspace{}, fmt.Errorf("workspace: lookup workspace by stable identity %q: %w", target, err)
+		}
+		return ws, nil
 	case filepath.IsAbs(target):
 		canonicalPath, err := canonicalRoot(target)
 		if err != nil {
@@ -278,6 +284,42 @@ func (r *Resolver) lookupWorkspace(ctx context.Context, idOrNameOrPath string) (
 		}
 		return ws, nil
 	}
+}
+
+func (r *Resolver) lookupWorkspaceByStableIdentity(ctx context.Context, workspaceID string) (Workspace, error) {
+	if err := checkContext(ctx); err != nil {
+		return Workspace{}, err
+	}
+
+	workspaces, err := r.store.ListWorkspaces(ctx)
+	if err != nil {
+		return Workspace{}, fmt.Errorf("workspace: list workspaces for identity match: %w", err)
+	}
+
+	for _, ws := range workspaces {
+		if err := checkContext(ctx); err != nil {
+			return Workspace{}, err
+		}
+		rootDir := strings.TrimSpace(ws.RootDir)
+		if rootDir == "" {
+			continue
+		}
+		identity, err := loadIdentityFile(identityPath(rootDir))
+		switch {
+		case err == nil:
+			if identity.WorkspaceID == workspaceID {
+				return cloneWorkspace(ws), nil
+			}
+		case errors.Is(err, os.ErrNotExist):
+			continue
+		case errors.Is(err, ErrWorkspaceIdentityInvalid), errors.Is(err, ErrWorkspaceIdentityPermissionDenied):
+			return Workspace{}, err
+		default:
+			return Workspace{}, fmt.Errorf("workspace: load identity for workspace %q: %w", ws.ID, err)
+		}
+	}
+
+	return Workspace{}, ErrWorkspaceNotFound
 }
 
 func (r *Resolver) lookupWorkspaceBySameRoot(ctx context.Context, canonicalPath string) (Workspace, error) {
