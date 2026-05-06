@@ -1672,6 +1672,41 @@ func validateTaskForEnqueue(taskRecord Task) error {
 	}
 }
 
+func validateExplicitRunClaimOwner(taskRecord Task, actor ActorContext) error {
+	if taskRecord.Owner == nil || taskRecord.Owner.IsZero() {
+		return nil
+	}
+	owner := *taskRecord.Owner
+	ref := strings.TrimSpace(owner.Ref)
+	switch owner.Kind.Normalize() {
+	case OwnerKindPool:
+		return fmt.Errorf(
+			"%w: task %q is assigned to pool owner %q and must be claimed by the matching agent session",
+			ErrPermissionDenied,
+			taskRecord.ID,
+			ref,
+		)
+	case OwnerKindAgentSession:
+		switch actor.Actor.Kind.Normalize() {
+		case ActorKindDaemon:
+			return nil
+		case ActorKindAgentSession:
+			if strings.TrimSpace(actor.Actor.Ref) == ref {
+				return nil
+			}
+		default:
+		}
+		return fmt.Errorf(
+			"%w: task %q is assigned to agent session %q",
+			ErrPermissionDenied,
+			taskRecord.ID,
+			ref,
+		)
+	default:
+		return nil
+	}
+}
+
 // ClaimRun transitions one queued run into the claimed state.
 func (m *Service) ClaimRun(
 	ctx context.Context,
@@ -1699,6 +1734,9 @@ func (m *Service) ClaimRun(
 		return nil, err
 	}
 	if err := requireRunTransition(run, TaskRunStatusClaimed); err != nil {
+		return nil, err
+	}
+	if err := validateExplicitRunClaimOwner(taskRecord, actor); err != nil {
 		return nil, err
 	}
 	if err := m.dispatchTaskRunPreClaim(ctx, run, taskRecord, actor); err != nil {

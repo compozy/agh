@@ -520,6 +520,7 @@ func (g *GlobalDB) selectClaimableRunID(
 		args = append(args, criteria.CoordinationChannelID)
 	}
 	where, args = appendProfileClaimFilters(where, args, criteria)
+	where, args = appendClaimOwnerPredicate(where, args, criteria)
 	args = append(args, preferredCapabilityArgs(criteria.RequiredCapabilities)...)
 
 	query := `SELECT tr.id
@@ -611,6 +612,24 @@ func appendProfileAllowedAgentFilter(
 			   AND pa_match.agent_name = ?
 		))`)
 	args = append(args, role, profilePreferenceAllowed, role, profilePreferenceAllowed, agentName)
+	return where, args
+}
+
+func appendClaimOwnerPredicate(
+	where []string,
+	args []any,
+	criteria taskpkg.ClaimCriteria,
+) ([]string, []any) {
+	clauses := []string{"COALESCE(t.owner_kind, '') = ''"}
+	if agentName := strings.TrimSpace(criteria.AgentName); agentName != "" {
+		clauses = append(clauses, "(t.owner_kind = ? AND t.owner_ref = ?)")
+		args = append(args, string(taskpkg.OwnerKindPool), agentName)
+	}
+	if sessionID := strings.TrimSpace(criteria.ClaimerSessionID); sessionID != "" {
+		clauses = append(clauses, "(t.owner_kind = ? AND t.owner_ref = ?)")
+		args = append(args, string(taskpkg.OwnerKindAgentSession), sessionID)
+	}
+	where = append(where, "("+strings.Join(clauses, " OR ")+")")
 	return where, args
 }
 

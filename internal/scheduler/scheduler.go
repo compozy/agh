@@ -571,7 +571,30 @@ func isEligibleSession(work *RunSnapshot, candidate SessionSnapshot, busy map[st
 	if !coordinationChannelMatches(work, candidate) {
 		return false
 	}
+	if !ownerMatches(work.Task, candidate) {
+		return false
+	}
 	return capabilitiesCover(candidate.Capabilities, work.Run.RequiredCapabilities)
+}
+
+func ownerMatches(task taskpkg.Task, candidate SessionSnapshot) bool {
+	if task.Owner == nil || task.Owner.IsZero() {
+		return true
+	}
+	owner := *task.Owner
+	kind := owner.Kind.Normalize()
+	ref := strings.TrimSpace(owner.Ref)
+	if ref == "" {
+		return false
+	}
+	switch kind {
+	case taskpkg.OwnerKindPool:
+		return strings.TrimSpace(candidate.AgentName) == ref
+	case taskpkg.OwnerKindAgentSession:
+		return strings.TrimSpace(candidate.ID) == ref
+	default:
+		return false
+	}
 }
 
 func coordinationChannelMatches(work *RunSnapshot, candidate SessionSnapshot) bool {

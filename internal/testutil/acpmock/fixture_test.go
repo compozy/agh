@@ -358,7 +358,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
 		"Use `agh__skill_view` to load full instructions for any skill.",
 		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		aghCurrentSkillsLastInstructionLine,
+		currentSkillsCatalogFinalLine,
 		"",
 		"Relevant durable memory for this turn:",
 		"- Global [user]",

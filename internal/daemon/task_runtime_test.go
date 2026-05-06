@@ -29,8 +29,11 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 	testCases := []struct {
 		name          string
 		taskRecord    taskpkg.Task
+		run           taskpkg.Run
 		wantWorkspace string
 		wantPath      string
+		wantChannel   string
+		wantAgentName string
 	}{
 		{
 			name: "Should use the workspace identifier for workspace-scoped tasks",
@@ -39,8 +42,21 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				Scope:       taskpkg.ScopeWorkspace,
 				WorkspaceID: "ws-123",
 				Title:       "Workspace Task",
+				Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-engineer-agent"},
+			},
+			run: taskpkg.Run{
+				ID:                    "run-1",
+				TaskID:                "task-workspace",
+				Status:                taskpkg.TaskRunStatusStarting,
+				Attempt:               2,
+				Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				NetworkChannel:        "builders",
+				CoordinationChannelID: "coord-builders",
+				QueuedAt:              time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantWorkspace: "ws-123",
+			wantChannel:   "coord-builders",
+			wantAgentName: "frontend-engineer-agent",
 		},
 		{
 			name: "Should use the global workspace path for global tasks",
@@ -49,7 +65,17 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				Scope: taskpkg.ScopeGlobal,
 				Title: "Global Task",
 			},
-			wantPath: globalPath,
+			run: taskpkg.Run{
+				ID:             "run-1",
+				TaskID:         "task-global",
+				Status:         taskpkg.TaskRunStatusStarting,
+				Attempt:        2,
+				Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				NetworkChannel: "builders",
+				QueuedAt:       time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+			},
+			wantPath:    globalPath,
+			wantChannel: "builders",
 		},
 	}
 
@@ -65,15 +91,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 
 			ref, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
 				Task: tc.taskRecord,
-				Run: taskpkg.Run{
-					ID:             "run-1",
-					TaskID:         tc.taskRecord.ID,
-					Status:         taskpkg.TaskRunStatusStarting,
-					Attempt:        2,
-					Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
-					NetworkChannel: "builders",
-					QueuedAt:       time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
-				},
+				Run:  tc.run,
 			})
 			if err != nil {
 				t.Fatalf("StartTaskSession() error = %v", err)
@@ -93,8 +111,11 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			if got := createCall.Provider; got != "" {
 				t.Fatalf("createCall.Provider = %q, want explicit empty provider", got)
 			}
-			if got, want := createCall.Channel, "builders"; got != want {
+			if got, want := createCall.Channel, tc.wantChannel; got != want {
 				t.Fatalf("createCall.Channel = %q, want %q", got, want)
+			}
+			if got, want := createCall.AgentName, tc.wantAgentName; got != want {
+				t.Fatalf("createCall.AgentName = %q, want %q", got, want)
 			}
 			if got, want := createCall.Workspace, tc.wantWorkspace; got != want {
 				t.Fatalf("createCall.Workspace = %q, want %q", got, want)

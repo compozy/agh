@@ -276,6 +276,75 @@ func TestGlobalDBClaimNextRunAppliesExecutionProfileEligibility(t *testing.T) {
 	})
 }
 
+func TestGlobalDBClaimNextRunFiltersByTaskOwner(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should require a matching pool owner agent name", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"claim-owner-filter",
+			filepath.Join(t.TempDir(), "claim-owner-filter"),
+		)
+		now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
+
+		taskRecord := taskRecordForTest("task-owner-filter")
+		taskRecord.Scope = taskpkg.ScopeWorkspace
+		taskRecord.WorkspaceID = workspaceID
+		taskRecord.Status = taskpkg.TaskStatusReady
+		taskRecord.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-engineer-agent"}
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-owner-filter", taskRecord.ID)
+		run.CoordinationChannelID = "design-review"
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		_, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                 taskpkg.ScopeWorkspace,
+			WorkspaceID:           workspaceID,
+			ClaimerSessionID:      "sess-wrong-agent",
+			AgentName:             "analytics-engineer-agent",
+			CoordinationChannelID: "design-review",
+			LeaseDuration:         time.Minute,
+			Now:                   now,
+		})
+		if !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(wrong owner) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+
+		stored, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(after wrong owner) error = %v", err)
+		}
+		if got, want := stored.Status, taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("stored.Status = %q, want %q", got, want)
+		}
+
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                 taskpkg.ScopeWorkspace,
+			WorkspaceID:           workspaceID,
+			ClaimerSessionID:      "sess-frontend",
+			AgentName:             "frontend-engineer-agent",
+			CoordinationChannelID: "design-review",
+			LeaseDuration:         time.Minute,
+			Now:                   now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(matching owner) error = %v", err)
+		}
+		if got, want := claim.Run.ID, run.ID; got != want {
+			t.Fatalf("ClaimNextRun(matching owner) run = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestGlobalDBClaimNextRunManualAndAgentCreatedRunsSharePrimitive(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	ctx := testutil.Context(t)
