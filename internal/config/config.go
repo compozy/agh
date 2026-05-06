@@ -1643,6 +1643,9 @@ func (c *MemoryControllerConfig) Validate() error {
 		return err
 	}
 	c.Mode = mode
+	if c.Mode == "llm" && !c.LLM.Enabled {
+		return errors.New(`memory.controller.llm.enabled must be true when memory.controller.mode is "llm"`)
+	}
 	if c.MaxLatency <= 0 {
 		return fmt.Errorf("memory.controller.max_latency must be positive: %s", c.MaxLatency)
 	}

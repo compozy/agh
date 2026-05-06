@@ -270,6 +270,14 @@ func TestMemoryV2ConfigValidationRejectsInvalidValues(t *testing.T) {
 			want: "memory.controller.mode",
 		},
 		{
+			name: "llm controller mode with disabled llm",
+			patch: func(cfg *MemoryConfig) {
+				cfg.Controller.Mode = "llm"
+				cfg.Controller.LLM.Enabled = false
+			},
+			want: "memory.controller.llm.enabled",
+		},
+		{
 			name: "recall weights",
 			patch: func(cfg *MemoryConfig) {
 				cfg.Recall.Weights.RecallSignal = 0.50
