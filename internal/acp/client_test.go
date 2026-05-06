@@ -1095,6 +1095,8 @@ func TestPromptStopDoesNotEmitRuntimeError(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should not emit runtime error after explicit stop", func(t *testing.T) {
+		t.Parallel()
+
 		driver := New()
 		proc := startHelperProcess(t, driver, "block_prompt_until_cancel", "", StartOpts{})
 		stopped := false
@@ -1163,6 +1165,15 @@ func TestShouldSuppressPromptErrorOnStop(t *testing.T) {
 				Code:    -32603,
 				Message: "Internal error",
 				Data:    map[string]any{"error": "context canceled"},
+			},
+			want: true,
+		},
+		{
+			name: "Should suppress peer disconnect request errors after stop",
+			err: &acpsdk.RequestError{
+				Code:    -32603,
+				Message: "Internal error",
+				Data:    map[string]any{"error": "peer disconnected before response"},
 			},
 			want: true,
 		},

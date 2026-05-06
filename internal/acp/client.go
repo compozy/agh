@@ -888,7 +888,9 @@ func shouldSuppressPromptErrorOnStop(err error) bool {
 	var reqErr *acpsdk.RequestError
 	if errors.As(err, &reqErr) {
 		text := strings.ToLower(strings.TrimSpace(requestErrorDiagnosticText(reqErr)))
-		if strings.Contains(text, "context canceled") || strings.Contains(text, "context deadline exceeded") {
+		if strings.Contains(text, "context canceled") ||
+			strings.Contains(text, "context deadline exceeded") ||
+			strings.Contains(text, "peer disconnected before response") {
 			return true
 		}
 	}

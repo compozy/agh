@@ -247,11 +247,13 @@ func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *test
 		messages := []transcript.UIMessage{
 			{
 				Role: transcript.UIRoleAssistant,
-				Parts: []transcript.UIMessagePart{{
-					Type:  "text",
-					Text:  `<network-message id="msg_direct_01" kind="say"></network-message>`,
-					State: "done",
-				}},
+				Parts: []transcript.UIMessagePart{
+					{
+						Type:  "text",
+						Text:  `<network-message id="msg_direct_01" kind="say" surface="direct" direct-id="direct_test_01" causation-id="msg_say_01" trust="untrusted"></network-message>`,
+						State: "done",
+					},
+				},
 			},
 			{
 				Role: transcript.UIRoleAssistant,
@@ -265,8 +267,22 @@ func TestValidateNetworkCorrelationSurfacesRejectsSplitTranscriptMatches(t *test
 			},
 		}
 		audit := []store.NetworkAuditEntry{
-			{MessageID: "msg_direct_01", Direction: "sent", Kind: "say"},
-			{MessageID: "msg_direct_01", Direction: "delivered", Kind: "say"},
+			{
+				MessageID: "msg_direct_01",
+				Direction: "sent",
+				Kind:      "say",
+				Surface:   "direct",
+				DirectID:  "direct_test_01",
+				WorkID:    "work_patch_42",
+			},
+			{
+				MessageID: "msg_direct_01",
+				Direction: "delivered",
+				Kind:      "say",
+				Surface:   "direct",
+				DirectID:  "direct_test_01",
+				WorkID:    "work_patch_42",
+			},
 		}
 
 		if err := validateNetworkCorrelationSurfaces(messages, audit, networkCorrelationExpectation{
