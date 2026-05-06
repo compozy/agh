@@ -34,11 +34,19 @@ export function withStoryAgentCategories(agents: AgentPayload[]): AgentPayload[]
 export const categorizedAgents: AgentPayload[] = withStoryAgentCategories(agentFixtures);
 
 const flatAgents: AgentPayload[] = agentFixtures.slice(0, 4);
+const groupedAgents: AgentPayload[] = [
+  {
+    ...agentFixtures[0],
+    name: "launch-ops",
+    prompt: "Coordinate uncategorized launch escalations and operator follow-up.",
+  },
+  ...categorizedAgents,
+];
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
-      <div className="w-[420px]">{children}</div>
+      <div className="w-full max-w-md">{children}</div>
     </CenteredSurface>
   );
 }
@@ -95,7 +103,7 @@ export const Empty: Story = {
  */
 export const Grouped: Story = {
   args: {
-    agents: categorizedAgents,
+    agents: groupedAgents,
     value: null,
     onChange: fn(),
     triggerTestId: "agent-command-select-trigger",
@@ -109,6 +117,7 @@ export const Grouped: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByTestId("agent-command-select-trigger"));
     await waitFor(() => {
+      expect(canvas.getByTestId("agent-command-group-agents:root")).toHaveTextContent("Agents");
       expect(
         canvas.getByTestId("agent-command-group-category:Engineering/Platform")
       ).toBeInTheDocument();
