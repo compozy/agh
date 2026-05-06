@@ -1,19 +1,22 @@
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 
-import { useCancelTaskRun, useTask, useTaskRunDetail } from "@/systems/tasks";
+import { useCancelTaskRun, useTask, useTaskRunDetail, useTaskRunReviews } from "@/systems/tasks";
 
 interface UseTaskRunPageOptions {
   enableTaskDetail?: boolean;
+  enableRunReviews?: boolean;
 }
 
 function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOptions = {}) {
   const hasTaskId = Boolean(taskId);
   const hasRunId = Boolean(runId);
   const enableTaskDetail = options.enableTaskDetail ?? true;
+  const enableRunReviews = options.enableRunReviews ?? true;
 
   const runQuery = useTaskRunDetail(runId, { enabled: hasRunId });
   const taskQuery = useTask(taskId, { enabled: hasTaskId && enableTaskDetail });
+  const reviewsQuery = useTaskRunReviews(runId, {}, { enabled: hasRunId && enableRunReviews });
   const cancelMutation = useCancelTaskRun();
 
   const run = runQuery.data ?? null;
@@ -49,12 +52,17 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     }
   }, [cancelMutation, hasRunId, runId]);
 
+  const reviews = reviewsQuery.data ?? [];
+
   return {
     fatalError,
     handleCancelRun,
     isCancelPending: cancelMutation.isPending,
     isLive,
     notFound: runQuery.isError && runQuery.error?.message?.includes("not found"),
+    reviews,
+    reviewsError: reviewsQuery.error ?? null,
+    reviewsLoading: reviewsQuery.isLoading && reviews.length === 0,
     run,
     runError: runQuery.error ?? null,
     runId,

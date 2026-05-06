@@ -51,17 +51,28 @@ type coordinatorHookDispatcher interface {
 }
 
 type coordinatorRuntime struct {
-	mu       sync.Mutex
-	store    coordinatorTaskStore
-	sessions coordinatorSessionManager
-	config   CoordinatorConfigResolver
-	hooks    coordinatorHookDispatcher
-	logger   *slog.Logger
-	now      func() time.Time
+	mu             sync.Mutex
+	store          coordinatorTaskStore
+	sessions       coordinatorSessionManager
+	config         CoordinatorConfigResolver
+	hooks          coordinatorHookDispatcher
+	contextOverlay taskSessionContextOverlay
+	logger         *slog.Logger
+	now            func() time.Time
 }
 
 var _ taskRunEnqueuedObserver = (*coordinatorRuntime)(nil)
 var _ sessionLifecycleObserver = (*coordinatorRuntime)(nil)
+
+type coordinatorRuntimeOption func(*coordinatorRuntime)
+
+func withCoordinatorTaskContextOverlay(overlay taskSessionContextOverlay) coordinatorRuntimeOption {
+	return func(runtime *coordinatorRuntime) {
+		if runtime != nil {
+			runtime.contextOverlay = overlay
+		}
+	}
+}
 
 func newCoordinatorRuntime(
 	store coordinatorTaskStore,
@@ -70,6 +81,7 @@ func newCoordinatorRuntime(
 	hooks coordinatorHookDispatcher,
 	logger *slog.Logger,
 	now func() time.Time,
+	options ...coordinatorRuntimeOption,
 ) (*coordinatorRuntime, error) {
 	if store == nil {
 		return nil, errors.New("daemon: coordinator runtime requires task store")
@@ -86,14 +98,20 @@ func newCoordinatorRuntime(
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &coordinatorRuntime{
+	runtime := &coordinatorRuntime{
 		store:    store,
 		sessions: sessions,
 		config:   config,
 		hooks:    hooks,
 		logger:   logger,
 		now:      now,
-	}, nil
+	}
+	for _, option := range options {
+		if option != nil {
+			option(runtime)
+		}
+	}
+	return runtime, nil
 }
 
 func (d *Daemon) bootCoordinator(ctx context.Context, state *bootState, _ *bootCleanup) error {
@@ -114,6 +132,23 @@ func (d *Daemon) bootCoordinator(ctx context.Context, state *bootState, _ *bootC
 		state.notifier,
 		state.logger,
 		d.now,
+		withCoordinatorTaskContextOverlay(state.situationContext),
+	)
+	if err != nil {
+		return err
+	}
+	router, err := newReviewRouter(
+		state.tasks.manager,
+		state.tasks.store,
+		state.sessions,
+		state.workspaceResolver,
+		agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+		state.logger,
+		d.now,
+		withReviewRouterTaskContextOverlay(state.situationContext),
 	)
 	if err != nil {
 		return err
@@ -123,6 +158,9 @@ func (d *Daemon) bootCoordinator(ctx context.Context, state *bootState, _ *bootC
 	}
 	if state.lifecycleObservers != nil {
 		state.lifecycleObservers.Add(runtime)
+	}
+	if state.reviewRequests != nil {
+		state.reviewRequests.Set(router)
 	}
 	runtime.Recover(ctx)
 	state.coordinator = runtime
@@ -309,21 +347,40 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 ) (*session.Info, error) {
 	policy := coordinator.PermissionPolicy(decision.CoordinationChannelID)
 	now := r.now().UTC()
+	promptOverlay := coordinator.PromptOverlay(coordinator.PromptInput{
+		WorkspaceID:           decision.WorkspaceID,
+		TaskID:                decision.TaskID,
+		RunID:                 decision.RunID,
+		WorkflowID:            decision.WorkflowID,
+		CoordinationChannelID: decision.CoordinationChannelID,
+	})
+	if r.contextOverlay != nil &&
+		strings.TrimSpace(decision.TaskID) != "" &&
+		strings.TrimSpace(decision.RunID) != "" {
+		taskRecord, err := r.store.GetTask(ctx, decision.TaskID)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: load coordinator task context task %q: %w", decision.TaskID, err)
+		}
+		run, err := r.store.GetTaskRun(ctx, decision.RunID)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: load coordinator task context run %q: %w", decision.RunID, err)
+		}
+		taskOverlay, err := r.contextOverlay.TaskRunPromptOverlay(ctx, taskRecord, run, nil)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: render coordinator task context overlay: %w", err)
+		}
+		promptOverlay = joinPromptOverlays(taskOverlay, promptOverlay)
+	}
 	created, err := r.sessions.Create(ctx, session.CreateOpts{
-		AgentName: cfg.AgentName,
-		Provider:  cfg.Provider,
-		Name:      coordinatorSessionName(decision.WorkspaceID),
-		Workspace: decision.WorkspaceID,
-		Channel:   decision.CoordinationChannelID,
-		PromptOverlay: coordinator.PromptOverlay(coordinator.PromptInput{
-			WorkspaceID:           decision.WorkspaceID,
-			TaskID:                decision.TaskID,
-			RunID:                 decision.RunID,
-			WorkflowID:            decision.WorkflowID,
-			CoordinationChannelID: decision.CoordinationChannelID,
-		}),
-		Type:    session.SessionTypeCoordinator,
-		Lineage: coordinator.Lineage(now, cfg, policy),
+		AgentName:     cfg.AgentName,
+		Provider:      cfg.Provider,
+		Model:         cfg.Model,
+		Name:          coordinatorSessionName(decision.WorkspaceID),
+		Workspace:     decision.WorkspaceID,
+		Channel:       decision.CoordinationChannelID,
+		PromptOverlay: promptOverlay,
+		Type:          session.SessionTypeCoordinator,
+		Lineage:       coordinator.Lineage(now, cfg, policy),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create coordinator session: %w", err)

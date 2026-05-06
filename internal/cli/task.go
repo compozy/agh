@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pedronauck/agh/internal/api/contract"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/network"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/spf13/cobra"
@@ -43,6 +44,29 @@ type taskExecutionInput struct {
 	MetadataRaw    string
 }
 
+type taskReviewSubmitInput struct {
+	RunID             string
+	OutcomeRaw        string
+	Confidence        float64
+	Reason            string
+	DeliveryID        string
+	MissingWork       []string
+	MissingWorkRaw    string
+	NextRoundGuidance string
+	ReviewText        string
+}
+
+type taskNotificationSubscribeInput struct {
+	SubscriptionID   string
+	BridgeInstanceID string
+	ScopeRaw         string
+	WorkspaceID      string
+	PeerID           string
+	ThreadID         string
+	GroupID          string
+	DeliveryModeRaw  string
+}
+
 func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "task",
@@ -65,6 +89,9 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskGetCommand(deps))
 	cmd.AddCommand(newTaskUpdateCommand(deps))
 	cmd.AddCommand(newTaskDeleteCommand(deps))
+	cmd.AddCommand(newTaskProfileCommand(deps))
+	cmd.AddCommand(newTaskReviewCommand(deps))
+	cmd.AddCommand(newTaskNotificationCommand(deps))
 	cmd.AddCommand(newTaskPublishCommand(deps))
 	cmd.AddCommand(newTaskStartCommand(deps))
 	cmd.AddCommand(newTaskApproveCommand(deps))
@@ -368,6 +395,531 @@ func newTaskDeleteCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func newTaskProfileCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "profile",
+		Short: "Manage task execution profiles",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
+	}
+	cmd.AddCommand(newTaskProfileInspectCommand(deps))
+	cmd.AddCommand(newTaskProfileUpdateCommand(deps))
+	cmd.AddCommand(newTaskProfileDeleteCommand(deps))
+	return cmd
+}
+
+func newTaskProfileInspectCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "inspect <id>",
+		Short: "Show one task execution profile",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			profile, err := client.GetTaskExecutionProfile(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskExecutionProfileBundle(&profile))
+		},
+	}
+}
+
+func newTaskProfileUpdateCommand(deps commandDeps) *cobra.Command {
+	var profileRaw string
+	cmd := &cobra.Command{
+		Use:   "update <id>",
+		Short: "Replace one task execution profile",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			request, err := buildTaskExecutionProfileRequest(args[0], profileRaw)
+			if err != nil {
+				return err
+			}
+			profile, err := client.SetTaskExecutionProfile(cmd.Context(), args[0], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskExecutionProfileBundle(&profile))
+		},
+	}
+	cmd.Flags().StringVar(&profileRaw, "profile", "", "Task execution profile JSON")
+	mustMarkFlagRequired(cmd, "profile")
+	return cmd
+}
+
+func newTaskProfileDeleteCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <id>",
+		Short: "Delete one task execution profile",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			if err := client.DeleteTaskExecutionProfile(cmd.Context(), args[0]); err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskExecutionProfileDeleteBundle(args[0]))
+		},
+	}
+}
+
+func buildTaskExecutionProfileRequest(taskID string, raw string) (*TaskExecutionProfileRequest, error) {
+	payload, err := parseJSONFlag("profile", raw)
+	if err != nil {
+		return nil, err
+	}
+	var request TaskExecutionProfileRequest
+	if err := json.Unmarshal(payload, &request); err != nil {
+		return nil, fmt.Errorf("cli: parse --profile JSON: %w", err)
+	}
+	trimmedID := strings.TrimSpace(taskID)
+	if strings.TrimSpace(request.TaskID) != "" && strings.TrimSpace(request.TaskID) != trimmedID {
+		return nil, fmt.Errorf(
+			"cli: profile.task_id must match task id %q",
+			trimmedID,
+		)
+	}
+	request.TaskID = trimmedID
+	return &request, nil
+}
+
+func newTaskNotificationCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "notification",
+		Short: "Manage task terminal notifications",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
+	}
+	cmd.AddCommand(newTaskNotificationSubscribeCommand(deps))
+	cmd.AddCommand(newTaskNotificationListCommand(deps))
+	cmd.AddCommand(newTaskNotificationShowCommand(deps))
+	cmd.AddCommand(newTaskNotificationDeleteCommand(deps))
+	return cmd
+}
+
+func newTaskNotificationSubscribeCommand(deps commandDeps) *cobra.Command {
+	input := taskNotificationSubscribeInput{}
+	cmd := &cobra.Command{
+		Use:   "subscribe <task-id>",
+		Short: "Subscribe a bridge target to task terminal notifications",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			request, err := buildTaskBridgeNotificationSubscriptionRequest(input)
+			if err != nil {
+				return err
+			}
+			subscription, err := client.CreateTaskBridgeNotificationSubscription(cmd.Context(), args[0], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBridgeNotificationSubscriptionBundle(&subscription))
+		},
+	}
+	cmd.Flags().StringVar(&input.SubscriptionID, "subscription-id", "", "Idempotent subscription ID")
+	cmd.Flags().StringVar(&input.BridgeInstanceID, "bridge", "", "Bridge instance ID")
+	cmd.Flags().StringVar(&input.ScopeRaw, "scope", string(bridgepkg.ScopeGlobal), "Bridge scope: global or workspace")
+	cmd.Flags().StringVar(&input.WorkspaceID, "workspace", "", "Workspace ID for workspace bridge scope")
+	cmd.Flags().StringVar(&input.PeerID, "peer", "", "Bridge peer ID")
+	cmd.Flags().StringVar(&input.ThreadID, "thread", "", "Bridge thread ID")
+	cmd.Flags().StringVar(&input.GroupID, "group", "", "Bridge group ID")
+	cmd.Flags().StringVar(
+		&input.DeliveryModeRaw,
+		"mode",
+		string(bridgepkg.DeliveryModeReply),
+		"Delivery mode: reply or direct-send",
+	)
+	mustMarkFlagRequired(cmd, "bridge")
+	return cmd
+}
+
+func newTaskNotificationListCommand(deps commandDeps) *cobra.Command {
+	var (
+		bridgeInstanceID string
+		scopeRaw         string
+		workspaceID      string
+		last             int
+	)
+	cmd := &cobra.Command{
+		Use:   "list <task-id>",
+		Short: "List bridge terminal notification subscriptions for one task",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			query, err := buildTaskBridgeNotificationSubscriptionListQuery(
+				bridgeInstanceID,
+				scopeRaw,
+				workspaceID,
+				last,
+			)
+			if err != nil {
+				return err
+			}
+			subscriptions, err := client.ListTaskBridgeNotificationSubscriptions(cmd.Context(), args[0], query)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBridgeNotificationSubscriptionListBundle(subscriptions))
+		},
+	}
+	cmd.Flags().StringVar(&bridgeInstanceID, "bridge", "", "Filter by bridge instance ID")
+	cmd.Flags().StringVar(&scopeRaw, "scope", "", "Filter by bridge scope: global or workspace")
+	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Filter by workspace ID")
+	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N subscriptions")
+	return cmd
+}
+
+func newTaskNotificationShowCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "show <task-id> <subscription-id>",
+		Short: "Show one bridge terminal notification subscription",
+		Args:  exactTwoNonBlankArgs(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			subscription, err := client.GetTaskBridgeNotificationSubscription(cmd.Context(), args[0], args[1])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBridgeNotificationSubscriptionBundle(&subscription))
+		},
+	}
+}
+
+func newTaskNotificationDeleteCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <task-id> <subscription-id>",
+		Short: "Delete one bridge terminal notification subscription",
+		Args:  exactTwoNonBlankArgs(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			if err := client.DeleteTaskBridgeNotificationSubscription(cmd.Context(), args[0], args[1]); err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBridgeNotificationSubscriptionDeleteBundle(args[0], args[1]))
+		},
+	}
+}
+
+func buildTaskBridgeNotificationSubscriptionRequest(
+	input taskNotificationSubscribeInput,
+) (*TaskBridgeNotificationSubscriptionRequest, error) {
+	scope := bridgepkg.Scope(strings.TrimSpace(input.ScopeRaw)).Normalize()
+	if err := scope.Validate(); err != nil {
+		return nil, fmt.Errorf("cli: invalid notification scope: %w", err)
+	}
+	mode := bridgepkg.DeliveryMode(input.DeliveryModeRaw).Normalize()
+	if err := mode.Validate(); err != nil {
+		return nil, fmt.Errorf("cli: invalid delivery mode: %w", err)
+	}
+	request := TaskBridgeNotificationSubscriptionRequest{
+		SubscriptionID:   strings.TrimSpace(input.SubscriptionID),
+		BridgeInstanceID: strings.TrimSpace(input.BridgeInstanceID),
+		Scope:            scope,
+		WorkspaceID:      strings.TrimSpace(input.WorkspaceID),
+		PeerID:           strings.TrimSpace(input.PeerID),
+		ThreadID:         strings.TrimSpace(input.ThreadID),
+		GroupID:          strings.TrimSpace(input.GroupID),
+		DeliveryMode:     mode,
+	}
+	if err := bridgepkg.ValidateScopeWorkspaceID(request.Scope, request.WorkspaceID); err != nil {
+		return nil, fmt.Errorf("cli: invalid notification scope: %w", err)
+	}
+	if strings.TrimSpace(request.PeerID) == "" && strings.TrimSpace(request.GroupID) == "" {
+		return nil, errors.New("cli: notification subscription requires --peer or --group")
+	}
+	return &request, nil
+}
+
+func buildTaskBridgeNotificationSubscriptionListQuery(
+	bridgeInstanceID string,
+	scopeRaw string,
+	workspaceID string,
+	last int,
+) (TaskBridgeNotificationSubscriptionQuery, error) {
+	if last < 0 {
+		return TaskBridgeNotificationSubscriptionQuery{}, errors.New("cli: --last must be zero or positive")
+	}
+	query := TaskBridgeNotificationSubscriptionQuery{
+		BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
+		WorkspaceID:      strings.TrimSpace(workspaceID),
+		Limit:            last,
+	}
+	if trimmed := strings.TrimSpace(scopeRaw); trimmed != "" {
+		scope := bridgepkg.Scope(trimmed).Normalize()
+		if err := scope.Validate(); err != nil {
+			return TaskBridgeNotificationSubscriptionQuery{}, fmt.Errorf("cli: invalid notification scope: %w", err)
+		}
+		query.Scope = scope
+	}
+	return query, nil
+}
+
+func newTaskReviewCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "review",
+		Short: "Manage task-run reviews",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
+	}
+	cmd.AddCommand(newTaskReviewRequestCommand(deps))
+	cmd.AddCommand(newTaskReviewListCommand(deps))
+	cmd.AddCommand(newTaskReviewShowCommand(deps))
+	cmd.AddCommand(newTaskReviewSubmitCommand(deps))
+	return cmd
+}
+
+func newTaskReviewRequestCommand(deps commandDeps) *cobra.Command {
+	var (
+		reasonRaw string
+		policyRaw string
+		round     int
+		attempt   int
+		parentID  string
+	)
+	cmd := &cobra.Command{
+		Use:   "request <run-id>",
+		Short: "Request review for a task run",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			request, err := buildTaskRunReviewRequest(args[0], reasonRaw, policyRaw, round, attempt, parentID)
+			if err != nil {
+				return err
+			}
+			review, err := client.RequestTaskRunReview(cmd.Context(), args[0], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskRunReviewRequestBundle(&review))
+		},
+	}
+	cmd.Flags().StringVar(&reasonRaw, "reason", "", "Reason for requesting review")
+	cmd.Flags().StringVar(&policyRaw, "policy", "", "Review policy: always, on_success, or on_failure")
+	cmd.Flags().IntVar(&round, "round", 0, "Review round number")
+	cmd.Flags().IntVar(&attempt, "attempt", 0, "Review attempt number")
+	cmd.Flags().StringVar(&parentID, "parent-review", "", "Parent review ID for continuation rounds")
+	return cmd
+}
+
+func newTaskReviewListCommand(deps commandDeps) *cobra.Command {
+	var (
+		taskID            string
+		runID             string
+		statusRaw         string
+		reviewerSessionID string
+		last              int
+	)
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List task-run reviews",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			query, err := parseTaskRunReviewListFilters(taskID, runID, statusRaw, reviewerSessionID, last)
+			if err != nil {
+				return err
+			}
+			reviews, err := client.ListTaskRunReviews(cmd.Context(), query)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskRunReviewListBundle(reviews))
+		},
+	}
+	cmd.Flags().StringVar(&taskID, "task", "", "Filter by task ID")
+	cmd.Flags().StringVar(&runID, "run", "", "Filter by task run ID")
+	cmd.Flags().StringVar(&statusRaw, "status", "", "Filter by review status")
+	cmd.Flags().StringVar(&reviewerSessionID, "reviewer-session", "", "Filter by reviewer session ID")
+	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N reviews")
+	return cmd
+}
+
+func newTaskReviewShowCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "show <review-id>",
+		Short: "Show one task-run review",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			review, err := client.GetTaskRunReview(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskRunReviewBundle(&review))
+		},
+	}
+}
+
+func newTaskReviewSubmitCommand(deps commandDeps) *cobra.Command {
+	input := taskReviewSubmitInput{}
+	cmd := &cobra.Command{
+		Use:   "submit <review-id>",
+		Short: "Submit one task-run review verdict",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			request, err := buildTaskRunReviewVerdictRequest(args[0], input)
+			if err != nil {
+				return err
+			}
+			result, err := client.SubmitTaskRunReviewVerdict(cmd.Context(), args[0], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskRunReviewVerdictBundle(&result))
+		},
+	}
+	cmd.Flags().StringVar(&input.RunID, "run", "", "Task run ID")
+	cmd.Flags().StringVar(&input.OutcomeRaw, "outcome", "", "Verdict outcome")
+	cmd.Flags().Float64Var(&input.Confidence, "confidence", 0, "Verdict confidence from 0 to 1")
+	cmd.Flags().StringVar(&input.Reason, "reason", "", "Verdict reason")
+	cmd.Flags().StringVar(&input.DeliveryID, "delivery-id", "", "Idempotent delivery ID")
+	cmd.Flags().StringArrayVar(&input.MissingWork, "missing-work", nil, "Missing work item (repeatable)")
+	cmd.Flags().StringVar(&input.MissingWorkRaw, "missing-work-json", "", "Missing work JSON array")
+	cmd.Flags().StringVar(&input.NextRoundGuidance, "next-round-guidance", "", "Guidance for continuation rounds")
+	cmd.Flags().StringVar(&input.ReviewText, "review-text", "", "Full review text")
+	mustMarkFlagRequired(cmd, "run")
+	mustMarkFlagRequired(cmd, "outcome")
+	mustMarkFlagRequired(cmd, "confidence")
+	mustMarkFlagRequired(cmd, "reason")
+	mustMarkFlagRequired(cmd, "delivery-id")
+	return cmd
+}
+
+func buildTaskRunReviewRequest(
+	runID string,
+	reasonRaw string,
+	policyRaw string,
+	round int,
+	attempt int,
+	parentID string,
+) (*TaskRunReviewRequest, error) {
+	if round < 0 {
+		return nil, errors.New("cli: --round must be zero or positive")
+	}
+	if attempt < 0 {
+		return nil, errors.New("cli: --attempt must be zero or positive")
+	}
+	policy, err := parseOptionalReviewPolicy(policyRaw)
+	if err != nil {
+		return nil, err
+	}
+	request := TaskRunReviewRequest{
+		RunID:          strings.TrimSpace(runID),
+		ReviewRound:    round,
+		Attempt:        attempt,
+		Policy:         policy,
+		ParentReviewID: strings.TrimSpace(parentID),
+		Reason:         strings.TrimSpace(reasonRaw),
+	}
+	return &request, nil
+}
+
+func buildTaskRunReviewVerdictRequest(
+	reviewID string,
+	input taskReviewSubmitInput,
+) (*TaskRunReviewVerdictRequest, error) {
+	outcome, err := parseRequiredReviewOutcome(input.OutcomeRaw)
+	if err != nil {
+		return nil, err
+	}
+	confidence := input.Confidence
+	missingWork, err := missingWorkFromFlags(input.MissingWork, input.MissingWorkRaw)
+	if err != nil {
+		return nil, err
+	}
+	request := &TaskRunReviewVerdictRequest{
+		RunID: strings.TrimSpace(input.RunID),
+		Verdict: taskpkg.RunReviewVerdict{
+			Outcome:           outcome,
+			Confidence:        &confidence,
+			Reason:            strings.TrimSpace(input.Reason),
+			DeliveryID:        strings.TrimSpace(input.DeliveryID),
+			MissingWork:       missingWork,
+			NextRoundGuidance: strings.TrimSpace(input.NextRoundGuidance),
+			ReviewText:        strings.TrimSpace(input.ReviewText),
+		},
+	}
+	recordReq := taskpkg.RecordRunReviewRequest{
+		ReviewID: strings.TrimSpace(reviewID),
+		RunID:    request.RunID,
+		Verdict:  request.Verdict,
+	}.Normalize()
+	if err := recordReq.Validate("task_run_review_verdict"); err != nil {
+		return nil, fmt.Errorf("cli: %w", err)
+	}
+	request.Verdict = recordReq.Verdict
+	return request, nil
+}
+
+func parseTaskRunReviewListFilters(
+	taskID string,
+	runID string,
+	statusRaw string,
+	reviewerSessionID string,
+	last int,
+) (TaskRunReviewListQuery, error) {
+	trimmedTaskID := strings.TrimSpace(taskID)
+	trimmedRunID := strings.TrimSpace(runID)
+	trimmedReviewerSessionID := strings.TrimSpace(reviewerSessionID)
+	if trimmedTaskID != "" && trimmedRunID != "" {
+		return TaskRunReviewListQuery{}, errors.New("cli: choose either --task or --run")
+	}
+	status, err := parseOptionalReviewStatus(statusRaw)
+	if err != nil {
+		return TaskRunReviewListQuery{}, err
+	}
+	if trimmedTaskID == "" && trimmedRunID == "" && status == "" && trimmedReviewerSessionID == "" && last == 0 {
+		return TaskRunReviewListQuery{}, errors.New("cli: task review list requires at least one filter")
+	}
+	if err := validateTaskLast(last); err != nil {
+		return TaskRunReviewListQuery{}, err
+	}
+	return TaskRunReviewListQuery{
+		TaskID:            trimmedTaskID,
+		RunID:             trimmedRunID,
+		Status:            status,
+		ReviewerSessionID: trimmedReviewerSessionID,
+		Limit:             last,
+	}, nil
 }
 
 func newTaskRejectCommand(deps commandDeps) *cobra.Command {
@@ -1243,6 +1795,75 @@ func parseTaskRunListFilters(
 	}, nil
 }
 
+func parseOptionalReviewPolicy(raw string) (taskpkg.ReviewPolicy, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+	policy := taskpkg.ReviewPolicy(trimmed).Normalize()
+	if err := policy.Validate("review_policy"); err != nil {
+		return "", fmt.Errorf("cli: %w", err)
+	}
+	return policy, nil
+}
+
+func parseOptionalReviewStatus(raw string) (taskpkg.RunReviewStatus, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+	status := taskpkg.RunReviewStatus(trimmed).Normalize()
+	if err := status.Validate("review_status"); err != nil {
+		return "", fmt.Errorf("cli: %w", err)
+	}
+	return status, nil
+}
+
+func parseRequiredReviewOutcome(raw string) (taskpkg.RunReviewOutcome, error) {
+	outcome := taskpkg.RunReviewOutcome(strings.TrimSpace(raw)).Normalize()
+	if outcome == "" {
+		return "", errors.New("cli: --outcome is required")
+	}
+	if err := outcome.Validate("review_outcome"); err != nil {
+		return "", fmt.Errorf("cli: %w", err)
+	}
+	return outcome, nil
+}
+
+func missingWorkFromFlags(items []string, raw string) (json.RawMessage, error) {
+	hasRaw := strings.TrimSpace(raw) != ""
+	if hasRaw && len(items) > 0 {
+		return nil, errors.New("cli: --missing-work-json cannot be combined with --missing-work")
+	}
+	if hasRaw {
+		payload, err := parseJSONFlag("missing-work-json", raw)
+		if err != nil {
+			return nil, err
+		}
+		var items []json.RawMessage
+		if err := json.Unmarshal(payload, &items); err != nil {
+			return nil, errors.New("cli: --missing-work-json must be a JSON array")
+		}
+		return payload, nil
+	}
+
+	normalized := make([]string, 0, len(items))
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item)
+		if trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	if len(normalized) == 0 {
+		return nil, nil
+	}
+	payload, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("cli: encode --missing-work: %w", err)
+	}
+	return payload, nil
+}
+
 func resolveTaskScopeWorkspace(
 	rawScope string,
 	workspaceRef string,
@@ -1565,6 +2186,266 @@ func taskBundle(item TaskRecord) outputBundle {
 	}
 }
 
+func taskExecutionProfileBundle(profile *TaskExecutionProfileRecord) outputBundle {
+	return outputBundle{
+		jsonValue: *profile,
+		human: func() (string, error) {
+			return renderHumanSection("Task Execution Profile", []keyValue{
+				{Label: "Task ID", Value: stringOrDash(profile.TaskID)},
+				{Label: "Coordinator", Value: stringOrDash(string(profile.Coordinator.Mode))},
+				{Label: "Worker", Value: stringOrDash(string(profile.Worker.Mode))},
+				{Label: "Worker Agent", Value: stringOrDash(profile.Worker.AgentName)},
+				{Label: "Worker Provider", Value: stringOrDash(profile.Worker.Provider)},
+				{Label: "Worker Model", Value: stringOrDash(profile.Worker.Model)},
+				{Label: "Review Agent", Value: stringOrDash(profile.Review.AgentName)},
+				{Label: "Sandbox", Value: stringOrDash(string(profile.Sandbox.Mode))},
+				{Label: "Sandbox Ref", Value: stringOrDash(profile.Sandbox.SandboxRef)},
+				{Label: "Updated", Value: stringOrDash(formatTime(profile.UpdatedAt))},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderJSONPreview(profile)
+		},
+	}
+}
+
+func taskBridgeNotificationSubscriptionBundle(
+	subscription *TaskBridgeNotificationSubscriptionRecord,
+) outputBundle {
+	return outputBundle{
+		jsonValue: *subscription,
+		human: func() (string, error) {
+			return renderHumanSection(
+				"Task Bridge Notification Subscription",
+				taskBridgeNotificationRows(subscription),
+			), nil
+		},
+		toon: func() (string, error) {
+			return renderJSONPreview(subscription)
+		},
+	}
+}
+
+func taskBridgeNotificationSubscriptionListBundle(
+	items []TaskBridgeNotificationSubscriptionRecord,
+) outputBundle {
+	return listBundle(
+		items,
+		items,
+		"Task Bridge Notification Subscriptions",
+		[]string{
+			"Subscription",
+			"Task",
+			"Bridge",
+			"Scope",
+			"Peer",
+			"Group",
+			"Mode",
+			"Cursor Seq",
+			"Cursor Error",
+			"Cursor Updated",
+			"Updated",
+		},
+		"task_bridge_notification_subscriptions",
+		[]string{
+			"subscription_id",
+			"task_id",
+			"bridge_instance_id",
+			"scope",
+			"peer_id",
+			"group_id",
+			"delivery_mode",
+			"cursor_last_sequence",
+			"cursor_last_error",
+			"cursor_updated_at",
+			"updated_at",
+		},
+		func(item TaskBridgeNotificationSubscriptionRecord) []string {
+			return []string{
+				stringOrDash(item.SubscriptionID),
+				stringOrDash(item.TaskID),
+				stringOrDash(item.BridgeInstanceID),
+				stringOrDash(string(item.Scope)),
+				stringOrDash(item.PeerID),
+				stringOrDash(item.GroupID),
+				stringOrDash(string(item.DeliveryMode)),
+				int64OrDash(item.Cursor.LastSequence),
+				stringOrDash(item.Cursor.LastError),
+				stringOrDash(formatTimePtr(item.Cursor.UpdatedAt)),
+				stringOrDash(formatTime(item.UpdatedAt)),
+			}
+		},
+		func(item TaskBridgeNotificationSubscriptionRecord) []string {
+			return []string{
+				item.SubscriptionID,
+				item.TaskID,
+				item.BridgeInstanceID,
+				string(item.Scope),
+				item.PeerID,
+				item.GroupID,
+				string(item.DeliveryMode),
+				strconv.FormatInt(item.Cursor.LastSequence, 10),
+				item.Cursor.LastError,
+				formatTimePtr(item.Cursor.UpdatedAt),
+				formatTime(item.UpdatedAt),
+			}
+		},
+	)
+}
+
+func taskBridgeNotificationRows(subscription *TaskBridgeNotificationSubscriptionRecord) []keyValue {
+	return []keyValue{
+		{Label: "Subscription", Value: stringOrDash(subscription.SubscriptionID)},
+		{Label: "Task", Value: stringOrDash(subscription.TaskID)},
+		{Label: "Bridge", Value: stringOrDash(subscription.BridgeInstanceID)},
+		{Label: "Scope", Value: stringOrDash(string(subscription.Scope))},
+		{Label: "Workspace", Value: stringOrDash(subscription.WorkspaceID)},
+		{Label: "Peer", Value: stringOrDash(subscription.PeerID)},
+		{Label: "Thread", Value: stringOrDash(subscription.ThreadID)},
+		{Label: "Group", Value: stringOrDash(subscription.GroupID)},
+		{Label: "Mode", Value: stringOrDash(string(subscription.DeliveryMode))},
+		{Label: "Cursor Consumer", Value: stringOrDash(subscription.Cursor.ConsumerID)},
+		{Label: "Cursor Stream", Value: stringOrDash(subscription.Cursor.StreamName)},
+		{Label: "Cursor Subject", Value: stringOrDash(subscription.Cursor.SubjectID)},
+		{Label: "Cursor Last Sequence", Value: int64OrDash(subscription.Cursor.LastSequence)},
+		{Label: "Cursor Last Delivery", Value: stringOrDash(subscription.Cursor.LastDeliveryID)},
+		{Label: "Cursor Last Delivered", Value: stringOrDash(formatTimePtr(subscription.Cursor.LastDeliveredAt))},
+		{Label: "Cursor Last Error", Value: stringOrDash(subscription.Cursor.LastError)},
+		{Label: "Cursor Updated", Value: stringOrDash(formatTimePtr(subscription.Cursor.UpdatedAt))},
+		{Label: "Created By", Value: stringOrDash(formatTaskActor(subscription.CreatedBy))},
+		{Label: "Updated", Value: stringOrDash(formatTime(subscription.UpdatedAt))},
+	}
+}
+
+func taskBridgeNotificationSubscriptionDeleteBundle(taskID string, subscriptionID string) outputBundle {
+	item := struct {
+		TaskID         string `json:"task_id"`
+		SubscriptionID string `json:"subscription_id"`
+		Status         string `json:"status"`
+	}{
+		TaskID:         strings.TrimSpace(taskID),
+		SubscriptionID: strings.TrimSpace(subscriptionID),
+		Status:         "deleted",
+	}
+	return outputBundle{
+		jsonValue: item,
+		human: func() (string, error) {
+			return renderHumanSection("Task Bridge Notification Subscription", []keyValue{
+				{Label: "Task ID", Value: stringOrDash(item.TaskID)},
+				{Label: "Subscription", Value: stringOrDash(item.SubscriptionID)},
+				{Label: "Status", Value: item.Status},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"task_bridge_notification_subscription",
+				[]string{"task_id", "subscription_id", "status"},
+				[]string{item.TaskID, item.SubscriptionID, item.Status},
+			), nil
+		},
+	}
+}
+
+func taskRunReviewRequestBundle(record *TaskRunReviewRequestRecord) outputBundle {
+	return outputBundle{
+		jsonValue: *record,
+		human: func() (string, error) {
+			return renderHumanSection("Task Run Review Request", []keyValue{
+				{Label: "Review", Value: stringOrDash(record.Review.ReviewID)},
+				{Label: "Run", Value: stringOrDash(record.Review.RunID)},
+				{Label: "Task", Value: stringOrDash(record.Review.TaskID)},
+				{Label: "Status", Value: stringOrDash(string(record.Review.Status))},
+				{Label: "Policy", Value: stringOrDash(string(record.Review.Policy))},
+				{Label: "Created", Value: strconv.FormatBool(record.Created)},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderJSONPreview(record)
+		},
+	}
+}
+
+func taskRunReviewBundle(review *TaskRunReviewRecord) outputBundle {
+	return outputBundle{
+		jsonValue: *review,
+		human: func() (string, error) {
+			return renderHumanSection("Task Run Review", taskRunReviewRows(review)), nil
+		},
+		toon: func() (string, error) {
+			return renderJSONPreview(review)
+		},
+	}
+}
+
+func taskRunReviewVerdictBundle(record *TaskRunReviewVerdictRecord) outputBundle {
+	return outputBundle{
+		jsonValue: *record,
+		human: func() (string, error) {
+			rows := taskRunReviewRows(&record.Review)
+			if record.ContinuationRun != nil {
+				rows = append(rows, keyValue{Label: "Continuation Run", Value: stringOrDash(record.ContinuationRun.ID)})
+			}
+			rows = append(rows, keyValue{Label: "Circuit Opened", Value: strconv.FormatBool(record.CircuitOpened)})
+			return renderHumanSection("Task Run Review Verdict", rows), nil
+		},
+		toon: func() (string, error) {
+			return renderJSONPreview(record)
+		},
+	}
+}
+
+func taskRunReviewRows(review *TaskRunReviewRecord) []keyValue {
+	return []keyValue{
+		{Label: "Review", Value: stringOrDash(review.ReviewID)},
+		{Label: "Task", Value: stringOrDash(review.TaskID)},
+		{Label: "Run", Value: stringOrDash(review.RunID)},
+		{Label: "Status", Value: stringOrDash(string(review.Status))},
+		{Label: "Outcome", Value: stringOrDash(string(review.Outcome))},
+		{Label: "Reason", Value: stringOrDash(review.Reason)},
+		{Label: "Delivery", Value: stringOrDash(review.DeliveryID)},
+		{Label: "Missing Work", Value: stringOrDash(compactJSON(review.MissingWork))},
+		{Label: "Next Guidance", Value: stringOrDash(review.NextRoundGuidance)},
+		{Label: "Reviewer Session", Value: stringOrDash(review.ReviewerSessionID)},
+		{Label: "Reviewed By", Value: stringOrDash(formatTaskActorPtr(review.ReviewedBy))},
+		{Label: "Requested", Value: stringOrDash(formatTime(review.RequestedAt))},
+		{Label: "Reviewed", Value: stringOrDash(formatTime(review.ReviewedAt))},
+		{Label: "Updated", Value: stringOrDash(formatTime(review.UpdatedAt))},
+	}
+}
+
+func taskRunReviewListBundle(items []TaskRunReviewRecord) outputBundle {
+	return listBundle(
+		items,
+		items,
+		"Task Run Reviews",
+		[]string{"Review", "Task", "Run", "Status", "Outcome", "Reviewer Session", "Updated"},
+		"task_run_reviews",
+		[]string{"review_id", "task_id", "run_id", "status", "outcome", "reviewer_session_id", "updated_at"},
+		func(item TaskRunReviewRecord) []string {
+			return []string{
+				stringOrDash(item.ReviewID),
+				stringOrDash(item.TaskID),
+				stringOrDash(item.RunID),
+				stringOrDash(string(item.Status)),
+				stringOrDash(string(item.Outcome)),
+				stringOrDash(item.ReviewerSessionID),
+				stringOrDash(formatTime(item.UpdatedAt)),
+			}
+		},
+		func(item TaskRunReviewRecord) []string {
+			return []string{
+				item.ReviewID,
+				item.TaskID,
+				item.RunID,
+				string(item.Status),
+				string(item.Outcome),
+				item.ReviewerSessionID,
+				formatTime(item.UpdatedAt),
+			}
+		},
+	)
+}
+
 func taskExecutionBundle(item *TaskExecutionRecord) outputBundle {
 	return outputBundle{
 		jsonValue: *item,
@@ -1611,6 +2492,32 @@ func taskDeleteBundle(id string) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("task", []string{"id", "status"}, []string{item.ID, item.Status}), nil
+		},
+	}
+}
+
+func taskExecutionProfileDeleteBundle(id string) outputBundle {
+	item := struct {
+		TaskID string `json:"task_id"`
+		Status string `json:"status"`
+	}{
+		TaskID: strings.TrimSpace(id),
+		Status: "deleted",
+	}
+	return outputBundle{
+		jsonValue: item,
+		human: func() (string, error) {
+			return renderHumanSection("Task Execution Profile", []keyValue{
+				{Label: "Task ID", Value: stringOrDash(item.TaskID)},
+				{Label: "Status", Value: item.Status},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"task_execution_profile",
+				[]string{"task_id", "status"},
+				[]string{item.TaskID, item.Status},
+			), nil
 		},
 	}
 }

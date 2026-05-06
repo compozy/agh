@@ -859,10 +859,6 @@ func extractPromptText(blocks []acpsdk.ContentBlock) string {
 			lastText = block.Text.Text
 		}
 	}
-	const marker = "User request:"
-	if index := strings.LastIndex(lastText, marker); index >= 0 {
-		return strings.TrimSpace(lastText[index+len(marker):])
-	}
 	return strings.TrimSpace(lastText)
 }
 

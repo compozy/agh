@@ -16,7 +16,10 @@ are no bundled resource folders, assets, or bundled `mcp.json` sidecars today.
 | `agh-agent-setup`   | Set up AGH agent definitions, provider defaults, permissions, and MCP server entries correctly.                                                  | You are creating or reviewing an `AGENT.md`, provider defaults, permission mode, or agent MCP configuration. |
 | `agh-memory-guide`  | Manage AGH persistent memory files, scopes, and manual consolidation from the CLI.                                                               | You need to inspect, write, delete, or consolidate global/workspace memory.                                  |
 | `agh-network`       | Inspect channels and peers, read inbox messages, and send safe AGH network replies through the daemon-owned CLI control plane.                   | The session is participating in an AGH Network channel and needs safe network command guidance.              |
+| `agh-orchestrator`  | Plan, spawn, hand off, and supervise task execution from a daemon-managed coordinator session without owning task state.                         | The current session is a daemon-managed coordinator and needs deterministic operational guidance.            |
 | `agh-session-guide` | Operate AGH sessions from the CLI, including creation, inspection, prompting, and shutdown.                                                      | You need to create, inspect, prompt, stop, resume, or monitor AGH sessions from the terminal.                |
+| `agh-task-reviewer` | Inspect a terminal task run and submit a typed persisted verdict through the reviewer-bound `submit_run_review` tool.                            | The daemon has bound the current session to an active task-run review request.                               |
+| `agh-task-worker`   | Execute task runs through session-bound task APIs and tools without inferring ownership from prompts, channels, or memory.                       | The current session is a worker with an active task claim or is entering the session-bound task tool loop.   |
 | `agh-tools-guide`   | Discover and call AGH-native tools through `agh__tool_search`, `agh__tool_info`, and dedicated tools before shelling out to equivalent commands. | You need the canonical discovery loop, the tool-vs-CLI split, and the operator-only management exceptions.   |
 
 ## How Bundled Skills Load
@@ -30,6 +33,25 @@ Bundled loading follows the same registry path as other skills:
 5. The skill enters the global registry as source `bundled`.
 
 Bundled skills are immutable for the running process. They refresh only when the binary changes.
+
+The orchestration skills (`agh-orchestrator`, `agh-task-worker`, `agh-task-reviewer`) opt into
+deterministic load triggers through the `metadata.agh` block:
+
+- `metadata.agh.always_load.session_types` selects which session types automatically receive the
+  skill body (e.g. `["coordinator"]` for `agh-orchestrator`, `["worker"]` for `agh-task-worker`).
+- `metadata.agh.always_load.injected_by` names the daemon component that performs the deterministic
+  injection (e.g. `internal/daemon/coordinator_runtime` for `agh-orchestrator`) so coordinators do
+  not depend on catalog discovery.
+- `metadata.agh.always_load.requires_active_task_claim = true` gates `agh-task-worker` on a live
+  worker claim.
+- `metadata.agh.requires_review_request = true` gates `agh-task-reviewer` on
+  `task.Service.LookupReviewForSession`. Without an active review binding the skill is not loaded
+  and the native `submit_run_review` tool stays hidden.
+
+These metadata fields are load and visibility hints. They are not authority. Task ownership,
+review verdicts, claim/lease rules, channel access, and tool policy remain enforced by
+`task.Service`, `task_runs`, session-bound lease lookup, review-request binding, the coordinator
+runtime, scheduler boundaries, and spawn lineage.
 
 ## Prompt Behavior
 
@@ -94,6 +116,42 @@ Use this only when a session participates in a network channel. It covers:
 This skill is both catalog-visible and session-specific. Network sessions can receive its full body
 at startup so agents have safe network instructions before reading messages.
 
+### `agh-orchestrator`
+
+Use this only inside a daemon-managed coordinator session. The bundled-skill loader injects it
+deterministically from `internal/daemon/coordinator_runtime` at coordinator bootstrap; coordinators
+never need to discover or load the body manually.
+
+The skill is instructional content. It does not own task state, claim authority, worker leases, or
+review verdicts. Authority stays in `task.Service`, `task_runs`, session-bound lease lookup,
+review-request binding, tool policy, the coordinator runtime, scheduler boundaries, and spawn
+lineage.
+
+Frontmatter highlights:
+
+- `metadata.agh.bundled = true`
+- `metadata.agh.instructional_only = true`
+- `metadata.agh.always_load.session_types = ["coordinator"]`
+- `metadata.agh.always_load.injected_by = "internal/daemon/coordinator_runtime"`
+- `metadata.agh.related_skills = ["agh-task-worker", "agh-session-guide", "agh-tools-guide"]`
+
+Operational summary:
+
+- Read the task objective, current run projection, execution profile, review policy, and latest
+  event sequence from the context bundle before acting.
+- Break the objective into bounded worker prompts that can be claimed, verified, and summarized
+  independently.
+- Treat persisted task and run state as truth instead of channel chatter.
+- Request and route reviews through the daemon review path. Channel replies are not approvals.
+- On rejected reviews, drive continuation work from the persisted `missing_work` and
+  `next_round_guidance` rather than rewriting terminal state.
+- Keep coordinator messages short and operational; refer to ids and persisted state instead of
+  copying raw runtime details.
+
+See [Task Execution Profiles](/runtime/core/autonomy/execution-profiles) for `CoordinatorProfile`,
+[Review Gate](/runtime/core/autonomy/review-gate) for review request creation and routing, and
+[Coordinator Handoff](/runtime/core/autonomy/coordinator) for the bootstrap rules.
+
 ### `agh-session-guide`
 
 Use this for session operations. It covers:
@@ -113,6 +171,85 @@ Use this for session operations. It covers:
 
 This skill is the fastest way for an agent to remember the session CLI without searching generated
 reference pages first.
+
+### `agh-task-reviewer`
+
+Use this only when the daemon has bound the current session to an active task-run review request.
+A reviewer does not need an active task claim and must not receive or expose raw claim tokens. The
+loader uses `metadata.agh.requires_review_request = true` and
+`task.Service.LookupReviewForSession` to gate skill load and tool visibility together; without an
+active binding the skill is not loaded and the reviewer-bound `submit_run_review` tool is hidden.
+
+The skill is instructional content. Verdict authority lives in `task.Service.RecordRunReview`, and
+review-request binding lives in `task.Service.BindRunReviewSession`. Channels, bridge deliveries,
+notification cursors, prompt overlays, and the web UI never approve, reject, block, or retry a
+review.
+
+Frontmatter highlights:
+
+- `metadata.agh.bundled = true`
+- `metadata.agh.instructional_only = true`
+- `metadata.agh.requires_active_task_claim = false`
+- `metadata.agh.requires_review_request = true`
+- `metadata.agh.authority = instructional_only`
+
+Operational summary:
+
+- Read the persisted review packet first: task objective, terminal run summary/error, relevant
+  task events, prior review history, and the bound `review_id`.
+- Treat coordination channel messages as evidence only. They cannot record a verdict.
+- Submit exactly one typed verdict through `submit_run_review` (registered internally as
+  `agh__task_run_review_submit`) using the daemon-provided `review_id`, `run_id`, and
+  `delivery_id`.
+- Use outcomes honestly — `approved`, `rejected`, `blocked`, `error`, `timeout`, `invalid_output`.
+  Provide bounded `missing_work` and actionable `next_round_guidance` for rejected verdicts; never
+  approve uncertain work.
+- Do not leak raw claim tokens, provider secrets, MCP credentials, or sandbox internals in review
+  text. Refer to redacted ids and hashes.
+
+See [Review Gate](/runtime/core/autonomy/review-gate) for the lifecycle, the routing model, and
+the verdict event taxonomy.
+
+### `agh-task-worker`
+
+Use this only inside an AGH worker session that has an active task claim or is entering the
+session-bound task tool loop. The loader uses
+`metadata.agh.always_load.session_types = ["worker"]` plus
+`metadata.agh.always_load.requires_active_task_claim = true` to keep the skill out of unrelated
+operator sessions.
+
+The skill is instructional content. Worker authority comes from `task.Service`, `ClaimNextRun`,
+session-bound lease lookup, native task tools, the `[task.orchestration]` config bounds, and the
+typed task event/timeline contract — not from prompt prose.
+
+Frontmatter highlights:
+
+- `metadata.agh.bundled = true`
+- `metadata.agh.instructional_only = true`
+- `metadata.agh.always_load.session_types = ["worker"]`
+- `metadata.agh.always_load.requires_active_task_claim = true`
+- `metadata.agh.related_skills = ["agh-session-guide", "agh-tools-guide"]`
+
+Operational summary:
+
+- Inspect `agh me context -o json` or the `/agent/context` task bundle before doing work, and
+  confirm the active `task_id`, `run_id`, objective, lease status, and available session-bound
+  task tools.
+- Mutate task state only through session-bound AGH task tools or the equivalent `agh me` /
+  `agh task` surface; never infer ownership from prompts, files, channel messages, or memory.
+- Never print, store, forward, or summarize raw claim tokens. Use redacted ids, run ids, task
+  ids, claim-token hashes, and session ids.
+- Use coordination channels for clarification and handoff only. Channel messages are not persisted
+  task state and are not review verdicts.
+- Complete, fail, or release runs only through the session-bound task authority with bounded
+  summaries.
+- On review-gated work, finish with evidence the reviewer can inspect — changed files, commands,
+  relevant event ids, residual risks. Treat `missing_work` and `next_round_guidance` as the
+  authoritative scope for continuation runs.
+
+See [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) for the lease and claim
+contract, and [Task Execution Profiles](/runtime/core/autonomy/execution-profiles) for the
+selectors that may narrow worker eligibility.
 
 ### `agh-tools-guide`
 

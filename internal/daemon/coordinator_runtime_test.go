@@ -47,8 +47,13 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	if call.Type != session.SessionTypeCoordinator {
 		t.Fatalf("CreateOpts.Type = %q, want coordinator", call.Type)
 	}
-	if call.AgentName != "coordinator" || call.Provider != "codex" {
-		t.Fatalf("CreateOpts agent/provider = %q/%q, want coordinator/codex", call.AgentName, call.Provider)
+	if call.AgentName != "coordinator" || call.Provider != "codex" || call.Model != "gpt-5" {
+		t.Fatalf(
+			"CreateOpts agent/provider/model = %q/%q/%q, want coordinator/codex/gpt-5",
+			call.AgentName,
+			call.Provider,
+			call.Model,
+		)
 	}
 	if call.Workspace != "ws-1" || call.Channel != "ch-run-1" {
 		t.Fatalf("CreateOpts workspace/channel = %q/%q, want ws-1/ch-run-1", call.Workspace, call.Channel)
@@ -79,6 +84,41 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	}
 	if got := hooks.spawnedPayload(0).Model; got != "gpt-5" {
 		t.Fatalf("spawned hook model = %q, want gpt-5", got)
+	}
+}
+
+func TestCoordinatorRuntimeBootstrapsWithTaskContextOverlay(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 5, 12, 20, 0, 0, time.UTC)
+	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), coordinatorRuntimeRun())
+	sessions := &coordinatorRuntimeSessions{}
+	hooks := &recordingCoordinatorHooks{}
+	runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), now)
+	overlay := &taskContextOverlayStub{overlay: "coordinator task context bundle"}
+	runtime.contextOverlay = overlay
+
+	_, created, err := runtime.bootstrapRun(
+		context.Background(),
+		store.tasks["task-1"],
+		store.runs["run-1"],
+		coordinator.ReasonRunEnqueued,
+	)
+	if err != nil {
+		t.Fatalf("bootstrapRun() error = %v", err)
+	}
+	if !created {
+		t.Fatal("bootstrapRun() created = false, want true")
+	}
+	call := sessions.createCall(0)
+	if !contains(call.PromptOverlay, "coordinator task context bundle") ||
+		!contains(call.PromptOverlay, "agh task next") {
+		t.Fatalf("PromptOverlay = %q, want task context plus coordinator instructions", call.PromptOverlay)
+	}
+	if len(overlay.calls) != 1 ||
+		overlay.calls[0].taskID != "task-1" ||
+		overlay.calls[0].runID != "run-1" {
+		t.Fatalf("overlay calls = %#v, want task/run context", overlay.calls)
 	}
 }
 
@@ -500,6 +540,14 @@ type coordinatorRuntimeSessions struct {
 	infos       []*session.Info
 	createCalls []session.CreateOpts
 	createErr   error
+	stopCalls   []coordinatorRuntimeStopCall
+	stopErr     error
+}
+
+type coordinatorRuntimeStopCall struct {
+	id     string
+	cause  session.StopCause
+	detail string
 }
 
 func (s *coordinatorRuntimeSessions) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -515,6 +563,7 @@ func (s *coordinatorRuntimeSessions) Create(_ context.Context, opts session.Crea
 		Name:        opts.Name,
 		AgentName:   opts.AgentName,
 		Provider:    opts.Provider,
+		Model:       opts.Model,
 		WorkspaceID: opts.Workspace,
 		Workspace:   opts.Workspace,
 		Channel:     opts.Channel,
@@ -529,6 +578,7 @@ func (s *coordinatorRuntimeSessions) Create(_ context.Context, opts session.Crea
 		Name:        info.Name,
 		AgentName:   info.AgentName,
 		Provider:    info.Provider,
+		Model:       info.Model,
 		WorkspaceID: info.WorkspaceID,
 		Workspace:   info.Workspace,
 		Channel:     info.Channel,
@@ -547,6 +597,21 @@ func (s *coordinatorRuntimeSessions) ListAll(context.Context) ([]*session.Info, 
 	return infos, nil
 }
 
+func (s *coordinatorRuntimeSessions) StopWithCause(
+	_ context.Context,
+	id string,
+	cause session.StopCause,
+	detail string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopCalls = append(s.stopCalls, coordinatorRuntimeStopCall{id: id, cause: cause, detail: detail})
+	if s.stopErr != nil {
+		return s.stopErr
+	}
+	return nil
+}
+
 func (s *coordinatorRuntimeSessions) createCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -560,6 +625,21 @@ func (s *coordinatorRuntimeSessions) createCall(index int) session.CreateOpts {
 		return session.CreateOpts{}
 	}
 	return s.createCalls[index]
+}
+
+func (s *coordinatorRuntimeSessions) stopCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.stopCalls)
+}
+
+func (s *coordinatorRuntimeSessions) stopCall(index int) coordinatorRuntimeStopCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.stopCalls) {
+		return coordinatorRuntimeStopCall{}
+	}
+	return s.stopCalls[index]
 }
 
 type recordingCoordinatorHooks struct {

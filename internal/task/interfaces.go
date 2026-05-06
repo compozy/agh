@@ -21,6 +21,26 @@ type Manager interface {
 	ArchiveTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
 	DismissTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
 
+	GetExecutionProfile(ctx context.Context, taskID string, actor ActorContext) (ExecutionProfile, error)
+	SetExecutionProfile(
+		ctx context.Context,
+		taskID string,
+		profile *ExecutionProfile,
+		actor ActorContext,
+	) (ExecutionProfile, error)
+	DeleteExecutionProfile(ctx context.Context, taskID string, actor ActorContext) error
+
+	RequestRunReview(ctx context.Context, req RunReviewRequest, actor ActorContext) (RunReview, bool, error)
+	GetRunReview(ctx context.Context, reviewID string, actor ActorContext) (RunReview, error)
+	RecordRunReview(ctx context.Context, req RecordRunReviewRequest, actor ActorContext) (RunReviewResult, error)
+	BindRunReviewSession(
+		ctx context.Context,
+		req BindRunReviewSessionRequest,
+		actor ActorContext,
+	) (RunReviewBinding, error)
+	LookupRunReviewForSession(ctx context.Context, sessionID string, actor ActorContext) (RunReviewBinding, error)
+	ListRunReviews(ctx context.Context, query RunReviewQuery, actor ActorContext) ([]RunReview, error)
+
 	AddDependency(ctx context.Context, spec AddDependency, actor ActorContext) error
 	RemoveDependency(ctx context.Context, taskID string, dependsOnID string, actor ActorContext) error
 
@@ -138,6 +158,29 @@ type TriageStore interface {
 	UpsertTaskTriageState(ctx context.Context, state TriageState) error
 }
 
+// ExecutionProfileStore is the persistence surface for task-owned execution profiles.
+type ExecutionProfileStore interface {
+	GetExecutionProfile(ctx context.Context, taskID string) (ExecutionProfile, error)
+	UpsertExecutionProfile(ctx context.Context, profile *ExecutionProfile) (ExecutionProfile, error)
+	DeleteExecutionProfile(ctx context.Context, taskID string) error
+}
+
+// RunReviewStore is the persistence surface for task-run review gate records.
+type RunReviewStore interface {
+	RequestRunReview(ctx context.Context, review *RunReview) (RunReview, bool, error)
+	GetRunReview(ctx context.Context, reviewID string) (RunReview, error)
+	RecordRunReview(
+		ctx context.Context,
+		req RecordRunReviewRequest,
+		actor ActorContext,
+		recordedAt time.Time,
+		continuationRunID string,
+	) (RunReviewResult, error)
+	BindRunReviewSession(ctx context.Context, req BindRunReviewSessionRequest, boundAt time.Time) (RunReview, error)
+	LookupRunReviewBySession(ctx context.Context, sessionID string) (RunReview, error)
+	ListRunReviews(ctx context.Context, query RunReviewQuery) ([]RunReview, error)
+}
+
 // Store composes the task-domain persistence surfaces consumed by the manager.
 type Store interface {
 	RecordStore
@@ -147,6 +190,8 @@ type Store interface {
 	EventSequenceStore
 	IdempotencyStore
 	TriageStore
+	ExecutionProfileStore
+	RunReviewStore
 }
 
 // SessionExecutor is the injected runtime bridge used to start, attach, and stop task sessions.

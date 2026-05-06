@@ -24,6 +24,7 @@ var taskTableIndexStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner_kind, owner_ref);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_channel ON tasks(network_channel);`,
+	taskCurrentRunIndexStatement,
 }
 
 var taskEventIndexStatements = []string{
@@ -187,8 +188,9 @@ var networkConversationSchemaStatements = []string{
 		ON network_work(state, last_activity_at DESC);`,
 }
 
-var globalSchemaStatements = append([]string{
-	`CREATE TABLE IF NOT EXISTS workspaces (
+var globalSchemaStatements = appendSchemaStatements(
+	[]string{
+		`CREATE TABLE IF NOT EXISTS workspaces (
 		id            TEXT PRIMARY KEY,
 		root_dir      TEXT NOT NULL UNIQUE,
 		add_dirs      TEXT NOT NULL DEFAULT '[]',
@@ -198,8 +200,8 @@ var globalSchemaStatements = append([]string{
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_workspaces_name ON workspaces(name);`,
-	`CREATE TABLE IF NOT EXISTS sessions (
+		`CREATE INDEX IF NOT EXISTS idx_workspaces_name ON workspaces(name);`,
+		`CREATE TABLE IF NOT EXISTS sessions (
 		id             TEXT PRIMARY KEY,
 		name           TEXT,
 		agent_name     TEXT NOT NULL,
@@ -228,7 +230,7 @@ var globalSchemaStatements = append([]string{
 		created_at     TEXT NOT NULL,
 		updated_at     TEXT NOT NULL
 	);`,
-	`CREATE TABLE IF NOT EXISTS event_summaries (
+		`CREATE TABLE IF NOT EXISTS event_summaries (
 		id                     TEXT PRIMARY KEY,
 		session_id             TEXT NOT NULL DEFAULT '',
 		type                   TEXT NOT NULL,
@@ -252,24 +254,24 @@ var globalSchemaStatements = append([]string{
 		summary                TEXT,
 		timestamp              TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_summaries_session ON event_summaries(session_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_summaries_type ON event_summaries(type);`,
-	`CREATE INDEX IF NOT EXISTS idx_summaries_timestamp ON event_summaries(timestamp);`,
-	`CREATE INDEX IF NOT EXISTS idx_summaries_task ON event_summaries(task_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_summaries_run ON event_summaries(run_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_summaries_workflow ON event_summaries(workflow_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_summaries_hook_event ON event_summaries(hook_event);`,
-	`CREATE INDEX IF NOT EXISTS idx_summaries_actor ON event_summaries(actor_kind, actor_id);`,
-	`CREATE TABLE IF NOT EXISTS memory_operation_log (
+		`CREATE INDEX IF NOT EXISTS idx_summaries_session ON event_summaries(session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_type ON event_summaries(type);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_timestamp ON event_summaries(timestamp);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_task ON event_summaries(task_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_run ON event_summaries(run_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_workflow ON event_summaries(workflow_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_hook_event ON event_summaries(hook_event);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_actor ON event_summaries(actor_kind, actor_id);`,
+		`CREATE TABLE IF NOT EXISTS memory_operation_log (
 		id         TEXT PRIMARY KEY,
 		type       TEXT NOT NULL,
 		agent_name TEXT NOT NULL DEFAULT 'daemon',
 		summary    TEXT NOT NULL DEFAULT '',
 		timestamp  TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_type ON memory_operation_log(type);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_timestamp ON memory_operation_log(timestamp);`,
-	`CREATE TABLE IF NOT EXISTS token_stats (
+		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_type ON memory_operation_log(type);`,
+		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_timestamp ON memory_operation_log(timestamp);`,
+		`CREATE TABLE IF NOT EXISTS token_stats (
 		id            TEXT PRIMARY KEY,
 		session_id    TEXT NOT NULL REFERENCES sessions(id),
 		agent_name    TEXT NOT NULL,
@@ -281,9 +283,9 @@ var globalSchemaStatements = append([]string{
 		turn_count    INTEGER NOT NULL DEFAULT 0,
 		updated_at    TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_token_stats_session ON token_stats(session_id);`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS idx_token_stats_session_agent ON token_stats(session_id, agent_name);`,
-	`CREATE TABLE IF NOT EXISTS permission_log (
+		`CREATE INDEX IF NOT EXISTS idx_token_stats_session ON token_stats(session_id);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_token_stats_session_agent ON token_stats(session_id, agent_name);`,
+		`CREATE TABLE IF NOT EXISTS permission_log (
 		id          TEXT PRIMARY KEY,
 		session_id  TEXT NOT NULL REFERENCES sessions(id),
 		agent_name  TEXT NOT NULL,
@@ -293,8 +295,8 @@ var globalSchemaStatements = append([]string{
 		policy_used TEXT NOT NULL,
 		timestamp   TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_perm_session ON permission_log(session_id);`,
-	`CREATE TABLE IF NOT EXISTS network_channels (
+		`CREATE INDEX IF NOT EXISTS idx_perm_session ON permission_log(session_id);`,
+		`CREATE TABLE IF NOT EXISTS network_channels (
 		channel      TEXT PRIMARY KEY,
 		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 		purpose      TEXT NOT NULL,
@@ -302,10 +304,10 @@ var globalSchemaStatements = append([]string{
 		created_at   TEXT NOT NULL,
 		updated_at   TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace ON network_channels(workspace_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_network_channels_updated_at ON network_channels(updated_at);`,
-	`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace_updated_at ON network_channels(workspace_id, updated_at DESC, channel ASC);`,
-	`CREATE TABLE IF NOT EXISTS extensions (
+		`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace ON network_channels(workspace_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_network_channels_updated_at ON network_channels(updated_at);`,
+		`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace_updated_at ON network_channels(workspace_id, updated_at DESC, channel ASC);`,
+		`CREATE TABLE IF NOT EXISTS extensions (
 		name          TEXT PRIMARY KEY,
 		version       TEXT NOT NULL,
 		source        TEXT NOT NULL,
@@ -319,7 +321,7 @@ var globalSchemaStatements = append([]string{
 		registry_name TEXT,
 		remote_version TEXT
 	);`,
-	`CREATE TABLE IF NOT EXISTS automation_jobs (
+		`CREATE TABLE IF NOT EXISTS automation_jobs (
 		id           TEXT PRIMARY KEY,
 		scope        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
 		name         TEXT NOT NULL,
@@ -339,7 +341,7 @@ var globalSchemaStatements = append([]string{
 			(scope = 'workspace' AND workspace_id IS NOT NULL)
 		)
 	);`,
-	`CREATE TABLE IF NOT EXISTS automation_triggers (
+		`CREATE TABLE IF NOT EXISTS automation_triggers (
 		id            TEXT PRIMARY KEY,
 		scope         TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
 		name          TEXT NOT NULL,
@@ -362,7 +364,7 @@ var globalSchemaStatements = append([]string{
 			(scope = 'workspace' AND workspace_id IS NOT NULL)
 		)
 	);`,
-	`CREATE TABLE IF NOT EXISTS automation_runs (
+		`CREATE TABLE IF NOT EXISTS automation_runs (
 		id         TEXT PRIMARY KEY,
 		job_id     TEXT,
 		trigger_id TEXT,
@@ -375,29 +377,29 @@ var globalSchemaStatements = append([]string{
 		ended_at   TEXT,
 		error      TEXT
 	);`,
-	`CREATE TABLE IF NOT EXISTS automation_job_overlays (
+		`CREATE TABLE IF NOT EXISTS automation_job_overlays (
 		job_id            TEXT PRIMARY KEY,
 		enabled_override  BOOLEAN NOT NULL,
 		updated_at        TEXT NOT NULL
 	);`,
-	`CREATE TABLE IF NOT EXISTS automation_trigger_overlays (
+		`CREATE TABLE IF NOT EXISTS automation_trigger_overlays (
 		trigger_id        TEXT PRIMARY KEY,
 		enabled_override  BOOLEAN NOT NULL,
 		updated_at        TEXT NOT NULL
 	);`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_global_name ON automation_jobs(name) WHERE scope = 'global';`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_workspace_name ON automation_jobs(workspace_id, name) WHERE scope = 'workspace';`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_global_name ON automation_triggers(name) WHERE scope = 'global';`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_workspace_name ON automation_triggers(workspace_id, name) WHERE scope = 'workspace';`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_webhook_id ON automation_triggers(webhook_id) WHERE webhook_id IS NOT NULL;`,
-	`CREATE INDEX IF NOT EXISTS idx_automation_jobs_enabled ON automation_jobs(enabled);`,
-	`CREATE INDEX IF NOT EXISTS idx_automation_triggers_enabled ON automation_triggers(enabled);`,
-	`CREATE INDEX IF NOT EXISTS idx_automation_triggers_event ON automation_triggers(event);`,
-	`CREATE INDEX IF NOT EXISTS idx_automation_runs_job ON automation_runs(job_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_automation_runs_trigger ON automation_runs(trigger_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);`,
-	`CREATE INDEX IF NOT EXISTS idx_automation_runs_started ON automation_runs(started_at);`,
-	`CREATE TABLE IF NOT EXISTS tasks (
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_global_name ON automation_jobs(name) WHERE scope = 'global';`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_jobs_workspace_name ON automation_jobs(workspace_id, name) WHERE scope = 'workspace';`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_global_name ON automation_triggers(name) WHERE scope = 'global';`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_workspace_name ON automation_triggers(workspace_id, name) WHERE scope = 'workspace';`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_webhook_id ON automation_triggers(webhook_id) WHERE webhook_id IS NOT NULL;`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_jobs_enabled ON automation_jobs(enabled);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_triggers_enabled ON automation_triggers(enabled);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_triggers_event ON automation_triggers(event);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_runs_job ON automation_runs(job_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_runs_trigger ON automation_runs(trigger_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_runs_started ON automation_runs(started_at);`,
+		`CREATE TABLE IF NOT EXISTS tasks (
 		id              TEXT PRIMARY KEY,
 		identifier      TEXT,
 		scope           TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
@@ -443,6 +445,23 @@ var globalSchemaStatements = append([]string{
 		updated_at      TEXT NOT NULL,
 		closed_at       TEXT,
 		metadata_json   TEXT,
+		current_run_id  TEXT REFERENCES task_runs(id) ON DELETE SET NULL,
+		max_runtime_seconds INTEGER NOT NULL DEFAULT 0 CHECK (max_runtime_seconds >= 0),
+		spawn_failure_count INTEGER NOT NULL DEFAULT 0 CHECK (spawn_failure_count >= 0),
+		last_spawn_error TEXT NOT NULL DEFAULT '',
+		review_policy TEXT NOT NULL DEFAULT 'none' CHECK (
+			review_policy IN ('none', 'on_success', 'on_failure', 'always')
+		),
+		review_max_rounds INTEGER NOT NULL DEFAULT 3 CHECK (review_max_rounds >= 0),
+		review_round INTEGER NOT NULL DEFAULT 0 CHECK (review_round >= 0),
+		last_review_id TEXT,
+		last_review_outcome TEXT CHECK (
+			last_review_outcome IS NULL OR last_review_outcome IN (
+				'approved', 'rejected', 'blocked', 'error', 'timeout', 'invalid_output'
+			)
+		),
+		review_circuit_opened_at TEXT,
+		review_circuit_reason TEXT,
 		CHECK (
 			(scope = 'global' AND workspace_id IS NULL) OR
 			(scope = 'workspace' AND workspace_id IS NOT NULL)
@@ -457,15 +476,15 @@ var globalSchemaStatements = append([]string{
 			(approval_policy = 'manual' AND approval_state IN ('pending', 'approved', 'rejected'))
 		)
 	);`,
-	taskTableIndexStatements[0],
-	taskTableIndexStatements[1],
-	taskTableIndexStatements[2],
-	taskTableIndexStatements[3],
-	taskTableIndexStatements[4],
-	taskTableIndexStatements[5],
-	taskTableIndexStatements[6],
-	taskTableIndexStatements[7],
-	`CREATE TABLE IF NOT EXISTS task_runs (
+		taskTableIndexStatements[0],
+		taskTableIndexStatements[1],
+		taskTableIndexStatements[2],
+		taskTableIndexStatements[3],
+		taskTableIndexStatements[4],
+		taskTableIndexStatements[5],
+		taskTableIndexStatements[6],
+		taskTableIndexStatements[7],
+		`CREATE TABLE IF NOT EXISTS task_runs (
 		id              TEXT PRIMARY KEY,
 		task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		status          TEXT NOT NULL CHECK (
@@ -496,18 +515,44 @@ var globalSchemaStatements = append([]string{
 		error           TEXT,
 		metadata_json   TEXT,
 		result_json     TEXT,
+		summary         TEXT NOT NULL DEFAULT '',
+		claimed_agent_name TEXT NOT NULL DEFAULT '',
+		claimed_peer_id TEXT NOT NULL DEFAULT '',
+		terminalized_by_session_id TEXT NOT NULL DEFAULT '',
+		terminalized_by_agent_name TEXT NOT NULL DEFAULT '',
+		terminalized_by_peer_id TEXT NOT NULL DEFAULT '',
+		terminalized_by_actor_kind TEXT NOT NULL DEFAULT '',
+		terminalized_by_actor_ref TEXT NOT NULL DEFAULT '',
+		review_required BOOLEAN NOT NULL DEFAULT 0 CHECK (review_required IN (0, 1)),
+		review_request_round INTEGER NOT NULL DEFAULT 0 CHECK (review_request_round >= 0),
+		review_policy_snapshot TEXT NOT NULL DEFAULT '' CHECK (
+			review_policy_snapshot = '' OR
+			review_policy_snapshot IN ('none', 'on_success', 'on_failure', 'always')
+		),
+		review_request_id TEXT REFERENCES task_run_reviews(review_id),
+		parent_run_id TEXT REFERENCES task_runs(id),
+		review_id TEXT REFERENCES task_run_reviews(review_id),
+		review_round INTEGER NOT NULL DEFAULT 0 CHECK (review_round >= 0),
+		continuation_reason TEXT NOT NULL DEFAULT '',
+		missing_work_json TEXT NOT NULL DEFAULT '[]',
+		next_round_guidance TEXT NOT NULL DEFAULT '',
+		claim_token TEXT,
+		claim_token_hash TEXT,
+		lease_until TEXT,
+		heartbeat_at TEXT,
+		coordination_channel_id TEXT,
 		CHECK (
 			(claimed_by_kind IS NULL AND claimed_by_ref IS NULL) OR
 			(claimed_by_kind IS NOT NULL AND claimed_by_ref IS NOT NULL)
 		),
 		CHECK (status <> 'queued' OR session_id IS NULL)
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_runs_task ON task_runs(task_id, queued_at DESC, id DESC);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_runs_task_status ON task_runs(task_id, status, queued_at DESC, id DESC);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs(status);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_runs_session ON task_runs(session_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_runs_channel ON task_runs(network_channel);`,
-	`CREATE TABLE IF NOT EXISTS task_dependencies (
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_task ON task_runs(task_id, queued_at DESC, id DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_task_status ON task_runs(task_id, status, queued_at DESC, id DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs(status);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_session ON task_runs(session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_channel ON task_runs(network_channel);`,
+		`CREATE TABLE IF NOT EXISTS task_dependencies (
 		task_id             TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		depends_on_task_id  TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		kind                TEXT NOT NULL CHECK (kind IN ('blocks')),
@@ -515,9 +560,9 @@ var globalSchemaStatements = append([]string{
 		PRIMARY KEY (task_id, depends_on_task_id, kind),
 		CHECK (task_id <> depends_on_task_id)
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_dependencies_task ON task_dependencies(task_id, created_at ASC, depends_on_task_id ASC);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id, task_id ASC);`,
-	`CREATE TABLE IF NOT EXISTS task_events (
+		`CREATE INDEX IF NOT EXISTS idx_task_dependencies_task ON task_dependencies(task_id, created_at ASC, depends_on_task_id ASC);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id, task_id ASC);`,
+		`CREATE TABLE IF NOT EXISTS task_events (
 		id          TEXT PRIMARY KEY,
 		event_seq   INTEGER NOT NULL,
 		task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -538,12 +583,12 @@ var globalSchemaStatements = append([]string{
 		payload_json TEXT,
 		timestamp   TEXT NOT NULL
 	);`,
-	taskEventIndexStatements[0],
-	taskEventIndexStatements[1],
-	taskEventIndexStatements[2],
-	taskEventIndexStatements[3],
-	taskEventIndexStatements[4],
-	`CREATE TABLE IF NOT EXISTS task_run_idempotency (
+		taskEventIndexStatements[0],
+		taskEventIndexStatements[1],
+		taskEventIndexStatements[2],
+		taskEventIndexStatements[3],
+		taskEventIndexStatements[4],
+		`CREATE TABLE IF NOT EXISTS task_run_idempotency (
 		idempotency_key TEXT NOT NULL,
 		origin_kind     TEXT NOT NULL CHECK (
 			origin_kind IN (
@@ -555,8 +600,15 @@ var globalSchemaStatements = append([]string{
 		created_at      TEXT NOT NULL,
 		PRIMARY KEY (idempotency_key, origin_kind, origin_ref)
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_run_idempotency_run ON task_run_idempotency(run_id);`,
-	`CREATE TABLE IF NOT EXISTS task_triage_state (
+		`CREATE INDEX IF NOT EXISTS idx_task_run_idempotency_run ON task_run_idempotency(run_id);`,
+	},
+	taskRunClaimLeaseAuxiliarySchemaStatements(),
+	taskOrchestrationProfileSchemaStatements(),
+	taskRunReviewTableSchemaStatements(),
+	taskReviewGateIndexStatements(),
+	notificationCursorSchemaStatements(),
+	[]string{
+		`CREATE TABLE IF NOT EXISTS task_triage_state (
 		task_id               TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		actor_kind            TEXT NOT NULL CHECK (
 			actor_kind IN (
@@ -571,9 +623,9 @@ var globalSchemaStatements = append([]string{
 		updated_at            TEXT NOT NULL,
 		PRIMARY KEY (task_id, actor_kind, actor_id)
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_triage_task ON task_triage_state(task_id, updated_at DESC);`,
-	`CREATE INDEX IF NOT EXISTS idx_task_triage_actor ON task_triage_state(actor_kind, actor_id, updated_at DESC, task_id);`,
-	`CREATE TABLE IF NOT EXISTS bridge_instances (
+		`CREATE INDEX IF NOT EXISTS idx_task_triage_task ON task_triage_state(task_id, updated_at DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_triage_actor ON task_triage_state(actor_kind, actor_id, updated_at DESC, task_id);`,
+		`CREATE TABLE IF NOT EXISTS bridge_instances (
 		id                TEXT PRIMARY KEY,
 		scope             TEXT NOT NULL,
 		workspace_id      TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -592,8 +644,8 @@ var globalSchemaStatements = append([]string{
 		created_at        TEXT NOT NULL,
 		updated_at        TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_bridge_instances_scope ON bridge_instances(scope, workspace_id, id);`,
-	`CREATE TABLE IF NOT EXISTS bridge_secret_bindings (
+		`CREATE INDEX IF NOT EXISTS idx_bridge_instances_scope ON bridge_instances(scope, workspace_id, id);`,
+		`CREATE TABLE IF NOT EXISTS bridge_secret_bindings (
 		bridge_instance_id TEXT NOT NULL REFERENCES bridge_instances(id) ON DELETE CASCADE,
 		binding_name        TEXT NOT NULL,
 		secret_ref           TEXT NOT NULL,
@@ -602,8 +654,8 @@ var globalSchemaStatements = append([]string{
 		updated_at          TEXT NOT NULL,
 		PRIMARY KEY (bridge_instance_id, binding_name)
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_bridge_secret_bindings_instance ON bridge_secret_bindings(bridge_instance_id);`,
-	`CREATE TABLE IF NOT EXISTS bridge_routes (
+		`CREATE INDEX IF NOT EXISTS idx_bridge_secret_bindings_instance ON bridge_secret_bindings(bridge_instance_id);`,
+		`CREATE TABLE IF NOT EXISTS bridge_routes (
 		routing_key_hash    TEXT PRIMARY KEY,
 		scope               TEXT NOT NULL,
 		workspace_id        TEXT,
@@ -617,16 +669,75 @@ var globalSchemaStatements = append([]string{
 		created_at          TEXT NOT NULL,
 		updated_at          TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_bridge_routes_instance ON bridge_routes(bridge_instance_id, updated_at DESC);`,
-	`CREATE INDEX IF NOT EXISTS idx_bridge_routes_session ON bridge_routes(session_id);`,
-	`CREATE TABLE IF NOT EXISTS bridge_ingest_dedup (
+		`CREATE INDEX IF NOT EXISTS idx_bridge_routes_instance ON bridge_routes(bridge_instance_id, updated_at DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_bridge_routes_session ON bridge_routes(session_id);`,
+		`CREATE TABLE IF NOT EXISTS bridge_ingest_dedup (
 		idempotency_key    TEXT PRIMARY KEY,
 		bridge_instance_id TEXT NOT NULL REFERENCES bridge_instances(id) ON DELETE CASCADE,
 		received_at        TEXT NOT NULL,
 		expires_at         TEXT NOT NULL
 	);`,
-	`CREATE INDEX IF NOT EXISTS idx_bridge_ingest_dedup_expires ON bridge_ingest_dedup(expires_at);`,
-}, resources.SchemaStatements()...)
+		`CREATE INDEX IF NOT EXISTS idx_bridge_ingest_dedup_expires ON bridge_ingest_dedup(expires_at);`,
+	},
+	bridgeTaskSubscriptionSchemaStatements(),
+	resources.SchemaStatements(),
+)
+
+func appendSchemaStatements(groups ...[]string) []string {
+	var statements []string
+	for _, group := range groups {
+		statements = append(statements, group...)
+	}
+	return statements
+}
+
+func migrateTaskRunClaimLeaseSchema(ctx context.Context, tx *sql.Tx) error {
+	if err := addMissingMigrationColumns(ctx, tx, "task_runs", []migrationColumnSpec{
+		{name: "claim_token", sql: `ALTER TABLE task_runs ADD COLUMN claim_token TEXT`},
+		{name: "claim_token_hash", sql: `ALTER TABLE task_runs ADD COLUMN claim_token_hash TEXT`},
+		{name: "lease_until", sql: `ALTER TABLE task_runs ADD COLUMN lease_until TEXT`},
+		{name: "heartbeat_at", sql: `ALTER TABLE task_runs ADD COLUMN heartbeat_at TEXT`},
+		{
+			name: "coordination_channel_id",
+			sql:  `ALTER TABLE task_runs ADD COLUMN coordination_channel_id TEXT`,
+		},
+	}); err != nil {
+		return err
+	}
+	for _, statement := range taskRunClaimLeaseAuxiliarySchemaStatements() {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: apply task run claim lease schema: %w", err)
+		}
+	}
+	return nil
+}
+
+func taskRunClaimLeaseAuxiliarySchemaStatements() []string {
+	return []string{
+		`CREATE TABLE IF NOT EXISTS task_run_required_capabilities (
+			run_id        TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+			capability_id TEXT NOT NULL,
+			PRIMARY KEY (run_id, capability_id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS task_run_preferred_capabilities (
+			run_id        TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+			capability_id TEXT NOT NULL,
+			PRIMARY KEY (run_id, capability_id)
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_pending_claim
+			ON task_runs(status, lease_until, queued_at, id);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_active_lease_recovery
+			ON task_runs(status, lease_until, heartbeat_at, id);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_coordination_channel
+			ON task_runs(coordination_channel_id, queued_at DESC, id DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_session_status
+			ON task_runs(session_id, status, lease_until);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_run_required_capabilities_capability
+			ON task_run_required_capabilities(capability_id, run_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_run_preferred_capabilities_capability
+			ON task_run_preferred_capabilities(capability_id, run_id);`,
+	}
+}
 
 var globalSchemaMigrations = []store.Migration{
 	{
@@ -666,37 +777,10 @@ var globalSchemaMigrations = []store.Migration{
 		Checksum: "2026-04-25-add-memory-operation-scope",
 	},
 	{
-		Version: 7,
-		Name:    "add_task_run_claim_lease_schema",
-		Statements: []string{
-			`ALTER TABLE task_runs ADD COLUMN claim_token TEXT;`,
-			`ALTER TABLE task_runs ADD COLUMN claim_token_hash TEXT;`,
-			`ALTER TABLE task_runs ADD COLUMN lease_until TEXT;`,
-			`ALTER TABLE task_runs ADD COLUMN heartbeat_at TEXT;`,
-			`ALTER TABLE task_runs ADD COLUMN coordination_channel_id TEXT;`,
-			`CREATE TABLE IF NOT EXISTS task_run_required_capabilities (
-				run_id        TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
-				capability_id TEXT NOT NULL,
-				PRIMARY KEY (run_id, capability_id)
-			);`,
-			`CREATE TABLE IF NOT EXISTS task_run_preferred_capabilities (
-				run_id        TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
-				capability_id TEXT NOT NULL,
-				PRIMARY KEY (run_id, capability_id)
-			);`,
-			`CREATE INDEX IF NOT EXISTS idx_task_runs_pending_claim
-				ON task_runs(status, lease_until, queued_at, id);`,
-			`CREATE INDEX IF NOT EXISTS idx_task_runs_active_lease_recovery
-				ON task_runs(status, lease_until, heartbeat_at, id);`,
-			`CREATE INDEX IF NOT EXISTS idx_task_runs_coordination_channel
-				ON task_runs(coordination_channel_id, queued_at DESC, id DESC);`,
-			`CREATE INDEX IF NOT EXISTS idx_task_runs_session_status
-				ON task_runs(session_id, status, lease_until);`,
-			`CREATE INDEX IF NOT EXISTS idx_task_run_required_capabilities_capability
-				ON task_run_required_capabilities(capability_id, run_id);`,
-			`CREATE INDEX IF NOT EXISTS idx_task_run_preferred_capabilities_capability
-				ON task_run_preferred_capabilities(capability_id, run_id);`,
-		},
+		Version:  7,
+		Name:     "add_task_run_claim_lease_schema",
+		Up:       migrateTaskRunClaimLeaseSchema,
+		Checksum: "2026-04-26-add-task-run-claim-lease-schema",
 	},
 	{
 		Version:  8,
@@ -757,6 +841,30 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "rebuild_network_conversation_containers",
 		Up:       migrateNetworkConversationContainers,
 		Checksum: "2026-05-05-rebuild-network-conversation-containers",
+	},
+	{
+		Version:  18,
+		Name:     "add_task_orchestration_profile_schema",
+		Up:       migrateTaskOrchestrationProfileSchema,
+		Checksum: "2026-05-05-add-task-orchestration-profile-schema",
+	},
+	{
+		Version:  19,
+		Name:     "add_task_review_gate_schema",
+		Up:       migrateTaskReviewGateSchema,
+		Checksum: "2026-05-05-add-task-review-gate-schema",
+	},
+	{
+		Version:  20,
+		Name:     "add_notification_cursors",
+		Up:       migrateNotificationCursors,
+		Checksum: "2026-05-05-add-notification-cursors",
+	},
+	{
+		Version:  21,
+		Name:     "add_bridge_task_subscriptions",
+		Up:       migrateBridgeTaskSubscriptions,
+		Checksum: "2026-05-05-add-bridge-task-subscriptions",
 	},
 }
 

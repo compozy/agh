@@ -9,6 +9,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/agentidentity"
 	"github.com/pedronauck/agh/internal/api/contract"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -1174,6 +1175,700 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 	}
 }
 
+func TestTaskProfileCommandsMapRequests(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inspect update and delete task execution profiles", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			inspectID     string
+			updateID      string
+			updateRequest TaskExecutionProfileRequest
+			deleteID      string
+		)
+		deps := newTestDeps(t, &stubClient{
+			getTaskExecutionProfileFn: func(_ context.Context, id string) (TaskExecutionProfileRecord, error) {
+				inspectID = id
+				return sampleTaskExecutionProfileRecord(), nil
+			},
+			setTaskExecutionProfileFn: func(
+				_ context.Context,
+				id string,
+				request *TaskExecutionProfileRequest,
+			) (TaskExecutionProfileRecord, error) {
+				if request == nil {
+					t.Fatal("request is nil")
+				}
+				updateID = id
+				updateRequest = *request
+				record := *request
+				record.UpdatedAt = fixedTestNow
+				return record, nil
+			},
+			deleteTaskExecutionProfileFn: func(_ context.Context, id string) error {
+				deleteID = id
+				return nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "task", "profile", "inspect", "task-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("task profile inspect error = %v", err)
+		}
+		var inspected TaskExecutionProfileRecord
+		if err := json.Unmarshal([]byte(stdout), &inspected); err != nil {
+			t.Fatalf("json.Unmarshal(profile inspect) error = %v", err)
+		}
+		if inspectID != "task-1" || inspected.Worker.AgentName != "worker-a" {
+			t.Fatalf("inspect id/profile = %q/%#v", inspectID, inspected)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"task",
+			"profile",
+			"update",
+			"task-1",
+			"--profile",
+			`{"worker":{"mode":"select","agent_name":"worker-b"},"sandbox":{"mode":"none"}}`,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task profile update error = %v", err)
+		}
+		if updateID != "task-1" ||
+			updateRequest.TaskID != "task-1" ||
+			updateRequest.Worker.Mode != taskpkg.WorkerModeSelect ||
+			updateRequest.Worker.AgentName != "worker-b" ||
+			updateRequest.Sandbox.Mode != taskpkg.SandboxModeNone {
+			t.Fatalf("update request = %#v", updateRequest)
+		}
+		var updated TaskExecutionProfileRecord
+		if err := json.Unmarshal([]byte(stdout), &updated); err != nil {
+			t.Fatalf("json.Unmarshal(profile update) error = %v", err)
+		}
+		if updated.TaskID != "task-1" || updated.Worker.AgentName != "worker-b" {
+			t.Fatalf("updated profile = %#v", updated)
+		}
+
+		stdout, _, err = executeRootCommand(t, deps, "task", "profile", "delete", "task-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("task profile delete error = %v", err)
+		}
+		if deleteID != "task-1" {
+			t.Fatalf("delete id = %q, want task-1", deleteID)
+		}
+		if !strings.Contains(stdout, `"status": "deleted"`) {
+			t.Fatalf("delete stdout = %s, want deleted status", stdout)
+		}
+	})
+
+	t.Run("Should reject mismatched profile task id before calling client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			setTaskExecutionProfileFn: func(
+				context.Context,
+				string,
+				*TaskExecutionProfileRequest,
+			) (TaskExecutionProfileRecord, error) {
+				t.Fatal("SetTaskExecutionProfile should not be called for mismatched task id")
+				return TaskExecutionProfileRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"profile",
+			"update",
+			"task-1",
+			"--profile",
+			`{"task_id":"other"}`,
+		)
+		if err == nil || !strings.Contains(err.Error(), `profile.task_id must match task id "task-1"`) {
+			t.Fatalf("task profile update mismatch error = %v", err)
+		}
+	})
+}
+
+func TestTaskNotificationCommandsMapRequests(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should subscribe list and delete bridge task notifications", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			subscribeTaskID string
+			subscribeBody   TaskBridgeNotificationSubscriptionRequest
+			listTaskID      string
+			listQuery       TaskBridgeNotificationSubscriptionQuery
+			showTaskID      string
+			showID          string
+			deleteTaskID    string
+			deleteID        string
+		)
+		deps := newTestDeps(t, &stubClient{
+			createTaskBridgeNotificationSubscriptionFn: func(
+				_ context.Context,
+				taskID string,
+				request *TaskBridgeNotificationSubscriptionRequest,
+			) (TaskBridgeNotificationSubscriptionRecord, error) {
+				if request == nil {
+					t.Fatal("request is nil")
+				}
+				subscribeTaskID = taskID
+				subscribeBody = *request
+				return sampleTaskBridgeNotificationSubscriptionRecord(), nil
+			},
+			listTaskBridgeNotificationSubscriptionsFn: func(
+				_ context.Context,
+				taskID string,
+				query TaskBridgeNotificationSubscriptionQuery,
+			) ([]TaskBridgeNotificationSubscriptionRecord, error) {
+				listTaskID = taskID
+				listQuery = query
+				return []TaskBridgeNotificationSubscriptionRecord{sampleTaskBridgeNotificationSubscriptionRecord()}, nil
+			},
+			getTaskBridgeNotificationSubscriptionFn: func(
+				_ context.Context,
+				taskID string,
+				subscriptionID string,
+			) (TaskBridgeNotificationSubscriptionRecord, error) {
+				showTaskID = taskID
+				showID = subscriptionID
+				return sampleTaskBridgeNotificationSubscriptionRecord(), nil
+			},
+			deleteTaskBridgeNotificationSubscriptionFn: func(
+				_ context.Context,
+				taskID string,
+				subscriptionID string,
+			) error {
+				deleteTaskID = taskID
+				deleteID = subscriptionID
+				return nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"notification",
+			"subscribe",
+			"task-1",
+			"--subscription-id",
+			"sub-1",
+			"--bridge",
+			"brg-1",
+			"--scope",
+			"workspace",
+			"--workspace",
+			"ws-1",
+			"--peer",
+			"peer-1",
+			"--thread",
+			"thread-1",
+			"--mode",
+			"reply",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task notification subscribe error = %v", err)
+		}
+		if subscribeTaskID != "task-1" ||
+			subscribeBody.SubscriptionID != "sub-1" ||
+			subscribeBody.BridgeInstanceID != "brg-1" ||
+			subscribeBody.Scope != bridgepkg.ScopeWorkspace ||
+			subscribeBody.WorkspaceID != "ws-1" ||
+			subscribeBody.PeerID != "peer-1" ||
+			subscribeBody.ThreadID != "thread-1" ||
+			subscribeBody.DeliveryMode != bridgepkg.DeliveryModeReply {
+			t.Fatalf("subscribe body = %#v for task %q", subscribeBody, subscribeTaskID)
+		}
+		var subscribed TaskBridgeNotificationSubscriptionRecord
+		if err := json.Unmarshal([]byte(stdout), &subscribed); err != nil {
+			t.Fatalf("json.Unmarshal(notification subscribe) error = %v", err)
+		}
+		if subscribed.SubscriptionID != "sub-1" ||
+			subscribed.Cursor.ConsumerID == "" ||
+			subscribed.Cursor.LastSequence != 7 ||
+			subscribed.Cursor.LastDeliveryID != "notif:sub-1:7" {
+			t.Fatalf("subscribed = %#v", subscribed)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"task",
+			"notification",
+			"list",
+			"task-1",
+			"--bridge",
+			"brg-1",
+			"--scope",
+			"workspace",
+			"--workspace",
+			"ws-1",
+			"--last",
+			"5",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task notification list error = %v", err)
+		}
+		if listTaskID != "task-1" ||
+			listQuery.BridgeInstanceID != "brg-1" ||
+			listQuery.Scope != bridgepkg.ScopeWorkspace ||
+			listQuery.WorkspaceID != "ws-1" ||
+			listQuery.Limit != 5 {
+			t.Fatalf("list query = %#v for task %q", listQuery, listTaskID)
+		}
+		if !strings.Contains(stdout, `"subscription_id": "sub-1"`) ||
+			!strings.Contains(stdout, `"last_sequence": 7`) ||
+			!strings.Contains(stdout, `"last_error": "bridge adapter rejected send"`) {
+			t.Fatalf("notification list stdout = %s", stdout)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"task",
+			"notification",
+			"show",
+			"task-1",
+			"sub-1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task notification show error = %v", err)
+		}
+		if showTaskID != "task-1" || showID != "sub-1" {
+			t.Fatalf("show task/id = %q/%q", showTaskID, showID)
+		}
+		if !strings.Contains(stdout, `"cursor"`) ||
+			!strings.Contains(stdout, `"last_delivery_id": "notif:sub-1:7"`) {
+			t.Fatalf("notification show stdout = %s", stdout)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"task",
+			"notification",
+			"show",
+			"task-1",
+			"sub-1",
+		)
+		if err != nil {
+			t.Fatalf("task notification show human error = %v", err)
+		}
+		if !strings.Contains(stdout, "Cursor Last Sequence") ||
+			!strings.Contains(stdout, "bridge adapter rejected send") {
+			t.Fatalf("notification show human stdout = %s", stdout)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"task",
+			"notification",
+			"delete",
+			"task-1",
+			"sub-1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task notification delete error = %v", err)
+		}
+		if deleteTaskID != "task-1" || deleteID != "sub-1" {
+			t.Fatalf("delete task/id = %q/%q", deleteTaskID, deleteID)
+		}
+		if !strings.Contains(stdout, `"status": "deleted"`) {
+			t.Fatalf("notification delete stdout = %s", stdout)
+		}
+	})
+
+	t.Run("Should reject notification subscriptions without a delivery target", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			createTaskBridgeNotificationSubscriptionFn: func(
+				context.Context,
+				string,
+				*TaskBridgeNotificationSubscriptionRequest,
+			) (TaskBridgeNotificationSubscriptionRecord, error) {
+				t.Fatal("CreateTaskBridgeNotificationSubscription should not be called")
+				return TaskBridgeNotificationSubscriptionRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"notification",
+			"subscribe",
+			"task-1",
+			"--bridge",
+			"brg-1",
+		)
+		if err == nil || !strings.Contains(err.Error(), "requires --peer or --group") {
+			t.Fatalf("task notification subscribe target error = %v", err)
+		}
+	})
+
+	t.Run("Should reject negative notification list limits before calling client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			listTaskBridgeNotificationSubscriptionsFn: func(
+				context.Context,
+				string,
+				TaskBridgeNotificationSubscriptionQuery,
+			) ([]TaskBridgeNotificationSubscriptionRecord, error) {
+				t.Fatal("ListTaskBridgeNotificationSubscriptions should not be called")
+				return nil, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"notification",
+			"list",
+			"task-1",
+			"--last",
+			"-1",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--last must be zero or positive") {
+			t.Fatalf("task notification list error = %v", err)
+		}
+	})
+}
+
+func TestTaskReviewCommandsMapRequests(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should request list show and submit task run reviews", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			requestRunID string
+			requestBody  TaskRunReviewRequest
+			listQuery    TaskRunReviewListQuery
+			showID       string
+			submitID     string
+			submitBody   TaskRunReviewVerdictRequest
+		)
+		deps := newTestDeps(t, &stubClient{
+			requestTaskRunReviewFn: func(
+				_ context.Context,
+				runID string,
+				request *TaskRunReviewRequest,
+			) (TaskRunReviewRequestRecord, error) {
+				if request == nil {
+					t.Fatal("request is nil")
+				}
+				requestRunID = runID
+				requestBody = *request
+				return TaskRunReviewRequestRecord{
+					Review:  sampleTaskRunReviewRecord(taskpkg.RunReviewStatusRequested),
+					Created: true,
+				}, nil
+			},
+			listTaskRunReviewsFn: func(
+				_ context.Context,
+				query TaskRunReviewListQuery,
+			) ([]TaskRunReviewRecord, error) {
+				listQuery = query
+				return []TaskRunReviewRecord{sampleTaskRunReviewRecord(taskpkg.RunReviewStatusRequested)}, nil
+			},
+			getTaskRunReviewFn: func(_ context.Context, reviewID string) (TaskRunReviewRecord, error) {
+				showID = reviewID
+				return sampleTaskRunReviewRecord(taskpkg.RunReviewStatusRequested), nil
+			},
+			submitTaskRunReviewVerdictFn: func(
+				_ context.Context,
+				reviewID string,
+				request *TaskRunReviewVerdictRequest,
+			) (TaskRunReviewVerdictRecord, error) {
+				if request == nil {
+					t.Fatal("request is nil")
+				}
+				submitID = reviewID
+				submitBody = *request
+				review := sampleTaskRunReviewRecord(taskpkg.RunReviewStatusRecorded)
+				review.Outcome = taskpkg.RunReviewOutcomeRejected
+				return TaskRunReviewVerdictRecord{Review: review}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"request",
+			"run-1",
+			"--reason",
+			"ready for review",
+			"--policy",
+			"always",
+			"--round",
+			"2",
+			"--attempt",
+			"1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task review request error = %v", err)
+		}
+		if requestRunID != "run-1" ||
+			requestBody.RunID != "run-1" ||
+			requestBody.Policy != taskpkg.ReviewPolicyAlways ||
+			requestBody.ReviewRound != 2 ||
+			requestBody.Attempt != 1 ||
+			requestBody.Reason != "ready for review" {
+			t.Fatalf("request body = %#v with run %q", requestBody, requestRunID)
+		}
+		var requested TaskRunReviewRequestRecord
+		if err := json.Unmarshal([]byte(stdout), &requested); err != nil {
+			t.Fatalf("json.Unmarshal(review request) error = %v", err)
+		}
+		if !requested.Created || requested.Review.ReviewID != "review-1" {
+			t.Fatalf("requested review = %#v", requested)
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"list",
+			"--task",
+			"task-1",
+			"--status",
+			"requested",
+			"--reviewer-session",
+			"sess-review",
+			"--last",
+			"3",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("task review list error = %v", err)
+		}
+		if listQuery.TaskID != "task-1" ||
+			listQuery.Status != taskpkg.RunReviewStatusRequested ||
+			listQuery.ReviewerSessionID != "sess-review" ||
+			listQuery.Limit != 3 {
+			t.Fatalf("list query = %#v", listQuery)
+		}
+
+		stdout, _, err = executeRootCommand(t, deps, "task", "review", "show", "review-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("task review show error = %v", err)
+		}
+		if showID != "review-1" {
+			t.Fatalf("show id = %q, want review-1", showID)
+		}
+		var shown TaskRunReviewRecord
+		if err := json.Unmarshal([]byte(stdout), &shown); err != nil {
+			t.Fatalf("json.Unmarshal(review show) error = %v", err)
+		}
+		if shown.ReviewID != "review-1" {
+			t.Fatalf("shown review = %#v", shown)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"submit",
+			"review-1",
+			"--run",
+			"run-1",
+			"--outcome",
+			"rejected",
+			"--confidence",
+			"0.75",
+			"--reason",
+			"tests are missing",
+			"--delivery-id",
+			"delivery-1",
+			"--missing-work",
+			"add coverage",
+			"--next-round-guidance",
+			"add focused tests",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task review submit error = %v", err)
+		}
+		if submitID != "review-1" ||
+			submitBody.RunID != "run-1" ||
+			submitBody.Verdict.Outcome != taskpkg.RunReviewOutcomeRejected ||
+			submitBody.Verdict.Confidence == nil ||
+			*submitBody.Verdict.Confidence != 0.75 ||
+			submitBody.Verdict.DeliveryID != "delivery-1" {
+			t.Fatalf("submit body = %#v with id %q", submitBody, submitID)
+		}
+		if got := string(submitBody.Verdict.MissingWork); got != `["add coverage"]` {
+			t.Fatalf("missing work = %s, want JSON array", got)
+		}
+		var submitted TaskRunReviewVerdictRecord
+		if err := json.Unmarshal([]byte(stdout), &submitted); err != nil {
+			t.Fatalf("json.Unmarshal(review submit) error = %v", err)
+		}
+		if submitted.Review.Outcome != taskpkg.RunReviewOutcomeRejected {
+			t.Fatalf("submitted review = %#v", submitted)
+		}
+	})
+
+	t.Run("Should reject ambiguous review list scope before calling client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			listTaskRunReviewsFn: func(context.Context, TaskRunReviewListQuery) ([]TaskRunReviewRecord, error) {
+				t.Fatal("ListTaskRunReviews should not be called for ambiguous scope")
+				return nil, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"list",
+			"--task",
+			"task-1",
+			"--run",
+			"run-1",
+		)
+		if err == nil || !strings.Contains(err.Error(), "choose either --task or --run") {
+			t.Fatalf("task review list ambiguous error = %v", err)
+		}
+	})
+
+	t.Run("Should allow review list filters without task or run scope", func(t *testing.T) {
+		t.Parallel()
+
+		var listQuery TaskRunReviewListQuery
+		deps := newTestDeps(t, &stubClient{
+			listTaskRunReviewsFn: func(_ context.Context, query TaskRunReviewListQuery) ([]TaskRunReviewRecord, error) {
+				listQuery = query
+				return []TaskRunReviewRecord{sampleTaskRunReviewRecord(taskpkg.RunReviewStatusRequested)}, nil
+			},
+		})
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"list",
+			"--status",
+			"requested",
+			"--reviewer-session",
+			"sess-review",
+			"--last",
+			"2",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("task review list filter-only error = %v", err)
+		}
+		if listQuery.TaskID != "" || listQuery.RunID != "" {
+			t.Fatalf("list query scope = %#v, want global filter-only query", listQuery)
+		}
+		if listQuery.Status != taskpkg.RunReviewStatusRequested ||
+			listQuery.ReviewerSessionID != "sess-review" ||
+			listQuery.Limit != 2 {
+			t.Fatalf("list query = %#v, want status/reviewer/limit filters", listQuery)
+		}
+	})
+
+	t.Run("Should reject non-array missing-work JSON before calling client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			submitTaskRunReviewVerdictFn: func(
+				context.Context,
+				string,
+				*TaskRunReviewVerdictRequest,
+			) (TaskRunReviewVerdictRecord, error) {
+				t.Fatal("SubmitTaskRunReviewVerdict should not be called for invalid --missing-work-json")
+				return TaskRunReviewVerdictRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"submit",
+			"review-1",
+			"--run",
+			"run-1",
+			"--outcome",
+			"rejected",
+			"--confidence",
+			"0.5",
+			"--reason",
+			"tests are missing",
+			"--delivery-id",
+			"delivery-1",
+			"--missing-work-json",
+			`{"todo":"write tests"}`,
+		)
+		if err == nil || !strings.Contains(err.Error(), "--missing-work-json must be a JSON array") {
+			t.Fatalf("task review submit invalid missing-work-json error = %v", err)
+		}
+	})
+
+	t.Run("Should reject negative review round and attempt before calling client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			requestTaskRunReviewFn: func(context.Context, string, *TaskRunReviewRequest) (TaskRunReviewRequestRecord, error) {
+				t.Fatal("RequestTaskRunReview should not be called")
+				return TaskRunReviewRequestRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"request",
+			"run-1",
+			"--round",
+			"-1",
+			"--attempt",
+			"-2",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--round must be zero or positive") {
+			t.Fatalf("task review request error = %v", err)
+		}
+	})
+}
+
 func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 	t.Parallel()
 
@@ -1340,6 +2035,76 @@ func sampleTaskRecord() TaskRecord {
 		CreatedAt:      fixedTestNow,
 		UpdatedAt:      fixedTestNow,
 		Metadata:       json.RawMessage(`{"priority":"high"}`),
+	}
+}
+
+func sampleTaskExecutionProfileRecord() TaskExecutionProfileRecord {
+	return TaskExecutionProfileRecord{
+		TaskID: "task-1",
+		Coordinator: taskpkg.CoordinatorProfile{
+			Mode: taskpkg.CoordinatorModeGuided,
+		},
+		Worker: taskpkg.WorkerProfile{
+			Mode:      taskpkg.WorkerModeSelect,
+			AgentName: "worker-a",
+			Provider:  "openai",
+			Model:     "gpt-5.4",
+		},
+		Review: taskpkg.ReviewProfile{
+			AgentName: "reviewer-a",
+		},
+		Sandbox: taskpkg.SandboxPolicy{
+			Mode:       taskpkg.SandboxModeRef,
+			SandboxRef: "macos-lab",
+		},
+		CreatedAt: fixedTestNow,
+		UpdatedAt: fixedTestNow,
+	}
+}
+
+func sampleTaskBridgeNotificationSubscriptionRecord() TaskBridgeNotificationSubscriptionRecord {
+	lastDeliveredAt := fixedTestNow.Add(time.Minute)
+	cursorUpdatedAt := fixedTestNow.Add(2 * time.Minute)
+	return TaskBridgeNotificationSubscriptionRecord{
+		SubscriptionID:   "sub-1",
+		TaskID:           "task-1",
+		BridgeInstanceID: "brg-1",
+		Scope:            bridgepkg.ScopeWorkspace,
+		WorkspaceID:      "ws-1",
+		PeerID:           "peer-1",
+		ThreadID:         "thread-1",
+		DeliveryMode:     bridgepkg.DeliveryModeReply,
+		Cursor: contract.TaskBridgeNotificationCursorPayload{
+			ConsumerID:      "bridge_task_subscription:sub-1",
+			StreamName:      "task_events",
+			SubjectID:       "task-1",
+			LastSequence:    7,
+			LastDeliveryID:  "notif:sub-1:7",
+			LastDeliveredAt: &lastDeliveredAt,
+			LastError:       "bridge adapter rejected send",
+			UpdatedAt:       &cursorUpdatedAt,
+		},
+		CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		CreatedAt: fixedTestNow,
+		UpdatedAt: fixedTestNow,
+	}
+}
+
+func sampleTaskRunReviewRecord(status taskpkg.RunReviewStatus) TaskRunReviewRecord {
+	return TaskRunReviewRecord{
+		ReviewID:          "review-1",
+		TaskID:            "task-1",
+		RunID:             "run-1",
+		Policy:            taskpkg.ReviewPolicyAlways,
+		ReviewRound:       1,
+		Attempt:           1,
+		Status:            status,
+		Reason:            "ready for review",
+		MissingWork:       json.RawMessage(`[]`),
+		ReviewerSessionID: "sess-review",
+		RequestedAt:       fixedTestNow,
+		CreatedAt:         fixedTestNow,
+		UpdatedAt:         fixedTestNow,
 	}
 }
 

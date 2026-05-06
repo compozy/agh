@@ -4920,7 +4920,13 @@ Review the workspace changes carefully.
 		if manager == nil {
 			return
 		}
-		for _, info := range manager.List() {
+		activeSessions := manager.List()
+		if waitForHostAPIPromptsToSettle(ctx, t, manager, activeSessions) {
+			if err := manager.WaitForPromptDrains(ctx); err != nil {
+				t.Errorf("sessions.WaitForPromptDrains() cleanup error = %v", err)
+			}
+		}
+		for _, info := range activeSessions {
 			if info == nil {
 				continue
 			}
@@ -4931,8 +4937,42 @@ Review the workspace changes carefully.
 		if err := manager.WaitForFinalizations(ctx); err != nil {
 			t.Errorf("sessions.WaitForFinalizations() cleanup error = %v", err)
 		}
+		if err := manager.WaitForPromptDrains(ctx); err != nil {
+			t.Errorf("sessions.WaitForPromptDrains() after stop cleanup error = %v", err)
+		}
 	})
 	return env
+}
+
+func waitForHostAPIPromptsToSettle(
+	ctx context.Context,
+	t testing.TB,
+	manager *session.Manager,
+	sessions []*session.Info,
+) bool {
+	t.Helper()
+
+	if manager == nil || len(sessions) == 0 {
+		return true
+	}
+
+	for {
+		allSettled := true
+		for _, info := range sessions {
+			if info != nil && manager.IsPrompting(info.ID) {
+				allSettled = false
+				break
+			}
+		}
+		if allSettled {
+			return true
+		}
+		if ctx != nil && ctx.Err() != nil {
+			t.Errorf("timed out waiting for host API prompt cleanup: %v", ctx.Err())
+			return false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func (e *hostAPITestEnv) grant(extName string, actions []string, security []string) {

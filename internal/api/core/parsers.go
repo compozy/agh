@@ -491,11 +491,11 @@ func (h *BaseHandlers) taskStreamDomainQuery(
 ) (taskpkg.StreamQuery, error) {
 	domainQuery := taskpkg.StreamQuery{AfterSequence: query.AfterSequence}
 
-	afterSequence, err := parseLastEventID(c.GetHeader("Last-Event-ID"), h.transportName())
-	if err != nil {
-		return taskpkg.StreamQuery{}, NewTaskValidationError(err)
-	}
-	if afterSequence > 0 {
+	if rawLastEventID := strings.TrimSpace(c.GetHeader("Last-Event-ID")); rawLastEventID != "" {
+		afterSequence, err := parseLastEventID(rawLastEventID, h.transportName())
+		if err != nil {
+			return taskpkg.StreamQuery{}, NewTaskValidationError(err)
+		}
 		domainQuery.AfterSequence = afterSequence
 	}
 

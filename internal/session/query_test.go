@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -532,10 +533,12 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 			events []store.SessionEvent
 			err    error
 		}
+		started := make(chan struct{})
 		resultCh := make(chan queryResult, 1)
 		ctx, cancel := context.WithTimeout(testutil.Context(t), 5*time.Second)
 		defer cancel()
 		go func() {
+			close(started)
 			got, cleanup, err := h.manager.openQueryRecorder(ctx, session.ID)
 			if err != nil {
 				resultCh <- queryResult{err: err}
@@ -567,6 +570,97 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 		if len(result.events) != len(activeEvents) {
 			t.Fatalf("openQueryRecorder(finalizing active) events = %d, want %d", len(result.events), len(activeEvents))
+		}
+	})
+
+	t.Run("Should wait for finalization before reading a closed recorder handle", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		runtimeEvents := collectEvents(t, eventsCh)
+		if len(runtimeEvents) == 0 {
+			t.Fatal("Prompt() returned no runtime events, want recorded prompt events")
+		}
+
+		activeEvents, err := h.manager.Events(testutil.Context(t), session.ID, store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Events(active) error = %v", err)
+		}
+		if len(activeEvents) == 0 {
+			t.Fatal("Events(active) returned no events, want persisted session events")
+		}
+
+		recorder := session.recorderHandle()
+		if recorder == nil {
+			t.Fatal("recorderHandle() = nil, want active recorder")
+		}
+		if err := recorder.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(active recorder) error = %v", err)
+		}
+
+		done := make(chan struct{})
+		h.manager.mu.Lock()
+		h.manager.finalizing[session.ID] = done
+		h.manager.mu.Unlock()
+
+		type queryResult struct {
+			events []store.SessionEvent
+			err    error
+		}
+		started := make(chan struct{})
+		resultCh := make(chan queryResult, 1)
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 5*time.Second)
+		defer cancel()
+		go func() {
+			close(started)
+			got, cleanup, err := h.manager.openQueryRecorder(ctx, session.ID)
+			if err != nil {
+				resultCh <- queryResult{err: err}
+				return
+			}
+			events, err := got.Query(ctx, store.EventQuery{})
+			if cleanupErr := cleanup(); cleanupErr != nil && err == nil {
+				err = cleanupErr
+			}
+			resultCh <- queryResult{events: events, err: err}
+		}()
+
+		<-started
+		select {
+		case result := <-resultCh:
+			t.Fatalf(
+				"openQueryRecorder returned before finalization finished: events=%d err=%v",
+				len(result.events),
+				result.err,
+			)
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		now := time.Now().UTC()
+		if err := session.beginStopping(now); err != nil {
+			t.Fatalf("beginStopping() error = %v", err)
+		}
+		if err := session.markStopped(now); err != nil {
+			t.Fatalf("markStopped() error = %v", err)
+		}
+		if err := h.manager.writeMeta(session); err != nil {
+			t.Fatalf("writeMeta(stopped) error = %v", err)
+		}
+		h.manager.removeActive(session.ID)
+		h.manager.finishFinalization(session.ID)
+
+		result := <-resultCh
+		if result.err != nil {
+			t.Fatalf("openQueryRecorder(finalized active) error = %v", result.err)
+		}
+		if err := compareQueriedSessionEvents(activeEvents, result.events); err != nil {
+			t.Fatalf("openQueryRecorder(finalized active) events mismatch: %v", err)
 		}
 	})
 
@@ -738,6 +832,54 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	if got := stringValue(&acpID); got != "acp-123" {
 		t.Fatalf("stringValue(channeld) = %q, want %q", got, "acp-123")
 	}
+}
+
+func compareQueriedSessionEvents(want []store.SessionEvent, got []store.SessionEvent) error {
+	if len(got) != len(want) {
+		return fmt.Errorf("count = %d, want %d", len(got), len(want))
+	}
+	for index := range want {
+		if got[index].ID != want[index].ID {
+			return fmt.Errorf("event[%d].id = %q, want %q", index, got[index].ID, want[index].ID)
+		}
+		if got[index].Sequence != want[index].Sequence {
+			return fmt.Errorf(
+				"event[%d].sequence = %d, want %d",
+				index,
+				got[index].Sequence,
+				want[index].Sequence,
+			)
+		}
+		if got[index].SessionID != want[index].SessionID {
+			return fmt.Errorf("event[%d].session_id = %q, want %q", index, got[index].SessionID, want[index].SessionID)
+		}
+		if got[index].TurnID != want[index].TurnID {
+			return fmt.Errorf("event[%d].turn_id = %q, want %q", index, got[index].TurnID, want[index].TurnID)
+		}
+		if got[index].Type != want[index].Type {
+			return fmt.Errorf("event[%d].type = %q, want %q", index, got[index].Type, want[index].Type)
+		}
+		if got[index].AgentName != want[index].AgentName {
+			return fmt.Errorf(
+				"event[%d].agent_name = %q, want %q",
+				index,
+				got[index].AgentName,
+				want[index].AgentName,
+			)
+		}
+		if got[index].Content != want[index].Content {
+			return fmt.Errorf("event[%d].content = %q, want %q", index, got[index].Content, want[index].Content)
+		}
+		if !got[index].Timestamp.Equal(want[index].Timestamp) {
+			return fmt.Errorf(
+				"event[%d].timestamp = %s, want %s",
+				index,
+				got[index].Timestamp.UTC().Format(time.RFC3339Nano),
+				want[index].Timestamp.UTC().Format(time.RFC3339Nano),
+			)
+		}
+	}
+	return nil
 }
 
 func TestNewAgentProcessDefaultsAndNotifierNoop(t *testing.T) {

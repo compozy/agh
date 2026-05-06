@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { Rss } from "lucide-react";
 import { CategoryPill } from "@/components/blog/category-pill";
@@ -17,13 +16,9 @@ import {
   featuredPost,
 } from "@/lib/blog";
 import { categoryLabel } from "@/components/blog/format";
-import { createPageMetadata } from "@/lib/site-config";
+import { blogMetadata } from "./metadata";
 
-export const metadata: Metadata = createPageMetadata({
-  title: "Blog",
-  description: "Field notes from the runtime — protocol design, engineering, and release receipts.",
-  path: "/blog",
-});
+export const metadata = blogMetadata;
 
 export default function BlogIndexPage() {
   const featured = featuredPost();

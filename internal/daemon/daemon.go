@@ -61,15 +61,41 @@ type sandboxExecSessionManager interface {
 	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
 }
 
+type hostAPIExtensionSessionManager interface {
+	SessionManager
+	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
+}
+
+type hostAPIBridgePromptSessionManager interface {
+	PromptNetwork(
+		ctx context.Context,
+		sessionID string,
+		message string,
+		meta ...acp.PromptNetworkMeta,
+	) (<-chan acp.AgentEvent, error)
+	IsPrompting(sessionID string) bool
+}
+
 type hostAPISessionManagerAdapter struct {
 	core.SessionManager
 	exec sandboxExecSessionManager
 }
 
-func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPISessionManagerAdapter {
+type hostAPINetworkSessionManagerAdapter struct {
+	hostAPISessionManagerAdapter
+	bridgePrompts hostAPIBridgePromptSessionManager
+}
+
+func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSessionManager {
 	adapter := hostAPISessionManagerAdapter{SessionManager: sessions}
 	if exec, ok := sessions.(sandboxExecSessionManager); ok {
 		adapter.exec = exec
+	}
+	if bridgePrompts, ok := sessions.(hostAPIBridgePromptSessionManager); ok {
+		return hostAPINetworkSessionManagerAdapter{
+			hostAPISessionManagerAdapter: adapter,
+			bridgePrompts:                bridgePrompts,
+		}
 	}
 	return adapter
 }
@@ -82,6 +108,19 @@ func (a hostAPISessionManagerAdapter) ExecSandbox(
 		return session.SandboxExecResult{}, session.ErrSessionNotActive
 	}
 	return a.exec.ExecSandbox(ctx, req)
+}
+
+func (a hostAPINetworkSessionManagerAdapter) PromptNetwork(
+	ctx context.Context,
+	sessionID string,
+	message string,
+	meta ...acp.PromptNetworkMeta,
+) (<-chan acp.AgentEvent, error) {
+	return a.bridgePrompts.PromptNetwork(ctx, sessionID, message, meta...)
+}
+
+func (a hostAPINetworkSessionManagerAdapter) IsPrompting(sessionID string) bool {
+	return a.bridgePrompts.IsPrompting(sessionID)
 }
 
 // Observer is the daemon observer surface used for transport wiring and reconciliation.

@@ -2,6 +2,8 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vitest/config";
 
+const siteRoot = fileURLToPath(new URL(".", import.meta.url));
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -16,6 +18,9 @@ export default defineConfig({
   test: {
     name: "site",
     environment: "jsdom",
+    env: {
+      AGH_SITE_ROOT: siteRoot,
+    },
     globals: true,
     include: ["**/*.{test,spec}.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/out/**", "**/.next/**"],

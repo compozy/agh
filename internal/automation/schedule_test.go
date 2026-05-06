@@ -395,7 +395,11 @@ func TestSchedulerRecordsDeliveryErrorWithoutRollingBackCursor(t *testing.T) {
 	if state.NextRunAt == nil || !state.NextRunAt.Equal(wantNext) {
 		t.Fatalf("NextRunAt after delivery error = %v, want %s", state.NextRunAt, wantNext.Format(time.RFC3339))
 	}
-	if got := store.deliveryErrorForRun(scheduledRunID(job.ID, baseTime.Add(time.Minute))); got != dispatchErr.Error() {
+	if got := store.waitForDeliveryError(
+		t,
+		scheduledRunID(job.ID, baseTime.Add(time.Minute)),
+		2*time.Second,
+	); got != dispatchErr.Error() {
 		t.Fatalf("delivery error = %q, want %q", got, dispatchErr.Error())
 	}
 }
@@ -809,17 +813,19 @@ func (d *stubScheduleDispatcher) waitForCompletionCount(t *testing.T, want int, 
 }
 
 type memorySchedulerStore struct {
-	mu             sync.Mutex
-	states         map[string]SchedulerState
-	runs           map[string]Run
-	deliveryErrors map[string]string
+	mu              sync.Mutex
+	states          map[string]SchedulerState
+	runs            map[string]Run
+	deliveryErrors  map[string]string
+	deliveryErrorCh chan struct{}
 }
 
 func newMemorySchedulerStore() *memorySchedulerStore {
 	return &memorySchedulerStore{
-		states:         make(map[string]SchedulerState),
-		runs:           make(map[string]Run),
-		deliveryErrors: make(map[string]string),
+		states:          make(map[string]SchedulerState),
+		runs:            make(map[string]Run),
+		deliveryErrors:  make(map[string]string),
+		deliveryErrorCh: make(chan struct{}, 32),
 	}
 }
 
@@ -908,6 +914,7 @@ func (s *memorySchedulerStore) RecordRunDeliveryError(
 	if runErr != nil {
 		run.DeliveryError = runErr.Error()
 		s.deliveryErrors[run.ID] = run.DeliveryError
+		notify(s.deliveryErrorCh)
 	}
 	s.runs[run.ID] = run
 	return run, nil
@@ -917,6 +924,23 @@ func (s *memorySchedulerStore) deliveryErrorForRun(runID string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.deliveryErrors[strings.TrimSpace(runID)]
+}
+
+func (s *memorySchedulerStore) waitForDeliveryError(t *testing.T, runID string, timeout time.Duration) string {
+	t.Helper()
+
+	deadline := time.After(timeout)
+	for {
+		if deliveryError := s.deliveryErrorForRun(runID); deliveryError != "" {
+			return deliveryError
+		}
+
+		select {
+		case <-deadline:
+			return s.deliveryErrorForRun(runID)
+		case <-s.deliveryErrorCh:
+		}
+	}
 }
 
 func (s *memorySchedulerStore) runsForJob(jobID string) []Run {

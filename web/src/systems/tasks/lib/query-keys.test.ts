@@ -108,4 +108,76 @@ describe("tasksKeys", () => {
       })
     ).toEqual(["tasks", "inbox", "workspace", "ws_alpha", "", "", "approvals", "1", "", "20"]);
   });
+
+  it("Should namespace orchestration roots", () => {
+    expect(tasksKeys.profilesRoot()).toEqual(["tasks", "profile"]);
+    expect(tasksKeys.reviewsRoot()).toEqual(["tasks", "reviews"]);
+    expect(tasksKeys.streamsRoot()).toEqual(["tasks", "stream"]);
+    expect(tasksKeys.bridgeNotificationsRoot()).toEqual(["tasks", "bridge-notifications"]);
+    expect(tasksKeys.agentContext()).toEqual(["tasks", "agent-context"]);
+    expect(tasksKeys.contextBundle()).toEqual(["tasks", "context-bundle"]);
+  });
+
+  it("Should bind profile keys to a task id", () => {
+    expect(tasksKeys.profile("task_1")).toEqual(["tasks", "profile", "task_1"]);
+  });
+
+  it("Should distinguish run, task, and detail review keys", () => {
+    expect(
+      tasksKeys.reviewsByRun("run_1", {
+        status: "in_review",
+        reviewer_session_id: "sess_a",
+        limit: 5,
+      })
+    ).toEqual(["tasks", "reviews", "run", "run_1", "in_review", "sess_a", "5"]);
+
+    expect(tasksKeys.reviewsByTask("task_1", { status: "recorded" })).toEqual([
+      "tasks",
+      "reviews",
+      "task",
+      "task_1",
+      "recorded",
+      "",
+      "",
+    ]);
+
+    expect(tasksKeys.reviewDetail("review_1")).toEqual(["tasks", "reviews", "detail", "review_1"]);
+  });
+
+  it("Should encode stream resume cursor", () => {
+    expect(tasksKeys.stream("task_1", { after_sequence: 12 })).toEqual([
+      "tasks",
+      "stream",
+      "task_1",
+      "12",
+    ]);
+    expect(tasksKeys.stream("task_1")).toEqual(["tasks", "stream", "task_1", ""]);
+  });
+
+  it("Should serialize bridge notification filters stably", () => {
+    expect(
+      tasksKeys.bridgeNotifications("task_1", {
+        bridge_instance_id: "bridge_alpha",
+        scope: "workspace",
+        workspace_id: "ws_alpha",
+        limit: 10,
+      })
+    ).toEqual([
+      "tasks",
+      "bridge-notifications",
+      "task_1",
+      "bridge_alpha",
+      "workspace",
+      "ws_alpha",
+      "10",
+    ]);
+
+    expect(tasksKeys.bridgeNotification("task_1", "bsub_1")).toEqual([
+      "tasks",
+      "bridge-notifications",
+      "task_1",
+      "detail",
+      "bsub_1",
+    ]);
+  });
 });

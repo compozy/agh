@@ -221,6 +221,70 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 	}
 }
 
+func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
+	t.Parallel()
+
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{
+			Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				t.Fatal("HTTP transport should not be called for nil pointer requests")
+				return nil, nil
+			}),
+		},
+	}
+
+	tests := []struct {
+		name string
+		run  func() error
+		want string
+	}{
+		{
+			name: "Should reject nil task execution profile request",
+			run: func() error {
+				_, err := client.SetTaskExecutionProfile(context.Background(), "task-1", nil)
+				return err
+			},
+			want: "cli: task execution profile request is required",
+		},
+		{
+			name: "Should reject nil bridge notification subscription request",
+			run: func() error {
+				_, err := client.CreateTaskBridgeNotificationSubscription(context.Background(), "task-1", nil)
+				return err
+			},
+			want: "cli: task bridge notification subscription request is required",
+		},
+		{
+			name: "Should reject nil task run review request",
+			run: func() error {
+				_, err := client.RequestTaskRunReview(context.Background(), "run-1", nil)
+				return err
+			},
+			want: "cli: task run review request is required",
+		},
+		{
+			name: "Should reject nil task run review verdict request",
+			run: func() error {
+				_, err := client.SubmitTaskRunReviewVerdict(context.Background(), "review-1", nil)
+				return err
+			},
+			want: "cli: task run review verdict request is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.run()
+			if err == nil || err.Error() != tt.want {
+				t.Fatalf("error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	t.Parallel()
 

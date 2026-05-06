@@ -94,6 +94,18 @@ const (
 	ToolIDTaskCancel ToolID = "agh__task_cancel"
 	// ToolIDTaskRunList lists task runs through the task service.
 	ToolIDTaskRunList ToolID = "agh__task_run_list"
+	// ToolIDTaskRunReviewRequest requests a review for one terminal task run.
+	ToolIDTaskRunReviewRequest ToolID = "agh__task_run_review_request"
+	// ToolIDTaskRunReviewList lists task-run reviews through the task service.
+	ToolIDTaskRunReviewList ToolID = "agh__task_run_review_list"
+	// ToolIDTaskRunReviewShow reads one task-run review through the task service.
+	ToolIDTaskRunReviewShow ToolID = "agh__task_run_review_show"
+	// ToolIDTaskExecutionProfileGet reads one task execution profile.
+	ToolIDTaskExecutionProfileGet ToolID = "agh__task_execution_profile_get"
+	// ToolIDTaskExecutionProfileSet updates one task execution profile.
+	ToolIDTaskExecutionProfileSet ToolID = "agh__task_execution_profile_set"
+	// ToolIDTaskExecutionProfileDelete removes one task execution profile.
+	ToolIDTaskExecutionProfileDelete ToolID = "agh__task_execution_profile_delete"
 	// ToolIDTaskRunClaimNext claims the next run for the caller session.
 	ToolIDTaskRunClaimNext ToolID = "agh__task_run_claim_next"
 	// ToolIDTaskRunHeartbeat extends the caller session's active run lease.
@@ -104,6 +116,8 @@ const (
 	ToolIDTaskRunFail ToolID = "agh__task_run_fail"
 	// ToolIDTaskRunRelease releases the caller session's active run lease.
 	ToolIDTaskRunRelease ToolID = "agh__task_run_release"
+	// ToolIDTaskRunReviewSubmit submits the caller session's bound task-run review verdict.
+	ToolIDTaskRunReviewSubmit ToolID = "agh__task_run_review_submit"
 	// ToolIDConfigShow shows the redacted effective config.
 	ToolIDConfigShow ToolID = "agh__config_show"
 	// ToolIDConfigList lists redacted effective config entries.

@@ -68,6 +68,7 @@ type bootState struct {
 	hostedMCP           *mcppkg.HostedService
 	providerVault       *vault.Service
 	tasks               *taskRuntime
+	reviewRequests      *runReviewRequestedForwarder
 	spawnReaper         *spawnReaper
 	scheduler           *schedulerRuntime
 	coordinator         *coordinatorRuntime

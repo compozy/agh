@@ -548,8 +548,18 @@ func resolvedAgentFromProvider(
 // provider-owned runtime fields are re-resolved from that provider to avoid
 // mixed runtimes from the original agent definition.
 func (c *Config) ResolveSessionAgent(agent AgentDef, providerOverride string) (ResolvedAgent, error) {
+	return c.ResolveSessionAgentWithRuntime(agent, providerOverride, "")
+}
+
+// ResolveSessionAgentWithRuntime resolves one session agent with runtime-level provider/model overrides.
+func (c *Config) ResolveSessionAgentWithRuntime(
+	agent AgentDef,
+	providerOverride string,
+	modelOverride string,
+) (ResolvedAgent, error) {
 	override := CanonicalProviderName(providerOverride)
-	if override == "" {
+	model := strings.TrimSpace(modelOverride)
+	if override == "" && model == "" {
 		return c.ResolveAgent(agent)
 	}
 
@@ -557,14 +567,21 @@ func (c *Config) ResolveSessionAgent(agent AgentDef, providerOverride string) (R
 	if effectiveProvider == "" && c != nil {
 		effectiveProvider = CanonicalProviderName(c.Defaults.Provider)
 	}
-	if override == effectiveProvider {
-		return c.ResolveAgent(agent)
+	if override == "" || override == effectiveProvider {
+		sessionAgent := agent
+		if model != "" {
+			sessionAgent.Model = model
+		}
+		return c.ResolveAgent(sessionAgent)
 	}
 
 	sessionAgent := agent
 	sessionAgent.Provider = override
 	sessionAgent.Command = ""
 	sessionAgent.Model = ""
+	if model != "" {
+		sessionAgent.Model = model
+	}
 
 	resolved, err := c.ResolveAgent(sessionAgent)
 	if err != nil {

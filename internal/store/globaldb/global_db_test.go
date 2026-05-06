@@ -169,7 +169,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(first) error = %v", err)
 	}
-	if got, want := len(firstRecords), 17; got != want {
+	if got, want := len(firstRecords), len(globalSchemaMigrations); got != want {
 		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
 	}
 	if firstRecords[0].Version != 1 || firstRecords[0].Name != "create_global_schema" {
@@ -226,6 +226,18 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if firstRecords[16].Version != 17 || firstRecords[16].Name != "rebuild_network_conversation_containers" {
 		t.Fatalf("firstRecords[16] = %#v, want rebuild_network_conversation_containers v17", firstRecords[16])
 	}
+	if firstRecords[17].Version != 18 || firstRecords[17].Name != "add_task_orchestration_profile_schema" {
+		t.Fatalf("firstRecords[17] = %#v, want add_task_orchestration_profile_schema v18", firstRecords[17])
+	}
+	if firstRecords[18].Version != 19 || firstRecords[18].Name != "add_task_review_gate_schema" {
+		t.Fatalf("firstRecords[18] = %#v, want add_task_review_gate_schema v19", firstRecords[18])
+	}
+	if firstRecords[19].Version != 20 || firstRecords[19].Name != "add_notification_cursors" {
+		t.Fatalf("firstRecords[19] = %#v, want add_notification_cursors v20", firstRecords[19])
+	}
+	if firstRecords[20].Version != 21 || firstRecords[20].Name != "add_bridge_task_subscriptions" {
+		t.Fatalf("firstRecords[20] = %#v, want add_bridge_task_subscriptions v21", firstRecords[20])
+	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatalf("Close(first) error = %v", err)
 	}
@@ -243,7 +255,7 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	if err != nil {
 		t.Fatalf("AppliedMigrations(second) error = %v", err)
 	}
-	if got, want := len(secondRecords), 17; got != want {
+	if got, want := len(secondRecords), len(globalSchemaMigrations); got != want {
 		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
 	}
 	for i := range firstRecords {
@@ -725,6 +737,13 @@ func TestGlobalDBTaskEventSequenceReads(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("CreateTaskRun() error = %v", err)
 	}
+	emptyTask, err := globalDB.GetTask(ctx, "task-seq")
+	if err != nil {
+		t.Fatalf("GetTask(empty) error = %v", err)
+	}
+	if emptyTask.LatestEventSeq != 0 {
+		t.Fatalf("LatestEventSeq before events = %d, want 0", emptyTask.LatestEventSeq)
+	}
 
 	for _, event := range []taskpkg.Event{
 		{
@@ -801,6 +820,44 @@ func TestGlobalDBTaskEventSequenceReads(t *testing.T) {
 	}; got[0] != want[0] ||
 		got[1] != want[1] {
 		t.Fatalf("record sequences = %#v, want %#v", got, want)
+	}
+
+	taskRecord, err := globalDB.GetTask(ctx, "task-seq")
+	if err != nil {
+		t.Fatalf("GetTask(after events) error = %v", err)
+	}
+	if taskRecord.LatestEventSeq != 3 {
+		t.Fatalf("LatestEventSeq after events = %d, want 3", taskRecord.LatestEventSeq)
+	}
+	summaries, err := globalDB.ListTasks(ctx, taskpkg.Query{})
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if len(summaries) != 1 || summaries[0].LatestEventSeq != 3 {
+		t.Fatalf("ListTasks() = %#v, want latest_event_seq=3", summaries)
+	}
+	descRecords, err := globalDB.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{
+		TaskID:     "task-seq",
+		Limit:      2,
+		Descending: true,
+	})
+	if err != nil {
+		t.Fatalf("ListTaskEventRecords(descending) error = %v", err)
+	}
+	if len(descRecords) != 2 {
+		t.Fatalf("len(descRecords) = %d, want 2", len(descRecords))
+	}
+	if got, want := []string{
+		descRecords[0].Event.ID,
+		descRecords[1].Event.ID,
+	}, []string{
+		"evt-3",
+		"evt-2",
+	}; !testutil.EqualStringSlices(
+		got,
+		want,
+	) {
+		t.Fatalf("descending record ids = %#v, want %#v", got, want)
 	}
 }
 

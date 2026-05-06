@@ -15,6 +15,10 @@ var (
 	ErrTaskEventNotFound = errors.New("task: task event not found")
 	// ErrTaskTriageStateNotFound reports that no persisted triage state matched the lookup.
 	ErrTaskTriageStateNotFound = errors.New("task: task triage state not found")
+	// ErrExecutionProfileNotFound reports that no persisted task execution profile matched the lookup.
+	ErrExecutionProfileNotFound = errors.New("task: task execution profile not found")
+	// ErrRunReviewNotFound reports that no persisted task-run review matched the lookup.
+	ErrRunReviewNotFound = errors.New("task: task run review not found")
 	// ErrValidation reports that a task-domain payload or state failed validation.
 	ErrValidation = errors.New("task: validation failed")
 	// ErrImmutableField reports that a caller attempted to change an immutable task field.
@@ -29,6 +33,8 @@ var (
 	ErrCycleDetected = errors.New("task: dependency cycle detected")
 	// ErrInvalidStatusTransition reports that a task or run lifecycle transition is not allowed.
 	ErrInvalidStatusTransition = errors.New("task: invalid status transition")
+	// ErrConflict reports that an idempotent write conflicts with previously persisted state.
+	ErrConflict = errors.New("task: conflict")
 	// ErrSessionAlreadyBound reports that a run already owns a session binding.
 	ErrSessionAlreadyBound = errors.New("task: session already bound")
 	// ErrSessionAttachNotAllowed reports that a run cannot attach an existing session in its current state.

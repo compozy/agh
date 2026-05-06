@@ -245,6 +245,8 @@ type Task struct {
 	ApprovalPolicy ApprovalPolicy  `json:"approval_policy,omitempty"`
 	ApprovalState  ApprovalState   `json:"approval_state,omitempty"`
 	Owner          *Ownership      `json:"owner,omitempty"`
+	CurrentRunID   string          `json:"current_run_id,omitempty"`
+	LatestEventSeq int64           `json:"latest_event_seq"`
 	CreatedBy      ActorIdentity   `json:"created_by"`
 	Origin         Origin          `json:"origin"`
 	CreatedAt      time.Time       `json:"created_at"`
@@ -261,31 +263,46 @@ type Dependency struct {
 	CreatedAt       time.Time      `json:"created_at"`
 }
 
+// RunReviewLineage captures review-gate fields attached to a task run.
+type RunReviewLineage struct {
+	Required           bool            `json:"required,omitempty"`
+	RequestRound       int             `json:"request_round,omitempty"`
+	PolicySnapshot     ReviewPolicy    `json:"policy_snapshot,omitempty"`
+	RequestID          string          `json:"request_id,omitempty"`
+	ParentRunID        string          `json:"parent_run_id,omitempty"`
+	ReviewID           string          `json:"review_id,omitempty"`
+	ReviewRound        int             `json:"review_round,omitempty"`
+	ContinuationReason string          `json:"continuation_reason,omitempty"`
+	MissingWork        json.RawMessage `json:"missing_work,omitempty"`
+	NextRoundGuidance  string          `json:"next_round_guidance,omitempty"`
+}
+
 // Run is the durable execution record for one task attempt.
 type Run struct {
-	ID                    string          `json:"id"`
-	TaskID                string          `json:"task_id"`
-	Status                RunStatus       `json:"status"`
-	Attempt               int             `json:"attempt"`
-	ClaimedBy             *ActorIdentity  `json:"claimed_by,omitempty"`
-	SessionID             string          `json:"session_id,omitempty"`
-	Origin                Origin          `json:"origin"`
-	IdempotencyKey        string          `json:"idempotency_key,omitempty"`
-	NetworkChannel        string          `json:"network_channel,omitempty"`
-	ClaimToken            string          `json:"-"`
-	ClaimTokenHash        string          `json:"claim_token_hash,omitempty"`
-	LeaseUntil            time.Time       `json:"lease_until"`
-	HeartbeatAt           time.Time       `json:"heartbeat_at"`
-	CoordinationChannelID string          `json:"coordination_channel_id,omitempty"`
-	RequiredCapabilities  []string        `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string        `json:"preferred_capabilities,omitempty"`
-	Metadata              json.RawMessage `json:"metadata,omitempty"`
-	QueuedAt              time.Time       `json:"queued_at"`
-	ClaimedAt             time.Time       `json:"claimed_at"`
-	StartedAt             time.Time       `json:"started_at"`
-	EndedAt               time.Time       `json:"ended_at"`
-	Error                 string          `json:"error,omitempty"`
-	Result                json.RawMessage `json:"result,omitempty"`
+	ID                    string            `json:"id"`
+	TaskID                string            `json:"task_id"`
+	Status                RunStatus         `json:"status"`
+	Attempt               int               `json:"attempt"`
+	ClaimedBy             *ActorIdentity    `json:"claimed_by,omitempty"`
+	SessionID             string            `json:"session_id,omitempty"`
+	Origin                Origin            `json:"origin"`
+	IdempotencyKey        string            `json:"idempotency_key,omitempty"`
+	NetworkChannel        string            `json:"network_channel,omitempty"`
+	ClaimToken            string            `json:"-"`
+	ClaimTokenHash        string            `json:"claim_token_hash,omitempty"`
+	LeaseUntil            time.Time         `json:"lease_until"`
+	HeartbeatAt           time.Time         `json:"heartbeat_at"`
+	CoordinationChannelID string            `json:"coordination_channel_id,omitempty"`
+	RequiredCapabilities  []string          `json:"required_capabilities,omitempty"`
+	PreferredCapabilities []string          `json:"preferred_capabilities,omitempty"`
+	Review                *RunReviewLineage `json:"review,omitempty"`
+	Metadata              json.RawMessage   `json:"metadata,omitempty"`
+	QueuedAt              time.Time         `json:"queued_at"`
+	ClaimedAt             time.Time         `json:"claimed_at"`
+	StartedAt             time.Time         `json:"started_at"`
+	EndedAt               time.Time         `json:"ended_at"`
+	Error                 string            `json:"error,omitempty"`
+	Result                json.RawMessage   `json:"result,omitempty"`
 }
 
 // Event is the immutable audit record emitted for task-domain actions.
@@ -335,6 +352,8 @@ type Summary struct {
 	ApprovalState   ApprovalState         `json:"approval_state,omitempty"`
 	Draft           bool                  `json:"draft"`
 	Owner           *Ownership            `json:"owner,omitempty"`
+	CurrentRunID    string                `json:"current_run_id,omitempty"`
+	LatestEventSeq  int64                 `json:"latest_event_seq"`
 	CreatedBy       ActorIdentity         `json:"created_by"`
 	Origin          Origin                `json:"origin"`
 	CreatedAt       time.Time             `json:"created_at"`
@@ -349,14 +368,15 @@ type Summary struct {
 
 // Reference is the human-meaningful task identity used in enriched read models.
 type Reference struct {
-	ID          string     `json:"id"`
-	Identifier  string     `json:"identifier,omitempty"`
-	Title       string     `json:"title"`
-	Status      Status     `json:"status"`
-	Priority    Priority   `json:"priority,omitempty"`
-	Owner       *Ownership `json:"owner,omitempty"`
-	Scope       Scope      `json:"scope"`
-	WorkspaceID string     `json:"workspace_id,omitempty"`
+	ID             string     `json:"id"`
+	Identifier     string     `json:"identifier,omitempty"`
+	Title          string     `json:"title"`
+	Status         Status     `json:"status"`
+	Priority       Priority   `json:"priority,omitempty"`
+	Owner          *Ownership `json:"owner,omitempty"`
+	Scope          Scope      `json:"scope"`
+	WorkspaceID    string     `json:"workspace_id,omitempty"`
+	LatestEventSeq int64      `json:"latest_event_seq"`
 }
 
 // DependencyReference enriches one dependency edge with the referenced blocker identity.
@@ -542,9 +562,10 @@ type EventQuery struct {
 
 // StartTaskSession captures the task and run context needed to allocate a dedicated session.
 type StartTaskSession struct {
-	Task  Task         `json:"task"`
-	Run   Run          `json:"run"`
-	Actor ActorContext `json:"actor"`
+	Task             Task              `json:"task"`
+	Run              Run               `json:"run"`
+	ExecutionProfile *ExecutionProfile `json:"execution_profile,omitempty"`
+	Actor            ActorContext      `json:"actor"`
 }
 
 // SessionRef is the task-domain view of a runtime session binding.

@@ -249,6 +249,41 @@ type DaemonClient interface {
 	GetTask(ctx context.Context, id string) (TaskDetailRecord, error)
 	UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error)
 	DeleteTask(ctx context.Context, id string) error
+	GetTaskExecutionProfile(ctx context.Context, id string) (TaskExecutionProfileRecord, error)
+	SetTaskExecutionProfile(
+		ctx context.Context,
+		id string,
+		request *TaskExecutionProfileRequest,
+	) (TaskExecutionProfileRecord, error)
+	DeleteTaskExecutionProfile(ctx context.Context, id string) error
+	CreateTaskBridgeNotificationSubscription(
+		ctx context.Context,
+		taskID string,
+		request *TaskBridgeNotificationSubscriptionRequest,
+	) (TaskBridgeNotificationSubscriptionRecord, error)
+	ListTaskBridgeNotificationSubscriptions(
+		ctx context.Context,
+		taskID string,
+		query TaskBridgeNotificationSubscriptionQuery,
+	) ([]TaskBridgeNotificationSubscriptionRecord, error)
+	GetTaskBridgeNotificationSubscription(
+		ctx context.Context,
+		taskID string,
+		subscriptionID string,
+	) (TaskBridgeNotificationSubscriptionRecord, error)
+	DeleteTaskBridgeNotificationSubscription(ctx context.Context, taskID string, subscriptionID string) error
+	RequestTaskRunReview(
+		ctx context.Context,
+		runID string,
+		request *TaskRunReviewRequest,
+	) (TaskRunReviewRequestRecord, error)
+	ListTaskRunReviews(ctx context.Context, query TaskRunReviewListQuery) ([]TaskRunReviewRecord, error)
+	GetTaskRunReview(ctx context.Context, reviewID string) (TaskRunReviewRecord, error)
+	SubmitTaskRunReviewVerdict(
+		ctx context.Context,
+		reviewID string,
+		request *TaskRunReviewVerdictRequest,
+	) (TaskRunReviewVerdictRecord, error)
 	PublishTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
 	StartTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
 	ApproveTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
@@ -623,6 +658,44 @@ type TaskRunRecord = contract.TaskRunPayload
 // TaskExecutionRecord is the shared task execution-boundary payload.
 type TaskExecutionRecord = contract.TaskExecutionResponse
 
+// TaskExecutionProfileRecord is the shared task execution profile payload.
+type TaskExecutionProfileRecord = contract.TaskExecutionProfilePayload
+
+// TaskExecutionProfileRequest captures a task execution profile replacement.
+type TaskExecutionProfileRequest = contract.SetTaskExecutionProfileRequest
+
+// TaskBridgeNotificationSubscriptionRecord is one task terminal bridge
+// notification subscription payload.
+type TaskBridgeNotificationSubscriptionRecord = contract.TaskBridgeNotificationSubscriptionPayload
+
+// TaskBridgeNotificationSubscriptionRequest captures one task terminal bridge
+// notification subscription request.
+type TaskBridgeNotificationSubscriptionRequest = contract.CreateTaskBridgeNotificationSubscriptionRequest
+
+// TaskBridgeNotificationSubscriptionQuery captures CLI filters for bridge
+// terminal notification subscriptions.
+type TaskBridgeNotificationSubscriptionQuery struct {
+	BridgeInstanceID string
+	Scope            bridgepkg.Scope
+	WorkspaceID      string
+	Limit            int
+}
+
+// TaskRunReviewRecord is the shared task-run review payload.
+type TaskRunReviewRecord = contract.TaskRunReviewPayload
+
+// TaskRunReviewRequest captures one task-run review request payload.
+type TaskRunReviewRequest = contract.CreateTaskRunReviewRequest
+
+// TaskRunReviewRequestRecord captures one task-run review request result.
+type TaskRunReviewRequestRecord = contract.TaskRunReviewRequestResponse
+
+// TaskRunReviewVerdictRequest captures one task-run review verdict payload.
+type TaskRunReviewVerdictRequest = contract.SubmitTaskRunReviewVerdictRequest
+
+// TaskRunReviewVerdictRecord captures one task-run review verdict result.
+type TaskRunReviewVerdictRecord = contract.TaskRunReviewVerdictResponse
+
 // AgentMeRecord is the shared agent caller identity payload.
 type AgentMeRecord = contract.AgentMePayload
 
@@ -691,6 +764,9 @@ type TaskListQuery = contract.TaskListQuery
 
 // TaskRunListQuery captures CLI filters for task-run list calls.
 type TaskRunListQuery = contract.TaskRunListQuery
+
+// TaskRunReviewListQuery captures CLI filters for task-run review list calls.
+type TaskRunReviewListQuery = contract.TaskRunReviewListQuery
 
 // CreateTaskRequest captures the shared task-create payload.
 type CreateTaskRequest = contract.CreateTaskRequest
@@ -2753,6 +2829,163 @@ func (c *unixSocketClient) UpdateTask(ctx context.Context, id string, request Up
 	return response.Task, nil
 }
 
+func (c *unixSocketClient) GetTaskExecutionProfile(
+	ctx context.Context,
+	id string,
+) (TaskExecutionProfileRecord, error) {
+	var response contract.TaskExecutionProfileResponse
+	path := taskExecutionProfilePath(id)
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return TaskExecutionProfileRecord{}, err
+	}
+	return response.Profile, nil
+}
+
+func (c *unixSocketClient) SetTaskExecutionProfile(
+	ctx context.Context,
+	id string,
+	request *TaskExecutionProfileRequest,
+) (TaskExecutionProfileRecord, error) {
+	if request == nil {
+		return TaskExecutionProfileRecord{}, errors.New("cli: task execution profile request is required")
+	}
+	var response contract.TaskExecutionProfileResponse
+	path := taskExecutionProfilePath(id)
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return TaskExecutionProfileRecord{}, err
+	}
+	return response.Profile, nil
+}
+
+func (c *unixSocketClient) DeleteTaskExecutionProfile(ctx context.Context, id string) error {
+	return c.doJSON(ctx, http.MethodDelete, taskExecutionProfilePath(id), nil, nil, nil)
+}
+
+func taskExecutionProfilePath(id string) string {
+	return "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/execution-profile"
+}
+
+func (c *unixSocketClient) CreateTaskBridgeNotificationSubscription(
+	ctx context.Context,
+	taskID string,
+	request *TaskBridgeNotificationSubscriptionRequest,
+) (TaskBridgeNotificationSubscriptionRecord, error) {
+	if request == nil {
+		return TaskBridgeNotificationSubscriptionRecord{}, errors.New(
+			"cli: task bridge notification subscription request is required",
+		)
+	}
+	var response contract.TaskBridgeNotificationSubscriptionResponse
+	path := taskBridgeNotificationSubscriptionsPath(taskID)
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskBridgeNotificationSubscriptionRecord{}, err
+	}
+	return response.Subscription, nil
+}
+
+func (c *unixSocketClient) ListTaskBridgeNotificationSubscriptions(
+	ctx context.Context,
+	taskID string,
+	query TaskBridgeNotificationSubscriptionQuery,
+) ([]TaskBridgeNotificationSubscriptionRecord, error) {
+	var response contract.TaskBridgeNotificationSubscriptionsResponse
+	path := taskBridgeNotificationSubscriptionsPath(taskID)
+	values := taskBridgeNotificationSubscriptionValues(query)
+	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Subscriptions, nil
+}
+
+func (c *unixSocketClient) GetTaskBridgeNotificationSubscription(
+	ctx context.Context,
+	taskID string,
+	subscriptionID string,
+) (TaskBridgeNotificationSubscriptionRecord, error) {
+	var response contract.TaskBridgeNotificationSubscriptionResponse
+	path := taskBridgeNotificationSubscriptionPath(taskID, subscriptionID)
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return TaskBridgeNotificationSubscriptionRecord{}, err
+	}
+	return response.Subscription, nil
+}
+
+func (c *unixSocketClient) DeleteTaskBridgeNotificationSubscription(
+	ctx context.Context,
+	taskID string,
+	subscriptionID string,
+) error {
+	path := taskBridgeNotificationSubscriptionPath(taskID, subscriptionID)
+	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+}
+
+func taskBridgeNotificationSubscriptionsPath(taskID string) string {
+	return "/api/tasks/" + url.PathEscape(strings.TrimSpace(taskID)) + "/notifications/bridges"
+}
+
+func taskBridgeNotificationSubscriptionPath(taskID string, subscriptionID string) string {
+	return taskBridgeNotificationSubscriptionsPath(taskID) + "/" + url.PathEscape(strings.TrimSpace(subscriptionID))
+}
+
+func (c *unixSocketClient) RequestTaskRunReview(
+	ctx context.Context,
+	runID string,
+	request *TaskRunReviewRequest,
+) (TaskRunReviewRequestRecord, error) {
+	if request == nil {
+		return TaskRunReviewRequestRecord{}, errors.New("cli: task run review request is required")
+	}
+	var response contract.TaskRunReviewRequestResponse
+	path := "/api/task-runs/" + url.PathEscape(strings.TrimSpace(runID)) + "/reviews"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskRunReviewRequestRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListTaskRunReviews(
+	ctx context.Context,
+	query TaskRunReviewListQuery,
+) ([]TaskRunReviewRecord, error) {
+	var response contract.TaskRunReviewsResponse
+	path, values, err := taskRunReviewListPathAndValues(query)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Reviews, nil
+}
+
+func (c *unixSocketClient) GetTaskRunReview(
+	ctx context.Context,
+	reviewID string,
+) (TaskRunReviewRecord, error) {
+	var response contract.TaskRunReviewResponse
+	path := "/api/task-reviews/" + url.PathEscape(strings.TrimSpace(reviewID))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return TaskRunReviewRecord{}, err
+	}
+	return response.Review, nil
+}
+
+func (c *unixSocketClient) SubmitTaskRunReviewVerdict(
+	ctx context.Context,
+	reviewID string,
+	request *TaskRunReviewVerdictRequest,
+) (TaskRunReviewVerdictRecord, error) {
+	if request == nil {
+		return TaskRunReviewVerdictRecord{}, errors.New("cli: task run review verdict request is required")
+	}
+	var response contract.TaskRunReviewVerdictResponse
+	path := "/api/task-reviews/" + url.PathEscape(strings.TrimSpace(reviewID)) + "/verdict"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskRunReviewVerdictRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) PublishTask(
 	ctx context.Context,
 	id string,
@@ -3964,6 +4197,52 @@ func taskRunValues(query TaskRunListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.SessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func taskRunReviewListPathAndValues(query TaskRunReviewListQuery) (string, url.Values, error) {
+	taskID := strings.TrimSpace(query.TaskID)
+	runID := strings.TrimSpace(query.RunID)
+	switch {
+	case taskID != "" && runID != "":
+		return "", nil, errors.New("cli: choose either --task or --run when listing task reviews")
+	case taskID != "":
+		return "/api/tasks/" + url.PathEscape(taskID) + "/reviews", taskRunReviewValues(query), nil
+	case runID != "":
+		return "/api/task-runs/" + url.PathEscape(runID) + "/reviews", taskRunReviewValues(query), nil
+	default:
+		return "", nil, errors.New("cli: task review list requires --task or --run")
+	}
+}
+
+func taskRunReviewValues(query TaskRunReviewListQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(string(query.Status)); trimmed != "" {
+		values.Set("status", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ReviewerSessionID); trimmed != "" {
+		values.Set("reviewer_session_id", trimmed)
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func taskBridgeNotificationSubscriptionValues(query TaskBridgeNotificationSubscriptionQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.BridgeInstanceID); trimmed != "" {
+		values.Set("bridge_instance_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
+		values.Set("scope", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.WorkspaceID); trimmed != "" {
+		values.Set("workspace_id", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))

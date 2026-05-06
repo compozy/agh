@@ -17,29 +17,41 @@ import (
 )
 
 const (
-	taskEventCreated           = "task.created"
-	taskEventUpdated           = "task.updated"
-	taskEventPublished         = "task.published"
-	taskEventApproved          = "task.approved"
-	taskEventRejected          = "task.rejected"
-	taskEventCanceled          = "task.canceled"
-	taskEventChildCreated      = "task.child_created"
-	taskEventDependencyAdded   = "task.dependency_added"
-	taskEventDependencyRemoved = "task.dependency_removed"
-	taskEventRunEnqueued       = "task.run_enqueued"
-	taskEventRunClaimed        = "task.run_claimed"
-	taskEventRunStarting       = "task.run_starting"
-	taskEventRunSessionBound   = "task.run_session_bound"
-	taskEventRunStarted        = "task.run_started"
-	taskEventRunCompleted      = "task.run_completed"
-	taskEventRunFailed         = "task.run_failed"
-	taskEventRunCanceled       = "task.run_canceled"
-	taskEventRunForceStopped   = "task.run_force_stopped"
-	taskEventRunRecovered      = "task.run_recovered"
-	taskEventRunRejected       = "task.run_rejected"
-	taskEventRunLeaseExtended  = "task.run_lease_extended"
-	taskEventRunLeaseExpired   = "task.run_lease_expired"
-	taskEventRunReleased       = "task.run_released"
+	taskEventCreated            = "task.created"
+	taskEventUpdated            = "task.updated"
+	taskEventPublished          = "task.published"
+	taskEventApproved           = "task.approved"
+	taskEventRejected           = "task.rejected"
+	taskEventCanceled           = "task.canceled"
+	taskEventChildCreated       = "task.child_created"
+	taskEventDependencyAdded    = "task.dependency_added"
+	taskEventDependencyRemoved  = "task.dependency_removed"
+	taskEventRunEnqueued        = "task.run_enqueued"
+	taskEventRunClaimed         = "task.run_claimed"
+	taskEventRunStarting        = "task.run_starting"
+	taskEventRunSessionBound    = "task.run_session_bound"
+	taskEventRunStarted         = "task.run_started"
+	taskEventRunCompleted       = "task.run_completed"
+	taskEventRunFailed          = "task.run_failed"
+	taskEventRunCanceled        = "task.run_canceled"
+	taskEventRunForceStopped    = "task.run_force_stopped"
+	taskEventRunRecovered       = "task.run_recovered"
+	taskEventRunRejected        = "task.run_rejected"
+	taskEventRunLeaseExtended   = "task.run_lease_extended"
+	taskEventRunLeaseExpired    = "task.run_lease_expired"
+	taskEventRunReleased        = "task.run_released"
+	taskEventProfileUpdated     = "task.execution_profile_updated"
+	taskEventProfileDeleted     = "task.execution_profile_deleted"
+	taskEventRunReviewRequested = "task.run_review_requested"
+	taskEventRunReviewBound     = "task.run_review_bound"
+	taskEventRunReviewRecorded  = "task.run_review_recorded"
+	taskEventRunReviewApproved  = "task.run_review_approved"
+	taskEventRunReviewRejected  = "task.run_review_rejected"
+	taskEventRunReviewBlocked   = "task.run_review_blocked"
+	taskEventRunReviewError     = "task.run_review_error"
+	taskEventRunReviewTimeout   = "task.run_review_timeout"
+	taskEventRunReviewInvalid   = "task.run_review_invalid_output"
+	taskEventRunReviewRetry     = "task.run_review_retry_enqueued"
 )
 
 // Option customizes Service construction.
@@ -50,8 +62,10 @@ type managerOptions struct {
 	sessions          SessionExecutor
 	runtimeViews      RuntimeViewReader
 	eventObserver     EventObserver
+	reviewObserver    RunReviewRequestedObserver
 	taskHooks         RunHookDispatcher
 	channelValidator  func(string) error
+	profileValidation ExecutionProfileValidationOptions
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
@@ -64,8 +78,10 @@ type Service struct {
 	sessions          SessionExecutor
 	runtimeViews      RuntimeViewReader
 	eventObserver     EventObserver
+	reviewObserver    RunReviewRequestedObserver
 	taskHooks         RunHookDispatcher
 	channelValidator  func(string) error
+	profileValidation ExecutionProfileValidationOptions
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
@@ -105,6 +121,14 @@ func WithEventObserver(observer EventObserver) Option {
 	}
 }
 
+// WithRunReviewRequestedObserver injects a best-effort observer for newly
+// persisted run review requests.
+func WithRunReviewRequestedObserver(observer RunReviewRequestedObserver) Option {
+	return func(opts *managerOptions) {
+		opts.reviewObserver = observer
+	}
+}
+
 // WithTaskRunHooks injects the task-run hook bridge used at authoritative run transitions.
 func WithTaskRunHooks(hooks RunHookDispatcher) Option {
 	return func(opts *managerOptions) {
@@ -118,6 +142,13 @@ func WithTaskRunHooks(hooks RunHookDispatcher) Option {
 func WithNetworkChannelValidator(validator func(string) error) Option {
 	return func(opts *managerOptions) {
 		opts.channelValidator = validator
+	}
+}
+
+// WithExecutionProfileValidationOptions injects config-backed profile gates.
+func WithExecutionProfileValidationOptions(options ExecutionProfileValidationOptions) Option {
+	return func(opts *managerOptions) {
+		opts.profileValidation = options
 	}
 }
 
@@ -146,6 +177,7 @@ func WithCancelGracePeriod(timeout time.Duration) Option {
 // NewManager constructs one task-domain manager with the supplied dependencies.
 func NewManager(opts ...Option) (*Service, error) {
 	options := managerOptions{
+		profileValidation: DefaultExecutionProfileValidationOptions(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -174,8 +206,10 @@ func NewManager(opts ...Option) (*Service, error) {
 		sessions:          options.sessions,
 		runtimeViews:      options.runtimeViews,
 		eventObserver:     options.eventObserver,
+		reviewObserver:    options.reviewObserver,
 		taskHooks:         defaultTaskRunHooks(options.taskHooks),
 		channelValidator:  options.channelValidator,
+		profileValidation: options.profileValidation,
 		now:               options.now,
 		newID:             options.newID,
 		cancelGracePeriod: options.cancelGracePeriod,
@@ -1038,10 +1072,20 @@ func (m *Service) startRunSession(
 	run Run,
 	actor ActorContext,
 ) (string, *Run, error) {
+	profile, err := m.startTaskExecutionProfile(ctx, startingTask.ID)
+	if err != nil {
+		message := fmt.Sprintf("load execution profile: %v", err)
+		failedRun, failErr := m.failRunAfterSessionStartError(ctx, taskRecord, run, actor, message)
+		if failErr != nil {
+			return "", nil, errorsJoin(err, failErr)
+		}
+		return "", failedRun, fmt.Errorf("task: load execution profile for run %q: %w", run.ID, err)
+	}
 	sessionRef, err := m.sessions.StartTaskSession(ctx, &StartTaskSession{
-		Task:  startingTask,
-		Run:   run,
-		Actor: actor,
+		Task:             startingTask,
+		Run:              run,
+		ExecutionProfile: &profile,
+		Actor:            actor,
 	})
 	if err != nil {
 		message := fmt.Sprintf("start task session: %v", err)
@@ -1073,6 +1117,18 @@ func (m *Service) startRunSession(
 		return "", failedRun, err
 	}
 	return strings.TrimSpace(sessionRef.SessionID), nil, nil
+}
+
+func (m *Service) startTaskExecutionProfile(ctx context.Context, taskID string) (ExecutionProfile, error) {
+	profile, err := m.store.GetExecutionProfile(ctx, taskID)
+	switch {
+	case errors.Is(err, ErrExecutionProfileNotFound):
+		return defaultExecutionProfile(taskID), nil
+	case err != nil:
+		return ExecutionProfile{}, fmt.Errorf("task: load execution profile for session start: %w", err)
+	default:
+		return profile, nil
+	}
 }
 
 func (m *Service) stopUnboundStartedTaskSession(ctx context.Context, sessionID string) error {
@@ -3420,6 +3476,8 @@ func summaryFromTaskRecord(record Task) Summary {
 		ApprovalState:  record.ApprovalState,
 		Draft:          record.Status.Normalize() == TaskStatusDraft,
 		Owner:          cloneOwnership(record.Owner),
+		CurrentRunID:   record.CurrentRunID,
+		LatestEventSeq: record.LatestEventSeq,
 		CreatedBy:      record.CreatedBy,
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,
@@ -3444,6 +3502,8 @@ func taskRecordFromSummary(summary Summary) Task {
 		ApprovalPolicy: summary.ApprovalPolicy,
 		ApprovalState:  summary.ApprovalState,
 		Owner:          cloneOwnership(summary.Owner),
+		CurrentRunID:   summary.CurrentRunID,
+		LatestEventSeq: summary.LatestEventSeq,
 		CreatedBy:      summary.CreatedBy,
 		Origin:         summary.Origin,
 		CreatedAt:      summary.CreatedAt,
@@ -3474,14 +3534,15 @@ func (m *Service) taskReference(ctx context.Context, taskID string) (Reference, 
 
 func taskReferenceFromTask(record Task, status Status) Reference {
 	return Reference{
-		ID:          record.ID,
-		Identifier:  record.Identifier,
-		Title:       record.Title,
-		Status:      status,
-		Priority:    record.Priority,
-		Owner:       cloneOwnership(record.Owner),
-		Scope:       record.Scope,
-		WorkspaceID: record.WorkspaceID,
+		ID:             record.ID,
+		Identifier:     record.Identifier,
+		Title:          record.Title,
+		Status:         status,
+		Priority:       record.Priority,
+		Owner:          cloneOwnership(record.Owner),
+		Scope:          record.Scope,
+		WorkspaceID:    record.WorkspaceID,
+		LatestEventSeq: record.LatestEventSeq,
 	}
 }
 

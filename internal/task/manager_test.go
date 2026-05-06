@@ -21,6 +21,8 @@ type inMemoryManagerStore struct {
 	dependencies      map[string]map[string]Dependency
 	runs              map[string]Run
 	triageStates      map[string]TriageState
+	profiles          map[string]ExecutionProfile
+	reviews           map[string]RunReview
 	events            []Event
 	eventSequenceByID map[string]int64
 	nextEventSequence int64
@@ -32,6 +34,8 @@ type inMemoryManagerSnapshot struct {
 	dependencies      map[string]map[string]Dependency
 	runs              map[string]Run
 	triageStates      map[string]TriageState
+	profiles          map[string]ExecutionProfile
+	reviews           map[string]RunReview
 	events            []Event
 	eventSequenceByID map[string]int64
 	nextEventSequence int64
@@ -266,6 +270,8 @@ func newInMemoryManagerStore() *inMemoryManagerStore {
 		dependencies:      make(map[string]map[string]Dependency),
 		runs:              make(map[string]Run),
 		triageStates:      make(map[string]TriageState),
+		profiles:          make(map[string]ExecutionProfile),
+		reviews:           make(map[string]RunReview),
 		events:            make([]Event, 0),
 		eventSequenceByID: make(map[string]int64),
 		idempotencyByKey:  make(map[string]RunIdempotency),
@@ -307,6 +313,18 @@ func (s *inMemoryManagerStore) snapshot() inMemoryManagerSnapshot {
 		triageStates[key] = cloneTriageState(record)
 	}
 
+	profiles := make(map[string]ExecutionProfile, len(s.profiles))
+	for key := range s.profiles {
+		record := s.profiles[key]
+		profiles[key] = cloneExecutionProfile(&record)
+	}
+
+	reviews := make(map[string]RunReview, len(s.reviews))
+	for key := range s.reviews {
+		record := s.reviews[key]
+		reviews[key] = cloneRunReview(&record)
+	}
+
 	events := make([]Event, 0, len(s.events))
 	for _, event := range s.events {
 		events = append(events, cloneTaskEvent(event))
@@ -323,6 +341,8 @@ func (s *inMemoryManagerStore) snapshot() inMemoryManagerSnapshot {
 		dependencies:      dependencies,
 		runs:              runs,
 		triageStates:      triageStates,
+		profiles:          profiles,
+		reviews:           reviews,
 		events:            events,
 		eventSequenceByID: eventSequenceByID,
 		nextEventSequence: s.nextEventSequence,
@@ -335,6 +355,8 @@ func (s *inMemoryManagerStore) restore(snapshot inMemoryManagerSnapshot) {
 	s.dependencies = snapshot.dependencies
 	s.runs = snapshot.runs
 	s.triageStates = snapshot.triageStates
+	s.profiles = snapshot.profiles
+	s.reviews = snapshot.reviews
 	s.events = snapshot.events
 	s.eventSequenceByID = snapshot.eventSequenceByID
 	s.nextEventSequence = snapshot.nextEventSequence
@@ -357,6 +379,12 @@ func (s *inMemoryManagerStore) DeleteTask(_ context.Context, id string) error {
 
 	delete(s.tasks, taskID)
 	delete(s.dependencies, taskID)
+	delete(s.profiles, taskID)
+	for reviewID, review := range s.reviews {
+		if review.TaskID == taskID {
+			delete(s.reviews, reviewID)
+		}
+	}
 	triagePrefix := taskID + "|"
 	for key := range s.triageStates {
 		if strings.HasPrefix(key, triagePrefix) {
@@ -409,7 +437,9 @@ func (s *inMemoryManagerStore) GetTask(_ context.Context, id string) (Task, erro
 	if !ok {
 		return Task{}, ErrTaskNotFound
 	}
-	return cloneTask(record), nil
+	cloned := cloneTask(record)
+	cloned.LatestEventSeq = s.latestEventSeq(cloned.ID)
+	return cloned, nil
 }
 
 func (s *inMemoryManagerStore) ListTasks(_ context.Context, query Query) ([]Summary, error) {
@@ -484,6 +514,8 @@ func (s *inMemoryManagerStore) ListTasks(_ context.Context, query Query) ([]Summ
 			ApprovalState:  record.ApprovalState,
 			Draft:          record.Status.Normalize() == TaskStatusDraft,
 			Owner:          cloneOwnership(record.Owner),
+			CurrentRunID:   record.CurrentRunID,
+			LatestEventSeq: s.latestEventSeq(record.ID),
 			CreatedBy:      record.CreatedBy,
 			Origin:         record.Origin,
 			CreatedAt:      record.CreatedAt,
@@ -511,6 +543,20 @@ func (s *inMemoryManagerStore) ListTasks(_ context.Context, query Query) ([]Summ
 		return append([]Summary(nil), summaries[:normalized.Limit]...), nil
 	}
 	return append([]Summary(nil), summaries...), nil
+}
+
+func (s *inMemoryManagerStore) latestEventSeq(taskID string) int64 {
+	var latest int64
+	trimmedTaskID := strings.TrimSpace(taskID)
+	for _, event := range s.events {
+		if strings.TrimSpace(event.TaskID) != trimmedTaskID {
+			continue
+		}
+		if sequence := s.eventSequenceByID[event.ID]; sequence > latest {
+			latest = sequence
+		}
+	}
+	return latest
 }
 
 func (s *inMemoryManagerStore) CountDirectChildren(_ context.Context, parentTaskID string) (int, error) {
@@ -688,6 +734,40 @@ func (s *inMemoryManagerStore) UpsertTaskTriageState(_ context.Context, state Tr
 		return ErrTaskNotFound
 	}
 	s.triageStates[triageKey(state.TaskID, state.Actor)] = cloneTriageState(state)
+	return nil
+}
+
+func (s *inMemoryManagerStore) GetExecutionProfile(
+	_ context.Context,
+	taskID string,
+) (ExecutionProfile, error) {
+	profile, ok := s.profiles[strings.TrimSpace(taskID)]
+	if !ok {
+		return ExecutionProfile{}, ErrExecutionProfileNotFound
+	}
+	return cloneExecutionProfile(&profile), nil
+}
+
+func (s *inMemoryManagerStore) UpsertExecutionProfile(
+	_ context.Context,
+	profile *ExecutionProfile,
+) (ExecutionProfile, error) {
+	if profile == nil {
+		return ExecutionProfile{}, ErrValidation
+	}
+	if _, ok := s.tasks[strings.TrimSpace(profile.TaskID)]; !ok {
+		return ExecutionProfile{}, ErrTaskNotFound
+	}
+	s.profiles[profile.TaskID] = cloneExecutionProfile(profile)
+	return cloneExecutionProfile(profile), nil
+}
+
+func (s *inMemoryManagerStore) DeleteExecutionProfile(_ context.Context, taskID string) error {
+	trimmedID := strings.TrimSpace(taskID)
+	if _, ok := s.profiles[trimmedID]; !ok {
+		return ErrExecutionProfileNotFound
+	}
+	delete(s.profiles, trimmedID)
 	return nil
 }
 
@@ -1137,6 +1217,9 @@ func (s *inMemoryManagerStore) ListTaskEventRecords(
 	}
 
 	sort.SliceStable(records, func(i int, j int) bool {
+		if query.Descending {
+			return records[i].Sequence > records[j].Sequence
+		}
 		return records[i].Sequence < records[j].Sequence
 	})
 	if query.Limit > 0 && len(records) > query.Limit {
@@ -1935,6 +2018,134 @@ func TestManagerStreamReplaysStableBacklogAndLiveDescendantEvents(t *testing.T) 
 	if got, want := liveRoot.Type, taskEventCanceled; got != want {
 		t.Fatalf("liveRoot.Type = %q, want %q", got, want)
 	}
+}
+
+func TestManagerTaskStreamUsesLatestEventSequenceSeed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should replay terminal review and notification events recorded after snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(ctx, CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Latest sequence replay",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := Run{
+			ID:        "run-latest-seq",
+			TaskID:    taskRecord.ID,
+			Status:    TaskRunStatusCompleted,
+			Attempt:   1,
+			Origin:    actor.Origin,
+			QueuedAt:  time.Date(2026, 4, 17, 14, 0, 0, 0, time.UTC),
+			StartedAt: time.Date(2026, 4, 17, 14, 1, 0, 0, time.UTC),
+			EndedAt:   time.Date(2026, 4, 17, 14, 2, 0, 0, time.UTC),
+		}
+		if err := store.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		view, err := manager.GetTask(ctx, taskRecord.ID, actor)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		seed := view.Summary.LatestEventSeq
+		if seed == 0 || view.Task.LatestEventSeq != seed {
+			t.Fatalf("latest_event_seq summary=%d task=%d, want non-zero match", seed, view.Task.LatestEventSeq)
+		}
+
+		for _, eventType := range []string{
+			taskEventRunCompleted,
+			taskEventRunReviewRequested,
+			"task.notification_delivered",
+		} {
+			if err := manager.recordTaskEvent(
+				ctx,
+				taskRecord.ID,
+				run.ID,
+				eventType,
+				actor,
+				map[string]string{"source": eventType},
+			); err != nil {
+				t.Fatalf("recordTaskEvent(%q) error = %v", eventType, err)
+			}
+		}
+
+		streamCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stream, err := manager.Stream(streamCtx, taskRecord.ID, StreamQuery{AfterSequence: seed}, actor)
+		if err != nil {
+			t.Fatalf("Stream() error = %v", err)
+		}
+		for idx, wantType := range []string{
+			taskEventRunCompleted,
+			taskEventRunReviewRequested,
+			"task.notification_delivered",
+		} {
+			event := awaitTaskStreamEvent(t, stream)
+			if event.Type != wantType {
+				t.Fatalf("stream event %d type = %q, want %q", idx, event.Type, wantType)
+			}
+			wantSequence := seed + int64(idx) + 1
+			if event.Sequence != wantSequence {
+				t.Fatalf("stream event %d sequence = %d, want %d", idx, event.Sequence, wantSequence)
+			}
+		}
+	})
+
+	t.Run("Should deliver terminal event recorded after stream subscription", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(ctx, CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Concurrent terminal stream",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		view, err := manager.GetTask(ctx, taskRecord.ID, actor)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		streamCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stream, err := manager.Stream(
+			streamCtx,
+			taskRecord.ID,
+			StreamQuery{AfterSequence: view.Task.LatestEventSeq},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("Stream() error = %v", err)
+		}
+		if err := manager.recordTaskEvent(
+			ctx,
+			taskRecord.ID,
+			"",
+			taskEventRunCompleted,
+			actor,
+			map[string]string{"source": "concurrent-terminal"},
+		); err != nil {
+			t.Fatalf("recordTaskEvent(concurrent terminal) error = %v", err)
+		}
+		event := awaitTaskStreamEvent(t, stream)
+		if event.Type != taskEventRunCompleted {
+			t.Fatalf("event.Type = %q, want %q", event.Type, taskEventRunCompleted)
+		}
+		if event.Sequence != view.Task.LatestEventSeq+1 {
+			t.Fatalf("event.Sequence = %d, want %d", event.Sequence, view.Task.LatestEventSeq+1)
+		}
+	})
 }
 
 func TestManagerDeleteTask(t *testing.T) {
@@ -4933,6 +5144,68 @@ func TestManagerStartRunPersistsDedicatedSessionAfterCallerCancellation(t *testi
 	}
 }
 
+func TestManagerStartRunExecutionProfile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass the persisted execution profile to the session executor", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{
+			startRef: &SessionRef{SessionID: "sess-profiled-worker"},
+		}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Profiled start run",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		_, err = manager.SetExecutionProfile(context.Background(), taskRecord.ID, &ExecutionProfile{
+			Worker: WorkerProfile{
+				Mode:      WorkerModeSelect,
+				AgentName: "builder",
+				Provider:  "codex",
+				Model:     "gpt-5.4",
+			},
+		}, actor)
+		if err != nil {
+			t.Fatalf("SetExecutionProfile() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if err != nil {
+			t.Fatalf("ClaimRun() error = %v", err)
+		}
+
+		if _, err := manager.StartRun(context.Background(), run.ID, StartRun{}, actor); err != nil {
+			t.Fatalf("StartRun() error = %v", err)
+		}
+		if got, want := len(executor.startCalls), 1; got != want {
+			t.Fatalf("len(startCalls) = %d, want %d", got, want)
+		}
+		profile := executor.startCalls[0].ExecutionProfile
+		if profile == nil {
+			t.Fatal("startCalls[0].ExecutionProfile = nil, want persisted profile")
+		}
+		if got, want := profile.Worker.AgentName, "builder"; got != want {
+			t.Fatalf("ExecutionProfile.Worker.AgentName = %q, want %q", got, want)
+		}
+		if got, want := profile.Worker.Provider, "codex"; got != want {
+			t.Fatalf("ExecutionProfile.Worker.Provider = %q, want %q", got, want)
+		}
+		if got, want := profile.Worker.Model, "gpt-5.4"; got != want {
+			t.Fatalf("ExecutionProfile.Worker.Model = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 	t.Parallel()
 
@@ -5729,6 +6002,11 @@ func cloneTaskRun(record Run) Run {
 	}
 	cloned.Metadata = cloneRawJSON(record.Metadata)
 	cloned.Result = cloneRawJSON(record.Result)
+	if record.Review != nil {
+		review := *record.Review
+		review.MissingWork = cloneRawJSON(record.Review.MissingWork)
+		cloned.Review = &review
+	}
 	cloned.RequiredCapabilities = append([]string(nil), record.RequiredCapabilities...)
 	cloned.PreferredCapabilities = append([]string(nil), record.PreferredCapabilities...)
 	return cloned
@@ -5753,6 +6031,34 @@ func inMemoryTaskLatestActivity(summary Summary, runs map[string]Run, events []E
 func cloneTriageState(record TriageState) TriageState {
 	cloned := record
 	cloned.Actor = record.Actor
+	return cloned
+}
+
+func cloneExecutionProfile(record *ExecutionProfile) ExecutionProfile {
+	if record == nil {
+		return ExecutionProfile{}
+	}
+	cloned := *record
+	cloned.Worker.AllowedAgentNames = append([]string(nil), record.Worker.AllowedAgentNames...)
+	cloned.Worker.PreferredAgentNames = append([]string(nil), record.Worker.PreferredAgentNames...)
+	cloned.Worker.RequiredCapabilities = append([]string(nil), record.Worker.RequiredCapabilities...)
+	cloned.Worker.PreferredCapabilities = append([]string(nil), record.Worker.PreferredCapabilities...)
+	cloned.Review.AllowedAgentNames = append([]string(nil), record.Review.AllowedAgentNames...)
+	cloned.Review.PreferredAgentNames = append([]string(nil), record.Review.PreferredAgentNames...)
+	cloned.Review.AllowedChannelIDs = append([]string(nil), record.Review.AllowedChannelIDs...)
+	cloned.Review.PreferredChannelIDs = append([]string(nil), record.Review.PreferredChannelIDs...)
+	cloned.Review.AllowedPeerIDs = append([]string(nil), record.Review.AllowedPeerIDs...)
+	cloned.Review.PreferredPeerIDs = append([]string(nil), record.Review.PreferredPeerIDs...)
+	cloned.Review.RequiredCapabilities = append([]string(nil), record.Review.RequiredCapabilities...)
+	cloned.Review.PreferredCapabilities = append([]string(nil), record.Review.PreferredCapabilities...)
+	cloned.Participants.AllowedChannelIDs = append([]string(nil), record.Participants.AllowedChannelIDs...)
+	cloned.Participants.PreferredChannelIDs = append([]string(nil), record.Participants.PreferredChannelIDs...)
+	cloned.Participants.AllowedPeerIDs = append([]string(nil), record.Participants.AllowedPeerIDs...)
+	cloned.Participants.PreferredPeerIDs = append([]string(nil), record.Participants.PreferredPeerIDs...)
+	cloned.Participants.AllowedAgentNames = append([]string(nil), record.Participants.AllowedAgentNames...)
+	cloned.Participants.PreferredAgentNames = append([]string(nil), record.Participants.PreferredAgentNames...)
+	cloned.Participants.RequiredCapabilities = append([]string(nil), record.Participants.RequiredCapabilities...)
+	cloned.Participants.PreferredCapabilities = append([]string(nil), record.Participants.PreferredCapabilities...)
 	return cloned
 }
 

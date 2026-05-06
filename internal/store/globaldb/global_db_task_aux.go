@@ -579,7 +579,11 @@ func (g *GlobalDB) ListTaskEventRecords(
 		sqlQuery += " AND event_seq > ?"
 		args = append(args, query.AfterSequence)
 	}
-	sqlQuery += " ORDER BY event_seq ASC"
+	if query.Descending {
+		sqlQuery += " ORDER BY event_seq DESC"
+	} else {
+		sqlQuery += " ORDER BY event_seq ASC"
+	}
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
@@ -1044,7 +1048,10 @@ func (g *GlobalDB) GetTaskRunByIdempotencyKey(
 			tr.session_id, tr.origin_kind, tr.origin_ref, tr.idempotency_key, tr.network_channel,
 			'' AS claim_token, tr.claim_token_hash, tr.lease_until, tr.heartbeat_at,
 			tr.coordination_channel_id, tr.queued_at, tr.claimed_at, tr.started_at, tr.ended_at,
-			tr.error, tr.metadata_json, tr.result_json
+			tr.error, tr.metadata_json, tr.result_json, tr.review_required,
+			tr.review_request_round, tr.review_policy_snapshot, tr.review_request_id,
+			tr.parent_run_id, tr.review_id, tr.review_round, tr.continuation_reason,
+			tr.missing_work_json, tr.next_round_guidance
 		 FROM task_run_idempotency tri
 		 JOIN task_runs tr ON tr.id = tri.run_id
 		 WHERE tri.idempotency_key = ? AND tri.origin_kind = ? AND tri.origin_ref = ?`,
@@ -1275,7 +1282,7 @@ func (g *GlobalDB) getTaskWithExecutor(
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 			priority, max_attempts, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, metadata_json
+			created_at, updated_at, closed_at, current_run_id, `+taskLatestEventSeqSelectSQL+`, metadata_json
 		 FROM tasks
 		 WHERE id = ?`,
 		trimmedTaskID,

@@ -1,6 +1,8 @@
 // Types
 export type {
   AddTaskDependencyRequest,
+  AgentContextView,
+  AgentTaskContextSection,
   AttachTaskRunSessionRequest,
   CancelTaskRequest,
   CancelTaskRunRequest,
@@ -13,10 +15,32 @@ export type {
   StartTaskRunRequest,
   TaskApprovalPolicy,
   TaskApprovalState,
+  TaskBridgeNotificationCursor,
+  TaskBridgeNotificationDeliveryMode,
+  TaskBridgeNotificationSubscription,
+  TaskBridgeNotificationSubscriptionCreateRequest,
+  TaskBridgeNotificationSubscriptionScope,
+  TaskBridgeNotificationSubscriptionsFilter,
   TaskChildSummary,
+  TaskContextBundle,
+  TaskContextCurrentRun,
+  TaskContextPriorAttempt,
+  TaskContextRecentEvent,
+  TaskContextReviewContinuation,
+  TaskContextReviewHistoryEntry,
   TaskDashboardFilter,
   TaskDashboardView,
   TaskDetailView,
+  TaskExecutionProfile,
+  TaskExecutionProfileCoordinator,
+  TaskExecutionProfileCoordinatorMode,
+  TaskExecutionProfileParticipants,
+  TaskExecutionProfileReviewSelectors,
+  TaskExecutionProfileSandbox,
+  TaskExecutionProfileSandboxMode,
+  TaskExecutionProfileSetRequest,
+  TaskExecutionProfileWorker,
+  TaskExecutionProfileWorkerMode,
   TaskInboxFilter,
   TaskInboxGroup,
   TaskInboxItem,
@@ -27,14 +51,27 @@ export type {
   TaskOwnerKind,
   TaskPriority,
   TaskRecord,
+  TaskReviewsFilter,
   TaskRun,
   TaskRunDetailView,
+  TaskRunReview,
+  TaskRunReviewContinuationRun,
+  TaskRunReviewOutcome,
+  TaskRunReviewPolicy,
+  TaskRunReviewRequest,
+  TaskRunReviewRequestResult,
+  TaskRunReviewStatus,
+  TaskRunReviewVerdict,
+  TaskRunReviewVerdictRequest,
+  TaskRunReviewVerdictResult,
+  TaskRunReviewsFilter,
   TaskRunStatus,
   TaskRunsFilter,
   TaskScope,
   TaskStatus,
   TaskStreamFilter,
   TaskStreamPayload,
+  TaskStreamTimelineEvent,
   TaskSummary,
   TaskTimelineFilter,
   TaskTimelineItem,
@@ -52,39 +89,62 @@ export {
   approveTask,
   archiveTask,
   attachTaskRunSession,
+  buildTaskStreamUrl,
   cancelTask,
   cancelTaskRun,
   claimTaskRun,
   completeTaskRun,
   createChildTask,
   createTask,
+  createTaskBridgeNotificationSubscription,
   deleteTask,
+  deleteTaskBridgeNotificationSubscription,
+  deleteTaskExecutionProfile,
   dismissTask,
   enqueueTaskRun,
   failTaskRun,
+  getAgentContext,
   getTask,
+  getTaskBridgeNotificationSubscription,
+  getTaskContextBundle,
   getTaskDashboard,
+  getTaskExecutionProfile,
   getTaskInbox,
   getTaskRun,
+  getTaskRunReview,
   getTaskTimeline,
   getTaskTree,
+  listTaskBridgeNotificationSubscriptions,
+  listTaskReviews,
+  listTaskRunReviews,
   listTaskRuns,
   listTasks,
   markTaskRead,
   publishTask,
   rejectTask,
   removeTaskDependency,
+  requestTaskRunReview,
+  setTaskExecutionProfile,
   startTaskRun,
+  submitTaskRunReviewVerdict,
   updateTask,
 } from "./adapters/tasks-api";
 
 // Query infrastructure
 export { tasksKeys } from "./lib/query-keys";
 export {
+  agentContextOptions,
+  taskBridgeNotificationSubscriptionOptions,
+  taskBridgeNotificationSubscriptionsOptions,
+  taskContextBundleOptions,
   taskDashboardOptions,
   taskDetailOptions,
+  taskExecutionProfileOptions,
   taskInboxOptions,
+  taskReviewsOptions,
   taskRunDetailOptions,
+  taskRunReviewDetailOptions,
+  taskRunReviewsOptions,
   taskRunsOptions,
   taskTimelineOptions,
   taskTreeOptions,
@@ -140,6 +200,19 @@ export { useTask, useTaskRuns, useTasks } from "./hooks/use-tasks";
 export { useTaskRunDetail, useTaskTimeline, useTaskTree } from "./hooks/use-task-live";
 export { useTaskDashboard } from "./hooks/use-task-dashboard";
 export { useTaskInbox } from "./hooks/use-task-inbox";
+export { useTaskExecutionProfile } from "./hooks/use-task-profile";
+export { useTaskReviews, useTaskRunReview, useTaskRunReviews } from "./hooks/use-task-reviews";
+export { useAgentContext, useTaskContextBundle } from "./hooks/use-task-context-bundle";
+export {
+  useTaskBridgeNotificationSubscription,
+  useTaskBridgeNotificationSubscriptions,
+} from "./hooks/use-task-notifications";
+export { useTaskStream } from "./hooks/use-task-stream";
+export type {
+  TaskStreamEventSource,
+  TaskStreamEventSourceFactory,
+  UseTaskStreamOptions,
+} from "./hooks/use-task-stream";
 
 // Mutation hooks
 export {
@@ -164,6 +237,15 @@ export {
   useStartTaskRun,
   useUpdateTask,
 } from "./hooks/use-task-actions";
+export {
+  useDeleteTaskExecutionProfile,
+  useSetTaskExecutionProfile,
+} from "./hooks/use-task-profile";
+export { useRequestTaskRunReview, useSubmitTaskRunReviewVerdict } from "./hooks/use-task-reviews";
+export {
+  useCreateTaskBridgeNotificationSubscription,
+  useDeleteTaskBridgeNotificationSubscription,
+} from "./hooks/use-task-notifications";
 
 // Components
 export { TASKS_SHELL_TITLE, TasksPageShell } from "./components/tasks-page-shell";
@@ -211,6 +293,18 @@ export type {
 
 export { TasksMultiAgentPanel } from "./components/tasks-multi-agent-panel";
 export type { TasksMultiAgentPanelProps } from "./components/tasks-multi-agent-panel";
+
+// Orchestration tab components (execution profile, reviews, bridge notifications, stream resume)
+export { TasksExecutionProfileCard } from "./components/tasks-execution-profile-card";
+export type { TasksExecutionProfileCardProps } from "./components/tasks-execution-profile-card";
+export { TasksReviewsCard } from "./components/tasks-reviews-card";
+export type { TasksReviewsCardProps } from "./components/tasks-reviews-card";
+export { TasksBridgeNotificationsCard } from "./components/tasks-bridge-notifications-card";
+export type { TasksBridgeNotificationsCardProps } from "./components/tasks-bridge-notifications-card";
+export { TasksStreamResumeCard } from "./components/tasks-stream-resume-card";
+export type { TasksStreamResumeCardProps } from "./components/tasks-stream-resume-card";
+export { TasksDetailOrchestrationPanel } from "./components/tasks-detail-orchestration-panel";
+export type { TasksDetailOrchestrationPanelProps } from "./components/tasks-detail-orchestration-panel";
 
 // Dashboard + Inbox aggregate components
 export { TasksDashboardCards } from "./components/tasks-dashboard-cards";

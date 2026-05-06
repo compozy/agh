@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -287,6 +288,15 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDTaskUpdate, json.RawMessage(`{"task_id":"task","clear_owner":"no"}`)},
 			{toolspkg.ToolIDTaskCancel, json.RawMessage(`{"task_id":7}`)},
 			{toolspkg.ToolIDTaskRunList, json.RawMessage(`{"task_id":"task","limit":"bad"}`)},
+			{toolspkg.ToolIDTaskRunReviewRequest, json.RawMessage(`{"task_id":"task","run_id":7}`)},
+			{toolspkg.ToolIDTaskRunReviewList, json.RawMessage(`{"limit":"bad"}`)},
+			{toolspkg.ToolIDTaskRunReviewShow, json.RawMessage(`{"review_id":7}`)},
+			{toolspkg.ToolIDTaskExecutionProfileGet, json.RawMessage(`{"task_id":7}`)},
+			{
+				toolspkg.ToolIDTaskExecutionProfileSet,
+				json.RawMessage(`{"task_id":"task","profile":{"created_at":"bad"}}`),
+			},
+			{toolspkg.ToolIDTaskExecutionProfileDelete, json.RawMessage(`{"task_id":7}`)},
 			{toolspkg.ToolIDAutomationJobsList, json.RawMessage(`{"limit":"bad"}`)},
 			{toolspkg.ToolIDAutomationJobsGet, json.RawMessage(`{"job_id":7}`)},
 			{toolspkg.ToolIDMCPAuthStatus, json.RawMessage(`{"server_name":7}`)},
@@ -911,6 +921,286 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should route task run review request list and show through task service authority", func(t *testing.T) {
+		t.Parallel()
+
+		review := taskpkg.RunReview{
+			ReviewID:    "review-native",
+			TaskID:      "task-native",
+			RunID:       "run-native",
+			Policy:      taskpkg.ReviewPolicyAlways,
+			ReviewRound: 2,
+			Attempt:     1,
+			Status:      taskpkg.RunReviewStatusRequested,
+			Reason:      "final check",
+			RequestedAt: time.Now().UTC(),
+			CreatedAt:   time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
+		}
+		tasks := &nativeTaskManager{
+			requestReviewResult:  review,
+			requestReviewCreated: true,
+			getReview:            review,
+			listReviews:          []taskpkg.RunReview{review},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-review-ops", WorkspaceID: "ws-1", AgentName: "planner"}
+
+		requestResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunReviewRequest,
+				Input: json.RawMessage(
+					`{"task_id":"task-native","run_id":"run-native","policy":"always",` +
+						`"review_round":2,"attempt":1,"reason":"final check"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_run_review_request) error = %v", err)
+		}
+		requireNativeStructuredContains(t, requestResult, []byte(`"created":true`))
+		requireNativeStructuredContains(t, requestResult, []byte(`"review_id":"review-native"`))
+		if tasks.requestReviewCalls != 1 ||
+			tasks.lastRequestReview.TaskID != "task-native" ||
+			tasks.lastRequestReview.RunID != "run-native" ||
+			tasks.lastRequestReview.Policy != taskpkg.ReviewPolicyAlways ||
+			tasks.lastRequestReview.ReviewRound != 2 {
+			t.Fatalf(
+				"RequestRunReview calls/request = %d/%#v, want normalized request",
+				tasks.requestReviewCalls,
+				tasks.lastRequestReview,
+			)
+		}
+
+		listResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunReviewList,
+				Input:  json.RawMessage(`{"task_id":"task-native","status":"requested","limit":5}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_run_review_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, listResult, []byte(`"reviews":[`))
+		requireNativeStructuredContains(t, listResult, []byte(`"review_id":"review-native"`))
+		if tasks.listReviewCalls != 1 ||
+			tasks.lastListReviewQuery.TaskID != "task-native" ||
+			tasks.lastListReviewQuery.Status != taskpkg.RunReviewStatusRequested ||
+			tasks.lastListReviewQuery.Limit != 5 {
+			t.Fatalf(
+				"ListRunReviews calls/query = %d/%#v, want filtered query",
+				tasks.listReviewCalls,
+				tasks.lastListReviewQuery,
+			)
+		}
+
+		showResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunReviewShow,
+				Input:  json.RawMessage(`{"review_id":"review-native"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_run_review_show) error = %v", err)
+		}
+		requireNativeStructuredContains(t, showResult, []byte(`"review_id":"review-native"`))
+		if tasks.getReviewCalls != 1 || tasks.lastGetReviewID != "review-native" {
+			t.Fatalf(
+				"GetRunReview calls/id = %d/%q, want review-native",
+				tasks.getReviewCalls,
+				tasks.lastGetReviewID,
+			)
+		}
+	})
+
+	t.Run("Should reject malformed task run review request before review writes", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &nativeTaskManager{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-review-ops"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunReviewRequest,
+				Input:  json.RawMessage(`{"task_id":"task-native","run_id":"run-native","policy":"none"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(task_run_review_request invalid) error = %v, want ErrToolInvalidInput", err)
+		}
+		if tasks.requestReviewCalls != 0 {
+			t.Fatalf("RequestRunReview calls = %d, want 0 for malformed input", tasks.requestReviewCalls)
+		}
+	})
+
+	t.Run("Should route task execution profile native tools through task service authority", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &nativeTaskManager{
+			executionProfile: taskpkg.ExecutionProfile{
+				TaskID: "task-profile",
+				Worker: taskpkg.WorkerProfile{
+					Mode:              taskpkg.WorkerModeSelect,
+					AgentName:         "worker-a",
+					Provider:          "codex",
+					Model:             "gpt-5.4",
+					AllowedAgentNames: []string{"worker-a"},
+				},
+				Review: taskpkg.ReviewProfile{
+					AgentName:            "reviewer-a",
+					RequiredCapabilities: []string{"review"},
+				},
+				Sandbox: taskpkg.SandboxPolicy{
+					Mode:       taskpkg.SandboxModeRef,
+					SandboxRef: "daytona",
+				},
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-profile", WorkspaceID: "ws-1", AgentName: "planner"}
+
+		readResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskExecutionProfileGet,
+				Input:  json.RawMessage(`{"task_id":"task-profile"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_execution_profile_get) error = %v", err)
+		}
+		requireNativeStructuredContains(t, readResult, []byte(`"task_id":"task-profile"`))
+		requireNativeStructuredContains(t, readResult, []byte(`"agent_name":"worker-a"`))
+		if tasks.profileGetCalls != 1 || tasks.lastProfileTaskID != "task-profile" {
+			t.Fatalf(
+				"GetExecutionProfile calls/task = %d/%q, want task-profile",
+				tasks.profileGetCalls,
+				tasks.lastProfileTaskID,
+			)
+		}
+
+		setResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskExecutionProfileSet,
+				Input: json.RawMessage(
+					`{"task_id":"task-profile","profile":{` +
+						`"worker":{"mode":"select","agent_name":"worker-b","required_capabilities":["build"]},` +
+						`"review":{"agent_name":"reviewer-b","allowed_channel_ids":["reviews"]},` +
+						`"participants":{"allowed_agent_names":["worker-b"],"required_capabilities":["build"]},` +
+						`"sandbox":{"mode":"none"}}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_execution_profile_set) error = %v", err)
+		}
+		requireNativeStructuredContains(t, setResult, []byte(`"agent_name":"worker-b"`))
+		requireNativeStructuredContains(t, setResult, []byte(`"mode":"none"`))
+		if tasks.profileSetCalls != 1 ||
+			tasks.lastSetProfile.TaskID != "task-profile" ||
+			tasks.lastSetProfile.Worker.AgentName != "worker-b" ||
+			tasks.lastSetProfile.Participants.RequiredCapabilities[0] != "build" {
+			t.Fatalf(
+				"SetExecutionProfile calls/profile = %d/%#v, want profile update",
+				tasks.profileSetCalls,
+				tasks.lastSetProfile,
+			)
+		}
+
+		deleteResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskExecutionProfileDelete,
+				Input:  json.RawMessage(`{"task_id":"task-profile"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_execution_profile_delete) error = %v", err)
+		}
+		requireNativeStructuredContains(t, deleteResult, []byte(`"deleted":true`))
+		if tasks.profileDeleteCalls != 1 || tasks.lastDeleteProfileTaskID != "task-profile" {
+			t.Fatalf(
+				"DeleteExecutionProfile calls/task = %d/%q, want task-profile",
+				tasks.profileDeleteCalls,
+				tasks.lastDeleteProfileTaskID,
+			)
+		}
+	})
+
+	t.Run("Should reject malformed task execution profile before profile writes", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &nativeTaskManager{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-profile"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskExecutionProfileSet,
+				Input:  json.RawMessage(`{"task_id":"task-profile","profile":{"created_at":"bad"}}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(task_execution_profile_set invalid) error = %v, want ErrToolInvalidInput", err)
+		}
+		if tasks.profileSetCalls != 0 {
+			t.Fatalf("SetExecutionProfile calls = %d, want 0 for malformed input", tasks.profileSetCalls)
+		}
+	})
+
+	t.Run("Should reject conflicting nested task execution profile ids before profile writes", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &nativeTaskManager{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-profile"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskExecutionProfileSet,
+				Input: json.RawMessage(
+					`{"task_id":"task-profile","profile":{"task_id":"other-task","worker":{"mode":"select"}}}`,
+				),
+			},
+		)
+		if err == nil {
+			t.Fatal("Registry.Call(task_execution_profile_set conflicting ids) error = nil, want invalid input")
+		}
+		if got, ok := toolspkg.ReasonOf(err); !ok || got != toolspkg.ReasonSchemaInvalid {
+			t.Fatalf("ReasonOf(error) = %q/%v, want %q", got, ok, toolspkg.ReasonSchemaInvalid)
+		}
+		if !strings.Contains(err.Error(), `profile.task_id must match task_id "task-profile"`) {
+			t.Fatalf("error = %q, want conflicting task_id detail", err)
+		}
+		if tasks.profileSetCalls != 0 {
+			t.Fatalf("SetExecutionProfile calls = %d, want 0 for conflicting ids", tasks.profileSetCalls)
+		}
+	})
+
 	t.Run("Should route autonomy tools through session-bound lease lookup", func(t *testing.T) {
 		t.Parallel()
 
@@ -1108,6 +1398,183 @@ func TestDaemonNativeTools(t *testing.T) {
 				tasks.heartbeatCalls,
 				tasks.lastHeartbeat,
 			)
+		}
+	})
+
+	t.Run("Should route reviewer-bound submit run review through task service authority", func(t *testing.T) {
+		t.Parallel()
+
+		confidence := 0.82
+		review := taskpkg.RunReview{
+			ReviewID:          "review-1",
+			TaskID:            "task-1",
+			RunID:             "run-1",
+			Policy:            taskpkg.ReviewPolicyAlways,
+			ReviewRound:       1,
+			Attempt:           1,
+			Status:            taskpkg.RunReviewStatusInReview,
+			MissingWork:       json.RawMessage(`[]`),
+			ReviewerSessionID: "sess-reviewer",
+			ReviewerAgentName: "reviewer",
+			RequestedAt:       time.Now().UTC(),
+			StartedAt:         time.Now().UTC(),
+			CreatedAt:         time.Now().UTC(),
+			UpdatedAt:         time.Now().UTC(),
+		}
+		tasks := &nativeTaskManager{
+			reviewBinding: taskpkg.RunReviewBinding{
+				Review:            review,
+				SessionID:         "sess-reviewer",
+				ReviewerAgentName: "reviewer",
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(t),
+			Tasks:  tasks,
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-reviewer", WorkspaceID: "ws-1", AgentName: "reviewer"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunReviewSubmit,
+				Input: json.RawMessage(
+					`{"review_id":"review-1","run_id":"run-1","outcome":"rejected","confidence":0.82,` +
+						`"reason":"missing verification","missing_work":["run final verify"],` +
+						`"next_round_guidance":"Run the full gate and report evidence.",` +
+						`"review_text":"The implementation is close.","delivery_id":"delivery-1"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(submit_run_review) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"review_id":"review-1"`))
+		requireNativeStructuredContains(t, result, []byte(`"outcome":"rejected"`))
+		requireNativeStructuredExcludes(t, result, []byte(`"claim_token"`))
+		if tasks.lookupReviewCalls != 2 ||
+			tasks.lastReviewSessionID != "sess-reviewer" ||
+			tasks.lookupCalls != 0 ||
+			tasks.recordReviewCalls != 1 {
+			t.Fatalf(
+				"review lookup/lease lookup/record = %d/%q/%d/%d, want bound review lookup and no lease lookup",
+				tasks.lookupReviewCalls,
+				tasks.lastReviewSessionID,
+				tasks.lookupCalls,
+				tasks.recordReviewCalls,
+			)
+		}
+		if tasks.lastRecordReview.ReviewID != "review-1" ||
+			tasks.lastRecordReview.RunID != "run-1" ||
+			tasks.lastRecordReview.Verdict.Outcome != taskpkg.RunReviewOutcomeRejected ||
+			tasks.lastRecordReview.Verdict.Confidence == nil ||
+			*tasks.lastRecordReview.Verdict.Confidence != confidence ||
+			tasks.lastRecordReview.Verdict.DeliveryID != "delivery-1" {
+			t.Fatalf("RecordRunReview request = %#v, want normalized rejected verdict", tasks.lastRecordReview)
+		}
+		if !bytes.Equal(tasks.lastRecordReview.Verdict.MissingWork, []byte(`["run final verify"]`)) {
+			t.Fatalf(
+				"missing_work = %s, want [\"run final verify\"]",
+				tasks.lastRecordReview.Verdict.MissingWork,
+			)
+		}
+	})
+
+	t.Run("Should hide submit run review from sessions without an active review binding", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &nativeTaskManager{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(t),
+			Tasks:  tasks,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-unbound", WorkspaceID: "ws-1", AgentName: "reviewer"}
+
+		views, err := registry.List(t.Context(), scope)
+		if err != nil {
+			t.Fatalf("Registry.List(unbound reviewer) error = %v", err)
+		}
+		requireNativeViewExcludes(t, views, toolspkg.ToolIDTaskRunReviewSubmit)
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunReviewSubmit,
+				Input: json.RawMessage(
+					`{"review_id":"review-1","run_id":"run-1","outcome":"approved","confidence":1,` +
+						`"reason":"ok","missing_work":[],"next_round_guidance":"",` +
+						`"delivery_id":"delivery-1"}`,
+				),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolUnavailable, toolspkg.ReasonSessionDenied)
+		if tasks.recordReviewCalls != 0 {
+			t.Fatalf("RecordRunReview calls = %d, want 0 for unbound session", tasks.recordReviewCalls)
+		}
+	})
+
+	t.Run("Should map unbound review lookups to denied and redact backend failures", func(t *testing.T) {
+		t.Parallel()
+
+		bindingErr := nativeReviewToolError(toolspkg.ToolIDTaskRunReviewSubmit, taskpkg.ErrRunReviewNotFound)
+		requireToolReason(t, bindingErr, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
+
+		rawErr := errors.New("backend leaked agh_claim_secret-123")
+		wrapped := nativeReviewToolError(toolspkg.ToolIDTaskRunReviewSubmit, rawErr)
+		if !errors.Is(wrapped, toolspkg.ErrToolBackendFailed) {
+			t.Fatalf("wrapped error = %v, want %v", wrapped, toolspkg.ErrToolBackendFailed)
+		}
+		if strings.Contains(wrapped.Error(), "agh_claim_secret-123") {
+			t.Fatalf("wrapped error = %q, want redacted claim token", wrapped.Error())
+		}
+		if !strings.Contains(wrapped.Error(), "agh_claim_[REDACTED]") {
+			t.Fatalf("wrapped error = %q, want redacted token marker", wrapped.Error())
+		}
+	})
+
+	t.Run("Should reject schema-invalid submit run review input before verdict writes", func(t *testing.T) {
+		t.Parallel()
+
+		review := taskpkg.RunReview{
+			ReviewID:          "review-1",
+			TaskID:            "task-1",
+			RunID:             "run-1",
+			Policy:            taskpkg.ReviewPolicyAlways,
+			ReviewRound:       1,
+			Attempt:           1,
+			Status:            taskpkg.RunReviewStatusInReview,
+			MissingWork:       json.RawMessage(`[]`),
+			ReviewerSessionID: "sess-reviewer",
+			RequestedAt:       time.Now().UTC(),
+			CreatedAt:         time.Now().UTC(),
+			UpdatedAt:         time.Now().UTC(),
+		}
+		tasks := &nativeTaskManager{
+			reviewBinding: taskpkg.RunReviewBinding{Review: review, SessionID: "sess-reviewer"},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Skills: newLoadedNativeSkillRegistry(t),
+			Tasks:  tasks,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-reviewer", WorkspaceID: "ws-1", AgentName: "reviewer"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunReviewSubmit,
+				Input: json.RawMessage(
+					`{"review_id":"review-1","run_id":"run-1","outcome":"approved",` +
+						`"confidence":"bad","reason":"ok","missing_work":[],` +
+						`"next_round_guidance":"","delivery_id":"delivery-1"}`,
+				),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(submit_run_review invalid input) error = %v, want ErrToolInvalidInput", err)
+		}
+		if tasks.recordReviewCalls != 0 {
+			t.Fatalf("RecordRunReview calls = %d, want 0 for schema-invalid input", tasks.recordReviewCalls)
 		}
 	})
 
@@ -3162,51 +3629,80 @@ var errUnexpectedNativeTaskCall = errors.New("unexpected native task manager cal
 
 type nativeTaskManager struct {
 	unsupportedNativeTaskManager
-	createCalls         int
-	lastCreateSpec      taskpkg.CreateTask
-	childCreateCalls    int
-	childParentID       string
-	childSpec           taskpkg.CreateTask
-	childErr            error
-	listCalls           int
-	lastQuery           taskpkg.Query
-	listSummaries       []taskpkg.Summary
-	getCalls            int
-	lastGetID           string
-	getView             *taskpkg.View
-	updateCalls         int
-	lastUpdateID        string
-	lastPatch           taskpkg.Patch
-	updateTask          *taskpkg.Task
-	cancelCalls         int
-	lastCancelID        string
-	lastCancel          taskpkg.CancelTask
-	cancelTask          *taskpkg.Task
-	runListCalls        int
-	lastRunListTaskID   string
-	lastRunQuery        taskpkg.RunQuery
-	runs                []taskpkg.Run
-	claimNextCalls      int
-	lastClaimCriteria   taskpkg.ClaimCriteria
-	lastClaimActor      taskpkg.ActorContext
-	claimResult         *taskpkg.ClaimResult
-	lookupCalls         int
-	lastLookupSessionID string
-	lastLookupRunID     string
-	lookupHandle        taskpkg.AutonomyLeaseHandle
-	lookupErr           error
-	heartbeatCalls      int
-	lastHeartbeat       taskpkg.LeaseHeartbeat
-	heartbeatErr        error
-	completeCalls       int
-	lastCompletion      taskpkg.LeaseCompletion
-	completeErr         error
-	failCalls           int
-	lastFailure         taskpkg.LeaseFailure
-	failErr             error
-	releaseCalls        int
-	lastRelease         taskpkg.LeaseRelease
-	releaseErr          error
+	createCalls             int
+	lastCreateSpec          taskpkg.CreateTask
+	childCreateCalls        int
+	childParentID           string
+	childSpec               taskpkg.CreateTask
+	childErr                error
+	listCalls               int
+	lastQuery               taskpkg.Query
+	listSummaries           []taskpkg.Summary
+	getCalls                int
+	lastGetID               string
+	getView                 *taskpkg.View
+	updateCalls             int
+	lastUpdateID            string
+	lastPatch               taskpkg.Patch
+	updateTask              *taskpkg.Task
+	cancelCalls             int
+	lastCancelID            string
+	lastCancel              taskpkg.CancelTask
+	cancelTask              *taskpkg.Task
+	runListCalls            int
+	lastRunListTaskID       string
+	lastRunQuery            taskpkg.RunQuery
+	runs                    []taskpkg.Run
+	claimNextCalls          int
+	lastClaimCriteria       taskpkg.ClaimCriteria
+	lastClaimActor          taskpkg.ActorContext
+	claimResult             *taskpkg.ClaimResult
+	lookupCalls             int
+	lastLookupSessionID     string
+	lastLookupRunID         string
+	lookupHandle            taskpkg.AutonomyLeaseHandle
+	lookupErr               error
+	heartbeatCalls          int
+	lastHeartbeat           taskpkg.LeaseHeartbeat
+	heartbeatErr            error
+	completeCalls           int
+	lastCompletion          taskpkg.LeaseCompletion
+	completeErr             error
+	failCalls               int
+	lastFailure             taskpkg.LeaseFailure
+	failErr                 error
+	releaseCalls            int
+	lastRelease             taskpkg.LeaseRelease
+	releaseErr              error
+	lookupReviewCalls       int
+	lastReviewSessionID     string
+	reviewBinding           taskpkg.RunReviewBinding
+	lookupReviewErr         error
+	requestReviewCalls      int
+	lastRequestReview       taskpkg.RunReviewRequest
+	requestReviewResult     taskpkg.RunReview
+	requestReviewCreated    bool
+	requestReviewErr        error
+	getReviewCalls          int
+	lastGetReviewID         string
+	getReview               taskpkg.RunReview
+	getReviewErr            error
+	listReviewCalls         int
+	lastListReviewQuery     taskpkg.RunReviewQuery
+	listReviews             []taskpkg.RunReview
+	listReviewErr           error
+	recordReviewCalls       int
+	lastRecordReview        taskpkg.RecordRunReviewRequest
+	recordReviewResult      taskpkg.RunReviewResult
+	recordReviewErr         error
+	profileGetCalls         int
+	profileSetCalls         int
+	profileDeleteCalls      int
+	lastProfileTaskID       string
+	lastSetProfile          taskpkg.ExecutionProfile
+	lastDeleteProfileTaskID string
+	executionProfile        taskpkg.ExecutionProfile
+	profileErr              error
 }
 
 func (m *nativeTaskManager) CreateTask(
@@ -3291,6 +3787,56 @@ func (m *nativeTaskManager) ListTasks(
 	m.listCalls++
 	m.lastQuery = query
 	return append([]taskpkg.Summary(nil), m.listSummaries...), nil
+}
+
+func (m *nativeTaskManager) GetExecutionProfile(
+	_ context.Context,
+	taskID string,
+	_ taskpkg.ActorContext,
+) (taskpkg.ExecutionProfile, error) {
+	m.profileGetCalls++
+	m.lastProfileTaskID = taskID
+	if m.profileErr != nil {
+		return taskpkg.ExecutionProfile{}, m.profileErr
+	}
+	if m.executionProfile.TaskID != "" {
+		return m.executionProfile, nil
+	}
+	return taskpkg.ExecutionProfile{TaskID: taskID}, nil
+}
+
+func (m *nativeTaskManager) SetExecutionProfile(
+	_ context.Context,
+	taskID string,
+	profile *taskpkg.ExecutionProfile,
+	_ taskpkg.ActorContext,
+) (taskpkg.ExecutionProfile, error) {
+	m.profileSetCalls++
+	if profile != nil {
+		m.lastSetProfile = *profile
+	}
+	if m.profileErr != nil {
+		return taskpkg.ExecutionProfile{}, m.profileErr
+	}
+	if m.lastSetProfile.TaskID == "" {
+		m.lastSetProfile.TaskID = taskID
+	}
+	m.executionProfile = m.lastSetProfile
+	return m.lastSetProfile, nil
+}
+
+func (m *nativeTaskManager) DeleteExecutionProfile(
+	_ context.Context,
+	taskID string,
+	_ taskpkg.ActorContext,
+) error {
+	m.profileDeleteCalls++
+	m.lastDeleteProfileTaskID = taskID
+	if m.profileErr != nil {
+		return m.profileErr
+	}
+	m.executionProfile = taskpkg.ExecutionProfile{}
+	return nil
 }
 
 func (m *nativeTaskManager) ClaimNextRun(
@@ -3379,6 +3925,101 @@ func (m *nativeTaskManager) ReleaseRunLease(
 	return &run, nil
 }
 
+func (m *nativeTaskManager) LookupRunReviewForSession(
+	_ context.Context,
+	sessionID string,
+	_ taskpkg.ActorContext,
+) (taskpkg.RunReviewBinding, error) {
+	m.lookupReviewCalls++
+	m.lastReviewSessionID = sessionID
+	if m.lookupReviewErr != nil {
+		return taskpkg.RunReviewBinding{}, m.lookupReviewErr
+	}
+	if m.reviewBinding.Review.ReviewID == "" {
+		return taskpkg.RunReviewBinding{}, taskpkg.ErrRunReviewNotFound
+	}
+	return m.reviewBinding, nil
+}
+
+func (m *nativeTaskManager) RequestRunReview(
+	_ context.Context,
+	req taskpkg.RunReviewRequest,
+	_ taskpkg.ActorContext,
+) (taskpkg.RunReview, bool, error) {
+	m.requestReviewCalls++
+	m.lastRequestReview = req
+	if m.requestReviewErr != nil {
+		return taskpkg.RunReview{}, false, m.requestReviewErr
+	}
+	if m.requestReviewResult.ReviewID != "" {
+		return m.requestReviewResult, m.requestReviewCreated, nil
+	}
+	return taskpkg.RunReview{
+		ReviewID:    "review-native",
+		TaskID:      req.TaskID,
+		RunID:       req.RunID,
+		Policy:      req.Policy,
+		ReviewRound: req.ReviewRound,
+		Attempt:     req.Attempt,
+		Status:      taskpkg.RunReviewStatusRequested,
+		Reason:      req.Reason,
+	}, true, nil
+}
+
+func (m *nativeTaskManager) GetRunReview(
+	_ context.Context,
+	reviewID string,
+	_ taskpkg.ActorContext,
+) (taskpkg.RunReview, error) {
+	m.getReviewCalls++
+	m.lastGetReviewID = reviewID
+	if m.getReviewErr != nil {
+		return taskpkg.RunReview{}, m.getReviewErr
+	}
+	if m.getReview.ReviewID != "" {
+		return m.getReview, nil
+	}
+	return taskpkg.RunReview{ReviewID: reviewID, Status: taskpkg.RunReviewStatusRequested}, nil
+}
+
+func (m *nativeTaskManager) ListRunReviews(
+	_ context.Context,
+	query taskpkg.RunReviewQuery,
+	_ taskpkg.ActorContext,
+) ([]taskpkg.RunReview, error) {
+	m.listReviewCalls++
+	m.lastListReviewQuery = query
+	if m.listReviewErr != nil {
+		return nil, m.listReviewErr
+	}
+	return append([]taskpkg.RunReview(nil), m.listReviews...), nil
+}
+
+func (m *nativeTaskManager) RecordRunReview(
+	_ context.Context,
+	req taskpkg.RecordRunReviewRequest,
+	_ taskpkg.ActorContext,
+) (taskpkg.RunReviewResult, error) {
+	m.recordReviewCalls++
+	m.lastRecordReview = req
+	if m.recordReviewErr != nil {
+		return taskpkg.RunReviewResult{}, m.recordReviewErr
+	}
+	if m.recordReviewResult.Review.ReviewID != "" {
+		return m.recordReviewResult, nil
+	}
+	review := m.reviewBinding.Review
+	review.Status = taskpkg.RunReviewStatusRecorded
+	review.Outcome = req.Verdict.Outcome
+	review.Confidence = req.Verdict.Confidence
+	review.Reason = req.Verdict.Reason
+	review.DeliveryID = req.Verdict.DeliveryID
+	review.MissingWork = cloneJSON(req.Verdict.MissingWork)
+	review.NextRoundGuidance = req.Verdict.NextRoundGuidance
+	review.ReviewText = req.Verdict.ReviewText
+	return taskpkg.RunReviewResult{Review: review}, nil
+}
+
 func (m *nativeTaskManager) totalCalls() int {
 	return m.createCalls +
 		m.childCreateCalls +
@@ -3387,12 +4028,20 @@ func (m *nativeTaskManager) totalCalls() int {
 		m.updateCalls +
 		m.cancelCalls +
 		m.runListCalls +
+		m.profileGetCalls +
+		m.profileSetCalls +
+		m.profileDeleteCalls +
 		m.claimNextCalls +
 		m.lookupCalls +
 		m.heartbeatCalls +
 		m.completeCalls +
 		m.failCalls +
-		m.releaseCalls
+		m.releaseCalls +
+		m.lookupReviewCalls +
+		m.requestReviewCalls +
+		m.getReviewCalls +
+		m.listReviewCalls +
+		m.recordReviewCalls
 }
 
 func nativeLeaseRun(
@@ -3538,6 +4187,79 @@ func (unsupportedNativeTaskManager) DismissTask(
 	taskpkg.ActorContext,
 ) (taskpkg.TriageState, error) {
 	return taskpkg.TriageState{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) GetExecutionProfile(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) SetExecutionProfile(
+	context.Context,
+	string,
+	*taskpkg.ExecutionProfile,
+	taskpkg.ActorContext,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) DeleteExecutionProfile(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) error {
+	return errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) RequestRunReview(
+	context.Context,
+	taskpkg.RunReviewRequest,
+	taskpkg.ActorContext,
+) (taskpkg.RunReview, bool, error) {
+	return taskpkg.RunReview{}, false, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) GetRunReview(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) (taskpkg.RunReview, error) {
+	return taskpkg.RunReview{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) RecordRunReview(
+	context.Context,
+	taskpkg.RecordRunReviewRequest,
+	taskpkg.ActorContext,
+) (taskpkg.RunReviewResult, error) {
+	return taskpkg.RunReviewResult{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) BindRunReviewSession(
+	context.Context,
+	taskpkg.BindRunReviewSessionRequest,
+	taskpkg.ActorContext,
+) (taskpkg.RunReviewBinding, error) {
+	return taskpkg.RunReviewBinding{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) LookupRunReviewForSession(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) (taskpkg.RunReviewBinding, error) {
+	return taskpkg.RunReviewBinding{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) ListRunReviews(
+	context.Context,
+	taskpkg.RunReviewQuery,
+	taskpkg.ActorContext,
+) ([]taskpkg.RunReview, error) {
+	return nil, errUnexpectedNativeTaskCall
 }
 
 func (unsupportedNativeTaskManager) AddDependency(

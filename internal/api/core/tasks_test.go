@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	"github.com/pedronauck/agh/internal/notifications"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -142,6 +145,766 @@ func TestStatusForTaskError(t *testing.T) {
 				t.Fatalf("StatusForTaskError(%v) = %d, want %d", tc.err, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 5, 10, 0, 0, 0, time.UTC)
+	storedProfile := taskpkg.ExecutionProfile{
+		TaskID: "task-1",
+		Coordinator: taskpkg.CoordinatorProfile{
+			Mode: taskpkg.CoordinatorModeGuided,
+		},
+		Worker: taskpkg.WorkerProfile{
+			Mode:      taskpkg.WorkerModeSelect,
+			AgentName: "worker-a",
+			Provider:  "openai",
+			Model:     "gpt-5.4",
+		},
+		Sandbox: taskpkg.SandboxPolicy{
+			Mode:       taskpkg.SandboxModeRef,
+			SandboxRef: "macos-lab",
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	var (
+		gotSetProfile taskpkg.ExecutionProfile
+		deletedTaskID string
+	)
+	tasks := testutil.StubTaskManager{
+		GetExecutionProfileFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (taskpkg.ExecutionProfile, error) {
+			if id != "task-1" || actor.Origin.Ref != "tasks.get_profile" {
+				t.Fatalf("GetExecutionProfile(id, actor) = %q, %#v", id, actor)
+			}
+			return storedProfile, nil
+		},
+		SetExecutionProfileFn: func(
+			_ context.Context,
+			id string,
+			profile *taskpkg.ExecutionProfile,
+			actor taskpkg.ActorContext,
+		) (taskpkg.ExecutionProfile, error) {
+			if id != "task-1" || actor.Origin.Ref != "tasks.set_profile" {
+				t.Fatalf("SetExecutionProfile(id, actor) = %q, %#v", id, actor)
+			}
+			if profile == nil {
+				t.Fatal("SetExecutionProfile profile = nil")
+			}
+			gotSetProfile = *profile
+			stored := *profile
+			stored.UpdatedAt = now
+			return stored, nil
+		},
+		DeleteExecutionProfileFn: func(_ context.Context, id string, actor taskpkg.ActorContext) error {
+			if actor.Origin.Ref != "tasks.delete_profile" {
+				t.Fatalf("DeleteExecutionProfile actor = %#v", actor)
+			}
+			deletedTaskID = id
+			return nil
+		},
+	}
+	fixture := newHandlerFixtureWithTasks(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		tasks,
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+
+	resp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1/execution-profile", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("get profile status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	var getPayload contract.TaskExecutionProfileResponse
+	testutil.DecodeJSONResponse(t, resp, &getPayload)
+	if getPayload.Profile.Worker.AgentName != "worker-a" ||
+		getPayload.Profile.Sandbox.SandboxRef != "macos-lab" {
+		t.Fatalf("get profile payload = %#v", getPayload.Profile)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPut,
+		"/tasks/task-1/execution-profile",
+		[]byte(
+			`{"worker":{"mode":"select","agent_name":"worker-b"},"sandbox":{"mode":"none"},"created_at":"2026-05-01T10:00:00Z","updated_at":"2026-05-02T10:00:00Z"}`,
+		),
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("set profile status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	if gotSetProfile.TaskID != "task-1" ||
+		gotSetProfile.Worker.Mode != taskpkg.WorkerModeSelect ||
+		gotSetProfile.Worker.AgentName != "worker-b" ||
+		gotSetProfile.Sandbox.Mode != taskpkg.SandboxModeNone ||
+		!gotSetProfile.CreatedAt.IsZero() ||
+		!gotSetProfile.UpdatedAt.IsZero() {
+		t.Fatalf("set profile request = %#v", gotSetProfile)
+	}
+
+	resp = performRequest(t, fixture.Engine, http.MethodDelete, "/tasks/task-1/execution-profile", nil)
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("delete profile status = %d, want %d; body=%s", resp.Code, http.StatusNoContent, resp.Body.String())
+	}
+	if resp.Body.Len() != 0 {
+		t.Fatalf("delete profile body = %q, want empty body", resp.Body.String())
+	}
+	if deletedTaskID != "task-1" {
+		t.Fatalf("deleted task id = %q, want task-1", deletedTaskID)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPut,
+		"/tasks/task-1/execution-profile",
+		[]byte(`{"task_id":"other"}`),
+	)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"set mismatched profile status = %d, want %d; body=%s",
+			resp.Code,
+			http.StatusBadRequest,
+			resp.Body.String(),
+		)
+	}
+	var mismatchPayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &mismatchPayload)
+	if !strings.Contains(mismatchPayload.Error, `task_execution_profile.task_id must match task id "task-1"`) {
+		t.Fatalf("set mismatched profile payload = %#v", mismatchPayload)
+	}
+}
+
+func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 5, 11, 0, 0, 0, time.UTC)
+	subscription := bridgepkg.BridgeTaskSubscription{
+		SubscriptionID:   "sub-1",
+		TaskID:           "task-1",
+		BridgeInstanceID: "brg-1",
+		Scope:            bridgepkg.ScopeWorkspace,
+		WorkspaceID:      "ws-1",
+		PeerID:           "peer-1",
+		ThreadID:         "thread-1",
+		DeliveryMode:     bridgepkg.DeliveryModeReply,
+		CreatedBy:        taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+
+	var (
+		putSubscription bridgepkg.BridgeTaskSubscription
+		listQuery       bridgepkg.BridgeTaskSubscriptionQuery
+		deleteID        string
+		deleted         bool
+	)
+	tasks := testutil.StubTaskManager{
+		GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
+			if id != "task-1" {
+				t.Fatalf("GetTask id = %q, want task-1", id)
+			}
+			switch actor.Origin.Ref {
+			case "tasks.create_bridge_notification_subscription",
+				"tasks.list_bridge_notification_subscriptions",
+				"tasks.get_bridge_notification_subscription",
+				"tasks.delete_bridge_notification_subscription":
+			default:
+				t.Fatalf("GetTask actor origin = %#v", actor.Origin)
+			}
+			return &taskpkg.View{Task: taskpkg.Task{
+				ID:          "task-1",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-1",
+			}}, nil
+		},
+	}
+	bridges := testutil.StubBridgeService{
+		GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+			if id != "brg-1" {
+				t.Fatalf("GetInstance id = %q, want brg-1", id)
+			}
+			return &bridgepkg.BridgeInstance{
+				ID:          "brg-1",
+				Scope:       bridgepkg.ScopeWorkspace,
+				WorkspaceID: "ws-1",
+			}, nil
+		},
+		PutTaskSubscriptionFn: func(_ context.Context, item bridgepkg.BridgeTaskSubscription) error {
+			putSubscription = item
+			return nil
+		},
+		ListTaskSubscriptionsFn: func(
+			_ context.Context,
+			query bridgepkg.BridgeTaskSubscriptionQuery,
+		) ([]bridgepkg.BridgeTaskSubscription, error) {
+			listQuery = query
+			stored := subscription
+			stored.SubscriptionID = putSubscription.SubscriptionID
+			return []bridgepkg.BridgeTaskSubscription{stored}, nil
+		},
+		GetTaskSubscriptionFn: func(_ context.Context, id string) (bridgepkg.BridgeTaskSubscription, error) {
+			if id != putSubscription.SubscriptionID {
+				t.Fatalf("GetBridgeTaskSubscription id = %q, want %q", id, putSubscription.SubscriptionID)
+			}
+			if deleted {
+				return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
+			}
+			stored := subscription
+			stored.SubscriptionID = putSubscription.SubscriptionID
+			return stored, nil
+		},
+		DeleteTaskSubscriptionFn: func(_ context.Context, id string) error {
+			deleteID = id
+			deleted = true
+			return nil
+		},
+		GetCursorFn: func(_ context.Context, key notifications.CursorKey) (notifications.Cursor, error) {
+			if key.ConsumerID != "bridge_task_subscription:"+putSubscription.SubscriptionID ||
+				key.StreamName != "task_events" ||
+				key.SubjectID != "task-1" {
+				t.Fatalf("GetCursor key = %#v, want subscription cursor", key)
+			}
+			return notifications.Cursor{
+				Key:             key,
+				LastSequence:    7,
+				LastDeliveryID:  "notif:" + putSubscription.SubscriptionID + ":7",
+				LastDeliveredAt: now.Add(time.Minute),
+				LastError:       "bridge adapter rejected send",
+				UpdatedAt:       now.Add(2 * time.Minute),
+			}, nil
+		},
+	}
+	fixture := newHandlerFixtureWithTasksAndBridges(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		tasks,
+		bridges,
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+
+	resp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/tasks/task-1/notifications/bridges",
+		[]byte(
+			`{"subscription_id":"sub-1","bridge_instance_id":"brg-1","scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","thread_id":"thread-1","delivery_mode":"reply"}`,
+		),
+	)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create subscription status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+	}
+	if putSubscription.SubscriptionID == "" ||
+		putSubscription.SubscriptionID == "sub-1" ||
+		putSubscription.TaskID != "task-1" ||
+		putSubscription.BridgeInstanceID != "brg-1" ||
+		putSubscription.Scope != bridgepkg.ScopeWorkspace ||
+		putSubscription.WorkspaceID != "ws-1" ||
+		putSubscription.CreatedBy.Kind != taskpkg.ActorKindHuman ||
+		putSubscription.CreatedAt.IsZero() {
+		t.Fatalf("put subscription = %#v", putSubscription)
+	}
+	var createPayload contract.TaskBridgeNotificationSubscriptionResponse
+	testutil.DecodeJSONResponse(t, resp, &createPayload)
+	if createPayload.Subscription.SubscriptionID != putSubscription.SubscriptionID ||
+		createPayload.Subscription.Cursor.ConsumerID != "bridge_task_subscription:"+putSubscription.SubscriptionID ||
+		createPayload.Subscription.Cursor.StreamName != "task_events" ||
+		createPayload.Subscription.Cursor.SubjectID != "task-1" ||
+		createPayload.Subscription.Cursor.LastSequence != 7 ||
+		createPayload.Subscription.Cursor.LastDeliveryID != "notif:"+putSubscription.SubscriptionID+":7" ||
+		createPayload.Subscription.Cursor.LastError != "bridge adapter rejected send" {
+		t.Fatalf("create payload cursor = %#v", createPayload.Subscription.Cursor)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/tasks/task-1/notifications/bridges?bridge_instance_id=brg-1&scope=workspace&workspace_id=ws-1&limit=2",
+		nil,
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("list subscription status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	if listQuery.TaskID != "task-1" ||
+		listQuery.BridgeInstanceID != "brg-1" ||
+		listQuery.Scope != bridgepkg.ScopeWorkspace ||
+		listQuery.WorkspaceID != "ws-1" ||
+		listQuery.Limit != 2 {
+		t.Fatalf("list query = %#v", listQuery)
+	}
+	var listPayload contract.TaskBridgeNotificationSubscriptionsResponse
+	testutil.DecodeJSONResponse(t, resp, &listPayload)
+	if len(listPayload.Subscriptions) != 1 ||
+		listPayload.Subscriptions[0].SubscriptionID != putSubscription.SubscriptionID {
+		t.Fatalf("list payload = %#v", listPayload)
+	}
+	if listPayload.Subscriptions[0].Cursor.LastSequence != 7 ||
+		listPayload.Subscriptions[0].Cursor.LastError != "bridge adapter rejected send" {
+		t.Fatalf("list payload cursor = %#v", listPayload.Subscriptions[0].Cursor)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/tasks/task-1/notifications/bridges/"+putSubscription.SubscriptionID,
+		nil,
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("get subscription status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	var getPayload contract.TaskBridgeNotificationSubscriptionResponse
+	testutil.DecodeJSONResponse(t, resp, &getPayload)
+	if getPayload.Subscription.SubscriptionID != putSubscription.SubscriptionID ||
+		getPayload.Subscription.Cursor.ConsumerID != "bridge_task_subscription:"+putSubscription.SubscriptionID ||
+		getPayload.Subscription.Cursor.LastSequence != 7 ||
+		getPayload.Subscription.Cursor.UpdatedAt == nil {
+		t.Fatalf("get payload = %#v", getPayload)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodDelete,
+		"/tasks/task-1/notifications/bridges/"+putSubscription.SubscriptionID,
+		nil,
+	)
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf(
+			"delete subscription status = %d, want %d; body=%s",
+			resp.Code,
+			http.StatusNoContent,
+			resp.Body.String(),
+		)
+	}
+	if resp.Body.Len() != 0 {
+		t.Fatalf("delete subscription body = %q, want empty body", resp.Body.String())
+	}
+	if deleteID != putSubscription.SubscriptionID {
+		t.Fatalf("delete id = %q, want %q", deleteID, putSubscription.SubscriptionID)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/tasks/task-1/notifications/bridges/"+putSubscription.SubscriptionID,
+		nil,
+	)
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf(
+			"get deleted subscription status = %d, want %d; body=%s",
+			resp.Code,
+			http.StatusNotFound,
+			resp.Body.String(),
+		)
+	}
+	var deletedGetPayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &deletedGetPayload)
+	if deletedGetPayload.Error != bridgepkg.ErrBridgeTaskSubscriptionNotFound.Error() {
+		t.Fatalf("get deleted subscription payload = %#v", deletedGetPayload)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodDelete,
+		"/tasks/task-1/notifications/bridges/"+putSubscription.SubscriptionID,
+		nil,
+	)
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf(
+			"delete deleted subscription status = %d, want %d; body=%s",
+			resp.Code,
+			http.StatusNotFound,
+			resp.Body.String(),
+		)
+	}
+	var deletedDeletePayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &deletedDeletePayload)
+	if deletedDeletePayload.Error != bridgepkg.ErrBridgeTaskSubscriptionNotFound.Error() {
+		t.Fatalf("delete deleted subscription payload = %#v", deletedDeletePayload)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/tasks/task-1/notifications/bridges",
+		[]byte(`{"bridge_instance_id":"brg-1","scope":"global","workspace_id":"ws-1","delivery_mode":"reply"}`),
+	)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"invalid subscription status = %d, want %d; body=%s",
+			resp.Code,
+			http.StatusBadRequest,
+			resp.Body.String(),
+		)
+	}
+	var invalidSubscriptionPayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &invalidSubscriptionPayload)
+	if invalidSubscriptionPayload.Error == "" {
+		t.Fatalf("invalid subscription payload = %#v, want validation error", invalidSubscriptionPayload)
+	}
+}
+
+func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject subscriptions for missing bridge instances before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := testutil.StubTaskManager{
+			GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
+				if id != "task-1" {
+					t.Fatalf("GetTask id = %q, want task-1", id)
+				}
+				if actor.Origin.Ref != "tasks.create_bridge_notification_subscription" {
+					t.Fatalf("GetTask actor origin = %#v", actor.Origin)
+				}
+				return &taskpkg.View{Task: taskpkg.Task{
+					ID:          "task-1",
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				}}, nil
+			},
+		}
+		bridges := testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				if id != "missing-bridge" {
+					t.Fatalf("GetInstance id = %q, want missing-bridge", id)
+				}
+				return nil, bridgepkg.ErrBridgeInstanceNotFound
+			},
+			PutTaskSubscriptionFn: func(context.Context, bridgepkg.BridgeTaskSubscription) error {
+				t.Fatal("PutBridgeTaskSubscription should not be called for a missing bridge instance")
+				return nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasksAndBridges(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			bridges,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/tasks/task-1/notifications/bridges",
+			[]byte(
+				`{"subscription_id":"sub-missing","bridge_instance_id":"missing-bridge","scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","delivery_mode":"reply"}`,
+			),
+		)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf(
+				"create subscription missing bridge status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusNotFound,
+				resp.Body.String(),
+			)
+		}
+		var errorPayload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &errorPayload)
+		if errorPayload.Error != bridgepkg.ErrBridgeInstanceNotFound.Error() {
+			t.Fatalf("missing bridge error = %q, want %q", errorPayload.Error, bridgepkg.ErrBridgeInstanceNotFound)
+		}
+	})
+
+	t.Run("Should reject bridge instances outside the task scope before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := testutil.StubTaskManager{
+			GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
+				if id != "task-1" {
+					t.Fatalf("GetTask id = %q, want task-1", id)
+				}
+				if actor.Origin.Ref != "tasks.create_bridge_notification_subscription" {
+					t.Fatalf("GetTask actor origin = %#v", actor.Origin)
+				}
+				return &taskpkg.View{Task: taskpkg.Task{
+					ID:          "task-1",
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				}}, nil
+			},
+		}
+		bridges := testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				if id != "brg-global" {
+					t.Fatalf("GetInstance id = %q, want brg-global", id)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:    "brg-global",
+					Scope: bridgepkg.ScopeGlobal,
+				}, nil
+			},
+			PutTaskSubscriptionFn: func(context.Context, bridgepkg.BridgeTaskSubscription) error {
+				t.Fatal("PutBridgeTaskSubscription should not be called for a scope mismatch")
+				return nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasksAndBridges(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			bridges,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/tasks/task-1/notifications/bridges",
+			[]byte(
+				`{"bridge_instance_id":"brg-global","scope":"workspace","workspace_id":"ws-1","peer_id":"peer-1","delivery_mode":"reply"}`,
+			),
+		)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"create subscription scope mismatch status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusBadRequest,
+				resp.Body.String(),
+			)
+		}
+		var errorPayload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &errorPayload)
+		if !strings.Contains(
+			errorPayload.Error,
+			`bridge instance scope "global" does not match task scope "workspace"`,
+		) {
+			t.Fatalf("scope mismatch payload = %#v", errorPayload)
+		}
+	})
+}
+
+func TestBaseHandlersTaskRunReviewEndpoints(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 5, 10, 30, 0, 0, time.UTC)
+	review := taskpkg.RunReview{
+		ReviewID:          "review-1",
+		TaskID:            "task-1",
+		RunID:             "run-1",
+		Policy:            taskpkg.ReviewPolicyAlways,
+		ReviewRound:       1,
+		Attempt:           1,
+		Status:            taskpkg.RunReviewStatusRequested,
+		Reason:            "ready for review",
+		MissingWork:       json.RawMessage(`[]`),
+		ReviewerSessionID: "sess-review",
+		RequestedAt:       now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	var (
+		requestCalls int
+		listQueries  []taskpkg.RunReviewQuery
+		gotReviewID  string
+		gotVerdict   taskpkg.RecordRunReviewRequest
+	)
+	tasks := testutil.StubTaskManager{
+		RunDetailFn: func(_ context.Context, runID string, actor taskpkg.ActorContext) (*taskpkg.RunDetailView, error) {
+			if runID != "run-1" || actor.Origin.Ref != "tasks.request_review" {
+				t.Fatalf("RunDetail(runID, actor) = %q, %#v", runID, actor)
+			}
+			return &taskpkg.RunDetailView{
+				Run: taskpkg.Run{
+					ID:      "run-1",
+					TaskID:  "task-1",
+					Status:  taskpkg.TaskRunStatusCompleted,
+					Attempt: 1,
+					Origin:  taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.run.start"},
+				},
+			}, nil
+		},
+		RequestRunReviewFn: func(
+			_ context.Context,
+			req taskpkg.RunReviewRequest,
+			actor taskpkg.ActorContext,
+		) (taskpkg.RunReview, bool, error) {
+			requestCalls++
+			if actor.Origin.Ref != "tasks.request_review" ||
+				req.TaskID != "task-1" ||
+				req.RunID != "run-1" ||
+				req.Policy != taskpkg.ReviewPolicyAlways ||
+				req.Reason != "ready for review" {
+				t.Fatalf("RequestRunReview(req, actor) = %#v, %#v", req, actor)
+			}
+			return review, true, nil
+		},
+		ListRunReviewsFn: func(
+			_ context.Context,
+			query taskpkg.RunReviewQuery,
+			actor taskpkg.ActorContext,
+		) ([]taskpkg.RunReview, error) {
+			if actor.Origin.Ref != "tasks.list_reviews" {
+				t.Fatalf("ListRunReviews actor = %#v", actor)
+			}
+			listQueries = append(listQueries, query)
+			return []taskpkg.RunReview{review}, nil
+		},
+		GetRunReviewFn: func(_ context.Context, reviewID string, actor taskpkg.ActorContext) (taskpkg.RunReview, error) {
+			if actor.Origin.Ref != "tasks.get_review" {
+				t.Fatalf("GetRunReview actor = %#v", actor)
+			}
+			gotReviewID = reviewID
+			return review, nil
+		},
+		RecordRunReviewFn: func(
+			_ context.Context,
+			req taskpkg.RecordRunReviewRequest,
+			actor taskpkg.ActorContext,
+		) (taskpkg.RunReviewResult, error) {
+			if actor.Origin.Ref != "tasks.submit_review" {
+				t.Fatalf("RecordRunReview actor = %#v", actor)
+			}
+			gotVerdict = req
+			recorded := review
+			recorded.Status = taskpkg.RunReviewStatusRecorded
+			recorded.Outcome = taskpkg.RunReviewOutcomeRejected
+			continuation := &taskpkg.Run{
+				ID:      "run-2",
+				TaskID:  "task-1",
+				Status:  taskpkg.TaskRunStatusQueued,
+				Attempt: 2,
+				Origin:  taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.run.review_retry"},
+			}
+			return taskpkg.RunReviewResult{Review: recorded, ContinuationRun: continuation}, nil
+		},
+	}
+	fixture := newHandlerFixtureWithTasks(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		tasks,
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+
+	resp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/task-runs/run-1/reviews",
+		[]byte(`{"reason":"ready for review"}`),
+	)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("request review status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+	}
+	var requestPayload contract.TaskRunReviewRequestResponse
+	testutil.DecodeJSONResponse(t, resp, &requestPayload)
+	if !requestPayload.Created || requestPayload.Review.ReviewID != "review-1" {
+		t.Fatalf("request review payload = %#v", requestPayload)
+	}
+	if requestCalls != 1 {
+		t.Fatalf("request calls = %d, want 1", requestCalls)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/task-runs/run-1/reviews?status=requested&reviewer_session_id=sess-review&limit=2",
+		nil,
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("list run reviews status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	resp = performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1/reviews?status=requested", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("list task reviews status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	if len(listQueries) != 2 ||
+		listQueries[0].RunID != "run-1" ||
+		listQueries[0].ReviewerSessionID != "sess-review" ||
+		listQueries[0].Limit != 2 ||
+		listQueries[1].TaskID != "task-1" {
+		t.Fatalf("review list queries = %#v", listQueries)
+	}
+
+	resp = performRequest(t, fixture.Engine, http.MethodGet, "/task-reviews/review-1", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("get review status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	if gotReviewID != "review-1" {
+		t.Fatalf("review id = %q, want review-1", gotReviewID)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/task-reviews/review-1/verdict",
+		[]byte(
+			`{"run_id":"run-1","verdict":{"outcome":"rejected","confidence":0.8,"reason":"missing tests","delivery_id":"delivery-1","missing_work":["tests"],"next_round_guidance":"add tests"}}`,
+		),
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("submit review status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	if gotVerdict.ReviewID != "review-1" ||
+		gotVerdict.RunID != "run-1" ||
+		gotVerdict.Verdict.Outcome != taskpkg.RunReviewOutcomeRejected ||
+		gotVerdict.Verdict.Confidence == nil ||
+		*gotVerdict.Verdict.Confidence != 0.8 ||
+		string(gotVerdict.Verdict.MissingWork) != `["tests"]` {
+		t.Fatalf("record review request = %#v", gotVerdict)
+	}
+	var verdictPayload contract.TaskRunReviewVerdictResponse
+	testutil.DecodeJSONResponse(t, resp, &verdictPayload)
+	if verdictPayload.Review.Status != taskpkg.RunReviewStatusRecorded ||
+		verdictPayload.ContinuationRun == nil ||
+		verdictPayload.ContinuationRun.ID != "run-2" {
+		t.Fatalf("verdict payload = %#v", verdictPayload)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/task-runs/run-1/reviews",
+		[]byte(`{"run_id":"other"}`),
+	)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"mismatched review status = %d, want %d; body=%s",
+			resp.Code,
+			http.StatusBadRequest,
+			resp.Body.String(),
+		)
+	}
+	var mismatchReviewPayload contract.ErrorPayload
+	testutil.DecodeJSONResponse(t, resp, &mismatchReviewPayload)
+	if !strings.Contains(mismatchReviewPayload.Error, `task_run_review.run_id must match run id "run-1"`) {
+		t.Fatalf("mismatched review payload = %#v", mismatchReviewPayload)
+	}
+	if requestCalls != 1 {
+		t.Fatalf("request calls after mismatch = %d, want 1", requestCalls)
 	}
 }
 

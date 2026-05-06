@@ -61,7 +61,7 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AppliedMigrations() error = %v", err)
 		}
-		if got, want := len(records), 17; got != want {
+		if got, want := len(records), len(globalSchemaMigrations); got != want {
 			t.Fatalf("len(records) = %d, want %d", got, want)
 		}
 		soulRecord := records[11]
@@ -83,6 +83,18 @@ func TestGlobalDBSoulMigration(t *testing.T) {
 		}
 		if records[16].Version != 17 || records[16].Name != "rebuild_network_conversation_containers" {
 			t.Fatalf("records[16] = %#v, want rebuild_network_conversation_containers v17", records[16])
+		}
+		if records[17].Version != 18 || records[17].Name != "add_task_orchestration_profile_schema" {
+			t.Fatalf("records[17] = %#v, want add_task_orchestration_profile_schema v18", records[17])
+		}
+		if records[18].Version != 19 || records[18].Name != "add_task_review_gate_schema" {
+			t.Fatalf("records[18] = %#v, want add_task_review_gate_schema v19", records[18])
+		}
+		if records[19].Version != 20 || records[19].Name != "add_notification_cursors" {
+			t.Fatalf("records[19] = %#v, want add_notification_cursors v20", records[19])
+		}
+		if records[20].Version != 21 || records[20].Name != "add_bridge_task_subscriptions" {
+			t.Fatalf("records[20] = %#v, want add_bridge_task_subscriptions v21", records[20])
 		}
 		for _, table := range []string{"soul_snapshots", "soul_revisions"} {
 			exists, err := tableExists(ctx, globalDB.db, table)

@@ -426,7 +426,20 @@ export const tasksOperatorTestIds = {
   detailPreviewPublish: "tasks-detail-preview-publish",
   detailRunsEmpty: "tasks-detail-runs-empty",
   detailTabAgents: "tasks-detail-tab-agents",
+  detailTabOrchestration: "tasks-detail-tab-orchestration",
   detailTabRuns: "tasks-detail-tab-runs",
+  orchestrationPanel: "tasks-detail-orchestration-panel",
+  orchestrationProfileCard: "tasks-execution-profile-card",
+  orchestrationProfileEmpty: "tasks-execution-profile-empty",
+  orchestrationProfileSummary: "tasks-execution-profile-summary",
+  orchestrationReviewsCard: "tasks-reviews-card",
+  orchestrationReviewsEmpty: "tasks-reviews-card-empty",
+  orchestrationNotificationsCard: "tasks-bridge-notifications-card",
+  orchestrationNotificationsEmpty: "tasks-bridge-notifications-empty",
+  orchestrationStreamCard: "tasks-stream-resume-card",
+  orchestrationStreamLatest: "tasks-stream-resume-latest",
+  orchestrationStreamSeed: "tasks-stream-resume-seed",
+  orchestrationStreamStatus: "tasks-stream-resume-status",
   inboxView: "tasks-inbox-view",
   modeDashboard: "tasks-mode-dashboard",
   modeInbox: "tasks-mode-inbox",
@@ -477,7 +490,20 @@ export interface TasksOperatorSelectors {
   detailRunsLink(runId: string): Locator;
   detailTab(tabId: string): Locator;
   detailTabAgents: Locator;
+  detailTabOrchestration: Locator;
   detailTabRuns: Locator;
+  orchestrationPanel: Locator;
+  orchestrationProfileCard: Locator;
+  orchestrationProfileEmpty: Locator;
+  orchestrationProfileSummary: Locator;
+  orchestrationReviewsCard: Locator;
+  orchestrationReviewsEmpty: Locator;
+  orchestrationNotificationsCard: Locator;
+  orchestrationNotificationsEmpty: Locator;
+  orchestrationStreamCard: Locator;
+  orchestrationStreamLatest: Locator;
+  orchestrationStreamSeed: Locator;
+  orchestrationStreamStatus: Locator;
   inboxApprove(taskId: string): Locator;
   inboxItem(taskId: string): Locator;
   inboxLane(lane: string): Locator;
@@ -776,7 +802,24 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     detailRunsLink: (runId: string) => page.getByTestId(`tasks-detail-runs-link-${runId}`),
     detailTab: (tabId: string) => page.getByTestId(`tasks-detail-tab-${tabId}`),
     detailTabAgents: page.getByTestId(tasksOperatorTestIds.detailTabAgents),
+    detailTabOrchestration: page.getByTestId(tasksOperatorTestIds.detailTabOrchestration),
     detailTabRuns: page.getByTestId(tasksOperatorTestIds.detailTabRuns),
+    orchestrationPanel: page.getByTestId(tasksOperatorTestIds.orchestrationPanel),
+    orchestrationProfileCard: page.getByTestId(tasksOperatorTestIds.orchestrationProfileCard),
+    orchestrationProfileEmpty: page.getByTestId(tasksOperatorTestIds.orchestrationProfileEmpty),
+    orchestrationProfileSummary: page.getByTestId(tasksOperatorTestIds.orchestrationProfileSummary),
+    orchestrationReviewsCard: page.getByTestId(tasksOperatorTestIds.orchestrationReviewsCard),
+    orchestrationReviewsEmpty: page.getByTestId(tasksOperatorTestIds.orchestrationReviewsEmpty),
+    orchestrationNotificationsCard: page.getByTestId(
+      tasksOperatorTestIds.orchestrationNotificationsCard
+    ),
+    orchestrationNotificationsEmpty: page.getByTestId(
+      tasksOperatorTestIds.orchestrationNotificationsEmpty
+    ),
+    orchestrationStreamCard: page.getByTestId(tasksOperatorTestIds.orchestrationStreamCard),
+    orchestrationStreamLatest: page.getByTestId(tasksOperatorTestIds.orchestrationStreamLatest),
+    orchestrationStreamSeed: page.getByTestId(tasksOperatorTestIds.orchestrationStreamSeed),
+    orchestrationStreamStatus: page.getByTestId(tasksOperatorTestIds.orchestrationStreamStatus),
     inboxApprove: (taskId: string) => page.getByTestId(`tasks-inbox-item-approve-${taskId}`),
     inboxItem: (taskId: string) => page.getByTestId(`tasks-inbox-item-${taskId}`),
     inboxLane: (lane: string) => page.getByTestId(`tasks-inbox-lane-${lane}`),

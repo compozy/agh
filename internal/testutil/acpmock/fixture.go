@@ -20,6 +20,8 @@ const (
 	aghCurrentSkillsOpen                = "<current-available-skills>"
 	aghCurrentSkillsClose               = "</current-available-skills>"
 	aghCurrentSkillsLastInstructionLine = "If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
+	aghAvailableSkillsOpen              = "<available-skills>"
+	aghAvailableSkillsClose             = "</available-skills>"
 	aghDurableMemoryOpen                = "Relevant durable memory for this turn:"
 	aghDurableMemoryUserMessageMarker   = "\n\nUser message:\n"
 )
@@ -343,63 +345,112 @@ func (m TurnMatch) matches(input turnMatchInput, occurrence int) bool {
 }
 
 func canonicalUserText(prompt string) string {
-	current := strings.TrimSpace(prompt)
+	trimmed := promptAfterLastUserMarker(prompt)
 	for {
-		next := stripLeadingSituationContext(current)
-		next = stripLeadingCurrentSkillsCatalog(next)
-		next = stripLeadingDurableMemory(next)
-		next = strings.TrimSpace(next)
-		if next == current {
-			return current
+		next, changed := stripLeadingPromptAugmentation(trimmed)
+		if !changed {
+			return trimmed
 		}
-		current = next
+		trimmed = promptAfterLastUserMarker(next)
 	}
 }
 
-func stripLeadingSituationContext(prompt string) string {
+func promptAfterLastUserMarker(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, aghSituationContextOpen) {
+	markerIndex := -1
+	markerLength := 0
+	for _, marker := range []string{"User request:", "User message:"} {
+		index := lastLineMarkerIndex(trimmed, marker)
+		if index > markerIndex {
+			markerIndex = index
+			markerLength = len(marker)
+		}
+	}
+	if markerIndex < 0 {
 		return trimmed
 	}
-
-	_, after, ok := strings.Cut(trimmed, aghSituationContextClose)
-	if !ok {
-		return trimmed
-	}
-
-	return strings.TrimSpace(after)
+	return strings.TrimSpace(trimmed[markerIndex+markerLength:])
 }
 
-func stripLeadingCurrentSkillsCatalog(prompt string) string {
+func lastLineMarkerIndex(text string, marker string) int {
+	searchEnd := len(text)
+	for searchEnd >= 0 {
+		index := strings.LastIndex(text[:searchEnd], marker)
+		if index < 0 {
+			return -1
+		}
+		if index == 0 || text[index-1] == '\n' {
+			return index
+		}
+		searchEnd = index
+	}
+	return -1
+}
+
+func stripLeadingPromptAugmentation(prompt string) (string, bool) {
+	if next, ok := stripLeadingPromptBlock(prompt, aghSituationContextOpen, aghSituationContextClose); ok {
+		return next, true
+	}
+	if next, ok := stripLeadingPromptBlock(prompt, aghCurrentSkillsOpen, aghCurrentSkillsClose); ok {
+		return stripCurrentSkillsInstructions(next), true
+	}
+	if next, ok := stripLeadingPromptBlock(prompt, aghAvailableSkillsOpen, aghAvailableSkillsClose); ok {
+		return stripCurrentSkillsInstructions(next), true
+	}
+	if next, ok := stripLeadingDurableMemory(prompt); ok {
+		return next, true
+	}
+	return strings.TrimSpace(prompt), false
+}
+
+func stripLeadingPromptBlock(prompt string, open string, closeMarker string) (string, bool) {
 	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, aghCurrentSkillsOpen) {
-		return trimmed
+	if !strings.HasPrefix(trimmed, open) {
+		return trimmed, false
 	}
-
-	_, afterClose, ok := strings.Cut(trimmed, aghCurrentSkillsClose)
+	_, after, ok := strings.Cut(trimmed, closeMarker)
 	if !ok {
-		return trimmed
+		return trimmed, false
 	}
-
-	afterClose = strings.TrimSpace(afterClose)
-	_, afterInstructions, ok := strings.Cut(afterClose, aghCurrentSkillsLastInstructionLine)
-	if ok {
-		return strings.TrimSpace(afterInstructions)
-	}
-	return afterClose
+	return strings.TrimSpace(after), true
 }
 
-func stripLeadingDurableMemory(prompt string) string {
+func stripCurrentSkillsInstructions(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	for {
+		next, changed := stripOneCurrentSkillsInstruction(trimmed)
+		if !changed {
+			return trimmed
+		}
+		trimmed = next
+	}
+}
+
+func stripOneCurrentSkillsInstruction(prompt string) (string, bool) {
+	for _, instruction := range []string{
+		"The <current-available-skills> block above is the authoritative current skill state for this turn.",
+		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
+		"Use `agh__skill_view` to load full instructions for any skill.",
+		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
+		aghCurrentSkillsLastInstructionLine,
+	} {
+		if after, ok := strings.CutPrefix(prompt, instruction); ok {
+			return strings.TrimSpace(after), true
+		}
+	}
+	return prompt, false
+}
+
+func stripLeadingDurableMemory(prompt string) (string, bool) {
 	trimmed := strings.TrimSpace(prompt)
 	if !strings.HasPrefix(trimmed, aghDurableMemoryOpen) {
-		return trimmed
+		return trimmed, false
 	}
-
 	_, after, ok := strings.Cut(trimmed, aghDurableMemoryUserMessageMarker)
 	if !ok {
-		return trimmed
+		return trimmed, false
 	}
-	return strings.TrimSpace(after)
+	return strings.TrimSpace(after), true
 }
 
 // Normalize returns a trimmed copy of the network matcher.

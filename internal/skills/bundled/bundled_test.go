@@ -40,6 +40,18 @@ var bundledSkillFixtures = []struct {
 		path: "skills/agh-tools-guide/SKILL.md",
 		name: "agh-tools-guide",
 	},
+	{
+		path: "skills/agh-task-worker/SKILL.md",
+		name: "agh-task-worker",
+	},
+	{
+		path: "skills/agh-orchestrator/SKILL.md",
+		name: "agh-orchestrator",
+	},
+	{
+		path: "skills/agh-task-reviewer/SKILL.md",
+		name: "agh-task-reviewer",
+	},
 }
 
 func TestBundledFSContainsExpectedSkills(t *testing.T) {
@@ -172,6 +184,134 @@ func TestBundledRegistry(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestBundledOrchestrationSkillMetadata(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	fsys := bundled.FS()
+
+	for _, tc := range []struct {
+		name    string
+		path    string
+		asserts func(t *testing.T, agh map[string]any)
+	}{
+		{
+			name: "ShouldDescribeTaskWorkerLoadContract",
+			path: "skills/agh-task-worker/SKILL.md",
+			asserts: func(t *testing.T, agh map[string]any) {
+				t.Helper()
+
+				requireMetadataBool(t, agh, "bundled", true)
+				requireMetadataBool(t, agh, "instructional_only", true)
+				alwaysLoad := requireMetadataMap(t, agh, "always_load")
+				requireMetadataBool(t, alwaysLoad, "requires_active_task_claim", true)
+				requireMetadataStringSliceContains(t, alwaysLoad, "session_types", "worker")
+				requireMetadataStringSliceContains(t, agh, "related_skills", "agh-session-guide")
+				requireMetadataStringSliceContains(t, agh, "related_skills", "agh-tools-guide")
+			},
+		},
+		{
+			name: "ShouldDescribeOrchestratorInjectionContract",
+			path: "skills/agh-orchestrator/SKILL.md",
+			asserts: func(t *testing.T, agh map[string]any) {
+				t.Helper()
+
+				requireMetadataBool(t, agh, "bundled", true)
+				requireMetadataBool(t, agh, "instructional_only", true)
+				alwaysLoad := requireMetadataMap(t, agh, "always_load")
+				requireMetadataString(t, alwaysLoad, "injected_by", "internal/daemon/coordinator_runtime")
+				requireMetadataStringSliceContains(t, alwaysLoad, "session_types", "coordinator")
+				requireMetadataStringSliceContains(t, agh, "related_skills", "agh-task-worker")
+			},
+		},
+		{
+			name: "ShouldDescribeReviewerRequestBindingContract",
+			path: "skills/agh-task-reviewer/SKILL.md",
+			asserts: func(t *testing.T, agh map[string]any) {
+				t.Helper()
+
+				requireMetadataBool(t, agh, "bundled", true)
+				requireMetadataBool(t, agh, "instructional_only", true)
+				requireMetadataBool(t, agh, "requires_active_task_claim", false)
+				requireMetadataBool(t, agh, "requires_review_request", true)
+				requireMetadataString(t, agh, "authority", "instructional_only")
+				requireMetadataString(t, agh, "kind", "orchestration")
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			skillPath := materializeSkillFile(t, fsys, root, tc.path)
+
+			parsed, err := skills.ParseSkillFile(skillPath)
+			if err != nil {
+				t.Fatalf("ParseSkillFile(%q) error = %v", skillPath, err)
+			}
+
+			tc.asserts(t, requireAGHMetadata(t, parsed))
+		})
+	}
+}
+
+func TestBundledOrchestrationSkillContent(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		skill    string
+		snippets []string
+	}{
+		{
+			name:  "ShouldDocumentTaskWorkerAuthorityBoundaries",
+			skill: "agh-task-worker",
+			snippets: []string{
+				"# AGH Task Worker",
+				"agh me context -o json",
+				"task state",
+				"raw claim tokens",
+				"session-bound task tools",
+			},
+		},
+		{
+			name:  "ShouldDocumentOrchestratorAuthorityBoundaries",
+			skill: "agh-orchestrator",
+			snippets: []string{
+				"# AGH Orchestrator",
+				"CoordinatorProfile.mode",
+				"agh-task-worker",
+				"review",
+				"Channels coordinate",
+			},
+		},
+		{
+			name:  "ShouldDocumentReviewerVerdictBoundaries",
+			skill: "agh-task-reviewer",
+			snippets: []string{
+				"# AGH Task Reviewer",
+				"submit_run_review",
+				"missing_work",
+				"invalid_output",
+				"raw claim tokens",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			content, err := bundled.LoadContent(tc.skill)
+			if err != nil {
+				t.Fatalf("LoadContent(%q) error = %v", tc.skill, err)
+			}
+			for _, snippet := range tc.snippets {
+				if !strings.Contains(content, snippet) {
+					t.Fatalf("LoadContent(%q) missing snippet %q in %q", tc.skill, snippet, content)
+				}
+			}
+		})
+	}
 }
 
 func TestBundledAghNetworkSkillContent(t *testing.T) {
@@ -387,6 +527,73 @@ func materializeSkillFile(t *testing.T, fsys fs.FS, root, bundledPath string) st
 	}
 
 	return targetPath
+}
+
+func requireAGHMetadata(t *testing.T, skill *skills.Skill) map[string]any {
+	t.Helper()
+
+	if skill == nil {
+		t.Fatal("skill = nil, want parsed skill")
+	}
+
+	agh, ok := skill.Meta.Metadata["agh"].(map[string]any)
+	if !ok {
+		t.Fatalf("%s metadata.agh = %#v, want map", skill.Meta.Name, skill.Meta.Metadata["agh"])
+	}
+
+	return agh
+}
+
+func requireMetadataMap(t *testing.T, metadata map[string]any, key string) map[string]any {
+	t.Helper()
+
+	value, ok := metadata[key].(map[string]any)
+	if !ok {
+		t.Fatalf("metadata[%q] = %#v, want map", key, metadata[key])
+	}
+
+	return value
+}
+
+func requireMetadataBool(t *testing.T, metadata map[string]any, key string, want bool) {
+	t.Helper()
+
+	got, ok := metadata[key].(bool)
+	if !ok {
+		t.Fatalf("metadata[%q] = %#v, want bool", key, metadata[key])
+	}
+	if got != want {
+		t.Fatalf("metadata[%q] = %v, want %v", key, got, want)
+	}
+}
+
+func requireMetadataString(t *testing.T, metadata map[string]any, key string, want string) {
+	t.Helper()
+
+	got, ok := metadata[key].(string)
+	if !ok {
+		t.Fatalf("metadata[%q] = %#v, want string", key, metadata[key])
+	}
+	if got != want {
+		t.Fatalf("metadata[%q] = %q, want %q", key, got, want)
+	}
+}
+
+func requireMetadataStringSliceContains(t *testing.T, metadata map[string]any, key string, want string) {
+	t.Helper()
+
+	rawItems, ok := metadata[key].([]any)
+	if !ok {
+		t.Fatalf("metadata[%q] = %#v, want []any", key, metadata[key])
+	}
+
+	for _, item := range rawItems {
+		if item == want {
+			return
+		}
+	}
+
+	t.Fatalf("metadata[%q] = %#v, want item %q", key, rawItems, want)
 }
 
 func findSubcommand(t *testing.T, parent *cobra.Command, name string) *cobra.Command {

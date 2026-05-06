@@ -1,17 +1,12 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { Rss } from "lucide-react";
 import { ChangelogTocRail } from "@/components/blog/changelog-toc-rail";
 import { MonoEyebrow } from "@/components/blog/mono-eyebrow";
 import { ReleaseEntry } from "@/components/blog/release-entry";
 import { allReleases } from "@/lib/blog";
-import { createPageMetadata } from "@/lib/site-config";
+import { changelogMetadata } from "./metadata";
 
-export const metadata: Metadata = createPageMetadata({
-  title: "Changelog",
-  description: "Every alpha receipt and release note for the AGH runtime and agh-network/v0.",
-  path: "/changelog",
-});
+export const metadata = changelogMetadata;
 
 export default function ChangelogPage() {
   const releases = allReleases();

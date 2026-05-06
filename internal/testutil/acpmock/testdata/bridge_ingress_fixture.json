@@ -10,8 +10,13 @@
                 {
                     "name": "initial-bridge-summary",
                     "match": {
-                        "turn_source": "user",
-                        "occurrence": 1
+                        "turn_source": "network",
+                        "occurrence": 1,
+                        "network": {
+                            "message_id": "321",
+                            "kind": "message",
+                            "from": "777"
+                        }
                     },
                     "steps": [
                         {
@@ -23,8 +28,13 @@
                 {
                     "name": "follow-up-bridge-summary",
                     "match": {
-                        "turn_source": "user",
-                        "occurrence": 2
+                        "turn_source": "network",
+                        "occurrence": 2,
+                        "network": {
+                            "message_id": "322",
+                            "kind": "message",
+                            "from": "777"
+                        }
                     },
                     "steps": [
                         {

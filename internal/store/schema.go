@@ -108,6 +108,11 @@ func RunMigrations(ctx context.Context, db *sql.DB, migrations []Migration, opts
 	return nil
 }
 
+// MigrationChecksum returns the checksum RunMigrations records for migration.
+func MigrationChecksum(migration Migration) (string, error) {
+	return migrationChecksum(migration)
+}
+
 // AppliedMigrations returns applied migration records ordered by version.
 func AppliedMigrations(ctx context.Context, db *sql.DB) ([]MigrationRecord, error) {
 	return appliedMigrations(ctx, db, schemaMigrationsTable)

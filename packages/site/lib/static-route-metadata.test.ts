@@ -9,7 +9,7 @@ vi.mock("next/font/google", () => ({
 
 describe("static public route metadata", () => {
   it("publishes canonical metadata for the blog index", async () => {
-    const { metadata } = await import("@/app/blog/page");
+    const { blogMetadata: metadata } = await import("@/app/blog/metadata");
 
     expect(metadata.title).toBe("Blog");
     expect(metadata.description).toBe(
@@ -28,7 +28,7 @@ describe("static public route metadata", () => {
   });
 
   it("publishes canonical metadata for the changelog index", async () => {
-    const { metadata } = await import("@/app/changelog/page");
+    const { changelogMetadata: metadata } = await import("@/app/changelog/metadata");
 
     expect(metadata.title).toBe("Changelog");
     expect(metadata.description).toBe(

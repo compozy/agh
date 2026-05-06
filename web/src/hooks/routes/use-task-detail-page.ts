@@ -17,7 +17,14 @@ import type {
   TaskTreeView,
 } from "@/systems/tasks";
 
-type TaskDetailPanel = "overview" | "timeline" | "runs" | "children" | "dependencies" | "agents";
+type TaskDetailPanel =
+  | "overview"
+  | "timeline"
+  | "runs"
+  | "children"
+  | "dependencies"
+  | "agents"
+  | "orchestration";
 
 type MultiAgentLiveState = "loading" | "disconnected" | "no-descendants" | "no-active" | "ready";
 

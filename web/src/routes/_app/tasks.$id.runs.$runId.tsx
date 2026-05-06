@@ -7,6 +7,7 @@ import {
   TaskRunDetailHeader,
   TaskRunIdentityPanel,
   TaskRunProgressPanel,
+  TasksReviewsCard,
 } from "@/systems/tasks";
 
 export const Route = createFileRoute("/_app/tasks/$id/runs/$runId")({
@@ -69,6 +70,14 @@ function TaskRunDetailRoute() {
         <TaskRunIdentityPanel run={run} />
         <TaskRunProgressPanel run={run} />
         <TaskRunActivityPanel run={run} />
+        <TasksReviewsCard
+          errorMessage={page.reviewsError?.message ?? null}
+          isLoading={page.reviewsLoading}
+          label="Run reviews"
+          reviews={page.reviews}
+          testId="tasks-run-reviews-card"
+          testIdPrefix="tasks-run-reviews-row"
+        />
       </div>
     </div>
   );

@@ -62,6 +62,9 @@ func (g *GlobalDB) ClaimNextRun(ctx context.Context, criteria taskpkg.ClaimCrite
 		if err := claimRunWithExecutor(ctx, exec, runID, normalized, claimToken, claimHash, leaseUntil); err != nil {
 			return err
 		}
+		if err := setTaskCurrentRunProjectionForRun(ctx, exec, runID); err != nil {
+			return err
+		}
 
 		run, err := g.getTaskRunWithExecutor(ctx, exec, runID)
 		if err != nil {
@@ -171,6 +174,9 @@ func (g *GlobalDB) ReleaseRunLease(ctx context.Context, release taskpkg.LeaseRel
 		if err := requeueLeasedRun(ctx, exec, current.ID); err != nil {
 			return err
 		}
+		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+			return err
+		}
 		updated, err = g.getTaskRunWithExecutor(ctx, exec, current.ID)
 		return err
 	}); err != nil {
@@ -219,6 +225,9 @@ func (g *GlobalDB) CompleteRunLease(ctx context.Context, completion taskpkg.Leas
 		if err := requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, current.ID, "task run lease"); err != nil {
 			return err
 		}
+		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+			return err
+		}
 		updated, err = g.getTaskRunWithExecutor(ctx, exec, current.ID)
 		return err
 	}); err != nil {
@@ -265,6 +274,9 @@ func (g *GlobalDB) FailRunLease(ctx context.Context, failure taskpkg.LeaseFailur
 			return fmt.Errorf("store: fail task run lease %q: %w", current.ID, err)
 		}
 		if err := requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, current.ID, "task run lease"); err != nil {
+			return err
+		}
+		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
 			return err
 		}
 		updated, err = g.getTaskRunWithExecutor(ctx, exec, current.ID)
@@ -418,6 +430,9 @@ func (g *GlobalDB) RecoverExpiredRunLeases(
 			if err := requeueExpiredLease(ctx, exec, current, snapshot); err != nil {
 				return err
 			}
+			if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+				return err
+			}
 			updated, err := g.getTaskRunWithExecutor(ctx, exec, current.ID)
 			if err != nil {
 				return err
@@ -504,6 +519,7 @@ func (g *GlobalDB) selectClaimableRunID(
 		where = append(where, "tr.coordination_channel_id = ?")
 		args = append(args, criteria.CoordinationChannelID)
 	}
+	where, args = appendProfileClaimFilters(where, args, criteria)
 	args = append(args, preferredCapabilityArgs(criteria.RequiredCapabilities)...)
 
 	query := `SELECT tr.id
@@ -524,6 +540,78 @@ func (g *GlobalDB) selectClaimableRunID(
 		return "", fmt.Errorf("store: select claimable task run: %w", err)
 	}
 	return runID, nil
+}
+
+func appendProfileClaimFilters(
+	where []string,
+	args []any,
+	criteria taskpkg.ClaimCriteria,
+) ([]string, []any) {
+	where, args = appendProfileRequiredCapabilityFilter(
+		where,
+		args,
+		profileRoleWorker,
+		criteria.RequiredCapabilities,
+	)
+	where, args = appendProfileRequiredCapabilityFilter(
+		where,
+		args,
+		profileRoleParticipant,
+		criteria.RequiredCapabilities,
+	)
+	agentName := strings.TrimSpace(criteria.AgentName)
+	where = append(where, `NOT EXISTS (
+			SELECT 1
+			  FROM task_execution_profiles tep
+			 WHERE tep.task_id = t.id
+			   AND COALESCE(tep.worker_agent_name, '') <> ''
+			   AND tep.worker_agent_name <> ?
+		)`)
+	args = append(args, agentName)
+	where, args = appendProfileAllowedAgentFilter(where, args, profileRoleWorker, agentName)
+	return appendProfileAllowedAgentFilter(where, args, profileRoleParticipant, agentName)
+}
+
+func appendProfileRequiredCapabilityFilter(
+	where []string,
+	args []any,
+	role string,
+	capabilities []string,
+) ([]string, []any) {
+	where = append(where, `NOT EXISTS (
+			SELECT 1
+			  FROM task_profile_capabilities pc
+			 WHERE pc.task_id = t.id
+			   AND pc.role = ?
+			   AND pc.preference = ?`+missingCapabilityPredicateFor("pc.capability_id", capabilities)+`
+		)`)
+	args = append(args, role, profilePreferenceRequired)
+	args = append(args, missingCapabilityArgs(capabilities)...)
+	return where, args
+}
+
+func appendProfileAllowedAgentFilter(
+	where []string,
+	args []any,
+	role string,
+	agentName string,
+) ([]string, []any) {
+	where = append(where, `(NOT EXISTS (
+			SELECT 1
+			  FROM task_profile_agents pa_all
+			 WHERE pa_all.task_id = t.id
+			   AND pa_all.role = ?
+			   AND pa_all.preference = ?
+		) OR EXISTS (
+			SELECT 1
+			  FROM task_profile_agents pa_match
+			 WHERE pa_match.task_id = t.id
+			   AND pa_match.role = ?
+			   AND pa_match.preference = ?
+			   AND pa_match.agent_name = ?
+		))`)
+	args = append(args, role, profilePreferenceAllowed, role, profilePreferenceAllowed, agentName)
+	return where, args
 }
 
 func claimRunWithExecutor(
@@ -811,10 +899,14 @@ func networkChannelEntry(
 }
 
 func missingCapabilityPredicate(capabilities []string) string {
+	return missingCapabilityPredicateFor("req.capability_id", capabilities)
+}
+
+func missingCapabilityPredicateFor(column string, capabilities []string) string {
 	if len(capabilities) == 0 {
 		return ""
 	}
-	return ` AND req.capability_id NOT IN (` + claimPlaceholders(len(capabilities)) + `)`
+	return " AND " + column + " NOT IN (" + claimPlaceholders(len(capabilities)) + ")"
 }
 
 func missingCapabilityArgs(capabilities []string) []any {

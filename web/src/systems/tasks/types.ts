@@ -17,6 +17,7 @@ export type TaskInboxGroup = NonNullable<TaskInboxView["groups"]>[number];
 export type TaskInboxItem = NonNullable<TaskInboxGroup["items"]>[number];
 export type TaskTriageState = OperationResponse<"markTaskRead", 200>["triage"];
 export type TaskStreamPayload = OperationResponse<"streamTask", 200>;
+export type TaskStreamTimelineEvent = TaskStreamPayload["timeline"];
 export type AgentTaskClaim = OperationResponse<"claimNextAgentTask", 200>["claim"];
 export type AgentCoordinationChannel = OperationResponse<
   "listAgentChannels",
@@ -33,6 +34,58 @@ export type TaskInboxFilter = OperationQuery<"getTaskInbox">;
 export type TaskRunsFilter = OperationQuery<"listTaskRuns">;
 export type TaskTimelineFilter = OperationQuery<"getTaskTimeline">;
 export type TaskStreamFilter = OperationQuery<"streamTask">;
+
+// Execution profile (typed overlay - ADR-010)
+export type TaskExecutionProfile = OperationResponse<"getTaskExecutionProfile", 200>["profile"];
+export type TaskExecutionProfileSetRequest = OperationRequestBody<"setTaskExecutionProfile">;
+export type TaskExecutionProfileWorker = TaskExecutionProfile["worker"];
+export type TaskExecutionProfileCoordinator = TaskExecutionProfile["coordinator"];
+export type TaskExecutionProfileReviewSelectors = TaskExecutionProfile["review"];
+export type TaskExecutionProfileSandbox = TaskExecutionProfile["sandbox"];
+export type TaskExecutionProfileParticipants = TaskExecutionProfile["participants"];
+export type TaskExecutionProfileWorkerMode = TaskExecutionProfileWorker["mode"];
+export type TaskExecutionProfileCoordinatorMode = TaskExecutionProfileCoordinator["mode"];
+export type TaskExecutionProfileSandboxMode = TaskExecutionProfileSandbox["mode"];
+
+// Run reviews (ADR-007 / ADR-009 review gate)
+export type TaskRunReview = OperationResponse<"listTaskRunReviews", 200>["reviews"][number];
+export type TaskRunReviewsFilter = OperationQuery<"listTaskRunReviews">;
+export type TaskReviewsFilter = OperationQuery<"listTaskReviews">;
+export type TaskRunReviewRequest = OperationRequestBody<"requestTaskRunReview">;
+export type TaskRunReviewRequestResult = OperationResponse<"requestTaskRunReview", 200>;
+export type TaskRunReviewVerdictRequest = OperationRequestBody<"submitTaskRunReviewVerdict">;
+export type TaskRunReviewVerdict = TaskRunReviewVerdictRequest["verdict"];
+export type TaskRunReviewVerdictResult = OperationResponse<"submitTaskRunReviewVerdict", 200>;
+export type TaskRunReviewStatus = TaskRunReview["status"];
+export type TaskRunReviewOutcome = NonNullable<TaskRunReview["outcome"]>;
+export type TaskRunReviewPolicy = TaskRunReview["policy"];
+export type TaskRunReviewContinuationRun = NonNullable<
+  TaskRunReviewVerdictResult["continuation_run"]
+>;
+
+// Bridge notification diagnostics (ADR-003 cursor primitive + bridge subscriptions)
+export type TaskBridgeNotificationSubscription = OperationResponse<
+  "listTaskBridgeNotificationSubscriptions",
+  200
+>["subscriptions"][number];
+export type TaskBridgeNotificationCursor = TaskBridgeNotificationSubscription["cursor"];
+export type TaskBridgeNotificationSubscriptionsFilter =
+  OperationQuery<"listTaskBridgeNotificationSubscriptions">;
+export type TaskBridgeNotificationSubscriptionCreateRequest =
+  OperationRequestBody<"createTaskBridgeNotificationSubscription">;
+export type TaskBridgeNotificationDeliveryMode =
+  TaskBridgeNotificationSubscription["delivery_mode"];
+export type TaskBridgeNotificationSubscriptionScope = TaskBridgeNotificationSubscription["scope"];
+
+// Agent task context bundle (current_run + execution profile + replay seed - ADR-005)
+export type AgentContextView = OperationResponse<"getAgentContext", 200>["context"];
+export type AgentTaskContextSection = AgentContextView["task"];
+export type TaskContextBundle = NonNullable<AgentTaskContextSection["bundle"]>;
+export type TaskContextRecentEvent = TaskContextBundle["recent_events"][number];
+export type TaskContextReviewHistoryEntry = TaskContextBundle["review_history"][number];
+export type TaskContextReviewContinuation = NonNullable<TaskContextBundle["review_continuation"]>;
+export type TaskContextCurrentRun = NonNullable<TaskContextBundle["current_run"]>;
+export type TaskContextPriorAttempt = TaskContextBundle["prior_attempts"][number];
 
 export type CreateTaskRequest = OperationRequestBody<"createTask">;
 export type UpdateTaskRequest = OperationRequestBody<"updateTask">;

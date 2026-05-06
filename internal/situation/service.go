@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -54,7 +55,14 @@ type SkillRegistry interface {
 // TaskStore is the narrowed task read surface required by agent context.
 type TaskStore interface {
 	GetTask(ctx context.Context, id string) (taskpkg.Task, error)
+	GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error)
 	ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]taskpkg.Run, error)
+	ListTaskEvents(ctx context.Context, query taskpkg.EventQuery) ([]taskpkg.Event, error)
+	ListTaskEventRecords(ctx context.Context, query taskpkg.EventRecordQuery) ([]taskpkg.EventRecord, error)
+	GetExecutionProfile(ctx context.Context, taskID string) (taskpkg.ExecutionProfile, error)
+	GetRunReview(ctx context.Context, reviewID string) (taskpkg.RunReview, error)
+	LookupRunReviewBySession(ctx context.Context, sessionID string) (taskpkg.RunReview, error)
+	ListRunReviews(ctx context.Context, query taskpkg.RunReviewQuery) ([]taskpkg.RunReview, error)
 }
 
 // NetworkReader is the narrowed network read surface required by agent context.
@@ -237,7 +245,7 @@ func (s *Service) ContextForSession(
 		Provenance:   s.provenance(),
 	}
 
-	taskContext, channelContext, activeChannel, err := s.taskAndChannelContext(ctx, info.ID)
+	taskContext, channelContext, activeChannel, err := s.taskAndChannelContext(ctx, info.ID, workspaceSnapshot)
 	if err != nil {
 		return contract.AgentContextPayload{}, err
 	}
@@ -470,6 +478,7 @@ func (s *Service) limits(ctx context.Context, workspaceID string) contract.Agent
 func (s *Service) taskAndChannelContext(
 	ctx context.Context,
 	sessionID string,
+	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
 ) (contract.AgentTaskContextPayload, contract.AgentCoordinationChannelContextPayload, string, error) {
 	store := s.taskStoreValue()
 	if store == nil || strings.TrimSpace(sessionID) == "" {
@@ -485,7 +494,7 @@ func (s *Service) taskAndChannelContext(
 	}
 	run, ok := selectActiveRun(runs)
 	if !ok {
-		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+		return s.reviewBindingTaskAndChannelContext(ctx, store, sessionID, workspaceSnapshot)
 	}
 
 	taskRecord, err := store.GetTask(ctx, run.TaskID)
@@ -494,6 +503,11 @@ func (s *Service) taskAndChannelContext(
 			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
 		}
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+	}
+
+	bundle, err := s.sessionContextBundle(ctx, taskRecord, run, workspaceSnapshot, strings.TrimSpace(sessionID))
+	if err != nil {
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
 	}
 
 	channel := coordinationChannelPayload(taskRecord, run)
@@ -513,6 +527,7 @@ func (s *Service) taskAndChannelContext(
 		Available: true,
 		Task:      taskReferencePayload(taskRecord),
 		Lease:     &lease,
+		Bundle:    bundle,
 	}
 	channelContext := contract.AgentCoordinationChannelContextPayload{
 		Available: channel.ID != "",
@@ -522,6 +537,100 @@ func (s *Service) taskAndChannelContext(
 		channelContext.Channel = nil
 	}
 	return taskContext, channelContext, firstTrimmed(channel.Channel, channel.ID), nil
+}
+
+func (s *Service) reviewBindingTaskAndChannelContext(
+	ctx context.Context,
+	store TaskStore,
+	sessionID string,
+	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
+) (contract.AgentTaskContextPayload, contract.AgentCoordinationChannelContextPayload, string, error) {
+	review, err := store.LookupRunReviewBySession(ctx, strings.TrimSpace(sessionID))
+	if err != nil {
+		if errors.Is(err, taskpkg.ErrRunReviewNotFound) {
+			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+		}
+		if isContextError(err) {
+			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
+		}
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+	}
+	taskRecord, err := store.GetTask(ctx, review.TaskID)
+	if err != nil {
+		if isContextError(err) {
+			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
+		}
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+	}
+	run, err := store.GetTaskRun(ctx, review.RunID)
+	if err != nil {
+		if isContextError(err) {
+			return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
+		}
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+	}
+	if strings.TrimSpace(run.TaskID) != strings.TrimSpace(taskRecord.ID) {
+		slog.Warn(
+			"situation: skip review-bound context for mismatched task and run",
+			"session_id", strings.TrimSpace(sessionID),
+			"review_id", strings.TrimSpace(review.ReviewID),
+			"task_id", strings.TrimSpace(taskRecord.ID),
+			"run_id", strings.TrimSpace(run.ID),
+			"run_task_id", strings.TrimSpace(run.TaskID),
+		)
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+	}
+	bundle, err := s.sessionContextBundle(ctx, taskRecord, run, workspaceSnapshot, strings.TrimSpace(sessionID))
+	if err != nil {
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
+	}
+
+	channel := coordinationChannelPayload(taskRecord, run)
+	if reviewerChannelID := strings.TrimSpace(review.ReviewerChannelID); reviewerChannelID != "" {
+		channel.ID = reviewerChannelID
+		channel.Channel = reviewerChannelID
+		channel.DisplayName = reviewerChannelID
+		channel = contract.NormalizeCoordinationChannelPayload(channel)
+	}
+
+	taskContext := contract.AgentTaskContextPayload{
+		Available: true,
+		Task:      taskReferencePayload(taskRecord),
+		Bundle:    bundle,
+	}
+	channelContext := contract.AgentCoordinationChannelContextPayload{
+		Available: channel.ID != "",
+		Channel:   &channel,
+	}
+	if !channelContext.Available {
+		channelContext.Channel = nil
+	}
+	return taskContext, channelContext, firstTrimmed(review.ReviewerChannelID, channel.Channel, channel.ID), nil
+}
+
+func (s *Service) sessionContextBundle(
+	ctx context.Context,
+	taskRecord taskpkg.Task,
+	run taskpkg.Run,
+	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
+	sessionID string,
+) (*taskpkg.ContextBundle, error) {
+	bundle, err := s.bundleForRun(ctx, taskRecord, run, workspaceSnapshot, nil)
+	if err == nil {
+		return &bundle, nil
+	}
+	if isContextError(err) {
+		return nil, err
+	}
+
+	slog.Warn(
+		"situation: skip task context bundle enrichment",
+		"session_id", strings.TrimSpace(sessionID),
+		"task_id", strings.TrimSpace(taskRecord.ID),
+		"run_id", strings.TrimSpace(run.ID),
+		"error", safeTaskContextText(err.Error(), 240),
+	)
+	return nil, nil
 }
 
 func (s *Service) networkSections(
@@ -797,7 +906,7 @@ func taskReferencePayload(taskRecord taskpkg.Task) *contract.TaskReferencePayloa
 
 func coordinationChannelPayload(taskRecord taskpkg.Task, run taskpkg.Run) contract.CoordinationChannelPayload {
 	metadata := runMetadata(run.Metadata)
-	channelID := firstTrimmed(metadata["coordination_channel_id"], run.NetworkChannel)
+	channelID := firstTrimmed(run.CoordinationChannelID, metadata["coordination_channel_id"], run.NetworkChannel)
 	channelName := firstTrimmed(run.NetworkChannel, channelID)
 	lastActivity := latestTime(
 		run.QueuedAt,

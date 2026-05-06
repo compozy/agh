@@ -1,14 +1,21 @@
 import type {
+  AgentContextView,
   CreateTaskRequest,
+  TaskBridgeNotificationCursor,
+  TaskBridgeNotificationSubscription,
   TaskChildSummary,
+  TaskContextBundle,
   TaskDashboardView,
   TaskDetailView,
+  TaskExecutionProfile,
   TaskInboxItem,
   TaskInboxView,
   TaskListItem,
   TaskRecord,
   TaskRun,
   TaskRunDetailView,
+  TaskRunReview,
+  TaskRunReviewVerdictResult,
   TaskSummary,
   TaskTimelineItem,
   TaskTreeNode,
@@ -26,6 +33,16 @@ import {
 
 type TaskDependencyReference = NonNullable<TaskDetailView["dependency_references"]>[number];
 type TaskActiveRun = NonNullable<TaskListItem["active_run"]>;
+type TaskDashboardActiveRuns = TaskDashboardView["active_runs"];
+type TaskDashboardActiveRun = NonNullable<TaskDashboardActiveRuns["items"]>[number];
+type TaskDashboardFixtureOverrides = Omit<Partial<TaskDashboardView>, "active_runs"> & {
+  active_runs?: Omit<Partial<TaskDashboardActiveRuns>, "items"> & {
+    items?: Partial<TaskDashboardActiveRun>[];
+  };
+};
+type TaskInboxItemFixtureOverrides = Omit<Partial<TaskInboxItem>, "task"> & {
+  task?: Partial<TaskInboxItem["task"]>;
+};
 
 const STORYBOOK_WORKSPACE_ID = storyDefaultWorkspaceId;
 const STORYBOOK_CHANNEL = storyHeroNetworkChannel;
@@ -88,6 +105,7 @@ export function buildTaskFixture(overrides: Partial<TaskListItem> = {}): TaskLis
     status: "in_progress",
     scope: "workspace",
     workspace_id: STORYBOOK_WORKSPACE_ID,
+    latest_event_seq: 1,
     origin: { kind: "web", ref: storyPeople.primaryOperator },
     created_at: "2026-04-17T09:00:00Z",
     updated_at: "2026-04-17T18:02:00Z",
@@ -355,6 +373,7 @@ export function buildTaskChildFixture(overrides: Partial<TaskChildSummary> = {})
     title: "Lock fallback banner copy",
     priority: "medium",
     owner: { kind: "agent_session", ref: storyAgentNames.copywriter },
+    latest_event_seq: 1,
     last_activity_at: "2026-04-17T17:30:00Z",
     ...overrides,
   } as TaskChildSummary;
@@ -454,62 +473,25 @@ export function buildDetailFixture(overrides: Partial<TaskDetailView> = {}): Tas
 }
 
 export function buildDashboardFixture(
-  overrides: Partial<TaskDashboardView> = {}
+  overrides: TaskDashboardFixtureOverrides = {}
 ): TaskDashboardView {
+  const { active_runs: activeRunsOverrides, ...viewOverrides } = overrides;
+  const activeRuns: TaskDashboardActiveRuns = {
+    claimed: activeRunsOverrides?.claimed ?? 0,
+    queued: activeRunsOverrides?.queued ?? 1,
+    running: activeRunsOverrides?.running ?? 2,
+    starting: activeRunsOverrides?.starting ?? 0,
+    total: activeRunsOverrides?.total ?? 3,
+    items: (activeRunsOverrides?.items ?? defaultTaskDashboardActiveRuns()).map(
+      (item, index) =>
+        ({
+          latest_event_seq: index + 1,
+          ...item,
+        }) as TaskDashboardActiveRun
+    ),
+  };
   return {
-    active_runs: {
-      claimed: 0,
-      queued: 1,
-      running: 2,
-      starting: 0,
-      total: 3,
-      items: [
-        {
-          age_ms: 45_000,
-          attempt: 2,
-          health_status: "ok",
-          last_activity_at: "2026-04-17T18:00:00Z",
-          max_attempts: 3,
-          run_id: "run_001",
-          run_status: "running",
-          scope: "workspace",
-          stuck: false,
-          task_id: "task_001",
-          task_identifier: "TASK-1",
-          task_status: "in_progress",
-          task_title: "Lock launch blockers for the 18:30 UTC cutover",
-        },
-        {
-          age_ms: 67_000,
-          attempt: 1,
-          health_status: "ok",
-          last_activity_at: "2026-04-17T17:58:00Z",
-          max_attempts: 2,
-          run_id: "run_002",
-          run_status: "running",
-          scope: "workspace",
-          stuck: false,
-          task_id: "task_002",
-          task_identifier: "TASK-2",
-          task_status: "in_progress",
-          task_title: "Validate landing-page hero on mobile breakpoints",
-        },
-        {
-          age_ms: 180_000,
-          health_status: "warning",
-          last_activity_at: "2026-04-17T17:57:00Z",
-          max_attempts: 2,
-          run_id: "run_014",
-          run_status: "queued",
-          scope: "workspace",
-          stuck: false,
-          task_id: "task_014",
-          task_identifier: "TASK-14",
-          task_status: "in_progress",
-          task_title: "Verify webhook replay backlog at the partner bank",
-        },
-      ],
-    },
+    active_runs: activeRuns,
     cards: {
       blocked: {
         awaiting_approval: 1,
@@ -590,24 +572,80 @@ export function buildDashboardFixture(
       starting_runs: 0,
       tasks_total: TASK_FIXTURES.length,
     },
-    ...overrides,
+    ...viewOverrides,
   } as TaskDashboardView;
 }
 
-export function buildInboxItemFixture(overrides: Partial<TaskInboxItem> = {}): TaskInboxItem {
+function defaultTaskDashboardActiveRuns(): TaskDashboardActiveRun[] {
+  return [
+    {
+      age_ms: 45_000,
+      attempt: 2,
+      health_status: "ok",
+      last_activity_at: "2026-04-17T18:00:00Z",
+      latest_event_seq: 1,
+      max_attempts: 3,
+      run_id: "run_001",
+      run_status: "running",
+      scope: "workspace",
+      stuck: false,
+      task_id: "task_001",
+      task_identifier: "TASK-1",
+      task_status: "in_progress",
+      task_title: "Lock launch blockers for the 18:30 UTC cutover",
+    },
+    {
+      age_ms: 67_000,
+      attempt: 1,
+      health_status: "ok",
+      last_activity_at: "2026-04-17T17:58:00Z",
+      latest_event_seq: 2,
+      max_attempts: 2,
+      run_id: "run_002",
+      run_status: "running",
+      scope: "workspace",
+      stuck: false,
+      task_id: "task_002",
+      task_identifier: "TASK-2",
+      task_status: "in_progress",
+      task_title: "Validate landing-page hero on mobile breakpoints",
+    },
+    {
+      age_ms: 180_000,
+      attempt: 1,
+      health_status: "warning",
+      last_activity_at: "2026-04-17T17:57:00Z",
+      latest_event_seq: 3,
+      max_attempts: 2,
+      run_id: "run_014",
+      run_status: "queued",
+      scope: "workspace",
+      stuck: false,
+      task_id: "task_014",
+      task_identifier: "TASK-14",
+      task_status: "in_progress",
+      task_title: "Verify webhook replay backlog at the partner bank",
+    },
+  ];
+}
+
+export function buildInboxItemFixture(
+  overrides: TaskInboxItemFixtureOverrides = {}
+): TaskInboxItem {
+  const { task, ...itemOverrides } = overrides;
+  const defaultTask = buildTaskRecordFixture(
+    buildTaskFixture({
+      id: "task_inbox_001",
+      identifier: "TASK-8",
+      title: "Inbox item",
+      status: "ready",
+      priority: "medium",
+      active_run: null,
+    })
+  );
   return {
     lane: "my_work",
     latest_activity_at: "2026-04-17T18:00:00Z",
-    task: buildTaskRecordFixture(
-      buildTaskFixture({
-        id: "task_inbox_001",
-        identifier: "TASK-8",
-        title: "Inbox item",
-        status: "ready",
-        priority: "medium",
-        active_run: null,
-      })
-    ),
     triage: {
       actor: { kind: "human", ref: storyPeople.primaryOperator },
       archived: false,
@@ -616,7 +654,8 @@ export function buildInboxItemFixture(overrides: Partial<TaskInboxItem> = {}): T
       task_id: "task_inbox_001",
       updated_at: "2026-04-17T18:00:00Z",
     },
-    ...overrides,
+    ...itemOverrides,
+    task: task === undefined ? defaultTask : buildTaskRecordFixture(undefined, task),
   } as TaskInboxItem;
 }
 
@@ -1087,3 +1126,341 @@ export const coordinatorEnabledWorkspaceFixture: CoordinatorEnabledWorkspaceFixt
   coordinatorAgentName: storyCoordinatorAgentName,
   defaultChannelDisplayName: "Launch War Room coordination",
 };
+
+export function buildTaskExecutionProfileFixture(
+  overrides: Partial<TaskExecutionProfile> = {}
+): TaskExecutionProfile {
+  const taskId = overrides.task_id ?? "task_001";
+  return {
+    task_id: taskId,
+    coordinator: {
+      mode: "guided",
+      agent_name: storyCoordinatorAgentName,
+      guidance: "Lead the launch room through the 18:30 UTC cutover decisions.",
+      provider: "anthropic",
+      model: "claude-opus-4-7",
+      ...overrides.coordinator,
+    },
+    worker: {
+      mode: "select",
+      allowed_agent_names: [storyAgentNames.product, storyAgentNames.platform],
+      preferred_agent_names: [storyAgentNames.product],
+      preferred_capabilities: ["task.execute"],
+      required_capabilities: ["task.execute"],
+      provider: "anthropic",
+      model: "claude-opus-4-7",
+      ...overrides.worker,
+    },
+    review: {
+      allowed_agent_names: [storyAgentNames.compliance],
+      preferred_agent_names: [storyAgentNames.compliance],
+      preferred_capabilities: ["review.run"],
+      required_capabilities: ["review.run"],
+      ...overrides.review,
+    },
+    sandbox: {
+      mode: "ref",
+      sandbox_ref: "fintech-launch",
+      ...overrides.sandbox,
+    },
+    participants: {
+      preferred_agent_names: [storyAgentNames.copywriter],
+      ...overrides.participants,
+    },
+    created_at: "2026-04-17T08:00:00Z",
+    updated_at: "2026-04-17T17:30:00Z",
+    ...overrides,
+  };
+}
+
+export const taskExecutionProfileFixture: TaskExecutionProfile = buildTaskExecutionProfileFixture();
+
+export function buildTaskRunReviewFixture(overrides: Partial<TaskRunReview> = {}): TaskRunReview {
+  return {
+    review_id: "review_001",
+    run_id: "run_001",
+    task_id: "task_001",
+    review_round: 1,
+    attempt: 1,
+    policy: "on_success",
+    status: "in_review",
+    requested_at: "2026-04-17T18:00:00Z",
+    routed_at: "2026-04-17T18:00:30Z",
+    started_at: "2026-04-17T18:01:00Z",
+    reviewed_at: "2026-04-17T18:00:00Z",
+    deadline_at: "2026-04-17T19:00:00Z",
+    created_at: "2026-04-17T18:00:00Z",
+    updated_at: "2026-04-17T18:01:00Z",
+    reviewer_agent_name: storyAgentNames.compliance,
+    reviewer_session_id: storySessionIds.product,
+    delivery_id: "delivery_review_001",
+    ...overrides,
+  } as TaskRunReview;
+}
+
+export const taskRunReviewFixture: TaskRunReview = buildTaskRunReviewFixture();
+
+export const taskRunReviewListFixture: TaskRunReview[] = [
+  taskRunReviewFixture,
+  buildTaskRunReviewFixture({
+    review_id: "review_002",
+    review_round: 2,
+    status: "recorded",
+    outcome: "rejected",
+    reason: "missing partner-bank reconciliation evidence",
+    next_round_guidance: "Attach the partner-bank reconciliation artifacts before the next round.",
+    confidence: 0.62,
+    reviewer_agent_name: storyAgentNames.compliance,
+    reviewed_at: "2026-04-17T18:30:00Z",
+    updated_at: "2026-04-17T18:30:30Z",
+  }),
+];
+
+export function buildTaskRunReviewVerdictResultFixture(
+  overrides: Partial<TaskRunReviewVerdictResult> = {}
+): TaskRunReviewVerdictResult {
+  return {
+    review: buildTaskRunReviewFixture({
+      review_id: "review_002",
+      status: "recorded",
+      outcome: "rejected",
+      reason: "missing partner-bank reconciliation evidence",
+      next_round_guidance:
+        "Attach the partner-bank reconciliation artifacts before the next round.",
+      confidence: 0.62,
+      reviewed_at: "2026-04-17T18:30:00Z",
+      updated_at: "2026-04-17T18:30:30Z",
+      ...overrides.review,
+    }),
+    continuation_run: buildTaskRunRecordFixture({
+      id: "run_continuation_001",
+      task_id: "task_001",
+      attempt: 3,
+      status: "queued",
+      queued_at: "2026-04-17T18:30:30Z",
+      started_at: null,
+      session_id: undefined,
+      claim_token_hash: "sha256:continuation-launch-command",
+      coordination_channel_id: "coord-launch-001",
+    }) as TaskRunReviewVerdictResult["continuation_run"],
+    circuit_opened: false,
+    ...overrides,
+  } as TaskRunReviewVerdictResult;
+}
+
+export const taskRunReviewVerdictResultFixture: TaskRunReviewVerdictResult =
+  buildTaskRunReviewVerdictResultFixture();
+
+export function buildBridgeNotificationCursorFixture(
+  overrides: Partial<TaskBridgeNotificationCursor> = {}
+): TaskBridgeNotificationCursor {
+  return {
+    consumer_id: "bridge_task_subscription:bsub_001",
+    stream_name: "task_events",
+    subject_id: "task_001",
+    last_sequence: 14,
+    last_delivery_id: "delivery_evt_014",
+    last_delivered_at: "2026-04-17T18:01:00Z",
+    last_error: undefined,
+    updated_at: "2026-04-17T18:01:00Z",
+    ...overrides,
+  } as TaskBridgeNotificationCursor;
+}
+
+export function buildTaskBridgeNotificationSubscriptionFixture(
+  overrides: Partial<TaskBridgeNotificationSubscription> = {}
+): TaskBridgeNotificationSubscription {
+  return {
+    subscription_id: overrides.subscription_id ?? "bsub_001",
+    task_id: overrides.task_id ?? "task_001",
+    bridge_instance_id: overrides.bridge_instance_id ?? "bridge_instance_alpha",
+    delivery_mode: overrides.delivery_mode ?? "direct-send",
+    scope: overrides.scope ?? "workspace",
+    workspace_id: overrides.workspace_id ?? STORYBOOK_WORKSPACE_ID,
+    peer_id: overrides.peer_id ?? "peer_launch_observer",
+    group_id: overrides.group_id,
+    thread_id: overrides.thread_id,
+    created_by: overrides.created_by ?? {
+      kind: "human",
+      ref: storyPeople.primaryOperator,
+    },
+    created_at: overrides.created_at ?? "2026-04-17T16:00:00Z",
+    updated_at: overrides.updated_at ?? "2026-04-17T18:01:00Z",
+    cursor:
+      overrides.cursor ??
+      buildBridgeNotificationCursorFixture({
+        subject_id: overrides.task_id ?? "task_001",
+        consumer_id: `bridge_task_subscription:${overrides.subscription_id ?? "bsub_001"}`,
+      }),
+  } as TaskBridgeNotificationSubscription;
+}
+
+export const taskBridgeNotificationSubscriptionFixture: TaskBridgeNotificationSubscription =
+  buildTaskBridgeNotificationSubscriptionFixture();
+
+export const taskBridgeNotificationSubscriptionsFixture: TaskBridgeNotificationSubscription[] = [
+  taskBridgeNotificationSubscriptionFixture,
+  buildTaskBridgeNotificationSubscriptionFixture({
+    subscription_id: "bsub_002",
+    bridge_instance_id: "bridge_instance_beta",
+    delivery_mode: "reply",
+    scope: "global",
+    workspace_id: undefined,
+    peer_id: "peer_partner_observer",
+    group_id: "launch_observers",
+    thread_id: "thread_launch_partner",
+    cursor: buildBridgeNotificationCursorFixture({
+      consumer_id: "bridge_task_subscription:bsub_002",
+      subject_id: "task_001",
+      last_sequence: 0,
+      last_delivery_id: undefined,
+      last_delivered_at: null,
+      updated_at: null,
+    }),
+  }),
+];
+
+export function buildTaskContextBundleFixture(
+  overrides: Partial<TaskContextBundle> = {}
+): TaskContextBundle {
+  const taskId = overrides.task?.id ?? "task_001";
+  return {
+    task: {
+      id: taskId,
+      identifier: overrides.task?.identifier ?? "TASK-1",
+      title: overrides.task?.title ?? "Lock launch blockers for the 18:30 UTC cutover",
+      status: overrides.task?.status ?? "in_progress",
+      scope: overrides.task?.scope ?? "workspace",
+      priority: overrides.task?.priority ?? "high",
+      latest_event_seq: overrides.task?.latest_event_seq ?? 14,
+      workspace_id: overrides.task?.workspace_id ?? STORYBOOK_WORKSPACE_ID,
+      owner: overrides.task?.owner ?? {
+        kind: "agent_session",
+        ref: storyAgentNames.product,
+      },
+    },
+    current_run: overrides.current_run ?? {
+      id: "run_001",
+      task_id: taskId,
+      attempt: 2,
+      status: "running",
+      queued_at: "2026-04-17T09:58:00Z",
+      claimed_at: "2026-04-17T09:58:30Z",
+      heartbeat_at: "2026-04-17T18:00:00Z",
+      lease_until: "2026-04-17T18:05:00Z",
+      ended_at: "2026-04-17T18:00:00Z",
+      started_at: "2026-04-17T09:59:00Z",
+      max_attempts: 3,
+      session_id: storySessionIds.product,
+      claim_token_hash: "sha256:launch-command-run",
+      coordination_channel_id: "coord-launch-001",
+    },
+    execution_profile: overrides.execution_profile ?? buildTaskExecutionProfileFixture(),
+    latest_event_seq: overrides.latest_event_seq ?? 14,
+    limits: overrides.limits ?? {
+      context_body_max_bytes: 65_536,
+      max_runtime_seconds: 1_800,
+      summary_max_bytes: 4_096,
+    },
+    prior_attempts: overrides.prior_attempts ?? [],
+    recent_events: overrides.recent_events ?? [],
+    review_history: overrides.review_history ?? [],
+    handoff_summary: overrides.handoff_summary,
+    review_continuation: overrides.review_continuation ?? null,
+  } as TaskContextBundle;
+}
+
+export const taskContextBundleFixture: TaskContextBundle = buildTaskContextBundleFixture();
+
+export function buildAgentContextFixture(
+  overrides: Partial<AgentContextView> = {}
+): AgentContextView {
+  return {
+    self: {
+      session_id: storySessionIds.product,
+      agent_name: storyAgentNames.product,
+      provider: "anthropic",
+      model: "claude-opus-4-7",
+    },
+    session: {
+      id: storySessionIds.product,
+      created_at: "2026-04-17T09:58:00Z",
+      updated_at: "2026-04-17T18:01:00Z",
+      state: "active",
+      name: "launch command session",
+    },
+    workspace: {
+      id: STORYBOOK_WORKSPACE_ID,
+      name: "Fintech Launch",
+      root_dir: "/workspaces/fintech-launch",
+    },
+    capabilities: {
+      capabilities: [{ id: "task.execute", summary: "Execute tasks" }],
+      section: { limit: 64, returned: 1, truncated: false },
+    },
+    coordination_channel: {
+      available: true,
+      channel: {
+        id: "coord-launch-001",
+        display_name: "TASK-1 coordination",
+        workspace_id: STORYBOOK_WORKSPACE_ID,
+        task_id: "task_001",
+        run_id: "run_001",
+        allowed_message_kinds: [
+          "status",
+          "request",
+          "reply",
+          "blocker",
+          "handoff",
+          "result",
+          "review_request",
+        ],
+      },
+    },
+    inbox_summary: {
+      unread_count: 0,
+      items: [],
+      section: { limit: 32, returned: 0, truncated: false },
+    },
+    limits: {
+      context_section_limit: 32,
+      max_active_task_leases: 4,
+      max_children: 8,
+      max_spawn_depth: 3,
+    },
+    peer_roster: {
+      peers: [],
+      section: { limit: 16, returned: 0, truncated: false },
+    },
+    provenance: {
+      generated_at: "2026-04-17T18:01:00Z",
+      source: "test",
+    },
+    soul: {
+      active: true,
+      enabled: true,
+      present: true,
+      principles: [],
+      tone: [],
+      valid: true,
+    },
+    task: {
+      available: true,
+      task: {
+        id: "task_001",
+        identifier: "TASK-1",
+        title: "Lock launch blockers for the 18:30 UTC cutover",
+        status: "in_progress",
+        scope: "workspace",
+        priority: "high",
+        latest_event_seq: 14,
+        workspace_id: STORYBOOK_WORKSPACE_ID,
+        owner: { kind: "agent_session", ref: storyAgentNames.product },
+      },
+      bundle: buildTaskContextBundleFixture(),
+    },
+    ...overrides,
+  } as AgentContextView;
+}
+
+export const agentContextFixture: AgentContextView = buildAgentContextFixture();

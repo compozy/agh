@@ -13,6 +13,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	"github.com/pedronauck/agh/internal/notifications"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/subprocess"
 )
@@ -30,6 +31,7 @@ type bridgeDedupStore interface {
 type bridgeRuntimeStore interface {
 	bridgepkg.RegistryStore
 	bridgepkg.ResourceProjectionStore
+	bridgepkg.BridgeTaskSubscriptionStore
 	bridgeDedupStore
 	PutBridgeSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error
 	ListBridgeSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error)
@@ -81,6 +83,7 @@ type bridgeLifecycleContextState struct {
 }
 
 var _ extensionpkg.BridgeRuntimeResolver = (*bridgeRuntime)(nil)
+var _ bridgepkg.DeliveryTransport = (*bridgeRuntime)(nil)
 
 func newBridgeRuntime(
 	store bridgeRuntimeStore,
@@ -112,6 +115,144 @@ func newBridgeRuntime(
 		logger:         logger,
 		now:            now,
 	}
+}
+
+func (r *bridgeRuntime) PutBridgeTaskSubscription(
+	ctx context.Context,
+	subscription bridgepkg.BridgeTaskSubscription,
+) error {
+	if r == nil || r.store == nil {
+		return bridgepkg.ErrBridgeTaskSubscriptionNotFound
+	}
+	return r.store.PutBridgeTaskSubscription(ctx, subscription)
+}
+
+func (r *bridgeRuntime) GetBridgeTaskSubscription(
+	ctx context.Context,
+	subscriptionID string,
+) (bridgepkg.BridgeTaskSubscription, error) {
+	if r == nil || r.store == nil {
+		return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
+	}
+	return r.store.GetBridgeTaskSubscription(ctx, subscriptionID)
+}
+
+func (r *bridgeRuntime) ListBridgeTaskSubscriptions(
+	ctx context.Context,
+	query bridgepkg.BridgeTaskSubscriptionQuery,
+) ([]bridgepkg.BridgeTaskSubscription, error) {
+	if r == nil || r.store == nil {
+		return nil, bridgepkg.ErrBridgeTaskSubscriptionNotFound
+	}
+	return r.store.ListBridgeTaskSubscriptions(ctx, query)
+}
+
+func (r *bridgeRuntime) DeleteBridgeTaskSubscription(ctx context.Context, subscriptionID string) error {
+	if r == nil || r.store == nil {
+		return bridgepkg.ErrBridgeTaskSubscriptionNotFound
+	}
+	return r.store.DeleteBridgeTaskSubscription(ctx, subscriptionID)
+}
+
+func (r *bridgeRuntime) GetBridgeInstance(ctx context.Context, id string) (bridgepkg.BridgeInstance, error) {
+	if r == nil {
+		return bridgepkg.BridgeInstance{}, bridgepkg.ErrBridgeInstanceNotFound
+	}
+	instance, err := r.GetInstance(ctx, id)
+	if err != nil {
+		return bridgepkg.BridgeInstance{}, err
+	}
+	if instance == nil {
+		return bridgepkg.BridgeInstance{}, bridgepkg.ErrBridgeInstanceNotFound
+	}
+	return *instance, nil
+}
+
+func (r *bridgeRuntime) GetCursor(
+	ctx context.Context,
+	key notifications.CursorKey,
+) (notifications.Cursor, error) {
+	if r == nil || r.store == nil {
+		return notifications.Cursor{}, notifications.ErrCursorNotFound
+	}
+	cursorStore, ok := r.store.(interface {
+		GetCursor(context.Context, notifications.CursorKey) (notifications.Cursor, error)
+	})
+	if !ok {
+		return notifications.Cursor{}, notifications.ErrCursorNotFound
+	}
+	return cursorStore.GetCursor(ctx, key)
+}
+
+func (r *bridgeRuntime) ListCursors(
+	ctx context.Context,
+	query notifications.CursorQuery,
+) ([]notifications.Cursor, error) {
+	if r == nil || r.store == nil {
+		return nil, notifications.ErrCursorNotFound
+	}
+	cursorStore, ok := r.store.(notifications.CursorStore)
+	if !ok {
+		return nil, notifications.ErrCursorNotFound
+	}
+	return cursorStore.ListCursors(ctx, query)
+}
+
+func (r *bridgeRuntime) AdvanceCursor(
+	ctx context.Context,
+	update notifications.AdvanceCursor,
+) (notifications.Cursor, error) {
+	if r == nil || r.store == nil {
+		return notifications.Cursor{}, notifications.ErrCursorNotFound
+	}
+	cursorStore, ok := r.store.(notifications.CursorStore)
+	if !ok {
+		return notifications.Cursor{}, notifications.ErrCursorNotFound
+	}
+	return cursorStore.AdvanceCursor(ctx, update)
+}
+
+func (r *bridgeRuntime) ResetCursor(
+	ctx context.Context,
+	reset notifications.ResetCursor,
+) (notifications.Cursor, error) {
+	if r == nil || r.store == nil {
+		return notifications.Cursor{}, notifications.ErrCursorNotFound
+	}
+	cursorStore, ok := r.store.(notifications.CursorStore)
+	if !ok {
+		return notifications.Cursor{}, notifications.ErrCursorNotFound
+	}
+	return cursorStore.ResetCursor(ctx, reset)
+}
+
+func (r *bridgeRuntime) RecordCursorError(
+	ctx context.Context,
+	report notifications.CursorError,
+) (notifications.Cursor, error) {
+	if r == nil || r.store == nil {
+		return notifications.Cursor{}, notifications.ErrCursorNotFound
+	}
+	cursorStore, ok := r.store.(notifications.CursorStore)
+	if !ok {
+		return notifications.Cursor{}, notifications.ErrCursorNotFound
+	}
+	return cursorStore.RecordCursorError(ctx, report)
+}
+
+func (r *bridgeRuntime) DeliverBridge(
+	ctx context.Context,
+	extensionName string,
+	req bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
+	if r == nil {
+		return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
+	}
+	transport, ok := r.extensionRuntime().(bridgepkg.DeliveryTransport)
+	if !ok || transport == nil {
+		return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
+	}
+	return transport.DeliverBridge(ctx, extensionName, req)
 }
 
 func (r *bridgeRuntime) setResourceDefinitions(

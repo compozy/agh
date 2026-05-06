@@ -721,6 +721,30 @@ func (n *daemonNativeTools) taskToolBindings(
 			call:         n.taskRunList,
 			availability: availability,
 		},
+		toolspkg.ToolIDTaskRunReviewRequest: {
+			call:         n.taskRunReviewRequest,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskRunReviewList: {
+			call:         n.taskRunReviewList,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskRunReviewShow: {
+			call:         n.taskRunReviewShow,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskExecutionProfileGet: {
+			call:         n.taskExecutionProfileGet,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskExecutionProfileSet: {
+			call:         n.taskExecutionProfileSet,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskExecutionProfileDelete: {
+			call:         n.taskExecutionProfileDelete,
+			availability: availability,
+		},
 	}
 }
 
@@ -747,6 +771,10 @@ func (n *daemonNativeTools) autonomyToolBindings(
 		toolspkg.ToolIDTaskRunRelease: {
 			call:         n.autonomyRelease,
 			availability: availability,
+		},
+		toolspkg.ToolIDTaskRunReviewSubmit: {
+			call:         n.submitRunReview,
+			availability: n.submitRunReviewAvailability,
 		},
 	}
 }

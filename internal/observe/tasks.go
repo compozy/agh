@@ -353,6 +353,7 @@ type TaskDashboardActiveRun struct {
 	TaskOwner      *taskpkg.Ownership `json:"task_owner,omitempty"`
 	Scope          taskpkg.Scope      `json:"scope"`
 	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	LatestEventSeq int64              `json:"latest_event_seq"`
 	RunID          string             `json:"run_id"`
 	RunStatus      taskpkg.RunStatus  `json:"run_status"`
 	Attempt        int                `json:"attempt"`
@@ -1224,14 +1225,15 @@ func taskInboxEligibleForMyWork(status taskpkg.Status) bool {
 
 func taskInboxReference(summary taskpkg.Summary) taskpkg.Reference {
 	return taskpkg.Reference{
-		ID:          summary.ID,
-		Identifier:  summary.Identifier,
-		Title:       summary.Title,
-		Status:      summary.Status,
-		Priority:    summary.Priority,
-		Owner:       cloneOwnership(summary.Owner),
-		Scope:       summary.Scope,
-		WorkspaceID: summary.WorkspaceID,
+		ID:             summary.ID,
+		Identifier:     summary.Identifier,
+		Title:          summary.Title,
+		Status:         summary.Status,
+		Priority:       summary.Priority,
+		Owner:          cloneOwnership(summary.Owner),
+		Scope:          summary.Scope,
+		WorkspaceID:    summary.WorkspaceID,
+		LatestEventSeq: summary.LatestEventSeq,
 	}
 }
 
@@ -1552,6 +1554,7 @@ func taskDashboardActiveRunItems(
 			TaskOwner:      cloneOwnership(taskItem.Owner),
 			Scope:          taskItem.Scope.Normalize(),
 			WorkspaceID:    taskItem.WorkspaceID,
+			LatestEventSeq: taskItem.LatestEventSeq,
 			RunID:          run.ID,
 			RunStatus:      run.Status.Normalize(),
 			Attempt:        run.Attempt,

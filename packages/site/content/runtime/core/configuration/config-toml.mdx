@@ -24,37 +24,40 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 
 ## Quick Reference
 
-| Section                       | Purpose                                                                         | Default                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `[daemon]`                    | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                |
-| `[http]`                      | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                               |
-| `[defaults]`                  | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                              |
-| `[limits]`                    | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                 |
-| `[session.limits]`            | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                  |
-| `[session.supervision]`       | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes |
-| `[agents.soul]`               | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                    |
-| `[agents.heartbeat]`          | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention |
-| `[permissions]`               | Default permission mode.                                                        | `mode = "approve-all"`                                                            |
-| `[tools]`                     | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                               |
-| `[tools.hosted_mcp]`          | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                        |
-| `[tools.policy]`              | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources          |
-| `[[mcp_servers]]`             | Top-level MCP servers passed to agents.                                         | empty list                                                                        |
-| `[providers.<name>]`          | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                          |
-| `[sandboxes.<name>]`          | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                         |
-| `[observability]`             | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                            |
-| `[observability.transcripts]` | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                      |
-| `[log]`                       | Structured log level.                                                           | `level = "info"`                                                                  |
-| `[memory]`                    | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                       |
-| `[memory.dream]`              | Background memory consolidation.                                                | enabled, agent `general`, 24 hours, 3 sessions, 30 minutes                        |
-| `[skills]`                    | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                     |
-| `[skills.marketplace]`        | Skill registry override.                                                        | unset                                                                             |
-| `[extensions.marketplace]`    | Extension registry override.                                                    | unset                                                                             |
-| `[automation]`                | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                   |
-| `[[automation.jobs]]`         | Scheduled automation jobs.                                                      | empty list                                                                        |
-| `[[automation.triggers]]`     | Event-driven automation triggers.                                               | empty list                                                                        |
-| `[autonomy.coordinator]`      | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 active per workspace    |
-| `[[hooks.declarations]]`      | Config-defined runtime hooks.                                                   | empty list                                                                        |
-| `[network]`                   | Experimental AGH network runtime.                                               | enabled, channel `default`                                                        |
+| Section                        | Purpose                                                                         | Default                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `[daemon]`                     | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                |
+| `[http]`                       | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                               |
+| `[defaults]`                   | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                              |
+| `[limits]`                     | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                 |
+| `[session.limits]`             | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                  |
+| `[session.supervision]`        | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes |
+| `[agents.soul]`                | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                    |
+| `[agents.heartbeat]`           | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention |
+| `[permissions]`                | Default permission mode.                                                        | `mode = "approve-all"`                                                            |
+| `[tools]`                      | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                               |
+| `[tools.hosted_mcp]`           | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                        |
+| `[tools.policy]`               | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources          |
+| `[[mcp_servers]]`              | Top-level MCP servers passed to agents.                                         | empty list                                                                        |
+| `[providers.<name>]`           | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                          |
+| `[sandboxes.<name>]`           | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                         |
+| `[observability]`              | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                            |
+| `[observability.transcripts]`  | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                      |
+| `[log]`                        | Structured log level.                                                           | `level = "info"`                                                                  |
+| `[memory]`                     | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                       |
+| `[memory.dream]`               | Background memory consolidation.                                                | enabled, agent `general`, 24 hours, 3 sessions, 30 minutes                        |
+| `[skills]`                     | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                     |
+| `[skills.marketplace]`         | Skill registry override.                                                        | unset                                                                             |
+| `[extensions.marketplace]`     | Extension registry override.                                                    | unset                                                                             |
+| `[automation]`                 | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                   |
+| `[[automation.jobs]]`          | Scheduled automation jobs.                                                      | empty list                                                                        |
+| `[[automation.triggers]]`      | Event-driven automation triggers.                                               | empty list                                                                        |
+| `[autonomy.coordinator]`       | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 active per workspace    |
+| `[task.orchestration]`         | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5      |
+| `[task.orchestration.profile]` | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed    |
+| `[task.orchestration.review]`  | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`    |
+| `[[hooks.declarations]]`       | Config-defined runtime hooks.                                                   | empty list                                                                        |
+| `[network]`                    | Experimental AGH network runtime.                                               | enabled, channel `default`                                                        |
 
 ## Load And Merge Order
 
@@ -325,6 +328,43 @@ model = ""
 default_ttl = "2h"
 max_children = 5
 max_active_per_workspace = 1
+
+[task.orchestration]
+# Bounds for task summaries, context bundles, scheduler health, and max-runtime watchdog.
+summary_max_bytes = 4096
+context_body_max_bytes = 8192
+context_prior_attempts = 5
+context_recent_events = 50
+spawn_failure_limit = 5
+scheduler_bad_tick_threshold = 6
+scheduler_bad_tick_cooldown = "5m"
+# Zero disables the per-task max-runtime watchdog default. Tasks may still set a per-task override.
+default_max_runtime = "0s"
+
+[task.orchestration.profile]
+# Defaults that apply when a task does not persist its own execution profile.
+default_coordinator_mode = "inherit"
+default_worker_mode = "inherit"
+default_sandbox_mode = "inherit"
+# Gate task-level provider/model overrides on the profile.
+allow_task_provider_override = true
+# Gate task-level sandbox = "none" selections.
+allow_task_sandbox_none = true
+
+[task.orchestration.review]
+# Defaults for the post-terminal review gate. See the review-gate docs for end-to-end behavior.
+default_policy = "none"
+max_rounds = 3
+max_review_attempts = 2
+timeout = "20m"
+rapid_terminal_window = "2m"
+rapid_terminal_limit = 3
+missing_work_max_items = 20
+missing_work_item_max_bytes = 512
+reason_max_bytes = 2048
+review_text_max_bytes = 12000
+next_round_guidance_max_bytes = 4096
+failure_policy = "block_task"
 
 [[hooks.declarations]]
 name = "record-session-start"
@@ -774,6 +814,70 @@ Provider and model resolution is intentionally narrow. The daemon applies:
 Safe-spawn limits still apply after a coordinator starts. Coordinator children inherit the workspace
 and coordination channel, must use a positive TTL, and can only narrow the coordinator's permission
 set.
+
+## `[task.orchestration]`
+
+`[task.orchestration]` controls bounded task orchestration behavior: run summaries, task context
+bundles, scheduler health telemetry, the spawn-failure circuit breaker, and the per-task max-runtime
+default. The defaults shown below are loaded from `internal/config/task_orchestration.go` and apply
+when neither the global file nor a workspace overlay sets a value.
+
+| Field                          | Type     | Default | Valid values                                                          | Description                                                                                                |
+| ------------------------------ | -------- | ------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `summary_max_bytes`            | integer  | `4096`  | Positive integer.                                                     | Maximum byte size for stored task-run summary fields used by context, web, CLI, and review surfaces.       |
+| `context_body_max_bytes`       | integer  | `8192`  | Positive integer.                                                     | Maximum byte size for the rendered task context bundle attached to `/agent/context`.                       |
+| `context_prior_attempts`       | integer  | `5`     | Zero or positive integer.                                             | Maximum prior-attempt summaries included in the task context bundle.                                       |
+| `context_recent_events`        | integer  | `50`    | Zero or positive integer.                                             | Maximum recent task events included in the task context bundle.                                            |
+| `spawn_failure_limit`          | integer  | `5`     | Positive integer.                                                     | Spawn-failure threshold before the per-task spawn circuit breaker opens.                                   |
+| `scheduler_bad_tick_threshold` | integer  | `6`     | Positive integer.                                                     | Bad-tick count before the scheduler health watchdog flags a degraded scheduler tick.                       |
+| `scheduler_bad_tick_cooldown`  | duration | `5m`    | Positive Go duration with whole-second precision.                     | Cooldown between scheduler bad-tick health emissions.                                                      |
+| `default_max_runtime`          | duration | `0s`    | Zero or positive Go duration up to `24h` with whole-second precision. | Default per-task max-runtime watchdog. Zero disables the default; tasks may still set a per-task override. |
+
+`[task.orchestration]` keys are agent-mutable through the existing config tool surface
+(`agh config set` and the `agh__config_*` native tools). Workspace overlays apply through the
+existing config loader without any special handling.
+
+### `[task.orchestration.profile]`
+
+Defaults and gates that apply when a task does not store its own execution profile, plus the gates
+that allow or reject task-level provider/sandbox overrides. See
+[Task Execution Profiles](/runtime/core/autonomy/execution-profiles) for the runtime behavior.
+
+| Field                          | Type    | Default   | Valid values        | Description                                                                                                              |
+| ------------------------------ | ------- | --------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `default_coordinator_mode`     | string  | `inherit` | `inherit`, `guided` | Coordinator behavior when a task profile does not set `coordinator.mode`.                                                |
+| `default_worker_mode`          | string  | `inherit` | `inherit`           | Worker selection mode when a task profile does not set `worker.mode`. `select` is allowed only on the per-task profile.  |
+| `default_sandbox_mode`         | string  | `inherit` | `inherit`, `none`   | Sandbox mode when a task profile does not set `sandbox.mode`.                                                            |
+| `allow_task_provider_override` | boolean | `true`    | `true` or `false`   | When false, task profiles may not set `provider`/`model` on coordinator, worker, or review blocks.                       |
+| `allow_task_sandbox_none`      | boolean | `true`    | `true` or `false`   | When false, task profiles may not set `sandbox.mode = "none"`. Required to be `true` if `default_sandbox_mode = "none"`. |
+
+Profile validation runs in `task.Service` when a profile is created or updated; the normalized
+profile is then stored. Session start loads the persisted profile (or the default `inherit` profile
+when none exists) without re-running validation. Updates and deletes are rejected while the task has
+an active run (`tasks.current_run_id` is set); resolve or release the run before retrying.
+
+### `[task.orchestration.review]`
+
+Defaults and bounds for the post-terminal review gate. These values shape the `task.review_policy`
+defaults and the bounded reviewer evidence enforced by `task.Service.RecordRunReview`.
+
+| Field                           | Type     | Default      | Valid values                                      | Description                                                                                                             |
+| ------------------------------- | -------- | ------------ | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `default_policy`                | string   | `none`       | `none`, `on_success`, `on_failure`, `always`      | Default review trigger policy when a task does not set its own.                                                         |
+| `max_rounds`                    | integer  | `3`          | Positive integer.                                 | Maximum review rounds before the failure policy applies.                                                                |
+| `max_review_attempts`           | integer  | `2`          | Positive integer.                                 | Maximum reviewer attempts within a single review round before the round counts as exhausted.                            |
+| `timeout`                       | duration | `20m`        | Positive Go duration with whole-second precision. | Maximum reviewer think time before the review counts as a timeout.                                                      |
+| `rapid_terminal_window`         | duration | `2m`         | Positive Go duration with whole-second precision. | Window used by the review circuit breaker to detect rapid shallow attempts.                                             |
+| `rapid_terminal_limit`          | integer  | `3`          | Positive integer.                                 | Maximum terminal events within `rapid_terminal_window` before the review circuit opens.                                 |
+| `missing_work_max_items`        | integer  | `20`         | Positive integer.                                 | Maximum `missing_work` items recorded per rejected verdict.                                                             |
+| `missing_work_item_max_bytes`   | integer  | `512`        | Positive integer.                                 | Maximum byte size per `missing_work` item.                                                                              |
+| `reason_max_bytes`              | integer  | `2048`       | Positive integer.                                 | Maximum byte size for the reviewer reason field.                                                                        |
+| `review_text_max_bytes`         | integer  | `12000`      | Positive integer.                                 | Maximum byte size for reviewer free-form review text.                                                                   |
+| `next_round_guidance_max_bytes` | integer  | `4096`       | Positive integer.                                 | Maximum byte size for the typed next-round guidance attached to continuation runs.                                      |
+| `failure_policy`                | string   | `block_task` | `block_task`, `fail_task`                         | What happens when review attempts/rounds are exhausted: block the task awaiting operator action, or terminally fail it. |
+
+Workspace overlays may tighten or relax these values per workspace through
+`<workspace>/.agh/config.toml`. Unknown keys still fail validation.
 
 ## `[[hooks.declarations]]`
 

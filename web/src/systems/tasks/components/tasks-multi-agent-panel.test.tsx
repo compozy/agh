@@ -14,16 +14,26 @@ import type { MultiAgentAgent } from "@/hooks/routes/use-task-detail-page";
 import { TasksMultiAgentPanel } from "./tasks-multi-agent-panel";
 import type { TaskTimelineItem, TaskTreeNode } from "../types";
 
-function buildNode(overrides: Partial<TaskTreeNode> = {}): TaskTreeNode {
+type TaskTreeNodeFixtureOverrides = Omit<Partial<TaskTreeNode>, "task"> & {
+  task?: Partial<TaskTreeNode["task"]>;
+};
+type TaskTimelineItemFixtureOverrides = Omit<Partial<TaskTimelineItem>, "task"> & {
+  task?: Partial<TaskTimelineItem["task"]>;
+};
+
+function buildNode(overrides: TaskTreeNodeFixtureOverrides = {}): TaskTreeNode {
+  const { task, ...nodeOverrides } = overrides;
   return {
     depth: 0,
     task: {
       id: "task_001",
       identifier: "TASK-38",
+      latest_event_seq: 1,
       status: "in_progress",
       scope: "workspace",
       title: "Triage new crash reports",
       owner: { kind: "agent_session", ref: "Researcher" },
+      ...task,
     },
     active_run: {
       id: "run_a1b2",
@@ -36,7 +46,7 @@ function buildNode(overrides: Partial<TaskTreeNode> = {}): TaskTreeNode {
     },
     child_count: 2,
     last_activity_at: "2026-04-17T10:01:00Z",
-    ...overrides,
+    ...nodeOverrides,
   } as TaskTreeNode;
 }
 
@@ -52,19 +62,20 @@ function buildAgent(overrides: Partial<MultiAgentAgent> = {}): MultiAgentAgent {
   };
 }
 
-function buildTimelineItem(overrides: Partial<TaskTimelineItem> = {}): TaskTimelineItem {
+function buildTimelineItem(overrides: TaskTimelineItemFixtureOverrides = {}): TaskTimelineItem {
+  const { task, ...itemOverrides } = overrides;
   return {
     event_id: "evt_1",
     sequence: 42,
     event_type: "task.run_progress",
     timestamp: "2026-04-17T10:00:30Z",
-    task: { id: "task_001", identifier: "TASK-38" },
+    task: { id: "task_001", identifier: "TASK-38", latest_event_seq: 42, ...task },
     run: {
       id: "run_a1b2",
       attempt: 1,
       status: "running",
     },
-    ...overrides,
+    ...itemOverrides,
   } as TaskTimelineItem;
 }
 

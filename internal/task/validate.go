@@ -466,6 +466,9 @@ func (r Run) Validate() error {
 	if err := ValidateCapabilityIDs(r.PreferredCapabilities, "task_run.preferred_capabilities"); err != nil {
 		return err
 	}
+	if err := validateTaskRunReviewGateFields(r); err != nil {
+		return err
+	}
 	if err := ValidateMetadataSize(r.Metadata, "task_run.metadata"); err != nil {
 		return err
 	}
@@ -479,6 +482,55 @@ func (r Run) Validate() error {
 		return fmt.Errorf("%w: task_run.result must not contain raw lease credentials", ErrValidation)
 	}
 	return nil
+}
+
+func validateTaskRunReviewGateFields(r Run) error {
+	if r.Review == nil {
+		return nil
+	}
+	lineage := *r.Review
+	if lineage.RequestRound < 0 {
+		return fmt.Errorf(
+			"%w: task_run.review.request_round must be zero or positive: %d",
+			ErrValidation,
+			lineage.RequestRound,
+		)
+	}
+	if lineage.ReviewRound < 0 {
+		return fmt.Errorf(
+			"%w: task_run.review.review_round must be zero or positive: %d",
+			ErrValidation,
+			lineage.ReviewRound,
+		)
+	}
+	if lineage.PolicySnapshot.Normalize() != "" {
+		if err := lineage.PolicySnapshot.Validate("task_run.review.policy_snapshot"); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(lineage.ReviewID) != "" {
+		if strings.TrimSpace(lineage.ParentRunID) == "" {
+			return fmt.Errorf("%w: task_run.review.parent_run_id is required when review_id is set", ErrValidation)
+		}
+		if lineage.ReviewRound <= 0 {
+			return fmt.Errorf("%w: task_run.review.review_round must be positive when review_id is set", ErrValidation)
+		}
+	}
+	if err := validateBoundedReviewText(
+		lineage.ContinuationReason,
+		maxRunReviewReasonBytes,
+		"task_run.review.continuation_reason",
+	); err != nil {
+		return err
+	}
+	if err := validateRunReviewMissingWork(normalizeReviewMissingWork(lineage.MissingWork)); err != nil {
+		return err
+	}
+	return validateBoundedReviewText(
+		lineage.NextRoundGuidance,
+		maxRunReviewGuidanceBytes,
+		"task_run.review.next_round_guidance",
+	)
 }
 
 func validateRunLeaseMetadata(r Run) error {
@@ -911,6 +963,17 @@ func (r *StartTaskSession) Validate() error {
 	}
 	if strings.TrimSpace(r.Run.TaskID) != strings.TrimSpace(r.Task.ID) {
 		return fmt.Errorf("%w: start_task_session.run.task_id must match start_task_session.task.id", ErrValidation)
+	}
+	if r.ExecutionProfile != nil {
+		if strings.TrimSpace(r.ExecutionProfile.TaskID) != strings.TrimSpace(r.Task.ID) {
+			return fmt.Errorf(
+				"%w: start_task_session.execution_profile.task_id must match start_task_session.task.id",
+				ErrValidation,
+			)
+		}
+		if err := r.ExecutionProfile.Validate(DefaultExecutionProfileValidationOptions()); err != nil {
+			return err
+		}
 	}
 	return nil
 }

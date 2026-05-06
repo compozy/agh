@@ -50,6 +50,12 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[taskpkg.OwnerKind]():                         taskOwnerKindValues(),
 	reflect.TypeFor[taskpkg.OriginKind]():                        taskOriginKindValues(),
 	reflect.TypeFor[taskpkg.DependencyKind]():                    taskDependencyKindValues(),
+	reflect.TypeFor[taskpkg.CoordinatorMode]():                   taskCoordinatorModeValues(),
+	reflect.TypeFor[taskpkg.WorkerMode]():                        taskWorkerModeValues(),
+	reflect.TypeFor[taskpkg.SandboxMode]():                       taskSandboxModeValues(),
+	reflect.TypeFor[taskpkg.ReviewPolicy]():                      taskReviewPolicyValues(),
+	reflect.TypeFor[taskpkg.RunReviewStatus]():                   taskRunReviewStatusValues(),
+	reflect.TypeFor[taskpkg.RunReviewOutcome]():                  taskRunReviewOutcomeValues(),
 	reflect.TypeFor[contract.TaskInboxLane]():                    taskInboxLaneValues(),
 	reflect.TypeFor[contract.CoordinationMessageKind]():          coordinationMessageKindValues(),
 	reflect.TypeFor[contract.CoordinatorConfigSource]():          coordinatorConfigSourceValues(),
@@ -2509,6 +2515,168 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      "GET",
+		Path:        "/api/tasks/{id}/execution-profile",
+		OperationID: "getTaskExecutionProfile",
+		Summary:     "Get one task execution profile",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskExecutionProfileResponse{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task id", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "PUT",
+		Path:        "/api/tasks/{id}/execution-profile",
+		OperationID: "setTaskExecutionProfile",
+		Summary:     "Replace one task execution profile",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		RequestBody: contract.SetTaskExecutionProfileRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskExecutionProfileResponse{}},
+			{Status: 400, Description: "Invalid task execution profile", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task execution profile conflict", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "DELETE",
+		Path:        "/api/tasks/{id}/execution-profile",
+		OperationID: "deleteTaskExecutionProfile",
+		Summary:     "Delete one task execution profile",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: "No Content"},
+			{Status: 404, Description: "Task or execution profile not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task execution profile conflict", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/tasks/{id}/notifications/bridges",
+		OperationID: "createTaskBridgeNotificationSubscription",
+		Summary:     "Create one bridge terminal notification subscription for a task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		RequestBody: contract.CreateTaskBridgeNotificationSubscriptionRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: "Created", Body: contract.TaskBridgeNotificationSubscriptionResponse{}},
+			{Status: 400, Description: "Invalid bridge notification subscription", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Task or bridge not found", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task or bridge service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/tasks/{id}/notifications/bridges",
+		OperationID: "listTaskBridgeNotificationSubscriptions",
+		Summary:     "List bridge terminal notification subscriptions for one task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+			queryParam("bridge_instance_id", "Filter by bridge instance id", false),
+			enumQueryParam("scope", "Filter by bridge scope", bridgeScopeValues()),
+			queryParam("workspace_id", "Filter by workspace id", false),
+			intQueryParam("limit", "Maximum number of records to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskBridgeNotificationSubscriptionsResponse{}},
+			{Status: 400, Description: "Invalid bridge notification filter", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task or bridge service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "DELETE",
+		Path:        "/api/tasks/{id}/notifications/bridges/{subscription_id}",
+		OperationID: "deleteTaskBridgeNotificationSubscription",
+		Summary:     "Delete one bridge terminal notification subscription for a task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+			pathParam("subscription_id", "Bridge task subscription id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: "No Content"},
+			{
+				Status:      404,
+				Description: "Task or bridge notification subscription not found",
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 503, Description: "Task or bridge service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/tasks/{id}/notifications/bridges/{subscription_id}",
+		OperationID: "getTaskBridgeNotificationSubscription",
+		Summary:     "Get one bridge terminal notification subscription for a task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+			pathParam("subscription_id", "Bridge task subscription id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskBridgeNotificationSubscriptionResponse{}},
+			{
+				Status:      404,
+				Description: "Task or bridge notification subscription not found",
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 503, Description: "Task or bridge service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/tasks/{id}/reviews",
+		OperationID: "listTaskReviews",
+		Summary:     "List task-run reviews for one task",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+			enumQueryParam("status", "Filter by review status", taskRunReviewStatusValues()),
+			queryParam("reviewer_session_id", "Filter by reviewer session id", false),
+			intQueryParam("limit", "Maximum number of records to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskRunReviewsResponse{}},
+			{Status: 400, Description: "Invalid review filter", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Task not found", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      "POST",
 		Path:        "/api/tasks/{id}/publish",
 		OperationID: "publishTask",
@@ -2683,6 +2851,85 @@ var operationRegistry = []OperationSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskRunDetailResponse{}},
 			{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task-run id", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/task-runs/{id}/reviews",
+		OperationID: "requestTaskRunReview",
+		Summary:     "Request review for one terminal task run",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task run id"),
+		},
+		RequestBody: contract.CreateTaskRunReviewRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: "Created", Body: contract.TaskRunReviewRequestResponse{}},
+			{Status: 200, Description: "OK", Body: contract.TaskRunReviewRequestResponse{}},
+			{Status: 400, Description: "Invalid review request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Review request conflict", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/task-runs/{id}/reviews",
+		OperationID: "listTaskRunReviews",
+		Summary:     "List reviews for one task run",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task run id"),
+			enumQueryParam("status", "Filter by review status", taskRunReviewStatusValues()),
+			queryParam("reviewer_session_id", "Filter by reviewer session id", false),
+			intQueryParam("limit", "Maximum number of records to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskRunReviewsResponse{}},
+			{Status: 400, Description: "Invalid review filter", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Task run not found", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "GET",
+		Path:        "/api/task-reviews/{id}",
+		OperationID: "getTaskRunReview",
+		Summary:     "Get one task-run review",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Review id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskRunReviewResponse{}},
+			{Status: 404, Description: "Review not found", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/task-reviews/{id}/verdict",
+		OperationID: "submitTaskRunReviewVerdict",
+		Summary:     "Submit one task-run review verdict",
+		Tags:        []string{"tasks"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Review id"),
+		},
+		RequestBody: contract.SubmitTaskRunReviewVerdictRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskRunReviewVerdictResponse{}},
+			{Status: 400, Description: "Invalid review verdict", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Review or task run not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Review verdict conflict", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Task service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
 		},
@@ -4313,6 +4560,59 @@ func taskOriginKindValues() []string {
 func taskDependencyKindValues() []string {
 	return []string{
 		string(taskpkg.DependencyKindBlocks),
+	}
+}
+
+func taskCoordinatorModeValues() []string {
+	return []string{
+		string(taskpkg.CoordinatorModeInherit),
+		string(taskpkg.CoordinatorModeGuided),
+	}
+}
+
+func taskWorkerModeValues() []string {
+	return []string{
+		string(taskpkg.WorkerModeInherit),
+		string(taskpkg.WorkerModeSelect),
+	}
+}
+
+func taskSandboxModeValues() []string {
+	return []string{
+		string(taskpkg.SandboxModeInherit),
+		string(taskpkg.SandboxModeNone),
+		string(taskpkg.SandboxModeRef),
+	}
+}
+
+func taskReviewPolicyValues() []string {
+	return []string{
+		string(taskpkg.ReviewPolicyNone),
+		string(taskpkg.ReviewPolicyAlways),
+		string(taskpkg.ReviewPolicyOnSuccess),
+		string(taskpkg.ReviewPolicyOnFailure),
+	}
+}
+
+func taskRunReviewStatusValues() []string {
+	return []string{
+		string(taskpkg.RunReviewStatusRequested),
+		string(taskpkg.RunReviewStatusRouted),
+		string(taskpkg.RunReviewStatusInReview),
+		string(taskpkg.RunReviewStatusRecorded),
+		string(taskpkg.RunReviewStatusCircuitOpened),
+		string(taskpkg.RunReviewStatusCanceled),
+	}
+}
+
+func taskRunReviewOutcomeValues() []string {
+	return []string{
+		string(taskpkg.RunReviewOutcomeApproved),
+		string(taskpkg.RunReviewOutcomeRejected),
+		string(taskpkg.RunReviewOutcomeBlocked),
+		string(taskpkg.RunReviewOutcomeError),
+		string(taskpkg.RunReviewOutcomeTimeout),
+		string(taskpkg.RunReviewOutcomeInvalidOutput),
 	}
 }
 

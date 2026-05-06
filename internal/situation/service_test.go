@@ -67,7 +67,7 @@ func TestRenderPromptPreservesSectionOrderAndOmitsUnavailableSections(t *testing
 		`"workspace"`,
 		`"session"`,
 		`"capabilities"`,
-		`"limits"`,
+		"\n  \"limits\"",
 		`"provenance"`,
 	}
 	assertOrder(t, rendered, wantOrder)
@@ -93,16 +93,17 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 		UpdatedAt:   fixedTime().Add(time.Minute),
 	}
 	run := taskpkg.Run{
-		ID:             "run-1",
-		TaskID:         "task-1",
-		Status:         taskpkg.TaskRunStatusRunning,
-		Attempt:        1,
-		ClaimedBy:      &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
-		SessionID:      "sess-1",
-		NetworkChannel: "coord-channel",
-		Metadata:       jsonRaw(t, `{"coordination_channel_id":"coord-1","workflow_id":"wf-1"}`),
-		QueuedAt:       fixedTime(),
-		StartedAt:      fixedTime().Add(time.Minute),
+		ID:                    "run-1",
+		TaskID:                "task-1",
+		Status:                taskpkg.TaskRunStatusRunning,
+		Attempt:               1,
+		ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
+		SessionID:             "sess-1",
+		CoordinationChannelID: "coord-structured",
+		NetworkChannel:        "coord-channel",
+		Metadata:              jsonRaw(t, `{"coordination_channel_id":"coord-1","workflow_id":"wf-1"}`),
+		QueuedAt:              fixedTime(),
+		StartedAt:             fixedTime().Add(time.Minute),
 	}
 	displayName := "Reviewer"
 	service := NewService(Deps{
@@ -139,14 +140,14 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 		},
 		Network: networkStub{
 			envelopes: []network.Envelope{
-				coordinationEnvelope(t, "msg-3", "coord-channel", "third", fixedTime().Add(3*time.Minute)),
-				coordinationEnvelope(t, "msg-2", "coord-channel", "second", fixedTime().Add(2*time.Minute)),
-				coordinationEnvelope(t, "msg-1", "coord-channel", "first", fixedTime().Add(time.Minute)),
+				coordinationEnvelope(t, "msg-3", "coord-structured", "third", fixedTime().Add(3*time.Minute)),
+				coordinationEnvelope(t, "msg-2", "coord-structured", "second", fixedTime().Add(2*time.Minute)),
+				coordinationEnvelope(t, "msg-1", "coord-structured", "first", fixedTime().Add(time.Minute)),
 			},
 			peers: []network.PeerInfo{
 				{
 					PeerID:  "peer-c",
-					Channel: "coord-channel",
+					Channel: "coord-structured",
 					PeerCard: network.PeerCard{
 						PeerID:       "peer-c",
 						Capabilities: []string{"test"},
@@ -154,7 +155,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 				},
 				{
 					PeerID:  "peer-a",
-					Channel: "coord-channel",
+					Channel: "coord-structured",
 					PeerCard: network.PeerCard{
 						PeerID:       "peer-a",
 						DisplayName:  &displayName,
@@ -163,7 +164,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 				},
 				{
 					PeerID:  "peer-b",
-					Channel: "coord-channel",
+					Channel: "coord-structured",
 					PeerCard: network.PeerCard{
 						PeerID:       "peer-b",
 						Capabilities: []string{"build"},
@@ -212,11 +213,17 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 	if payload.Task.Task == nil || payload.Task.Task.ID != "task-1" {
 		t.Fatalf("Task section = %#v, want task-1", payload.Task)
 	}
-	if payload.Task.Lease == nil || payload.Task.Lease.CoordinationChannelID != "coord-1" {
-		t.Fatalf("Task lease = %#v, want coord-1", payload.Task.Lease)
+	if payload.Task.Lease == nil || payload.Task.Lease.CoordinationChannelID != "coord-structured" {
+		t.Fatalf("Task lease = %#v, want coord-structured", payload.Task.Lease)
+	}
+	if payload.Task.Bundle == nil ||
+		payload.Task.Bundle.CurrentRun == nil ||
+		payload.Task.Bundle.CurrentRun.ID != "run-1" {
+		t.Fatalf("Task bundle = %#v, want current run context", payload.Task.Bundle)
 	}
 	if !payload.CoordinationChannel.Available ||
 		payload.CoordinationChannel.Channel == nil ||
+		payload.CoordinationChannel.Channel.ID != "coord-structured" ||
 		payload.CoordinationChannel.Channel.WorkflowID != "wf-1" {
 		t.Fatalf("CoordinationChannel = %#v, want workflow-bound channel", payload.CoordinationChannel)
 	}
@@ -252,12 +259,610 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 		`"inbox_summary"`,
 		`"peer_roster"`,
 		`"capabilities"`,
-		`"limits"`,
+		"\n  \"limits\"",
 		`"provenance"`,
 	})
 	if strings.Contains(rendered, "claim_token") {
 		t.Fatalf("RenderPrompt() leaked raw claim token field: %s", rendered)
 	}
+}
+
+func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should redact raw claim tokens from continuation text and event payloads", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskpkg.Task{
+			ID:           "task-redact",
+			Identifier:   "ORCH-23",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-redact",
+			Title:        "Continue after review",
+			Status:       taskpkg.TaskStatusInProgress,
+			Priority:     taskpkg.PriorityHigh,
+			MaxAttempts:  3,
+			CurrentRunID: "run-cont",
+		}
+		review := taskpkg.RunReview{
+			ReviewID:          "review-1",
+			TaskID:            taskRecord.ID,
+			RunID:             "run-reviewed",
+			ReviewRound:       1,
+			Attempt:           1,
+			Status:            taskpkg.RunReviewStatusRecorded,
+			Outcome:           taskpkg.RunReviewOutcomeRejected,
+			Reason:            "Reviewer found agh_claim_REVIEW_SECRET in the output",
+			MissingWork:       jsonRaw(t, `["remove agh_claim_MISSING_SECRET from docs","add regression coverage"]`),
+			NextRoundGuidance: "Continue without agh_claim_GUIDANCE_SECRET",
+			ReviewerAgentName: "reviewer",
+			ReviewerSessionID: "sess-reviewer",
+			ReviewedAt:        fixedTime().Add(10 * time.Minute),
+		}
+		currentRun := taskpkg.Run{
+			ID:        "run-cont",
+			TaskID:    taskRecord.ID,
+			Status:    taskpkg.TaskRunStatusRunning,
+			Attempt:   2,
+			SessionID: "sess-worker",
+			Review: &taskpkg.RunReviewLineage{
+				ParentRunID:        review.RunID,
+				ReviewID:           review.ReviewID,
+				ReviewRound:        2,
+				ContinuationReason: "review_rejected",
+				MissingWork:        review.MissingWork,
+				NextRoundGuidance:  review.NextRoundGuidance,
+			},
+			QueuedAt:  fixedTime().Add(20 * time.Minute),
+			StartedAt: fixedTime().Add(21 * time.Minute),
+			Error:     "do not leak agh_claim_RUN_SECRET",
+		}
+		priorRun := taskpkg.Run{
+			ID:        review.RunID,
+			TaskID:    taskRecord.ID,
+			Status:    taskpkg.TaskRunStatusCompleted,
+			Attempt:   1,
+			SessionID: "sess-original",
+			QueuedAt:  fixedTime(),
+			StartedAt: fixedTime().Add(time.Minute),
+			EndedAt:   fixedTime().Add(5 * time.Minute),
+			Error:     "prior error had agh_claim_PRIOR_SECRET",
+		}
+		service := NewService(Deps{
+			Now: fixedNow,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-redact", Name: "AGH", RootDir: "/work/agh"},
+						Config:    workspaceConfigWithTaskDefaults(),
+					}, nil
+				},
+			),
+			TaskStore: taskStoreStub{
+				tasks: map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+				runs:  []taskpkg.Run{priorRun, currentRun},
+				events: []taskpkg.Event{
+					{
+						ID:        "evt-1",
+						TaskID:    taskRecord.ID,
+						RunID:     currentRun.ID,
+						EventType: "task.run.continued",
+						Payload: jsonRaw(
+							t,
+							`{"message":"saw agh_claim_EVENT_SECRET","claim_token":"raw","mcp_auth_token":"mcp-secret","oauth_code":"oauth-secret","pkce_verifier":"pkce-secret","nested":{"token":"agh_claim_NESTED_SECRET","secret_binding":"vault-ref","session_secret":"super-secret"}}`,
+						),
+						Timestamp: fixedTime().Add(22 * time.Minute),
+					},
+				},
+				reviews: map[string]taskpkg.RunReview{review.ReviewID: review},
+			},
+		})
+
+		bundle, err := service.BundleForActiveLease(context.Background(), taskpkg.ContextRequest{
+			SessionID: currentRun.SessionID,
+			RunID:     currentRun.ID,
+			Now:       fixedTime().Add(30 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("BundleForActiveLease() error = %v", err)
+		}
+		if bundle.ReviewContinuation == nil {
+			t.Fatalf("ReviewContinuation = nil, want rejected-review continuation")
+		}
+		if bundle.LatestEventSeq != 1 || bundle.Task.LatestEventSeq != 1 {
+			t.Fatalf("LatestEventSeq bundle=%d task=%d, want 1", bundle.LatestEventSeq, bundle.Task.LatestEventSeq)
+		}
+		if len(bundle.RecentEvents) != 1 || bundle.RecentEvents[0].Sequence != 1 {
+			t.Fatalf("RecentEvents = %#v, want one sequenced event", bundle.RecentEvents)
+		}
+		if got := bundle.ReviewContinuation.Reason; strings.Contains(got, "REVIEW_SECRET") ||
+			!strings.Contains(got, "agh_claim_[REDACTED]") {
+			t.Fatalf("ReviewContinuation.Reason = %q, want redacted reviewer reason", got)
+		}
+		encoded, err := json.Marshal(bundle)
+		if err != nil {
+			t.Fatalf("json.Marshal(bundle) error = %v", err)
+		}
+		encodedText := string(encoded)
+		for _, leaked := range []string{
+			"REVIEW_SECRET",
+			"MISSING_SECRET",
+			"GUIDANCE_SECRET",
+			"RUN_SECRET",
+			"PRIOR_SECRET",
+			"EVENT_SECRET",
+			"NESTED_SECRET",
+			"mcp-secret",
+			"oauth-secret",
+			"pkce-secret",
+			"vault-ref",
+			"super-secret",
+			`"claim_token"`,
+			`"mcp_auth_token"`,
+			`"oauth_code"`,
+			`"pkce_verifier"`,
+			`"secret_binding"`,
+			`"session_secret"`,
+		} {
+			if strings.Contains(encodedText, leaked) {
+				t.Fatalf("ContextBundle leaked %q: %s", leaked, encodedText)
+			}
+		}
+		if !strings.Contains(encodedText, "agh_claim_[REDACTED]") {
+			t.Fatalf("ContextBundle = %s, want redaction marker", encodedText)
+		}
+	})
+}
+
+func TestTaskStoreStubListRunReviewsSortsBeforeApplyingLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should sort reviews before applying the limit", func(t *testing.T) {
+		t.Parallel()
+
+		store := taskStoreStub{
+			reviews: map[string]taskpkg.RunReview{
+				"review-older": {
+					ReviewID:  "review-older",
+					TaskID:    "task-1",
+					Status:    taskpkg.RunReviewStatusInReview,
+					UpdatedAt: fixedTime().Add(time.Minute),
+				},
+				"review-newer": {
+					ReviewID:  "review-newer",
+					TaskID:    "task-1",
+					Status:    taskpkg.RunReviewStatusInReview,
+					UpdatedAt: fixedTime().Add(2 * time.Minute),
+				},
+			},
+		}
+
+		reviews, err := store.ListRunReviews(context.Background(), taskpkg.RunReviewQuery{
+			TaskID: "task-1",
+			Limit:  1,
+		})
+		if err != nil {
+			t.Fatalf("ListRunReviews() error = %v", err)
+		}
+		if got, want := len(reviews), 1; got != want {
+			t.Fatalf("len(reviews) = %d, want %d", got, want)
+		}
+		if got, want := reviews[0].ReviewID, "review-newer"; got != want {
+			t.Fatalf("reviews[0].ReviewID = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestTaskRunPromptOverlayByIDRejectsMismatchedRunTaskPair(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject run ids that belong to another task", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskpkg.Task{
+			ID:          "task-overlay",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-overlay",
+			Title:       "Overlay task",
+			Status:      taskpkg.TaskStatusInProgress,
+		}
+		mismatchedRun := taskpkg.Run{
+			ID:         "run-other-task",
+			TaskID:     "task-other",
+			Status:     taskpkg.TaskRunStatusRunning,
+			SessionID:  "sess-overlay",
+			QueuedAt:   fixedTime(),
+			ClaimedAt:  fixedTime(),
+			StartedAt:  fixedTime(),
+			LeaseUntil: fixedTime().Add(time.Minute),
+		}
+		cfg := workspaceConfigWithTaskDefaults()
+		service := NewService(Deps{
+			Now: fixedNow,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-overlay", Name: "AGH", RootDir: "/work/agh"},
+						Config:    cfg,
+					}, nil
+				},
+			),
+			TaskStore: taskStoreStub{
+				tasks: map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+				runs:  []taskpkg.Run{mismatchedRun},
+			},
+		})
+
+		_, err := service.TaskRunPromptOverlayByID(context.Background(), taskRecord.ID, mismatchedRun.ID)
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("TaskRunPromptOverlayByID() error = %v, want %v", err, taskpkg.ErrValidation)
+		}
+		if err == nil || !strings.Contains(err.Error(), "belongs to task") {
+			t.Fatalf("TaskRunPromptOverlayByID() error = %v, want mismatched task detail", err)
+		}
+	})
+}
+
+func TestBundleForOperatorTaskRejectsOversizedUntrimmableBundle(t *testing.T) {
+	t.Parallel()
+
+	taskRecord := taskpkg.Task{
+		ID:          "task-oversized-bundle",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: "ws-oversized-bundle",
+		Title:       strings.Repeat("x", 256),
+		Status:      taskpkg.TaskStatusReady,
+	}
+	cfg := workspaceConfigWithTaskDefaults()
+	cfg.Task.Orchestration.ContextBodyMaxBytes = 64
+	service := NewService(Deps{
+		Now: fixedNow,
+		WorkspaceResolver: workspaceResolverFunc(
+			func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      taskRecord.WorkspaceID,
+						Name:    "AGH",
+						RootDir: "/work/agh",
+					},
+					Config: cfg,
+				}, nil
+			},
+		),
+		TaskStore: taskStoreStub{
+			tasks: map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+		},
+	})
+
+	_, err := service.BundleForOperatorTask(context.Background(), taskpkg.OperatorTaskContextRequest{
+		TaskID: taskRecord.ID,
+		Now:    fixedTime(),
+	})
+	if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
+		t.Fatalf("BundleForOperatorTask() error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+	}
+	if err == nil || !strings.Contains(err.Error(), "exceeds 64 bytes after trimming") {
+		t.Fatalf("BundleForOperatorTask() error = %v, want oversized bundle detail", err)
+	}
+}
+
+func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose review-bound task context without a worker lease", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskpkg.Task{
+			ID:          "task-review",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-review",
+			Title:       "Review context",
+			Status:      taskpkg.TaskStatusInProgress,
+		}
+		run := taskpkg.Run{
+			ID:                    "run-reviewed",
+			TaskID:                taskRecord.ID,
+			Status:                taskpkg.TaskRunStatusCompleted,
+			SessionID:             "sess-worker",
+			CoordinationChannelID: "reviews",
+			StartedAt:             fixedTime(),
+			EndedAt:               fixedTime().Add(10 * time.Minute),
+		}
+		review := taskpkg.RunReview{
+			ReviewID:          "review-bound",
+			TaskID:            taskRecord.ID,
+			RunID:             run.ID,
+			Status:            taskpkg.RunReviewStatusInReview,
+			Policy:            taskpkg.ReviewPolicyAlways,
+			ReviewRound:       1,
+			Attempt:           1,
+			ReviewerSessionID: "sess-reviewer",
+			ReviewerAgentName: "reviewer",
+			ReviewerChannelID: "reviews",
+		}
+		service := NewService(Deps{
+			Now: fixedNow,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-review", Name: "AGH", RootDir: "/work/agh"},
+						Config:    workspaceConfigWithTaskDefaults(),
+					}, nil
+				},
+			),
+			AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error) {
+				return aghconfig.AgentDef{Name: "reviewer", Provider: "codex", Model: "gpt-review"}, nil
+			}),
+			TaskStore: taskStoreStub{
+				tasks:   map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+				runs:    []taskpkg.Run{run},
+				reviews: map[string]taskpkg.RunReview{review.ReviewID: review},
+			},
+		})
+
+		payload, err := service.ContextForSession(context.Background(), &session.Info{
+			ID:          "sess-reviewer",
+			AgentName:   "reviewer",
+			Provider:    "codex",
+			WorkspaceID: "ws-review",
+			Workspace:   "/work/agh",
+			Channel:     "reviews",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			CreatedAt:   fixedTime(),
+			UpdatedAt:   fixedTime(),
+		})
+		if err != nil {
+			t.Fatalf("ContextForSession(reviewer) error = %v", err)
+		}
+		if !payload.Task.Available || payload.Task.Task == nil || payload.Task.Task.ID != taskRecord.ID {
+			t.Fatalf("Task context = %#v, want review-bound task", payload.Task)
+		}
+		if payload.Task.Lease != nil {
+			t.Fatalf("Task lease = %#v, want no worker lease for reviewer binding", payload.Task.Lease)
+		}
+		if payload.Task.Bundle == nil ||
+			payload.Task.Bundle.CurrentRun == nil ||
+			payload.Task.Bundle.CurrentRun.ID != run.ID {
+			t.Fatalf("Task bundle = %#v, want reviewed run context", payload.Task.Bundle)
+		}
+		if !payload.CoordinationChannel.Available ||
+			payload.CoordinationChannel.Channel == nil ||
+			payload.CoordinationChannel.Channel.ID != "reviews" {
+			t.Fatalf("CoordinationChannel = %#v, want reviewer channel", payload.CoordinationChannel)
+		}
+	})
+
+	t.Run("Should skip review-bound context when the stored run belongs to another task", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskpkg.Task{
+			ID:          "task-review",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-review",
+			Title:       "Review context",
+			Status:      taskpkg.TaskStatusInProgress,
+		}
+		run := taskpkg.Run{
+			ID:                    "run-mismatched",
+			TaskID:                "task-other",
+			Status:                taskpkg.TaskRunStatusCompleted,
+			SessionID:             "sess-worker",
+			CoordinationChannelID: "reviews",
+			StartedAt:             fixedTime(),
+			EndedAt:               fixedTime().Add(10 * time.Minute),
+		}
+		review := taskpkg.RunReview{
+			ReviewID:          "review-bound",
+			TaskID:            taskRecord.ID,
+			RunID:             run.ID,
+			Status:            taskpkg.RunReviewStatusInReview,
+			Policy:            taskpkg.ReviewPolicyAlways,
+			ReviewRound:       1,
+			Attempt:           1,
+			ReviewerSessionID: "sess-reviewer",
+			ReviewerAgentName: "reviewer",
+			ReviewerChannelID: "reviews",
+		}
+		service := NewService(Deps{
+			Now: fixedNow,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-review", Name: "AGH", RootDir: "/work/agh"},
+						Config:    workspaceConfigWithTaskDefaults(),
+					}, nil
+				},
+			),
+			AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error) {
+				return aghconfig.AgentDef{Name: "reviewer", Provider: "codex", Model: "gpt-review"}, nil
+			}),
+			TaskStore: taskStoreStub{
+				tasks:   map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+				runs:    []taskpkg.Run{run},
+				reviews: map[string]taskpkg.RunReview{review.ReviewID: review},
+			},
+		})
+
+		payload, err := service.ContextForSession(context.Background(), &session.Info{
+			ID:          "sess-reviewer",
+			AgentName:   "reviewer",
+			Provider:    "codex",
+			WorkspaceID: "ws-review",
+			Workspace:   "/work/agh",
+			Channel:     "reviews",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			CreatedAt:   fixedTime(),
+			UpdatedAt:   fixedTime(),
+		})
+		if err != nil {
+			t.Fatalf("ContextForSession(reviewer mismatch) error = %v", err)
+		}
+		if payload.Task.Available || payload.Task.Task != nil || payload.Task.Bundle != nil ||
+			payload.Task.Lease != nil {
+			t.Fatalf("Task context = %#v, want no mismatched review-bound task context", payload.Task)
+		}
+		if payload.CoordinationChannel.Available || payload.CoordinationChannel.Channel != nil {
+			t.Fatalf(
+				"CoordinationChannel = %#v, want no mismatched review channel context",
+				payload.CoordinationChannel,
+			)
+		}
+	})
+}
+
+func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep active-lease task context when bundle enrichment fails", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskpkg.Task{
+			ID:          "task-bundle-active",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-bundle-active",
+			Title:       "Active lease context",
+			Status:      taskpkg.TaskStatusInProgress,
+		}
+		run := taskpkg.Run{
+			ID:                    "run-bundle-active",
+			TaskID:                taskRecord.ID,
+			Status:                taskpkg.TaskRunStatusRunning,
+			SessionID:             "sess-active",
+			CoordinationChannelID: "coord-active",
+			QueuedAt:              fixedTime(),
+			StartedAt:             fixedTime().Add(time.Minute),
+		}
+		service := NewService(Deps{
+			Now: fixedNow,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{
+							ID:      taskRecord.WorkspaceID,
+							Name:    "AGH",
+							RootDir: "/work/agh",
+						},
+						Config: workspaceConfigWithTaskDefaults(),
+					}, nil
+				},
+			),
+			TaskStore: taskStoreStub{
+				tasks:                   map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+				runs:                    []taskpkg.Run{run},
+				listTaskEventRecordsErr: errors.New("historical event projection broke"),
+			},
+		})
+
+		payload, err := service.ContextForSession(context.Background(), &session.Info{
+			ID:          "sess-active",
+			AgentName:   "coder",
+			Provider:    "codex",
+			WorkspaceID: taskRecord.WorkspaceID,
+			Workspace:   "/work/agh",
+			Channel:     "coord-active",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			CreatedAt:   fixedTime(),
+			UpdatedAt:   fixedTime(),
+		})
+		if err != nil {
+			t.Fatalf("ContextForSession(active lease) error = %v", err)
+		}
+		if !payload.Task.Available || payload.Task.Task == nil || payload.Task.Task.ID != taskRecord.ID {
+			t.Fatalf("Task context = %#v, want active task context", payload.Task)
+		}
+		if payload.Task.Bundle != nil {
+			t.Fatalf("Task.Bundle = %#v, want nil optional bundle on enrichment failure", payload.Task.Bundle)
+		}
+		if payload.Task.Lease == nil || payload.Task.Lease.RunID != run.ID {
+			t.Fatalf("Task.Lease = %#v, want active run lease", payload.Task.Lease)
+		}
+		if !payload.CoordinationChannel.Available ||
+			payload.CoordinationChannel.Channel == nil ||
+			payload.CoordinationChannel.Channel.ID != "coord-active" {
+			t.Fatalf("CoordinationChannel = %#v, want preserved active channel", payload.CoordinationChannel)
+		}
+	})
+
+	t.Run("Should keep review-bound task context when bundle enrichment fails", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskpkg.Task{
+			ID:          "task-bundle-review",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-bundle-review",
+			Title:       "Review context",
+			Status:      taskpkg.TaskStatusInProgress,
+		}
+		run := taskpkg.Run{
+			ID:                    "run-bundle-review",
+			TaskID:                taskRecord.ID,
+			Status:                taskpkg.TaskRunStatusCompleted,
+			SessionID:             "sess-worker",
+			CoordinationChannelID: "coord-run",
+			StartedAt:             fixedTime(),
+			EndedAt:               fixedTime().Add(10 * time.Minute),
+		}
+		review := taskpkg.RunReview{
+			ReviewID:          "review-bundle",
+			TaskID:            taskRecord.ID,
+			RunID:             run.ID,
+			Status:            taskpkg.RunReviewStatusInReview,
+			ReviewerSessionID: "sess-reviewer",
+			ReviewerAgentName: "reviewer",
+			ReviewerChannelID: "coord-review",
+		}
+		service := NewService(Deps{
+			Now: fixedNow,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{
+							ID:      taskRecord.WorkspaceID,
+							Name:    "AGH",
+							RootDir: "/work/agh",
+						},
+						Config: workspaceConfigWithTaskDefaults(),
+					}, nil
+				},
+			),
+			TaskStore: taskStoreStub{
+				tasks:                   map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+				runs:                    []taskpkg.Run{run},
+				reviews:                 map[string]taskpkg.RunReview{review.ReviewID: review},
+				listTaskEventRecordsErr: errors.New("historical event projection broke"),
+			},
+		})
+
+		payload, err := service.ContextForSession(context.Background(), &session.Info{
+			ID:          "sess-reviewer",
+			AgentName:   "reviewer",
+			Provider:    "codex",
+			WorkspaceID: taskRecord.WorkspaceID,
+			Workspace:   "/work/agh",
+			Channel:     "coord-review",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			CreatedAt:   fixedTime(),
+			UpdatedAt:   fixedTime(),
+		})
+		if err != nil {
+			t.Fatalf("ContextForSession(review binding) error = %v", err)
+		}
+		if !payload.Task.Available || payload.Task.Task == nil || payload.Task.Task.ID != taskRecord.ID {
+			t.Fatalf("Task context = %#v, want review-bound task context", payload.Task)
+		}
+		if payload.Task.Bundle != nil {
+			t.Fatalf("Task.Bundle = %#v, want nil optional bundle on enrichment failure", payload.Task.Bundle)
+		}
+		if !payload.CoordinationChannel.Available ||
+			payload.CoordinationChannel.Channel == nil ||
+			payload.CoordinationChannel.Channel.ID != "coord-review" {
+			t.Fatalf("CoordinationChannel = %#v, want preserved reviewer channel", payload.CoordinationChannel)
+		}
+	})
 }
 
 func TestContextForSessionIncludesCompactSoulProjection(t *testing.T) {
@@ -361,7 +966,7 @@ func TestContextForSessionIncludesCompactSoulProjection(t *testing.T) {
 			`"soul"`,
 			`"task"`,
 			`"capabilities"`,
-			`"limits"`,
+			"\n  \"limits\"",
 			`"provenance"`,
 		})
 		if strings.Contains(rendered, "body-secret-marker") || strings.Contains(rendered, `"body":`) {
@@ -697,6 +1302,13 @@ func jsonRaw(t *testing.T, value string) json.RawMessage {
 	return json.RawMessage(value)
 }
 
+func workspaceConfigWithTaskDefaults() aghconfig.Config {
+	return aghconfig.Config{
+		Defaults: aghconfig.DefaultsConfig{Provider: "codex"},
+		Task:     aghconfig.DefaultTaskConfig(),
+	}
+}
+
 func coordinationEnvelope(
 	t *testing.T,
 	id string,
@@ -713,7 +1325,7 @@ func coordinationEnvelope(
 	metadata, err := json.Marshal(contract.CoordinationMessageMetadataPayload{
 		TaskID:                "task-1",
 		RunID:                 "run-1",
-		CoordinationChannelID: "coord-1",
+		CoordinationChannelID: channel,
 		MessageKind:           contract.CoordinationMessageStatus,
 		CorrelationID:         id + "-corr",
 	})
@@ -819,28 +1431,232 @@ func (fn coordinatorResolverFunc) ResolveCoordinatorConfig(
 }
 
 type taskStoreStub struct {
-	tasks map[string]taskpkg.Task
-	runs  []taskpkg.Run
+	tasks                   map[string]taskpkg.Task
+	runs                    []taskpkg.Run
+	events                  []taskpkg.Event
+	profiles                map[string]taskpkg.ExecutionProfile
+	reviews                 map[string]taskpkg.RunReview
+	getTaskErr              error
+	listTaskRunsErr         error
+	getTaskRunErr           error
+	listTaskEventsErr       error
+	listTaskEventRecordsErr error
+	getExecutionProfileErr  error
+	getRunReviewErr         error
+	lookupRunReviewErr      error
+	listRunReviewsErr       error
 }
 
 func (s taskStoreStub) GetTask(_ context.Context, id string) (taskpkg.Task, error) {
+	if s.getTaskErr != nil {
+		return taskpkg.Task{}, s.getTaskErr
+	}
 	taskRecord, ok := s.tasks[id]
 	if !ok {
 		return taskpkg.Task{}, errors.New("missing task")
 	}
+	taskRecord.LatestEventSeq = s.latestEventSeq(taskRecord.ID)
 	return taskRecord, nil
 }
 
 func (s taskStoreStub) ListTaskRuns(_ context.Context, query taskpkg.RunQuery) ([]taskpkg.Run, error) {
+	if s.listTaskRunsErr != nil {
+		return nil, s.listTaskRunsErr
+	}
 	runs := make([]taskpkg.Run, 0, len(s.runs))
 	for _, run := range s.runs {
+		if strings.TrimSpace(query.TaskID) != "" &&
+			strings.TrimSpace(run.TaskID) != strings.TrimSpace(query.TaskID) {
+			continue
+		}
+		if query.Status != "" && run.Status.Normalize() != query.Status.Normalize() {
+			continue
+		}
 		if strings.TrimSpace(query.SessionID) != "" &&
 			strings.TrimSpace(run.SessionID) != strings.TrimSpace(query.SessionID) {
 			continue
 		}
+		if strings.TrimSpace(query.CoordinationChannelID) != "" &&
+			strings.TrimSpace(run.CoordinationChannelID) != strings.TrimSpace(query.CoordinationChannelID) {
+			continue
+		}
 		runs = append(runs, run)
 	}
+	if query.Limit > 0 && len(runs) > query.Limit {
+		runs = runs[len(runs)-query.Limit:]
+	}
 	return runs, nil
+}
+
+func (s taskStoreStub) GetTaskRun(_ context.Context, id string) (taskpkg.Run, error) {
+	if s.getTaskRunErr != nil {
+		return taskpkg.Run{}, s.getTaskRunErr
+	}
+	for _, run := range s.runs {
+		if strings.TrimSpace(run.ID) == strings.TrimSpace(id) {
+			return run, nil
+		}
+	}
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (s taskStoreStub) ListTaskEvents(_ context.Context, query taskpkg.EventQuery) ([]taskpkg.Event, error) {
+	if s.listTaskEventsErr != nil {
+		return nil, s.listTaskEventsErr
+	}
+	events := make([]taskpkg.Event, 0, len(s.events))
+	for _, event := range s.events {
+		if strings.TrimSpace(query.TaskID) != "" &&
+			strings.TrimSpace(event.TaskID) != strings.TrimSpace(query.TaskID) {
+			continue
+		}
+		if strings.TrimSpace(query.RunID) != "" &&
+			strings.TrimSpace(event.RunID) != strings.TrimSpace(query.RunID) {
+			continue
+		}
+		if strings.TrimSpace(query.EventType) != "" &&
+			strings.TrimSpace(event.EventType) != strings.TrimSpace(query.EventType) {
+			continue
+		}
+		events = append(events, event)
+	}
+	if query.Limit > 0 && len(events) > query.Limit {
+		events = events[len(events)-query.Limit:]
+	}
+	return events, nil
+}
+
+func (s taskStoreStub) ListTaskEventRecords(
+	_ context.Context,
+	query taskpkg.EventRecordQuery,
+) ([]taskpkg.EventRecord, error) {
+	if err := query.Validate("task_event_record_query"); err != nil {
+		return nil, err
+	}
+	if s.listTaskEventRecordsErr != nil {
+		return nil, s.listTaskEventRecordsErr
+	}
+	records := make([]taskpkg.EventRecord, 0, len(s.events))
+	for idx, event := range s.events {
+		if strings.TrimSpace(event.TaskID) != strings.TrimSpace(query.TaskID) {
+			continue
+		}
+		sequence := int64(idx + 1)
+		if sequence <= query.AfterSequence {
+			continue
+		}
+		records = append(records, taskpkg.EventRecord{
+			Sequence: sequence,
+			Event:    event,
+		})
+	}
+	slices.SortStableFunc(records, func(left, right taskpkg.EventRecord) int {
+		if query.Descending {
+			if left.Sequence > right.Sequence {
+				return -1
+			}
+			if left.Sequence < right.Sequence {
+				return 1
+			}
+			return 0
+		}
+		if left.Sequence < right.Sequence {
+			return -1
+		}
+		if left.Sequence > right.Sequence {
+			return 1
+		}
+		return 0
+	})
+	if query.Limit > 0 && len(records) > query.Limit {
+		return append([]taskpkg.EventRecord(nil), records[:query.Limit]...), nil
+	}
+	return records, nil
+}
+
+func (s taskStoreStub) latestEventSeq(taskID string) int64 {
+	var latest int64
+	trimmedTaskID := strings.TrimSpace(taskID)
+	for idx, event := range s.events {
+		if strings.TrimSpace(event.TaskID) != trimmedTaskID {
+			continue
+		}
+		latest = int64(idx + 1)
+	}
+	return latest
+}
+
+func (s taskStoreStub) GetExecutionProfile(_ context.Context, taskID string) (taskpkg.ExecutionProfile, error) {
+	if s.getExecutionProfileErr != nil {
+		return taskpkg.ExecutionProfile{}, s.getExecutionProfileErr
+	}
+	profile, ok := s.profiles[strings.TrimSpace(taskID)]
+	if !ok {
+		return taskpkg.ExecutionProfile{}, taskpkg.ErrExecutionProfileNotFound
+	}
+	return profile, nil
+}
+
+func (s taskStoreStub) GetRunReview(_ context.Context, reviewID string) (taskpkg.RunReview, error) {
+	if s.getRunReviewErr != nil {
+		return taskpkg.RunReview{}, s.getRunReviewErr
+	}
+	review, ok := s.reviews[strings.TrimSpace(reviewID)]
+	if !ok {
+		return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
+	}
+	return review, nil
+}
+
+func (s taskStoreStub) LookupRunReviewBySession(_ context.Context, sessionID string) (taskpkg.RunReview, error) {
+	if s.lookupRunReviewErr != nil {
+		return taskpkg.RunReview{}, s.lookupRunReviewErr
+	}
+	for _, review := range s.reviews {
+		if strings.TrimSpace(review.ReviewerSessionID) == strings.TrimSpace(sessionID) {
+			return review, nil
+		}
+	}
+	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (s taskStoreStub) ListRunReviews(_ context.Context, query taskpkg.RunReviewQuery) ([]taskpkg.RunReview, error) {
+	if s.listRunReviewsErr != nil {
+		return nil, s.listRunReviewsErr
+	}
+	reviews := make([]taskpkg.RunReview, 0, len(s.reviews))
+	for _, review := range s.reviews {
+		if strings.TrimSpace(query.TaskID) != "" &&
+			strings.TrimSpace(review.TaskID) != strings.TrimSpace(query.TaskID) {
+			continue
+		}
+		if strings.TrimSpace(query.RunID) != "" &&
+			strings.TrimSpace(review.RunID) != strings.TrimSpace(query.RunID) {
+			continue
+		}
+		if query.Status != "" && review.Status.Normalize() != query.Status.Normalize() {
+			continue
+		}
+		if strings.TrimSpace(query.ReviewerSessionID) != "" &&
+			strings.TrimSpace(review.ReviewerSessionID) != strings.TrimSpace(query.ReviewerSessionID) {
+			continue
+		}
+		reviews = append(reviews, review)
+	}
+	slices.SortFunc(reviews, func(left, right taskpkg.RunReview) int {
+		switch {
+		case left.UpdatedAt.After(right.UpdatedAt):
+			return -1
+		case left.UpdatedAt.Before(right.UpdatedAt):
+			return 1
+		default:
+			return strings.Compare(right.ReviewID, left.ReviewID)
+		}
+	})
+	if query.Limit > 0 && len(reviews) > query.Limit {
+		reviews = reviews[:query.Limit]
+	}
+	return reviews, nil
 }
 
 type soulSnapshotStoreStub struct {

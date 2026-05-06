@@ -127,6 +127,48 @@ func (fakeStore) GetTaskTriageState(context.Context, string, taskpkg.ActorIdenti
 
 func (fakeStore) UpsertTaskTriageState(context.Context, taskpkg.TriageState) error { return nil }
 
+func (fakeStore) GetExecutionProfile(context.Context, string) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, taskpkg.ErrExecutionProfileNotFound
+}
+
+func (fakeStore) UpsertExecutionProfile(
+	context.Context,
+	*taskpkg.ExecutionProfile,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
+
+func (fakeStore) DeleteExecutionProfile(context.Context, string) error {
+	return taskpkg.ErrExecutionProfileNotFound
+}
+
+func (fakeStore) RequestRunReview(
+	context.Context,
+	*taskpkg.RunReview,
+) (taskpkg.RunReview, bool, error) {
+	return taskpkg.RunReview{}, false, taskpkg.ErrRunReviewNotFound
+}
+
+func (fakeStore) GetRunReview(context.Context, string) (taskpkg.RunReview, error) {
+	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (fakeStore) BindRunReviewSession(
+	context.Context,
+	taskpkg.BindRunReviewSessionRequest,
+	time.Time,
+) (taskpkg.RunReview, error) {
+	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (fakeStore) LookupRunReviewBySession(context.Context, string) (taskpkg.RunReview, error) {
+	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
+}
+
+func (fakeStore) ListRunReviews(context.Context, taskpkg.RunReviewQuery) ([]taskpkg.RunReview, error) {
+	return nil, nil
+}
+
 func (fakeStore) CountActiveSessionBindings(context.Context, string) (int, error) { return 0, nil }
 
 func (fakeStore) CreateTaskEvent(context.Context, taskpkg.Event) error { return nil }

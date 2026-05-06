@@ -129,6 +129,27 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		if domainStream.AfterSequence != 9 {
 			t.Fatalf("taskStreamDomainQuery() = %#v, want after_sequence=9", domainStream)
 		}
+
+		zeroRecorder := httptest.NewRecorder()
+		zeroCtx, _ := gin.CreateTestContext(zeroRecorder)
+		zeroCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/tasks/task-1/stream?after_sequence=12",
+			http.NoBody,
+		)
+		zeroCtx.Request.Header.Set("Last-Event-ID", "0")
+		zeroQuery, err := ParseTaskStreamQuery(zeroCtx)
+		if err != nil {
+			t.Fatalf("ParseTaskStreamQuery(zero) error = %v", err)
+		}
+		zeroDomainStream, err := handlers.taskStreamDomainQuery(zeroCtx, zeroQuery)
+		if err != nil {
+			t.Fatalf("taskStreamDomainQuery(zero) error = %v", err)
+		}
+		if zeroDomainStream.AfterSequence != 0 {
+			t.Fatalf("taskStreamDomainQuery(zero) = %#v, want after_sequence=0", zeroDomainStream)
+		}
 	})
 
 	t.Run("Should parse and convert dashboard and inbox filters", func(t *testing.T) {

@@ -35,10 +35,11 @@ type taskStore interface {
 }
 
 type taskRuntime struct {
-	manager  *taskpkg.Service
-	store    taskStore
-	detached *harnessDetachedWorkBridge
-	reentry  *harnessReentryBridge
+	manager             *taskpkg.Service
+	store               taskStore
+	detached            *harnessDetachedWorkBridge
+	reentry             *harnessReentryBridge
+	bridgeNotifications *bridgeTerminalTaskNotificationObserver
 }
 
 type taskBridgeSessionManager interface {
@@ -54,7 +55,27 @@ type taskBridgeSessionRequestStopper interface {
 type taskSessionBridge struct {
 	sessions            taskBridgeSessionManager
 	globalWorkspacePath string
+	contextOverlay      taskSessionContextOverlay
 	logger              *slog.Logger
+}
+
+type taskSessionContextOverlay interface {
+	TaskRunPromptOverlay(
+		ctx context.Context,
+		taskRecord taskpkg.Task,
+		run taskpkg.Run,
+		profile *taskpkg.ExecutionProfile,
+	) (string, error)
+}
+
+type taskSessionBridgeOption func(*taskSessionBridge)
+
+func withTaskSessionContextOverlay(overlay taskSessionContextOverlay) taskSessionBridgeOption {
+	return func(bridge *taskSessionBridge) {
+		if bridge != nil {
+			bridge.contextOverlay = overlay
+		}
+	}
 }
 
 type taskRecoveryStats struct {
@@ -76,6 +97,7 @@ func newTaskSessionBridge(
 	sessions taskBridgeSessionManager,
 	globalWorkspacePath string,
 	logger *slog.Logger,
+	options ...taskSessionBridgeOption,
 ) (*taskSessionBridge, error) {
 	if sessions == nil {
 		return nil, errors.New("daemon: task session bridge requires a session manager")
@@ -83,11 +105,17 @@ func newTaskSessionBridge(
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &taskSessionBridge{
+	bridge := &taskSessionBridge{
 		sessions:            sessions,
 		globalWorkspacePath: strings.TrimSpace(globalWorkspacePath),
 		logger:              logger,
-	}, nil
+	}
+	for _, option := range options {
+		if option != nil {
+			option(bridge)
+		}
+	}
+	return bridge, nil
 }
 
 func (b *taskSessionBridge) StartTaskSession(
@@ -107,6 +135,8 @@ func (b *taskSessionBridge) StartTaskSession(
 		Channel:  strings.TrimSpace(spec.Run.NetworkChannel),
 		Type:     session.SessionTypeSystem,
 	}
+	applyTaskSessionWorkerProfile(&opts, spec.ExecutionProfile)
+	applyTaskSessionSandboxProfile(&opts, spec.ExecutionProfile)
 	switch spec.Task.Scope.Normalize() {
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = strings.TrimSpace(spec.Task.WorkspaceID)
@@ -121,6 +151,13 @@ func (b *taskSessionBridge) StartTaskSession(
 			taskpkg.ErrValidation,
 			spec.Task.Scope,
 		)
+	}
+	if b.contextOverlay != nil {
+		overlay, err := b.contextOverlay.TaskRunPromptOverlay(ctx, spec.Task, spec.Run, spec.ExecutionProfile)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: render task session context overlay: %w", err)
+		}
+		opts.PromptOverlay = joinPromptOverlays(opts.PromptOverlay, overlay)
 	}
 
 	created, err := b.sessions.Create(ctx, opts)
@@ -139,6 +176,43 @@ func (b *taskSessionBridge) StartTaskSession(
 		WorkspaceID: strings.TrimSpace(info.WorkspaceID),
 		StartedAt:   info.CreatedAt,
 	}, nil
+}
+
+func joinPromptOverlays(values ...string) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func applyTaskSessionWorkerProfile(opts *session.CreateOpts, profile *taskpkg.ExecutionProfile) {
+	if opts == nil || profile == nil {
+		return
+	}
+	worker := profile.Worker
+	opts.AgentName = strings.TrimSpace(worker.AgentName)
+	opts.Provider = strings.TrimSpace(worker.Provider)
+	opts.Model = strings.TrimSpace(worker.Model)
+}
+
+func applyTaskSessionSandboxProfile(opts *session.CreateOpts, profile *taskpkg.ExecutionProfile) {
+	if opts == nil || profile == nil {
+		return
+	}
+	switch profile.Sandbox.Mode.Normalize() {
+	case taskpkg.SandboxModeNone:
+		opts.DisableSandbox = true
+		opts.SandboxRef = ""
+	case taskpkg.SandboxModeRef:
+		opts.DisableSandbox = false
+		opts.SandboxRef = strings.TrimSpace(profile.Sandbox.SandboxRef)
+	default:
+		return
+	}
 }
 
 func (b *taskSessionBridge) AttachTaskSession(
@@ -235,31 +309,30 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		return nil
 	}
 
-	bridge, err := newTaskSessionBridge(state.sessions, d.homePaths.HomeDir, state.logger)
+	bridge, err := newTaskSessionBridge(
+		state.sessions,
+		d.homePaths.HomeDir,
+		state.logger,
+		withTaskSessionContextOverlay(state.situationContext),
+	)
 	if err != nil {
 		return err
 	}
-	reentrySessions, ok := state.sessions.(harnessReentrySessionManager)
-	if !ok {
-		return errors.New("daemon: session manager does not support synthetic reentry bridge")
-	}
-	reentryStore, ok := state.registry.(harnessReentryStore)
-	if !ok {
-		return errors.New("daemon: global registry does not support harness reentry summaries")
-	}
-	reentry, err := newHarnessReentryBridge(
-		ctx,
-		state.harnessResolver,
-		state.harnessRecorder,
-		reentryStore,
-		reentrySessions,
-		state.logger,
-		withHarnessHeartbeatWake(state.registry, reentrySessions, state.cfg.Agents.Heartbeat),
-	)
+	reentry, err := bootHarnessReentryBridge(ctx, state)
 	if err != nil {
 		return fmt.Errorf("daemon: create harness reentry bridge: %w", err)
 	}
-	manager, err := taskpkg.NewManager(taskManagerOptions(store, bridge, reentry, state.notifier)...)
+	reviewRequests := newRunReviewRequestedForwarder()
+	eventObserver, bridgeNotifications := d.composeTaskEventObserver(state, store, reentry)
+	manager, err := taskpkg.NewManager(
+		taskManagerOptions(
+			store,
+			bridge,
+			eventObserver,
+			state.notifier,
+			reviewRequests,
+		)...,
+	)
 	if err != nil {
 		return fmt.Errorf("daemon: create task manager: %w", err)
 	}
@@ -269,11 +342,13 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	}
 
 	state.tasks = &taskRuntime{
-		manager:  manager,
-		store:    store,
-		detached: detached,
-		reentry:  reentry,
+		manager:             manager,
+		store:               store,
+		detached:            detached,
+		reentry:             reentry,
+		bridgeNotifications: bridgeNotifications,
 	}
+	state.reviewRequests = reviewRequests
 	state.deps.Tasks = manager
 
 	actor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
@@ -293,10 +368,40 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 			"failed_runs", stats.failed,
 		)
 	}
-	if err := reentry.recover(ctx); err != nil {
-		return fmt.Errorf("daemon: recover detached harness reentry bridge: %w", err)
+	if reentry != nil {
+		if err := reentry.recover(ctx); err != nil {
+			return fmt.Errorf("daemon: recover detached harness reentry bridge: %w", err)
+		}
 	}
 	return nil
+}
+
+func bootHarnessReentryBridge(ctx context.Context, state *bootState) (*harnessReentryBridge, error) {
+	reentrySessions, ok := state.sessions.(harnessReentrySessionManager)
+	if !ok {
+		if state != nil && state.logger != nil {
+			state.logger.Warn(
+				"daemon: synthetic reentry bridge disabled because session manager support is unavailable",
+			)
+		}
+		return nil, nil
+	}
+	reentryStore, ok := state.registry.(harnessReentryStore)
+	if !ok {
+		if state != nil && state.logger != nil {
+			state.logger.Warn("daemon: synthetic reentry bridge disabled because registry support is unavailable")
+		}
+		return nil, nil
+	}
+	return newHarnessReentryBridge(
+		ctx,
+		state.harnessResolver,
+		state.harnessRecorder,
+		reentryStore,
+		reentrySessions,
+		state.logger,
+		withHarnessHeartbeatWake(state.registry, reentrySessions, state.cfg.Agents.Heartbeat),
+	)
 }
 
 func (d *Daemon) bootSpawnReaper(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -346,13 +451,15 @@ func (d *Daemon) bootSpawnReaper(ctx context.Context, state *bootState, cleanup 
 func taskManagerOptions(
 	store taskStore,
 	bridge taskpkg.SessionExecutor,
-	reentry taskpkg.EventObserver,
+	events taskpkg.EventObserver,
 	hooks *hooksNotifier,
+	reviewRequests taskpkg.RunReviewRequestedObserver,
 ) []taskpkg.Option {
 	options := []taskpkg.Option{
 		taskpkg.WithStore(store),
 		taskpkg.WithSessionExecutor(bridge),
-		taskpkg.WithEventObserver(reentry),
+		taskpkg.WithEventObserver(events),
+		taskpkg.WithRunReviewRequestedObserver(reviewRequests),
 		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
 	}
@@ -376,10 +483,15 @@ func (r *taskRuntime) submitDetachedHarnessWork(
 }
 
 func (r *taskRuntime) shutdown() {
-	if r == nil || r.reentry == nil {
+	if r == nil {
 		return
 	}
-	r.reentry.shutdown()
+	if r.bridgeNotifications != nil {
+		r.bridgeNotifications.shutdown()
+	}
+	if r.reentry != nil {
+		r.reentry.shutdown()
+	}
 }
 
 func recoverTaskRunsOnBoot(

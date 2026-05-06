@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  agentContextOptions,
+  taskBridgeNotificationSubscriptionOptions,
+  taskBridgeNotificationSubscriptionsOptions,
+  taskContextBundleOptions,
   taskDashboardOptions,
   taskDetailOptions,
+  taskExecutionProfileOptions,
   taskInboxOptions,
+  taskReviewsOptions,
   taskRunDetailOptions,
+  taskRunReviewDetailOptions,
+  taskRunReviewsOptions,
   taskRunsOptions,
   taskTimelineOptions,
   taskTreeOptions,
@@ -84,5 +92,58 @@ describe("tasks dashboard and inbox options", () => {
   it("supports explicit disabled state for aggregate reads", () => {
     expect(taskDashboardOptions({}, false).enabled).toBe(false);
     expect(taskInboxOptions({}, false).enabled).toBe(false);
+  });
+});
+
+describe("orchestration options", () => {
+  it("Should disable profile and review queries for empty ids", () => {
+    expect(taskExecutionProfileOptions("").enabled).toBe(false);
+    expect(taskRunReviewsOptions("").enabled).toBe(false);
+    expect(taskReviewsOptions("").enabled).toBe(false);
+    expect(taskRunReviewDetailOptions("").enabled).toBe(false);
+  });
+
+  it("Should use the default cadence for execution profile reads", () => {
+    const options = taskExecutionProfileOptions("task_1");
+    expect(options.staleTime).toBe(15_000);
+    expect(options.refetchInterval).toBe(30_000);
+  });
+
+  it("Should use the live cadence for review reads", () => {
+    expect(taskRunReviewsOptions("run_1").refetchInterval).toBe(15_000);
+    expect(taskRunReviewsOptions("run_1").staleTime).toBe(5_000);
+    expect(taskReviewsOptions("task_1").refetchInterval).toBe(15_000);
+    expect(taskRunReviewDetailOptions("review_1").refetchInterval).toBe(15_000);
+  });
+
+  it("Should carry review filters into the query key", () => {
+    const options = taskRunReviewsOptions("run_1", {
+      status: "in_review",
+      reviewer_session_id: "sess_a",
+      limit: 25,
+    });
+    expect(options.queryKey).toEqual([
+      "tasks",
+      "reviews",
+      "run",
+      "run_1",
+      "in_review",
+      "sess_a",
+      "25",
+    ]);
+  });
+
+  it("Should expose enabled toggle for context queries", () => {
+    expect(agentContextOptions(false).enabled).toBe(false);
+    expect(agentContextOptions().enabled).toBe(true);
+    expect(taskContextBundleOptions(false).enabled).toBe(false);
+    expect(taskContextBundleOptions().enabled).toBe(true);
+  });
+
+  it("Should disable bridge notification queries when ids are missing", () => {
+    expect(taskBridgeNotificationSubscriptionsOptions("").enabled).toBe(false);
+    expect(taskBridgeNotificationSubscriptionOptions("", "bsub_1").enabled).toBe(false);
+    expect(taskBridgeNotificationSubscriptionOptions("task_1", "").enabled).toBe(false);
+    expect(taskBridgeNotificationSubscriptionOptions("task_1", "bsub_1").enabled).toBe(true);
   });
 });

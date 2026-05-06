@@ -561,20 +561,24 @@ func (m *Manager) Stop(ctx context.Context) error {
 	errCh := make(chan error, len(names))
 	var stopWG sync.WaitGroup
 	for _, name := range names {
-		ext, ok := m.lookupManaged(name)
-		if !ok {
+		m.mu.RLock()
+		ext := m.extensions[name]
+		if ext == nil {
+			m.mu.RUnlock()
 			continue
 		}
+		proc := ext.process
+		extensionName := ext.info.Name
+		m.mu.RUnlock()
 
 		stopWG.Add(1)
-		go func(item *managedExtension) {
+		go func(item *managedExtension, itemName string, itemProcess processHandle) {
 			defer stopWG.Done()
 
-			proc := item.process
-			if proc != nil {
-				if err := proc.Shutdown(ctx); err != nil {
-					if waitErr := proc.Wait(); waitErr != nil {
-						errCh <- fmt.Errorf("extension %q stop: %w", item.info.Name, errors.Join(err, waitErr))
+			if itemProcess != nil {
+				if err := itemProcess.Shutdown(ctx); err != nil {
+					if waitErr := itemProcess.Wait(); waitErr != nil {
+						errCh <- fmt.Errorf("extension %q stop: %w", itemName, errors.Join(err, waitErr))
 					}
 				}
 			}
@@ -588,8 +592,8 @@ func (m *Manager) Stop(ctx context.Context) error {
 			item.phase = ExtensionPhaseStop
 			m.mu.Unlock()
 
-			m.logger.Info("extension.lifecycle.shutdown", "extension", item.info.Name)
-		}(ext)
+			m.logger.Info("extension.lifecycle.shutdown", "extension", itemName)
+		}(ext, extensionName, proc)
 	}
 	stopWG.Wait()
 	close(errCh)
@@ -1837,7 +1841,7 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 	ext.consecutiveFailures++
 	cleanups := ext.redactionCleanups
 	ext.redactionCleanups = nil
-	instanceIDs := managedBridgeInstanceIDs(ext)
+	instanceIDs := bridgeInstanceIDsFromRuntime(ext.runtime)
 	failures := ext.consecutiveFailures
 	if ext.consecutiveFailures >= m.restartFailureThreshold {
 		m.mu.Unlock()
@@ -1879,7 +1883,9 @@ func (m *Manager) disableExtension(name string, reason error) {
 	if !ok {
 		return
 	}
-	instanceIDs := managedBridgeInstanceIDs(ext)
+	m.mu.RLock()
+	instanceIDs := bridgeInstanceIDsFromRuntime(ext.runtime)
+	m.mu.RUnlock()
 	m.unregisterResources(ext)
 
 	if err := m.registry.Disable(name); err != nil {
@@ -1905,11 +1911,12 @@ func (m *Manager) unregisterResources(ext *managedExtension) {
 	if ext == nil {
 		return
 	}
-	m.capChecker.Unregister(ext.info.Name)
-
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	name := ext.info.Name
 	ext.registered = false
+	m.mu.Unlock()
+
+	m.capChecker.Unregister(name)
 }
 
 func (m *Manager) markStable(name string, generation int64) {
@@ -1919,7 +1926,7 @@ func (m *Manager) markStable(name string, generation int64) {
 		m.mu.Unlock()
 		return
 	}
-	instanceIDs := managedBridgeInstanceIDs(ext)
+	instanceIDs := bridgeInstanceIDsFromRuntime(ext.runtime)
 	ext.awaitingStability = false
 	ext.consecutiveFailures = 0
 	ext.restartBackoff = 0
@@ -2068,11 +2075,11 @@ func (m *Manager) clearBridgeRuntimeIssues(bridgeInstanceIDs []string) {
 	}
 }
 
-func managedBridgeInstanceIDs(ext *managedExtension) []string {
-	if ext == nil || ext.runtime.Bridge == nil {
+func bridgeInstanceIDsFromRuntime(runtime subprocess.InitializeRuntime) []string {
+	if runtime.Bridge == nil {
 		return nil
 	}
-	return ext.runtime.Bridge.ManagedBridgeInstanceIDs()
+	return runtime.Bridge.ManagedBridgeInstanceIDs()
 }
 
 func (m *Manager) waitBackoff(delay time.Duration) bool {
