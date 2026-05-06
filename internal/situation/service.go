@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -504,7 +505,7 @@ func (s *Service) taskAndChannelContext(
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
 	}
 
-	bundle, err := s.bundleForRun(ctx, taskRecord, run, workspaceSnapshot, nil)
+	bundle, err := s.sessionContextBundle(ctx, taskRecord, run, workspaceSnapshot, strings.TrimSpace(sessionID))
 	if err != nil {
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
 	}
@@ -526,7 +527,7 @@ func (s *Service) taskAndChannelContext(
 		Available: true,
 		Task:      taskReferencePayload(taskRecord),
 		Lease:     &lease,
-		Bundle:    &bundle,
+		Bundle:    bundle,
 	}
 	channelContext := contract.AgentCoordinationChannelContextPayload{
 		Available: channel.ID != "",
@@ -568,7 +569,7 @@ func (s *Service) reviewBindingTaskAndChannelContext(
 		}
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
 	}
-	bundle, err := s.bundleForRun(ctx, taskRecord, run, workspaceSnapshot, nil)
+	bundle, err := s.sessionContextBundle(ctx, taskRecord, run, workspaceSnapshot, strings.TrimSpace(sessionID))
 	if err != nil {
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err
 	}
@@ -584,7 +585,7 @@ func (s *Service) reviewBindingTaskAndChannelContext(
 	taskContext := contract.AgentTaskContextPayload{
 		Available: true,
 		Task:      taskReferencePayload(taskRecord),
-		Bundle:    &bundle,
+		Bundle:    bundle,
 	}
 	channelContext := contract.AgentCoordinationChannelContextPayload{
 		Available: channel.ID != "",
@@ -594,6 +595,31 @@ func (s *Service) reviewBindingTaskAndChannelContext(
 		channelContext.Channel = nil
 	}
 	return taskContext, channelContext, firstTrimmed(review.ReviewerChannelID, channel.Channel, channel.ID), nil
+}
+
+func (s *Service) sessionContextBundle(
+	ctx context.Context,
+	taskRecord taskpkg.Task,
+	run taskpkg.Run,
+	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
+	sessionID string,
+) (*taskpkg.ContextBundle, error) {
+	bundle, err := s.bundleForRun(ctx, taskRecord, run, workspaceSnapshot, nil)
+	if err == nil {
+		return &bundle, nil
+	}
+	if isContextError(err) {
+		return nil, err
+	}
+
+	slog.Warn(
+		"situation: skip task context bundle enrichment",
+		"session_id", strings.TrimSpace(sessionID),
+		"task_id", strings.TrimSpace(taskRecord.ID),
+		"run_id", strings.TrimSpace(run.ID),
+		"error", safeTaskContextText(err.Error(), 240),
+	)
+	return nil, nil
 }
 
 func (s *Service) networkSections(

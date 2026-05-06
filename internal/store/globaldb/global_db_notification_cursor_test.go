@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"path/filepath"
@@ -253,6 +254,34 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should create a cursor when recording the first error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		service := notifications.NewService(globalDB)
+		key := notificationCursorTestKey()
+		now := notificationCursorTestTime()
+
+		cursor, err := service.RecordError(ctx, notifications.CursorError{
+			Key:       key,
+			LastError: "bridge delivery failed",
+			Now:       now,
+		})
+		if err != nil {
+			t.Fatalf("RecordError() error = %v", err)
+		}
+		if cursor.LastSequence != 0 || cursor.LastDeliveryID != "" {
+			t.Fatalf("cursor after first RecordError = %#v, want zero delivery progress", cursor)
+		}
+		if cursor.LastError != "bridge delivery failed" {
+			t.Fatalf("cursor.LastError = %q, want diagnostic", cursor.LastError)
+		}
+		if !cursor.UpdatedAt.Equal(now.UTC()) {
+			t.Fatalf("cursor.UpdatedAt = %s, want %s", cursor.UpdatedAt, now.UTC())
+		}
+	})
+
 	t.Run("Should list cursors with stable filters", func(t *testing.T) {
 		t.Parallel()
 
@@ -352,4 +381,21 @@ func notificationCursorTestKey() notifications.CursorKey {
 
 func notificationCursorTestTime() time.Time {
 	return time.Date(2026, 5, 5, 15, 0, 0, 0, time.UTC)
+}
+
+func TestNotificationCursorRollbackContext(t *testing.T) {
+	t.Parallel()
+
+	parent, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	rollbackCtx, rollbackCancel := notificationCursorRollbackContext(parent)
+	defer rollbackCancel()
+
+	if rollbackCtx.Err() != nil {
+		t.Fatalf("rollbackCtx.Err() = %v, want nil after detaching parent cancellation", rollbackCtx.Err())
+	}
+	if _, ok := rollbackCtx.Deadline(); !ok {
+		t.Fatal("rollbackCtx has no deadline, want bounded rollback timeout")
+	}
 }

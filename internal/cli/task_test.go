@@ -1764,6 +1764,83 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 		}
 	})
 
+	t.Run("Should allow review list filters without task or run scope", func(t *testing.T) {
+		t.Parallel()
+
+		var listQuery TaskRunReviewListQuery
+		deps := newTestDeps(t, &stubClient{
+			listTaskRunReviewsFn: func(_ context.Context, query TaskRunReviewListQuery) ([]TaskRunReviewRecord, error) {
+				listQuery = query
+				return []TaskRunReviewRecord{sampleTaskRunReviewRecord(taskpkg.RunReviewStatusRequested)}, nil
+			},
+		})
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"list",
+			"--status",
+			"requested",
+			"--reviewer-session",
+			"sess-review",
+			"--last",
+			"2",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("task review list filter-only error = %v", err)
+		}
+		if listQuery.TaskID != "" || listQuery.RunID != "" {
+			t.Fatalf("list query scope = %#v, want global filter-only query", listQuery)
+		}
+		if listQuery.Status != taskpkg.RunReviewStatusRequested ||
+			listQuery.ReviewerSessionID != "sess-review" ||
+			listQuery.Limit != 2 {
+			t.Fatalf("list query = %#v, want status/reviewer/limit filters", listQuery)
+		}
+	})
+
+	t.Run("Should reject non-array missing-work JSON before calling client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			submitTaskRunReviewVerdictFn: func(
+				context.Context,
+				string,
+				*TaskRunReviewVerdictRequest,
+			) (TaskRunReviewVerdictRecord, error) {
+				t.Fatal("SubmitTaskRunReviewVerdict should not be called for invalid --missing-work-json")
+				return TaskRunReviewVerdictRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"review",
+			"submit",
+			"review-1",
+			"--run",
+			"run-1",
+			"--outcome",
+			"rejected",
+			"--confidence",
+			"0.5",
+			"--reason",
+			"tests are missing",
+			"--delivery-id",
+			"delivery-1",
+			"--missing-work-json",
+			`{"todo":"write tests"}`,
+		)
+		if err == nil || !strings.Contains(err.Error(), "--missing-work-json must be a JSON array") {
+			t.Fatalf("task review submit invalid missing-work-json error = %v", err)
+		}
+	})
+
 	t.Run("Should reject negative review round and attempt before calling client", func(t *testing.T) {
 		t.Parallel()
 

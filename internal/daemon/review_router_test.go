@@ -191,6 +191,46 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 	})
 
+	t.Run("Should attach deadlines to detached routing and no-route diagnostic work", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{
+					AllowedPeerIDs: []string{"peer-missing"},
+				},
+			},
+			requireDeadline: true,
+		}
+		store := reviewRouterStoreForTest()
+		store.requireDeadline = true
+		sessions := &coordinatorRuntimeSessions{
+			infos: []*session.Info{
+				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+			},
+		}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			store,
+			sessions,
+			reviewRouterAgentResolverStub{"worker": reviewRouterAgentDef("worker")},
+		)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		notification := reviewRouterNotificationForTest()
+		router.OnRunReviewRequested(ctx, &notification)
+
+		if len(tasks.binds) != 0 {
+			t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
+		}
+		if got, want := len(tasks.records), 1; got != want {
+			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should stop a created reviewer session when binding fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -203,7 +243,7 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			},
 			bindErr: context.DeadlineExceeded,
 		}
-		sessions := &coordinatorRuntimeSessions{}
+		sessions := &reviewRouterDeadlineSessions{base: &coordinatorRuntimeSessions{}}
 		router := newReviewRouterForTest(
 			t,
 			tasks,
@@ -225,12 +265,18 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		if stop.id == "" || stop.cause != session.CauseFailed || !strings.Contains(stop.detail, "bind failed") {
 			t.Fatalf("stop call = %#v, want failed cleanup for created reviewer", stop)
 		}
+		if !sessions.stopHasDeadline() {
+			t.Fatal("StopWithCause() context had no deadline, want cleanup timeout")
+		}
+		if err := sessions.stopContextErr(); err != nil {
+			t.Fatalf("StopWithCause() context err = %v, want detached timeout context", err)
+		}
 		if got, want := len(tasks.records), 1; got != want {
 			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
 		}
 	})
 
-	t.Run("Should allow a second reviewer session that shares the worker agent name", func(t *testing.T) {
+	t.Run("Should reject reviewer creation when the only candidate is the original worker agent", func(t *testing.T) {
 		t.Parallel()
 
 		tasks := &reviewRouterTasksStub{
@@ -257,14 +303,20 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		notification := reviewRouterNotificationForTest()
 		router.OnRunReviewRequested(context.Background(), &notification)
 
-		if got, want := sessions.createCount(), 1; got != want {
-			t.Fatalf("session create calls = %d, want %d", got, want)
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("session create calls = %d, want 0 when only original worker agent is available", got)
 		}
-		if got, want := len(tasks.binds), 1; got != want {
-			t.Fatalf("bind calls = %d, want %d", got, want)
+		if len(tasks.binds) != 0 {
+			t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
 		}
-		if got, want := tasks.binds[0].ReviewerAgentName, "worker"; got != want {
-			t.Fatalf("bind reviewer agent = %q, want %q", got, want)
+		if got, want := len(tasks.records), 1; got != want {
+			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
+		}
+		if !strings.Contains(tasks.records[0].Verdict.Reason, "exclude all eligible reviewer agents") {
+			t.Fatalf(
+				"RecordRunReview reason = %q, want original-worker exclusion diagnostic",
+				tasks.records[0].Verdict.Reason,
+			)
 		}
 	})
 
@@ -324,7 +376,7 @@ func newReviewRouterForTest(
 	t *testing.T,
 	tasks *reviewRouterTasksStub,
 	store *reviewRouterStoreStub,
-	sessions *coordinatorRuntimeSessions,
+	sessions reviewRouterSessionManager,
 	agents reviewRouterAgentResolverStub,
 ) *reviewRouter {
 	t.Helper()
@@ -411,11 +463,17 @@ type reviewRouterStoreStub struct {
 	taskRecord            taskpkg.Task
 	run                   taskpkg.Run
 	rejectCanceledContext bool
+	requireDeadline       bool
 }
 
 func (s *reviewRouterStoreStub) GetTask(ctx context.Context, id string) (taskpkg.Task, error) {
 	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
 		return taskpkg.Task{}, ctx.Err()
+	}
+	if s.requireDeadline {
+		if _, ok := ctx.Deadline(); !ok {
+			return taskpkg.Task{}, context.DeadlineExceeded
+		}
 	}
 	if id != s.taskRecord.ID {
 		return taskpkg.Task{}, taskpkg.ErrTaskNotFound
@@ -426,6 +484,11 @@ func (s *reviewRouterStoreStub) GetTask(ctx context.Context, id string) (taskpkg
 func (s *reviewRouterStoreStub) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error) {
 	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
 		return taskpkg.Run{}, ctx.Err()
+	}
+	if s.requireDeadline {
+		if _, ok := ctx.Deadline(); !ok {
+			return taskpkg.Run{}, context.DeadlineExceeded
+		}
 	}
 	if id != s.run.ID {
 		return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
@@ -440,6 +503,7 @@ type reviewRouterTasksStub struct {
 	records               []taskpkg.RecordRunReviewRequest
 	bindErr               error
 	rejectCanceledContext bool
+	requireDeadline       bool
 }
 
 func (s *reviewRouterTasksStub) GetExecutionProfile(
@@ -449,6 +513,11 @@ func (s *reviewRouterTasksStub) GetExecutionProfile(
 ) (taskpkg.ExecutionProfile, error) {
 	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
 		return taskpkg.ExecutionProfile{}, ctx.Err()
+	}
+	if s.requireDeadline {
+		if _, ok := ctx.Deadline(); !ok {
+			return taskpkg.ExecutionProfile{}, context.DeadlineExceeded
+		}
 	}
 	return s.profile, nil
 }
@@ -460,6 +529,11 @@ func (s *reviewRouterTasksStub) BindRunReviewSession(
 ) (taskpkg.RunReviewBinding, error) {
 	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
 		return taskpkg.RunReviewBinding{}, ctx.Err()
+	}
+	if s.requireDeadline {
+		if _, ok := ctx.Deadline(); !ok {
+			return taskpkg.RunReviewBinding{}, context.DeadlineExceeded
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -477,6 +551,11 @@ func (s *reviewRouterTasksStub) RecordRunReview(
 ) (taskpkg.RunReviewResult, error) {
 	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
 		return taskpkg.RunReviewResult{}, ctx.Err()
+	}
+	if s.requireDeadline {
+		if _, ok := ctx.Deadline(); !ok {
+			return taskpkg.RunReviewResult{}, context.DeadlineExceeded
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -502,4 +581,59 @@ func (s reviewRouterAgentResolverStub) ResolveAgent(
 		return aghconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
 	}
 	return agent, nil
+}
+
+type reviewRouterDeadlineSessions struct {
+	base        *coordinatorRuntimeSessions
+	mu          sync.Mutex
+	hasDeadline bool
+	ctxErr      error
+}
+
+func (s *reviewRouterDeadlineSessions) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
+	return s.base.Create(ctx, opts)
+}
+
+func (s *reviewRouterDeadlineSessions) ListAll(ctx context.Context) ([]*session.Info, error) {
+	return s.base.ListAll(ctx)
+}
+
+func (s *reviewRouterDeadlineSessions) StopWithCause(
+	ctx context.Context,
+	id string,
+	cause session.StopCause,
+	detail string,
+) error {
+	s.mu.Lock()
+	s.hasDeadline = false
+	if _, ok := ctx.Deadline(); ok {
+		s.hasDeadline = true
+	}
+	s.ctxErr = ctx.Err()
+	s.mu.Unlock()
+	return s.base.StopWithCause(ctx, id, cause, detail)
+}
+
+func (s *reviewRouterDeadlineSessions) createCount() int {
+	return s.base.createCount()
+}
+
+func (s *reviewRouterDeadlineSessions) stopCount() int {
+	return s.base.stopCount()
+}
+
+func (s *reviewRouterDeadlineSessions) stopCall(index int) coordinatorRuntimeStopCall {
+	return s.base.stopCall(index)
+}
+
+func (s *reviewRouterDeadlineSessions) stopHasDeadline() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.hasDeadline
+}
+
+func (s *reviewRouterDeadlineSessions) stopContextErr() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ctxErr
 }

@@ -897,24 +897,27 @@ func parseTaskRunReviewListFilters(
 	reviewerSessionID string,
 	last int,
 ) (TaskRunReviewListQuery, error) {
-	if strings.TrimSpace(taskID) != "" && strings.TrimSpace(runID) != "" {
+	trimmedTaskID := strings.TrimSpace(taskID)
+	trimmedRunID := strings.TrimSpace(runID)
+	trimmedReviewerSessionID := strings.TrimSpace(reviewerSessionID)
+	if trimmedTaskID != "" && trimmedRunID != "" {
 		return TaskRunReviewListQuery{}, errors.New("cli: choose either --task or --run")
-	}
-	if strings.TrimSpace(taskID) == "" && strings.TrimSpace(runID) == "" {
-		return TaskRunReviewListQuery{}, errors.New("cli: task review list requires --task or --run")
 	}
 	status, err := parseOptionalReviewStatus(statusRaw)
 	if err != nil {
 		return TaskRunReviewListQuery{}, err
 	}
+	if trimmedTaskID == "" && trimmedRunID == "" && status == "" && trimmedReviewerSessionID == "" && last == 0 {
+		return TaskRunReviewListQuery{}, errors.New("cli: task review list requires at least one filter")
+	}
 	if err := validateTaskLast(last); err != nil {
 		return TaskRunReviewListQuery{}, err
 	}
 	return TaskRunReviewListQuery{
-		TaskID:            strings.TrimSpace(taskID),
-		RunID:             strings.TrimSpace(runID),
+		TaskID:            trimmedTaskID,
+		RunID:             trimmedRunID,
 		Status:            status,
-		ReviewerSessionID: strings.TrimSpace(reviewerSessionID),
+		ReviewerSessionID: trimmedReviewerSessionID,
 		Limit:             last,
 	}, nil
 }
@@ -1836,6 +1839,10 @@ func missingWorkFromFlags(items []string, raw string) (json.RawMessage, error) {
 		payload, err := parseJSONFlag("missing-work-json", raw)
 		if err != nil {
 			return nil, err
+		}
+		var items []json.RawMessage
+		if err := json.Unmarshal(payload, &items); err != nil {
+			return nil, errors.New("cli: --missing-work-json must be a JSON array")
 		}
 		return payload, nil
 	}

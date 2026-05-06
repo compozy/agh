@@ -20,6 +20,8 @@ import (
 const (
 	reviewRouterActorRef        = "review-router"
 	reviewRouterOriginRef       = "daemon.review_router"
+	reviewRouterRouteTimeout    = 30 * time.Second
+	reviewRouterCleanupTimeout  = 5 * time.Second
 	reviewRouterNoRouteGuidance = "Update the task execution profile review selectors " +
 		"or start an eligible reviewer session."
 	reviewRouterNoRouteDeliveryPrefix = "review-router:no-route:"
@@ -170,11 +172,13 @@ func (r *reviewRouter) OnRunReviewRequested(
 	if r == nil || notification == nil {
 		return
 	}
-	ctx = detachDaemonOwnedContext(ctx)
 	if strings.TrimSpace(notification.Review.ReviewID) == "" {
 		return
 	}
-	routed, diagnostic, err := r.routeRunReview(ctx, notification)
+	routeCtx, cancel := detachedDaemonOperationContext(ctx, reviewRouterRouteTimeout)
+	defer cancel()
+
+	routed, diagnostic, err := r.routeRunReview(routeCtx, notification)
 	if err != nil {
 		r.logger.Warn(
 			"daemon: review router failed",
@@ -187,7 +191,10 @@ func (r *reviewRouter) OnRunReviewRequested(
 	if routed || strings.TrimSpace(diagnostic) == "" {
 		return
 	}
-	if err := r.recordNoRouteDiagnostic(ctx, notification.Review, diagnostic); err != nil {
+	recordCtx, recordCancel := detachedDaemonOperationContext(ctx, reviewRouterRouteTimeout)
+	defer recordCancel()
+
+	if err := r.recordNoRouteDiagnostic(recordCtx, notification.Review, diagnostic); err != nil {
 		r.logger.Warn(
 			"daemon: review router failed to record no-route diagnostic",
 			"review_id", notification.Review.ReviewID,
@@ -464,12 +471,16 @@ func (r *reviewRouter) createRoute(
 func (r *reviewRouter) selectCreateAgent(
 	ctx context.Context,
 	review *taskpkg.ReviewProfile,
-	_ originalWorkerIdentity,
+	original originalWorkerIdentity,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (string, string, error) {
 	candidates := reviewCreateAgentCandidates(review, resolved)
 	for _, candidate := range candidates {
-		if strings.TrimSpace(candidate) == "" {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		if strings.TrimSpace(original.agentName) != "" && candidate == strings.TrimSpace(original.agentName) {
 			continue
 		}
 		ok, err := r.agentHasCapabilities(ctx, resolved, candidate, review.RequiredCapabilities)
@@ -491,10 +502,14 @@ func (r *reviewRouter) selectCreateAgent(
 	}
 	if resolved != nil {
 		for _, agent := range sortedResolvedAgents(resolved) {
-			if strings.TrimSpace(agent.Name) == "" {
+			agentName := strings.TrimSpace(agent.Name)
+			if agentName == "" {
 				continue
 			}
-			return strings.TrimSpace(agent.Name), "", nil
+			if strings.TrimSpace(original.agentName) != "" && agentName == strings.TrimSpace(original.agentName) {
+				continue
+			}
+			return agentName, "", nil
 		}
 	}
 	return "", "", nil
@@ -599,6 +614,10 @@ func (r *reviewRouter) isOriginalWorker(info *session.Info, original originalWor
 	if info == nil {
 		return false
 	}
+	if strings.TrimSpace(original.agentName) != "" &&
+		strings.TrimSpace(info.AgentName) == strings.TrimSpace(original.agentName) {
+		return true
+	}
 	if strings.TrimSpace(original.sessionID) != "" && strings.TrimSpace(info.ID) == original.sessionID {
 		return true
 	}
@@ -612,11 +631,8 @@ func (r *reviewRouter) cleanupCreatedReviewerSession(ctx context.Context, info *
 	if info == nil || strings.TrimSpace(info.ID) == "" {
 		return nil
 	}
-	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	stopCtx, cancel := detachedDaemonOperationContext(ctx, reviewRouterCleanupTimeout)
 	defer cancel()
-	if ctx != nil {
-		stopCtx = context.WithoutCancel(stopCtx)
-	}
 	return r.sessions.StopWithCause(
 		stopCtx,
 		strings.TrimSpace(info.ID),
@@ -630,6 +646,10 @@ func detachDaemonOwnedContext(ctx context.Context) context.Context {
 		return context.Background()
 	}
 	return context.WithoutCancel(ctx)
+}
+
+func detachedDaemonOperationContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(detachDaemonOwnedContext(ctx), timeout)
 }
 
 func (r *reviewRouter) recordNoRouteDiagnostic(

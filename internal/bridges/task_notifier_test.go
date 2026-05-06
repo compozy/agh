@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pedronauck/agh/internal/notifications"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -462,6 +463,28 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		}
 		if calls := transport.snapshotCalls(); len(calls) != 0 {
 			t.Fatalf("delivery calls = %d, want 0 for cursor replay", len(calls))
+		}
+	})
+}
+
+func TestTruncateTerminalTaskCursorError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve UTF-8 rune boundaries at the byte limit", func(t *testing.T) {
+		t.Parallel()
+
+		input := strings.Repeat("a", maxTerminalTaskCursorErrorBytes-1) + "界 trailing"
+
+		got := truncateTerminalTaskCursorError(input)
+
+		if len(got) > maxTerminalTaskCursorErrorBytes {
+			t.Fatalf("len(truncated) = %d, want <= %d", len(got), maxTerminalTaskCursorErrorBytes)
+		}
+		if !utf8.ValidString(got) {
+			t.Fatalf("truncateTerminalTaskCursorError() returned invalid UTF-8: %q", got)
+		}
+		if got != strings.Repeat("a", maxTerminalTaskCursorErrorBytes-1) {
+			t.Fatalf("truncateTerminalTaskCursorError() = %q, want safe cut before multi-byte rune", got)
 		}
 	})
 }

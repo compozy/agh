@@ -13,8 +13,14 @@ import (
 
 var _ notifications.CursorStore = (*GlobalDB)(nil)
 
+const notificationCursorRollbackTimeout = 5 * time.Second
+
 type notificationCursorScanner interface {
 	Scan(dest ...any) error
+}
+
+func notificationCursorRollbackContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), notificationCursorRollbackTimeout)
 }
 
 // GetCursor returns one durable notification cursor by key.
@@ -105,7 +111,8 @@ func (g *GlobalDB) AdvanceCursor(
 		}
 	}()
 
-	rollbackCtx := context.WithoutCancel(ctx)
+	rollbackCtx, rollbackCancel := notificationCursorRollbackContext(ctx)
+	defer rollbackCancel()
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return notifications.Cursor{}, fmt.Errorf("store: begin notification cursor advance: %w", err)
 	}
@@ -167,7 +174,8 @@ func (g *GlobalDB) ResetCursor(
 		}
 	}()
 
-	rollbackCtx := context.WithoutCancel(ctx)
+	rollbackCtx, rollbackCancel := notificationCursorRollbackContext(ctx)
+	defer rollbackCancel()
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return notifications.Cursor{}, fmt.Errorf("store: begin notification cursor reset: %w", err)
 	}
@@ -193,7 +201,7 @@ func (g *GlobalDB) ResetCursor(
 func (g *GlobalDB) RecordCursorError(
 	ctx context.Context,
 	report notifications.CursorError,
-) (notifications.Cursor, error) {
+) (cursor notifications.Cursor, err error) {
 	if err := g.checkReady(ctx, "record notification cursor error"); err != nil {
 		return notifications.Cursor{}, err
 	}
@@ -202,7 +210,30 @@ func (g *GlobalDB) RecordCursorError(
 		return notifications.Cursor{}, err
 	}
 
-	if _, err := g.db.ExecContext(
+	conn, err := g.db.Conn(ctx)
+	if err != nil {
+		return notifications.Cursor{}, fmt.Errorf("store: open notification cursor error transaction: %w", err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("store: close notification cursor error transaction connection: %w", closeErr)
+		}
+	}()
+
+	rollbackCtx, rollbackCancel := notificationCursorRollbackContext(ctx)
+	defer rollbackCancel()
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return notifications.Cursor{}, fmt.Errorf("store: begin notification cursor error record: %w", err)
+	}
+
+	finished := false
+	defer func() {
+		if !finished {
+			joinCleanupError(&err, rollbackImmediate(rollbackCtx, conn, "notification cursor error record"))
+		}
+	}()
+
+	if _, err := conn.ExecContext(
 		ctx,
 		`INSERT INTO notification_cursors (
 			consumer_id, stream_name, subject_id, last_sequence, last_delivery_id,
@@ -225,13 +256,17 @@ func (g *GlobalDB) RecordCursorError(
 			err,
 		)
 	}
-	cursor, found, err := loadNotificationCursor(ctx, g.db, normalized.Key)
+	cursor, found, err := loadNotificationCursor(ctx, conn, normalized.Key)
 	if err != nil {
 		return notifications.Cursor{}, err
 	}
 	if !found {
 		return notifications.Cursor{}, notifications.ErrCursorNotFound
 	}
+	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
+		return notifications.Cursor{}, fmt.Errorf("store: commit notification cursor error record: %w", err)
+	}
+	finished = true
 	return cursor, nil
 }
 

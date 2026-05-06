@@ -656,7 +656,7 @@ func redactTaskContextJSONValue(value any) any {
 	case map[string]any:
 		cleaned := make(map[string]any, len(typed))
 		for key, nested := range typed {
-			if strings.EqualFold(strings.TrimSpace(key), "claim_token") {
+			if isSensitiveTaskContextKey(key) {
 				continue
 			}
 			cleaned[key] = redactTaskContextJSONValue(nested)
@@ -673,6 +673,18 @@ func redactTaskContextJSONValue(value any) any {
 	default:
 		return value
 	}
+}
+
+func isSensitiveTaskContextKey(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	if normalized == "" {
+		return false
+	}
+	switch normalized {
+	case "claim_token", "mcp_auth_token", "oauth_code", "pkce_verifier", "secret_binding", "secret_bindings":
+		return true
+	}
+	return strings.HasPrefix(normalized, "agh_claim_") || strings.HasSuffix(normalized, "_secret")
 }
 
 func safeTaskContextText(value string, limit int) string {

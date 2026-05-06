@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pedronauck/agh/internal/notifications"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -148,6 +149,12 @@ type terminalTaskNotificationResolution struct {
 	diagnostic   error
 }
 
+type processTaskNotificationResult struct {
+	decision   terminalTaskNotificationDecision
+	diagnostic error
+	sequence   int64
+}
+
 func (n *TerminalTaskNotifier) checkReady() error {
 	switch {
 	case n == nil:
@@ -189,7 +196,7 @@ func (n *TerminalTaskNotifier) deliverSubscription(
 	var mismatchErr error
 	safeSequence := cursor.LastSequence
 	for _, record := range records {
-		outcome, delivered, updatedSequence, err := n.processTaskNotificationRecord(
+		result, err := n.processTaskNotificationRecord(
 			ctx,
 			cursorKey,
 			normalized,
@@ -198,6 +205,9 @@ func (n *TerminalTaskNotifier) deliverSubscription(
 		if err != nil {
 			return terminalTaskNotificationFailed, err
 		}
+		outcome := result.decision
+		delivered := result.diagnostic
+		updatedSequence := result.sequence
 		switch outcome {
 		case terminalTaskNotificationDecisionDeliver:
 			return terminalTaskNotificationDelivered, nil
@@ -239,9 +249,12 @@ func (n *TerminalTaskNotifier) processTaskNotificationRecord(
 	cursorKey notifications.CursorKey,
 	subscription BridgeTaskSubscription,
 	record taskpkg.EventRecord,
-) (terminalTaskNotificationDecision, error, int64, error) {
+) (processTaskNotificationResult, error) {
 	if !isTerminalTaskNotificationCandidate(record.Event.EventType) {
-		return terminalTaskNotificationDecisionIgnore, nil, record.Sequence, nil
+		return processTaskNotificationResult{
+			decision: terminalTaskNotificationDecisionIgnore,
+			sequence: record.Sequence,
+		}, nil
 	}
 
 	resolution, err := n.resolveTerminalTaskNotification(ctx, subscription, record)
@@ -249,23 +262,30 @@ func (n *TerminalTaskNotifier) processTaskNotificationRecord(
 		if recordErr := n.recordCursorError(ctx, cursorKey, err); recordErr != nil {
 			err = errors.Join(err, recordErr)
 		}
-		return terminalTaskNotificationDecisionIgnore, nil, 0, err
+		return processTaskNotificationResult{}, err
 	}
 	switch resolution.decision {
 	case terminalTaskNotificationDecisionMismatch:
-		return resolution.decision, resolution.diagnostic, record.Sequence, nil
+		return processTaskNotificationResult{
+			decision:   resolution.decision,
+			diagnostic: resolution.diagnostic,
+			sequence:   record.Sequence,
+		}, nil
 	case terminalTaskNotificationDecisionDefer:
-		return resolution.decision, nil, 0, nil
+		return processTaskNotificationResult{decision: resolution.decision}, nil
 	case terminalTaskNotificationDecisionDeliver:
 	default:
-		return terminalTaskNotificationDecisionIgnore, nil, record.Sequence, nil
+		return processTaskNotificationResult{
+			decision: terminalTaskNotificationDecisionIgnore,
+			sequence: record.Sequence,
+		}, nil
 	}
 
 	if err := n.deliverNotification(ctx, subscription, resolution.notification); err != nil {
 		if recordErr := n.recordCursorError(ctx, cursorKey, err); recordErr != nil {
 			err = errors.Join(err, recordErr)
 		}
-		return terminalTaskNotificationDecisionIgnore, nil, 0, err
+		return processTaskNotificationResult{}, err
 	}
 	if _, err := n.advanceTaskNotificationCursor(
 		ctx,
@@ -273,13 +293,16 @@ func (n *TerminalTaskNotifier) processTaskNotificationRecord(
 		record.Sequence,
 		resolution.notification.DeliveryID,
 	); err != nil {
-		return terminalTaskNotificationDecisionIgnore, nil, 0, fmt.Errorf(
+		return processTaskNotificationResult{}, fmt.Errorf(
 			"bridges: advance task notification cursor for subscription %q: %w",
 			subscription.SubscriptionID,
 			err,
 		)
 	}
-	return terminalTaskNotificationDecisionDeliver, nil, record.Sequence, nil
+	return processTaskNotificationResult{
+		decision: terminalTaskNotificationDecisionDeliver,
+		sequence: record.Sequence,
+	}, nil
 }
 
 func (n *TerminalTaskNotifier) advanceTaskNotificationCursor(
@@ -593,5 +616,9 @@ func truncateTerminalTaskCursorError(value string) string {
 	if len(trimmed) <= maxTerminalTaskCursorErrorBytes {
 		return trimmed
 	}
-	return trimmed[:maxTerminalTaskCursorErrorBytes]
+	cut := maxTerminalTaskCursorErrorBytes
+	for cut > 0 && !utf8.ValidString(trimmed[:cut]) {
+		cut--
+	}
+	return trimmed[:cut]
 }

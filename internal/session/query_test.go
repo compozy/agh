@@ -573,7 +573,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		}
 	})
 
-	t.Run("finalizing active session waits before reading a closed recorder handle", func(t *testing.T) {
+	t.Run("Should wait for finalization before reading a closed recorder handle", func(t *testing.T) {
 		h := newHarness(t)
 		session := createSession(t, h)
 
@@ -637,7 +637,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 				len(result.events),
 				result.err,
 			)
-		default:
+		case <-time.After(50 * time.Millisecond):
 		}
 
 		now := time.Now().UTC()
