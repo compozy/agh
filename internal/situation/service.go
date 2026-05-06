@@ -569,6 +569,17 @@ func (s *Service) reviewBindingTaskAndChannelContext(
 		}
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
 	}
+	if strings.TrimSpace(run.TaskID) != strings.TrimSpace(taskRecord.ID) {
+		slog.Warn(
+			"situation: skip review-bound context for mismatched task and run",
+			"session_id", strings.TrimSpace(sessionID),
+			"review_id", strings.TrimSpace(review.ReviewID),
+			"task_id", strings.TrimSpace(taskRecord.ID),
+			"run_id", strings.TrimSpace(run.ID),
+			"run_task_id", strings.TrimSpace(run.TaskID),
+		)
+		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", nil
+	}
 	bundle, err := s.sessionContextBundle(ctx, taskRecord, run, workspaceSnapshot, strings.TrimSpace(sessionID))
 	if err != nil {
 		return contract.AgentTaskContextPayload{}, contract.AgentCoordinationChannelContextPayload{}, "", err

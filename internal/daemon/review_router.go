@@ -187,6 +187,7 @@ func (r *reviewRouter) OnRunReviewRequested(
 			"run_id", notification.Review.RunID,
 			"error", err,
 		)
+		return
 	}
 	if routed || strings.TrimSpace(diagnostic) == "" {
 		return

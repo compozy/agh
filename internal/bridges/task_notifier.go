@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/notifications"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
@@ -419,21 +420,13 @@ func (n *TerminalTaskNotifier) resolveTerminalTaskNotification(
 		}
 	}
 
-	deliveryID := terminalTaskNotificationDeliveryID(subscription.SubscriptionID, record.Sequence)
+	notification, err := terminalTaskNotificationEnvelope(subscription, record, eventStatus, run)
+	if err != nil {
+		return terminalTaskNotificationResolution{}, err
+	}
 	return terminalTaskNotificationResolution{
-		decision: terminalTaskNotificationDecisionDeliver,
-		notification: TerminalTaskNotification{
-			DeliveryID:     deliveryID,
-			EventType:      record.Event.EventType,
-			Final:          true,
-			Seq:            record.Sequence,
-			TaskID:         subscription.TaskID,
-			RunID:          strings.TrimSpace(record.Event.RunID),
-			Status:         eventStatus,
-			Error:          taskpkg.RedactClaimTokens(strings.TrimSpace(run.Error)),
-			Payload:        cloneRawJSON(record.Event.Payload),
-			SubscriptionID: subscription.SubscriptionID,
-		},
+		decision:     terminalTaskNotificationDecisionDeliver,
+		notification: notification,
 	}, nil
 }
 
@@ -541,14 +534,111 @@ func (n *TerminalTaskNotifier) recordCursorError(
 	key notifications.CursorKey,
 	cause error,
 ) error {
+	lastError := redactTerminalTaskNotificationText(cause.Error())
 	if _, err := n.cursors.RecordError(ctx, notifications.CursorError{
 		Key:       key,
-		LastError: truncateTerminalTaskCursorError(cause.Error()),
+		LastError: truncateTerminalTaskCursorError(lastError),
 		Now:       n.now(),
 	}); err != nil {
 		return fmt.Errorf("bridges: record terminal task notification cursor error: %w", err)
 	}
 	return nil
+}
+
+func terminalTaskNotificationEnvelope(
+	subscription BridgeTaskSubscription,
+	record taskpkg.EventRecord,
+	eventStatus taskpkg.Status,
+	run taskpkg.Run,
+) (TerminalTaskNotification, error) {
+	payload, err := redactTerminalTaskNotificationPayload(cloneRawJSON(record.Event.Payload))
+	if err != nil {
+		return TerminalTaskNotification{}, err
+	}
+	return TerminalTaskNotification{
+		DeliveryID:     terminalTaskNotificationDeliveryID(subscription.SubscriptionID, record.Sequence),
+		EventType:      record.Event.EventType,
+		Final:          true,
+		Seq:            record.Sequence,
+		TaskID:         subscription.TaskID,
+		RunID:          strings.TrimSpace(record.Event.RunID),
+		Status:         eventStatus,
+		Error:          redactTerminalTaskNotificationText(strings.TrimSpace(run.Error)),
+		Payload:        payload,
+		SubscriptionID: subscription.SubscriptionID,
+	}, nil
+}
+
+func redactTerminalTaskNotificationPayload(raw json.RawMessage) (json.RawMessage, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("bridges: decode terminal task notification payload: %w", err)
+	}
+	encoded, err := json.Marshal(redactTerminalTaskNotificationValue(payload))
+	if err != nil {
+		return nil, fmt.Errorf("bridges: encode terminal task notification payload: %w", err)
+	}
+	return json.RawMessage(encoded), nil
+}
+
+func redactTerminalTaskNotificationValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		redacted := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			if terminalTaskNotificationKeyCarriesSecret(key) {
+				redacted[key] = "[REDACTED]"
+				continue
+			}
+			redacted[key] = redactTerminalTaskNotificationValue(nested)
+		}
+		return redacted
+	case []any:
+		redacted := make([]any, 0, len(typed))
+		for _, nested := range typed {
+			redacted = append(redacted, redactTerminalTaskNotificationValue(nested))
+		}
+		return redacted
+	case string:
+		return redactTerminalTaskNotificationText(typed)
+	default:
+		return typed
+	}
+}
+
+func redactTerminalTaskNotificationText(value string) string {
+	return diagnostics.Redact(taskpkg.RedactClaimTokens(value))
+}
+
+func terminalTaskNotificationKeyCarriesSecret(key string) bool {
+	normalized := strings.NewReplacer("_", "", "-", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(key)))
+	if normalized == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"claimtoken",
+		"apikey",
+		"accesstoken",
+		"refreshtoken",
+		"mcpauthtoken",
+		"oauthcode",
+		"authorizationcode",
+		"codeverifier",
+		"pkceverifier",
+		"secretbinding",
+		"authorization",
+		"password",
+		"secret",
+		"token",
+	} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func isTerminalTaskNotificationCandidate(eventType string) bool {

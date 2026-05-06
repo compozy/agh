@@ -574,6 +574,8 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 	})
 
 	t.Run("Should wait for finalization before reading a closed recorder handle", func(t *testing.T) {
+		t.Parallel()
+
 		h := newHarness(t)
 		session := createSession(t, h)
 
@@ -846,6 +848,34 @@ func compareQueriedSessionEvents(want []store.SessionEvent, got []store.SessionE
 				index,
 				got[index].Sequence,
 				want[index].Sequence,
+			)
+		}
+		if got[index].SessionID != want[index].SessionID {
+			return fmt.Errorf("event[%d].session_id = %q, want %q", index, got[index].SessionID, want[index].SessionID)
+		}
+		if got[index].TurnID != want[index].TurnID {
+			return fmt.Errorf("event[%d].turn_id = %q, want %q", index, got[index].TurnID, want[index].TurnID)
+		}
+		if got[index].Type != want[index].Type {
+			return fmt.Errorf("event[%d].type = %q, want %q", index, got[index].Type, want[index].Type)
+		}
+		if got[index].AgentName != want[index].AgentName {
+			return fmt.Errorf(
+				"event[%d].agent_name = %q, want %q",
+				index,
+				got[index].AgentName,
+				want[index].AgentName,
+			)
+		}
+		if got[index].Content != want[index].Content {
+			return fmt.Errorf("event[%d].content = %q, want %q", index, got[index].Content, want[index].Content)
+		}
+		if !got[index].Timestamp.Equal(want[index].Timestamp) {
+			return fmt.Errorf(
+				"event[%d].timestamp = %s, want %s",
+				index,
+				got[index].Timestamp.UTC().Format(time.RFC3339Nano),
+				want[index].Timestamp.UTC().Format(time.RFC3339Nano),
 			)
 		}
 	}

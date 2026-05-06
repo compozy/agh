@@ -417,82 +417,90 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 func TestTaskStoreStubListRunReviewsSortsBeforeApplyingLimit(t *testing.T) {
 	t.Parallel()
 
-	store := taskStoreStub{
-		reviews: map[string]taskpkg.RunReview{
-			"review-older": {
-				ReviewID:  "review-older",
-				TaskID:    "task-1",
-				Status:    taskpkg.RunReviewStatusInReview,
-				UpdatedAt: fixedTime().Add(time.Minute),
-			},
-			"review-newer": {
-				ReviewID:  "review-newer",
-				TaskID:    "task-1",
-				Status:    taskpkg.RunReviewStatusInReview,
-				UpdatedAt: fixedTime().Add(2 * time.Minute),
-			},
-		},
-	}
+	t.Run("Should sort reviews before applying the limit", func(t *testing.T) {
+		t.Parallel()
 
-	reviews, err := store.ListRunReviews(context.Background(), taskpkg.RunReviewQuery{
-		TaskID: "task-1",
-		Limit:  1,
+		store := taskStoreStub{
+			reviews: map[string]taskpkg.RunReview{
+				"review-older": {
+					ReviewID:  "review-older",
+					TaskID:    "task-1",
+					Status:    taskpkg.RunReviewStatusInReview,
+					UpdatedAt: fixedTime().Add(time.Minute),
+				},
+				"review-newer": {
+					ReviewID:  "review-newer",
+					TaskID:    "task-1",
+					Status:    taskpkg.RunReviewStatusInReview,
+					UpdatedAt: fixedTime().Add(2 * time.Minute),
+				},
+			},
+		}
+
+		reviews, err := store.ListRunReviews(context.Background(), taskpkg.RunReviewQuery{
+			TaskID: "task-1",
+			Limit:  1,
+		})
+		if err != nil {
+			t.Fatalf("ListRunReviews() error = %v", err)
+		}
+		if got, want := len(reviews), 1; got != want {
+			t.Fatalf("len(reviews) = %d, want %d", got, want)
+		}
+		if got, want := reviews[0].ReviewID, "review-newer"; got != want {
+			t.Fatalf("reviews[0].ReviewID = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("ListRunReviews() error = %v", err)
-	}
-	if got, want := len(reviews), 1; got != want {
-		t.Fatalf("len(reviews) = %d, want %d", got, want)
-	}
-	if got, want := reviews[0].ReviewID, "review-newer"; got != want {
-		t.Fatalf("reviews[0].ReviewID = %q, want %q", got, want)
-	}
 }
 
 func TestTaskRunPromptOverlayByIDRejectsMismatchedRunTaskPair(t *testing.T) {
 	t.Parallel()
 
-	taskRecord := taskpkg.Task{
-		ID:          "task-overlay",
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: "ws-overlay",
-		Title:       "Overlay task",
-		Status:      taskpkg.TaskStatusInProgress,
-	}
-	mismatchedRun := taskpkg.Run{
-		ID:         "run-other-task",
-		TaskID:     "task-other",
-		Status:     taskpkg.TaskRunStatusRunning,
-		SessionID:  "sess-overlay",
-		QueuedAt:   fixedTime(),
-		ClaimedAt:  fixedTime(),
-		StartedAt:  fixedTime(),
-		LeaseUntil: fixedTime().Add(time.Minute),
-	}
-	cfg := workspaceConfigWithTaskDefaults()
-	service := NewService(Deps{
-		Now: fixedNow,
-		WorkspaceResolver: workspaceResolverFunc(
-			func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
-				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspacepkg.Workspace{ID: "ws-overlay", Name: "AGH", RootDir: "/work/agh"},
-					Config:    cfg,
-				}, nil
-			},
-		),
-		TaskStore: taskStoreStub{
-			tasks: map[string]taskpkg.Task{taskRecord.ID: taskRecord},
-			runs:  []taskpkg.Run{mismatchedRun},
-		},
-	})
+	t.Run("Should reject run ids that belong to another task", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := service.TaskRunPromptOverlayByID(context.Background(), taskRecord.ID, mismatchedRun.ID)
-	if !errors.Is(err, taskpkg.ErrValidation) {
-		t.Fatalf("TaskRunPromptOverlayByID() error = %v, want %v", err, taskpkg.ErrValidation)
-	}
-	if err == nil || !strings.Contains(err.Error(), "belongs to task") {
-		t.Fatalf("TaskRunPromptOverlayByID() error = %v, want mismatched task detail", err)
-	}
+		taskRecord := taskpkg.Task{
+			ID:          "task-overlay",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-overlay",
+			Title:       "Overlay task",
+			Status:      taskpkg.TaskStatusInProgress,
+		}
+		mismatchedRun := taskpkg.Run{
+			ID:         "run-other-task",
+			TaskID:     "task-other",
+			Status:     taskpkg.TaskRunStatusRunning,
+			SessionID:  "sess-overlay",
+			QueuedAt:   fixedTime(),
+			ClaimedAt:  fixedTime(),
+			StartedAt:  fixedTime(),
+			LeaseUntil: fixedTime().Add(time.Minute),
+		}
+		cfg := workspaceConfigWithTaskDefaults()
+		service := NewService(Deps{
+			Now: fixedNow,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-overlay", Name: "AGH", RootDir: "/work/agh"},
+						Config:    cfg,
+					}, nil
+				},
+			),
+			TaskStore: taskStoreStub{
+				tasks: map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+				runs:  []taskpkg.Run{mismatchedRun},
+			},
+		})
+
+		_, err := service.TaskRunPromptOverlayByID(context.Background(), taskRecord.ID, mismatchedRun.ID)
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("TaskRunPromptOverlayByID() error = %v, want %v", err, taskpkg.ErrValidation)
+		}
+		if err == nil || !strings.Contains(err.Error(), "belongs to task") {
+			t.Fatalf("TaskRunPromptOverlayByID() error = %v, want mismatched task detail", err)
+		}
+	})
 }
 
 func TestBundleForOperatorTaskRejectsOversizedUntrimmableBundle(t *testing.T) {
@@ -622,6 +630,84 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 			payload.CoordinationChannel.Channel == nil ||
 			payload.CoordinationChannel.Channel.ID != "reviews" {
 			t.Fatalf("CoordinationChannel = %#v, want reviewer channel", payload.CoordinationChannel)
+		}
+	})
+
+	t.Run("Should skip review-bound context when the stored run belongs to another task", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskpkg.Task{
+			ID:          "task-review",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-review",
+			Title:       "Review context",
+			Status:      taskpkg.TaskStatusInProgress,
+		}
+		run := taskpkg.Run{
+			ID:                    "run-mismatched",
+			TaskID:                "task-other",
+			Status:                taskpkg.TaskRunStatusCompleted,
+			SessionID:             "sess-worker",
+			CoordinationChannelID: "reviews",
+			StartedAt:             fixedTime(),
+			EndedAt:               fixedTime().Add(10 * time.Minute),
+		}
+		review := taskpkg.RunReview{
+			ReviewID:          "review-bound",
+			TaskID:            taskRecord.ID,
+			RunID:             run.ID,
+			Status:            taskpkg.RunReviewStatusInReview,
+			Policy:            taskpkg.ReviewPolicyAlways,
+			ReviewRound:       1,
+			Attempt:           1,
+			ReviewerSessionID: "sess-reviewer",
+			ReviewerAgentName: "reviewer",
+			ReviewerChannelID: "reviews",
+		}
+		service := NewService(Deps{
+			Now: fixedNow,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-review", Name: "AGH", RootDir: "/work/agh"},
+						Config:    workspaceConfigWithTaskDefaults(),
+					}, nil
+				},
+			),
+			AgentResolver: agentResolverFunc(func(string, *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error) {
+				return aghconfig.AgentDef{Name: "reviewer", Provider: "codex", Model: "gpt-review"}, nil
+			}),
+			TaskStore: taskStoreStub{
+				tasks:   map[string]taskpkg.Task{taskRecord.ID: taskRecord},
+				runs:    []taskpkg.Run{run},
+				reviews: map[string]taskpkg.RunReview{review.ReviewID: review},
+			},
+		})
+
+		payload, err := service.ContextForSession(context.Background(), &session.Info{
+			ID:          "sess-reviewer",
+			AgentName:   "reviewer",
+			Provider:    "codex",
+			WorkspaceID: "ws-review",
+			Workspace:   "/work/agh",
+			Channel:     "reviews",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateActive,
+			CreatedAt:   fixedTime(),
+			UpdatedAt:   fixedTime(),
+		})
+		if err != nil {
+			t.Fatalf("ContextForSession(reviewer mismatch) error = %v", err)
+		}
+		if payload.Task.Available || payload.Task.Task != nil || payload.Task.Bundle != nil ||
+			payload.Task.Lease != nil {
+			t.Fatalf("Task context = %#v, want no mismatched review-bound task context", payload.Task)
+		}
+		if payload.CoordinationChannel.Available || payload.CoordinationChannel.Channel != nil {
+			t.Fatalf(
+				"CoordinationChannel = %#v, want no mismatched review channel context",
+				payload.CoordinationChannel,
+			)
 		}
 	})
 }

@@ -271,8 +271,8 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		if err := sessions.stopContextErr(); err != nil {
 			t.Fatalf("StopWithCause() context err = %v, want detached timeout context", err)
 		}
-		if got, want := len(tasks.records), 1; got != want {
-			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
+		if got := len(tasks.records); got != 0 {
+			t.Fatalf("RecordRunReview calls = %d, want 0 after transient bind failure", got)
 		}
 	})
 
@@ -370,6 +370,43 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should not record a no-route diagnostic when routing fails transiently", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{
+					AllowedPeerIDs: []string{"peer-missing"},
+				},
+			},
+		}
+		store := reviewRouterStoreForTest()
+		store.runErr = context.DeadlineExceeded
+		sessions := &coordinatorRuntimeSessions{
+			infos: []*session.Info{
+				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+			},
+		}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			store,
+			sessions,
+			reviewRouterAgentResolverStub{"worker": reviewRouterAgentDef("worker")},
+		)
+
+		notification := reviewRouterNotificationForTest()
+		router.OnRunReviewRequested(context.Background(), &notification)
+
+		if len(tasks.binds) != 0 {
+			t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
+		}
+		if got := len(tasks.records); got != 0 {
+			t.Fatalf("RecordRunReview calls = %d, want 0 after transient routing failure", got)
+		}
+	})
 }
 
 func newReviewRouterForTest(
@@ -462,11 +499,16 @@ func reviewRouterAgentDef(name string, capabilities ...string) aghconfig.AgentDe
 type reviewRouterStoreStub struct {
 	taskRecord            taskpkg.Task
 	run                   taskpkg.Run
+	taskErr               error
+	runErr                error
 	rejectCanceledContext bool
 	requireDeadline       bool
 }
 
 func (s *reviewRouterStoreStub) GetTask(ctx context.Context, id string) (taskpkg.Task, error) {
+	if s.taskErr != nil {
+		return taskpkg.Task{}, s.taskErr
+	}
 	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
 		return taskpkg.Task{}, ctx.Err()
 	}
@@ -482,6 +524,9 @@ func (s *reviewRouterStoreStub) GetTask(ctx context.Context, id string) (taskpkg
 }
 
 func (s *reviewRouterStoreStub) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error) {
+	if s.runErr != nil {
+		return taskpkg.Run{}, s.runErr
+	}
 	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
 		return taskpkg.Run{}, ctx.Err()
 	}

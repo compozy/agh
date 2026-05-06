@@ -368,6 +368,89 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		}
 	})
 
+	t.Run("Should redact secret-bearing payload fields before emitting provider metadata", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		subscription := bridgeTaskSubscriptionForNotifierTest()
+		cursorStore := newMemoryCursorStore()
+		transport := &fakeDeliveryTransport{}
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+			task: taskpkg.Task{
+				ID:     "task-1",
+				Status: taskpkg.TaskStatusFailed,
+			},
+			runs: []taskpkg.Run{{
+				ID:     "run-1",
+				TaskID: "task-1",
+				Status: taskpkg.TaskRunStatusFailed,
+				Error:  `{"mcp_auth_token":"mcp-secret"}`,
+			}},
+			records: []taskpkg.EventRecord{{
+				Sequence: 7,
+				Event: taskpkg.Event{
+					ID:        "evt-7",
+					TaskID:    "task-1",
+					RunID:     "run-1",
+					EventType: terminalTaskEventRunFailed,
+					Actor: taskpkg.ActorIdentity{
+						Kind: taskpkg.ActorKindDaemon,
+						Ref:  "task-manager",
+					},
+					Origin: taskpkg.Origin{
+						Kind: taskpkg.OriginKindDaemon,
+						Ref:  "task-manager",
+					},
+					Payload: json.RawMessage(
+						`{"message":"saw agh_claim_EVENT_SECRET","claim_token":"agh_claim_EVENT_SECRET","mcp_auth_token":"mcp-secret","oauth_code":"oauth-secret","pkce_verifier":"pkce-secret","nested":{"token":"agh_claim_NESTED_SECRET","secret_binding":"vault-ref","session_secret":"super-secret"}}`,
+					),
+					Timestamp: terminalTaskNotifierTestTime(),
+				},
+			}},
+		})
+
+		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		if err != nil {
+			t.Fatalf("DeliverDue() error = %v", err)
+		}
+		if sweep.Delivered != 1 {
+			t.Fatalf("DeliverDue() sweep = %#v, want one delivered notification", sweep)
+		}
+		calls := transport.snapshotCalls()
+		if len(calls) != 1 {
+			t.Fatalf("delivery calls = %d, want 1", len(calls))
+		}
+
+		var envelope TerminalTaskNotification
+		if err := json.Unmarshal(calls[0].request.Event.ProviderMetadata, &envelope); err != nil {
+			t.Fatalf("Unmarshal(provider metadata) error = %v", err)
+		}
+		encodedPayload, err := json.Marshal(envelope.Payload)
+		if err != nil {
+			t.Fatalf("Marshal(envelope payload) error = %v", err)
+		}
+		encodedText := string(encodedPayload)
+		for _, leaked := range []string{
+			"agh_claim_EVENT_SECRET",
+			"agh_claim_NESTED_SECRET",
+			"mcp-secret",
+			"oauth-secret",
+			"pkce-secret",
+			"vault-ref",
+			"super-secret",
+		} {
+			if strings.Contains(encodedText, leaked) {
+				t.Fatalf("provider payload leaked %q: %s", leaked, encodedText)
+			}
+		}
+		if !strings.Contains(encodedText, "agh_claim_[REDACTED]") {
+			t.Fatalf("provider payload = %s, want redacted claim token marker", encodedText)
+		}
+		if !strings.Contains(string(calls[0].request.Event.ProviderMetadata), "[REDACTED]") {
+			t.Fatalf("provider metadata = %s, want redaction marker", string(calls[0].request.Event.ProviderMetadata))
+		}
+	})
+
 	t.Run("Should skip superseded terminal events and deliver the accepted final event", func(t *testing.T) {
 		t.Parallel()
 
@@ -485,6 +568,61 @@ func TestTruncateTerminalTaskCursorError(t *testing.T) {
 		}
 		if got != strings.Repeat("a", maxTerminalTaskCursorErrorBytes-1) {
 			t.Fatalf("truncateTerminalTaskCursorError() = %q, want safe cut before multi-byte rune", got)
+		}
+	})
+
+	t.Run("Should redact cursor diagnostics before persisting them", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		subscription := bridgeTaskSubscriptionForNotifierTest()
+		cursorStore := newMemoryCursorStore()
+		transport := &fakeDeliveryTransport{
+			handler: func(context.Context, string, DeliveryRequest) (DeliveryAck, error) {
+				return DeliveryAck{}, errors.New(
+					`bridge failed: Bearer oauth-secret claim_token=agh_claim_secret-123 ` +
+						`mcp_auth_token=mcp-secret secret_binding=vault-ref`,
+				)
+			},
+		}
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+			task: taskpkg.Task{
+				ID:     "task-1",
+				Status: taskpkg.TaskStatusCompleted,
+			},
+			runs: []taskpkg.Run{{
+				ID:     "run-1",
+				TaskID: "task-1",
+				Status: taskpkg.TaskRunStatusCompleted,
+			}},
+			records: []taskpkg.EventRecord{terminalTaskEventRecordForTest(
+				7,
+				"evt-7",
+				"task-1",
+				"run-1",
+				terminalTaskEventRunCompleted,
+			)},
+		})
+
+		_, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		if err == nil {
+			t.Fatal("DeliverDue() error = nil, want delivery failure")
+		}
+
+		cursor, cursorErr := cursorStore.GetCursor(ctx, subscription.CursorKey())
+		if cursorErr != nil {
+			t.Fatalf("GetCursor() error = %v", cursorErr)
+		}
+		for _, leaked := range []string{"agh_claim_secret-123", "oauth-secret", "mcp-secret", "vault-ref"} {
+			if strings.Contains(cursor.LastError, leaked) {
+				t.Fatalf("cursor.LastError leaked %q: %q", leaked, cursor.LastError)
+			}
+		}
+		if !strings.Contains(cursor.LastError, "agh_claim_[REDACTED]") {
+			t.Fatalf("cursor.LastError = %q, want redacted claim token marker", cursor.LastError)
+		}
+		if !strings.Contains(cursor.LastError, "[REDACTED]") {
+			t.Fatalf("cursor.LastError = %q, want redacted diagnostic marker", cursor.LastError)
 		}
 	})
 }
